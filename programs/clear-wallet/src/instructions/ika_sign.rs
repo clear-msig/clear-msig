@@ -1,0 +1,254 @@
+//! Drive an approved proposal through Ika `approve_message`.
+//!
+//! Parallel execution path to `execute`. Where `execute` runs Solana CPIs
+//! locally, `ika_sign`:
+//!
+//!   1. Verifies the proposal is Approved and timelock-elapsed.
+//!   2. Looks up the (wallet, chain_kind) -> dWallet binding from `IkaConfig`.
+//!   3. Builds the destination-chain transaction sighash from the intent's
+//!      params + tx_template via `crate::chains::dispatch_sighash`.
+//!   4. CPIs Ika `approve_message` so the dWallet network will produce a
+//!      signature valid for the destination chain.
+//!
+//! After this instruction succeeds, the proposal is marked Executed and the
+//! resulting `MessageApproval` PDA exists on-chain. An off-chain relayer can
+//! then ferry the signature back to the destination chain.
+
+use quasar_lang::{prelude::*, sysvars::Sysvar as _};
+
+use crate::{
+    chains::{dispatch_sighash, ChainKind},
+    instructions::bind_dwallet::{ClearWalletProgram, DWalletProgramInterface},
+    state::{
+        dwallet_ownership::{DwalletOwnership, DWALLET_OWNERSHIP_SEED},
+        ika_config::IkaConfig,
+        intent::Intent,
+        proposal::{Proposal, ProposalStatus},
+        wallet::ClearWallet,
+    },
+    utils::ika_cpi::{DWalletContext, CPI_AUTHORITY_SEED},
+};
+
+#[derive(Accounts)]
+pub struct IkaSign<'info> {
+    pub payer: &'info mut Signer,
+    pub wallet: Account<ClearWallet<'info>>,
+    #[account(
+        mut,
+        has_one = wallet,
+        constraint = intent.is_approved() @ ProgramError::InvalidArgument,
+    )]
+    pub intent: Account<Intent<'info>>,
+    /// `proposer` and `rent_refund` are recorded in Proposal at propose-time
+    /// but not passed back into this instruction; suppress the cross-instruction
+    /// drift warning explicitly.
+    #[allow(quasar::cross_instruction)]
+    #[account(
+        mut,
+        has_one = wallet,
+        has_one = intent,
+        constraint = proposal.status == ProposalStatus::Approved @ ProgramError::InvalidArgument
+    )]
+    pub proposal: Account<Proposal<'info>>,
+    /// IkaConfig PDA at `["ika_config", wallet, &[intent.chain_kind]]`.
+    /// The chain_kind seed lives inside intent account data and is not
+    /// available to declarative seed expressions, so the PDA derivation is
+    /// verified inside the handler.
+    #[allow(quasar::unconstrained)]
+    #[allow(quasar::unchecked_account)]
+    pub ika_config: &'info UncheckedAccount,
+    /// DwalletOwnership PDA at `["dwallet_owner", dwallet]`. Verified to
+    /// claim `self.wallet` so a non-owning clear-msig wallet cannot drive
+    /// `ika_sign` against a dWallet bound by someone else.
+    #[allow(quasar::unchecked_account)]
+    #[account(
+        seeds = [b"dwallet_owner", dwallet],
+        bump,
+    )]
+    pub dwallet_ownership: &'info UncheckedAccount,
+    /// External Ika-owned dWallet. Address-checked against `ika_config.dwallet`
+    /// in the handler and validated by the Ika `approve_message` CPI itself.
+    #[allow(quasar::unconstrained)]
+    #[allow(quasar::unchecked_account)]
+    #[allow(quasar::writable_no_authority)]
+    #[account(mut)]
+    pub dwallet: &'info mut UncheckedAccount,
+    /// MessageApproval PDA created by the Ika program. Caller passes its
+    /// expected address; bump is supplied as an arg.
+    #[allow(quasar::unconstrained)]
+    #[allow(quasar::unchecked_account)]
+    #[allow(quasar::writable_no_authority)]
+    #[account(mut)]
+    pub message_approval: &'info mut UncheckedAccount,
+    /// DWalletCoordinator PDA (required by Ika's `approve_message` for epoch).
+    /// Validated by the Ika program at CPI time.
+    #[allow(quasar::unconstrained)]
+    #[allow(quasar::unchecked_account)]
+    pub coordinator: &'info UncheckedAccount,
+    /// Clear-wallet's program-wide CPI authority PDA.
+    #[allow(quasar::unchecked_account)]
+    #[account(
+        seeds = [b"__ika_cpi_authority"],
+        bump,
+    )]
+    pub cpi_authority: &'info UncheckedAccount,
+    /// Clear-wallet program account (executable).
+    pub caller_program: &'info Program<ClearWalletProgram>,
+    /// Ika dWallet program. Address differs per network so we accept any
+    /// program here; the CPI itself fails if the program is wrong.
+    #[allow(quasar::unconstrained)]
+    #[allow(quasar::unchecked_account)]
+    pub dwallet_program: &'info Interface<DWalletProgramInterface>,
+    pub system_program: &'info Program<System>,
+}
+
+pub struct IkaSignArgs {
+    pub message_approval_bump: u8,
+    pub cpi_authority_bump: u8,
+    /// Pre-computed BLAKE2b hashes for Zcash ZIP-243 preimage.
+    /// [hashPrevouts(32), hashSequence(32), hashOutputs(32)]
+    /// Empty/zeroed for non-Zcash chains.
+    pub blake2b_hashes: [u8; 96],
+}
+
+impl<'info> IkaSign<'info> {
+    pub fn ika_sign(&mut self, args: IkaSignArgs) -> Result<(), ProgramError> {
+        let clock = Clock::get()?;
+        let approved_at = self.proposal.approved_at.get();
+        let timelock = self.intent.timelock_seconds.get() as i64;
+        require!(
+            clock.unix_timestamp.get() >= approved_at + timelock,
+            ProgramError::InvalidArgument
+        );
+
+        // The intent must be a remote-chain intent — Solana intents go through
+        // `execute`.
+        let kind = ChainKind::from_u8(self.intent.chain_kind)?;
+        require!(kind.is_remote(), ProgramError::InvalidArgument);
+
+        // Decode and verify the IkaConfig binding (wallet, chain_kind, dwallet).
+        // SAFETY: clear-wallet owns the IkaConfig PDA, no other accounts in
+        // this instruction alias it.
+        let cfg_data = unsafe { self.ika_config.to_account_view().borrow_unchecked() };
+        let ika_config = IkaConfig::read(cfg_data)?;
+
+        // Also verify the IkaConfig PDA address matches the expected derivation.
+        let chain_byte = [self.intent.chain_kind];
+        let (expected_cfg, _) = Address::find_program_address(
+            &[b"ika_config", self.wallet.address().as_ref(), &chain_byte],
+            &crate::ID,
+        );
+        require_keys_eq!(
+            *self.ika_config.address(),
+            expected_cfg,
+            ProgramError::InvalidSeeds
+        );
+
+        require_keys_eq!(
+            ika_config.wallet,
+            *self.wallet.address(),
+            ProgramError::InvalidArgument
+        );
+        require!(
+            ika_config.chain_kind == self.intent.chain_kind,
+            ProgramError::InvalidArgument
+        );
+        require_keys_eq!(
+            ika_config.dwallet,
+            *self.dwallet.address(),
+            ProgramError::InvalidArgument
+        );
+
+        // Build the destination-chain sighash from intent + proposal params.
+        let params_data = self.proposal.params_data();
+        let tx_template = self.intent.tx_template_bytes()?;
+
+        // For Solana chain, read the dWallet's Ed25519 pubkey from the account.
+        // Layout: disc(1) + version(1) + authority(32) + curve(2) + state(1) +
+        //         pk_len(1) + pk(32 for Ed25519).
+        let signer_pubkey = if self.intent.chain_kind == 0 {
+            let dw = unsafe { self.dwallet.to_account_view().borrow_unchecked() };
+            if dw.len() >= 70 {
+                let mut pk = [0u8; 32];
+                pk.copy_from_slice(&dw[38..70]);
+                Some(pk)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let message_hash = dispatch_sighash(
+            &self.intent,
+            params_data,
+            tx_template,
+            &args.blake2b_hashes,
+            signer_pubkey.as_ref(),
+        )?;
+
+        // CPI Ika `approve_message`.
+        // Verify the program-wide CPI authority PDA (defense in depth).
+        let (expected_cpi_auth, _) = Address::find_program_address(
+            &[CPI_AUTHORITY_SEED],
+            &crate::ID,
+        );
+        require_keys_eq!(
+            *self.cpi_authority.address(),
+            expected_cpi_auth,
+            ProgramError::InvalidSeeds
+        );
+
+        // Verify the DwalletOwnership lock claims this wallet. The dwallet's
+        // on-chain authority is shared (program-wide CPI PDA), so we enforce
+        // per-wallet ownership here at the clear-wallet layer.
+        let wallet_addr = *self.wallet.address();
+        let dwallet_addr = *self.dwallet.address();
+        let (expected_ownership, _) = Address::find_program_address(
+            &[DWALLET_OWNERSHIP_SEED, dwallet_addr.as_ref()],
+            &crate::ID,
+        );
+        require_keys_eq!(
+            *self.dwallet_ownership.address(),
+            expected_ownership,
+            ProgramError::InvalidSeeds
+        );
+        // SAFETY: clear-wallet owns the DwalletOwnership PDA; no aliases.
+        let ownership_data = unsafe { self.dwallet_ownership.to_account_view().borrow_unchecked() };
+        let ownership = DwalletOwnership::read(ownership_data)?;
+        require_keys_eq!(ownership.wallet, wallet_addr, ProgramError::InvalidArgument);
+        require_keys_eq!(ownership.dwallet, dwallet_addr, ProgramError::InvalidArgument);
+
+        let ctx = DWalletContext {
+            dwallet_program: self.dwallet_program.to_account_view(),
+            cpi_authority: self.cpi_authority.to_account_view(),
+            caller_program: self.caller_program.to_account_view(),
+            cpi_authority_bump: args.cpi_authority_bump,
+        };
+
+        let user_pubkey: [u8; 32] = ika_config.user_pubkey.to_bytes();
+        let message_metadata_digest = crate::chains::dispatch_metadata_digest(
+            self.intent.chain_kind,
+            tx_template,
+        );
+        ctx.approve_message(
+            self.coordinator.to_account_view(),
+            self.message_approval.to_account_view(),
+            self.dwallet.to_account_view(),
+            self.payer.to_account_view(),
+            self.system_program.to_account_view(),
+            message_hash,
+            message_metadata_digest,
+            user_pubkey,
+            ika_config.signature_scheme,
+            args.message_approval_bump,
+        )?;
+
+        // Mark the proposal Executed and decrement the intent's open count.
+        self.proposal.status = ProposalStatus::Executed;
+        let count = self.intent.active_proposal_count.get();
+        self.intent.active_proposal_count = PodU16::from(count).saturating_sub(1);
+
+        Ok(())
+    }
+}

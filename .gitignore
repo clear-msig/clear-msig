@@ -1,0 +1,26 @@
+target/
+test-ledger/
+.DS_Store
+
+# Keypairs and secrets — never commit.
+backend-api/keys/
+*.keypair.json
+# Don't block solana-keygen default CLI config which lives outside the repo.
+!.config/
+# Environment files (per-service .env kept for templates only).
+
+
+# Node
+frontend/node_modules/
+frontend/.next
+.next/
+.vercel/
+.turbo/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor
+.idea/
+.vscode/
+*.swp

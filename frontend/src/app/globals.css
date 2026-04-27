@@ -1,0 +1,123 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: #f4f4f5;
+  color: #18181b;
+  /* Base sans-serif stack . overridden per-page by Tailwind font-sans/display/mono. */
+  font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+html {
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  overflow-x: hidden;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* ── accessibility ─────────────────────────────────────────────────── */
+
+*:focus-visible {
+  outline: 2px solid #72b90d;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Reduced motion: disable non-essential decorative animations. Critical
+   animations (hover transitions, page transitions) still play because
+   they're coded via framer-motion which respects `useReducedMotion()`
+   directly in each component. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Better scrollbar for desktop dark UI . keeps the page feeling premium. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(114, 185, 13, 0.25);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(114, 185, 13, 0.5);
+  background-clip: content-box;
+}
+
+/* ── wallet-adapter overrides ──────────────────────────────────────── */
+
+.wallet-adapter-modal-list,
+.wallet-adapter-modal-wrapper .wallet-adapter-modal-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.wallet-adapter-modal-list li {
+  margin-bottom: 4px !important;
+}
+
+.wallet-adapter-button {
+  background-color: #72b90d !important;
+  color: #000000 !important;
+  font-weight: 600 !important;
+  border-radius: 9999px !important;
+  transition: all 0.25s ease !important;
+}
+
+.wallet-adapter-button:hover {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  transform: translateY(-1px);
+}
+
+/* ── utility classes reused across landing + app ──────────────────── */
+
+.hide-scroll::-webkit-scrollbar {
+  display: none;
+}
+.hide-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.text-pretty {
+  text-wrap: pretty;
+}
