@@ -44,7 +44,7 @@ export function AnimatedBlob() {
     >
       <Canvas camera={{ position: [0, 0, 5] }} dpr={[1, 1.5]} gl={{ antialias: false }}>
         <ambientLight intensity={1.5} />
-        <directionalLight position={[5, 10, 5]} intensity={3} color="#72b90d" />
+        <directionalLight position={[5, 10, 5]} intensity={3} color="#16a34a" />
         <directionalLight position={[-5, -10, -5]} intensity={1} color="#ffffff" />
         <Blob />
       </Canvas>

@@ -5,15 +5,15 @@ const config: Config = {
   theme: {
     extend: {
       // ── Design tokens ────────────────────────────────────────────────
-      // Keep the existing palette (brand-green #72b90d is used throughout
+      // Keep the existing palette (brand-green #16a34a is used throughout
       // the app and by the wallet-adapter override in globals.css). New
       // tokens are additive.
       colors: {
         background: "#f4f4f5",
         surface: "#000000",
         "surface-soft": "#18181b",
-        "brand-green": "#72b90d",
-        "brand-green-bright": "#a3e635",
+        "brand-green": "#16a34a",
+        "brand-green-bright": "#22c55e",
         "brand-emerald": "#10b981",
         "brand-white": "#ffffff",
         "text-primary": "#18181b",
@@ -45,12 +45,12 @@ const config: Config = {
         "ultra-tight": "-0.04em",
       },
       boxShadow: {
-        glow: "0 10px 30px -10px rgba(114, 185, 13, 0.5)",
-        "glow-hover": "0 20px 40px -10px rgba(114, 185, 13, 0.7)",
-        "glow-strong": "0 0 60px -10px rgba(114, 185, 13, 0.6)",
+        glow: "0 10px 30px -10px rgba(22, 163, 74, 0.30)",
+        "glow-hover": "0 20px 40px -10px rgba(22, 163, 74, 0.40)",
+        "glow-strong": "0 0 60px -10px rgba(22, 163, 74, 0.35)",
         "card-shadow": "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
         "card-dark": "0 20px 45px -15px rgba(0, 0, 0, 0.65)",
-        "inner-glow": "inset 0 0 0 1px rgba(114, 185, 13, 0.2)",
+        "inner-glow": "inset 0 0 0 1px rgba(22, 163, 74, 0.15)",
       },
       animation: {
         "pulse-glow": "pulseGlow 8s cubic-bezier(0.4, 0, 0.6, 1) infinite",
@@ -83,9 +83,9 @@ const config: Config = {
       },
       backgroundImage: {
         "hero-grid":
-          "radial-gradient(circle at 50% 0%, rgba(114,185,13,0.08), transparent 60%)",
+          "radial-gradient(circle at 50% 0%, rgba(22,163,74,0.08), transparent 60%)",
         "hero-noise":
-          "linear-gradient(135deg, rgba(114,185,13,0.06) 0%, rgba(0,0,0,0.04) 100%)",
+          "linear-gradient(135deg, rgba(22,163,74,0.06) 0%, rgba(0,0,0,0.04) 100%)",
         "skeleton-shimmer":
           "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0) 100%)",
       },

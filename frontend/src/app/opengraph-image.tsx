@@ -40,7 +40,7 @@ export default async function OpengraphImage() {
             width: 620,
             height: 620,
             borderRadius: 620,
-            background: "radial-gradient(circle, rgba(114,185,13,0.5) 0%, rgba(114,185,13,0) 70%)",
+            background: "radial-gradient(circle, rgba(22,163,74,0.5) 0%, rgba(22,163,74,0) 70%)",
             filter: "blur(40px)",
           }}
         />
@@ -75,7 +75,7 @@ export default async function OpengraphImage() {
                 alignItems: "center",
                 justifyContent: "center",
                 borderRadius: 14,
-                background: "#72b90d",
+                background: "#16a34a",
               }}
             >
               <div
@@ -87,7 +87,7 @@ export default async function OpengraphImage() {
                   justifyContent: "center",
                   borderRadius: 10,
                   background: "#000",
-                  color: "#72b90d",
+                  color: "#16a34a",
                   fontSize: 26,
                   fontWeight: 900,
                   fontFamily: "monospace",
@@ -126,10 +126,10 @@ export default async function OpengraphImage() {
               alignItems: "center",
               gap: 8,
               padding: "8px 14px",
-              border: "1px solid rgba(114,185,13,0.4)",
+              border: "1px solid rgba(22,163,74,0.4)",
               borderRadius: 999,
-              background: "rgba(114,185,13,0.12)",
-              color: "#a3e635",
+              background: "rgba(22,163,74,0.12)",
+              color: "#22c55e",
               fontSize: 14,
               fontWeight: 700,
               letterSpacing: 2,
@@ -142,7 +142,7 @@ export default async function OpengraphImage() {
                 width: 8,
                 height: 8,
                 borderRadius: 999,
-                background: "#a3e635",
+                background: "#22c55e",
               }}
             />
             Live on devnet
@@ -185,7 +185,7 @@ export default async function OpengraphImage() {
               style={{
                 display: "flex",
                 background:
-                  "linear-gradient(90deg, #10b981 0%, #72b90d 60%, #a3e635 100%)",
+                  "linear-gradient(90deg, #10b981 0%, #16a34a 60%, #22c55e 100%)",
                 backgroundClip: "text",
                 color: "transparent",
               }}

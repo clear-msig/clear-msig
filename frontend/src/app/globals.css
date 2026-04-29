@@ -36,7 +36,7 @@ body {
 /* ── accessibility ─────────────────────────────────────────────────── */
 
 *:focus-visible {
-  outline: 2px solid #72b90d;
+  outline: 2px solid #16a34a;
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -65,13 +65,13 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(114, 185, 13, 0.25);
+  background: rgba(22, 163, 74, 0.25);
   border-radius: 9999px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(114, 185, 13, 0.5);
+  background: rgba(22, 163, 74, 0.5);
   background-clip: content-box;
 }
 
@@ -91,7 +91,7 @@ body {
 }
 
 .wallet-adapter-button {
-  background-color: #72b90d !important;
+  background-color: #16a34a !important;
   color: #000000 !important;
   font-weight: 600 !important;
   border-radius: 9999px !important;

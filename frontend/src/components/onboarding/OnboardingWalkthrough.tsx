@@ -7,10 +7,11 @@
 // Transitions are pure transform + opacity so they stay GPU-accelerated
 // at 60fps even on mid-tier mobile.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, X } from "lucide-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useOnboarding } from "@/lib/hooks/useOnboarding";
 
 interface Slide {
@@ -39,7 +40,16 @@ const SLIDES: Slide[] = [
 
 export function OnboardingWalkthrough() {
   const { hydrated, completed, complete } = useOnboarding();
+  const { connected } = useWallet();
   const [step, setStep] = useState(0);
+
+  // Auto-dismiss the moment a wallet connects, regardless of how the user
+  // got to the wallet-selector — they could have clicked Connect on the
+  // last slide, or skipped to the homepage and connected from the header.
+  // Either way, the walkthrough has served its purpose; keep going.
+  useEffect(() => {
+    if (connected && !completed) complete();
+  }, [connected, completed, complete]);
 
   if (!hydrated || completed) return null;
 
@@ -118,7 +128,6 @@ export function OnboardingWalkthrough() {
 
             {isLast ? (
               <WalletMultiButton
-                onClick={complete}
                 className="!h-auto !rounded-full !bg-black !px-5 !py-2.5 !text-sm !font-semibold !text-white hover:!bg-black/85"
               />
             ) : (

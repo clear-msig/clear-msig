@@ -73,11 +73,11 @@ export function ScrollGuide() {
           <span className="absolute inset-0 w-[2px] -translate-x-1/2 bg-black/10" />
           <motion.span
             style={{ height: fillHeight }}
-            className="absolute left-1/2 top-0 w-[2px] -translate-x-1/2 bg-gradient-to-b from-brand-emerald via-brand-green to-brand-green-bright shadow-[0_0_14px_rgba(114,185,13,0.55)]"
+            className="absolute left-1/2 top-0 w-[2px] -translate-x-1/2 bg-gradient-to-b from-brand-emerald via-brand-green to-brand-green-bright shadow-[0_0_14px_rgba(22,163,74,0.55)]"
           />
           <motion.span
             style={{ top: dotY }}
-            className="pointer-events-auto absolute left-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full bg-brand-green-bright shadow-[0_0_18px_rgba(163,230,53,0.7)]"
+            className="pointer-events-auto absolute left-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full bg-brand-green-bright shadow-[0_0_18px_rgba(34,197,94,0.7)]"
             onClick={scrollToVault}
           >
             <span className="absolute inset-0 animate-ping rounded-full bg-brand-green-bright/50" />
@@ -120,7 +120,7 @@ function RailCap({
       ? "border-black/15 bg-white/80 text-black/60 shadow-sm"
       : tone === "green"
       ? "border-brand-green/40 bg-black text-brand-green shadow-glow"
-      : "border-brand-green-bright/70 bg-black text-brand-green-bright shadow-[0_0_32px_rgba(163,230,53,0.6)]";
+      : "border-brand-green-bright/70 bg-black text-brand-green-bright shadow-[0_0_32px_rgba(34,197,94,0.6)]";
   return <div className={`${base} ${toneClass}`}>{icon}</div>;
 }
 

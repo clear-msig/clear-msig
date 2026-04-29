@@ -103,19 +103,19 @@ export function SystemCircuitSection() {
                 <path
                   d="M 32 0 L 0 0 0 32"
                   fill="none"
-                  stroke="rgba(114,185,13,0.06)"
+                  stroke="rgba(22,163,74,0.06)"
                   strokeWidth="1"
                 />
               </pattern>
               <linearGradient id={greenGradId} x1="0" y1="0" x2="1" y2="0">
                 <stop offset="0%" stopColor="#10b981" />
-                <stop offset="55%" stopColor="#72b90d" />
-                <stop offset="100%" stopColor="#a3e635" />
+                <stop offset="55%" stopColor="#16a34a" />
+                <stop offset="100%" stopColor="#22c55e" />
               </linearGradient>
               <linearGradient id={cyanGradId} x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#72b90d" />
+                <stop offset="0%" stopColor="#16a34a" />
                 <stop offset="60%" stopColor="#22d3ee" />
-                <stop offset="100%" stopColor="#a3e635" />
+                <stop offset="100%" stopColor="#22c55e" />
               </linearGradient>
               <filter id={glowId} x="-50%" y="-50%" width="200%" height="200%">
                 <feGaussianBlur stdDeviation="3" />
@@ -144,7 +144,7 @@ export function SystemCircuitSection() {
                 <circle
                   key={`${leg.id}-packet-${i}`}
                   r={i === 0 ? 4 : 2.5}
-                  fill={leg.tone === "green" ? "#a3e635" : "#7dd3fc"}
+                  fill={leg.tone === "green" ? "#22c55e" : "#7dd3fc"}
                   opacity={i === 0 ? 0.95 : 0.45}
                   style={{ filter: `url(#${glowId})` }}
                 >
@@ -188,7 +188,7 @@ function NodeGlyph({ node }: { node: CircuitNode }) {
       ? "#c4b5fd"
       : node.accent === "warm"
       ? "#fb923c"
-      : "#a3e635";
+      : "#22c55e";
 
   const bg =
     node.accent === "cyan"
@@ -197,7 +197,7 @@ function NodeGlyph({ node }: { node: CircuitNode }) {
       ? "rgba(251,191,36,0.08)"
       : node.accent === "violet"
       ? "rgba(196,181,253,0.08)"
-      : "rgba(163,230,53,0.08)";
+      : "rgba(34,197,94,0.08)";
 
   return (
     <g>
