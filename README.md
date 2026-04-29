@@ -6,6 +6,10 @@ All transaction signing goes through the Ika dWallet network. There is no vault 
 
 Built with [Quasar](https://github.com/blueshift-gg/quasar). Fork of [`ChewingGlass/clear-msig`](https://github.com/ChewingGlass/clear-msig).
 
+> **Pre-alpha — do not use with real funds.** The on-chain `clear-wallet` program runs only on Solana devnet. Ika's dWallet network is a single mock signer, not production 2PC-MPC. Devnet state is wiped periodically. APIs, account layouts, and signed-message formats can change without notice.
+
+See [DEPLOYMENTS.md](DEPLOYMENTS.md) for the deployed program ID and Ika endpoints.
+
 ## Supported Chains
 
 | `chain` value | Curve | Signing Scheme | What it signs |
@@ -60,23 +64,44 @@ Proposal (PDA: ["proposal", intent, index])
 
 ## Quick Start
 
-### Prerequisites
+### Try the live devnet deployment
 
-- Rust, [Quasar CLI](https://github.com/blueshift-gg/quasar), Agave v3.1+
-
-### Build
+The fastest path. Build the CLI, fund a payer at https://faucet.solana.com/, and run the bootstrap script — it does the entire propose → approve → execute → broadcast flow against the existing devnet program:
 
 ```bash
-quasar build                        # On-chain program
-cargo build -p clear-msig-cli       # CLI
+cargo build -p clear-msig-cli
+./scripts/cli-demo-bootstrap.sh
 ```
 
-### Deploy + Configure
+The script generates fresh keypairs in `~/clear-msig-demo/`, prompts you to fund the payer when needed, and prints the final broadcast tx URL. Re-runnable; each invocation creates a new wallet.
+
+### Build from source
+
+#### Prerequisites
+
+- Rust (stable), [Quasar CLI](https://github.com/blueshift-gg/quasar), Agave v3.1+
+- `protoc` (for the Ika gRPC client) — `brew install protobuf` or `apt-get install protobuf-compiler`
+- OpenSSL dev headers — on macOS: `brew install openssl@3 pkg-config` and `export OPENSSL_DIR=$(brew --prefix openssl@3)`
+
+#### Build
+
+```bash
+quasar build                        # On-chain program → target/deploy/clear_wallet.so
+cargo build -p clear-msig-cli       # CLI → target/debug/clear-msig
+```
+
+### Deploy your own copy + Configure
 
 ```bash
 solana program deploy target/deploy/clear_wallet.so
+# Update declare_id! in programs/clear-wallet/src/lib.rs and pub const ID in
+# programs/clear-wallet/client/src/lib.rs to match the program ID you got back,
+# then rebuild + re-upload to the same keypair (target/deploy/clear_wallet-keypair.json).
+
 clear-msig config set --url https://api.devnet.solana.com
+clear-msig config set --payer  ~/.config/solana/id.json
 clear-msig config set --signer ~/.config/solana/id.json
+clear-msig config set --expiry-seconds 600
 ```
 
 ### Create a 2-of-3 Multisig
@@ -208,3 +233,4 @@ examples/intents/ Intent JSON files for all chains
 - Requires Agave v3.1+ (SBPFv2 r2 data pointer)
 - Ika pre-alpha: mock signer, not production MPC
 - Solana intents require a durable nonce account with authority set to the dWallet pubkey
+- Quasar IDL lint stage is disabled in `Quasar.toml`. Field-level `#[allow(quasar::*)]` suppressions are wrapped in `#[cfg_attr(target_os = "solana", ...)]` so the host build doesn't trip on the unknown tool name; that gating also hides them from Quasar's lint parser, which only unwraps plain `#[allow(...)]`. The on-chain runtime checks all the same invariants regardless. Re-enable lint once Quasar's parser unwraps `cfg_attr`.
