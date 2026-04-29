@@ -22,6 +22,7 @@ import { useEffect, useState } from "react";
 import { useReducedMotion } from "framer-motion";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { ConstellationBackground } from "@/components/layout/ConstellationBackground";
+import { HeaderBar } from "@/components/layout/HeaderBar";
 import { PreAlphaBanner } from "@/components/layout/PreAlphaBanner";
 import { HeroSection } from "@/components/landing/HeroSection";
 import { ProblemSection } from "@/components/landing/ProblemSection";
@@ -63,6 +64,7 @@ export default function HomePage() {
 
   return (
     <main className="relative flex flex-col items-center overflow-x-clip bg-background font-sans">
+      <HeaderBar />
       <ConstellationBackground />
       {!reduce && <BouncingRings />}
       {!reduce && isMdUp && <AnimatedBlob />}
