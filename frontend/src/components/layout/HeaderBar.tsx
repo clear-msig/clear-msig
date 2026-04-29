@@ -8,10 +8,11 @@
 //
 // Animations are transform/opacity only to stay GPU-accelerated at 60fps.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
 import { Menu, X, LogOut, Wallet, Github, RefreshCcw, Home as HomeIcon } from "lucide-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -115,6 +116,10 @@ function MenuDrawer({ open, onClose, connected, disconnect, showIntro, pathname 
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  // Trap Tab inside the drawer while open and restore focus on close.
+  const drawerRef = useRef<HTMLElement>(null);
+  useFocusTrap(drawerRef, open);
+
   // Intents & proposals are wallet-scoped tabs now (/app/wallet/[name]
   // → tabs), so the menu only needs Home + Wallets at the top level.
   const links = [
@@ -136,9 +141,11 @@ function MenuDrawer({ open, onClose, connected, disconnect, showIntro, pathname 
             aria-hidden="true"
           />
           <motion.aside
+            ref={drawerRef}
             role="dialog"
             aria-modal="true"
             aria-label="Site navigation"
+            tabIndex={-1}
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}

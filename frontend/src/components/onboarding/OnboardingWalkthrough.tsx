@@ -7,12 +7,13 @@
 // Transitions are pure transform + opacity so they stay GPU-accelerated
 // at 60fps even on mid-tier mobile.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, X } from "lucide-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useOnboarding } from "@/lib/hooks/useOnboarding";
+import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
 import { OnboardingDiagram } from "@/components/onboarding/OnboardingDiagram";
 
 interface Slide {
@@ -47,6 +48,8 @@ export function OnboardingWalkthrough() {
   const { hydrated, completed, complete } = useOnboarding();
   const { connected } = useWallet();
   const [step, setStep] = useState(0);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, hydrated && !completed);
 
   // Auto-dismiss the moment a wallet connects, regardless of how the user
   // got to the wallet-selector — they could have clicked Connect on the
@@ -75,6 +78,7 @@ export function OnboardingWalkthrough() {
 
   return (
     <motion.div
+      ref={dialogRef}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -83,6 +87,7 @@ export function OnboardingWalkthrough() {
       role="dialog"
       aria-modal="true"
       aria-labelledby="onboarding-title"
+      tabIndex={-1}
     >
       <motion.div
         initial={{ opacity: 0, y: 16, scale: 0.96 }}

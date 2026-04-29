@@ -667,8 +667,10 @@ function IntentTablePanel({
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-white/5">
         {loading ? (
-          <div className="flex h-24 items-center justify-center text-xs text-text-muted">
-            loading intents…
+          <div className="flex flex-col gap-1.5 p-2">
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} tone="dark" className="h-9 rounded-lg" />
+            ))}
           </div>
         ) : active.length === 0 ? (
           <div className="flex h-24 items-center justify-center text-xs text-text-muted">
@@ -810,8 +812,10 @@ function RecentProposalsPanel({
 
       <div className="mt-4">
         {loading ? (
-          <div className="flex h-16 items-center justify-center text-xs text-text-muted">
-            loading…
+          <div className="flex flex-col gap-2">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} tone="dark" className="h-12 rounded-2xl" />
+            ))}
           </div>
         ) : sorted.length === 0 ? (
           <div className="flex h-16 items-center justify-center text-xs text-text-muted">
