@@ -85,11 +85,12 @@ export function OnboardingWalkthrough() {
         transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
         className="relative mx-4 w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl"
       >
-        {/* Skip - top right */}
+        {/* Skip - top right. Dismisses the walkthrough; the landing page
+            then shows the Connect Wallet button in the header. */}
         <button
           onClick={complete}
-          className="absolute right-4 top-4 z-10 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-black/40 transition-colors hover:bg-black/5 hover:text-black/80"
-          aria-label="Skip walkthrough"
+          className="absolute right-4 top-4 z-10 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-black/40 transition-colors hover:bg-black/5 hover:text-black/80"
+          aria-label="Skip walkthrough and go to connect wallet"
         >
           Skip <X size={12} />
         </button>

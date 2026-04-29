@@ -9,7 +9,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-const STORAGE_KEY = "clear-msig.onboarding.completed";
+// v2 — bumped because the v1 flag was set on every developer/tester
+// browser before the walkthrough had its current form. Bumping the key
+// forces a fresh first-visit experience for everyone.
+const STORAGE_KEY = "clear-msig.onboarding.completed.v2";
 
 export function useOnboarding() {
   // Default to completed=true so SSR renders the post-onboarding UI; the
