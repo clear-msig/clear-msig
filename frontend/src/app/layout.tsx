@@ -10,6 +10,7 @@
 
 import type { Metadata, Viewport } from "next";
 import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/react";
 import "@solana/wallet-adapter-react-ui/styles.css";
 import "./globals.css";
 import { AppProviders } from "@/components/providers/AppProviders";
@@ -73,7 +74,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#14F195",
+  themeColor: "#16a34a",
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
@@ -92,6 +93,11 @@ export default function RootLayout({
       </head>
       <body className="font-sans antialiased">
         <AppProviders>{children}</AppProviders>
+        {/* Vercel Analytics — privacy-friendly, zero-config, free. Only
+            collects pageviews + Web Vitals; no per-user fingerprinting.
+            Surfaces in the Vercel dashboard so the team has traction
+            numbers to quote in the pitch ("X visitors / Y in app"). */}
+        <Analytics />
       </body>
     </html>
   );
