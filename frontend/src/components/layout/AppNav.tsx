@@ -3,14 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { ClipboardList, Wallet, Zap } from "lucide-react";
+import { Wallet } from "lucide-react";
 import { motion } from "framer-motion";
 
-const tabs = [
-  { href: "/app/wallet", label: "Wallet", icon: Wallet },
-  { href: "/app/intents", label: "Intents", icon: ClipboardList },
-  { href: "/app/proposals", label: "Proposals", icon: Zap }
-];
+// Intents and Proposals used to be separate top-level routes. They're
+// now tabs inside /app/wallet/[name] so the workflow is wallet-scoped
+// instead of asking users to type a wallet name in three places.
+const tabs = [{ href: "/app/wallet", label: "Wallet", icon: Wallet }];
 
 export function AppNav({ mode }: { mode: "desktop" | "mobile" }) {
   const pathname = usePathname();

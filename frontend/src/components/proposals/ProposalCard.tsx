@@ -18,7 +18,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronRight, Loader2, ShieldCheck, Sparkles } from "lucide-react";
-import { appConfig } from "@/lib/config";
 import { CardShell } from "@/components/ui/CardShell";
 import { TypedParamInput } from "@/components/proposals/TypedParamInput";
 import { SignablePreview } from "@/components/proposals/SignablePreview";
@@ -37,9 +36,8 @@ import { backendApi } from "@/lib/api/endpoints";
 
 const DEFAULT_EXPIRY_WINDOW_SECS = 5 * 60; // 5 min . matches CLI default
 
-export function ProposalCard() {
+export function ProposalCard({ walletName }: { walletName: string }) {
   const toast = useToast();
-  const [walletName, setWalletName] = useState(appConfig.defaultWalletName);
 
   // Pull the wallet's intent table directly from chain. Only custom
   // intents (index 3+) can be proposed against.
@@ -201,25 +199,16 @@ export function ProposalCard() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
       >
-        {/* Wallet + intent selectors. */}
-        <div className="grid gap-3 md:grid-cols-[1fr_1.5fr]">
-          <LabelledField label="Wallet">
-            <input
-              value={walletName}
-              onChange={(e) => setWalletName(e.target.value)}
-              placeholder="treasury"
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-brand-white outline-none transition-colors focus:border-brand-green/50 focus:bg-white/10"
-            />
-          </LabelledField>
-          <LabelledField label="Intent">
-            <IntentPicker
-              intents={customIntents}
-              selectedIndex={selectedIndex}
-              onSelect={setSelectedIndex}
-              loading={intents.listQuery.isLoading}
-            />
-          </LabelledField>
-        </div>
+        {/* Intent selector — wallet name comes in via prop now that this
+            component is embedded in the wallet detail page. */}
+        <LabelledField label="Intent">
+          <IntentPicker
+            intents={customIntents}
+            selectedIndex={selectedIndex}
+            onSelect={setSelectedIndex}
+            loading={intents.listQuery.isLoading}
+          />
+        </LabelledField>
 
         {selectedIntent ? (
           <>

@@ -41,7 +41,6 @@ import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { useToast } from "@/components/ui/Toast";
 import { fromHex, unwrapOffchain } from "@/lib/msig";
 import { backendApi } from "@/lib/api/endpoints";
-import { appConfig } from "@/lib/config";
 import type {
   DryRunDescriptor,
   PrepareAddIntentInput,
@@ -117,12 +116,11 @@ const TEMPLATE_CATALOG: TemplateCatalogEntry[] = [
   },
 ];
 
-export function IntentCard() {
+export function IntentCard({ walletName }: { walletName: string }) {
   const toast = useToast();
   const gate = useWalletGate();
   const { signBytes, canSign } = useSignWithWallet();
 
-  const [walletName, setWalletName] = useState(appConfig.defaultWalletName);
   const [mode, setMode] = useState<Mode>("add");
   const workflow = useIntentWorkflow(walletName);
 
@@ -137,16 +135,7 @@ export function IntentCard() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
       >
-        <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-          <LabelledField label="Wallet">
-            <input
-              value={walletName}
-              onChange={(e) => setWalletName(e.target.value)}
-              placeholder="treasury"
-              spellCheck={false}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-brand-white outline-none transition-colors focus:border-brand-green/50 focus:bg-white/10"
-            />
-          </LabelledField>
+        <div className="flex justify-end">
           <LabelledField label="Mode">
             <ModeSegmented mode={mode} onChange={setMode} />
           </LabelledField>

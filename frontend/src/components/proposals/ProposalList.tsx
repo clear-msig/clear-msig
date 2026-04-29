@@ -10,7 +10,7 @@
 // fetched separately so we can render each proposal's action string.
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowRight,
@@ -27,7 +27,6 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { useIntentWorkflow } from "@/lib/hooks/useIntentWorkflow";
 import { useProposalWorkflow } from "@/lib/hooks/useProposalWorkflow";
-import { appConfig } from "@/lib/config";
 import {
   ProposalStatus,
   renderTemplateToString,
@@ -35,8 +34,7 @@ import {
   type ProposalAccount,
 } from "@/lib/msig";
 
-export function ProposalList() {
-  const [walletName, setWalletName] = useState(appConfig.defaultWalletName);
+export function ProposalList({ walletName }: { walletName: string }) {
   const { listQuery } = useProposalWorkflow(walletName, "");
   const { listQuery: intentsQuery } = useIntentWorkflow(walletName);
 
@@ -58,17 +56,6 @@ export function ProposalList() {
   return (
     <CardShell title="Recent proposals" subtitle="Live from Solana · click to open the signing view">
       <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-2">
-          <label className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
-            Wallet
-          </label>
-          <input
-            value={walletName}
-            onChange={(e) => setWalletName(e.target.value)}
-            className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-brand-white outline-none transition-colors focus:border-brand-green/50 focus:bg-white/10"
-          />
-        </div>
-
         <AnimatePresence initial={false}>
           {listQuery.isLoading ? (
             <motion.div

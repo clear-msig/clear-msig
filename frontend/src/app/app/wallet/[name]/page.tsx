@@ -19,18 +19,21 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
+  Activity,
   ArrowLeft,
   ArrowRight,
   BadgeCheck,
   Bitcoin,
   Check,
   CheckCircle2,
+  ClipboardList,
   Clock,
   Coins,
   Copy,
   Hash,
+  Layers,
   Leaf,
   Plug,
   ShieldCheck,
@@ -39,6 +42,10 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import type { LucideIcon as LucideIconType } from "lucide-react";
+import { IntentCard } from "@/components/intents/IntentCard";
+import { ProposalCard } from "@/components/proposals/ProposalCard";
+import { TxHistoryPanel } from "@/components/wallet/TxHistoryPanel";
 import type { LucideIcon } from "lucide-react";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { useQuery } from "@tanstack/react-query";
@@ -124,33 +131,155 @@ export default function WalletDetailPage() {
       ) : !wallet ? (
         <NotFoundState name={name} />
       ) : (
-        <>
-          <WalletHero wallet={wallet} bindings={bindingsQuery.data ?? []} intents={intentsQuery.data ?? []} />
-
-          <div className="grid gap-4 xl:grid-cols-[1.25fr_1fr]">
-            <ChainBindingsPanel
-              walletName={wallet.name}
-              bindings={bindingsQuery.data ?? []}
-              loading={bindingsQuery.isLoading}
-            />
-            <PdasPanel wallet={wallet} />
-          </div>
-
-          <IntentTablePanel
-            walletName={wallet.name}
-            intents={intentsQuery.data ?? []}
-            loading={intentsQuery.isLoading}
-          />
-
-          <RecentProposalsPanel
-            walletName={wallet.name}
-            proposals={proposalsQuery.data ?? []}
-            intents={intentsQuery.data ?? []}
-            loading={proposalsQuery.isLoading}
-          />
-        </>
+        <WalletDetailTabs
+          wallet={wallet}
+          bindings={bindingsQuery.data ?? []}
+          intents={intentsQuery.data ?? []}
+          proposals={proposalsQuery.data ?? []}
+          bindingsLoading={bindingsQuery.isLoading}
+          intentsLoading={intentsQuery.isLoading}
+          proposalsLoading={proposalsQuery.isLoading}
+        />
       )}
     </motion.section>
+  );
+}
+
+// ── tab shell ────────────────────────────────────────────────────────
+
+type TabId = "overview" | "intents" | "proposals" | "activity";
+
+const TABS: { id: TabId; label: string; Icon: LucideIconType }[] = [
+  { id: "overview", label: "Overview", Icon: Layers },
+  { id: "intents", label: "Intents", Icon: ClipboardList },
+  { id: "proposals", label: "Proposals", Icon: Zap },
+  { id: "activity", label: "Activity", Icon: Activity },
+];
+
+function WalletDetailTabs({
+  wallet,
+  bindings,
+  intents,
+  proposals,
+  bindingsLoading,
+  intentsLoading,
+  proposalsLoading,
+}: {
+  wallet: WalletWithPda;
+  bindings: ChainBindingWithPda[];
+  intents: IntentWithPda[];
+  proposals: ProposalWithPda[];
+  bindingsLoading: boolean;
+  intentsLoading: boolean;
+  proposalsLoading: boolean;
+}) {
+  const [tab, setTab] = useState<TabId>("overview");
+
+  return (
+    <div className="flex flex-col gap-4">
+      <WalletHero wallet={wallet} bindings={bindings} intents={intents} />
+
+      <nav
+        role="tablist"
+        aria-label="Wallet sections"
+        className="flex flex-wrap items-center gap-1 rounded-2xl border border-white/10 bg-white/[0.02] p-1"
+      >
+        {TABS.map(({ id, label, Icon }) => {
+          const active = tab === id;
+          return (
+            <button
+              key={id}
+              role="tab"
+              aria-selected={active}
+              onClick={() => setTab(id)}
+              className={[
+                "relative inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors sm:flex-none sm:px-4",
+                active ? "text-black" : "text-white/60 hover:text-white",
+              ].join(" ")}
+            >
+              {active && (
+                <motion.span
+                  layoutId="wallet-tab-active"
+                  className="absolute inset-0 rounded-xl bg-brand-green"
+                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                />
+              )}
+              <Icon size={13} className="relative z-10" />
+              <span className="relative z-10">{label}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      <AnimatePresence mode="wait">
+        {tab === "overview" && (
+          <motion.div
+            key="overview"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.2 }}
+            className="grid gap-4 xl:grid-cols-[1.25fr_1fr]"
+          >
+            <ChainBindingsPanel
+              walletName={wallet.name}
+              bindings={bindings}
+              loading={bindingsLoading}
+            />
+            <PdasPanel wallet={wallet} />
+          </motion.div>
+        )}
+
+        {tab === "intents" && (
+          <motion.div
+            key="intents"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.2 }}
+            className="flex flex-col gap-4"
+          >
+            <IntentCard walletName={wallet.name} />
+            <IntentTablePanel
+              walletName={wallet.name}
+              intents={intents}
+              loading={intentsLoading}
+            />
+          </motion.div>
+        )}
+
+        {tab === "proposals" && (
+          <motion.div
+            key="proposals"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.2 }}
+            className="flex flex-col gap-4"
+          >
+            <ProposalCard walletName={wallet.name} />
+            <RecentProposalsPanel
+              walletName={wallet.name}
+              proposals={proposals}
+              intents={intents}
+              loading={proposalsLoading}
+            />
+          </motion.div>
+        )}
+
+        {tab === "activity" && (
+          <motion.div
+            key="activity"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.2 }}
+          >
+            <TxHistoryPanel walletPda={wallet.pda} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 

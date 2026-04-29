@@ -12,7 +12,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, LogOut, Wallet, ClipboardList, Zap, Github, RefreshCcw, Home as HomeIcon } from "lucide-react";
+import { Menu, X, LogOut, Wallet, Github, RefreshCcw, Home as HomeIcon } from "lucide-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useOnboarding } from "@/lib/hooks/useOnboarding";
@@ -115,11 +115,11 @@ function MenuDrawer({ open, onClose, connected, disconnect, showIntro, pathname 
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  // Intents & proposals are wallet-scoped tabs now (/app/wallet/[name]
+  // → tabs), so the menu only needs Home + Wallets at the top level.
   const links = [
     { href: "/", label: "Home", Icon: HomeIcon },
     { href: "/app/wallet", label: "Wallets", Icon: Wallet },
-    { href: "/app/intents", label: "Intents", Icon: ClipboardList },
-    { href: "/app/proposals", label: "Proposals", Icon: Zap },
   ];
 
   return (
