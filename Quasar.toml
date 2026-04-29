@@ -12,7 +12,13 @@ framework = "quasar-svm"
 test = "cargo test tests::"
 
 [lint]
-enabled = true
+# Disabled because the project uses #[cfg_attr(target_os = "solana", allow(quasar::...))]
+# to keep field-level lint suppressions out of the host build, but Quasar's IDL
+# lint parser only recognizes plain #[allow(quasar::...)] and treats the cfg_attr-
+# wrapped form as if no suppression were present. Re-enable once Quasar's parser
+# unwraps cfg_attr (or once we move to a different suppression strategy).
+enabled = false
 
 [clients]
+path = "target/client"
 languages = ["rust"]

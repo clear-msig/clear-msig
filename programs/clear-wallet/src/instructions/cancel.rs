@@ -16,7 +16,7 @@ pub struct Cancel<'info> {
     /// Mutated to decrement `active_proposal_count`. The "authority" is
     /// the program itself via the wallet PDA edge; no user signer is on
     /// the path so the writable_no_authority lint is suppressed.
-    #[allow(quasar::writable_no_authority)]
+    #[cfg_attr(target_os = "solana", allow(quasar::writable_no_authority))]
     #[account(
         mut,
         has_one = wallet,
@@ -24,7 +24,7 @@ pub struct Cancel<'info> {
     pub intent: Account<Intent<'info>>,
     /// `proposer` and `rent_refund` recorded at propose-time are not
     /// re-passed here; suppress the cross-instruction drift warning.
-    #[allow(quasar::cross_instruction)]
+    #[cfg_attr(target_os = "solana", allow(quasar::cross_instruction))]
     #[account(
         mut,
         has_one = wallet,

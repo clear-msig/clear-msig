@@ -42,7 +42,7 @@ pub struct IkaSign<'info> {
     /// `proposer` and `rent_refund` are recorded in Proposal at propose-time
     /// but not passed back into this instruction; suppress the cross-instruction
     /// drift warning explicitly.
-    #[allow(quasar::cross_instruction)]
+    #[cfg_attr(target_os = "solana", allow(quasar::cross_instruction))]
     #[account(
         mut,
         has_one = wallet,
@@ -54,13 +54,13 @@ pub struct IkaSign<'info> {
     /// The chain_kind seed lives inside intent account data and is not
     /// available to declarative seed expressions, so the PDA derivation is
     /// verified inside the handler.
-    #[allow(quasar::unconstrained)]
-    #[allow(quasar::unchecked_account)]
+    #[cfg_attr(target_os = "solana", allow(quasar::unconstrained))]
+    #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
     pub ika_config: &'info UncheckedAccount,
     /// DwalletOwnership PDA at `["dwallet_owner", dwallet]`. Verified to
     /// claim `self.wallet` so a non-owning clear-msig wallet cannot drive
     /// `ika_sign` against a dWallet bound by someone else.
-    #[allow(quasar::unchecked_account)]
+    #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
     #[account(
         seeds = [b"dwallet_owner", dwallet],
         bump,
@@ -68,25 +68,26 @@ pub struct IkaSign<'info> {
     pub dwallet_ownership: &'info UncheckedAccount,
     /// External Ika-owned dWallet. Address-checked against `ika_config.dwallet`
     /// in the handler and validated by the Ika `approve_message` CPI itself.
-    #[allow(quasar::unconstrained)]
-    #[allow(quasar::unchecked_account)]
-    #[allow(quasar::writable_no_authority)]
+    #[cfg_attr(target_os = "solana", allow(quasar::unconstrained))]
+    #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
+    #[cfg_attr(target_os = "solana", allow(quasar::writable_no_authority))]
     #[account(mut)]
     pub dwallet: &'info mut UncheckedAccount,
     /// MessageApproval PDA created by the Ika program. Caller passes its
     /// expected address; bump is supplied as an arg.
-    #[allow(quasar::unconstrained)]
-    #[allow(quasar::unchecked_account)]
-    #[allow(quasar::writable_no_authority)]
+    #[cfg_attr(target_os = "solana", allow(quasar::unconstrained))]
+    #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
+    #[cfg_attr(target_os = "solana", allow(quasar::writable_no_authority))]
     #[account(mut)]
     pub message_approval: &'info mut UncheckedAccount,
     /// DWalletCoordinator PDA (required by Ika's `approve_message` for epoch).
     /// Validated by the Ika program at CPI time.
-    #[allow(quasar::unconstrained)]
-    #[allow(quasar::unchecked_account)]
+    #[cfg_attr(target_os = "solana", allow(quasar::unconstrained))]
+    #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
     pub coordinator: &'info UncheckedAccount,
     /// Clear-wallet's program-wide CPI authority PDA.
-    #[allow(quasar::unchecked_account)]
+    #[cfg_attr(target_os = "solana", allow(quasar::unconstrained))]
+    #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
     #[account(
         seeds = [b"__ika_cpi_authority"],
         bump,
@@ -96,8 +97,8 @@ pub struct IkaSign<'info> {
     pub caller_program: &'info Program<ClearWalletProgram>,
     /// Ika dWallet program. Address differs per network so we accept any
     /// program here; the CPI itself fails if the program is wrong.
-    #[allow(quasar::unconstrained)]
-    #[allow(quasar::unchecked_account)]
+    #[cfg_attr(target_os = "solana", allow(quasar::unconstrained))]
+    #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
     pub dwallet_program: &'info Interface<DWalletProgramInterface>,
     pub system_program: &'info Program<System>,
 }

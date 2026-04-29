@@ -7,7 +7,7 @@ pub struct CleanupProposal<'info> {
     /// `wallet`, `intent`, and `proposer` recorded at propose-time are not
     /// re-passed here (cleanup needs only the proposal and the rent refund
     /// recipient). Suppress the cross-instruction drift warnings.
-    #[allow(quasar::cross_instruction)]
+    #[cfg_attr(target_os = "solana", allow(quasar::cross_instruction))]
     #[account(
         has_one = rent_refund,
         close = rent_refund,
@@ -18,7 +18,7 @@ pub struct CleanupProposal<'info> {
     pub proposal: Account<Proposal<'info>>,
     /// Recipient of the proposal account's rent. Linked through the
     /// `has_one = rent_refund` above; no user signer is on the path.
-    #[allow(quasar::writable_no_authority)]
+    #[cfg_attr(target_os = "solana", allow(quasar::writable_no_authority))]
     #[account(mut)]
     pub rent_refund: &'info mut UncheckedAccount,
 }

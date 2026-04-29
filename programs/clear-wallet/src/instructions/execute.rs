@@ -20,11 +20,11 @@ pub struct Execute<'info> {
     /// Mutated for `intent_index` and `proposal_index` bookkeeping. The
     /// program owns the wallet PDA; no user signer is on the path so the
     /// writable_no_authority lint is suppressed.
-    #[allow(quasar::writable_no_authority)]
+    #[cfg_attr(target_os = "solana", allow(quasar::writable_no_authority))]
     #[account(mut)]
     pub wallet: Account<ClearWallet<'info>>,
     /// Vault PDA used as a CPI signer. Program-owned PDA; no user signer.
-    #[allow(quasar::writable_no_authority)]
+    #[cfg_attr(target_os = "solana", allow(quasar::writable_no_authority))]
     #[account(
         mut,
         seeds = [b"vault", wallet],
@@ -33,7 +33,7 @@ pub struct Execute<'info> {
     pub vault: &'info mut UncheckedAccount,
     /// Mutated to decrement `active_proposal_count` after execute. Same
     /// program-owned authority model as the wallet field.
-    #[allow(quasar::writable_no_authority)]
+    #[cfg_attr(target_os = "solana", allow(quasar::writable_no_authority))]
     #[account(
         mut,
         has_one = wallet,
@@ -41,7 +41,7 @@ pub struct Execute<'info> {
     pub intent: Account<Intent<'info>>,
     /// `proposer` and `rent_refund` recorded at propose-time are not
     /// re-passed here; suppress the cross-instruction drift warning.
-    #[allow(quasar::cross_instruction)]
+    #[cfg_attr(target_os = "solana", allow(quasar::cross_instruction))]
     #[account(
         mut,
         has_one = wallet,

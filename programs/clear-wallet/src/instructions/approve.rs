@@ -21,7 +21,7 @@ pub struct Approve<'info> {
     pub intent: Account<Intent<'info>>,
     /// `proposer` and `rent_refund` recorded at propose-time are not
     /// re-passed here; suppress the cross-instruction drift warning.
-    #[allow(quasar::cross_instruction)]
+    #[cfg_attr(target_os = "solana", allow(quasar::cross_instruction))]
     #[account(
         mut,
         has_one = wallet,

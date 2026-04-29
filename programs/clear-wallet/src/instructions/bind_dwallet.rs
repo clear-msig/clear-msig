@@ -69,23 +69,23 @@ pub struct BindDwallet<'info> {
     /// instruction's account list, so we cannot link `wallet` declaratively
     /// to anything in the struct. Suppression is documented; runtime safety
     /// is provided by the Account<ClearWallet> typing.
-    #[allow(quasar::unconstrained)]
+    #[cfg_attr(target_os = "solana", allow(quasar::unconstrained))]
     pub wallet: Account<ClearWallet<'info>>,
     /// IkaConfig PDA at `["ika_config", wallet, &[chain_kind]]`. The
     /// chain_kind seed comes from instruction data which is not available
     /// to a declarative seed expression, so the PDA derivation is verified
     /// inside the handler with `find_program_address` + `require_keys_eq!`.
-    #[allow(quasar::unconstrained)]
-    #[allow(quasar::unchecked_account)]
-    #[allow(quasar::writable_no_authority)]
+    #[cfg_attr(target_os = "solana", allow(quasar::unconstrained))]
+    #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
+    #[cfg_attr(target_os = "solana", allow(quasar::writable_no_authority))]
     #[account(mut)]
     pub ika_config: &'info mut UncheckedAccount,
     /// DwalletOwnership PDA at `["dwallet_owner", dwallet]`. Created on the
     /// first bind for this dWallet (init-once, immutable). On subsequent
     /// binds the handler verifies the recorded `wallet` equals `self.wallet`
     /// and rejects otherwise.
-    #[allow(quasar::unchecked_account)]
-    #[allow(quasar::writable_no_authority)]
+    #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
+    #[cfg_attr(target_os = "solana", allow(quasar::writable_no_authority))]
     #[account(
         mut,
         seeds = [b"dwallet_owner", dwallet],
@@ -95,13 +95,14 @@ pub struct BindDwallet<'info> {
     /// External Ika-owned dWallet account. Validated by the Ika program
     /// during the `transfer_ownership` CPI below; passing the wrong account
     /// here causes that CPI to fail.
-    #[allow(quasar::unconstrained)]
-    #[allow(quasar::unchecked_account)]
-    #[allow(quasar::writable_no_authority)]
+    #[cfg_attr(target_os = "solana", allow(quasar::unconstrained))]
+    #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
+    #[cfg_attr(target_os = "solana", allow(quasar::writable_no_authority))]
     #[account(mut)]
     pub dwallet: &'info mut UncheckedAccount,
     /// Program-wide CPI authority PDA, derived from `[CPI_AUTHORITY_SEED]`.
-    #[allow(quasar::unchecked_account)]
+    #[cfg_attr(target_os = "solana", allow(quasar::unconstrained))]
+    #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
     #[account(
         seeds = [b"__ika_cpi_authority"],
         bump,
@@ -113,8 +114,8 @@ pub struct BindDwallet<'info> {
     /// Ika dWallet program. Address differs per network (devnet, mainnet,
     /// local mock), so we accept any address here; the CPI itself fails if
     /// the program is wrong.
-    #[allow(quasar::unconstrained)]
-    #[allow(quasar::unchecked_account)]
+    #[cfg_attr(target_os = "solana", allow(quasar::unconstrained))]
+    #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
     pub dwallet_program: &'info Interface<DWalletProgramInterface>,
     pub system_program: &'info Program<System>,
 }

@@ -1,4 +1,6 @@
 #![no_std]
+#![cfg_attr(target_os = "solana", feature(register_tool))]
+#![cfg_attr(target_os = "solana", register_tool(quasar))]
 
 use quasar_lang::prelude::*;
 
@@ -14,7 +16,7 @@ pub mod utils;
 #[cfg(test)]
 mod tests;
 
-declare_id!("2jsLpMRZAJUJJ7weNhBJqVAgLjpngi6xTEPUbttmTUjA");
+declare_id!("ahVmthS8EwXMpckBQdxGeHmbFghxoqKBaFjSCizcvFL");
 
 #[program]
 pub mod clear_wallet {
