@@ -186,7 +186,7 @@ function WalletDetailTabs({
       <nav
         role="tablist"
         aria-label="Wallet sections"
-        className="flex flex-wrap items-center gap-1 rounded-2xl border border-white/10 bg-white/[0.02] p-1"
+        className="flex flex-wrap items-center gap-1 rounded-2xl border border-white/10 bg-black p-1 shadow-card-dark"
       >
         {TABS.map(({ id, label, Icon }) => {
           const active = tab === id;
@@ -291,15 +291,15 @@ function WalletDetailTabs({
 
 function Breadcrumb({ name }: { name: string }) {
   return (
-    <div className="flex items-center gap-2 text-xs text-text-muted">
+    <div className="flex items-center gap-2 text-xs">
       <Link
         href="/app/wallet"
-        className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 font-semibold uppercase tracking-wide text-white/70 transition-colors hover:border-brand-green/40 hover:text-brand-green"
+        className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white/80 px-3 py-1 font-semibold uppercase tracking-wide text-black/70 backdrop-blur transition-colors hover:border-brand-green/40 hover:text-brand-green"
       >
         <ArrowLeft size={12} /> Wallets
       </Link>
-      <span className="text-white/30">/</span>
-      <span className="rounded-full bg-white/5 px-3 py-1 font-mono text-[11px] text-white/70">
+      <span className="text-black/30">/</span>
+      <span className="rounded-full border border-black/10 bg-white/80 px-3 py-1 font-mono text-[11px] text-black/70 backdrop-blur">
         {name}
       </span>
     </div>
@@ -434,7 +434,7 @@ function ChainBindingsPanel({
   };
 
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+    <div className="rounded-3xl border border-white/10 bg-black p-5 shadow-card-dark">
       <div className="flex items-center justify-between">
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-widest text-brand-green">
@@ -552,7 +552,7 @@ function PdasPanel({ wallet }: { wallet: WalletWithPda }) {
     [wallet.name]
   );
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+    <div className="rounded-3xl border border-white/10 bg-black p-5 shadow-card-dark">
       <div className="text-[11px] font-semibold uppercase tracking-widest text-brand-green">
         On-chain addresses
       </div>
@@ -647,7 +647,7 @@ function IntentTablePanel({
 }) {
   const active = intents.filter((i) => i.account);
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+    <div className="rounded-3xl border border-white/10 bg-black p-5 shadow-card-dark">
       <div className="flex items-center justify-between">
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-widest text-brand-green">
@@ -794,7 +794,7 @@ function RecentProposalsPanel({
   }, [proposals]);
 
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5">
+    <div className="rounded-3xl border border-white/10 bg-black p-5 shadow-card-dark">
       <div className="flex items-center justify-between">
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-widest text-brand-green">

@@ -139,15 +139,15 @@ export default function ProposalDetailPage() {
 
 function Breadcrumb({ proposalPda }: { proposalPda: string }) {
   return (
-    <div className="flex items-center gap-2 text-xs text-text-muted">
+    <div className="flex items-center gap-2 text-xs">
       <Link
         href="/app/proposals"
-        className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 font-semibold uppercase tracking-wide text-white/70 transition-colors hover:border-brand-green/40 hover:text-brand-green"
+        className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white/80 px-3 py-1 font-semibold uppercase tracking-wide text-black/70 backdrop-blur transition-colors hover:border-brand-green/40 hover:text-brand-green"
       >
         <ArrowLeft size={12} /> Proposals
       </Link>
-      <span className="text-white/30">/</span>
-      <span className="rounded-full bg-white/5 px-3 py-1 font-mono text-[11px] text-white/70">
+      <span className="text-black/30">/</span>
+      <span className="rounded-full border border-black/10 bg-white/80 px-3 py-1 font-mono text-[11px] text-black/70 backdrop-blur">
         {shortPda(proposalPda)}
       </span>
       <ShareProposalButton proposalPda={proposalPda} />
@@ -302,7 +302,7 @@ function Loaded({
 
         {/* Sidebar. */}
         <div className="flex flex-col gap-4">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+          <div className="rounded-2xl border border-white/10 bg-black p-4 shadow-card-dark">
             {intent ? (
               <ApprovalBitmap
                 approvers={intent.approvers}
@@ -444,7 +444,7 @@ function ActionSummary({
   renderedAction: string | null;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+    <div className="rounded-2xl border border-white/10 bg-black p-5 shadow-card-dark">
       <div className="text-[11px] font-semibold uppercase tracking-widest text-brand-green">
         What's being proposed
       </div>
@@ -478,7 +478,7 @@ function ProposalMeta({
   proposalPda: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+    <div className="rounded-2xl border border-white/10 bg-black p-5 shadow-card-dark">
       <div className="text-[11px] font-semibold uppercase tracking-widest text-text-muted">
         Metadata
       </div>
@@ -689,7 +689,7 @@ function ActionPanel({
   };
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+    <div className="rounded-2xl border border-white/10 bg-black p-4 shadow-card-dark">
       <div className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-text-muted">
         Actions
       </div>
