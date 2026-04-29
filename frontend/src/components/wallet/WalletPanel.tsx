@@ -5,21 +5,37 @@ import { useState } from "react";
 import { appConfig } from "@/lib/config";
 import { CardShell } from "@/components/ui/CardShell";
 import { useWalletWorkflow } from "@/lib/hooks/useWalletWorkflow";
+import { useToast } from "@/components/ui/Toast";
 import { motion } from "framer-motion";
 
 export function WalletPanel() {
   const [walletName, setWalletName] = useState(appConfig.defaultWalletName);
   const [chain, setChain] = useState(appConfig.preAlpha.chain);
   const workflow = useWalletWorkflow(walletName);
+  const toast = useToast();
 
   const chainBindings = Array.isArray(workflow.chainsQuery.data)
     ? workflow.chainsQuery.data.length
     : 0;
 
   const addChain = () => {
-    workflow.addChainMutation.mutate({
-      chain
-    });
+    workflow.addChainMutation.mutate(
+      { chain },
+      {
+        onSuccess: () => {
+          toast.success(`Chain binding "${chain}" submitted`, {
+            details:
+              "The relayer ran the bind on Solana and pinged Ika's DKG. The chain bindings count will refresh in a moment.",
+          });
+        },
+        onError: (err) => {
+          toast.error(
+            err instanceof Error ? err.message : "Failed to bind chain",
+            { details: String(err) }
+          );
+        },
+      }
+    );
   };
 
   return (
@@ -87,13 +103,6 @@ export function WalletPanel() {
         Add chain binding
       </motion.button>
 
-      {workflow.addChainMutation.isSuccess ? (
-        <p className="mt-3 text-sm font-medium text-brand-green">Chain binding submitted successfully.</p>
-      ) : null}
-
-      {workflow.addChainMutation.error ? (
-        <p className="mt-3 text-sm text-rose-300">{String(workflow.addChainMutation.error)}</p>
-      ) : null}
     </CardShell>
   );
 }
