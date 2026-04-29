@@ -34,11 +34,11 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install protoc + OpenSSL (Linux)
+      - name: Install system deps (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y protobuf-compiler libssl-dev pkg-config
+          sudo apt-get install -y protobuf-compiler libssl-dev pkg-config libudev-dev
 
       - name: Install protoc + OpenSSL (macOS)
         if: runner.os == 'macOS'
