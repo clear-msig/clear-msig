@@ -8,8 +8,10 @@
 // parent form so it can rebuild the message body on every keystroke
 // and display the live preview.
 
-import { useMemo } from "react";
+import { useId, useMemo, useState } from "react";
+import { Bookmark, Check } from "lucide-react";
 import { ParamType } from "@/lib/msig";
+import { useAddressBook } from "@/lib/addressBook";
 
 interface Props {
   name: string;
@@ -49,6 +51,19 @@ export function TypedParamInput({
     return null;
   }, [type, value, decimals, unitHint]);
 
+  // Address-book autocomplete is only useful for Address-typed params.
+  // We expose a per-input <datalist> so the browser handles the
+  // suggestion popover natively (no library, no scroll-region).
+  const isAddress = type === ParamType.Address;
+  const datalistId = useId();
+  const addressBook = useAddressBook();
+  const matchingEntry = useMemo(() => {
+    if (!isAddress) return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    return addressBook.entries.find((e) => e.address === trimmed) ?? null;
+  }, [isAddress, value, addressBook.entries]);
+
   return (
     <label className="flex flex-col gap-1.5">
       <span className="flex items-baseline justify-between gap-2 text-[11px] font-medium uppercase tracking-wide text-text-muted">
@@ -64,6 +79,7 @@ export function TypedParamInput({
         spellCheck={false}
         autoComplete="off"
         placeholder={placeholder}
+        list={isAddress ? datalistId : undefined}
         onChange={(e) => onChange(e.target.value)}
         className={[
           "w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-brand-white outline-none transition-colors",
@@ -72,12 +88,95 @@ export function TypedParamInput({
           fontClass,
         ].join(" ")}
       />
+      {isAddress && addressBook.hydrated && addressBook.entries.length > 0 && (
+        <datalist id={datalistId}>
+          {addressBook.entries.map((e) => (
+            <option key={e.address} value={e.address}>
+              {e.label}
+            </option>
+          ))}
+        </datalist>
+      )}
       {(hint || computedPreview) && (
         <span className="text-[11px] leading-snug text-text-muted">
           {computedPreview ?? hint}
         </span>
       )}
+      {isAddress && (
+        <SaveAddressAffordance
+          value={value}
+          existingLabel={matchingEntry?.label}
+          onSave={(label) => addressBook.add(label, value)}
+        />
+      )}
     </label>
+  );
+}
+
+/// Inline "save this address" affordance under address-typed inputs.
+/// Three states:
+///   - idle: empty / address already in book → render nothing
+///   - prompt: shows a tiny "Save as…" button when the address is
+///             non-trivial and unsaved
+///   - editing: small label input + Save button
+function SaveAddressAffordance({
+  value,
+  existingLabel,
+  onSave,
+}: {
+  value: string;
+  existingLabel: string | undefined;
+  onSave: (label: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [label, setLabel] = useState("");
+
+  const trimmed = value.trim();
+  if (trimmed.length < 4) return null;
+  if (existingLabel) {
+    return (
+      <span className="inline-flex w-fit items-center gap-1 rounded-full bg-brand-green/10 px-2 py-0.5 text-[10px] font-semibold text-brand-emerald">
+        <Bookmark size={9} /> {existingLabel}
+      </span>
+    );
+  }
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        className="inline-flex w-fit items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-white/40 transition-colors hover:text-brand-green"
+      >
+        <Bookmark size={9} /> Save to address book
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <input
+        autoFocus
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+        placeholder="e.g. Vendor — payroll"
+        className="flex-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-brand-white outline-none focus:border-brand-green/50"
+      />
+      <button
+        type="button"
+        onClick={() => {
+          if (label.trim().length === 0) return;
+          onSave(label.trim());
+          setLabel("");
+          setEditing(false);
+        }}
+        disabled={label.trim().length === 0}
+        className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-green text-black transition-colors hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"
+        aria-label="Save"
+      >
+        <Check size={12} />
+      </button>
+    </div>
   );
 }
 

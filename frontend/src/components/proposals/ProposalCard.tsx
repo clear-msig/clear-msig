@@ -17,7 +17,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronRight, Loader2, ShieldCheck, Sparkles } from "lucide-react";
+import { ChevronRight, Loader2, MoveRight, ShieldCheck, Sparkles } from "lucide-react";
 import { CardShell } from "@/components/ui/CardShell";
 import { TypedParamInput } from "@/components/proposals/TypedParamInput";
 import { SignablePreview } from "@/components/proposals/SignablePreview";
@@ -232,6 +232,19 @@ export function ProposalCard({ walletName }: { walletName: string }) {
               ))}
             </div>
 
+            {/* Outcome summary — answers "what does this do?" in plain
+                English before the bytes pane. Renders the live template
+                with the user's params substituted. Squads ships the
+                equivalent ("simulation"); for clear-msig the same data
+                is already structured, we just reformat it. */}
+            <ProposalOutcomeSummary
+              intent={selectedIntent}
+              walletName={walletName}
+              paramValues={paramValues}
+              decimalHints={paramDecimalHints}
+              valid={previewState.status === "ok"}
+            />
+
             {/* Live preview. The `context` strip surfaces the multisig +
                 multi-chain narrative right above the bytes the wallet
                 will sign — so the signer always sees what wallet they
@@ -368,6 +381,129 @@ function IntentPicker({
       )}
     </select>
   );
+}
+
+/// Plain-English outcome summary rendered ABOVE the byte-level
+/// SignablePreview. Squads' "simulation" pane occupies this slot in
+/// their UI; for clear-msig the same data is already typed (chain,
+/// params, intent template) so we just rephrase the user's inputs into
+/// "if approved by N/M, this will: <verb> <amount> <unit> to <addr> on
+/// <chain>". Stays subdued when params are incomplete so the user
+/// isn't misled by a half-rendered sentence.
+function ProposalOutcomeSummary({
+  intent,
+  walletName,
+  paramValues,
+  decimalHints,
+  valid,
+}: {
+  intent: IntentAccount;
+  walletName: string;
+  paramValues: Record<string, string>;
+  decimalHints: Map<number, number>;
+  valid: boolean;
+}) {
+  const decoded = useMemo(() => {
+    return intent.params.map((p, i) => {
+      const name = new TextDecoder().decode(
+        intent.bytePool.subarray(p.nameOffset, p.nameOffset + p.nameLen)
+      );
+      const raw = paramValues[name] ?? "";
+      const decimals = decimalHints.get(i);
+      return {
+        index: i,
+        name,
+        raw,
+        formatted: formatParamForSummary(raw, p.paramType, decimals),
+      };
+    });
+  }, [intent, paramValues, decimalHints]);
+
+  const headline = useMemo(() => {
+    if (!valid) {
+      return null;
+    }
+    return renderTemplatePlain(intent.template, decoded.map((d) => d.formatted));
+  }, [valid, intent.template, decoded]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="rounded-2xl border border-brand-green/20 bg-brand-green/[0.04] p-4"
+    >
+      <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-brand-emerald">
+        <Sparkles size={12} /> If approved
+      </div>
+      {valid && headline ? (
+        <p className="mt-2 text-sm leading-relaxed text-brand-white">
+          The dWallet will <span className="font-semibold">{headline}</span> on{" "}
+          <span className="font-semibold">{chainKindLabel(intent.chainKind)}</span>,
+          once {intent.approvalThreshold} of {intent.approvers.length} signers
+          approve.
+        </p>
+      ) : (
+        <p className="mt-2 text-sm text-white/50">
+          Fill the parameters below and the outcome appears here.
+        </p>
+      )}
+      <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px]">
+        <Chip>
+          wallet · <b>{walletName}</b>
+        </Chip>
+        <MoveRight size={12} className="text-white/30" />
+        <Chip>
+          chain · <b>{chainKindLabel(intent.chainKind)}</b>
+        </Chip>
+        <Chip>
+          threshold · <b>{intent.approvalThreshold}/{intent.approvers.length}</b>
+        </Chip>
+      </div>
+    </motion.div>
+  );
+}
+
+/// Render a Clear-MSIG template ("transfer {1} lamports to {0}") with
+/// the typed param values substituted. Drops the decimal-shift suffix
+/// from `{N:10^X}` for readability — `{1:10^9}` and `{1}` render the
+/// same once we've already converted via `formatParamForSummary`.
+function renderTemplatePlain(template: string, values: string[]): string {
+  return template.replace(/\{(\d+)(?::10\^\d+)?\}/g, (_, idx) => {
+    const i = Number(idx);
+    return values[i] ?? `{${idx}}`;
+  });
+}
+
+/// Friendly stringification of a typed parameter for the outcome
+/// summary. Addresses get truncated; numbers get decimal-shifted
+/// (lamports → SOL, wei → ETH); empty values render as a placeholder.
+function formatParamForSummary(
+  raw: string,
+  type: number,
+  decimals: number | undefined
+): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "·";
+  // ParamType: 0=address, 1=u64, 2=i64, 3=string, 4=bool, 5..=u8/u16/u32/u128, 6=bytes20, 7=bytes32 etc.
+  // We don't import ParamType to keep this helper trivial; fall back
+  // by raw-value heuristics.
+  if (type === 0) {
+    // address — show short form
+    return trimmed.length > 14 ? `${trimmed.slice(0, 4)}…${trimmed.slice(-4)}` : trimmed;
+  }
+  if (decimals && decimals > 0) {
+    try {
+      const n = BigInt(trimmed);
+      const div = BigInt(10) ** BigInt(decimals);
+      const whole = n / div;
+      const rem = (n % div).toString().padStart(decimals, "0").replace(/0+$/, "");
+      return rem.length > 0 ? `${whole}.${rem}` : `${whole}`;
+    } catch {
+      return trimmed;
+    }
+  }
+  return trimmed;
 }
 
 function IntentSummary({ intent }: { intent: IntentAccount }) {

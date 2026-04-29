@@ -13,11 +13,15 @@ import { ArrowRight, X } from "lucide-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useOnboarding } from "@/lib/hooks/useOnboarding";
+import { OnboardingDiagram } from "@/components/onboarding/OnboardingDiagram";
 
 interface Slide {
   eyebrow: string;
   title: string;
   body: string;
+  /// Optional decoration rendered above the title — e.g. the multi-
+  /// chain diagram on slide 2.
+  visual?: "diagram" | null;
 }
 
 const SLIDES: Slide[] = [
@@ -29,7 +33,8 @@ const SLIDES: Slide[] = [
   {
     eyebrow: "How it works",
     title: "One policy. Every chain.",
-    body: "The same Solana multisig drives native transactions on Ethereum, Bitcoin, and Zcash via Ika dWallet 2PC-MPC. No bridges, no wrappers.",
+    body: "The same Solana multisig drives native transactions on Ethereum, Bitcoin, and Solana via Ika dWallet 2PC-MPC. No bridges. No wrappers.",
+    visual: "diagram",
   },
   {
     eyebrow: "Get started",
@@ -104,6 +109,11 @@ export function OnboardingWalkthrough() {
               exit={{ opacity: 0, x: -16 }}
               transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
             >
+              {slide.visual === "diagram" && (
+                <div className="mb-5">
+                  <OnboardingDiagram />
+                </div>
+              )}
               <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-green/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-brand-emerald">
                 {slide.eyebrow}
               </span>
