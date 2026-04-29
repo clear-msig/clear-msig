@@ -455,7 +455,8 @@ function IntentTablePanel({
             no intents yet. Add one from the Intents tab.
           </div>
         ) : (
-          <table className="w-full text-left text-xs">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-left text-xs">
             <thead className="bg-white/[0.02] text-[10px] uppercase tracking-wide text-text-muted">
               <tr>
                 <Th>#</Th>
@@ -523,6 +524,7 @@ function IntentTablePanel({
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
