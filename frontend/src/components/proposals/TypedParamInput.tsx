@@ -93,8 +93,8 @@ function controlHints(type: ParamType): {
   switch (type) {
     case ParamType.Address:
       return {
-        placeholder: "Base58 32-byte pubkey",
-        hint: "Solana address, base58 encoded (32 bytes).",
+        placeholder: "Wallet address",
+        hint: "Solana wallet address (base58, 32 bytes).",
         inputMode: "text",
         inputType: "text",
         fontClass: "font-mono text-xs",

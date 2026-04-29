@@ -270,7 +270,7 @@ export function CreateWalletCard() {
                         <input
                           value={row.address}
                           onChange={(e) => updateSigner(i, "address", e.target.value)}
-                          placeholder="Base58 pubkey"
+                          placeholder="Wallet address"
                           spellCheck={false}
                           className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 font-mono text-xs text-brand-white outline-none transition-colors focus:border-brand-green/50 focus:bg-white/10"
                         />

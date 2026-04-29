@@ -424,7 +424,7 @@ function AddOrUpdatePanel({
           hint="Addresses allowed to sign this intent's proposals. Defaults to you."
           values={approvers}
           onChange={setApprovers}
-          placeholder="Base58 pubkey, press Enter to add"
+          placeholder="Wallet address — press Enter to add"
           fallbackPreview={connectedPubkey ? `you · ${shortAddr(connectedPubkey)}` : undefined}
         />
         <AddressChipInput
@@ -432,7 +432,7 @@ function AddOrUpdatePanel({
           hint="Addresses allowed to open proposals. Usually a subset of approvers."
           values={proposers}
           onChange={setProposers}
-          placeholder="Base58 pubkey, press Enter to add"
+          placeholder="Wallet address — press Enter to add"
           fallbackPreview={connectedPubkey ? `you · ${shortAddr(connectedPubkey)}` : undefined}
         />
       </div>

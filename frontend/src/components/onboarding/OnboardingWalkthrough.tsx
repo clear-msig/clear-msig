@@ -51,6 +51,16 @@ export function OnboardingWalkthrough() {
     if (connected && !completed) complete();
   }, [connected, completed, complete]);
 
+  // Escape = same as Skip. Standard modal expectation.
+  useEffect(() => {
+    if (!hydrated || completed) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") complete();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [hydrated, completed, complete]);
+
   if (!hydrated || completed) return null;
 
   const isLast = step === SLIDES.length - 1;

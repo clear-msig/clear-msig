@@ -8,7 +8,7 @@
 //
 // Animations are transform/opacity only to stay GPU-accelerated at 60fps.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -57,16 +57,27 @@ export function HeaderBar() {
           </AnimatePresence>
         </div>
 
-        {/* right: Menu button */}
-        <button
-          type="button"
-          onClick={() => setMenuOpen(true)}
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white/85 text-black backdrop-blur transition-transform duration-150 hover:scale-105 active:scale-95"
-          aria-label="Open menu"
-          aria-expanded={menuOpen}
-        >
-          <Menu size={18} />
-        </button>
+        {/* right: Menu button — only when a wallet is connected. Pre-
+            connection the landing should look as clean as possible; the
+            menu's nav links are useless without a wallet anyway since
+            /app/* requires a connection. */}
+        <AnimatePresence>
+          {connected && (
+            <motion.button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              initial={{ opacity: 0, x: 8 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 8 }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white/85 text-black backdrop-blur transition-transform duration-150 hover:scale-105 active:scale-95"
+              aria-label="Open menu"
+              aria-expanded={menuOpen}
+            >
+              <Menu size={18} />
+            </motion.button>
+          )}
+        </AnimatePresence>
       </header>
 
       <MenuDrawer
@@ -94,6 +105,16 @@ interface MenuDrawerProps {
 }
 
 function MenuDrawer({ open, onClose, connected, disconnect, showIntro, pathname }: MenuDrawerProps) {
+  // Escape closes the drawer. Standard modal expectation.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
   const links = [
     { href: "/", label: "Home", Icon: HomeIcon },
     { href: "/app/wallet", label: "Wallets", Icon: Wallet },
