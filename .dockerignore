@@ -1,0 +1,16 @@
+# Don't ship build outputs / dev artifacts in the image
+target/
+**/node_modules/
+.git/
+.github/
+frontend/.next/
+frontend/.env*
+backend-api/.env*
+deps/*/target/
+
+# OS noise
+.DS_Store
+
+# Local dev artifacts
+~/clear-msig-demo/
+*.log

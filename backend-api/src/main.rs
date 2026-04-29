@@ -705,7 +705,7 @@ async fn membership_lookup(
         .await
         .ok()
         .and_then(|cfg| cfg.get("program_id").and_then(|v| v.as_str()).map(ToString::to_string))
-        .unwrap_or_else(|| "2jsLpMRZAJUJJ7weNhBJqVAgLjpngi6xTEPUbttmTUjA".to_string());
+        .unwrap_or_else(|| "ahVmthS8EwXMpckBQdxGeHmbFghxoqKBaFjSCizcvFL".to_string());
 
     // Two narrow scans instead of one fat one. Filter each by discriminator
     // at offset 0 so the RPC only returns the kind of account we care about.

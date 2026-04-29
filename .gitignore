@@ -24,3 +24,6 @@ yarn-error.log*
 .idea/
 .vscode/
 *.swp
+
+# Claude Code internal state (per-project)
+.claude/

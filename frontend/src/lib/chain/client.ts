@@ -18,7 +18,7 @@ import { solanaClusterRpc } from "@/lib/solana/cluster";
 /// The clear-wallet on-chain program ID. Matches `crate::ID` in
 /// programs/clear-wallet/src/lib.rs.
 export const CLEAR_WALLET_PROGRAM_ID = new PublicKey(
-  "2jsLpMRZAJUJJ7weNhBJqVAgLjpngi6xTEPUbttmTUjA"
+  "ahVmthS8EwXMpckBQdxGeHmbFghxoqKBaFjSCizcvFL"
 );
 
 /// Default commitment for all read paths. `confirmed` is the sweet spot

@@ -1,0 +1,41 @@
+# fly.toml — clear-msig backend-api
+#
+# Deploys the backend (and bundled clear-msig CLI) on Fly.io. Pair with the
+# Vercel-hosted frontend; set NEXT_PUBLIC_BACKEND_API_URL on Vercel to the
+# Fly app URL once the app is launched.
+#
+# First-time setup:
+#   fly launch --no-deploy --copy-config --name <your-app-name>
+#   fly secrets set \
+#     CLEAR_MSIG_KEYPAIR_BASE64="$(base64 -i ~/clear-msig-demo/payer.json)" \
+#     CLEAR_MSIG_SIGNER_BASE64="$(base64 -i ~/clear-msig-demo/signer1.json)"
+#   fly deploy
+
+app = "clear-msig-backend"  # change with `fly launch --copy-config --name`
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  CLEAR_MSIG_URL = "https://api.devnet.solana.com"
+  BACKEND_API_BIND = "0.0.0.0:8080"
+  RUST_LOG = "info"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

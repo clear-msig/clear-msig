@@ -51,3 +51,83 @@ Then for any `wallet add-chain`, `proposal execute`, etc., pass:
 ## Other clusters
 
 Not yet deployed.
+
+---
+
+# Web app deployment (frontend + backend)
+
+Two-host setup, because Vercel can't run the long-lived Rust backend that shells out to the `clear-msig` CLI:
+
+```
+[Vercel: Next.js frontend] ──HTTPS──> [Fly.io: Rust backend + clear-msig CLI]
+                                                   │
+                                                   ▼
+                                       Solana devnet + Ika gRPC
+```
+
+## Backend → Fly.io
+
+One-time:
+
+```bash
+# 1. Authenticate (creates ~/.fly/config.yml)
+fly auth login
+
+# 2. Launch the app — picks up Dockerfile + fly.toml in repo root.
+#    Use --no-deploy so we can set secrets first.
+fly launch --no-deploy --copy-config --name <pick-a-unique-name>
+
+# 3. Inject the keypairs as base64-encoded Fly secrets. The container's
+#    entrypoint.sh decodes them to /tmp/payer.json and /tmp/signer.json
+#    at boot.
+fly secrets set \
+  CLEAR_MSIG_KEYPAIR_BASE64="$(base64 -i ~/clear-msig-demo/payer.json)" \
+  CLEAR_MSIG_SIGNER_BASE64="$(base64 -i ~/clear-msig-demo/signer1.json)"
+
+# 4. Deploy
+fly deploy
+```
+
+Subsequent updates: just `fly deploy`.
+
+Note the keypair lives in a Fly secret (encrypted at rest, never logged). It's still a payer keypair on a remote host though — only use a devnet keypair you don't mind exposing if Fly itself is compromised.
+
+## Frontend → Vercel
+
+Two ways: dashboard import, or CLI.
+
+**Dashboard** (recommended for first deploy):
+1. https://vercel.com/new → import the GitHub repo.
+2. **Root Directory** = `frontend` (Vercel picks Next.js as framework automatically).
+3. Add environment variables:
+   - `NEXT_PUBLIC_BACKEND_API_URL` = `https://<your-fly-app>.fly.dev`
+   - `NEXT_PUBLIC_IKA_DWALLET_PROGRAM_ID` = `87W54kGYFQ1rgWqMeu4XTPHWXWmXSQCcjm8vCTfiq1oY`
+   - `NEXT_PUBLIC_IKA_GRPC_URL` = `https://pre-alpha-dev-1.ika.ika-network.net:443`
+   - `NEXT_PUBLIC_SOLANA_RPC_URL` = `https://api.devnet.solana.com`
+   - `NEXT_PUBLIC_DESTINATION_RPC_URL` = `https://ethereum-sepolia-rpc.publicnode.com`
+   - (Optional, for invitation emails) `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
+4. Deploy.
+
+**CLI**:
+```bash
+cd frontend
+vercel link        # answer "Y, link to existing project" or create new
+vercel env add NEXT_PUBLIC_BACKEND_API_URL production
+# repeat for the other NEXT_PUBLIC_* vars
+vercel --prod
+```
+
+## Post-deploy verification
+
+```bash
+# Backend health
+curl https://<your-fly-app>.fly.dev/health
+
+# Frontend should load and show the Connect Wallet button
+open https://<your-vercel-app>.vercel.app
+```
+
+If the frontend loads but API calls fail, the most common causes are:
+- `NEXT_PUBLIC_BACKEND_API_URL` typo (note the `https://` prefix).
+- Fly app sleeping (`auto_stop_machines = "stop"`); first request wakes it but takes ~5s.
+- CORS — the backend uses `CorsLayer::permissive()` so this shouldn't happen unless someone tightened it.
