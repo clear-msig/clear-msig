@@ -18,9 +18,11 @@
 // ScrollGuide pulls the user's eye toward the vault at the bottom.
 
 import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
 import { useReducedMotion } from "framer-motion";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { ConstellationBackground } from "@/components/layout/ConstellationBackground";
+import { PreAlphaBanner } from "@/components/layout/PreAlphaBanner";
 import { HeroSection } from "@/components/landing/HeroSection";
 import { ProblemSection } from "@/components/landing/ProblemSection";
 import { BeforeAfterSection } from "@/components/landing/BeforeAfterSection";
@@ -48,14 +50,29 @@ export default function HomePage() {
   useWalletGate();
   const reduce = useReducedMotion();
 
+  // AnimatedBlob is a Three.js canvas that tracks the cursor — heavy on
+  // mobile and pointless without a hover pointer. Gate it to md+.
+  const [isMdUp, setIsMdUp] = useState(false);
+  useEffect(() => {
+    const mql = window.matchMedia("(min-width: 768px)");
+    setIsMdUp(mql.matches);
+    const onChange = (e: MediaQueryListEvent) => setIsMdUp(e.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+
   return (
     <main className="relative flex flex-col items-center overflow-x-clip bg-background font-sans">
       <ConstellationBackground />
       {!reduce && <BouncingRings />}
-      {!reduce && <AnimatedBlob />}
+      {!reduce && isMdUp && <AnimatedBlob />}
       <ScrollGuide />
 
-      <div className="relative z-10 mx-auto flex w-full max-w-[91rem] flex-col gap-[clamp(3rem,6vw,7rem)] px-4 pb-16 pt-28 sm:px-6 sm:pt-36 lg:px-8">
+      <div className="relative z-10 mx-auto w-full max-w-[91rem] px-4 pt-28 sm:px-6 sm:pt-36 lg:px-8">
+        <PreAlphaBanner />
+      </div>
+
+      <div className="relative z-10 mx-auto flex w-full max-w-[91rem] flex-col gap-[clamp(3rem,6vw,7rem)] px-4 pb-16 pt-8 sm:px-6 sm:pt-12 lg:px-8">
         <HeroSection />
         <ProblemSection />
         <BeforeAfterSection />

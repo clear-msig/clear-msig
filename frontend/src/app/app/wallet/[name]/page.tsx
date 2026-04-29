@@ -215,7 +215,7 @@ function WalletHero({
             <CopyButton text={wallet.pda.toBase58()} />
           </p>
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
           <HeroStat label="Chains bound" value={bindings.length} Icon={Plug} />
           <HeroStat label="Custom intents" value={customIntentsCount} Icon={ShieldCheck} />
           <HeroStat label="Proposals" value={Number(wallet.account.proposalIndex)} Icon={BadgeCheck} />
@@ -235,10 +235,10 @@ function HeroStat({
   Icon: LucideIcon;
 }) {
   return (
-    <div className="flex flex-col items-center gap-1 rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-center">
+    <div className="flex flex-col items-center gap-0.5 rounded-2xl border border-white/10 bg-black/40 px-1.5 py-2 text-center sm:gap-1 sm:px-4 sm:py-3">
       <Icon size={14} className="text-brand-green" />
-      <span className="text-lg font-bold text-brand-white">{value}</span>
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-white/50">
+      <span className="text-base font-bold text-brand-white sm:text-lg">{value}</span>
+      <span className="text-[9px] font-semibold uppercase tracking-wide text-white/50 sm:text-[10px]">
         {label}
       </span>
     </div>
