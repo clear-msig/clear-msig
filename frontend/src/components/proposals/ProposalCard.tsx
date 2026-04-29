@@ -278,11 +278,21 @@ export function ProposalCard({ walletName }: { walletName: string }) {
                 </>
               )}
             </button>
-            {!canSign && (
-              <span className="-mt-2 text-xs text-text-muted">
+            {/* Inline reason text under the sign button — replaces the
+                old behaviour of silently disabling without explanation. */}
+            {!canSign ? (
+              <span className="-mt-2 text-xs text-amber-300">
                 Connect a wallet that supports signMessage (Phantom, Solflare, Backpack).
               </span>
-            )}
+            ) : previewState.status === "error" ? (
+              <span className="-mt-2 text-xs text-amber-300">
+                {previewState.error ?? "Fill in every parameter to build the message."}
+              </span>
+            ) : previewState.status !== "ok" ? (
+              <span className="-mt-2 text-xs text-text-muted">
+                Loading preview…
+              </span>
+            ) : null}
           </>
         ) : (
           <EmptyState walletName={walletName} loading={intents.listQuery.isLoading} />

@@ -18,7 +18,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity,
@@ -526,15 +526,18 @@ function ChainBindingCard({
             </span>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={onBind}
-            disabled={disabled}
-            className="self-start text-[11px] font-semibold text-brand-green transition-colors hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label={`Bind ${chainName} to this wallet`}
-          >
-            {busy ? "Binding…" : "Bind this chain →"}
-          </button>
+          <div className="flex flex-col gap-1">
+            <button
+              type="button"
+              onClick={onBind}
+              disabled={disabled}
+              className="self-start text-[11px] font-semibold text-brand-green transition-colors hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label={`Bind ${chainName} to this wallet`}
+            >
+              {busy ? "Binding…" : "Bind this chain →"}
+            </button>
+            {busy && <DkgProgress />}
+          </div>
         )}
       </div>
     </div>
@@ -578,6 +581,38 @@ function PdaRow({ label, value }: { label: string; value: string }) {
           <ExplorerLink href={addressUrl(value)} label={`View ${label} on Solana Explorer`} />
         </span>
       </div>
+    </div>
+  );
+}
+
+/// Stepped DKG-progress indicator shown while a chain binding is in
+/// flight. The Ika devnet typically takes 15–30s end-to-end; without
+/// any progress signal, users assume the UI hung. Steps advance on a
+/// fixed timer because the backend doesn't (yet) stream real progress
+/// events — once it does, this becomes a real status feed.
+const DKG_STEPS = [
+  "Reaching Ika network…",
+  "Running 2PC-MPC DKG…",
+  "Transferring dWallet authority…",
+  "Writing IkaConfig PDA…",
+];
+
+function DkgProgress() {
+  const [stepIdx, setStepIdx] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => {
+      setStepIdx((i) => Math.min(i + 1, DKG_STEPS.length - 1));
+    }, 6000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="flex items-center gap-1.5 text-[10px] text-white/50">
+      <span className="inline-flex h-3 w-3 items-center justify-center">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-green" />
+      </span>
+      <span className="font-mono">
+        {stepIdx + 1}/{DKG_STEPS.length} · {DKG_STEPS[stepIdx]}
+      </span>
     </div>
   );
 }

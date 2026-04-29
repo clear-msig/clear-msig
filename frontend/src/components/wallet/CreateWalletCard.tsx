@@ -76,11 +76,26 @@ export function CreateWalletCard() {
   const removeSignerRow = (index: number) =>
     setSigners((prev) => prev.filter((_, i) => i !== index));
 
-  const canGoNext = () => {
-    if (step === 0) return walletName.trim().length > 0;
-    if (step === 1) return reason.trim().length > 0;
-    return false;
+  /// Returns `null` when the current step is valid, or a short reason
+  /// the user can act on. Surfaced under the Continue button — the old
+  /// behaviour of silently disabling the button confused testers.
+  const stepBlocker = (): string | null => {
+    if (step === 0) {
+      const trimmed = walletName.trim();
+      if (trimmed.length === 0) return "Pick a name for the organization";
+      if (trimmed.length > 64) return "Name must be 64 characters or fewer";
+      if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) {
+        return "Name can only use letters, digits, '-' or '_'";
+      }
+      return null;
+    }
+    if (step === 1) {
+      if (reason.trim().length === 0) return "Add a one-line reason for the invite email";
+      return null;
+    }
+    return null;
   };
+  const canGoNext = () => stepBlocker() === null;
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -339,27 +354,34 @@ export function CreateWalletCard() {
         </div>
 
         {step < TOTAL_STEPS - 1 && (
-          <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => setStep((prev) => Math.max(0, prev - 1))}
-              disabled={step === 0}
-              className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-brand-white transition-colors hover:border-brand-green/40 disabled:opacity-40"
-            >
-              <ChevronLeft size={12} /> Back
-            </button>
-            <button
-              type="button"
-              onClick={() => setStep((prev) => Math.min(TOTAL_STEPS - 1, prev + 1))}
-              disabled={!canGoNext()}
-              className="group inline-flex items-center gap-1 rounded-xl bg-brand-green px-4 py-2 text-xs font-bold text-black transition-all hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Continue
-              <ArrowRight
-                size={12}
-                className="transition-transform group-hover:translate-x-0.5"
-              />
-            </button>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setStep((prev) => Math.max(0, prev - 1))}
+                disabled={step === 0}
+                className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-brand-white transition-colors hover:border-brand-green/40 disabled:opacity-40"
+              >
+                <ChevronLeft size={12} /> Back
+              </button>
+              <button
+                type="button"
+                onClick={() => setStep((prev) => Math.min(TOTAL_STEPS - 1, prev + 1))}
+                disabled={!canGoNext()}
+                className="group inline-flex items-center gap-1 rounded-xl bg-brand-green px-4 py-2 text-xs font-bold text-black transition-all hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Continue
+                <ArrowRight
+                  size={12}
+                  className="transition-transform group-hover:translate-x-0.5"
+                />
+              </button>
+            </div>
+            {stepBlocker() && (
+              <p className="self-end text-right text-[11px] text-amber-300">
+                {stepBlocker()}
+              </p>
+            )}
           </div>
         )}
       </div>
