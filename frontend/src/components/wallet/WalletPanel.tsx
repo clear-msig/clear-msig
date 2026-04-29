@@ -8,9 +8,20 @@ import { useWalletWorkflow } from "@/lib/hooks/useWalletWorkflow";
 import { useToast } from "@/components/ui/Toast";
 import { motion } from "framer-motion";
 
+// Every chain `clear-msig wallet add-chain` accepts. Mirrors the table
+// in README.md and the `chainKindName()` helper in the wallet detail
+// page. Keep these in sync if a new chain is added.
+const CHAIN_OPTIONS = [
+  { value: "solana", label: "Solana — native (Curve25519 / Ed25519)" },
+  { value: "evm_1559", label: "EVM — EIP-1559 (Secp256k1 / ECDSA)" },
+  { value: "evm_1559_erc20", label: "EVM — ERC-20 transfer" },
+  { value: "bitcoin_p2wpkh", label: "Bitcoin — P2WPKH (BIP143)" },
+  { value: "zcash_transparent", label: "Zcash — transparent (ZIP-243)" },
+] as const;
+
 export function WalletPanel() {
   const [walletName, setWalletName] = useState(appConfig.defaultWalletName);
-  const [chain, setChain] = useState(appConfig.preAlpha.chain);
+  const [chain, setChain] = useState<string>(appConfig.preAlpha.chain);
   const workflow = useWalletWorkflow(walletName);
   const toast = useToast();
 
@@ -83,13 +94,20 @@ export function WalletPanel() {
         transition={{ delay: 0.25 }}
       >
         <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium uppercase tracking-wide text-text-muted">Chain type</span>
-          <input
-          value={chain}
-          onChange={(e) => setChain(e.target.value)}
-          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-brand-green/50 focus:bg-white/10"
-          placeholder="Chain (evm_1559|evm_1559_erc20|bitcoin_p2wpkh)"
-        />
+          <span className="text-xs font-medium uppercase tracking-wide text-text-muted">
+            Chain
+          </span>
+          <select
+            value={chain}
+            onChange={(e) => setChain(e.target.value)}
+            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-brand-green/50 focus:bg-white/10"
+          >
+            {CHAIN_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value} className="bg-surface">
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </label>
       </motion.div>
 
@@ -98,9 +116,10 @@ export function WalletPanel() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
         onClick={addChain}
-        className="mt-2 rounded-xl bg-brand-green px-4 py-2 text-sm font-semibold text-black transition-all hover:shadow-glow"
+        disabled={workflow.addChainMutation.isPending || walletName.trim().length === 0}
+        className="mt-2 rounded-xl bg-brand-green px-4 py-2 text-sm font-semibold text-black transition-all hover:shadow-glow disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-none"
       >
-        Add chain binding
+        {workflow.addChainMutation.isPending ? "Binding…" : "Add chain binding"}
       </motion.button>
 
     </CardShell>

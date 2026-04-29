@@ -46,6 +46,8 @@ import type { LucideIcon as LucideIconType } from "lucide-react";
 import { IntentCard } from "@/components/intents/IntentCard";
 import { ProposalCard } from "@/components/proposals/ProposalCard";
 import { TxHistoryPanel } from "@/components/wallet/TxHistoryPanel";
+import { useWalletWorkflow } from "@/lib/hooks/useWalletWorkflow";
+import { useToast } from "@/components/ui/Toast";
 import type { LucideIcon } from "lucide-react";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { useQuery } from "@tanstack/react-query";
@@ -396,11 +398,37 @@ function ChainBindingsPanel({
   bindings: ChainBindingWithPda[];
   loading: boolean;
 }) {
+  const workflow = useWalletWorkflow(walletName);
+  const toast = useToast();
+  const [bindingChain, setBindingChain] = useState<string | null>(null);
+
   const byKind = useMemo(() => {
     const m = new Map<number, ChainBindingWithPda>();
     for (const b of bindings) m.set(b.chainKind, b);
     return m;
   }, [bindings]);
+
+  const bindChain = (chainName: string) => {
+    setBindingChain(chainName);
+    workflow.addChainMutation.mutate(
+      { chain: chainName },
+      {
+        onSuccess: () => {
+          toast.success(`Chain "${chainName}" bound`, {
+            details: "DKG ran on the Ika network and the IkaConfig PDA is on chain. Refreshing the bindings panel now.",
+          });
+          workflow.chainsQuery.refetch();
+        },
+        onError: (err) => {
+          toast.error(
+            err instanceof Error ? err.message : `Failed to bind ${chainName}`,
+            { details: String(err) }
+          );
+        },
+        onSettled: () => setBindingChain(null),
+      }
+    );
+  };
 
   return (
     <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5">
@@ -413,18 +441,13 @@ function ChainBindingsPanel({
             One Ika dWallet per chain, derived from the multisig policy.
           </p>
         </div>
-        <Link
-          href="/app/wallet"
-          className="inline-flex items-center gap-1 rounded-full bg-brand-green/15 px-3 py-1 text-[11px] font-semibold text-brand-green hover:bg-brand-green/25"
-        >
-          Add chain <ArrowRight size={12} />
-        </Link>
       </div>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
         {[0, 1, 2, 4, 3].map((ck) => {
           const meta = CHAIN_META[ck];
           const binding = byKind.get(ck);
+          const chainName = chainKindName(ck);
           return (
             <ChainBindingCard
               key={ck}
@@ -432,7 +455,10 @@ function ChainBindingsPanel({
               meta={meta}
               binding={binding}
               loading={loading}
-              walletName={walletName}
+              chainName={chainName}
+              onBind={() => bindChain(chainName)}
+              busy={bindingChain === chainName}
+              disabled={bindingChain !== null}
             />
           );
         })}
@@ -442,17 +468,22 @@ function ChainBindingsPanel({
 }
 
 function ChainBindingCard({
-  chainKind,
   meta,
   binding,
   loading,
-  walletName,
+  chainName,
+  onBind,
+  busy,
+  disabled,
 }: {
   chainKind: number;
   meta: { label: string; sub: string; Icon: LucideIcon; toneBg: string; toneText: string };
   binding: ChainBindingWithPda | undefined;
   loading: boolean;
-  walletName: string;
+  chainName: string;
+  onBind: () => void;
+  busy: boolean;
+  disabled: boolean;
 }) {
   const { Icon } = meta;
   const bound = Boolean(binding);
@@ -491,12 +522,15 @@ function ChainBindingCard({
             </span>
           </div>
         ) : (
-          <Link
-            href={`/app/wallet?chain=${encodeURIComponent(chainKindName(chainKind))}&wallet=${encodeURIComponent(walletName)}`}
-            className="text-[11px] font-semibold text-brand-green hover:underline"
+          <button
+            type="button"
+            onClick={onBind}
+            disabled={disabled}
+            className="self-start text-[11px] font-semibold text-brand-green transition-colors hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label={`Bind ${chainName} to this wallet`}
           >
-            Bind this chain →
-          </Link>
+            {busy ? "Binding…" : "Bind this chain →"}
+          </button>
         )}
       </div>
     </div>
