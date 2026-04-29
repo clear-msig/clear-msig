@@ -793,7 +793,7 @@ directly from Solana RPC. Backend relayer is only used for writes.
 
 ```ts
 export const solanaConnection = new Connection(appConfig.preAlpha.solanaRpcUrl, 'confirmed');
-export const programId = new PublicKey('2jsLpMRZAJUJJ7weNhBJqVAgLjpngi6xTEPUbttmTUjA');
+export const programId = new PublicKey('ahVmthS8EwXMpckBQdxGeHmbFghxoqKBaFjSCizcvFL');
 ```
 
 **Where:** `frontend/src/lib/chain/client.ts`.

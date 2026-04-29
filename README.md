@@ -1,12 +1,24 @@
-# clear-msig-ika
+# clear-msig
 
-A clear-sign multisig wallet on Solana that controls assets on **any chain** via [Ika](https://ika.xyz) dWallet 2PC-MPC signing. Signers approve human-readable messages via Ed25519 signatures — the same flow drives native transactions on Solana, Ethereum, Bitcoin, Zcash, and any future chain Ika supports.
+> **Sign intents, not hex.** A clear-signing multisig on Solana that drives native transactions on Ethereum, Bitcoin, Zcash, and any chain Ika supports — from one signing flow.
 
-All transaction signing goes through the Ika dWallet network. There is no vault PDA — the dWallet's public key IS the address on each chain.
+| | |
+|---|---|
+| 🌐 Live demo | **[clear-msig.vercel.app](https://clear-msig.vercel.app)** |
+| 🎬 Demo video | _coming soon — Colosseum submission_ |
+| 📦 GitHub | [clear-msig/clear-msig](https://github.com/clear-msig/clear-msig) |
+| 🔗 Program ID (devnet) | [`ahVmthS8EwXMpckBQdxGeHmbFghxoqKBaFjSCizcvFL`](https://explorer.solana.com/address/ahVmthS8EwXMpckBQdxGeHmbFghxoqKBaFjSCizcvFL?cluster=devnet) |
+| 🛰 Backend (Fly.io) | [clear-msig-backend.fly.dev](https://clear-msig-backend.fly.dev/health) |
+
+## What it does
+
+Treasury teams sign blind hex blobs on their Ledgers today. clear-msig replaces that with **human-readable sentences** — the same string your Ledger displays, the same string the on-chain policy verifies, the same string the Ika dWallet network turns into a native transaction on whatever chain it's bound to.
+
+A 2-of-3 Solana multisig can drive an Ethereum transfer, then a Bitcoin spend, then a Zcash withdrawal. **One signing flow. Every chain.** Powered by Solana on-chain policy + [Ika](https://ika.xyz) dWallet 2PC-MPC signing — the dWallet's public key IS the address on each destination chain, so there's no vault PDA, no bridge, no wrapped asset.
 
 Built with [Quasar](https://github.com/blueshift-gg/quasar). Fork of [`ChewingGlass/clear-msig`](https://github.com/ChewingGlass/clear-msig).
 
-> **Pre-alpha — do not use with real funds.** The on-chain `clear-wallet` program runs only on Solana devnet. Ika's dWallet network is a single mock signer, not production 2PC-MPC. Devnet state is wiped periodically. APIs, account layouts, and signed-message formats can change without notice.
+> **Pre-alpha — do not use with real funds.** The on-chain `clear-wallet` program runs only on Solana devnet. Ika's dWallet network is a single mock signer, not production distributed MPC. Devnet state is wiped periodically. APIs, account layouts, and signed-message formats can change without notice.
 
 See [DEPLOYMENTS.md](DEPLOYMENTS.md) for the deployed program ID and Ika endpoints.
 

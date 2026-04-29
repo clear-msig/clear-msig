@@ -1,10 +1,12 @@
 "use client";
 
-// Compact landing footer. The wordmark, a one-liner, two link rows,
-// and the pre-alpha disclaimer. No clutter.
+// Compact landing footer. The wordmark, a one-liner, a credibility badge
+// strip, and the pre-alpha disclaimer. No clutter.
 
 import Image from "next/image";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Github, ShieldCheck } from "lucide-react";
+
+const REPO_URL = "https://github.com/clear-msig/clear-msig";
 
 export function LandingFooter() {
   return (
@@ -35,46 +37,53 @@ export function LandingFooter() {
           </p>
         </div>
 
+        {/* Credibility badge strip — judges + early users glance here for
+            trust signals before they connect a wallet. */}
+        <div className="flex flex-col gap-3 md:items-end">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge>Quasar-built</Badge>
+            <Badge>
+              <a
+                href={REPO_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1"
+                aria-label="View source on GitHub"
+              >
+                <Github size={11} /> Open source
+              </a>
+            </Badge>
+            <Badge>
+              <a
+                href={`${REPO_URL}/blob/main/DEPLOYMENTS.md`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1"
+                aria-label="View deployment details"
+              >
+                <ShieldCheck size={11} /> Devnet only
+              </a>
+            </Badge>
+          </div>
+          <a
+            href={REPO_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-widest text-black/50 transition-colors hover:text-brand-green"
+          >
+            View on GitHub <ExternalLink size={10} />
+          </a>
+        </div>
       </div>
-
     </footer>
   );
 }
 
-function FooterCol({
-  title,
-  links,
-}: {
-  title: string;
-  links: { label: string; href: string; external?: boolean }[];
-}) {
+function Badge({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-[11px] font-bold uppercase tracking-widest text-black/50">
-        {title}
-      </span>
-      {links.map((l) =>
-        l.external ? (
-          <a
-            key={l.label}
-            href={l.href}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-black/70 transition-colors hover:text-brand-green"
-          >
-            {l.label}
-            <ExternalLink size={10} className="text-black/30" />
-          </a>
-        ) : (
-          <a
-            key={l.label}
-            href={l.href}
-            className="text-black/70 transition-colors hover:text-brand-green"
-          >
-            {l.label}
-          </a>
-        )
-      )}
-    </div>
+    <span className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white/80 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-widest text-black/70">
+      {children}
+    </span>
   );
 }
+

@@ -32,6 +32,7 @@ import {
   Clock,
   Coins,
   Copy,
+  ExternalLink,
   Hash,
   Layers,
   Leaf,
@@ -48,6 +49,7 @@ import { ProposalCard } from "@/components/proposals/ProposalCard";
 import { TxHistoryPanel } from "@/components/wallet/TxHistoryPanel";
 import { useWalletWorkflow } from "@/lib/hooks/useWalletWorkflow";
 import { useToast } from "@/components/ui/Toast";
+import { addressUrl } from "@/lib/explorer";
 import type { LucideIcon } from "lucide-react";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { useQuery } from "@tanstack/react-query";
@@ -344,6 +346,7 @@ function WalletHero({
           <p className="mt-1 flex items-center gap-2 font-mono text-xs text-white/50">
             {shortPda(wallet.pda.toBase58())}
             <CopyButton text={wallet.pda.toBase58()} />
+            <ExplorerLink href={addressUrl(wallet.pda.toBase58())} label="View wallet PDA on Solana Explorer" />
           </p>
         </div>
         <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
@@ -516,6 +519,7 @@ function ChainBindingCard({
             <span className="flex items-center gap-1 font-mono">
               dWallet · {shortPda(binding.account.dwallet)}
               <CopyButton text={binding.account.dwallet} />
+              <ExplorerLink href={addressUrl(binding.account.dwallet)} label="View dWallet on Solana Explorer" />
             </span>
             <span className="font-mono text-white/40">
               scheme · {schemeLabel(binding.account.signatureScheme)}
@@ -571,9 +575,27 @@ function PdaRow({ label, value }: { label: string; value: string }) {
         <span className="flex items-center gap-1 truncate font-mono text-xs text-white/80">
           {shortPda(value)}
           <CopyButton text={value} />
+          <ExplorerLink href={addressUrl(value)} label={`View ${label} on Solana Explorer`} />
         </span>
       </div>
     </div>
+  );
+}
+
+/// Tiny chip-style external-explorer link, paired with a CopyButton on
+/// every on-chain identifier we render so judges can verify directly.
+function ExplorerLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={label}
+      title="View on Solana Explorer"
+      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-white/40 transition-colors hover:bg-white/10 hover:text-brand-green"
+    >
+      <ExternalLink size={10} />
+    </a>
   );
 }
 

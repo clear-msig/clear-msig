@@ -45,7 +45,7 @@ clear-msig-ika/
 
 Identifiers worth memorising:
 
-- `CLEAR_WALLET_PROGRAM_ID = 2jsLpMRZAJUJJ7weNhBJqVAgLjpngi6xTEPUbttmTUjA`
+- `CLEAR_WALLET_PROGRAM_ID = ahVmthS8EwXMpckBQdxGeHmbFghxoqKBaFjSCizcvFL` (Solana devnet — see [DEPLOYMENTS.md](DEPLOYMENTS.md))
 - 5 on-chain account discriminators: `ClearWallet=1`, `Intent=2`, `Proposal=3`, `IkaConfig=4`, `DwalletOwnership=5`
 - Offchain message header: 16-byte `\xffsolana offchain` domain + version(1) + format(1) + length(2 LE) + body
 

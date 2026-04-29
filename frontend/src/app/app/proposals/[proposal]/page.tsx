@@ -30,6 +30,7 @@ import {
   Hash,
   Loader2,
   PlayCircle,
+  Share2,
   ShieldAlert,
   Trash2,
   Wallet,
@@ -149,7 +150,44 @@ function Breadcrumb({ proposalPda }: { proposalPda: string }) {
       <span className="rounded-full bg-white/5 px-3 py-1 font-mono text-[11px] text-white/70">
         {shortPda(proposalPda)}
       </span>
+      <ShareProposalButton proposalPda={proposalPda} />
     </div>
+  );
+}
+
+/// "Copy share link" button. Real treasury teams operate by sharing
+/// proposal URLs in Slack/Telegram, so the multisig UX needs first-class
+/// shareability. Click → copies the canonical /app/proposals/<pda> URL
+/// for the current host.
+function ShareProposalButton({ proposalPda }: { proposalPda: string }) {
+  const [copied, setCopied] = useState(false);
+  const onCopy = async () => {
+    try {
+      const url = `${window.location.origin}/app/proposals/${encodeURIComponent(proposalPda)}`;
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard blocked (private mode etc.) — silent noop */
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={onCopy}
+      className="ml-auto inline-flex items-center gap-1 rounded-full bg-brand-green/15 px-3 py-1 text-[11px] font-semibold text-brand-green transition-colors hover:bg-brand-green/25"
+      aria-label={copied ? "Share link copied" : "Copy share link"}
+    >
+      {copied ? (
+        <>
+          <Check size={11} /> copied
+        </>
+      ) : (
+        <>
+          <Share2 size={11} /> share
+        </>
+      )}
+    </button>
   );
 }
 
