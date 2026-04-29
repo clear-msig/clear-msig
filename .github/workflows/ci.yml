@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  host-checks:
+    name: fmt + clippy + test (host)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler libssl-dev pkg-config
+
+      - name: Cache cargo registry + target
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: host
+
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+      # The on-chain crate (`clear-wallet`) is meant for the SBF target and uses
+      # nightly features (#![feature(register_tool)]) gated to target_os="solana".
+      # Host clippy/test only cover the off-chain pieces.
+      - name: cargo clippy (host crates)
+        run: |
+          cargo clippy -p clear-msig-cli --all-targets -- -D warnings
+          cargo clippy -p clear-wallet-client --all-targets -- -D warnings
+
+      - name: cargo test (host crates)
+        run: |
+          cargo test -p clear-msig-cli
+          cargo test -p clear-wallet-client
+
+  # ------------------------------------------------------------------
+  # SBF build (deferred):
+  # cargo-build-sbf needs Solana platform-tools (~400 MB tarball on first run,
+  # cacheable but slow). Wire this up once we have a release/tag pipeline that
+  # tolerates a 5–10 min job. Sketch:
+  #
+  #   sbf-build:
+  #     runs-on: ubuntu-latest
+  #     steps:
+  #       - uses: actions/checkout@v4
+  #       - run: sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+  #       - run: cargo install --git https://github.com/blueshift-gg/quasar quasar-cli
+  #       - run: quasar build
+  #       - uses: actions/upload-artifact@v4
+  #         with:
+  #           name: clear_wallet.so
+  #           path: target/deploy/clear_wallet.so
+  # ------------------------------------------------------------------
