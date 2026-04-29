@@ -242,6 +242,17 @@ function Loaded({
           <SignablePreview
             bodyText={signablePreview?.body ?? null}
             messageHex={signablePreview?.hex ?? null}
+            context={{
+              action: "approve",
+              wallet: wallet?.name,
+              chain: intent ? chainKindLabel(intent.chainKind) : undefined,
+              threshold: intent
+                ? {
+                    current: popcount(proposal.approvalBitmap),
+                    total: intent.approvers.length,
+                  }
+                : undefined,
+            }}
             statusChip={
               <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/50">
                 approve action
@@ -856,5 +867,18 @@ function describeError(err: unknown): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+/// Local popcount for the approval/cancellation bitmaps. Mirrors the
+/// helper in ApprovalBitmap.tsx; kept inline to avoid tightly coupling
+/// this page to that component's internals.
+function popcount(n: number): number {
+  let v = n >>> 0;
+  let c = 0;
+  while (v) {
+    c += v & 1;
+    v >>>= 1;
+  }
+  return c;
 }
 

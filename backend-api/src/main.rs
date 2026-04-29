@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{HeaderValue, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
@@ -13,7 +13,10 @@ use std::{env, net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 use thiserror::Error;
 use tokio::process::Command;
 use tokio::time::timeout;
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use tower_http::{
+    cors::{AllowOrigin, CorsLayer},
+    trace::TraceLayer,
+};
 use tracing::{error, info};
 
 #[derive(Clone)]
@@ -827,6 +830,69 @@ fn ensure_non_empty_vec(value: &[String], field: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
+/// Validate a wallet name. Wallet names hash into a PDA seed and reach
+/// the CLI as a positional arg, so the charset is locked down: ASCII
+/// alnum, dash, underscore, max 64 chars (matches the on-chain
+/// `String<64>` constraint).
+fn ensure_wallet_name(value: &str, field: &str) -> Result<(), ApiError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(ApiError::BadRequest(format!("{field} must not be empty")));
+    }
+    if trimmed.len() > 64 {
+        return Err(ApiError::BadRequest(format!(
+            "{field} must be 64 characters or fewer"
+        )));
+    }
+    if !trimmed
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return Err(ApiError::BadRequest(format!(
+            "{field} must contain only letters, digits, '-' or '_'"
+        )));
+    }
+    Ok(())
+}
+
+/// Validate a chain selector against the explicit allowlist. Anything
+/// outside the known set is rejected before reaching the CLI subprocess.
+fn ensure_chain(value: &str, field: &str) -> Result<(), ApiError> {
+    const ALLOWED: &[&str] = &[
+        "solana",
+        "evm_1559",
+        "evm_1559_erc20",
+        "bitcoin_p2wpkh",
+        "zcash_transparent",
+    ];
+    let trimmed = value.trim();
+    if !ALLOWED.contains(&trimmed) {
+        return Err(ApiError::BadRequest(format!(
+            "{field} must be one of: {}",
+            ALLOWED.join(", ")
+        )));
+    }
+    Ok(())
+}
+
+/// Validate a base58-encoded identifier (program ID, proposal PDA,
+/// dWallet pubkey). Solana base58 alphabet rejects 0, O, I, l.
+fn ensure_base58(value: &str, field: &str, min_len: usize, max_len: usize) -> Result<(), ApiError> {
+    let trimmed = value.trim();
+    if trimmed.len() < min_len || trimmed.len() > max_len {
+        return Err(ApiError::BadRequest(format!(
+            "{field} must be {min_len}–{max_len} characters of base58"
+        )));
+    }
+    const BASE58: &str = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+    if !trimmed.chars().all(|c| BASE58.contains(c)) {
+        return Err(ApiError::BadRequest(format!(
+            "{field} contains characters outside the base58 alphabet"
+        )));
+    }
+    Ok(())
+}
+
 async fn health(State(state): State<AppState>) -> Result<Json<HealthResponse>, ApiError> {
     Ok(Json(HealthResponse {
         status: "ok",
@@ -872,7 +938,7 @@ async fn show_wallet(
     State(state): State<AppState>,
     Path(name): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_non_empty(&name, "name")?;
+    ensure_wallet_name(&name, "name")?;
     Ok(Json(
         state
             .runner
@@ -891,7 +957,7 @@ async fn list_wallet_chains(
     Path(name): Path<String>,
     Query(query): Query<ChainsQuery>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_non_empty(&name, "name")?;
+    ensure_wallet_name(&name, "name")?;
     let mut args = vec![
         "wallet".to_string(),
         "chains".to_string(),
@@ -911,8 +977,8 @@ async fn add_wallet_chain(
     Path(name): Path<String>,
     Json(body): Json<AddChainRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_non_empty(&name, "name")?;
-    ensure_non_empty(&body.chain, "chain")?;
+    ensure_wallet_name(&name, "name")?;
+    ensure_chain(&body.chain, "chain")?;
 
     let dwallet_program = body
         .dwallet_program
@@ -961,7 +1027,7 @@ async fn list_intents(
     State(state): State<AppState>,
     Path(name): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_non_empty(&name, "name")?;
+    ensure_wallet_name(&name, "name")?;
     Ok(Json(
         state
             .runner
@@ -993,7 +1059,7 @@ async fn add_intent(
     Path(name): Path<String>,
     Json(body): Json<SignedIntentAddRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_non_empty(&name, "name")?;
+    ensure_wallet_name(&name, "name")?;
     ensure_non_empty(&body.file, "file")?;
     body.pre_signed.ensure_valid()?;
     state.rate_limiter.check(&body.pre_signed.signer_pubkey).await?;
@@ -1018,7 +1084,7 @@ async fn remove_intent(
     Path(name): Path<String>,
     Json(body): Json<SignedIntentRemoveRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_non_empty(&name, "name")?;
+    ensure_wallet_name(&name, "name")?;
     body.pre_signed.ensure_valid()?;
     state.rate_limiter.check(&body.pre_signed.signer_pubkey).await?;
 
@@ -1042,7 +1108,7 @@ async fn update_intent(
     Path(name): Path<String>,
     Json(body): Json<SignedIntentUpdateRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_non_empty(&name, "name")?;
+    ensure_wallet_name(&name, "name")?;
     ensure_non_empty(&body.file, "file")?;
     body.pre_signed.ensure_valid()?;
     state.rate_limiter.check(&body.pre_signed.signer_pubkey).await?;
@@ -1069,7 +1135,7 @@ async fn create_proposal(
     Path(name): Path<String>,
     Json(body): Json<SignedProposalCreateRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_non_empty(&name, "name")?;
+    ensure_wallet_name(&name, "name")?;
     body.pre_signed.ensure_valid()?;
     state.rate_limiter.check(&body.pre_signed.signer_pubkey).await?;
     if body.pre_signed.params_data_hex.is_none() {
@@ -1097,7 +1163,7 @@ async fn list_proposals(
     State(state): State<AppState>,
     Path(name): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_non_empty(&name, "name")?;
+    ensure_wallet_name(&name, "name")?;
     Ok(Json(
         state
             .runner
@@ -1115,7 +1181,7 @@ async fn show_proposal(
     State(state): State<AppState>,
     Path(proposal): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_non_empty(&proposal, "proposal")?;
+    ensure_base58(&proposal, "proposal", 32, 88)?;
     Ok(Json(
         state
             .runner
@@ -1134,8 +1200,8 @@ async fn approve_proposal(
     Path((name, proposal)): Path<(String, String)>,
     Json(body): Json<SignedApproveCancelRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_non_empty(&name, "name")?;
-    ensure_non_empty(&proposal, "proposal")?;
+    ensure_wallet_name(&name, "name")?;
+    ensure_base58(&proposal, "proposal", 32, 88)?;
     body.pre_signed.ensure_valid()?;
     state.rate_limiter.check(&body.pre_signed.signer_pubkey).await?;
 
@@ -1159,8 +1225,8 @@ async fn cancel_proposal(
     Path((name, proposal)): Path<(String, String)>,
     Json(body): Json<SignedApproveCancelRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_non_empty(&name, "name")?;
-    ensure_non_empty(&proposal, "proposal")?;
+    ensure_wallet_name(&name, "name")?;
+    ensure_base58(&proposal, "proposal", 32, 88)?;
     body.pre_signed.ensure_valid()?;
     state.rate_limiter.check(&body.pre_signed.signer_pubkey).await?;
 
@@ -1196,7 +1262,7 @@ async fn prepare_intent_add(
     Path(name): Path<String>,
     Json(body): Json<PrepareIntentAddRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_non_empty(&name, "name")?;
+    ensure_wallet_name(&name, "name")?;
     ensure_non_empty(&body.file, "file")?;
     ensure_non_empty_vec(&body.proposers, "proposers")?;
     ensure_non_empty_vec(&body.approvers, "approvers")?;
@@ -1235,7 +1301,7 @@ async fn prepare_intent_remove(
     Path(name): Path<String>,
     Json(body): Json<PrepareIntentRemoveRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_non_empty(&name, "name")?;
+    ensure_wallet_name(&name, "name")?;
     let mut args = vec!["--dry-run".into()];
     args.extend([
         "intent".into(),
@@ -1258,7 +1324,7 @@ async fn prepare_intent_update(
     Path(name): Path<String>,
     Json(body): Json<PrepareIntentUpdateRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_non_empty(&name, "name")?;
+    ensure_wallet_name(&name, "name")?;
     ensure_non_empty(&body.file, "file")?;
     ensure_non_empty_vec(&body.proposers, "proposers")?;
     ensure_non_empty_vec(&body.approvers, "approvers")?;
@@ -1299,7 +1365,7 @@ async fn prepare_proposal_create(
     Path(name): Path<String>,
     Json(body): Json<PrepareProposalCreateRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_non_empty(&name, "name")?;
+    ensure_wallet_name(&name, "name")?;
     ensure_non_empty_vec(&body.params, "params")?;
     let mut args = vec!["--dry-run".into()];
     args.extend([
@@ -1346,8 +1412,8 @@ async fn prepare_approve_or_cancel(
     body: PrepareApproveCancelRequest,
     is_approve: bool,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_non_empty(&name, "name")?;
-    ensure_non_empty(&proposal, "proposal")?;
+    ensure_wallet_name(&name, "name")?;
+    ensure_base58(&proposal, "proposal", 32, 88)?;
     let mut args = vec!["--dry-run".into()];
     args.extend([
         "proposal".into(),
@@ -1370,8 +1436,8 @@ async fn execute_proposal(
     Path((name, proposal)): Path<(String, String)>,
     Json(body): Json<ExecuteProposalRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_non_empty(&name, "name")?;
-    ensure_non_empty(&proposal, "proposal")?;
+    ensure_wallet_name(&name, "name")?;
+    ensure_base58(&proposal, "proposal", 32, 88)?;
 
     let mut args = vec![
         "proposal".to_string(),
@@ -1436,8 +1502,8 @@ async fn stream_execute_proposal(
 >, ApiError> {
     use axum::response::sse::{Event, KeepAlive, Sse};
 
-    ensure_non_empty(&name, "name")?;
-    ensure_non_empty(&proposal, "proposal")?;
+    ensure_wallet_name(&name, "name")?;
+    ensure_base58(&proposal, "proposal", 32, 88)?;
 
     // Same arg assembly as the JSON execute route.
     let mut args = vec![
@@ -1582,7 +1648,7 @@ async fn cleanup_proposal(
     State(state): State<AppState>,
     Path(proposal): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_non_empty(&proposal, "proposal")?;
+    ensure_base58(&proposal, "proposal", 32, 88)?;
     Ok(Json(
         state
             .runner
@@ -1657,6 +1723,58 @@ fn build_runner() -> CliRunner {
         default_grpc_url,
         default_destination_rpc_url,
     }
+}
+
+/// Build the CORS layer applied to every backend route.
+///
+/// `CLEAR_MSIG_ALLOWED_ORIGIN` is a comma-separated list of exact origins
+/// the backend should accept (e.g.
+/// `https://clear-msig.vercel.app,https://staging.clear-msig.app`). When
+/// set, only those origins can reach the API from a browser tab.
+///
+/// When unset (development), falls back to `CorsLayer::permissive()` so
+/// `npm run dev` against `http://localhost:3001` still works without
+/// configuration. Production deployments should always set the env.
+fn build_cors_layer() -> CorsLayer {
+    let raw = env::var("CLEAR_MSIG_ALLOWED_ORIGIN").ok();
+    let trimmed = raw.as_deref().map(str::trim).unwrap_or("");
+
+    if trimmed.is_empty() {
+        info!("CORS: permissive (dev mode — set CLEAR_MSIG_ALLOWED_ORIGIN in production)");
+        return CorsLayer::permissive();
+    }
+
+    let origins: Vec<HeaderValue> = trimmed
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .filter_map(|origin| match HeaderValue::from_str(origin) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                error!(?origin, error = %e, "skipping malformed CORS origin");
+                None
+            }
+        })
+        .collect();
+
+    if origins.is_empty() {
+        info!("CORS: permissive (no parsable origins in CLEAR_MSIG_ALLOWED_ORIGIN)");
+        return CorsLayer::permissive();
+    }
+
+    info!(
+        count = origins.len(),
+        "CORS: pinned to allow-list (browsers only — non-browser clients still pass since they don't send Origin)"
+    );
+
+    CorsLayer::new()
+        .allow_origin(AllowOrigin::list(origins))
+        .allow_methods([
+            axum::http::Method::GET,
+            axum::http::Method::POST,
+            axum::http::Method::OPTIONS,
+        ])
+        .allow_headers([axum::http::header::CONTENT_TYPE])
 }
 
 #[tokio::main]
@@ -1752,7 +1870,7 @@ async fn main() -> anyhow::Result<()> {
             post(prepare_proposal_cancel),
         )
         .with_state(state)
-        .layer(CorsLayer::permissive())
+        .layer(build_cors_layer())
         .layer(TraceLayer::new_for_http());
 
     let bind = env::var("BACKEND_API_BIND").unwrap_or_else(|_| "127.0.0.1:8080".to_string());

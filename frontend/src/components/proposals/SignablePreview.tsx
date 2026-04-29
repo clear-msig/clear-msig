@@ -12,7 +12,20 @@
 
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Copy, CheckCircle2, Terminal } from "lucide-react";
+import { Copy, CheckCircle2, Terminal, Network, Users, Sparkles } from "lucide-react";
+
+export interface SigningContext {
+  /// e.g. "treasury"
+  wallet?: string;
+  /// e.g. "Ethereum (EIP-1559)" — already humanised by the caller.
+  chain?: string;
+  /// e.g. "approve transfer", "propose add intent". Whatever verb best
+  /// describes what the signer is acknowledging.
+  action?: string;
+  /// `{ current: 1, total: 3 }` — caller's choice whether to render a
+  /// "your signature gets us to 1/3" cue.
+  threshold?: { current: number; total: number };
+}
 
 interface Props {
   bodyText: string | null;
@@ -20,9 +33,12 @@ interface Props {
   /// Optional indicator rendered next to the "Signable preview" header .
   /// use for "rebuilding…" / error chips while the caller recomputes.
   statusChip?: React.ReactNode;
+  /// Surfaces the multisig + multi-chain + Ika context above the preview
+  /// pane so the signer never has to hunt for what they're approving.
+  context?: SigningContext;
 }
 
-export function SignablePreview({ bodyText, messageHex, statusChip }: Props) {
+export function SignablePreview({ bodyText, messageHex, statusChip, context }: Props) {
   const [copied, setCopied] = useState<"body" | "hex" | null>(null);
 
   const visibleBody = useMemo(
@@ -64,6 +80,43 @@ export function SignablePreview({ bodyText, messageHex, statusChip }: Props) {
         </div>
       </div>
 
+      {context && hasAnyContext(context) && (
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-white/5 bg-black/60 px-4 py-2">
+          {context.action && (
+            <ContextChip
+              icon={<Sparkles size={10} />}
+              label="Action"
+              value={context.action}
+              tone="green"
+            />
+          )}
+          {context.wallet && (
+            <ContextChip
+              icon={<Users size={10} />}
+              label="Wallet"
+              value={context.wallet}
+            />
+          )}
+          {context.chain && (
+            <ContextChip
+              icon={<Network size={10} />}
+              label="Chain"
+              value={context.chain}
+            />
+          )}
+          {context.threshold && (
+            <ContextChip
+              icon={<Users size={10} />}
+              label="Threshold"
+              value={`${context.threshold.current}/${context.threshold.total}`}
+            />
+          )}
+          <span className="ml-auto text-[10px] uppercase tracking-wider text-white/30">
+            Ika dWallet · 2PC-MPC
+          </span>
+        </div>
+      )}
+
       <div className="grid gap-0 lg:grid-cols-2">
         <Pane
           title="Human-readable"
@@ -84,6 +137,36 @@ export function SignablePreview({ bodyText, messageHex, statusChip }: Props) {
         </div>
       </div>
     </motion.div>
+  );
+}
+
+function hasAnyContext(c: SigningContext): boolean {
+  return Boolean(c.action || c.wallet || c.chain || c.threshold);
+}
+
+function ContextChip({
+  icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  tone?: "green";
+}) {
+  const toneClass =
+    tone === "green"
+      ? "border-brand-green/30 bg-brand-green/10 text-brand-green"
+      : "border-white/10 bg-white/5 text-white/80";
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${toneClass}`}
+    >
+      {icon}
+      <span className="text-white/40">{label}</span>
+      <span className="font-mono">{value}</span>
+    </span>
   );
 }
 

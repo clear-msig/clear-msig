@@ -7,7 +7,16 @@ backend-api/keys/
 *.keypair.json
 # Don't block solana-keygen default CLI config which lives outside the repo.
 !.config/
-# Environment files (per-service .env kept for templates only).
+
+# Environment files. Only the *.example templates are tracked; real
+# values live untracked so each developer can point at their own paths
+# / RPC URLs / keypair locations without leaking them upstream.
+.env
+.env.local
+.env.development.local
+.env.production.local
+.env.test.local
+backend-api/.env.pre-alpha
 
 
 # Node

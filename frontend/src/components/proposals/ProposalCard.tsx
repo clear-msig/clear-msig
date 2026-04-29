@@ -232,10 +232,25 @@ export function ProposalCard({ walletName }: { walletName: string }) {
               ))}
             </div>
 
-            {/* Live preview. */}
+            {/* Live preview. The `context` strip surfaces the multisig +
+                multi-chain narrative right above the bytes the wallet
+                will sign — so the signer always sees what wallet they
+                are speaking for, on which chain, and toward what action,
+                not just the body text. */}
             <SignablePreview
               bodyText={previewState.status === "ok" ? previewState.bodyText : null}
               messageHex={previewState.status === "ok" ? previewState.messageHex : null}
+              context={{
+                action: "propose",
+                wallet: walletName,
+                chain: selectedIntent ? chainKindLabel(selectedIntent.chainKind) : undefined,
+                threshold: selectedIntent
+                  ? {
+                      current: 0,
+                      total: selectedIntent.approvers.length,
+                    }
+                  : undefined,
+              }}
               statusChip={
                 previewState.status === "error" ? (
                   <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-300">
