@@ -283,14 +283,57 @@ function Loaded({
     <div className="flex flex-col gap-4">
       <StatusHero proposal={proposal} intent={intent} renderedAction={renderedAction} proposalPda={proposalPda} />
 
-      <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-        {/* Main column. */}
-        <div className="flex flex-col gap-4">
+      {/* Mobile: single-column flex with explicit `order` so the sign-
+          /cancel panel sits high enough to reach without scrolling past
+          the bytes preview. Desktop (lg+): 2-col grid with the action
+          + bitmap pinned to the right rail.
+
+          Mobile order top→bottom:
+            1. ActionSummary — what is this asking me to do
+            2. ApprovalBitmap — who's signed already
+            3. ActionPanel    — sign/cancel CTAs
+            4. SignablePreview — the actual bytes (power-user)
+            5. ProposalMeta   — timestamps, PDAs (auditing detail) */}
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[2fr_1fr]">
+        <div className="order-1 lg:col-start-1 lg:row-start-1">
           <ActionSummary
             proposal={proposal}
             intent={intent}
             renderedAction={renderedAction}
           />
+        </div>
+
+        <div className="order-2 lg:col-start-2 lg:row-start-1">
+          <div className="rounded-2xl border border-white/10 bg-black p-4 shadow-card-dark">
+            {intent ? (
+              <ApprovalBitmap
+                approvers={intent.approvers}
+                approvalBitmap={proposal.approvalBitmap}
+                cancellationBitmap={proposal.cancellationBitmap}
+                threshold={intent.approvalThreshold}
+                proposer={proposal.proposer}
+              />
+            ) : (
+              <p className="text-xs text-text-muted">
+                Waiting for intent metadata…
+              </p>
+            )}
+          </div>
+        </div>
+
+        {wallet && (
+          <div className="order-3 lg:col-start-2 lg:row-start-2">
+            <ActionPanel
+              proposal={proposal}
+              walletName={wallet.name}
+              proposalPda={proposalPda}
+              status={status}
+              onRefresh={onRefresh}
+            />
+          </div>
+        )}
+
+        <div className="order-4 lg:col-start-1 lg:row-start-2">
           <SignablePreview
             bodyText={signablePreview?.body ?? null}
             messageHex={signablePreview?.hex ?? null}
@@ -311,36 +354,10 @@ function Loaded({
               </span>
             }
           />
-          <ProposalMeta proposal={proposal} wallet={wallet} proposalPda={proposalPda} />
         </div>
 
-        {/* Sidebar. */}
-        <div className="flex flex-col gap-4">
-          <div className="rounded-2xl border border-white/10 bg-black p-4 shadow-card-dark">
-            {intent ? (
-              <ApprovalBitmap
-                approvers={intent.approvers}
-                approvalBitmap={proposal.approvalBitmap}
-                cancellationBitmap={proposal.cancellationBitmap}
-                threshold={intent.approvalThreshold}
-                proposer={proposal.proposer}
-              />
-            ) : (
-              <p className="text-xs text-text-muted">
-                Waiting for intent metadata…
-              </p>
-            )}
-          </div>
-
-          {wallet && (
-            <ActionPanel
-              proposal={proposal}
-              walletName={wallet.name}
-              proposalPda={proposalPda}
-              status={status}
-              onRefresh={onRefresh}
-            />
-          )}
+        <div className="order-5 lg:col-start-1 lg:row-start-3">
+          <ProposalMeta proposal={proposal} wallet={wallet} proposalPda={proposalPda} />
         </div>
       </div>
     </div>

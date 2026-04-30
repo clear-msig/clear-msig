@@ -25,6 +25,8 @@ export interface UserIntentRow {
   chainKind: number;
   approved: boolean;
   intentType: number;
+  approvers: string[];
+  approvalThreshold: number;
 }
 
 export function useUserIntents() {
@@ -95,6 +97,8 @@ export function useUserIntents() {
           chainKind: r.account.chainKind,
           approved: r.account.approved,
           intentType: r.account.intentType,
+          approvers: r.account.approvers,
+          approvalThreshold: r.account.approvalThreshold,
         });
       }
     }

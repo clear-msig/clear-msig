@@ -33,6 +33,7 @@ export interface RecentActivityRow {
   status: ProposalWithPda["account"]["status"];
   statusLabel: ProposalWithPda["account"]["statusLabel"];
   proposedAt: bigint;
+  approvalBitmap: number;
 }
 
 export function useRecentActivity(limit = 5) {
@@ -107,6 +108,7 @@ export function useRecentActivity(limit = 5) {
           status: p.account.status,
           statusLabel: p.account.statusLabel,
           proposedAt: p.account.proposedAt,
+          approvalBitmap: p.account.approvalBitmap,
         });
       }
     }

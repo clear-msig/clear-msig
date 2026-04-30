@@ -31,6 +31,7 @@ import { WalletPanel } from "@/components/wallet/WalletPanel";
 import { WorkflowTips } from "@/components/layout/WorkflowTips";
 import { useRecentActivity } from "@/lib/hooks/useRecentActivity";
 import { useUserStats } from "@/lib/hooks/useUserStats";
+import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
 import { ProposalStatus } from "@/lib/msig";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { relativeTime } from "@/lib/util/relativeTime";
@@ -40,6 +41,7 @@ export default function WalletPage() {
     <div className="flex flex-col gap-6">
       <PageHero />
       <StatsRow />
+      <ActionNeededCard />
       <RecentActivityCard />
 
       <Section
@@ -191,6 +193,96 @@ function StatCard({
         </div>
       </div>
     </div>
+  );
+}
+
+function ActionNeededCard() {
+  const action = useActionNeeded();
+
+  // Hide the section entirely if there's nothing pending — no value
+  // adding empty noise to the dashboard. Loading state shows briefly
+  // so the user knows we're checking.
+  if (!action.loading && action.rows.length === 0) return null;
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+      className="relative overflow-hidden rounded-3xl border border-amber-300/30 bg-gradient-to-br from-amber-500/[0.08] via-black to-black px-5 py-6 shadow-card-dark sm:px-7 sm:py-8"
+    >
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-amber-300/20 blur-3xl"
+      />
+      <div className="relative z-10 flex flex-col gap-4">
+        <header className="flex flex-col gap-1.5">
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-amber-300/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-amber-300">
+            <Clock size={11} /> Action needed
+          </span>
+          <h2 className="font-display text-xl font-bold leading-tight tracking-tight text-brand-white sm:text-2xl">
+            {action.loading
+              ? "Checking your queue…"
+              : action.rows.length === 1
+              ? "1 proposal needs your signature"
+              : `${action.rows.length} proposals need your signature`}
+          </h2>
+          <p className="text-sm text-white/60">
+            Active proposals where you're an approver and haven't yet signed. Oldest first.
+          </p>
+        </header>
+        {action.loading ? (
+          <div className="flex flex-col gap-2">
+            {[0, 1].map((i) => (
+              <Skeleton key={i} tone="dark" className="h-14 w-full rounded-xl" />
+            ))}
+          </div>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {action.rows.map((r) => (
+              <li key={r.proposalPda}>
+                <Link
+                  href={`/app/proposals/${encodeURIComponent(r.proposalPda)}`}
+                  className="group flex items-center gap-3 rounded-2xl border border-amber-300/20 bg-amber-300/[0.04] px-3 py-3 transition-colors hover:border-amber-300/50 hover:bg-amber-300/[0.08]"
+                >
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-300/15 text-amber-300">
+                    <Clock size={14} />
+                  </div>
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="truncate text-sm font-semibold text-white">
+                        {r.walletName}
+                      </span>
+                      <span className="font-mono text-xs text-white/40">
+                        #{r.proposalIndex.toString()}
+                      </span>
+                    </div>
+                    <div className="truncate font-mono text-[11px] text-white/60">
+                      {r.intentTemplate}
+                    </div>
+                    <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wide text-white/40">
+                      <span className="text-amber-300">
+                        {r.approvalsCollected}/{r.approverCount} collected
+                      </span>
+                      {r.proposedAt > 0n && (
+                        <>
+                          <span className="text-white/20">·</span>
+                          <span>{relativeTime(r.proposedAt)}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <ArrowRight
+                    size={14}
+                    className="shrink-0 text-amber-300/50 transition-all group-hover:translate-x-0.5 group-hover:text-amber-300"
+                  />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </motion.section>
   );
 }
 
