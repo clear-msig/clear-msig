@@ -18,6 +18,7 @@ import { CardShell } from "@/components/ui/CardShell";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { txUrl } from "@/lib/explorer";
+import { relativeTime } from "@/lib/util/relativeTime";
 
 export function TxHistoryPanel({ walletPda }: { walletPda: PublicKey }) {
   const { connection } = useConnection();
@@ -129,10 +130,3 @@ function shortSig(s: string): string {
   return `${s.slice(0, 6)}…${s.slice(-6)}`;
 }
 
-function relativeTime(date: Date): string {
-  const sec = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (sec < 60) return `${sec}s ago`;
-  if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
-  if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
-  return `${Math.floor(sec / 86400)}d ago`;
-}

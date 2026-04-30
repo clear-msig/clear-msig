@@ -38,6 +38,7 @@ import {
   type RecentActivityRow,
 } from "@/lib/hooks/useRecentActivity";
 import { ProposalStatus } from "@/lib/msig";
+import { relativeTime } from "@/lib/util/relativeTime";
 
 type Props = {
   /// Called after a navigation link fires — used by the mobile drawer
@@ -271,8 +272,14 @@ function SidebarActivityRow({
             {row.walletName}{" "}
             <span className="font-mono text-white/40">#{row.proposalIndex.toString()}</span>
           </span>
-          <span className="truncate font-mono text-[10px] uppercase tracking-wide text-white/30">
-            {row.statusLabel}
+          <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wide text-white/30">
+            <span>{row.statusLabel}</span>
+            {row.proposedAt > 0n && (
+              <>
+                <span className="text-white/20">·</span>
+                <span>{relativeTime(row.proposedAt)}</span>
+              </>
+            )}
           </span>
         </span>
       </Link>
