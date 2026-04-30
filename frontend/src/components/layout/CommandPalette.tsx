@@ -15,16 +15,25 @@ import { Command } from "cmdk";
 import { useQuery } from "@tanstack/react-query";
 import { useWallet } from "@solana/wallet-adapter-react";
 import {
+  CheckCircle2,
+  Clock,
+  ClipboardList,
   LogOut,
   Plus,
   RefreshCcw,
+  Rocket,
   Search,
   ShieldCheck,
   Users,
   Wallet,
+  X,
+  Zap,
 } from "lucide-react";
 import { fetchOnchainMemberships } from "@/lib/memberships/client";
 import { useOnboarding } from "@/lib/hooks/useOnboarding";
+import { useRecentActivity } from "@/lib/hooks/useRecentActivity";
+import { useUserIntents } from "@/lib/hooks/useUserIntents";
+import { ProposalStatus, IntentType } from "@/lib/msig";
 
 type CommandPaletteHandle = {
   open: () => void;
@@ -55,6 +64,13 @@ export function CommandPalette() {
     enabled: address.length > 0,
     staleTime: 30_000,
   });
+
+  // Pull every proposal + intent across the user's wallets so the
+  // palette is a real "jump anywhere" surface, not just a wallet
+  // switcher. Both hooks share queryKey infrastructure with the
+  // sidebar / detail pages so this isn't extra RPC.
+  const allProposals = useRecentActivity(Number.POSITIVE_INFINITY);
+  const allIntents = useUserIntents();
 
   // Cmd-K (mac) / Ctrl-K (everywhere else) toggles the palette.
   // Esc closes (cmdk handles that automatically when the dialog is open).
@@ -113,7 +129,7 @@ export function CommandPalette() {
         <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2 text-white/70">
           <Search size={14} />
           <Command.Input
-            placeholder="Search wallets, jump to actions…"
+            placeholder="Search wallets, proposals, intents…"
             className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/30"
           />
           <kbd className="hidden rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-white/50 sm:inline">
@@ -172,6 +188,92 @@ export function CommandPalette() {
                     ) : m.roles.includes("proposer") ? (
                       <Users size={10} className="ml-auto text-white/30" />
                     ) : null}
+                  </Command.Item>
+                );
+              })}
+            </Command.Group>
+          )}
+
+          {allProposals.rows.length > 0 && (
+            <Command.Group
+              heading="Proposals"
+              className="mb-2 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-white/40"
+            >
+              {allProposals.rows.slice(0, 30).map((p) => {
+                const StatusIcon =
+                  p.status === ProposalStatus.Executed
+                    ? Rocket
+                    : p.status === ProposalStatus.Approved
+                    ? CheckCircle2
+                    : p.status === ProposalStatus.Cancelled
+                    ? X
+                    : Clock;
+                const statusTone =
+                  p.status === ProposalStatus.Executed
+                    ? "text-brand-green"
+                    : p.status === ProposalStatus.Approved
+                    ? "text-cyan-300"
+                    : p.status === ProposalStatus.Cancelled
+                    ? "text-rose-300"
+                    : "text-amber-300";
+                return (
+                  <Command.Item
+                    key={p.proposalPda}
+                    value={`proposal:${p.walletName} ${p.proposalIndex} ${p.proposalPda} ${p.statusLabel}`}
+                    onSelect={() =>
+                      goto(`/app/proposals/${encodeURIComponent(p.proposalPda)}`)
+                    }
+                    className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-xs text-white/80 aria-selected:bg-brand-green/15 aria-selected:text-brand-green"
+                  >
+                    <StatusIcon size={12} className={statusTone} />
+                    <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+                      <span className="truncate font-semibold">
+                        {p.walletName}
+                      </span>
+                      <span className="font-mono text-white/40">
+                        #{p.proposalIndex.toString()}
+                      </span>
+                    </span>
+                    <span className="ml-auto font-mono text-[10px] uppercase tracking-wide text-white/40">
+                      {p.statusLabel}
+                    </span>
+                  </Command.Item>
+                );
+              })}
+            </Command.Group>
+          )}
+
+          {allIntents.rows.length > 0 && (
+            <Command.Group
+              heading="Intents"
+              className="mb-2 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-white/40"
+            >
+              {allIntents.rows.slice(0, 30).map((it) => {
+                // Meta-intents (Add/Remove/Update) are scaffolding; only
+                // surface user-authored Custom intents in the palette.
+                if (it.intentType !== IntentType.Custom) return null;
+                return (
+                  <Command.Item
+                    key={`${it.walletPda}-${it.intentIndex}`}
+                    value={`intent:${it.walletName} ${it.intentIndex} ${it.template}`}
+                    onSelect={() =>
+                      goto(`/app/wallet/${encodeURIComponent(it.walletName)}`)
+                    }
+                    className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-xs text-white/80 aria-selected:bg-brand-green/15 aria-selected:text-brand-green"
+                  >
+                    <ClipboardList size={12} className="text-white/40" />
+                    <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+                      <span className="truncate font-semibold">
+                        {it.walletName}
+                      </span>
+                      <span className="font-mono text-white/40">
+                        #{it.intentIndex}
+                      </span>
+                    </span>
+                    <span className="ml-2 truncate font-mono text-[10px] text-white/40">
+                      {it.template.slice(0, 36)}
+                      {it.template.length > 36 ? "…" : ""}
+                    </span>
                   </Command.Item>
                 );
               })}
