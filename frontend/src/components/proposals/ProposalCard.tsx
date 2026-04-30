@@ -18,6 +18,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronRight, Loader2, MoveRight, ShieldCheck, Sparkles } from "lucide-react";
+import { useConnection } from "@solana/wallet-adapter-react";
+import { useQuery } from "@tanstack/react-query";
 import { CardShell } from "@/components/ui/CardShell";
 import { TypedParamInput } from "@/components/proposals/TypedParamInput";
 import { SignablePreview } from "@/components/proposals/SignablePreview";
@@ -33,6 +35,7 @@ import {
   type IntentAccount,
 } from "@/lib/msig";
 import { backendApi } from "@/lib/api/endpoints";
+import { fetchWalletByName, type WalletWithPda } from "@/lib/chain/wallets";
 
 const DEFAULT_EXPIRY_WINDOW_SECS = 5 * 60; // 5 min . matches CLI default
 
@@ -44,6 +47,18 @@ export function ProposalCard({
   initialIntentIndex?: number | null;
 }) {
   const toast = useToast();
+  const { connection } = useConnection();
+
+  // Wallet account is the source of truth for the next proposal index.
+  // We share the cache key with the parent's wallet query so this
+  // doesn't add a duplicate RPC roundtrip.
+  const walletQuery = useQuery<WalletWithPda | null>({
+    queryKey: ["wallet", walletName],
+    queryFn: () => fetchWalletByName(connection, walletName),
+    enabled: walletName.trim().length > 0,
+    staleTime: 30_000,
+  });
+  const walletProposalIndex = walletQuery.data?.account.proposalIndex ?? 0n;
 
   // Pull the wallet's intent table directly from chain. Only custom
   // intents (index 3+) can be proposed against.
@@ -113,21 +128,15 @@ export function ProposalCard({
     if (!selectedIntent) return { status: "empty" as const };
     try {
       const paramsData = encodeParams(selectedIntent, paramValues);
-      // Wallet + proposal index come from the underlying on-chain wallet.
-      const walletAccount = intents.listQuery.data?.[0]?.account?.wallet; // intent's `wallet` field points at the wallet PDA . any intent will do.
-      const walletInfo = {
-        name: walletName,
-        // We don't need the proposal_index from chain for preview . the
-        // message format uses the *current* proposal_index as a nonce.
-        // For preview purposes we use the wallet's next index (if we've
-        // fetched it) or 0. It commits at submit time.
-        proposalIndex: 0,
-      };
+      // The on-chain `propose` ix rebuilds the signable bytes using the
+      // wallet's current proposal_index as a nonce. The signature must
+      // match those exact bytes, so we read the index from chain rather
+      // than hardcoding 0 (which broke after the first proposal).
       const built = buildSignableMessage({
         action: "propose",
         expiry: expiryUnix,
-        walletName: walletInfo.name,
-        proposalIndex: walletInfo.proposalIndex,
+        walletName,
+        proposalIndex: walletProposalIndex,
         intent: {
           intentType: IntentType.Custom,
           template: selectedIntent.template,
@@ -136,7 +145,6 @@ export function ProposalCard({
         },
         paramsData,
       });
-      void walletAccount;
       return {
         status: "ok" as const,
         paramsData,
@@ -156,7 +164,7 @@ export function ProposalCard({
     paramValues,
     walletName,
     expiryUnix,
-    intents.listQuery.data,
+    walletProposalIndex,
   ]);
 
   // ── submit ─────────────────────────────────────────────────────────
@@ -166,10 +174,34 @@ export function ProposalCard({
   const [submitting, setSubmitting] = useState(false);
 
   const submit = async () => {
-    if (previewState.status !== "ok" || selectedIndex === null) return;
+    if (
+      previewState.status !== "ok" ||
+      selectedIndex === null ||
+      !selectedIntent
+    )
+      return;
     setSubmitting(true);
     try {
-      const { signer_pubkey, signature } = await signBytes(previewState.wrapped);
+      // Refetch the wallet right before signing so the signed bytes
+      // match the proposal_index the on-chain ix will rebuild. Stale
+      // cache here surfaces as a sig-mismatch from the backend.
+      const fresh = await walletQuery.refetch();
+      const freshIndex =
+        fresh.data?.account.proposalIndex ?? walletProposalIndex;
+      const built = buildSignableMessage({
+        action: "propose",
+        expiry: expiryUnix,
+        walletName,
+        proposalIndex: freshIndex,
+        intent: {
+          intentType: IntentType.Custom,
+          template: selectedIntent.template,
+          params: selectedIntent.params,
+          bytePool: selectedIntent.bytePool,
+        },
+        paramsData: previewState.paramsData,
+      });
+      const { signer_pubkey, signature } = await signBytes(built.wrapped);
       const res = await backendApi.submit.createProposal(walletName, {
         intent_index: selectedIndex,
         params_data_hex: toHex(previewState.paramsData),
@@ -182,7 +214,10 @@ export function ProposalCard({
         details:
           "Approvers can now sign on the proposal detail page. The tx was paid by the relayer's sponsored-gas keypair.",
       });
-      await proposalWorkflow.listQuery.refetch();
+      await Promise.all([
+        proposalWorkflow.listQuery.refetch(),
+        walletQuery.refetch(),
+      ]);
       setParamValues({});
     } catch (err) {
       if (err instanceof WalletSignError) {
