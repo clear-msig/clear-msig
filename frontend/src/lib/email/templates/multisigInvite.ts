@@ -5,8 +5,23 @@ type InviteTemplateInput = {
   inviterAddress: string;
 };
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export function buildMultisigInviteEmail(input: InviteTemplateInput) {
+  const walletName = escapeHtml(input.walletName);
+  const reason = input.reason ? escapeHtml(input.reason) : "No reason provided";
+  const inviterAddress = escapeHtml(input.inviterAddress);
+  const inviteeAddress = escapeHtml(input.inviteeAddress);
+
   const subject = `You were added to ${input.walletName}`;
+  const titleHtml = escapeHtml(subject);
 
   const html = `
   <!doctype html>
@@ -14,7 +29,7 @@ export function buildMultisigInviteEmail(input: InviteTemplateInput) {
     <head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <title>${subject}</title>
+      <title>${titleHtml}</title>
     </head>
     <body style="margin:0;padding:0;background:#090909;font-family:Arial,Helvetica,sans-serif;color:#ffffff;">
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:24px 12px;">
@@ -30,10 +45,10 @@ export function buildMultisigInviteEmail(input: InviteTemplateInput) {
                 <td style="padding:22px 24px;">
                   <p style="margin:0 0 12px 0;color:#d0d0d0;font-size:14px;line-height:1.6;">You have been added as a signer in a Clear-MSIG organization.</p>
                   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#0b0b0b;border:1px solid #2a2a2a;border-radius:10px;">
-                    <tr><td style="padding:12px 14px;color:#8f8f8f;font-size:12px;">Organization</td><td style="padding:12px 14px;color:#ffffff;font-size:13px;">${input.walletName}</td></tr>
-                    <tr><td style="padding:12px 14px;color:#8f8f8f;font-size:12px;">Reason</td><td style="padding:12px 14px;color:#ffffff;font-size:13px;">${input.reason || "No reason provided"}</td></tr>
-                    <tr><td style="padding:12px 14px;color:#8f8f8f;font-size:12px;">Inviter</td><td style="padding:12px 14px;color:#ffffff;font-size:13px;">${input.inviterAddress}</td></tr>
-                    <tr><td style="padding:12px 14px;color:#8f8f8f;font-size:12px;">Your wallet</td><td style="padding:12px 14px;color:#ffffff;font-size:13px;">${input.inviteeAddress}</td></tr>
+                    <tr><td style="padding:12px 14px;color:#8f8f8f;font-size:12px;">Organization</td><td style="padding:12px 14px;color:#ffffff;font-size:13px;">${walletName}</td></tr>
+                    <tr><td style="padding:12px 14px;color:#8f8f8f;font-size:12px;">Reason</td><td style="padding:12px 14px;color:#ffffff;font-size:13px;">${reason}</td></tr>
+                    <tr><td style="padding:12px 14px;color:#8f8f8f;font-size:12px;">Inviter</td><td style="padding:12px 14px;color:#ffffff;font-size:13px;">${inviterAddress}</td></tr>
+                    <tr><td style="padding:12px 14px;color:#8f8f8f;font-size:12px;">Your wallet</td><td style="padding:12px 14px;color:#ffffff;font-size:13px;">${inviteeAddress}</td></tr>
                   </table>
                   <p style="margin:14px 0 0 0;color:#8f8f8f;font-size:12px;line-height:1.5;">Connect your wallet in the dashboard to review and approve proposals for this organization.</p>
                 </td>

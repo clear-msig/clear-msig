@@ -2,9 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { buildMultisigInviteEmail } from "@/lib/email/templates/multisigInvite";
 
-function required(name: string, value: string | undefined) {
+class BadRequestError extends Error {}
+class ConfigError extends Error {}
+
+function requireField(name: string, value: string | undefined) {
   if (!value || !value.trim()) {
-    throw new Error(`Missing ${name}`);
+    throw new BadRequestError(`Missing ${name}`);
+  }
+  return value;
+}
+
+function requireEnv(name: string, value: string | undefined) {
+  if (!value || !value.trim()) {
+    throw new ConfigError(name);
   }
   return value;
 }
@@ -18,16 +28,16 @@ export async function POST(request: NextRequest) {
       invitee?: { address?: string; email?: string };
     };
 
-    const walletName = required("walletName", body.walletName);
-    const inviterAddress = required("inviterAddress", body.inviterAddress);
-    const inviteeAddress = required("invitee.address", body.invitee?.address);
-    const inviteeEmail = required("invitee.email", body.invitee?.email);
+    const walletName = requireField("walletName", body.walletName);
+    const inviterAddress = requireField("inviterAddress", body.inviterAddress);
+    const inviteeAddress = requireField("invitee.address", body.invitee?.address);
+    const inviteeEmail = requireField("invitee.email", body.invitee?.email);
 
-    const host = required("SMTP_HOST", process.env.SMTP_HOST);
+    const host = requireEnv("SMTP_HOST", process.env.SMTP_HOST);
     const port = Number(process.env.SMTP_PORT ?? "587");
-    const user = required("SMTP_USER", process.env.SMTP_USER);
-    const pass = required("SMTP_PASS", process.env.SMTP_PASS);
-    const from = required("SMTP_FROM", process.env.SMTP_FROM);
+    const user = requireEnv("SMTP_USER", process.env.SMTP_USER);
+    const pass = requireEnv("SMTP_PASS", process.env.SMTP_PASS);
+    const from = requireEnv("SMTP_FROM", process.env.SMTP_FROM);
 
     const transporter = nodemailer.createTransport({
       host,
@@ -53,9 +63,14 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to send invite" },
-      { status: 400 }
-    );
+    if (error instanceof BadRequestError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    if (error instanceof ConfigError) {
+      console.error(`[invitations] missing env var: ${error.message}`);
+      return NextResponse.json({ error: "Email service unavailable" }, { status: 503 });
+    }
+    console.error("[invitations] failed to send invite", error);
+    return NextResponse.json({ error: "Failed to send invite" }, { status: 500 });
   }
 }
