@@ -18,13 +18,12 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Loader2, UserPlus } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
-import { BackendApiError } from "@/lib/api/client";
-import { appConfig } from "@/lib/config";
+import { friendlyError } from "@/lib/api/errors";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { fromHex } from "@/lib/msig";
-import { useSignWithWallet, WalletSignError } from "@/lib/hooks/useSignWithWallet";
+import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useContacts } from "@/lib/hooks/useContacts";
 import {
   isValidEmail,
@@ -200,31 +199,8 @@ export default function AddFriendPage() {
     },
     onError: (err) => {
       console.error("[add-friend]", err);
-      const msg =
-        err instanceof BackendApiError
-          ? err.message
-          : err instanceof WalletSignError
-            ? err.message
-            : err instanceof Error
-              ? err.message
-              : "Couldn't add this friend";
-      const isNetwork =
-        msg === "Failed to fetch" ||
-        msg === "NetworkError when attempting to fetch resource.";
-      if (isNetwork) {
-        toast.error("Can't reach the server", {
-          details:
-            `Tried ${appConfig.backendApiUrl}. ` +
-            "Start the backend with `cargo run -p clear-msig-backend-api`.",
-          durationMs: 0,
-        });
-      } else {
-        const details =
-          err instanceof BackendApiError && err.payload
-            ? JSON.stringify(err.payload, null, 2)
-            : undefined;
-        toast.error(msg, { details, durationMs: 0 });
-      }
+      const fe = friendlyError(err, "add-friend");
+      toast.error(fe.title, { details: fe.body });
     },
   });
 
@@ -249,6 +225,7 @@ export default function AddFriendPage() {
       <motion.section
         {...motionProps}
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        className="flex flex-col items-center text-center"
       >
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">
           <UserPlus className="h-5 w-5" strokeWidth={1.75} />
@@ -285,6 +262,7 @@ export default function AddFriendPage() {
           onChange={setFriendAddress}
           placeholder="Solana wallet address"
           mono
+          maxLength={64}
         />
         {trimmedAddress.length > 0 && !addressValid && (
           <p className="ml-[4.5rem] text-xs text-warning">
@@ -304,6 +282,7 @@ export default function AddFriendPage() {
           onChange={setFriendEmail}
           placeholder="sarah@example.com"
           inputType="email"
+          maxLength={120}
         />
         {trimmedEmail.length > 0 && !emailValid && (
           <p className="ml-[4.5rem] text-xs text-warning">

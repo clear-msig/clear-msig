@@ -215,7 +215,7 @@ function Hero({
     <motion.section
       {...motionProps}
       transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-8"
+      className="rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest sm:p-8"
     >
       <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
         Shared wallet
@@ -232,7 +232,7 @@ function Hero({
           Balance
         </p>
         {loadingBalance ? (
-          <div className="mt-1 h-9 w-40 animate-pulse rounded bg-border-soft" />
+          <div className="mx-auto mt-1 h-9 w-40 animate-pulse rounded bg-border-soft" />
         ) : (
           <p className="mt-1 font-display text-display-xs text-text-strong">
             {balance ? balance.amount : "0"}{" "}
@@ -243,7 +243,7 @@ function Hero({
         )}
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-text-soft">
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-text-soft">
         <Link
           href={`/app/wallet/${encodeURIComponent(name)}/members`}
           aria-label="View members"

@@ -25,8 +25,7 @@ import {
   Plus,
 } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
-import { BackendApiError } from "@/lib/api/client";
-import { appConfig } from "@/lib/config";
+import { friendlyError } from "@/lib/api/errors";
 import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import {
@@ -101,29 +100,8 @@ function AddChainPage() {
     },
     onError: (err) => {
       console.error("[add-chain]", err);
-      const msg =
-        err instanceof BackendApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : "Couldn't add this chain";
-      const isNetwork =
-        msg === "Failed to fetch" ||
-        msg === "NetworkError when attempting to fetch resource.";
-      if (isNetwork) {
-        toast.error("Can't reach the server", {
-          details:
-            `Tried ${appConfig.backendApiUrl}. ` +
-            "Start the backend with `cargo run -p clear-msig-backend-api`.",
-          durationMs: 0,
-        });
-      } else {
-        const details =
-          err instanceof BackendApiError && err.payload
-            ? JSON.stringify(err.payload, null, 2)
-            : undefined;
-        toast.error(msg, { details, durationMs: 0 });
-      }
+      const fe = friendlyError(err, "add-chain");
+      toast.error(fe.title, { details: fe.body });
       setStage(selected ? "confirm" : "pick");
     },
   });
@@ -158,7 +136,7 @@ function AddChainPage() {
           transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
           className="flex flex-col gap-6"
         >
-          <div>
+          <div className="flex flex-col items-center text-center">
             <h1 className="font-display text-display-sm leading-[1.05] text-text-strong text-balance">
               Pick a chain
             </h1>

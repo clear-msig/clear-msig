@@ -44,9 +44,7 @@ import {
 } from "@/lib/msig";
 import { useProposalSubscription } from "@/lib/hooks/useProposalSubscription";
 import { useProposalWorkflow } from "@/lib/hooks/useProposalWorkflow";
-import { WalletSignError } from "@/lib/hooks/useSignWithWallet";
-import { BackendApiError } from "@/lib/api/client";
-import { appConfig } from "@/lib/config";
+import { friendlyError } from "@/lib/api/errors";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
@@ -217,7 +215,7 @@ function Loaded({
       </Link>
 
       {/* Hero */}
-      <section className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-8">
+      <section className="flex flex-col items-center rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest sm:p-8">
         <span
           className={
             "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em] " +
@@ -241,7 +239,7 @@ function Loaded({
           · created {createdAgo} {proposerLabel && `· ${proposerLabel}`}
         </p>
 
-        <div className="mt-5 flex items-center gap-3">
+        <div className="mt-5 flex items-center justify-center gap-3">
           <ApprovalProgress
             collected={approvalsCollected}
             total={approverCount}
@@ -407,36 +405,14 @@ function NotFound() {
   );
 }
 
-// Shared error surface for approve / decline. Mirrors the diagnostic
-// toast pattern used in /welcome and /send so a backend-down state
-// reads the same way everywhere instead of "Failed to fetch."
 function surfaceWriteError(
   err: unknown,
   toast: ReturnType<typeof useToast>,
   action: "approve" | "decline",
 ) {
   console.error(`[request-${action}]`, err);
-  const msg =
-    err instanceof BackendApiError
-      ? err.message
-      : err instanceof WalletSignError
-        ? err.message
-        : err instanceof Error
-          ? err.message
-          : `Couldn't ${action} this request`;
-  const isNetwork =
-    msg === "Failed to fetch" ||
-    msg === "NetworkError when attempting to fetch resource.";
-  if (isNetwork) {
-    toast.error("Can't reach the server", {
-      details:
-        `Tried ${appConfig.backendApiUrl}. ` +
-        "Start the backend with `cargo run -p clear-msig-backend-api`.",
-      durationMs: 0,
-    });
-  } else {
-    toast.error(msg);
-  }
+  const fe = friendlyError(err, action);
+  toast.error(fe.title, { details: fe.body });
 }
 
 function statusChipClasses(s: ProposalStatus): string {

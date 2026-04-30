@@ -186,6 +186,10 @@ function AddContactForm({
             onChange={(e) => setAddress(e.target.value)}
             placeholder="Solana wallet address"
             spellCheck={false}
+            maxLength={64}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
             className="flex-1 bg-transparent py-1.5 font-mono text-sm text-text-strong outline-none placeholder:font-sans placeholder:text-text-soft/60"
           />
         </label>

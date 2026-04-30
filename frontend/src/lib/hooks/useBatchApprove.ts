@@ -18,8 +18,8 @@ import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { backendApi } from "@/lib/api/endpoints";
 import { fromHex } from "@/lib/msig";
-import { useSignWithWallet, WalletSignError } from "@/lib/hooks/useSignWithWallet";
-import { BackendApiError } from "@/lib/api/client";
+import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
+import { friendlyError } from "@/lib/api/errors";
 
 export interface BatchTarget {
   walletName: string;
@@ -73,14 +73,8 @@ export function useBatchApprove() {
           );
           touchedWallets.add(row.walletName);
         } catch (err) {
-          const message =
-            err instanceof BackendApiError
-              ? err.message
-              : err instanceof WalletSignError
-                ? err.message
-                : err instanceof Error
-                  ? err.message
-                  : "Stopped";
+          const fe = friendlyError(err, "approve");
+          const message = fe.title;
           setProgress({
             total: rows.length,
             completed: i,

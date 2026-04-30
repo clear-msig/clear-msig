@@ -29,8 +29,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
-import { BackendApiError } from "@/lib/api/client";
-import { appConfig } from "@/lib/config";
+import { friendlyError } from "@/lib/api/errors";
 import { fromHex, toHex } from "@/lib/msig";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -41,7 +40,7 @@ import {
   type Contact,
 } from "@/lib/retail/contacts";
 import { useContacts } from "@/lib/hooks/useContacts";
-import { useSignWithWallet, WalletSignError } from "@/lib/hooks/useSignWithWallet";
+import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 
@@ -214,31 +213,8 @@ function SendPage() {
     },
     onError: (err) => {
       console.error("[send]", err);
-      const msg =
-        err instanceof BackendApiError
-          ? err.message
-          : err instanceof WalletSignError
-            ? err.message
-            : err instanceof Error
-              ? err.message
-              : "Something went wrong";
-      const isNetwork =
-        msg === "Failed to fetch" ||
-        msg === "NetworkError when attempting to fetch resource.";
-      if (isNetwork) {
-        toast.error("Can't reach the server", {
-          details:
-            `Tried ${appConfig.backendApiUrl}. ` +
-            "Start the backend with `cargo run -p clear-msig-backend-api`.",
-          durationMs: 0,
-        });
-      } else {
-        const details =
-          err instanceof BackendApiError && err.payload
-            ? JSON.stringify(err.payload, null, 2)
-            : undefined;
-        toast.error(msg, { details, durationMs: 0 });
-      }
+      const fe = friendlyError(err, "send");
+      toast.error(fe.title, { details: fe.body });
       setStage("compose");
     },
   });
@@ -428,7 +404,11 @@ function ComposeStage({
             value={amount}
             onChange={(e) => {
               const raw = e.target.value.replace(/[^\d.]/g, "");
-              const [whole, frac] = raw.split(".");
+              // Cap whole part at 12 digits so the input can't grow
+              // arbitrarily (and so layout doesn't blow up). 1T SOL
+              // is comfortably above any realistic balance.
+              const [wholeRaw = "", frac] = raw.split(".");
+              const whole = wholeRaw.slice(0, 12);
               // Solana goes to 9 decimals; cap the typed string at 4
               // (catalog's displayDecimals) so users can't type
               // sub-dust amounts that look like noise.
@@ -438,6 +418,7 @@ function ComposeStage({
             }}
             placeholder="0"
             autoFocus
+            maxLength={20}
             aria-label="Amount in SOL"
             className={
               "bg-transparent font-display text-5xl font-medium text-text-strong " +
@@ -494,6 +475,7 @@ function ComposeStage({
           onChange={setRecipientText}
           placeholder="Sarah, or paste a wallet address"
           autoFocus
+          maxLength={64}
         />
         <RecipientStatus
           resolved={resolved}
@@ -507,6 +489,7 @@ function ComposeStage({
           onChange={setNote}
           placeholder="What's it for? (optional)"
           optional
+          maxLength={140}
         />
       </div>
 
@@ -677,6 +660,7 @@ interface FieldProps {
   placeholder?: string;
   optional?: boolean;
   autoFocus?: boolean;
+  maxLength?: number;
 }
 
 function Field({
@@ -686,6 +670,7 @@ function Field({
   placeholder,
   optional,
   autoFocus,
+  maxLength,
 }: FieldProps) {
   return (
     <label className="flex items-center gap-3">
@@ -702,6 +687,7 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         autoFocus={autoFocus}
+        maxLength={maxLength}
         spellCheck={false}
         className={
           "flex-1 bg-transparent py-1.5 text-base text-text-strong outline-none " +

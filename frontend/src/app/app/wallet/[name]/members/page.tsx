@@ -103,34 +103,30 @@ export default function MembersPage() {
       <motion.section
         {...motionProps}
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-        className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-8"
+        className="rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest sm:p-8"
       >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
-              Members
-            </p>
-            <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-              Who&rsquo;s in {name}
-            </h1>
-            <p className="mt-2 max-w-md text-sm text-text-soft">
-              {members.length === 1
-                ? "Just you for now."
-                : `You and ${members.length - 1} other${members.length - 1 === 1 ? "" : "s"} can act on this wallet.`}
-            </p>
-          </div>
-          <Link
-            href="/privacy"
-            className={
-              "inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
-              "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-            }
-          >
-            <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-            Private list
-          </Link>
-        </div>
+        <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+          Members
+        </p>
+        <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+          Who&rsquo;s in {name}
+        </h1>
+        <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
+          {members.length === 1
+            ? "Just you for now."
+            : `You and ${members.length - 1} other${members.length - 1 === 1 ? "" : "s"} can act on this wallet.`}
+        </p>
+        <Link
+          href="/privacy"
+          className={
+            "mt-4 inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
+            "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+          }
+        >
+          <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
+          Private list
+        </Link>
       </motion.section>
 
       {/* Real signed flow — appends the friend's address to this

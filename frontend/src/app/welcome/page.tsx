@@ -19,8 +19,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, ArrowLeft, Check, Loader2, Sparkles, Users } from "lucide-react";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { backendApi } from "@/lib/api/endpoints";
-import { BackendApiError } from "@/lib/api/client";
-import { appConfig } from "@/lib/config";
+import { friendlyError } from "@/lib/api/errors";
 import { fetchOnchainMemberships } from "@/lib/memberships/client";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { useToast } from "@/components/ui/Toast";
@@ -54,7 +53,15 @@ export default function WelcomePage() {
   const [name, setName] = useState("");
 
   const cleanName = useMemo(() => name.trim(), [name]);
-  const nameValid = cleanName.length >= 2 && cleanName.length <= 64;
+  // The on-chain wallet name is `String<64>` — 64 bytes UTF-8, not
+  // 64 chars. Emoji and accented names can blow past that even when
+  // the JS string length looks fine, so check encoded byte length.
+  const nameByteLength = useMemo(
+    () => new TextEncoder().encode(cleanName).length,
+    [cleanName],
+  );
+  const nameValid =
+    cleanName.length >= 2 && nameByteLength <= 64;
 
   // If the user already has a wallet on this address, show a brief
   // loading state instead of the "Create your first wallet" intro
@@ -114,33 +121,8 @@ export default function WelcomePage() {
     },
     onError: (err) => {
       console.error("[welcome] createWallet failed", err);
-      const msg =
-        err instanceof BackendApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : "Something went wrong";
-      // "Failed to fetch" is the browser-level network error — the most
-      // common cause is the backend simply not running locally. Surface
-      // the URL we tried so the user can act on it.
-      const isNetwork =
-        msg === "Failed to fetch" ||
-        msg === "NetworkError when attempting to fetch resource.";
-      if (isNetwork) {
-        toast.error("Can't reach the server", {
-          details:
-            `Tried ${appConfig.backendApiUrl}/wallets. ` +
-            "If you're running locally, start the backend with " +
-            "`cargo run -p clear-msig-backend-api` from the workspace root.",
-          durationMs: 0,
-        });
-      } else {
-        const details =
-          err instanceof BackendApiError && err.payload
-            ? JSON.stringify(err.payload, null, 2)
-            : undefined;
-        toast.error(msg, { details, durationMs: 0 });
-      }
+      const fe = friendlyError(err, "create-wallet");
+      toast.error(fe.title, { details: fe.body });
     },
   });
 

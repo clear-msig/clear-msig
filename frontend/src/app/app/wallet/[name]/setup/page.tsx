@@ -20,11 +20,10 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Clock, Loader2, Send, Zap } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
-import { BackendApiError } from "@/lib/api/client";
-import { appConfig } from "@/lib/config";
+import { friendlyError } from "@/lib/api/errors";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { fromHex } from "@/lib/msig";
-import { useSignWithWallet, WalletSignError } from "@/lib/hooks/useSignWithWallet";
+import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 
@@ -113,34 +112,8 @@ export default function SetupSpendingPage() {
     },
     onError: (err) => {
       console.error("[setup-spending]", err);
-      // Network error → backend down. Surface URL + start command.
-      const msg =
-        err instanceof BackendApiError
-          ? err.message
-          : err instanceof WalletSignError
-            ? err.message
-            : err instanceof Error
-              ? err.message
-              : "Setup failed";
-      const isNetwork =
-        msg === "Failed to fetch" ||
-        msg === "NetworkError when attempting to fetch resource.";
-      if (isNetwork) {
-        toast.error("Can't reach the server", {
-          details:
-            `Tried ${appConfig.backendApiUrl}. ` +
-            "Start the backend with `cargo run -p clear-msig-backend-api`.",
-          durationMs: 0,
-        });
-      } else {
-        // Surface the underlying CLI / backend payload so user can
-        // see WHY it failed instead of a generic "command failed".
-        const details =
-          err instanceof BackendApiError && err.payload
-            ? JSON.stringify(err.payload, null, 2)
-            : undefined;
-        toast.error(msg, { details, durationMs: 0 });
-      }
+      const fe = friendlyError(err, "set-up-spending");
+      toast.error(fe.title, { details: fe.body });
     },
   });
 

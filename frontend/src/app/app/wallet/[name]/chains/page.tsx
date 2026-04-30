@@ -110,6 +110,7 @@ export default function ChainsPage() {
       <motion.section
         {...motionProps}
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        className="flex flex-col items-center text-center"
       >
         <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
           Chains
