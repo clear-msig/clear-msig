@@ -40,7 +40,7 @@ const SLIDES: Slide[] = [
   {
     eyebrow: "Get started",
     title: "Connect to take it for a spin.",
-    body: "Connect any Solana wallet (Phantom, Solflare, Ledger). Devnet only — pre-alpha. No real funds at risk.",
+    body: "Connect via Phantom or Solflare — both passthrough to a connected Ledger device, which renders the human-readable sentence you sign. Devnet only — pre-alpha. No real funds at risk.",
   },
 ];
 
