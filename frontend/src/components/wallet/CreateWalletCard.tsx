@@ -15,7 +15,7 @@
 //   - Toasts success + deep-links to /app/wallet/<name>.
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { appConfig } from "@/lib/config";
@@ -53,6 +53,25 @@ export function CreateWalletCard() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const toast = useToast();
+
+  // Loud warning if NEXT_PUBLIC_BACKEND_API_URL isn't set in production —
+  // the request would silently POST to localhost and never reach Fly.
+  // Single check on mount; idempotent.
+  useEffect(() => {
+    const url = appConfig.backendApiUrl;
+    const isLocalhost =
+      url.includes("127.0.0.1") || url.includes("localhost");
+    if (typeof window !== "undefined" && isLocalhost && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+      console.error(
+        `[CreateWalletCard] Backend URL is "${url}" but we are deployed on ${window.location.hostname}. ` +
+          `Set NEXT_PUBLIC_BACKEND_API_URL on Vercel and redeploy.`
+      );
+      toast.error(
+        "Backend URL misconfigured — set NEXT_PUBLIC_BACKEND_API_URL on Vercel.",
+        { durationMs: 0 }
+      );
+    }
+  }, [toast]);
 
   const [walletName, setWalletName] = useState(appConfig.defaultWalletName);
   const [reason, setReason] = useState("");
@@ -185,6 +204,13 @@ export function CreateWalletCard() {
         throw new Error("Threshold cannot exceed signer count");
       }
 
+      console.info("[CreateWalletCard] POST /wallets", {
+        backend: appConfig.backendApiUrl,
+        name: walletName,
+        approvers: uniqueApprovers,
+        threshold: parsedThreshold,
+      });
+
       const result = await backendApi.createWallet({
         name: walletName,
         proposers: uniqueApprovers,
@@ -193,6 +219,8 @@ export function CreateWalletCard() {
         cancellation_threshold: parsedThreshold,
         timelock: 0,
       });
+
+      console.info("[CreateWalletCard] backend responded", result);
 
       // Fire invite emails in parallel. Failures are non-fatal and
       // surface as a secondary toast so the user knows which signers
@@ -234,12 +262,24 @@ export function CreateWalletCard() {
       router.push(`/app/wallet/${encodeURIComponent(walletName)}`);
     },
     onError: (err) => {
+      console.error("[CreateWalletCard] mutation failed", err);
       if (err instanceof BackendApiError) {
         toast.error(err.message, {
           details: err.payload ? JSON.stringify(err.payload, null, 2) : undefined,
         });
       } else {
-        toast.error(err instanceof Error ? err.message : "Could not create organization");
+        // Network failures land here as TypeError("Failed to fetch") with
+        // no helpful detail — surface the actual reason from the console.
+        const msg = err instanceof Error ? err.message : "Could not create organization";
+        const isNetwork = msg === "Failed to fetch" || msg === "NetworkError when attempting to fetch resource.";
+        toast.error(
+          isNetwork ? "Could not reach backend" : msg,
+          {
+            details: isNetwork
+              ? `Tried POST ${appConfig.backendApiUrl}/wallets — check NEXT_PUBLIC_BACKEND_API_URL on Vercel and the Fly app's CORS_ALLOWED_ORIGINS for ${typeof window !== "undefined" ? window.location.origin : "this origin"}.`
+              : undefined,
+          }
+        );
       }
     },
   });
@@ -411,7 +451,15 @@ export function CreateWalletCard() {
                   disabled={
                     submitSummary.blocker !== null || mutation.isPending
                   }
-                  onClick={() => mutation.mutate()}
+                  onClick={() => {
+                    console.info("[CreateWalletCard] submit clicked", {
+                      walletName,
+                      threshold,
+                      signerCount: submitSummary.signerCount,
+                    });
+                    toast.info(`Creating "${walletName}"…`);
+                    mutation.mutate();
+                  }}
                   className="group mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-green px-5 py-3.5 text-sm font-bold text-black shadow-glow transition-all hover:bg-emerald-300 hover:shadow-glow-hover disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {mutation.isPending ? (
