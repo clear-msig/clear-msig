@@ -36,7 +36,13 @@ import { backendApi } from "@/lib/api/endpoints";
 
 const DEFAULT_EXPIRY_WINDOW_SECS = 5 * 60; // 5 min . matches CLI default
 
-export function ProposalCard({ walletName }: { walletName: string }) {
+export function ProposalCard({
+  walletName,
+  initialIntentIndex,
+}: {
+  walletName: string;
+  initialIntentIndex?: number | null;
+}) {
   const toast = useToast();
 
   // Pull the wallet's intent table directly from chain. Only custom
@@ -47,7 +53,15 @@ export function ProposalCard({ walletName }: { walletName: string }) {
     return list.filter((i) => i.account && i.account.intentType === IntentType.Custom && i.account.approved);
   }, [intents.listQuery.data]);
 
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(
+    initialIntentIndex ?? null
+  );
+
+  // If the parent passes a new initialIntentIndex (deep-link from the
+  // Intents tab "Propose" button), honor it.
+  useEffect(() => {
+    if (initialIntentIndex != null) setSelectedIndex(initialIntentIndex);
+  }, [initialIntentIndex]);
 
   // Auto-select the first available custom intent so the empty state
   // isn't sticky when the wallet has exactly one intent.

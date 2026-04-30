@@ -178,6 +178,12 @@ function WalletDetailTabs({
   proposalsLoading: boolean;
 }) {
   const [tab, setTab] = useState<TabId>("overview");
+  const [proposeIntentIndex, setProposeIntentIndex] = useState<number | null>(null);
+
+  const goPropose = (intentIndex: number) => {
+    setProposeIntentIndex(intentIndex);
+    setTab("proposals");
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -248,6 +254,7 @@ function WalletDetailTabs({
               walletName={wallet.name}
               intents={intents}
               loading={intentsLoading}
+              onPropose={goPropose}
             />
           </motion.div>
         )}
@@ -261,7 +268,10 @@ function WalletDetailTabs({
             transition={{ duration: 0.2 }}
             className="flex flex-col gap-4"
           >
-            <ProposalCard walletName={wallet.name} />
+            <ProposalCard
+              walletName={wallet.name}
+              initialIntentIndex={proposeIntentIndex}
+            />
             <RecentProposalsPanel
               walletName={wallet.name}
               proposals={proposals}
@@ -637,32 +647,25 @@ function ExplorerLink({ href, label }: { href: string; label: string }) {
 // ── intent table ─────────────────────────────────────────────────────
 
 function IntentTablePanel({
-  walletName,
   intents,
   loading,
+  onPropose,
 }: {
   walletName: string;
   intents: IntentWithPda[];
   loading: boolean;
+  onPropose: (intentIndex: number) => void;
 }) {
   const active = intents.filter((i) => i.account);
   return (
     <div className="rounded-3xl border border-white/10 bg-black p-5 shadow-card-dark">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-widest text-brand-green">
-            Intent table
-          </div>
-          <p className="mt-0.5 text-xs text-text-muted">
-            Governance rules this wallet can propose transactions against.
-          </p>
+      <div>
+        <div className="text-[11px] font-semibold uppercase tracking-widest text-brand-green">
+          Intent table
         </div>
-        <Link
-          href="/app/intents"
-          className="inline-flex items-center gap-1 rounded-full bg-brand-green/15 px-3 py-1 text-[11px] font-semibold text-brand-green hover:bg-brand-green/25"
-        >
-          Manage intents <ArrowRight size={12} />
-        </Link>
+        <p className="mt-0.5 text-xs text-text-muted">
+          Governance rules this wallet can propose transactions against.
+        </p>
       </div>
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-white/5">
@@ -733,12 +736,13 @@ function IntentTablePanel({
                     </Td>
                     <Td>
                       {a.intentType === IntentType.Custom && a.approved ? (
-                        <Link
-                          href={`/app/proposals?wallet=${encodeURIComponent(walletName)}&intent=${row.index}`}
+                        <button
+                          type="button"
+                          onClick={() => onPropose(row.index)}
                           className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-green hover:underline"
                         >
                           Propose <ArrowRight size={10} />
-                        </Link>
+                        </button>
                       ) : null}
                     </Td>
                   </tr>
@@ -795,19 +799,11 @@ function RecentProposalsPanel({
 
   return (
     <div className="rounded-3xl border border-white/10 bg-black p-5 shadow-card-dark">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-widest text-brand-green">
-            Recent proposals
-          </div>
-          <p className="mt-0.5 text-xs text-text-muted">Click any row to open the signing view.</p>
+      <div>
+        <div className="text-[11px] font-semibold uppercase tracking-widest text-brand-green">
+          Recent proposals
         </div>
-        <Link
-          href="/app/proposals"
-          className="inline-flex items-center gap-1 rounded-full bg-brand-green/15 px-3 py-1 text-[11px] font-semibold text-brand-green hover:bg-brand-green/25"
-        >
-          View all <ArrowRight size={12} />
-        </Link>
+        <p className="mt-0.5 text-xs text-text-muted">Click any row to open the signing view.</p>
       </div>
 
       <div className="mt-4">
