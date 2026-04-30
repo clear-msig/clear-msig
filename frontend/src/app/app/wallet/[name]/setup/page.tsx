@@ -22,6 +22,7 @@ import { ArrowLeft, ArrowRight, Clock, Loader2, Send, Zap } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { BackendApiError } from "@/lib/api/client";
 import { appConfig } from "@/lib/config";
+import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { fromHex } from "@/lib/msig";
 import { useSignWithWallet, WalletSignError } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
@@ -61,14 +62,28 @@ export default function SetupSpendingPage() {
         throw new Error("Connect your wallet first");
       }
       const me = wallet.publicKey.toBase58();
+      const proposers = [me];
+      const approvers = [me];
+      const threshold = 1;
+
+      // 0. Encrypt the policy fields client-side via the Encrypt
+      //    surface. Pre-alpha returns plaintext-as-ciphertext; the
+      //    call path is the real one Alpha 1 uses.
+      const enc = new TextEncoder();
+      await encryptPolicyBatch([
+        { plaintext: enc.encode(JSON.stringify(proposers)), fheType: "ebytes" },
+        { plaintext: enc.encode(JSON.stringify(approvers)), fheType: "ebytes" },
+        { plaintext: new Uint8Array([threshold]), fheType: "euint8" },
+        { plaintext: new Uint8Array([delaySeconds & 0xff]), fheType: "euint32" },
+      ]);
 
       // 1. Prepare: backend builds the unsigned add-intent transaction
       //    and returns the bytes the user has to sign.
       const dry = await backendApi.prepare.addIntent(name, {
         file: TEMPLATE_FILE,
-        proposers: [me],
-        approvers: [me],
-        threshold: 1,
+        proposers,
+        approvers,
+        threshold,
         cancellation_threshold: 1,
         timelock: delaySeconds,
       });

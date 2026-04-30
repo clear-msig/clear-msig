@@ -18,12 +18,22 @@ import {
   Lock,
   ShieldCheck,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/retail/Button";
-import { encryptStatus } from "@/lib/encrypt/client";
+import { encryptStatus, localCiphertextCount } from "@/lib/encrypt/client";
 
 export default function PrivacyPage() {
   const reduce = useReducedMotion();
   const status = encryptStatus();
+
+  // Tangible proof the Encrypt surface fires on every policy
+  // change — count of locally-stored ciphertexts. Refreshes once
+  // on mount; localStorage doesn't have a change event we'd want
+  // to subscribe to in this context.
+  const [ctCount, setCtCount] = useState<number | null>(null);
+  useEffect(() => {
+    setCtCount(localCiphertextCount());
+  }, []);
 
   const motionProps = reduce
     ? {}
@@ -127,6 +137,16 @@ export default function PrivacyPage() {
                 existing wallets transition automatically — no migration,
                 no UX changes.
               </p>
+              {ctCount !== null && ctCount > 0 && (
+                <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1 text-xs text-text-soft">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent/70 opacity-75" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
+                  </span>
+                  {ctCount} polic{ctCount === 1 ? "y" : "ies"} routed
+                  through Encrypt on this device
+                </p>
+              )}
             </div>
           )}
 

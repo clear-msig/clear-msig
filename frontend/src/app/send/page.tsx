@@ -51,12 +51,14 @@ const STAGE_TRANSITION = {
   ease: [0.22, 1, 0.36, 1] as const,
 };
 
+// Cosmetic formatter for the typed SOL amount — locale-grouped with
+// up to four decimals (matches Solana's catalog `displayDecimals`).
 function formatAmount(raw: string): string {
   const n = parseFloat(raw);
-  if (isNaN(n) || n <= 0) return "0.00";
+  if (isNaN(n) || n <= 0) return "0";
   return n.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 4,
   });
 }
 
@@ -66,14 +68,6 @@ function generateNonceHex(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   return "0x" + toHex(bytes);
-}
-
-// Demo conversion: dollar amount → lamports. 1 SOL = 1e9 lamports;
-// we treat $1 as 1 SOL for the preview. Replace with a real oracle
-// price feed when going to mainnet.
-const LAMPORTS_PER_DOLLAR = 1_000_000_000;
-function dollarsToLamports(dollars: number): string {
-  return Math.round(dollars * LAMPORTS_PER_DOLLAR).toString();
 }
 
 export default function SendPageWrapper() {
@@ -190,7 +184,10 @@ function SendPage() {
         throw new Error("Pick a contact or paste an address");
 
       const nonceHex = generateNonceHex();
-      const lamports = dollarsToLamports(numericAmount);
+      // SOL → lamports. Solana's smallest unit, 1 SOL = 1e9 lamports.
+      const lamports = Math.round(
+        numericAmount * 1_000_000_000,
+      ).toString();
 
       // 1. Prepare the proposal: backend builds the unsigned
       //    transaction and returns the bytes the user has to sign.
@@ -420,17 +417,11 @@ function ComposeStage({
       </p>
 
       {/* The big number IS the input — typing updates the value
-          users see. Cash-app pattern: obviously editable, no
-          separate "tap to enter" mystery target. */}
+          users see. Type SOL directly; ticker rendered as a quiet
+          suffix so the editing area is unambiguous. */}
       <label className="mt-6 flex cursor-text flex-col items-center">
-        <span className="sr-only">Amount in dollars</span>
-        <div className="flex items-baseline justify-center">
-          <span
-            aria-hidden="true"
-            className="font-display text-5xl font-medium text-text-soft/60"
-          >
-            $
-          </span>
+        <span className="sr-only">Amount in SOL</span>
+        <div className="flex items-baseline justify-center gap-2">
           <input
             type="text"
             inputMode="decimal"
@@ -438,22 +429,31 @@ function ComposeStage({
             onChange={(e) => {
               const raw = e.target.value.replace(/[^\d.]/g, "");
               const [whole, frac] = raw.split(".");
+              // Solana goes to 9 decimals; cap the typed string at 4
+              // (catalog's displayDecimals) so users can't type
+              // sub-dust amounts that look like noise.
               const next =
-                frac === undefined ? whole : `${whole}.${frac.slice(0, 2)}`;
+                frac === undefined ? whole : `${whole}.${frac.slice(0, 4)}`;
               setAmount(next);
             }}
             placeholder="0"
             autoFocus
-            aria-label="Amount in dollars"
+            aria-label="Amount in SOL"
             className={
               "bg-transparent font-display text-5xl font-medium text-text-strong " +
-              "caret-accent outline-none placeholder:text-text-soft/30"
+              "text-right caret-accent outline-none placeholder:text-text-soft/30"
             }
             style={{ width: `${Math.max(1, amount.length || 1)}ch` }}
           />
+          <span
+            aria-hidden="true"
+            className="font-display text-5xl font-medium text-text-soft/60"
+          >
+            SOL
+          </span>
         </div>
         <p className="mt-2 text-xs text-text-soft">
-          {amount ? `$${display}` : "Type a number"}
+          {amount ? `${display} SOL` : "Type an amount in SOL"}
         </p>
       </label>
 
@@ -782,7 +782,7 @@ function SentStage({
         Request created
       </h1>
       <p className="mt-3 max-w-sm text-base text-text-soft">
-        ${amountDisplay} to{" "}
+        {amountDisplay} SOL to{" "}
         <span className="font-medium text-text-strong">
           {recipientDisplay}
         </span>{" "}

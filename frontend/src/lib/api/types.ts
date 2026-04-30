@@ -21,6 +21,38 @@ export type ApiErrorEnvelope = {
   retry_after_secs?: number;
 };
 
+/// Response from `GET /wallets/{name}/chains`. The backend's CLI walks
+/// every known `chain_kind` (0-4), returns the ones that have an
+/// IkaConfig binding on chain, and includes chain-native addresses
+/// derived from each dWallet's pubkey (Ethereum 0x…, Bitcoin bc1q…,
+/// Zcash t1…). Solana's address is just the dWallet pubkey itself.
+export interface ChainBindingResponse {
+  chain: string;
+  chain_kind: number;
+  ika_config: string;
+  dwallet: string;
+  user_pubkey_hex: string;
+  signature_scheme: number;
+  /// Set when the underlying dWallet account exists on chain.
+  secp256k1_pubkey_hex?: string;
+  /// Solana — chain_kind 0.
+  solana_address?: string;
+  /// Ethereum / ERC-20 — chain_kind 1, 4.
+  evm_address?: string;
+  /// Bitcoin P2WPKH — chain_kind 2.
+  btc_p2wpkh_mainnet?: string;
+  btc_p2wpkh_testnet?: string;
+  /// Zcash transparent — chain_kind 3.
+  zcash_t_addr_mainnet?: string;
+  zcash_t_addr_testnet?: string;
+}
+
+export interface WalletChainsResponse {
+  /// Wallet PDA (base58).
+  wallet: string;
+  chains: ChainBindingResponse[];
+}
+
 /// Bundle of fields the browser must compute and sign client-side.
 /// Spread into every signed-submit request body (Rust uses #[serde(flatten)]).
 export type PreSignedPayload = {

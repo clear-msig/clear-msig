@@ -237,7 +237,7 @@ function AddChainPage() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                You can send {selected.shortName} from {walletName} as
+                You can send {selected.ticker} from {walletName} as
                 soon as it&rsquo;s ready.
               </li>
             </ul>
@@ -420,7 +420,7 @@ function DoneStage({
           {chain.name} is ready
         </h1>
         <p className="mt-2 max-w-md text-base text-text-soft">
-          {walletName} can now send {chain.shortName} the same way it
+          {walletName} can now send {chain.ticker} the same way it
           sends Solana. Your friends approve, the network signs.
         </p>
       </div>

@@ -224,21 +224,21 @@ function Hero({
         {name}
       </h1>
 
-      {/* Balance — biggest visual hierarchy after the name. */}
+      {/* Balance — biggest visual hierarchy after the name. SOL is
+          the primary currency; secondary chains pick up balances in
+          their own ticker once those queries land. */}
       <div className="mt-5">
         <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-soft">
           Balance
         </p>
         {loadingBalance ? (
-          <div className="mt-1 h-9 w-32 animate-pulse rounded bg-border-soft" />
+          <div className="mt-1 h-9 w-40 animate-pulse rounded bg-border-soft" />
         ) : (
           <p className="mt-1 font-display text-display-xs text-text-strong">
-            {balance ? balance.dollars : "$0.00"}
-          </p>
-        )}
-        {balance && (
-          <p className="mt-0.5 font-mono text-xs text-text-soft">
-            {balance.sol}
+            {balance ? balance.amount : "0"}{" "}
+            <span className="text-text-soft">
+              {balance?.ticker ?? "SOL"}
+            </span>
           </p>
         )}
       </div>

@@ -270,10 +270,13 @@ function WalletCard({
               {name}
             </p>
             {loadingBalance && balance === null ? (
-              <div className="mt-1 h-5 w-16 animate-pulse rounded bg-border-soft" />
+              <div className="mt-1 h-5 w-20 animate-pulse rounded bg-border-soft" />
             ) : (
               <p className="mt-1 font-display text-base text-text-strong">
-                {balance ? balance.dollars : "$0.00"}
+                {balance ? balance.amount : "0"}{" "}
+                <span className="text-text-soft">
+                  {balance?.ticker ?? "SOL"}
+                </span>
               </p>
             )}
           </div>

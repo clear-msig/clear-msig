@@ -22,7 +22,8 @@ import type {
   SignedApproveCancelInput,
   SignedCreateProposalInput,
   SignedRemoveIntentInput,
-  SignedUpdateIntentInput
+  SignedUpdateIntentInput,
+  WalletChainsResponse
 } from "@/lib/api/types";
 
 export const backendApi = {
@@ -42,7 +43,10 @@ export const backendApi = {
   showWallet: (walletName: string) =>
     apiRequest<Record<string, unknown>>(`/wallets/${encodeURIComponent(walletName)}`, "GET"),
   listWalletChains: (walletName: string) =>
-    apiRequest<Record<string, unknown>>(`/wallets/${encodeURIComponent(walletName)}/chains`, "GET"),
+    apiRequest<WalletChainsResponse>(
+      `/wallets/${encodeURIComponent(walletName)}/chains`,
+      "GET",
+    ),
   // DKG runs through Ika's pre-alpha network; the UI explicitly tells
   // the user it can take >30s, so the request must outlive that
   // window. 3 minutes gives headroom for retries.

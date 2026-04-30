@@ -20,6 +20,7 @@ import { ArrowLeft, ArrowRight, Check, Loader2, UserPlus } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { BackendApiError } from "@/lib/api/client";
 import { appConfig } from "@/lib/config";
+import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { fromHex } from "@/lib/msig";
@@ -120,6 +121,16 @@ export default function AddFriendPage() {
       const newProposers = intent.proposers.includes(trimmedAddress)
         ? [...intent.proposers]
         : [...intent.proposers, trimmedAddress];
+
+      // 0. Run the new approver/proposer lists through the Encrypt
+      //    surface so the policy mutation is logged as ciphertext
+      //    locally — same path Alpha 1 will route on chain.
+      const enc = new TextEncoder();
+      await encryptPolicyBatch([
+        { plaintext: enc.encode(JSON.stringify(newProposers)), fheType: "ebytes" },
+        { plaintext: enc.encode(JSON.stringify(newApprovers)), fheType: "ebytes" },
+        { plaintext: new Uint8Array([intent.approvalThreshold]), fheType: "euint8" },
+      ]);
 
       // 1. Prepare
       const dry = await backendApi.prepare.updateIntent(name, {

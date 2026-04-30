@@ -20,6 +20,7 @@ import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { backendApi } from "@/lib/api/endpoints";
 import { BackendApiError } from "@/lib/api/client";
 import { appConfig } from "@/lib/config";
+import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 
@@ -56,11 +57,26 @@ export default function WelcomePage() {
   const mutation = useMutation({
     mutationFn: async () => {
       if (!gate.publicKey) throw new Error("Connect your wallet first");
+      const proposers = [gate.publicKey];
+      const approvers = [gate.publicKey];
+      const threshold = 1;
+
+      // Encrypt policy fields through Encrypt's surface BEFORE the
+      // backend submission. At Alpha 1 the returned identifiers
+      // travel on chain instead of plaintext; today's pre-alpha
+      // returns plaintext-as-ciphertext but the call path is real.
+      const enc = new TextEncoder();
+      await encryptPolicyBatch([
+        { plaintext: enc.encode(JSON.stringify(proposers)), fheType: "ebytes" },
+        { plaintext: enc.encode(JSON.stringify(approvers)), fheType: "ebytes" },
+        { plaintext: new Uint8Array([threshold]), fheType: "euint8" },
+      ]);
+
       return backendApi.createWallet({
         name: slug(cleanName),
-        proposers: [gate.publicKey],
-        approvers: [gate.publicKey],
-        threshold: 1,
+        proposers,
+        approvers,
+        threshold,
         cancellation_threshold: 1,
         timelock: 0,
       });

@@ -13,15 +13,26 @@ export interface ChainMeta {
   kind: number;
   /// `chain` string the addWalletChain API expects.
   apiName: string;
-  /// Three-letter retail short label ("SOL" / "ETH" / "BTC" / "ZEC").
-  shortName: string;
+  /// Three-letter ticker — what users see on amounts ("0.5 SOL").
+  ticker: string;
+  /// Currency-style glyph used by the ChainBadge. Real symbols:
+  /// ◎ Solana, Ξ Ethereum, ₿ Bitcoin, ⓩ Zcash. Picked over our older
+  /// 3-letter shortName label so the badge reads as a coin not a chip.
+  symbol: string;
   /// Marketing name shown in cards and headers.
   name: string;
   /// One-line retail blurb — what a non-crypto user gets from the chain.
   description: string;
-  /// Tailwind gradient classes for the chain avatar circle. Pick
-  /// distinct color families so two chains never collide visually.
+  /// Tailwind gradient classes for the chain avatar circle. Picked to
+  /// match each project's brand color family without literally
+  /// replicating their trademarked logos.
   gradient: { from: string; to: string };
+  /// Smallest unit per ticker — what the chain stores on-wire.
+  /// SOL=lamports (1e9), ETH=wei (1e18), BTC=sats (1e8), ZEC=zats (1e8).
+  smallestPerWhole: bigint;
+  /// Decimal places to surface for retail amounts. Chains like
+  /// Bitcoin / Ethereum want more precision than dollars.
+  displayDecimals: number;
 }
 
 /// Visible-in-retail chains. ERC-20 (kind 4) is folded into Ethereum
@@ -31,34 +42,46 @@ export const CHAIN_CATALOG: readonly ChainMeta[] = [
   {
     kind: 0,
     apiName: "solana",
-    shortName: "SOL",
+    ticker: "SOL",
+    symbol: "◎",
     name: "Solana",
     description: "Fast, low-fee. Where Clear starts.",
-    gradient: { from: "from-purple-400", to: "to-pink-500" },
+    gradient: { from: "from-purple-500", to: "to-emerald-400" },
+    smallestPerWhole: 1_000_000_000n,
+    displayDecimals: 4,
   },
   {
     kind: 1,
     apiName: "evm_1559",
-    shortName: "ETH",
+    ticker: "ETH",
+    symbol: "Ξ",
     name: "Ethereum",
     description: "The original. Send ETH or any token on it.",
-    gradient: { from: "from-blue-400", to: "to-indigo-500" },
+    gradient: { from: "from-slate-500", to: "to-indigo-400" },
+    smallestPerWhole: 1_000_000_000_000_000_000n,
+    displayDecimals: 6,
   },
   {
     kind: 2,
     apiName: "bitcoin_p2wpkh",
-    shortName: "BTC",
+    ticker: "BTC",
+    symbol: "₿",
     name: "Bitcoin",
     description: "The original store of value.",
     gradient: { from: "from-orange-400", to: "to-amber-500" },
+    smallestPerWhole: 100_000_000n,
+    displayDecimals: 8,
   },
   {
     kind: 3,
     apiName: "zcash_transparent",
-    shortName: "ZEC",
+    ticker: "ZEC",
+    symbol: "ⓩ",
     name: "Zcash",
     description: "Privacy-first. Built for shielded sends.",
-    gradient: { from: "from-yellow-300", to: "to-amber-400" },
+    gradient: { from: "from-amber-400", to: "to-yellow-500" },
+    smallestPerWhole: 100_000_000n,
+    displayDecimals: 8,
   },
 ] as const;
 
