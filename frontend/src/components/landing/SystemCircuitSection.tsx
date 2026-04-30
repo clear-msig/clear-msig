@@ -10,7 +10,7 @@
 
 import { useId } from "react";
 import { motion } from "framer-motion";
-import { Bitcoin, Zap, Coins, ShieldCheck, Cpu, Fingerprint } from "lucide-react";
+import { Bitcoin, Zap, Coins, ShieldCheck, Cpu, Fingerprint, Layers, Leaf } from "lucide-react";
 
 interface CircuitNode {
   id: string;
@@ -19,26 +19,30 @@ interface CircuitNode {
   label: string;
   sub: string;
   Icon: typeof ShieldCheck;
-  accent: "green" | "cyan" | "warm" | "orange" | "violet";
+  accent: "green" | "cyan" | "warm" | "orange" | "violet" | "yellow";
 }
 
 // Layout is designed against an 800 x 440 viewBox. Nodes form a
 // left-to-right flow that fans out to destination chains.
 const NODES: CircuitNode[] = [
-  { id: "wallet", x: 90, y: 220, label: "Your wallet", sub: "signs intent", Icon: Fingerprint, accent: "green" },
-  { id: "policy", x: 290, y: 220, label: "Multisig policy", sub: "on-chain verify", Icon: ShieldCheck, accent: "green" },
-  { id: "mpc", x: 500, y: 220, label: "Ika MPC", sub: "threshold signing", Icon: Cpu, accent: "cyan" },
-  { id: "eth", x: 720, y: 90, label: "Ethereum", sub: "EIP-1559", Icon: Zap, accent: "violet" },
-  { id: "btc", x: 720, y: 220, label: "Bitcoin", sub: "P2WPKH", Icon: Bitcoin, accent: "orange" },
-  { id: "sol", x: 720, y: 350, label: "Solana", sub: "native CPI", Icon: Coins, accent: "green" },
+  { id: "wallet", x: 90, y: 230, label: "Your wallet", sub: "signs intent", Icon: Fingerprint, accent: "green" },
+  { id: "policy", x: 290, y: 230, label: "Multisig policy", sub: "on-chain verify", Icon: ShieldCheck, accent: "green" },
+  { id: "mpc", x: 500, y: 230, label: "Ika MPC", sub: "threshold signing", Icon: Cpu, accent: "cyan" },
+  { id: "eth", x: 720, y: 60, label: "Ethereum", sub: "EIP-1559", Icon: Zap, accent: "violet" },
+  { id: "erc20", x: 720, y: 145, label: "ERC-20", sub: "ECDSA", Icon: Coins, accent: "violet" },
+  { id: "sol", x: 720, y: 230, label: "Solana", sub: "native CPI", Icon: Layers, accent: "green" },
+  { id: "btc", x: 720, y: 315, label: "Bitcoin", sub: "P2WPKH", Icon: Bitcoin, accent: "orange" },
+  { id: "zec", x: 720, y: 400, label: "Zcash", sub: "ZIP-243", Icon: Leaf, accent: "yellow" },
 ];
 
 const LEGS: Array<{ id: string; d: string; delay: number; tone: "green" | "cyan" }> = [
-  { id: "wallet-policy", d: "M 128,220 L 252,220", delay: 0, tone: "green" },
-  { id: "policy-mpc", d: "M 328,220 L 462,220", delay: 0.6, tone: "green" },
-  { id: "mpc-eth", d: "M 538,220 C 600,220 620,90 682,90", delay: 1.2, tone: "cyan" },
-  { id: "mpc-btc", d: "M 538,220 L 682,220", delay: 1.35, tone: "cyan" },
-  { id: "mpc-sol", d: "M 538,220 C 600,220 620,350 682,350", delay: 1.5, tone: "cyan" },
+  { id: "wallet-policy", d: "M 128,230 L 252,230", delay: 0, tone: "green" },
+  { id: "policy-mpc", d: "M 328,230 L 462,230", delay: 0.6, tone: "green" },
+  { id: "mpc-eth", d: "M 538,230 C 600,230 620,60 682,60", delay: 1.2, tone: "cyan" },
+  { id: "mpc-erc20", d: "M 538,230 C 600,230 620,145 682,145", delay: 1.3, tone: "cyan" },
+  { id: "mpc-sol", d: "M 538,230 L 682,230", delay: 1.4, tone: "cyan" },
+  { id: "mpc-btc", d: "M 538,230 C 600,230 620,315 682,315", delay: 1.5, tone: "cyan" },
+  { id: "mpc-zec", d: "M 538,230 C 600,230 620,400 682,400", delay: 1.6, tone: "cyan" },
 ];
 
 // Comet head + a short fading tail. To get the tail effect cheaply we
@@ -86,7 +90,7 @@ export function SystemCircuitSection() {
         <div className="relative z-10 mx-auto w-full max-w-5xl px-2 py-3 sm:px-6 sm:py-8">
           <svg
             role="img"
-            aria-label="Clear-MSIG signal path: your wallet signs an intent, the on-chain policy verifies every approval, and the Ika MPC network produces native signatures for Ethereum, Bitcoin, and Solana."
+            aria-label="Clear-MSIG signal path: your wallet signs an intent, the on-chain policy verifies every approval, and the Ika MPC network produces native signatures for Ethereum, ERC-20 tokens, Solana, Bitcoin, and Zcash."
             viewBox="0 0 800 440"
             preserveAspectRatio="xMidYMid meet"
             className="w-full"
@@ -188,6 +192,8 @@ function NodeGlyph({ node }: { node: CircuitNode }) {
       ? "#c4b5fd"
       : node.accent === "warm"
       ? "#fb923c"
+      : node.accent === "yellow"
+      ? "#facc15"
       : "#22c55e";
 
   const bg =
@@ -197,6 +203,8 @@ function NodeGlyph({ node }: { node: CircuitNode }) {
       ? "rgba(251,191,36,0.08)"
       : node.accent === "violet"
       ? "rgba(196,181,253,0.08)"
+      : node.accent === "yellow"
+      ? "rgba(250,204,21,0.08)"
       : "rgba(34,197,94,0.08)";
 
   return (

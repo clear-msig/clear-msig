@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     template: "%s · Clear-MSIG",
   },
   description:
-    "A Solana multisig where every signature is a sentence your Ledger can read. One policy controls Ethereum, Bitcoin, and Solana treasuries via Ika dWallets.",
+    "A Solana multisig where every signature is a sentence your Ledger can read. One policy controls Solana, Ethereum, Bitcoin, and Zcash treasuries via Ika dWallets.",
   keywords: [
     "Solana multisig",
     "clear signing",
@@ -58,7 +58,7 @@ export const metadata: Metadata = {
     type: "website",
     title: "Clear-MSIG · Sign intents, not hex",
     description:
-      "Solana multisig with clear-signed, human-readable intents. One policy drives Ethereum, Bitcoin, and Solana via Ika MPC dWallets.",
+      "Solana multisig with clear-signed, human-readable intents. One policy drives Solana, Ethereum, Bitcoin, and Zcash via Ika MPC dWallets.",
     siteName: "Clear-MSIG",
   },
   twitter: {

@@ -34,7 +34,7 @@ const SLIDES: Slide[] = [
   {
     eyebrow: "How it works",
     title: "One policy. Every chain.",
-    body: "The same Solana multisig drives native transactions on Ethereum, Bitcoin, and Solana via Ika dWallet 2PC-MPC. No bridges. No wrappers.",
+    body: "The same Solana multisig drives native transactions on Solana, Ethereum, Bitcoin, and Zcash via Ika dWallet 2PC-MPC. No bridges. No wrappers.",
     visual: "diagram",
   },
   {

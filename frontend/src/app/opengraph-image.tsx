@@ -202,7 +202,7 @@ export default async function OpengraphImage() {
             }}
           >
             A Solana multisig where every signature is a sentence your Ledger
-            can read. One policy controls Ethereum, Bitcoin, and Solana.
+            can read. One policy controls Solana, Ethereum, Bitcoin, and Zcash.
           </span>
         </div>
 

@@ -44,9 +44,9 @@ const ZONES = [
     tone: "brand",
     Icon: Network,
     items: [
-      "Native signatures for Ethereum, Bitcoin and Zcash",
+      "Native signatures for Ethereum, ERC-20 tokens, Bitcoin and Zcash",
       "Driven from Solana via a single authority",
-      "Distributed threshold signing network",
+      "Threshold signing on the Ika network (pre-alpha mock signer)",
     ],
   },
 ] as const;

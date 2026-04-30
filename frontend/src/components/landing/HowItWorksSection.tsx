@@ -62,7 +62,7 @@ export const STEPS: Step[] = [
     Icon: Rocket,
     items: [
       "Ika MPC produces a native signature",
-      "Relayed to Ethereum, Bitcoin, or Solana",
+      "Relayed to Solana, Ethereum, Bitcoin, or Zcash",
       "Your treasury moves in one click",
     ],
   },
