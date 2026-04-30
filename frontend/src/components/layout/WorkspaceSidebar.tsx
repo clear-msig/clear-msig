@@ -12,14 +12,19 @@ import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useWallet } from "@solana/wallet-adapter-react";
 import {
+  CheckCircle2,
+  Clock,
   Github,
   LogOut,
   Plus,
   RefreshCcw,
+  Rocket,
   Search,
   ShieldCheck,
   Users,
   Wallet,
+  X,
+  Zap,
 } from "lucide-react";
 import clsx from "clsx";
 import {
@@ -28,6 +33,11 @@ import {
 } from "@/lib/memberships/client";
 import { useOnboarding } from "@/lib/hooks/useOnboarding";
 import { openCommandPalette } from "@/components/layout/CommandPalette";
+import {
+  useRecentActivity,
+  type RecentActivityRow,
+} from "@/lib/hooks/useRecentActivity";
+import { ProposalStatus } from "@/lib/msig";
 
 type Props = {
   /// Called after a navigation link fires — used by the mobile drawer
@@ -49,6 +59,7 @@ export function WorkspaceSidebar({ onNavigate }: Props) {
   });
 
   const memberships = myOrganizationsQuery.data ?? [];
+  const recent = useRecentActivity(5);
 
   return (
     <div className="flex h-full flex-col gap-5 p-5 text-sm text-white">
@@ -95,6 +106,29 @@ export function WorkspaceSidebar({ onNavigate }: Props) {
               <SidebarOrgLink
                 key={m.wallet}
                 membership={m}
+                pathname={pathname}
+                onNavigate={onNavigate}
+              />
+            ))}
+          </ul>
+        )}
+      </SidebarSection>
+
+      <SidebarSection
+        label="Recent activity"
+        count={recent.rows.length}
+        loading={recent.loading}
+      >
+        {recent.rows.length === 0 && !recent.loading ? (
+          <p className="px-2 text-[11px] text-white/40">
+            No proposals yet across your wallets.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-0.5">
+            {recent.rows.map((r) => (
+              <SidebarActivityRow
+                key={r.proposalPda}
+                row={r}
                 pathname={pathname}
                 onNavigate={onNavigate}
               />
@@ -188,6 +222,61 @@ function SidebarSection({
       </div>
       {children}
     </section>
+  );
+}
+
+function SidebarActivityRow({
+  row,
+  pathname,
+  onNavigate,
+}: {
+  row: RecentActivityRow;
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  const href = `/app/proposals/${encodeURIComponent(row.proposalPda)}`;
+  const active = pathname === href;
+  const StatusIcon =
+    row.status === ProposalStatus.Executed
+      ? Rocket
+      : row.status === ProposalStatus.Approved
+      ? CheckCircle2
+      : row.status === ProposalStatus.Cancelled
+      ? X
+      : Clock;
+  const statusTone =
+    row.status === ProposalStatus.Executed
+      ? "text-brand-green"
+      : row.status === ProposalStatus.Approved
+      ? "text-cyan-300"
+      : row.status === ProposalStatus.Cancelled
+      ? "text-rose-300"
+      : "text-amber-300";
+
+  return (
+    <li>
+      <Link
+        href={href}
+        onClick={onNavigate}
+        className={clsx(
+          "group flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] transition-colors",
+          active
+            ? "bg-brand-green/15 text-brand-green"
+            : "text-white/60 hover:bg-white/5 hover:text-white"
+        )}
+      >
+        <StatusIcon size={11} className={clsx("shrink-0", statusTone)} />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate font-semibold">
+            {row.walletName}{" "}
+            <span className="font-mono text-white/40">#{row.proposalIndex.toString()}</span>
+          </span>
+          <span className="truncate font-mono text-[10px] uppercase tracking-wide text-white/30">
+            {row.statusLabel}
+          </span>
+        </span>
+      </Link>
+    </li>
   );
 }
 
