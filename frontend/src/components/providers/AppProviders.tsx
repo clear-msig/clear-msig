@@ -6,7 +6,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
-import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
 import { useMemo, useState } from "react";
 import { solanaClusterRpc } from "@/lib/solana/cluster";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -30,10 +29,11 @@ export function AppProviders({ children }: Props) {
       })
   );
 
-  const wallets = useMemo(
-    () => [new PhantomWalletAdapter(), new SolflareWalletAdapter()],
-    []
-  );
+  // Solflare auto-registers via the Wallet Standard now, so wiring its
+  // adapter explicitly causes a duplicate "Solflare" entry in the
+  // selector. Phantom still needs an explicit adapter (its standard
+  // wallet integration is partial in some browser builds).
+  const wallets = useMemo(() => [new PhantomWalletAdapter()], []);
 
   return (
     <QueryClientProvider client={queryClient}>

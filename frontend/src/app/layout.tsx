@@ -10,7 +10,6 @@
 
 import type { Metadata, Viewport } from "next";
 import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
-import { Analytics } from "@vercel/analytics/react";
 import "@solana/wallet-adapter-react-ui/styles.css";
 import "./globals.css";
 import { AppProviders } from "@/components/providers/AppProviders";
@@ -93,11 +92,12 @@ export default function RootLayout({
       </head>
       <body className="font-sans antialiased">
         <AppProviders>{children}</AppProviders>
-        {/* Vercel Analytics — privacy-friendly, zero-config, free. Only
-            collects pageviews + Web Vitals; no per-user fingerprinting.
-            Surfaces in the Vercel dashboard so the team has traction
-            numbers to quote in the pitch ("X visitors / Y in app"). */}
-        <Analytics />
+        {/* Vercel Analytics removed: the bundled <Analytics /> component
+            requests /_vercel/insights/script.js which 404s unless Web
+            Analytics is explicitly enabled on the Vercel project. To
+            re-enable: turn on Analytics in the Vercel project settings,
+            then re-add `import { Analytics } from "@vercel/analytics/react"`
+            and `<Analytics />` here. */}
       </body>
     </html>
   );

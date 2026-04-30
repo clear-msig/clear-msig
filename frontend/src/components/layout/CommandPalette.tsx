@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
+import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery } from "@tanstack/react-query";
 import { useWallet } from "@solana/wallet-adapter-react";
 import {
@@ -117,6 +118,15 @@ export function CommandPalette() {
       label="Command palette"
       className="fixed inset-0 z-[200] flex items-start justify-center p-4 sm:p-8"
     >
+      {/* Visually hidden Radix DialogTitle + Description so screen
+          readers (and the runtime a11y check) have something to bind to.
+          cmdk's `label` prop only sets aria-label on the root, which
+          Radix Dialog v1.1+ no longer treats as a complete substitute. */}
+      <Dialog.Title className="sr-only">Command palette</Dialog.Title>
+      <Dialog.Description className="sr-only">
+        Search wallets, proposals, and intents. Use arrow keys to navigate, enter to select, escape to close.
+      </Dialog.Description>
+
       {/* backdrop */}
       <button
         type="button"
