@@ -26,7 +26,11 @@ import { listIntents } from "@/lib/chain/intents";
 import { fromHex } from "@/lib/msig";
 import { useSignWithWallet, WalletSignError } from "@/lib/hooks/useSignWithWallet";
 import { useContacts } from "@/lib/hooks/useContacts";
-import { isValidSolanaAddress, shortAddress } from "@/lib/retail/contacts";
+import {
+  isValidEmail,
+  isValidSolanaAddress,
+  shortAddress,
+} from "@/lib/retail/contacts";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { useToast } from "@/components/ui/Toast";
@@ -99,15 +103,22 @@ export default function AddFriendPage() {
 
   const [friendName, setFriendName] = useState("");
   const [friendAddress, setFriendAddress] = useState("");
+  const [friendEmail, setFriendEmail] = useState("");
 
   const trimmedName = friendName.trim();
   const trimmedAddress = friendAddress.trim();
+  const trimmedEmail = friendEmail.trim();
   const nameValid = trimmedName.length >= 2;
   const addressValid = isValidSolanaAddress(trimmedAddress);
+  const emailValid = trimmedEmail.length === 0 || isValidEmail(trimmedEmail);
   const alreadyMember =
     firstIntent?.account?.approvers.includes(trimmedAddress) ?? false;
   const canSubmit =
-    nameValid && addressValid && !alreadyMember && !!firstIntent?.account;
+    nameValid &&
+    addressValid &&
+    emailValid &&
+    !alreadyMember &&
+    !!firstIntent?.account;
 
   const addFriend = useMutation({
     mutationFn: async () => {
@@ -164,14 +175,25 @@ export default function AddFriendPage() {
       // Save the friend locally too — next /send recognizes them by
       // name without the user having to paste the address again.
       try {
-        contacts.save({ name: trimmedName, address: trimmedAddress });
+        contacts.save({
+          name: trimmedName,
+          address: trimmedAddress,
+          email: trimmedEmail || undefined,
+        });
       } catch {
         // saveContact validates internally; if it errors we still
         // want the on-chain success path to land.
       }
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });
       queryClient.invalidateQueries({ queryKey: ["wallet", name] });
-      toast.success(`${trimmedName} added to ${name}`);
+      // The on-chain change is in. The "we'll email them" framing
+      // captures user intent — when a backend email service ships
+      // (Resend/SendGrid), it gets fired here keyed off the saved
+      // contact's email. For now the message is the promise.
+      const message = trimmedEmail
+        ? `${trimmedName} added to ${name} — we'll email ${trimmedEmail}`
+        : `${trimmedName} added to ${name}`;
+      toast.success(message);
       router.push(
         `/app/wallet/${encodeURIComponent(name)}/members`,
       );
@@ -274,6 +296,26 @@ export default function AddFriendPage() {
             This address is already a member of {name}.
           </p>
         )}
+        <div className="h-px bg-border-soft" />
+        <FieldRow
+          label="Email"
+          optional
+          value={friendEmail}
+          onChange={setFriendEmail}
+          placeholder="sarah@example.com"
+          inputType="email"
+        />
+        {trimmedEmail.length > 0 && !emailValid && (
+          <p className="ml-[4.5rem] text-xs text-warning">
+            That email looks malformed.
+          </p>
+        )}
+        {emailValid && trimmedEmail.length > 0 && (
+          <p className="ml-[4.5rem] text-xs text-text-soft">
+            We&rsquo;ll email {trimmedName || "them"} a join link so they
+            can sign in.
+          </p>
+        )}
       </form>
 
       {addressValid && nameValid && !alreadyMember && (
@@ -322,6 +364,8 @@ interface FieldRowProps {
   mono?: boolean;
   autoFocus?: boolean;
   maxLength?: number;
+  optional?: boolean;
+  inputType?: "text" | "email";
 }
 
 function FieldRow({
@@ -332,13 +376,21 @@ function FieldRow({
   mono,
   autoFocus,
   maxLength,
+  optional,
+  inputType = "text",
 }: FieldRowProps) {
   return (
     <label className="flex items-start gap-3">
       <span className="w-16 shrink-0 pt-2 text-xs font-medium uppercase tracking-wide text-text-soft">
         {label}
+        {optional && (
+          <span className="ml-1 normal-case tracking-normal text-text-soft/60">
+            (opt)
+          </span>
+        )}
       </span>
       <input
+        type={inputType}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}

@@ -127,28 +127,36 @@ export default function PrivacyPage() {
             </div>
           </div>
 
-          {!status.live && (
-            <div className="mt-6 rounded-card border border-warning/30 bg-warning/5 p-5">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-warning">
-                Preview note
+          <div
+            className={
+              "mt-6 rounded-card p-5 " +
+              (status.live
+                ? "border border-accent/30 bg-accent/5"
+                : "border border-warning/30 bg-warning/5")
+            }
+          >
+            <p
+              className={
+                "text-[11px] font-medium uppercase tracking-[0.18em] " +
+                (status.live ? "text-accent" : "text-warning")
+              }
+            >
+              {status.live ? "Encryption active" : "Preview note"}
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-text-strong">
+              {status.description}
+            </p>
+            {ctCount !== null && ctCount > 0 && (
+              <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1 text-xs text-text-soft">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent/70 opacity-75" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
+                </span>
+                {ctCount} polic{ctCount === 1 ? "y" : "ies"} routed
+                through Encrypt on this device
               </p>
-              <p className="mt-2 text-sm leading-relaxed text-text-strong">
-                {status.description} When the network switches on, your
-                existing wallets transition automatically — no migration,
-                no UX changes.
-              </p>
-              {ctCount !== null && ctCount > 0 && (
-                <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1 text-xs text-text-soft">
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent/70 opacity-75" />
-                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
-                  </span>
-                  {ctCount} polic{ctCount === 1 ? "y" : "ies"} routed
-                  through Encrypt on this device
-                </p>
-              )}
-            </div>
-          )}
+            )}
+          </div>
 
           <div className="mt-10 flex justify-center">
             <Link href="/welcome">

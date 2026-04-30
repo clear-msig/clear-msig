@@ -18,6 +18,10 @@ export interface Contact {
   name: string;
   /// Base58 Solana address.
   address: string;
+  /// Optional email — stored alongside the name/address so the
+  /// add-friend flow can later trigger a "you've been invited" email
+  /// when a backend email service is wired. Validated lightly on save.
+  email?: string;
   /// Unix ms.
   createdAt: number;
 }
@@ -47,7 +51,8 @@ export function loadContacts(): Contact[] {
         typeof c.id === "string" &&
         typeof c.name === "string" &&
         typeof c.address === "string" &&
-        typeof c.createdAt === "number",
+        typeof c.createdAt === "number" &&
+        (c.email === undefined || typeof c.email === "string"),
     );
   } catch {
     return [];
@@ -63,12 +68,28 @@ function persist(contacts: Contact[]): void {
   }
 }
 
-export function saveContact(input: { name: string; address: string }): Contact {
+/// Light email validation — enough to catch typos before a friend
+/// fills the field with "n/a" or similar. Real email-deliverability
+/// checks happen on the backend when the email service is wired.
+export function isValidEmail(s: string): boolean {
+  if (!s) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+}
+
+export function saveContact(input: {
+  name: string;
+  address: string;
+  email?: string;
+}): Contact {
   const trimmedName = input.name.trim();
   const trimmedAddress = input.address.trim();
+  const trimmedEmail = input.email?.trim();
   if (!trimmedName) throw new Error("Contact name is required");
   if (!isValidSolanaAddress(trimmedAddress)) {
     throw new Error("That doesn't look like a valid wallet address");
+  }
+  if (trimmedEmail && !isValidEmail(trimmedEmail)) {
+    throw new Error("That email looks malformed");
   }
   const list = loadContacts();
   // Replace if same address already exists (latest write wins).
@@ -80,10 +101,15 @@ export function saveContact(input: { name: string; address: string }): Contact {
         : `c_${Date.now()}_${Math.random().toString(36).slice(2)}`,
     name: trimmedName,
     address: trimmedAddress,
+    email: trimmedEmail || undefined,
     createdAt: Date.now(),
   };
   if (existing >= 0) {
-    list[existing] = { ...list[existing], name: trimmedName };
+    list[existing] = {
+      ...list[existing],
+      name: trimmedName,
+      email: trimmedEmail || list[existing].email,
+    };
     persist(list);
     return list[existing];
   }

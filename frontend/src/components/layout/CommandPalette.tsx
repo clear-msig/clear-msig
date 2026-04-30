@@ -127,7 +127,7 @@ export function CommandPalette() {
         className="absolute inset-0 -z-10 cursor-default bg-surface-card/50 backdrop-blur-sm"
       />
 
-      <div className="mt-[10vh] flex w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-surface-card shadow-2xl">
+      <div className="mt-[10vh] flex w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-surface-card-strong shadow-2xl">
         <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2 text-white/70">
           <Search size={14} />
           <Command.Input

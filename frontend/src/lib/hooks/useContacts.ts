@@ -25,7 +25,7 @@ export function useContacts() {
   }, []);
 
   const save = useCallback(
-    (input: { name: string; address: string }) => {
+    (input: { name: string; address: string; email?: string }) => {
       const created = saveContactRaw(input);
       refresh();
       return created;

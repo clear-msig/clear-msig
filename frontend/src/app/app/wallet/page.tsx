@@ -22,7 +22,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useQuery } from "@tanstack/react-query";
 import { PublicKey } from "@solana/web3.js";
-import { ArrowRight, Bell, Plus, Users } from "lucide-react";
+import { ArrowRight, Bell, Contact, Lock, Plus, Settings as SettingsIcon, Users } from "lucide-react";
 import { fetchOnchainMemberships, type OnchainMembership } from "@/lib/memberships/client";
 import { useRecentActivity, type RecentActivityRow } from "@/lib/hooks/useRecentActivity";
 import { useActionNeeded, type ActionNeededRow } from "@/lib/hooks/useActionNeeded";
@@ -110,6 +110,8 @@ export default function WalletDashboard() {
         <RecentActivitySection rows={recent.rows} reduce={!!reduce} />
       )}
 
+      {!isFirstVisit && <ShortcutGrid reduce={!!reduce} />}
+
       {!isFirstVisit && (
         <Link
           href="/welcome"
@@ -140,7 +142,11 @@ function Greeting({ reduce }: { reduce: boolean }) {
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
   return (
-    <motion.div {...motionProps} transition={{ duration: 0.35 }}>
+    <motion.div
+      {...motionProps}
+      transition={{ duration: 0.35 }}
+      className="text-center"
+    >
       <h1 className="font-display text-display-xs leading-tight text-text-strong">
         Welcome back
       </h1>
@@ -148,6 +154,78 @@ function Greeting({ reduce }: { reduce: boolean }) {
         Your shared wallets and what needs your attention.
       </p>
     </motion.div>
+  );
+}
+
+// Shortcut row — quick links to the root-level retail destinations
+// other than the wallet flow itself. Surfaced on the dashboard so a
+// user with several wallets can still reach Contacts / Settings /
+// Privacy without drilling into a wallet first.
+function ShortcutGrid({ reduce }: { reduce: boolean }) {
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  return (
+    <motion.div
+      {...motionProps}
+      transition={{ duration: 0.35, delay: 0.04 }}
+      className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+    >
+      <ShortcutCard
+        href="/welcome"
+        Icon={Plus}
+        label="New wallet"
+        body="Spin up another shared wallet."
+      />
+      <ShortcutCard
+        href="/app/contacts"
+        Icon={Contact}
+        label="Contacts"
+        body="Names you've saved."
+      />
+      <ShortcutCard
+        href="/app/settings"
+        Icon={SettingsIcon}
+        label="Settings"
+        body="Account + connection."
+      />
+      <ShortcutCard
+        href="/privacy"
+        Icon={Lock}
+        label="Privacy"
+        body="How your rules stay yours."
+      />
+    </motion.div>
+  );
+}
+
+function ShortcutCard({
+  href,
+  Icon,
+  label,
+  body,
+}: {
+  href: string;
+  Icon: typeof Plus;
+  label: string;
+  body: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className={
+        "group flex flex-col items-start gap-2 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest " +
+        "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
+        "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+      }
+    >
+      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/10 text-accent">
+        <Icon className="h-4 w-4" strokeWidth={1.75} />
+      </span>
+      <span className="text-sm font-medium text-text-strong">{label}</span>
+      <span className="text-xs leading-snug text-text-soft">{body}</span>
+    </Link>
   );
 }
 

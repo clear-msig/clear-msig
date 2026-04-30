@@ -130,7 +130,7 @@ function MenuDrawer({ open, onClose }: MenuDrawerProps) {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 28, stiffness: 260, mass: 0.7 }}
-            className="fixed right-0 top-0 z-[151] flex h-full w-[88%] max-w-[340px] flex-col bg-surface-card shadow-2xl"
+            className="fixed right-0 top-0 z-[151] flex h-full w-[88%] max-w-[340px] flex-col bg-surface-card-strong shadow-2xl"
           >
             <button
               type="button"

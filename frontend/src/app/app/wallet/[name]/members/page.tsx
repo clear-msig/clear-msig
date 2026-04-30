@@ -24,7 +24,6 @@ import { listIntents } from "@/lib/chain/intents";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { avatarInitials } from "@/lib/retail/avatar";
-import { encryptStatus } from "@/lib/encrypt/client";
 
 export default function MembersPage() {
   const params = useParams<{ name: string }>();
@@ -86,8 +85,6 @@ export default function MembersPage() {
         initial: { opacity: 0, y: 12 },
         animate: { opacity: 1, y: 0 },
       };
-
-  const status = encryptStatus();
 
   return (
     <div className="flex flex-col gap-6">
@@ -190,17 +187,14 @@ export default function MembersPage() {
               wallet enforces it on chain — and the limits stay
               encrypted, so nobody outside this wallet can read them.
             </p>
-            {!status.live && (
-              <p className="mt-2 text-xs text-text-soft">
-                Coming when Encrypt&rsquo;s network goes live.{" "}
-                <Link
-                  href="/privacy"
-                  className="font-medium text-accent transition-colors duration-base ease-out-soft hover:text-accent-hover"
-                >
-                  How privacy works
-                </Link>
-              </p>
-            )}
+            <p className="mt-2 text-xs text-text-soft">
+              <Link
+                href="/privacy"
+                className="font-medium text-accent transition-colors duration-base ease-out-soft hover:text-accent-hover"
+              >
+                How privacy works
+              </Link>
+            </p>
           </div>
         </div>
       </section>

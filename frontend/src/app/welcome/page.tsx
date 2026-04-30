@@ -12,14 +12,16 @@
 // no backdrop-blur, no heavy framework loaded for this route.
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, ArrowLeft, Check, Loader2, Users } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowRight, ArrowLeft, Check, Loader2, Sparkles, Users } from "lucide-react";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { backendApi } from "@/lib/api/endpoints";
 import { BackendApiError } from "@/lib/api/client";
 import { appConfig } from "@/lib/config";
+import { fetchOnchainMemberships } from "@/lib/memberships/client";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
@@ -53,6 +55,26 @@ export default function WelcomePage() {
 
   const cleanName = useMemo(() => name.trim(), [name]);
   const nameValid = cleanName.length >= 2 && cleanName.length <= 64;
+
+  // If the user already has a wallet on this address, show a brief
+  // loading state instead of the "Create your first wallet" intro
+  // and route them to the dashboard. Returning users should never
+  // be sent through the create flow they've already completed.
+  const memberships = useQuery({
+    queryKey: ["my-organizations", gate.publicKey ?? ""],
+    queryFn: () => fetchOnchainMemberships(gate.publicKey ?? ""),
+    enabled: !!gate.publicKey && stage === "intro",
+    staleTime: 30_000,
+  });
+  const hasExistingWallets = (memberships.data?.length ?? 0) > 0;
+  if (gate.connected && memberships.isLoading && stage === "intro") {
+    return <ExistingWalletLoadingState reduce={!!reduce} />;
+  }
+  if (gate.connected && hasExistingWallets && stage === "intro") {
+    // Bounce — already onboarded.
+    router.replace("/app/wallet");
+    return <ExistingWalletLoadingState reduce={!!reduce} />;
+  }
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -134,6 +156,43 @@ export default function WelcomePage() {
 
   return (
     <main className="relative flex min-h-screen flex-col bg-canvas">
+      {/* Top bar: back link only when the user is past the intro
+          screen — at intro, "back" means /, which the brand link
+          already does. */}
+      {stage !== "success" && stage !== "intro" && (
+        <header className="absolute left-3 top-3 z-10 sm:left-4 sm:top-4">
+          <button
+            type="button"
+            onClick={() => {
+              if (stage === "name") setStage("intro");
+              else if (stage === "confirm") setStage("name");
+            }}
+            className={
+              "inline-flex items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
+              "transition-colors duration-base ease-out-soft hover:text-text-strong " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+            }
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Back
+          </button>
+        </header>
+      )}
+      {stage === "intro" && (
+        <header className="absolute left-3 top-3 z-10 sm:left-4 sm:top-4">
+          <Link
+            href="/"
+            className={
+              "inline-flex items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
+              "transition-colors duration-base ease-out-soft hover:text-text-strong " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+            }
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Clear
+          </Link>
+        </header>
+      )}
       {/* Progress dots — three steps in the user story (intro → name → confirm).
           Success is a payoff state, not a step, so it's not represented. */}
       <div
@@ -362,6 +421,39 @@ export default function WelcomePage() {
           Sending you to connect a wallet…
         </p>
       )}
+    </main>
+  );
+}
+
+// Brief loading state shown to already-onboarded users who land on
+// /welcome — usually because they tapped a stale "Get started" link.
+// useWalletGate handles the membership check + redirect to /app/wallet;
+// this is what fills the screen during that round-trip.
+function ExistingWalletLoadingState({ reduce }: { reduce: boolean }) {
+  return (
+    <main className="relative flex min-h-screen flex-col items-center justify-center bg-canvas px-gutter">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 overflow-hidden"
+      >
+        <div className="absolute -left-32 -top-16 h-[55vh] w-[80vw] max-w-[640px] rounded-full bg-accent/[0.06] blur-3xl" />
+      </div>
+      <motion.div
+        initial={reduce ? false : { opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="relative z-10 flex flex-col items-center text-center"
+      >
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-raised shadow-card-rest">
+          <Loader2 className="h-7 w-7 animate-spin text-accent" />
+        </div>
+        <p className="mt-5 font-display text-base text-text-strong">
+          Loading your wallets…
+        </p>
+        <p className="mt-1 text-sm text-text-soft">
+          You already have a Clear wallet — taking you home.
+        </p>
+      </motion.div>
     </main>
   );
 }

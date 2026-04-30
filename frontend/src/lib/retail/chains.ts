@@ -15,17 +15,18 @@ export interface ChainMeta {
   apiName: string;
   /// Three-letter ticker — what users see on amounts ("0.5 SOL").
   ticker: string;
-  /// Currency-style glyph used by the ChainBadge. Real symbols:
-  /// ◎ Solana, Ξ Ethereum, ₿ Bitcoin, ⓩ Zcash. Picked over our older
-  /// 3-letter shortName label so the badge reads as a coin not a chip.
+  /// Currency-style glyph — fallback when the logo image fails to load
+  /// or is still loading. ◎ Solana, Ξ Ethereum, ₿ Bitcoin, ⓩ Zcash.
   symbol: string;
+  /// CoinGecko CDN logo. Stable public URLs; cached at the edge.
+  /// `<ChainBadge>` falls back to `symbol` if the image errors.
+  logoUrl: string;
   /// Marketing name shown in cards and headers.
   name: string;
   /// One-line retail blurb — what a non-crypto user gets from the chain.
   description: string;
-  /// Tailwind gradient classes for the chain avatar circle. Picked to
-  /// match each project's brand color family without literally
-  /// replicating their trademarked logos.
+  /// Tailwind gradient classes — used for the badge background ring
+  /// and glyph fallback. Brand color family per chain.
   gradient: { from: string; to: string };
   /// Smallest unit per ticker — what the chain stores on-wire.
   /// SOL=lamports (1e9), ETH=wei (1e18), BTC=sats (1e8), ZEC=zats (1e8).
@@ -44,6 +45,8 @@ export const CHAIN_CATALOG: readonly ChainMeta[] = [
     apiName: "solana",
     ticker: "SOL",
     symbol: "◎",
+    logoUrl:
+      "https://assets.coingecko.com/coins/images/4128/large/solana.png",
     name: "Solana",
     description: "Fast, low-fee. Where Clear starts.",
     gradient: { from: "from-purple-500", to: "to-emerald-400" },
@@ -55,6 +58,8 @@ export const CHAIN_CATALOG: readonly ChainMeta[] = [
     apiName: "evm_1559",
     ticker: "ETH",
     symbol: "Ξ",
+    logoUrl:
+      "https://assets.coingecko.com/coins/images/279/large/ethereum.png",
     name: "Ethereum",
     description: "The original. Send ETH or any token on it.",
     gradient: { from: "from-slate-500", to: "to-indigo-400" },
@@ -66,6 +71,7 @@ export const CHAIN_CATALOG: readonly ChainMeta[] = [
     apiName: "bitcoin_p2wpkh",
     ticker: "BTC",
     symbol: "₿",
+    logoUrl: "https://assets.coingecko.com/coins/images/1/large/bitcoin.png",
     name: "Bitcoin",
     description: "The original store of value.",
     gradient: { from: "from-orange-400", to: "to-amber-500" },
@@ -77,6 +83,8 @@ export const CHAIN_CATALOG: readonly ChainMeta[] = [
     apiName: "zcash_transparent",
     ticker: "ZEC",
     symbol: "ⓩ",
+    logoUrl:
+      "https://assets.coingecko.com/coins/images/486/large/circle-zcash-color.png",
     name: "Zcash",
     description: "Privacy-first. Built for shielded sends.",
     gradient: { from: "from-amber-400", to: "to-yellow-500" },

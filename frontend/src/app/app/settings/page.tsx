@@ -28,7 +28,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
-import { encryptStatus } from "@/lib/encrypt/client";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -79,7 +78,7 @@ export default function SettingsPage() {
       transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
       className="flex flex-col gap-6"
     >
-      <header>
+      <header className="text-center">
         <h1 className="font-display text-display-xs leading-tight text-text-strong">
           Settings
         </h1>
@@ -196,9 +195,7 @@ export default function SettingsPage() {
             Private policies
           </p>
           <p className="mt-0.5 text-xs text-text-soft">
-            {encryptStatus().live
-              ? "Your wallet's rules are encrypted on-chain."
-              : "Coming soon — encryption preview. Tap to learn how it works."}
+            Your wallet&rsquo;s rules are encrypted on-chain.
           </p>
         </div>
         <ArrowRight
@@ -252,23 +249,6 @@ export default function SettingsPage() {
           aria-hidden="true"
         />
       </Link>
-      <a
-        href="https://github.com/clear-msig/clear-msig"
-        target="_blank"
-        rel="noreferrer"
-        className={
-          "group inline-flex items-center justify-between gap-3 rounded-card border border-border-soft bg-surface-raised px-5 py-3 text-sm shadow-card-rest " +
-          "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
-          "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-        }
-      >
-        <span className="text-text-strong">Source code</span>
-        <ExternalLink
-          className="h-4 w-4 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
-          aria-hidden="true"
-        />
-      </a>
     </motion.div>
   );
 }

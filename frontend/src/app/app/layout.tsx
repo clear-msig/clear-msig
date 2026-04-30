@@ -51,7 +51,7 @@ export default function WorkspaceLayout({ children }: Readonly<{ children: React
         {/* Persistent sidebar on md+; hidden on mobile (lives in the
             HeaderBar drawer instead). Sticky so it stays visible as the
             main column scrolls. */}
-        <aside className="sticky top-24 hidden h-[calc(100vh-7rem)] overflow-y-auto rounded-3xl border border-white/10 bg-surface-card shadow-card-dark md:block">
+        <aside className="sticky top-24 hidden h-[calc(100vh-7rem)] overflow-y-auto rounded-3xl border border-white/10 bg-surface-card-strong shadow-card-dark md:block">
           <WorkspaceSidebar />
         </aside>
 
