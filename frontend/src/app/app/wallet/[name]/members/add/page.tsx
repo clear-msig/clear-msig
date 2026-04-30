@@ -123,14 +123,18 @@ export default function AddFriendPage() {
         : [...intent.proposers, trimmedAddress];
 
       // 0. Run the new approver/proposer lists through the Encrypt
-      //    surface so the policy mutation is logged as ciphertext
-      //    locally — same path Alpha 1 will route on chain.
+      //    surface so the policy mutation flows as ciphertext IDs
+      //    through frontend → backend → CLI. Alpha 1 + program
+      //    `#[encrypt_fn]` upgrade routes them on chain.
       const enc = new TextEncoder();
-      await encryptPolicyBatch([
+      const encrypted = await encryptPolicyBatch([
         { plaintext: enc.encode(JSON.stringify(newProposers)), fheType: "ebytes" },
         { plaintext: enc.encode(JSON.stringify(newApprovers)), fheType: "ebytes" },
         { plaintext: new Uint8Array([intent.approvalThreshold]), fheType: "euint8" },
       ]);
+      const policy_ciphertexts = encrypted
+        .map((p) => p.ciphertextIdentifier)
+        .filter((id): id is string => typeof id === "string");
 
       // 1. Prepare
       const dry = await backendApi.prepare.updateIntent(name, {
@@ -141,6 +145,7 @@ export default function AddFriendPage() {
         threshold: intent.approvalThreshold,
         cancellation_threshold: intent.cancellationThreshold,
         timelock: intent.timelockSeconds,
+        policy_ciphertexts,
       });
 
       // 2. Sign

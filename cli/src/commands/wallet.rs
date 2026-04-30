@@ -30,6 +30,14 @@ pub enum WalletAction {
         /// Timelock in seconds
         #[arg(long, default_value = "0")]
         timelock: u32,
+        /// Comma-separated Encrypt ciphertext identifiers covering the
+        /// policy fields (proposers / approvers / threshold). Forward-
+        /// compatibility hook: today the program isn't FHE-aware so
+        /// these are logged and ignored. When the program adopts
+        /// `encrypt-quasar` and `#[encrypt_fn]` handlers, these IDs
+        /// replace plaintext fields in the on-chain instruction.
+        #[arg(long, value_delimiter = ',')]
+        policy_ciphertexts: Vec<String>,
     },
     /// Show wallet details
     Show {
@@ -136,7 +144,20 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
             threshold,
             cancellation_threshold,
             timelock,
+            policy_ciphertexts,
         } => {
+            // Forward-compat: log received Encrypt identifiers so the
+            // wire path is exercised end-to-end. The on-chain program
+            // doesn't read these yet — when it adopts `#[encrypt_fn]`
+            // handlers, the CLI swaps the plaintext fields below for
+            // these identifiers in the instruction encoding.
+            if !policy_ciphertexts.is_empty() {
+                eprintln!(
+                    "[encrypt] create-wallet received {} policy ciphertext id(s): {}",
+                    policy_ciphertexts.len(),
+                    policy_ciphertexts.join(", ")
+                );
+            }
             let program_id = crate::instructions::program_id();
             let pid = solana_address::Address::new_from_array(program_id.to_bytes());
 

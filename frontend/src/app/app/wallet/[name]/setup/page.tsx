@@ -68,14 +68,18 @@ export default function SetupSpendingPage() {
 
       // 0. Encrypt the policy fields client-side via the Encrypt
       //    surface. Pre-alpha returns plaintext-as-ciphertext; the
-      //    call path is the real one Alpha 1 uses.
+      //    identifiers flow through to the backend + CLI so the
+      //    full wire path is exercised.
       const enc = new TextEncoder();
-      await encryptPolicyBatch([
+      const encrypted = await encryptPolicyBatch([
         { plaintext: enc.encode(JSON.stringify(proposers)), fheType: "ebytes" },
         { plaintext: enc.encode(JSON.stringify(approvers)), fheType: "ebytes" },
         { plaintext: new Uint8Array([threshold]), fheType: "euint8" },
         { plaintext: new Uint8Array([delaySeconds & 0xff]), fheType: "euint32" },
       ]);
+      const policy_ciphertexts = encrypted
+        .map((p) => p.ciphertextIdentifier)
+        .filter((id): id is string => typeof id === "string");
 
       // 1. Prepare: backend builds the unsigned add-intent transaction
       //    and returns the bytes the user has to sign.
@@ -86,6 +90,7 @@ export default function SetupSpendingPage() {
         threshold,
         cancellation_threshold: 1,
         timelock: delaySeconds,
+        policy_ciphertexts,
       });
 
       // 2. Sign: user's wallet pops up its sign-message UI.

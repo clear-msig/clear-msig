@@ -106,6 +106,8 @@ export type PrepareAddIntentInput = {
   cancellation_threshold?: number;
   timelock?: number;
   expiry?: string;
+  /// See `CreateWalletInput::policy_ciphertexts`.
+  policy_ciphertexts?: string[];
 };
 
 export type PrepareRemoveIntentInput = {
@@ -122,6 +124,8 @@ export type PrepareUpdateIntentInput = {
   cancellation_threshold?: number;
   timelock?: number;
   expiry?: string;
+  /// See `CreateWalletInput::policy_ciphertexts`.
+  policy_ciphertexts?: string[];
 };
 
 export type PrepareCreateProposalInput = {
@@ -146,6 +150,11 @@ export type CreateWalletInput = {
   threshold: number;
   cancellation_threshold?: number;
   timelock?: number;
+  /// Encrypt ciphertext identifiers covering the policy fields
+  /// (proposers / approvers / threshold). Forward-compat: today the
+  /// backend logs them; once the program is FHE-aware they replace
+  /// the plaintext fields in the on-chain instruction.
+  policy_ciphertexts?: string[];
 };
 
 export type AddChainInput = {

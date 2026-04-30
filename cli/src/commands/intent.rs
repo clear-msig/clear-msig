@@ -42,6 +42,12 @@ pub enum IntentAction {
         /// Message expiry (YYYY-MM-DD HH:MM:SS). Defaults to now + configured expiry_seconds.
         #[arg(long)]
         expiry: Option<String>,
+        /// Encrypt ciphertext identifiers covering the policy fields
+        /// (proposers / approvers / threshold / timelock). Forward-
+        /// compat — logged and ignored until the program adopts
+        /// `#[encrypt_fn]` handlers.
+        #[arg(long, value_delimiter = ',')]
+        policy_ciphertexts: Vec<String>,
     },
     /// Remove an intent from a wallet (proposes via RemoveIntent).
     Remove {
@@ -78,6 +84,10 @@ pub enum IntentAction {
         /// Message expiry (YYYY-MM-DD HH:MM:SS). Defaults to now + configured expiry_seconds.
         #[arg(long)]
         expiry: Option<String>,
+        /// Encrypt ciphertext identifiers for the new policy fields.
+        /// Forward-compat — see `Add::policy_ciphertexts`.
+        #[arg(long, value_delimiter = ',')]
+        policy_ciphertexts: Vec<String>,
     },
     /// List all intents on a wallet.
     List {
@@ -97,7 +107,15 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
             cancellation_threshold,
             timelock,
             expiry,
+            policy_ciphertexts,
         } => {
+            if !policy_ciphertexts.is_empty() {
+                eprintln!(
+                    "[encrypt] intent-add received {} policy ciphertext id(s): {}",
+                    policy_ciphertexts.len(),
+                    policy_ciphertexts.join(", ")
+                );
+            }
             let expiry_ts = message::resolve_expiry(&expiry, config)?;
             let program_id = crate::instructions::program_id();
             let pid = solana_address::Address::new_from_array(program_id.to_bytes());
@@ -319,7 +337,15 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
             cancellation_threshold,
             timelock,
             expiry,
+            policy_ciphertexts,
         } => {
+            if !policy_ciphertexts.is_empty() {
+                eprintln!(
+                    "[encrypt] intent-update received {} policy ciphertext id(s): {}",
+                    policy_ciphertexts.len(),
+                    policy_ciphertexts.join(", ")
+                );
+            }
             let expiry_ts = message::resolve_expiry(&expiry, config)?;
             let program_id = crate::instructions::program_id();
             let pid = solana_address::Address::new_from_array(program_id.to_bytes());

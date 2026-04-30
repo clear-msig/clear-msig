@@ -64,13 +64,17 @@ export default function WelcomePage() {
       // Encrypt policy fields through Encrypt's surface BEFORE the
       // backend submission. At Alpha 1 the returned identifiers
       // travel on chain instead of plaintext; today's pre-alpha
-      // returns plaintext-as-ciphertext but the call path is real.
+      // returns plaintext-as-ciphertext but the call path is real
+      // and the IDs flow through frontend → backend → CLI verbatim.
       const enc = new TextEncoder();
-      await encryptPolicyBatch([
+      const encrypted = await encryptPolicyBatch([
         { plaintext: enc.encode(JSON.stringify(proposers)), fheType: "ebytes" },
         { plaintext: enc.encode(JSON.stringify(approvers)), fheType: "ebytes" },
         { plaintext: new Uint8Array([threshold]), fheType: "euint8" },
       ]);
+      const policy_ciphertexts = encrypted
+        .map((p) => p.ciphertextIdentifier)
+        .filter((id): id is string => typeof id === "string");
 
       return backendApi.createWallet({
         name: slug(cleanName),
@@ -79,6 +83,7 @@ export default function WelcomePage() {
         threshold,
         cancellation_threshold: 1,
         timelock: 0,
+        policy_ciphertexts,
       });
     },
     onSuccess: () => {

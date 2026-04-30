@@ -332,6 +332,13 @@ struct CreateWalletRequest {
     threshold: u8,
     cancellation_threshold: Option<u8>,
     timelock: Option<u32>,
+    /// Encrypt ciphertext identifiers covering the policy fields
+    /// (proposers / approvers / threshold). Forward-compat: today
+    /// the CLI logs them and continues with plaintext; once the
+    /// program adopts `#[encrypt_fn]` handlers these IDs replace
+    /// the plaintext fields in the on-chain instruction.
+    #[serde(default)]
+    policy_ciphertexts: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -408,6 +415,9 @@ struct PrepareIntentAddRequest {
     cancellation_threshold: Option<u8>,
     timelock: Option<u32>,
     expiry: Option<String>,
+    /// See `CreateWalletRequest::policy_ciphertexts`.
+    #[serde(default)]
+    policy_ciphertexts: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -426,6 +436,9 @@ struct PrepareIntentUpdateRequest {
     cancellation_threshold: Option<u8>,
     timelock: Option<u32>,
     expiry: Option<String>,
+    /// See `CreateWalletRequest::policy_ciphertexts`.
+    #[serde(default)]
+    policy_ciphertexts: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -931,7 +944,22 @@ async fn create_wallet(
         body.timelock.unwrap_or(0).to_string(),
     ]);
 
+    push_policy_ciphertexts(&mut args, &body.policy_ciphertexts);
+
     Ok(Json(state.runner.run_json(args).await?))
+}
+
+/// Append the optional `--policy-ciphertexts` CLI flag if any
+/// identifiers were sent. The CLI's clap parser uses
+/// `value_delimiter = ','`, so we hand it a single comma-joined
+/// argument and let it split. Identifiers must look like
+/// `ct_<hex>` (the shape Encrypt's gRPC service emits).
+fn push_policy_ciphertexts(args: &mut Vec<String>, ids: &[String]) {
+    if ids.is_empty() {
+        return;
+    }
+    args.push("--policy-ciphertexts".to_string());
+    args.push(ids.join(","));
 }
 
 async fn show_wallet(
@@ -1293,6 +1321,7 @@ async fn prepare_intent_add(
         args.push("--expiry".into());
         args.push(e);
     }
+    push_policy_ciphertexts(&mut args, &body.policy_ciphertexts);
     Ok(Json(state.runner.run_json(args).await?))
 }
 
@@ -1357,6 +1386,7 @@ async fn prepare_intent_update(
         args.push("--expiry".into());
         args.push(e);
     }
+    push_policy_ciphertexts(&mut args, &body.policy_ciphertexts);
     Ok(Json(state.runner.run_json(args).await?))
 }
 
