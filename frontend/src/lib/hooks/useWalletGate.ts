@@ -13,6 +13,11 @@ export function useWalletGate() {
   const pathname = usePathname();
 
   useEffect(() => {
+    // autoConnect lands an in-flight connection on first paint. Without
+    // this guard the gate sees connected=false and bounces shareable
+    // /app/* deep links to / before the adapter resolves.
+    if (wallet.connecting || wallet.disconnecting) return;
+
     if (wallet.connected && pathname === "/") {
       router.replace("/app/wallet");
       return;
@@ -20,7 +25,7 @@ export function useWalletGate() {
     if (!wallet.connected && pathname.startsWith(APP_PREFIX)) {
       router.replace("/");
     }
-  }, [wallet.connected, pathname, router]);
+  }, [wallet.connected, wallet.connecting, wallet.disconnecting, pathname, router]);
 
   return {
     connected: wallet.connected,
