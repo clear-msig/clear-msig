@@ -117,12 +117,12 @@ export function ProposalCard({
     return extractDecimalHints(selectedIntent.template);
   }, [selectedIntent]);
 
-  // Build the signable message client-side every keystroke. Expiry is
-  // a stable value for the lifetime of this form render . it commits
-  // at Sign time.
-  const [expiryUnix] = useState(() =>
-    Math.floor(Date.now() / 1000) + DEFAULT_EXPIRY_WINDOW_SECS
-  );
+  // Preview expiry is recomputed on every render so the bytes shown
+  // reflect a realistic window. The signed bytes use a *fresh* expiry
+  // at submit time (see submit()) so a slow signer never lands on an
+  // already-expired message.
+  const previewExpiryUnix =
+    Math.floor(Date.now() / 1000) + DEFAULT_EXPIRY_WINDOW_SECS;
 
   const previewState = useMemo(() => {
     if (!selectedIntent) return { status: "empty" as const };
@@ -134,7 +134,7 @@ export function ProposalCard({
       // than hardcoding 0 (which broke after the first proposal).
       const built = buildSignableMessage({
         action: "propose",
-        expiry: expiryUnix,
+        expiry: previewExpiryUnix,
         walletName,
         proposalIndex: walletProposalIndex,
         intent: {
@@ -163,7 +163,7 @@ export function ProposalCard({
     selectedIntent,
     paramValues,
     walletName,
-    expiryUnix,
+    previewExpiryUnix,
     walletProposalIndex,
   ]);
 
@@ -188,9 +188,13 @@ export function ProposalCard({
       const fresh = await walletQuery.refetch();
       const freshIndex =
         fresh.data?.account.proposalIndex ?? walletProposalIndex;
+      // Recompute expiry now (not at form-mount) so a slow form-fill
+      // never lands on an already-expired message.
+      const submitExpiryUnix =
+        Math.floor(Date.now() / 1000) + DEFAULT_EXPIRY_WINDOW_SECS;
       const built = buildSignableMessage({
         action: "propose",
-        expiry: expiryUnix,
+        expiry: submitExpiryUnix,
         walletName,
         proposalIndex: freshIndex,
         intent: {
@@ -205,7 +209,7 @@ export function ProposalCard({
       const res = await backendApi.submit.createProposal(walletName, {
         intent_index: selectedIndex,
         params_data_hex: toHex(previewState.paramsData),
-        expiry: expiryUnix,
+        expiry: submitExpiryUnix,
         signer_pubkey,
         signature,
       });

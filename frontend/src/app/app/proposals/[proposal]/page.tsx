@@ -641,7 +641,33 @@ function ActionPanel({
     setExecLog([]);
     setExecError(null);
     const src = new EventSource(url);
+
+    // Inactivity timeout: if no event arrives for STREAM_IDLE_MS, the
+    // backend has hung. Without this the panel sits in "MPC execution
+    // stream" forever with no escape until the user navigates away.
+    const STREAM_IDLE_MS = 90_000;
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
+    const finish = (err?: string) => {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = null;
+      src.close();
+      setExecuting(false);
+      if (err) {
+        setExecError(err);
+        toast.error("Execution failed", { details: err });
+      }
+    };
+    const armIdle = () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(
+        () => finish(`No events from backend in ${STREAM_IDLE_MS / 1000}s — execution may have hung.`),
+        STREAM_IDLE_MS
+      );
+    };
+    armIdle();
+
     src.addEventListener("progress", (ev) => {
+      armIdle();
       try {
         const data = (ev as MessageEvent).data as string;
         setExecLog((prev) => [...prev, data.trim()]);
@@ -659,18 +685,12 @@ function ActionPanel({
       } catch {
         toast.success("Proposal executed");
       }
-      src.close();
-      setExecuting(false);
+      finish();
       onRefresh();
     });
     src.addEventListener("error", (ev) => {
       const data = (ev as MessageEvent).data;
-      setExecError(typeof data === "string" ? data : "Stream closed unexpectedly");
-      toast.error("Execution failed", {
-        details: typeof data === "string" ? data : undefined,
-      });
-      src.close();
-      setExecuting(false);
+      finish(typeof data === "string" ? data : "Stream closed unexpectedly");
     });
   };
 

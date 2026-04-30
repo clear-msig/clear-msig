@@ -12,7 +12,16 @@ export class BackendApiError extends Error {
   }
 }
 
+export class BackendTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`Backend did not respond within ${timeoutMs}ms`);
+    this.name = "BackendTimeoutError";
+  }
+}
+
 type HttpMethod = "GET" | "POST";
+
+const DEFAULT_TIMEOUT_MS = 30_000;
 
 async function parseJsonSafe(response: Response): Promise<unknown> {
   try {
@@ -25,23 +34,47 @@ async function parseJsonSafe(response: Response): Promise<unknown> {
 export async function apiRequest<TResponse, TBody = unknown>(
   path: string,
   method: HttpMethod,
-  body?: TBody
+  body?: TBody,
+  options?: { timeoutMs?: number; signal?: AbortSignal }
 ): Promise<TResponse> {
-  const response = await fetch(`${appConfig.backendApiUrl}${path}`, {
-    method,
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: body ? JSON.stringify(body) : undefined,
-    cache: "no-store"
-  });
+  const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // Bridge a caller-provided signal to our controller so an outer
+  // cancel still aborts the in-flight fetch.
+  const callerSignal = options?.signal;
+  const onCallerAbort = () => controller.abort();
+  callerSignal?.addEventListener("abort", onCallerAbort);
 
-  const json = (await parseJsonSafe(response)) as TResponse | ApiErrorEnvelope | null;
+  try {
+    const response = await fetch(`${appConfig.backendApiUrl}${path}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      cache: "no-store",
+      signal: controller.signal
+    });
 
-  if (!response.ok) {
-    const payload = (json ?? undefined) as ApiErrorEnvelope | undefined;
-    throw new BackendApiError(payload?.error ?? `Request failed with status ${response.status}`, payload);
+    const json = (await parseJsonSafe(response)) as TResponse | ApiErrorEnvelope | null;
+
+    if (!response.ok) {
+      const payload = (json ?? undefined) as ApiErrorEnvelope | undefined;
+      throw new BackendApiError(payload?.error ?? `Request failed with status ${response.status}`, payload);
+    }
+
+    return json as TResponse;
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      // Caller-initiated abort surfaces as the caller's own AbortError;
+      // a true timeout surfaces as BackendTimeoutError.
+      if (callerSignal?.aborted) throw err;
+      throw new BackendTimeoutError(timeoutMs);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+    callerSignal?.removeEventListener("abort", onCallerAbort);
   }
-
-  return json as TResponse;
 }

@@ -82,11 +82,8 @@ function OrgCard({ organization }: { organization: OnchainMembership }) {
   const hasName = Boolean(organization.wallet_name);
   const roles = organization.roles ?? [];
 
-  return (
-    <Link
-      href={hasName ? `/app/wallet/${encodeURIComponent(organization.wallet_name!)}` : "#"}
-      className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02] p-4 transition-all hover:border-brand-green/40 hover:bg-white/[0.04]"
-    >
+  const body = (
+    <>
       <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-brand-green/10 blur-2xl transition-opacity group-hover:opacity-60" />
 
       <div className="relative z-10 flex items-start gap-3">
@@ -124,9 +121,34 @@ function OrgCard({ organization }: { organization: OnchainMembership }) {
               </span>
             ))}
           </div>
+          {!hasName && (
+            <span className="text-[10px] text-white/30">
+              Wallet name not yet on chain
+            </span>
+          )}
         </div>
       </div>
-    </Link>
+    </>
+  );
+
+  if (hasName) {
+    return (
+      <Link
+        href={`/app/wallet/${encodeURIComponent(organization.wallet_name!)}`}
+        className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02] p-4 transition-all hover:border-brand-green/40 hover:bg-white/[0.04]"
+      >
+        {body}
+      </Link>
+    );
+  }
+
+  return (
+    <div
+      aria-disabled="true"
+      className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02] p-4 opacity-70"
+    >
+      {body}
+    </div>
   );
 }
 
