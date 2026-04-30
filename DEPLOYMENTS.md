@@ -129,5 +129,5 @@ open https://<your-vercel-app>.vercel.app
 
 If the frontend loads but API calls fail, the most common causes are:
 - `NEXT_PUBLIC_BACKEND_API_URL` typo (note the `https://` prefix).
-- Fly app sleeping (`auto_stop_machines = "stop"`); first request wakes it but takes ~5s.
-- CORS — the backend uses `CorsLayer::permissive()` so this shouldn't happen unless someone tightened it.
+- Fly app cold-start (rare with `min_machines_running = 1`, but possible if the warm machine was redeployed); first request wakes a stopped machine in ~5s.
+- CORS — backend pins origins via `CORS_ALLOWED_ORIGINS`. If you change the Vercel URL, update the Fly secret.

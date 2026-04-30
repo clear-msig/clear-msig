@@ -27,7 +27,10 @@ primary_region = "iad"
   force_https = true
   auto_stop_machines = "stop"
   auto_start_machines = true
-  min_machines_running = 0
+  # Keep one machine warm during the Colosseum judging window so a
+  # cold-start (5-15s) never lands on a judge's first request. Trades
+  # a few cents/day for reliability.
+  min_machines_running = 1
 
   [[http_service.checks]]
     grace_period = "10s"
