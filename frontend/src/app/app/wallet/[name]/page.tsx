@@ -595,33 +595,38 @@ function PdaRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-/// Stepped DKG-progress indicator shown while a chain binding is in
-/// flight. The Ika devnet typically takes 15–30s end-to-end; without
-/// any progress signal, users assume the UI hung. Steps advance on a
-/// fixed timer because the backend doesn't (yet) stream real progress
-/// events — once it does, this becomes a real status feed.
-const DKG_STEPS = [
-  "Reaching Ika network…",
-  "Running 2PC-MPC DKG…",
-  "Transferring dWallet authority…",
-  "Writing IkaConfig PDA…",
-];
-
+/// Indeterminate DKG-progress indicator shown while a chain binding is
+/// in flight. The backend doesn't stream per-stage progress events, so
+/// instead of inventing fake stages on a timer (which lies when the
+/// backend hangs), we surface elapsed time + a stage label that grows
+/// honest as the wait drags on. If/when the backend grows real progress
+/// events, swap this for a streamed status feed.
 function DkgProgress() {
-  const [stepIdx, setStepIdx] = useState(0);
+  const [elapsedSec, setElapsedSec] = useState(0);
   useEffect(() => {
+    const start = Date.now();
     const t = setInterval(() => {
-      setStepIdx((i) => Math.min(i + 1, DKG_STEPS.length - 1));
-    }, 6000);
+      setElapsedSec(Math.floor((Date.now() - start) / 1000));
+    }, 1000);
     return () => clearInterval(t);
   }, []);
+
+  const stage =
+    elapsedSec < 30
+      ? "Running 2PC-MPC DKG on the Ika network…"
+      : elapsedSec < 60
+      ? "Still running — Ika devnet sometimes takes longer than 30s."
+      : elapsedSec < 120
+      ? "Taking longer than usual — backend may be retrying."
+      : "Stuck for over 2 minutes. Check the backend logs.";
+
   return (
     <div className="flex items-center gap-1.5 text-[10px] text-white/50">
       <span className="inline-flex h-3 w-3 items-center justify-center">
         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-green" />
       </span>
       <span className="font-mono">
-        {stepIdx + 1}/{DKG_STEPS.length} · {DKG_STEPS[stepIdx]}
+        {elapsedSec}s · {stage}
       </span>
     </div>
   );
