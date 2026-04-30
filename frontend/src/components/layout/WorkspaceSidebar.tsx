@@ -108,6 +108,7 @@ export function WorkspaceSidebar({ onNavigate }: Props) {
                 key={m.wallet}
                 membership={m}
                 pathname={pathname}
+                pendingCount={recent.pendingByWallet.get(m.wallet) ?? 0}
                 onNavigate={onNavigate}
               />
             ))}
@@ -290,16 +291,19 @@ function SidebarActivityRow({
 function SidebarOrgLink({
   membership,
   pathname,
+  pendingCount,
   onNavigate,
 }: {
   membership: OnchainMembership;
   pathname: string;
+  pendingCount: number;
   onNavigate?: () => void;
 }) {
   const name = membership.wallet_name ?? "";
   const href = name ? `/app/wallet/${encodeURIComponent(name)}` : "#";
   const active = name && pathname.startsWith(href);
   const isApprover = membership.roles.includes("approver");
+  const isProposer = !isApprover && membership.roles.includes("proposer");
 
   if (!name) {
     return (
@@ -329,24 +333,29 @@ function SidebarOrgLink({
           className={active ? "text-brand-green" : "text-white/40 group-hover:text-white"}
         />
         <span className="truncate">{name}</span>
-        {isApprover && (
-          <ShieldCheck
-            size={10}
-            className={clsx(
-              "ml-auto shrink-0",
-              active ? "text-brand-green" : "text-white/30"
-            )}
-          />
-        )}
-        {!isApprover && membership.roles.includes("proposer") && (
-          <Users
-            size={10}
-            className={clsx(
-              "ml-auto shrink-0",
-              active ? "text-brand-green" : "text-white/30"
-            )}
-          />
-        )}
+        <span className="ml-auto flex shrink-0 items-center gap-1.5">
+          {pendingCount > 0 && (
+            <span
+              title={`${pendingCount} pending proposal${pendingCount === 1 ? "" : "s"}`}
+              aria-label={`${pendingCount} pending proposals`}
+              className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-amber-300/15 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-300"
+            >
+              {pendingCount}
+            </span>
+          )}
+          {isApprover && (
+            <ShieldCheck
+              size={10}
+              className={active ? "text-brand-green" : "text-white/30"}
+            />
+          )}
+          {isProposer && (
+            <Users
+              size={10}
+              className={active ? "text-brand-green" : "text-white/30"}
+            />
+          )}
+        </span>
       </Link>
     </li>
   );

@@ -92,7 +92,7 @@ export function useRecentActivity(limit = 5) {
     }),
   });
 
-  const rows = useMemo<RecentActivityRow[]>(() => {
+  const allRows = useMemo<RecentActivityRow[]>(() => {
     const flat: RecentActivityRow[] = [];
     for (const q of proposalsQueries) {
       if (!q.data) continue;
@@ -118,13 +118,31 @@ export function useRecentActivity(limit = 5) {
       }
       return a.proposalIndex > b.proposalIndex ? -1 : 1;
     });
-    return flat.slice(0, limit);
-  }, [proposalsQueries, limit]);
+    return flat;
+  }, [proposalsQueries]);
+
+  const rows = useMemo(() => allRows.slice(0, limit), [allRows, limit]);
+
+  // Per-wallet count of Active proposals. Used by the sidebar to badge
+  // wallets that need attention without re-fetching anything — same
+  // underlying flat array.
+  const pendingByWallet = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of allRows) {
+      if (r.status !== ACTIVE_STATUS) continue;
+      m.set(r.walletPda, (m.get(r.walletPda) ?? 0) + 1);
+    }
+    return m;
+  }, [allRows]);
 
   const loading =
     memberships.isLoading ||
     walletQueries.some((q) => q.isLoading) ||
     proposalsQueries.some((q) => q.isLoading);
 
-  return { rows, loading };
+  return { rows, allRows, pendingByWallet, loading };
 }
+
+// ProposalStatus.Active — inlined to avoid pulling the whole enum into
+// the hook file. Mirrors lib/msig/accounts.ts.
+const ACTIVE_STATUS = 0;
