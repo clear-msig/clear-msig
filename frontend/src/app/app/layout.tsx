@@ -19,6 +19,7 @@ import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { HeaderBar } from "@/components/layout/HeaderBar";
 import { PreAlphaBanner } from "@/components/layout/PreAlphaBanner";
 import { WorkspaceSidebar } from "@/components/layout/WorkspaceSidebar";
+import { CommandPalette } from "@/components/layout/CommandPalette";
 import { motion, useScroll, useTransform } from "framer-motion";
 
 export default function WorkspaceLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -43,6 +44,7 @@ export default function WorkspaceLayout({ children }: Readonly<{ children: React
       />
 
       <HeaderBar />
+      <CommandPalette />
 
       <div className="relative z-10 mx-auto grid w-full max-w-[78rem] grid-cols-1 gap-6 md:grid-cols-[16rem_1fr] md:items-start">
         {/* Persistent sidebar on md+; hidden on mobile (lives in the
