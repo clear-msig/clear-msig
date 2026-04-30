@@ -10,13 +10,15 @@
 // white text — same pattern as ProblemSection, BeforeAfterSection, and
 // the chains showcase on the landing page.
 //
-// AppNav was removed when intents and proposals collapsed into per-
-// wallet tabs inside /app/wallet/[name] — users navigate via the menu
-// drawer in HeaderBar.
+// Navigation: persistent left sidebar on desktop (md+), mobile drawer
+// triggered by HeaderBar's menu button below md. The sidebar surfaces
+// the connected wallet's organisations + a Create CTA so the user
+// always has somewhere to go without hunting through menus.
 
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { HeaderBar } from "@/components/layout/HeaderBar";
 import { PreAlphaBanner } from "@/components/layout/PreAlphaBanner";
+import { WorkspaceSidebar } from "@/components/layout/WorkspaceSidebar";
 import { motion, useScroll, useTransform } from "framer-motion";
 
 export default function WorkspaceLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -42,9 +44,18 @@ export default function WorkspaceLayout({ children }: Readonly<{ children: React
 
       <HeaderBar />
 
-      <div className="relative z-10 mx-auto flex w-full max-w-[60rem] flex-col gap-6">
-        <PreAlphaBanner />
-        <section className="relative z-20 min-w-0">{children}</section>
+      <div className="relative z-10 mx-auto grid w-full max-w-[78rem] grid-cols-1 gap-6 md:grid-cols-[16rem_1fr] md:items-start">
+        {/* Persistent sidebar on md+; hidden on mobile (lives in the
+            HeaderBar drawer instead). Sticky so it stays visible as the
+            main column scrolls. */}
+        <aside className="sticky top-24 hidden h-[calc(100vh-7rem)] overflow-y-auto rounded-3xl border border-white/10 bg-black/70 shadow-card-dark backdrop-blur md:block">
+          <WorkspaceSidebar />
+        </aside>
+
+        <div className="flex min-w-0 flex-col gap-6">
+          <PreAlphaBanner />
+          <section className="relative z-20 min-w-0">{children}</section>
+        </div>
       </div>
     </main>
   );
