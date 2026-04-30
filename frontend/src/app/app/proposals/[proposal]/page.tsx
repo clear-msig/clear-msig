@@ -113,7 +113,7 @@ export default function ProposalDetailPage() {
       transition={{ duration: 0.25 }}
       className="flex flex-col gap-4"
     >
-      <Breadcrumb proposalPda={proposalPda} />
+      <Breadcrumb proposalPda={proposalPda} walletName={context?.wallet.name} />
 
       {proposalQuery.isLoading || contextQuery.isLoading ? (
         <LoadingSkeleton />
@@ -137,14 +137,27 @@ export default function ProposalDetailPage() {
 
 // ── breadcrumb + empty / loading states ──────────────────────────────
 
-function Breadcrumb({ proposalPda }: { proposalPda: string }) {
+function Breadcrumb({
+  proposalPda,
+  walletName,
+}: {
+  proposalPda: string;
+  walletName?: string;
+}) {
+  // Once the wallet context resolves, point back at that wallet's
+  // detail page (Proposals tab is its native context) rather than
+  // /app/proposals which is a redirect-to-hub.
+  const backHref = walletName
+    ? `/app/wallet/${encodeURIComponent(walletName)}`
+    : "/app/wallet";
+  const backLabel = walletName ?? "Wallets";
   return (
     <div className="flex items-center gap-2 text-xs">
       <Link
-        href="/app/proposals"
+        href={backHref}
         className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white/80 px-3 py-1 font-semibold uppercase tracking-wide text-black/70 backdrop-blur transition-colors hover:border-brand-green/40 hover:text-brand-green"
       >
-        <ArrowLeft size={12} /> Proposals
+        <ArrowLeft size={12} /> {backLabel}
       </Link>
       <span className="text-black/30">/</span>
       <span className="rounded-full border border-black/10 bg-white/80 px-3 py-1 font-mono text-[11px] text-black/70 backdrop-blur">
@@ -209,7 +222,7 @@ function NotFoundState({ proposalPda }: { proposalPda: string }) {
           ? `No account on-chain at ${shortPda(proposalPda)}. It may have been cleaned up.`
           : "The proposal address in the URL looks empty."
       }
-      action={{ label: "Back to proposals", href: "/app/proposals" }}
+      action={{ label: "Back to your wallets", href: "/app/wallet" }}
     />
   );
 }

@@ -32,17 +32,26 @@ export const backendApi = {
 
   // Bootstrap ops (no user signature required . on-chain instructions are
   // payed for and submitted by the relayer's sponsored-gas keypair).
+  // Bootstrap chains multiple ixns + RPC confirms; bump past the 30s
+  // default so a slow first-time devnet round trip doesn't surface as
+  // a misleading timeout.
   createWallet: (input: CreateWalletInput) =>
-    apiRequest<Record<string, unknown>, CreateWalletInput>("/wallets", "POST", input),
+    apiRequest<Record<string, unknown>, CreateWalletInput>("/wallets", "POST", input, {
+      timeoutMs: 60_000,
+    }),
   showWallet: (walletName: string) =>
     apiRequest<Record<string, unknown>>(`/wallets/${encodeURIComponent(walletName)}`, "GET"),
   listWalletChains: (walletName: string) =>
     apiRequest<Record<string, unknown>>(`/wallets/${encodeURIComponent(walletName)}/chains`, "GET"),
+  // DKG runs through Ika's pre-alpha network; the UI explicitly tells
+  // the user it can take >30s, so the request must outlive that
+  // window. 3 minutes gives headroom for retries.
   addWalletChain: (walletName: string, input: AddChainInput) =>
     apiRequest<Record<string, unknown>, AddChainInput>(
       `/wallets/${encodeURIComponent(walletName)}/chains/add`,
       "POST",
-      input
+      input,
+      { timeoutMs: 180_000 }
     ),
 
   // Reads.

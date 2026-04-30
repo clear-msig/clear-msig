@@ -117,17 +117,19 @@ export function ProposalCard({
     return extractDecimalHints(selectedIntent.template);
   }, [selectedIntent]);
 
-  // Preview expiry is recomputed on every render so the bytes shown
-  // reflect a realistic window. The signed bytes use a *fresh* expiry
-  // at submit time (see submit()) so a slow signer never lands on an
-  // already-expired message.
-  const previewExpiryUnix =
-    Math.floor(Date.now() / 1000) + DEFAULT_EXPIRY_WINDOW_SECS;
-
+  // The preview pane shows an illustrative `expiry` value computed
+  // from whatever Date.now() was when the memo last recomputed. The
+  // *signed* bytes use a fresh expiry at submit time (see submit()),
+  // so the user is never asked to sign an already-expired message.
+  // Intentionally not listing this in the memo deps: a render-time
+  // value as a dep would refetch the memo on every parent re-render
+  // (framer-motion etc.), causing the hex preview to shimmer.
   const previewState = useMemo(() => {
     if (!selectedIntent) return { status: "empty" as const };
     try {
       const paramsData = encodeParams(selectedIntent, paramValues);
+      const previewExpiryUnix =
+        Math.floor(Date.now() / 1000) + DEFAULT_EXPIRY_WINDOW_SECS;
       // The on-chain `propose` ix rebuilds the signable bytes using the
       // wallet's current proposal_index as a nonce. The signature must
       // match those exact bytes, so we read the index from chain rather
@@ -159,13 +161,7 @@ export function ProposalCard({
         error: err instanceof Error ? err.message : String(err),
       };
     }
-  }, [
-    selectedIntent,
-    paramValues,
-    walletName,
-    previewExpiryUnix,
-    walletProposalIndex,
-  ]);
+  }, [selectedIntent, paramValues, walletName, walletProposalIndex]);
 
   // ── submit ─────────────────────────────────────────────────────────
 
