@@ -15,7 +15,8 @@
 //   - Toasts success + deep-links to /app/wallet/<name>.
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { PublicKey } from "@solana/web3.js";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { appConfig } from "@/lib/config";
 import { backendApi } from "@/lib/api/endpoints";
@@ -96,6 +97,67 @@ export function CreateWalletCard() {
     return null;
   };
   const canGoNext = () => stepBlocker() === null;
+
+  // Step-2 (signers + threshold) validation. Computed every render so
+  // the submit button + summary pill react live to edits.
+  const submitSummary = useMemo(() => {
+    const partialRows = signers.map((r, i) => ({
+      i,
+      address: r.address.trim(),
+      email: r.email.trim().toLowerCase(),
+    }));
+    const filledRows = partialRows.filter((r) => r.address || r.email);
+    const connectedAddress = gate.publicKey?.trim() ?? "";
+    const allAddresses = [
+      ...(connectedAddress ? [connectedAddress] : []),
+      ...filledRows.map((r) => r.address),
+    ].filter(Boolean);
+    const uniqueAddresses = Array.from(new Set(allAddresses));
+    const parsedThreshold = Number(threshold);
+
+    let blocker: string | null = null;
+    if (!gate.connected || !connectedAddress) {
+      blocker = "Connect a Solana wallet to create an organization";
+    } else {
+      for (const r of partialRows) {
+        if (!r.address && !r.email) continue;
+        if (!r.address) {
+          blocker = `Signer ${r.i + 1}: address is required`;
+          break;
+        }
+        if (!isValidSolanaAddress(r.address)) {
+          blocker = `Signer ${r.i + 1}: not a valid Solana address`;
+          break;
+        }
+        if (!r.email) {
+          blocker = `Signer ${r.i + 1}: email is required for the invite`;
+          break;
+        }
+        if (!isValidEmail(r.email)) {
+          blocker = `Signer ${r.i + 1}: email looks malformed`;
+          break;
+        }
+      }
+      if (!blocker && allAddresses.length !== uniqueAddresses.length) {
+        blocker = "Two signers share the same address";
+      }
+      if (!blocker && (!Number.isInteger(parsedThreshold) || parsedThreshold < 1)) {
+        blocker = "Threshold must be at least 1";
+      }
+      if (!blocker && parsedThreshold > uniqueAddresses.length) {
+        blocker = `Threshold cannot exceed ${uniqueAddresses.length} signer${
+          uniqueAddresses.length === 1 ? "" : "s"
+        }`;
+      }
+    }
+
+    return {
+      blocker,
+      threshold: parsedThreshold,
+      signerCount: uniqueAddresses.length,
+      addedCount: filledRows.length,
+    };
+  }, [signers, gate.connected, gate.publicKey, threshold]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -323,10 +385,33 @@ export function CreateWalletCard() {
                   </div>
                 </div>
 
+                <div className="mt-5 flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs">
+                  <div className="flex items-center justify-between gap-2 text-brand-white">
+                    <span className="flex items-center gap-1.5 font-semibold">
+                      <ShieldCheck size={12} className="text-brand-green" />
+                      Final policy
+                    </span>
+                    <span className="font-mono text-brand-green">
+                      {submitSummary.threshold || "·"}-of-{submitSummary.signerCount}
+                    </span>
+                  </div>
+                  <div className="text-text-muted">
+                    {submitSummary.signerCount === 1
+                      ? "Just you — every transaction will execute on a single signature."
+                      : `You + ${submitSummary.addedCount} invited signer${
+                          submitSummary.addedCount === 1 ? "" : "s"
+                        }, requiring ${submitSummary.threshold} approval${
+                          submitSummary.threshold === 1 ? "" : "s"
+                        } per transaction.`}
+                  </div>
+                </div>
+
                 <button
-                  disabled={!gate.connected || !gate.publicKey || mutation.isPending}
+                  disabled={
+                    submitSummary.blocker !== null || mutation.isPending
+                  }
                   onClick={() => mutation.mutate()}
-                  className="group mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-green px-5 py-3.5 text-sm font-bold text-black shadow-glow transition-all hover:bg-emerald-300 hover:shadow-glow-hover disabled:cursor-not-allowed disabled:opacity-50"
+                  className="group mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-green px-5 py-3.5 text-sm font-bold text-black shadow-glow transition-all hover:bg-emerald-300 hover:shadow-glow-hover disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {mutation.isPending ? (
                     <>
@@ -343,9 +428,9 @@ export function CreateWalletCard() {
                     </>
                   )}
                 </button>
-                {!gate.connected && (
-                  <p className="mt-2 text-center text-xs text-text-muted">
-                    Connect a Solana wallet to create an organization.
+                {submitSummary.blocker && (
+                  <p className="mt-2 text-center text-xs text-amber-300">
+                    {submitSummary.blocker}
                   </p>
                 )}
               </motion.div>
@@ -465,4 +550,19 @@ function explorerLink(
     label: `tx ${txid.slice(0, 8)}…`,
     href: `https://explorer.solana.com/tx/${txid}?cluster=devnet`,
   };
+}
+
+function isValidSolanaAddress(s: string): boolean {
+  try {
+    new PublicKey(s);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isValidEmail(s: string): boolean {
+  // Light format check; the auth server will do real validation. We
+  // just want to catch obvious typos before submit.
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
