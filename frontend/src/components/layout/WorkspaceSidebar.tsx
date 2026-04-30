@@ -1,43 +1,34 @@
 "use client";
 
-// Workspace sidebar — persistent left rail on desktop, drawer body on
-// mobile. Lists the connected wallet's organisations and offers the
-// "create wallet" CTA at the top so the user always has somewhere to go.
+// Workspace sidebar — retail rebuild (locked 2026-04-30).
 //
-// Treated as a plain content component: presentation (persistent column
-// vs slide-over drawer) is owned by the parent.
+// Persistent left rail on desktop (md+), drawer body on mobile. Drops
+// "treasury console" framing, role badges, raw addresses, and proposal
+// index numbers — keeps the same data, reframed in retail vocabulary:
+//
+//   - Brand: "Clear" (no -msig suffix per the locked spec).
+//   - "Your wallets" instead of "My organizations".
+//   - "+ New shared wallet" routes to /welcome (the retail story flow).
+//   - Wallet rows: name + pulse-badge for pending approvals only.
+//   - "Recent" feed: friendly status text, no #N proposal indices.
+//   - Bottom: settings-style row, no jargon footer.
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useWallet } from "@solana/wallet-adapter-react";
-import {
-  CheckCircle2,
-  Clock,
-  Github,
-  LogOut,
-  Plus,
-  RefreshCcw,
-  Rocket,
-  Search,
-  ShieldCheck,
-  Users,
-  Wallet,
-  X,
-  Zap,
-} from "lucide-react";
+import { Github, LogOut, Plus, Search, Settings, Wallet } from "lucide-react";
 import clsx from "clsx";
 import {
   fetchOnchainMemberships,
   type OnchainMembership,
 } from "@/lib/memberships/client";
-import { useOnboarding } from "@/lib/hooks/useOnboarding";
 import { openCommandPalette } from "@/components/layout/CommandPalette";
 import {
   useRecentActivity,
   type RecentActivityRow,
 } from "@/lib/hooks/useRecentActivity";
-import { ProposalStatus } from "@/lib/msig";
+import { friendlyStatus } from "@/lib/retail/labels";
 import { relativeTime } from "@/lib/util/relativeTime";
 
 type Props = {
@@ -50,7 +41,6 @@ export function WorkspaceSidebar({ onNavigate }: Props) {
   const wallet = useWallet();
   const address = wallet.publicKey?.toBase58() ?? "";
   const pathname = usePathname() ?? "";
-  const { reset } = useOnboarding();
 
   const myOrganizationsQuery = useQuery({
     queryKey: ["my-organizations", address],
@@ -72,34 +62,46 @@ export function WorkspaceSidebar({ onNavigate }: Props) {
           onNavigate?.();
           openCommandPalette();
         }}
-        className="group flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-white/60 transition-colors hover:border-white/20 hover:bg-white/10 hover:text-white"
+        className={
+          "group flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-white/60 " +
+          "transition-colors duration-base ease-out-soft hover:border-white/20 hover:bg-white/10 hover:text-white " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card"
+        }
       >
         <Search size={14} className="text-white/40 group-hover:text-white" />
-        <span>Search wallets…</span>
-        <kbd className="ml-auto rounded border border-white/10 bg-black/40 px-1.5 py-0.5 font-mono text-[10px] text-white/50">
+        <span>Search</span>
+        <kbd className="ml-auto rounded border border-white/10 bg-surface-card-strong/40 px-1.5 py-0.5 font-mono text-[10px] text-white/50">
           ⌘K
         </kbd>
       </button>
 
+      {/* Primary CTA — same shape and shadow as the retail Button
+          primitive (rounded-soft + accent shadow), just sized for the
+          sidebar's tighter density. */}
       <Link
-        href="/app/wallet"
+        href="/welcome"
         onClick={onNavigate}
-        className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-brand-green px-4 py-2.5 text-xs font-bold text-black shadow-glow transition-all hover:bg-emerald-300"
+        className={
+          "group inline-flex items-center justify-center gap-2 rounded-soft bg-accent px-4 py-2.5 text-xs font-medium text-white " +
+          "shadow-accent-rest transition-[background-color,box-shadow,transform] duration-base ease-out-soft " +
+          "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98] " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card"
+        }
       >
         <Plus size={14} />
-        Create wallet
+        New shared wallet
       </Link>
 
       <SidebarSection
-        label="My wallets"
+        label="Your wallets"
         count={memberships.length}
         loading={myOrganizationsQuery.isLoading}
       >
         {memberships.length === 0 && !myOrganizationsQuery.isLoading ? (
           <p className="px-2 text-[11px] text-white/40">
             {wallet.connected
-              ? "No memberships yet. Create one above."
-              : "Connect a wallet to see your organisations."}
+              ? "No wallets yet. Create one above."
+              : "Connect to see your wallets."}
           </p>
         ) : (
           <ul className="flex flex-col gap-0.5">
@@ -117,13 +119,13 @@ export function WorkspaceSidebar({ onNavigate }: Props) {
       </SidebarSection>
 
       <SidebarSection
-        label="Recent activity"
+        label="Recent"
         count={recent.rows.length}
         loading={recent.loading}
       >
         {recent.rows.length === 0 && !recent.loading ? (
           <p className="px-2 text-[11px] text-white/40">
-            No proposals yet across your wallets.
+            Nothing here yet.
           </p>
         ) : (
           <ul className="flex flex-col gap-0.5">
@@ -140,22 +142,31 @@ export function WorkspaceSidebar({ onNavigate }: Props) {
       </SidebarSection>
 
       <div className="mt-auto flex flex-col gap-1 border-t border-white/10 pt-4">
-        <button
-          type="button"
-          onClick={() => {
-            reset();
-            onNavigate?.();
-          }}
-          className="inline-flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-semibold text-white/60 transition-colors hover:bg-white/5 hover:text-white"
+        <Link
+          href="/app/settings"
+          onClick={onNavigate}
+          className={clsx(
+            "inline-flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-medium transition-colors duration-base ease-out-soft",
+            pathname.startsWith("/app/settings")
+              ? "bg-accent/15 text-accent"
+              : "text-white/60 hover:bg-white/5 hover:text-white",
+          )}
         >
-          <RefreshCcw size={14} className="text-white/40" />
-          Show intro again
-        </button>
+          <Settings
+            size={14}
+            className={
+              pathname.startsWith("/app/settings")
+                ? "text-accent"
+                : "text-white/40"
+            }
+          />
+          Settings
+        </Link>
         <a
           href="https://github.com/clear-msig/clear-msig"
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-semibold text-white/60 transition-colors hover:bg-white/5 hover:text-white"
+          className="inline-flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-medium text-white/60 transition-colors duration-base ease-out-soft hover:bg-white/5 hover:text-white"
         >
           <Github size={14} className="text-white/40" />
           GitHub
@@ -167,15 +178,12 @@ export function WorkspaceSidebar({ onNavigate }: Props) {
               wallet.disconnect();
               onNavigate?.();
             }}
-            className="inline-flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-semibold text-rose-300 transition-colors hover:bg-rose-500/10"
+            className="inline-flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-medium text-rose-300 transition-colors duration-base ease-out-soft hover:bg-rose-500/10"
           >
             <LogOut size={14} />
             Disconnect
           </button>
         )}
-        <p className="mt-2 px-3 text-[10px] uppercase tracking-widest text-white/30">
-          Pre-alpha · Devnet
-        </p>
       </div>
     </div>
   );
@@ -183,19 +191,17 @@ export function WorkspaceSidebar({ onNavigate }: Props) {
 
 function BrandRow() {
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-green/15 text-brand-green">
-        <ShieldCheck size={16} />
+    <Link
+      href="/app/wallet"
+      className="flex items-center gap-2 rounded-xl px-1 py-1 transition-opacity duration-base ease-out-soft hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card"
+    >
+      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/15 text-accent">
+        <Wallet size={16} />
       </div>
-      <div className="flex flex-col leading-tight">
-        <span className="font-display text-sm font-bold tracking-tight text-white">
-          Clear-MSIG
-        </span>
-        <span className="text-[9px] uppercase tracking-widest text-white/40">
-          treasury console
-        </span>
-      </div>
-    </div>
+      <span className="font-display text-base font-semibold tracking-tight text-white">
+        Clear
+      </span>
+    </Link>
   );
 }
 
@@ -213,11 +219,11 @@ function SidebarSection({
   return (
     <section className="flex flex-col gap-2">
       <div className="flex items-center justify-between px-2">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-white/50">
+        <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/40">
           {label}
         </span>
-        {!loading && typeof count === "number" && (
-          <span className="rounded-full bg-white/5 px-2 py-0.5 font-mono text-[10px] text-white/50">
+        {!loading && typeof count === "number" && count > 0 && (
+          <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-white/50">
             {count}
           </span>
         )}
@@ -238,22 +244,6 @@ function SidebarActivityRow({
 }) {
   const href = `/app/proposals/${encodeURIComponent(row.proposalPda)}`;
   const active = pathname === href;
-  const StatusIcon =
-    row.status === ProposalStatus.Executed
-      ? Rocket
-      : row.status === ProposalStatus.Approved
-      ? CheckCircle2
-      : row.status === ProposalStatus.Cancelled
-      ? X
-      : Clock;
-  const statusTone =
-    row.status === ProposalStatus.Executed
-      ? "text-brand-green"
-      : row.status === ProposalStatus.Approved
-      ? "text-cyan-300"
-      : row.status === ProposalStatus.Cancelled
-      ? "text-rose-300"
-      : "text-amber-300";
 
   return (
     <li>
@@ -261,20 +251,16 @@ function SidebarActivityRow({
         href={href}
         onClick={onNavigate}
         className={clsx(
-          "group flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] transition-colors",
+          "group flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] transition-colors duration-base ease-out-soft",
           active
-            ? "bg-brand-green/15 text-brand-green"
-            : "text-white/60 hover:bg-white/5 hover:text-white"
+            ? "bg-accent/15 text-accent"
+            : "text-white/60 hover:bg-white/5 hover:text-white",
         )}
       >
-        <StatusIcon size={11} className={clsx("shrink-0", statusTone)} />
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate font-semibold">
-            {row.walletName}{" "}
-            <span className="font-mono text-white/40">#{row.proposalIndex.toString()}</span>
-          </span>
-          <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wide text-white/30">
-            <span>{row.statusLabel}</span>
+          <span className="truncate font-medium">{row.walletName}</span>
+          <span className="flex items-center gap-1.5 text-[10px] text-white/40">
+            <span>{friendlyStatus(row.status)}</span>
             {row.proposedAt > 0n && (
               <>
                 <span className="text-white/20">·</span>
@@ -302,19 +288,10 @@ function SidebarOrgLink({
   const name = membership.wallet_name ?? "";
   const href = name ? `/app/wallet/${encodeURIComponent(name)}` : "#";
   const active = name && pathname.startsWith(href);
-  const isApprover = membership.roles.includes("approver");
-  const isProposer = !isApprover && membership.roles.includes("proposer");
 
-  if (!name) {
-    return (
-      <li className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs text-white/40 opacity-70">
-        <Wallet size={14} className="text-white/30" />
-        <span className="truncate font-mono">
-          {membership.wallet.slice(0, 6)}…{membership.wallet.slice(-4)}
-        </span>
-      </li>
-    );
-  }
+  // Without a name (rare — wallet missing from the on-chain account)
+  // we skip rendering rather than show a raw address.
+  if (!name) return null;
 
   return (
     <li>
@@ -322,40 +299,31 @@ function SidebarOrgLink({
         href={href}
         onClick={onNavigate}
         className={clsx(
-          "group flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition-colors",
+          "group flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-colors duration-base ease-out-soft",
           active
-            ? "bg-brand-green/15 text-brand-green"
-            : "text-white/70 hover:bg-white/5 hover:text-white"
+            ? "bg-accent/15 text-accent"
+            : "text-white/70 hover:bg-white/5 hover:text-white",
         )}
       >
         <Wallet
           size={14}
-          className={active ? "text-brand-green" : "text-white/40 group-hover:text-white"}
+          className={
+            active ? "text-accent" : "text-white/40 group-hover:text-white"
+          }
         />
         <span className="truncate">{name}</span>
-        <span className="ml-auto flex shrink-0 items-center gap-1.5">
-          {pendingCount > 0 && (
-            <span
-              title={`${pendingCount} pending proposal${pendingCount === 1 ? "" : "s"}`}
-              aria-label={`${pendingCount} pending proposals`}
-              className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-amber-300/15 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-300"
-            >
-              {pendingCount}
+        {pendingCount > 0 && (
+          <span
+            aria-label={`${pendingCount} need${pendingCount === 1 ? "s" : ""} approval`}
+            className="ml-auto inline-flex items-center gap-1 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-medium text-accent"
+          >
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent/70 opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
             </span>
-          )}
-          {isApprover && (
-            <ShieldCheck
-              size={10}
-              className={active ? "text-brand-green" : "text-white/30"}
-            />
-          )}
-          {isProposer && (
-            <Users
-              size={10}
-              className={active ? "text-brand-green" : "text-white/30"}
-            />
-          )}
-        </span>
+            {pendingCount}
+          </span>
+        )}
       </Link>
     </li>
   );

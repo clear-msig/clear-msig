@@ -9,7 +9,6 @@ import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
 import { useMemo, useState } from "react";
 import { solanaClusterRpc } from "@/lib/solana/cluster";
 import { ToastProvider } from "@/components/ui/Toast";
-import { OnboardingWalkthrough } from "@/components/onboarding/OnboardingWalkthrough";
 
 type Props = {
   children: React.ReactNode;
@@ -40,10 +39,7 @@ export function AppProviders({ children }: Props) {
       <ConnectionProvider endpoint={solanaClusterRpc}>
         <WalletProvider wallets={wallets} autoConnect>
           <WalletModalProvider>
-            <ToastProvider>
-              <OnboardingWalkthrough />
-              {children}
-            </ToastProvider>
+            <ToastProvider>{children}</ToastProvider>
           </WalletModalProvider>
         </WalletProvider>
       </ConnectionProvider>

@@ -1,421 +1,543 @@
 "use client";
 
-// Wallet hub — dashboard for connected users.
+// Wallet hub — retail rebuild (locked 2026-04-30).
 //
-// Layout:
-//   - Compact hero (welcome + connected pubkey).
-//   - Stats row (orgs / active proposals / executed total / executed-this-week).
-//   - Recent activity feed (top 5, richer than the sidebar's compact rows).
-//   - Create wallet section (form + side panel).
+// Replaces the previous "treasury console" dashboard. Same data hooks
+// (useUserStats / useRecentActivity / useActionNeeded / memberships
+// query), completely new presentation:
+//   - Friendly greeting, no pubkey on display.
+//   - Light cards for each shared wallet, with a live-pulse pending
+//     badge if anything in that wallet needs the user's attention.
+//   - Plain-language "Needs your approval" inbox.
+//   - Simplified recent activity ("Sent" / "Waiting" / "Ready to send"
+//     instead of Active/Approved/Executed).
+//   - First-visit empty state routes to /welcome (the retail story
+//     flow), not the legacy CreateWalletCard wizard.
 //
-// MyOrganizationsCard was retired here — the persistent sidebar is the
-// canonical "your wallets" surface. Keeping both was visual duplication.
+// The legacy wizard (CreateWalletCard, WalletPanel) and WorkflowTips
+// are intentionally NOT rendered here — they're being retired.
 
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { useWallet } from "@solana/wallet-adapter-react";
-import {
-  ArrowRight,
-  CheckCircle2,
-  Clock,
-  Network,
-  Rocket,
-  Sparkles,
-  Wallet as WalletIcon,
-  X,
-  Zap,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { CreateWalletCard } from "@/components/wallet/CreateWalletCard";
-import { WalletPanel } from "@/components/wallet/WalletPanel";
-import { WorkflowTips } from "@/components/layout/WorkflowTips";
-import { useRecentActivity } from "@/lib/hooks/useRecentActivity";
-import { useUserStats } from "@/lib/hooks/useUserStats";
-import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
-import { ProposalStatus } from "@/lib/msig";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { motion, useReducedMotion } from "framer-motion";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useQuery } from "@tanstack/react-query";
+import { PublicKey } from "@solana/web3.js";
+import { ArrowRight, Bell, Plus, Users } from "lucide-react";
+import { fetchOnchainMemberships, type OnchainMembership } from "@/lib/memberships/client";
+import { useRecentActivity, type RecentActivityRow } from "@/lib/hooks/useRecentActivity";
+import { useActionNeeded, type ActionNeededRow } from "@/lib/hooks/useActionNeeded";
+import { useBatchApprove } from "@/lib/hooks/useBatchApprove";
+import { findVaultAddress, ProposalStatus } from "@/lib/msig";
+import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
+import { Button } from "@/components/retail/Button";
 import { relativeTime } from "@/lib/util/relativeTime";
+import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
+import { formatBalance } from "@/lib/retail/format";
 
-export default function WalletPage() {
-  return (
-    <div className="flex flex-col gap-6">
-      <PageHero />
-      <StatsRow />
-      <ActionNeededCard />
-      <RecentActivityCard />
-
-      <Section
-        delay={0.25}
-        eyebrow="Create"
-        eyebrowIcon={<Sparkles size={11} />}
-        title="Spin up a new organization"
-        description="Bind it to the chains you want to drive, then invite your co-signers."
-      >
-        <div className="grid gap-6 xl:grid-cols-[1.15fr_1fr]">
-          <CreateWalletCard />
-          <WalletPanel />
-        </div>
-      </Section>
-
-      <WorkflowTips />
-    </div>
-  );
-}
-
-function PageHero() {
+export default function WalletDashboard() {
   const wallet = useWallet();
+  const { connection } = useConnection();
   const address = wallet.publicKey?.toBase58() ?? "";
-  const short = address ? `${address.slice(0, 4)}…${address.slice(-4)}` : null;
+  const reduce = useReducedMotion();
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-      className="relative overflow-hidden rounded-3xl border border-black/10 bg-white/70 px-6 py-7 shadow-card-shadow backdrop-blur sm:px-8"
-    >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-brand-green/15 blur-3xl"
-      />
-      <div className="relative z-10 flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-green/15 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-brand-emerald">
-            <WalletIcon size={11} /> Workspace
-          </span>
-          {short && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-black/5 px-3 py-1 font-mono text-[11px] text-black/60">
-              {short}
-            </span>
-          )}
-        </div>
-        <h1 className="font-display text-2xl font-bold leading-tight tracking-tight text-black text-balance sm:text-3xl">
-          Your treasury, at a glance.
-        </h1>
-        <p className="max-w-xl text-sm text-black/60">
-          Pending approvals, executed transactions, and live activity across
-          every multisig you sign for.
-        </p>
-      </div>
-    </motion.div>
-  );
-}
+  const memberships = useQuery({
+    queryKey: ["my-organizations", address],
+    queryFn: () => fetchOnchainMemberships(address),
+    enabled: address.length > 0,
+    staleTime: 30_000,
+  });
 
-function StatsRow() {
-  const stats = useUserStats();
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay: 0.05 }}
-      className="grid grid-cols-2 gap-3 sm:grid-cols-4"
-    >
-      <StatCard
-        label="Organisations"
-        value={stats.walletCount}
-        Icon={Network}
-        loading={stats.loading}
-        tone="cyan"
-      />
-      <StatCard
-        label="Pending"
-        value={stats.activeProposals}
-        Icon={Clock}
-        loading={stats.loading}
-        tone="amber"
-      />
-      <StatCard
-        label="Executed"
-        value={stats.executedProposals}
-        Icon={Rocket}
-        loading={stats.loading}
-        tone="green"
-        sub={
-          stats.executedThisWeek > 0
-            ? `${stats.executedThisWeek} this week`
-            : undefined
-        }
-      />
-      <StatCard
-        label="Total proposals"
-        value={stats.totalProposals}
-        Icon={Zap}
-        loading={stats.loading}
-        tone="brand"
-      />
-    </motion.div>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  Icon,
-  loading,
-  tone,
-  sub,
-}: {
-  label: string;
-  value: number;
-  Icon: LucideIcon;
-  loading: boolean;
-  tone: "brand" | "cyan" | "amber" | "green";
-  sub?: string;
-}) {
-  const toneAccent =
-    tone === "cyan"
-      ? "text-cyan-300 bg-cyan-300/10"
-      : tone === "amber"
-      ? "text-amber-300 bg-amber-300/10"
-      : tone === "green"
-      ? "text-brand-green bg-brand-green/15"
-      : "text-brand-green bg-brand-green/15";
-  return (
-    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black p-4 shadow-card-dark">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-white/50">
-            {label}
-          </span>
-          {loading ? (
-            <Skeleton tone="dark" className="mt-1 h-7 w-12 rounded" />
-          ) : (
-            <span className="font-display text-2xl font-bold text-white">
-              {value}
-            </span>
-          )}
-          {sub && (
-            <span className="text-[10px] text-white/40">{sub}</span>
-          )}
-        </div>
-        <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${toneAccent}`}>
-          <Icon size={14} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ActionNeededCard() {
+  const recent = useRecentActivity(5);
   const action = useActionNeeded();
 
-  // Hide the section entirely if there's nothing pending — no value
-  // adding empty noise to the dashboard. Loading state shows briefly
-  // so the user knows we're checking.
-  if (!action.loading && action.rows.length === 0) return null;
+  const wallets = memberships.data ?? [];
+  const stillLoading = memberships.isLoading;
+  const isFirstVisit = !stillLoading && wallets.length === 0;
+
+  // Batch-fetch every wallet's vault balance in a single RPC. Re-keys
+  // on the wallet set so the cache invalidates cleanly when memberships
+  // change. Auto-refetch every 30s keeps the numbers fresh in the
+  // background without explicit subscriptions.
+  const walletKeys = wallets
+    .map((m) => m.wallet)
+    .sort()
+    .join(",");
+  const balancesQuery = useQuery({
+    queryKey: ["dashboard-balances", walletKeys],
+    queryFn: async () => {
+      const map = new Map<string, number>();
+      if (wallets.length === 0) return map;
+      const vaults = wallets.map((m) => {
+        const [vault] = findVaultAddress(
+          new PublicKey(m.wallet),
+          CLEAR_WALLET_PROGRAM_ID,
+        );
+        return vault;
+      });
+      const infos = await connection.getMultipleAccountsInfo(vaults);
+      wallets.forEach((m, i) => {
+        map.set(m.wallet, infos[i]?.lamports ?? 0);
+      });
+      return map;
+    },
+    enabled: wallets.length > 0,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  });
 
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-      className="relative overflow-hidden rounded-3xl border border-amber-300/30 bg-gradient-to-br from-amber-500/[0.08] via-black to-black px-5 py-6 shadow-card-dark sm:px-7 sm:py-8"
-    >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-amber-300/20 blur-3xl"
-      />
-      <div className="relative z-10 flex flex-col gap-4">
-        <header className="flex flex-col gap-1.5">
-          <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-amber-300/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-amber-300">
-            <Clock size={11} /> Action needed
-          </span>
-          <h2 className="font-display text-xl font-bold leading-tight tracking-tight text-brand-white sm:text-2xl">
-            {action.loading
-              ? "Checking your queue…"
-              : action.rows.length === 1
-              ? "1 proposal needs your signature"
-              : `${action.rows.length} proposals need your signature`}
+    <div className="flex flex-col gap-6">
+      <Greeting reduce={!!reduce} />
+
+      {isFirstVisit ? (
+        <FirstVisitCard />
+      ) : (
+        <WalletsGrid
+          wallets={wallets}
+          pendingByWallet={recent.pendingByWallet}
+          balances={balancesQuery.data}
+          loadingBalances={balancesQuery.isLoading}
+          loading={stillLoading}
+          reduce={!!reduce}
+        />
+      )}
+
+      {!isFirstVisit && action.rows.length > 0 && (
+        <ActionNeededSection rows={action.rows} reduce={!!reduce} />
+      )}
+
+      {!isFirstVisit && recent.rows.length > 0 && (
+        <RecentActivitySection rows={recent.rows} reduce={!!reduce} />
+      )}
+
+      {!isFirstVisit && (
+        <Link
+          href="/welcome"
+          className={
+            "group inline-flex items-center justify-center gap-2 self-start rounded-card " +
+            "border border-border-soft bg-surface-raised px-5 py-3 text-sm font-medium text-text-strong shadow-card-rest " +
+            "transition-[transform,box-shadow,border-color] duration-base ease-out-soft " +
+            "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          }
+        >
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Create another shared wallet
+          <ArrowRight
+            className="h-4 w-4 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
+            aria-hidden="true"
+          />
+        </Link>
+      )}
+    </div>
+  );
+}
+
+// ─── Greeting ──────────────────────────────────────────────────────
+
+function Greeting({ reduce }: { reduce: boolean }) {
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  return (
+    <motion.div {...motionProps} transition={{ duration: 0.35 }}>
+      <h1 className="font-display text-display-xs leading-tight text-text-strong">
+        Welcome back
+      </h1>
+      <p className="mt-1 text-base text-text-soft">
+        Your shared wallets and what needs your attention.
+      </p>
+    </motion.div>
+  );
+}
+
+// ─── First-visit empty state ───────────────────────────────────────
+
+function FirstVisitCard() {
+  return (
+    <div className="rounded-card border border-border-soft bg-surface-raised p-8 shadow-card-rest">
+      <div className="flex flex-col items-center gap-4 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent/10">
+          <Users className="h-7 w-7 text-accent" strokeWidth={1.75} />
+        </div>
+        <div>
+          <h2 className="font-display text-display-xs text-text-strong">
+            You don&rsquo;t have a shared wallet yet
           </h2>
-          <p className="text-sm text-white/60">
-            Active proposals where you're an approver and haven't yet signed. Oldest first.
+          <p className="mt-2 max-w-sm text-base text-text-soft">
+            Start one for your roommates, your trip, your family. You can
+            add friends after.
           </p>
-        </header>
-        {action.loading ? (
-          <div className="flex flex-col gap-2">
-            {[0, 1].map((i) => (
-              <Skeleton key={i} tone="dark" className="h-14 w-full rounded-xl" />
-            ))}
-          </div>
+        </div>
+        <Link href="/welcome">
+          <Button size="lg">
+            Create your first wallet
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+// ─── Wallets grid ──────────────────────────────────────────────────
+
+interface WalletsGridProps {
+  wallets: OnchainMembership[];
+  pendingByWallet: Map<string, number>;
+  balances: Map<string, number> | undefined;
+  loadingBalances: boolean;
+  loading: boolean;
+  reduce: boolean;
+}
+
+function WalletsGrid({
+  wallets,
+  pendingByWallet,
+  balances,
+  loadingBalances,
+  loading,
+  reduce,
+}: WalletsGridProps) {
+  return (
+    <section>
+      <SectionLabel>Your wallets</SectionLabel>
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {loading && wallets.length === 0 ? (
+          <>
+            <CardSkeleton />
+            <CardSkeleton />
+          </>
         ) : (
-          <ul className="flex flex-col gap-2">
-            {action.rows.map((r) => (
-              <li key={r.proposalPda}>
-                <Link
-                  href={`/app/proposals/${encodeURIComponent(r.proposalPda)}`}
-                  className="group flex items-center gap-3 rounded-2xl border border-amber-300/20 bg-amber-300/[0.04] px-3 py-3 transition-colors hover:border-amber-300/50 hover:bg-amber-300/[0.08]"
-                >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-300/15 text-amber-300">
-                    <Clock size={14} />
-                  </div>
-                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="truncate text-sm font-semibold text-white">
-                        {r.walletName}
-                      </span>
-                      <span className="font-mono text-xs text-white/40">
-                        #{r.proposalIndex.toString()}
-                      </span>
-                    </div>
-                    <div className="truncate font-mono text-[11px] text-white/60">
-                      {r.intentTemplate}
-                    </div>
-                    <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wide text-white/40">
-                      <span className="text-amber-300">
-                        {r.approvalsCollected}/{r.approverCount} collected
-                      </span>
-                      {r.proposedAt > 0n && (
-                        <>
-                          <span className="text-white/20">·</span>
-                          <span>{relativeTime(r.proposedAt)}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <ArrowRight
-                    size={14}
-                    className="shrink-0 text-amber-300/50 transition-all group-hover:translate-x-0.5 group-hover:text-amber-300"
-                  />
-                </Link>
-              </li>
-            ))}
-          </ul>
+          wallets.map((m, i) => (
+            <WalletCard
+              key={m.wallet}
+              membership={m}
+              pendingCount={pendingByWallet.get(m.wallet) ?? 0}
+              balanceLamports={balances?.get(m.wallet) ?? null}
+              loadingBalance={loadingBalances}
+              delay={i * 0.04}
+              reduce={reduce}
+            />
+          ))
         )}
       </div>
-    </motion.section>
+    </section>
   );
 }
 
-function RecentActivityCard() {
-  const recent = useRecentActivity(5);
+interface WalletCardProps {
+  membership: OnchainMembership;
+  pendingCount: number;
+  balanceLamports: number | null;
+  loadingBalance: boolean;
+  delay: number;
+  reduce: boolean;
+}
+
+function WalletCard({
+  membership,
+  pendingCount,
+  balanceLamports,
+  loadingBalance,
+  delay,
+  reduce,
+}: WalletCardProps) {
+  const name = membership.wallet_name ?? "Wallet";
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  const balance =
+    balanceLamports !== null ? formatBalance(balanceLamports) : null;
 
   return (
-    <Section
-      delay={0.15}
-      eyebrow="Live"
-      eyebrowIcon={<Zap size={11} />}
-      title="Recent activity"
-      description="Latest proposals across every organisation you sign for."
+    <motion.div
+      {...motionProps}
+      transition={{ duration: 0.35, delay, ease: [0.22, 1, 0.36, 1] }}
     >
-      {recent.loading ? (
-        <div className="flex flex-col gap-2">
-          {[0, 1, 2].map((i) => (
-            <Skeleton key={i} tone="dark" className="h-14 w-full rounded-xl" />
-          ))}
+      <Link
+        href={`/app/wallet/${encodeURIComponent(name)}`}
+        className={
+          "group relative flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest " +
+          "transition-[transform,box-shadow,border-color] duration-base ease-out-soft " +
+          "hover:-translate-y-0.5 hover:border-accent/60 hover:shadow-card-raised " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+        }
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate font-display text-xl text-text-strong">
+              {name}
+            </p>
+            {loadingBalance && balance === null ? (
+              <div className="mt-1 h-5 w-16 animate-pulse rounded bg-border-soft" />
+            ) : (
+              <p className="mt-1 font-display text-base text-text-strong">
+                {balance ? balance.dollars : "$0.00"}
+              </p>
+            )}
+          </div>
+          <ArrowRight
+            className="mt-1 h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
+            aria-hidden="true"
+          />
         </div>
-      ) : recent.rows.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center text-sm text-white/40">
-          No proposals yet. Open a wallet from the sidebar and create one.
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {recent.rows.map((r) => {
-            const StatusIcon =
-              r.status === ProposalStatus.Executed
-                ? Rocket
-                : r.status === ProposalStatus.Approved
-                ? CheckCircle2
-                : r.status === ProposalStatus.Cancelled
-                ? X
-                : Clock;
-            const statusTone =
-              r.status === ProposalStatus.Executed
-                ? "text-brand-green"
-                : r.status === ProposalStatus.Approved
-                ? "text-cyan-300"
-                : r.status === ProposalStatus.Cancelled
-                ? "text-rose-300"
-                : "text-amber-300";
-            const statusBg =
-              r.status === ProposalStatus.Executed
-                ? "bg-brand-green/10"
-                : r.status === ProposalStatus.Approved
-                ? "bg-cyan-300/10"
-                : r.status === ProposalStatus.Cancelled
-                ? "bg-rose-300/10"
-                : "bg-amber-300/10";
-            return (
-              <li key={r.proposalPda}>
-                <Link
-                  href={`/app/proposals/${encodeURIComponent(r.proposalPda)}`}
-                  className="group flex items-center gap-3 rounded-2xl border border-white/5 bg-white/[0.02] px-3 py-3 transition-colors hover:border-brand-green/30 hover:bg-white/[0.05]"
-                >
-                  <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${statusBg} ${statusTone}`}>
-                    <StatusIcon size={14} />
-                  </div>
-                  <div className="flex min-w-0 flex-1 flex-col">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="truncate text-sm font-semibold text-white">
-                        {r.walletName}
-                      </span>
-                      <span className="font-mono text-xs text-white/40">
-                        #{r.proposalIndex.toString()}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wide text-white/40">
-                      <span className={statusTone}>{r.statusLabel}</span>
-                      {r.proposedAt > 0n && (
-                        <>
-                          <span className="text-white/20">·</span>
-                          <span>{relativeTime(r.proposedAt)}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <ArrowRight
-                    size={14}
-                    className="shrink-0 text-white/30 transition-all group-hover:translate-x-0.5 group-hover:text-brand-green"
-                  />
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </Section>
+        {pendingCount > 0 && (
+          <div className="inline-flex items-center gap-1.5 self-start rounded-full bg-accent/10 px-2 py-1 text-xs font-medium text-accent">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent/70 opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
+            </span>
+            {pendingCount} need{pendingCount === 1 ? "s" : ""} approval
+          </div>
+        )}
+      </Link>
+    </motion.div>
   );
 }
 
-function Section({
-  delay,
-  eyebrow,
-  eyebrowIcon,
-  title,
-  description,
-  children,
-}: {
-  delay: number;
-  eyebrow: string;
-  eyebrowIcon: React.ReactNode;
-  title: string;
-  description: string;
-  children: React.ReactNode;
-}) {
+function CardSkeleton() {
+  return (
+    <div className="h-[110px] rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+      <div className="h-5 w-1/3 animate-pulse rounded bg-border-soft" />
+      <div className="mt-2 h-5 w-16 animate-pulse rounded bg-border-soft" />
+    </div>
+  );
+}
+
+// ─── Action needed ─────────────────────────────────────────────────
+
+interface ActionNeededProps {
+  rows: ActionNeededRow[];
+  reduce: boolean;
+}
+
+function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  const batch = useBatchApprove();
+  const running = batch.progress !== null && batch.progress.completed < batch.progress.total && !batch.progress.error;
+  const showApproveAll = rows.length >= 2;
+
+  const handleApproveAll = () => {
+    batch.approveAll(
+      rows.map((r) => ({
+        walletName: r.walletName,
+        proposalPda: r.proposalPda,
+        label: `${friendlyIntentLabel(r.intentTemplate)} in ${r.walletName}`,
+      })),
+    );
+  };
+
   return (
     <motion.section
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay, ease: [0.16, 1, 0.3, 1] }}
-      className="relative overflow-hidden rounded-3xl border border-white/10 bg-black px-5 py-6 shadow-card-dark sm:px-7 sm:py-8"
+      {...motionProps}
+      transition={{ duration: 0.35, delay: 0.08 }}
+      className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
     >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-brand-green/10 blur-3xl"
-      />
-      <div className="relative z-10 flex flex-col gap-4">
-        <header className="flex flex-col gap-1.5">
-          <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-brand-green/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-brand-green">
-            {eyebrowIcon}
-            {eyebrow}
+      <header className="flex items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-sm font-medium text-text-strong">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent/10 text-accent">
+            <Bell className="h-3.5 w-3.5" strokeWidth={2} />
           </span>
-          <h2 className="font-display text-xl font-bold leading-tight tracking-tight text-brand-white sm:text-2xl">
-            {title}
-          </h2>
-          <p className="text-sm text-white/60">{description}</p>
-        </header>
-        <div>{children}</div>
-      </div>
+          Needs your approval
+        </h2>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-text-soft">{rows.length}</span>
+          {showApproveAll && (
+            <button
+              type="button"
+              onClick={handleApproveAll}
+              disabled={running}
+              className={
+                "inline-flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-[11px] font-medium text-white shadow-accent-rest " +
+                "transition-[background-color,box-shadow,transform] duration-base ease-out-soft " +
+                "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98] " +
+                "disabled:cursor-not-allowed disabled:opacity-60 " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+              }
+            >
+              {running ? "Approving…" : "Approve all"}
+            </button>
+          )}
+        </div>
+      </header>
+
+      {batch.progress && (
+        <BatchProgressRow progress={batch.progress} onDismiss={batch.reset} />
+      )}
+
+      <ul className="mt-3 flex flex-col divide-y divide-border-soft">
+        {rows.map((row) => (
+          <ActionRow key={row.proposalPda} row={row} />
+        ))}
+      </ul>
     </motion.section>
   );
+}
+
+function BatchProgressRow({
+  progress,
+  onDismiss,
+}: {
+  progress: { total: number; completed: number; error?: string; currentLabel?: string };
+  onDismiss: () => void;
+}) {
+  const done = progress.completed >= progress.total;
+  const stopped = !!progress.error;
+  const pct = Math.round((progress.completed / progress.total) * 100);
+
+  return (
+    <div className="mt-3 rounded-soft border border-border-soft bg-canvas px-3 py-2">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="font-medium text-text-strong">
+          {stopped
+            ? `Stopped — approved ${progress.completed} of ${progress.total}`
+            : done
+              ? `Approved ${progress.total} request${progress.total === 1 ? "" : "s"}`
+              : `Approving ${progress.completed + 1} of ${progress.total}…`}
+        </span>
+        {(done || stopped) && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
+          >
+            Dismiss
+          </button>
+        )}
+      </div>
+      {!done && !stopped && progress.currentLabel && (
+        <p className="mt-1 truncate text-[11px] text-text-soft">
+          {progress.currentLabel}
+        </p>
+      )}
+      {stopped && progress.error && (
+        <p className="mt-1 text-[11px] text-warning">{progress.error}</p>
+      )}
+      <div
+        aria-hidden="true"
+        className="mt-2 h-1 overflow-hidden rounded-full bg-border-soft"
+      >
+        <div
+          className="h-full bg-accent transition-[width] duration-base ease-out-soft"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ActionRow({ row }: { row: ActionNeededRow }) {
+  const friendlyTemplate = friendlyIntentLabel(row.intentTemplate);
+  return (
+    <li>
+      <Link
+        href={`/app/proposals/${row.proposalPda}`}
+        className={
+          "group flex items-center justify-between gap-3 py-3 " +
+          "transition-colors duration-base ease-out-soft hover:text-text-strong " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+        }
+      >
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-text-strong">
+            {friendlyTemplate}
+          </p>
+          <p className="mt-0.5 truncate text-xs text-text-soft">
+            in {row.walletName} · {row.approvalsCollected} of{" "}
+            {row.approverCount} approved
+          </p>
+        </div>
+        <ArrowRight
+          className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
+          aria-hidden="true"
+        />
+      </Link>
+    </li>
+  );
+}
+
+// ─── Recent activity ───────────────────────────────────────────────
+
+interface RecentActivityProps {
+  rows: RecentActivityRow[];
+  reduce: boolean;
+}
+
+function RecentActivitySection({ rows, reduce }: RecentActivityProps) {
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  return (
+    <motion.section
+      {...motionProps}
+      transition={{ duration: 0.35, delay: 0.12 }}
+    >
+      <SectionLabel>Recent activity</SectionLabel>
+      <ul className="mt-3 flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
+        {rows.map((row) => (
+          <ActivityRow key={row.proposalPda} row={row} />
+        ))}
+      </ul>
+    </motion.section>
+  );
+}
+
+function ActivityRow({ row }: { row: RecentActivityRow }) {
+  const time = relativeTime(Number(row.proposedAt) * 1000);
+  return (
+    <li>
+      <Link
+        href={`/app/proposals/${row.proposalPda}`}
+        className={
+          "group flex items-center justify-between gap-3 px-5 py-3 " +
+          "transition-colors duration-base ease-out-soft hover:bg-canvas/40 " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
+        }
+      >
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-text-strong">
+            {row.walletName}
+          </p>
+          <p className="mt-0.5 text-xs text-text-soft">
+            <span className={statusColor(row.status)}>{friendlyStatus(row.status)}</span>
+            <span className="mx-1.5 text-text-soft/40">·</span>
+            <span>{time}</span>
+          </p>
+        </div>
+        <ArrowRight
+          className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
+          aria-hidden="true"
+        />
+      </Link>
+    </li>
+  );
+}
+
+// ─── Bits & pieces ─────────────────────────────────────────────────
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+      {children}
+    </h2>
+  );
+}
+
+function statusColor(s: RecentActivityRow["status"]): string {
+  switch (s) {
+    case ProposalStatus.Active:
+      return "text-warning";
+    case ProposalStatus.Approved:
+      return "text-accent";
+    case ProposalStatus.Executed:
+      return "text-success";
+    case ProposalStatus.Cancelled:
+      return "text-text-soft";
+    default:
+      return "text-text-soft";
+  }
 }
 

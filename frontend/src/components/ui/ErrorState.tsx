@@ -90,7 +90,7 @@ export function ErrorState({
         <details
           className={clsx(
             "rounded-lg px-3 py-2 text-[11px]",
-            isDark ? "bg-black/30 text-rose-100/70" : "bg-white text-rose-900/70"
+            isDark ? "bg-surface-card/30 text-rose-100/70" : "bg-white text-rose-900/70"
           )}
         >
           <summary className="cursor-pointer font-medium">Details</summary>

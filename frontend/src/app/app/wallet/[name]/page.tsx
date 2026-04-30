@@ -1,1035 +1,644 @@
 "use client";
 
-// Wallet detail . /app/wallet/<name>.
+// Wallet detail — retail rebuild (locked 2026-04-30).
 //
-// Landing page for a single multisig organisation. Everything on this
-// page is read directly from Solana RPC; the backend relayer is only
-// touched for mutating actions surfaced through the Intents / Proposals
-// tabs.
+// Replaces the legacy power-user wallet page (chain bindings,
+// intent CRUD, PDA panels, DKG progress, raw approver tables).
+// What a retail user actually needs to see and do here:
 //
-// Sections:
-//   - Hero: wallet name, shortened PDA, at-a-glance stats.
-//   - Chain bindings grid: one card per IkaConfig PDA (Solana, EVM,
-//     BTC, Zcash, ERC-20). Shows the dWallet ID + chain kind; clicking
-//     the card links out to the chain binding flow.
-//   - Intent table: every intent 0..=wallet.intent_index with approved
-//     state, threshold, and a deep link to the proposal creation page.
-//   - Recent proposals: latest 5 deep-linked rows.
+//   - Which wallet is this (name + member count).
+//   - Send money (route to /send?wallet=…).
+//   - Invite a friend (route to /welcome/invite?wallet=…).
+//   - What's waiting on me ("needs your approval", filtered).
+//   - What just happened ("recent activity", filtered).
+//
+// Power-user surfaces (chain bindings, intent management, raw PDA
+// inspection) are intentionally not rendered here. They still exist
+// in the codebase and will be cleaned up after the retail surface
+// covers create / send / approve / member management.
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import {
-  Activity,
-  ArrowLeft,
-  ArrowRight,
-  BadgeCheck,
-  Bitcoin,
-  Check,
-  CheckCircle2,
-  ClipboardList,
-  Clock,
-  Coins,
-  Copy,
-  ExternalLink,
-  Hash,
-  Layers,
-  Leaf,
-  Plug,
-  ShieldCheck,
-  Users,
-  Wallet,
-  X,
-  Zap,
-} from "lucide-react";
-import type { LucideIcon as LucideIconType } from "lucide-react";
-import { IntentCard } from "@/components/intents/IntentCard";
-import { ProposalCard } from "@/components/proposals/ProposalCard";
-import { TxHistoryPanel } from "@/components/wallet/TxHistoryPanel";
-import { useWalletWorkflow } from "@/lib/hooks/useWalletWorkflow";
-import { useToast } from "@/components/ui/Toast";
-import { addressUrl } from "@/lib/explorer";
-import type { LucideIcon } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchWalletByName, type WalletWithPda } from "@/lib/chain/wallets";
-import { listChainBindings, type ChainBindingWithPda } from "@/lib/chain/chainBindings";
-import { listIntents, type IntentWithPda } from "@/lib/chain/intents";
-import {
-  listProposalsForWallet,
-  type ProposalWithPda,
-} from "@/lib/chain/proposals";
-import {
-  deriveWalletPdas,
-  IntentType,
-  ProposalStatus,
-  renderTemplateToString,
-} from "@/lib/msig";
+import { ArrowLeft, ArrowRight, Bell, Download, Globe, Lock, Send, ShieldCheck, Users } from "lucide-react";
+import { fetchWalletByName } from "@/lib/chain/wallets";
+import { listIntents } from "@/lib/chain/intents";
+import { findVaultAddress } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { Skeleton } from "@/components/ui/Skeleton";
-
-const INTENT_TYPE_LABEL: Record<number, string> = {
-  [IntentType.AddIntent]: "meta · add",
-  [IntentType.RemoveIntent]: "meta · remove",
-  [IntentType.UpdateIntent]: "meta · update",
-  [IntentType.Custom]: "custom",
-};
+import { useRecentActivity, type RecentActivityRow } from "@/lib/hooks/useRecentActivity";
+import { useActionNeeded, type ActionNeededRow } from "@/lib/hooks/useActionNeeded";
+import { useBatchApprove } from "@/lib/hooks/useBatchApprove";
+import { ProposalStatus } from "@/lib/msig";
+import { Button } from "@/components/retail/Button";
+import { MemberAvatarStack } from "@/components/retail/MemberAvatar";
+import { relativeTime } from "@/lib/util/relativeTime";
+import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
+import { formatBalance } from "@/lib/retail/format";
 
 export default function WalletDetailPage() {
   const params = useParams<{ name: string }>();
-  const name = decodeURIComponent(params.name ?? "");
+  const rawName = params?.name ?? "";
+  const name = useMemo(() => {
+    try {
+      return decodeURIComponent(rawName);
+    } catch {
+      return rawName;
+    }
+  }, [rawName]);
+  const reduce = useReducedMotion();
   const { connection } = useConnection();
 
-  const walletQuery = useQuery<WalletWithPda | null>({
+  const walletQuery = useQuery({
     queryKey: ["wallet", name],
     queryFn: () => fetchWalletByName(connection, name),
-    enabled: name.trim().length > 0,
+    enabled: name.length > 0,
     staleTime: 30_000,
   });
 
-  const wallet = walletQuery.data ?? null;
-
-  const bindingsQuery = useQuery<ChainBindingWithPda[]>({
-    queryKey: ["wallet-chains", name],
+  const intentsQuery = useQuery({
+    queryKey: ["wallet-intents", walletQuery.data?.pda.toBase58() ?? null],
     queryFn: async () => {
-      if (!wallet) return [];
-      return listChainBindings(connection, wallet.pda);
+      if (!walletQuery.data) return [];
+      // intentIndex on the wallet is the *next* slot, so the last
+      // existing slot is intentIndex - 1. listIntents iterates 0..upTo.
+      const upTo = walletQuery.data.account.intentIndex - 1;
+      if (upTo < 0) return [];
+      return listIntents(connection, walletQuery.data.pda, upTo);
     },
-    enabled: Boolean(wallet),
+    enabled: !!walletQuery.data,
     staleTime: 30_000,
   });
 
-  const intentsQuery = useQuery<IntentWithPda[]>({
-    queryKey: ["intents", name],
+  // Vault balance — the lamports actually held by this wallet's vault
+  // PDA. Refreshed every 15s; invalidated after a successful Send so
+  // the new balance shows up immediately.
+  const balanceQuery = useQuery({
+    queryKey: ["wallet-balance", walletQuery.data?.pda.toBase58() ?? null],
     queryFn: async () => {
-      if (!wallet) return [];
-      return listIntents(connection, wallet.pda, wallet.account.intentIndex);
+      if (!walletQuery.data) return 0;
+      const [vault] = findVaultAddress(
+        walletQuery.data.pda,
+        CLEAR_WALLET_PROGRAM_ID,
+      );
+      return connection.getBalance(vault, "confirmed");
     },
-    enabled: Boolean(wallet),
+    enabled: !!walletQuery.data,
     staleTime: 15_000,
+    refetchInterval: 30_000,
   });
 
-  const proposalsQuery = useQuery<ProposalWithPda[]>({
-    queryKey: ["proposals", name],
-    queryFn: async () => {
-      if (!wallet) return [];
-      return listProposalsForWallet(connection, wallet.pda, wallet.account);
-    },
-    enabled: Boolean(wallet),
-    staleTime: 15_000,
-  });
+  // Members = unique approvers across all live intents in this wallet.
+  // We don't render raw addresses, but we DO derive deterministic
+  // avatars from each so the wallet hero feels populated by friends
+  // rather than a counter.
+  const memberAddresses = useMemo(() => {
+    if (!intentsQuery.data) return [];
+    const seen = new Set<string>();
+    for (const it of intentsQuery.data) {
+      if (!it.account) continue;
+      for (const a of it.account.approvers) seen.add(a);
+    }
+    return Array.from(seen);
+  }, [intentsQuery.data]);
+  const memberCount = intentsQuery.data ? memberAddresses.length : null;
+
+  // Whether the wallet has any active intents — gates the "Send money"
+  // CTA. With zero intents, the program can't accept a proposal, so we
+  // route the user to the one-tap setup screen instead.
+  const hasIntents = useMemo(() => {
+    if (!intentsQuery.data) return null;
+    return intentsQuery.data.some((it) => it.account !== null);
+  }, [intentsQuery.data]);
+
+  const allActivity = useRecentActivity(50);
+  const allAction = useActionNeeded();
+
+  const walletActivity = useMemo(
+    () =>
+      allActivity.rows
+        .filter((r) => r.walletName === name)
+        .slice(0, 5),
+    [allActivity.rows, name],
+  );
+  const walletAction = useMemo(
+    () => allAction.rows.filter((r) => r.walletName === name),
+    [allAction.rows, name],
+  );
+
+  if (walletQuery.isLoading) {
+    return <DetailSkeleton />;
+  }
+  if (!walletQuery.data) {
+    return <NotFound name={name} />;
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <BackLink />
+      <Hero
+        name={name}
+        memberCount={memberCount}
+        memberAddresses={memberAddresses}
+        loadingMembers={intentsQuery.isLoading}
+        balanceLamports={balanceQuery.data ?? null}
+        loadingBalance={balanceQuery.isLoading}
+        reduce={!!reduce}
+      />
+      <Actions
+        name={name}
+        hasIntents={hasIntents}
+        reduce={!!reduce}
+      />
+      {walletAction.length > 0 && (
+        <ActionNeededSection rows={walletAction} reduce={!!reduce} />
+      )}
+      {walletActivity.length > 0 ? (
+        <ActivitySection rows={walletActivity} reduce={!!reduce} />
+      ) : (
+        <ActivityEmptyState reduce={!!reduce} />
+      )}
+    </div>
+  );
+}
+
+// ─── Top breadcrumb ────────────────────────────────────────────────
+
+function BackLink() {
+  return (
+    <Link
+      href="/app/wallet"
+      className={
+        "-ml-2 inline-flex w-fit items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
+        "transition-colors duration-base ease-out-soft hover:text-text-strong " +
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+      }
+    >
+      <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+      Wallets
+    </Link>
+  );
+}
+
+// ─── Hero card ─────────────────────────────────────────────────────
+
+interface HeroProps {
+  name: string;
+  memberCount: number | null;
+  memberAddresses: string[];
+  loadingMembers: boolean;
+  balanceLamports: number | null;
+  loadingBalance: boolean;
+  reduce: boolean;
+}
+
+
+function Hero({
+  name,
+  memberCount,
+  memberAddresses,
+  loadingMembers,
+  balanceLamports,
+  loadingBalance,
+  reduce,
+}: HeroProps) {
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+
+  const balance =
+    balanceLamports !== null ? formatBalance(balanceLamports) : null;
 
   return (
     <motion.section
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25 }}
-      className="flex flex-col gap-4"
+      {...motionProps}
+      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-8"
     >
-      <Breadcrumb name={name} />
+      <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+        Shared wallet
+      </p>
+      <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+        {name}
+      </h1>
 
-      {walletQuery.isLoading ? (
-        <Skeleton tone="dark" className="h-[420px] w-full rounded-3xl" />
-      ) : !wallet ? (
-        <NotFoundState name={name} />
-      ) : (
-        <WalletDetailTabs
-          wallet={wallet}
-          bindings={bindingsQuery.data ?? []}
-          intents={intentsQuery.data ?? []}
-          proposals={proposalsQuery.data ?? []}
-          bindingsLoading={bindingsQuery.isLoading}
-          intentsLoading={intentsQuery.isLoading}
-          proposalsLoading={proposalsQuery.isLoading}
-        />
-      )}
+      {/* Balance — biggest visual hierarchy after the name. */}
+      <div className="mt-5">
+        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-soft">
+          Balance
+        </p>
+        {loadingBalance ? (
+          <div className="mt-1 h-9 w-32 animate-pulse rounded bg-border-soft" />
+        ) : (
+          <p className="mt-1 font-display text-display-xs text-text-strong">
+            {balance ? balance.dollars : "$0.00"}
+          </p>
+        )}
+        {balance && (
+          <p className="mt-0.5 font-mono text-xs text-text-soft">
+            {balance.sol}
+          </p>
+        )}
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-text-soft">
+        <Link
+          href={`/app/wallet/${encodeURIComponent(name)}/members`}
+          aria-label="View members"
+          className={
+            "group inline-flex items-center gap-2 rounded-soft px-1 py-0.5 -mx-1 " +
+            "transition-colors duration-base ease-out-soft hover:text-text-strong " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+          }
+        >
+          {loadingMembers ? (
+            <>
+              <Users className="h-4 w-4" aria-hidden="true" />
+              <span className="inline-block h-4 w-24 animate-pulse rounded bg-border-soft" />
+            </>
+          ) : memberAddresses.length > 0 ? (
+            <>
+              <MemberAvatarStack
+                addresses={memberAddresses}
+                size="md"
+                max={4}
+              />
+              <span>
+                {memberCount} {memberCount === 1 ? "member" : "members"}
+              </span>
+              <ArrowRight
+                className="h-3.5 w-3.5 -ml-0.5 text-text-soft/60 transition-transform duration-base group-hover:translate-x-0.5"
+                aria-hidden="true"
+              />
+            </>
+          ) : (
+            <>
+              <Users className="h-4 w-4" aria-hidden="true" />
+              <span>1 member</span>
+            </>
+          )}
+        </Link>
+        <Link
+          href={`/app/wallet/${encodeURIComponent(name)}/rules`}
+          className={
+            "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
+            "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+          }
+        >
+          <ShieldCheck
+            className="h-3 w-3"
+            aria-hidden="true"
+            strokeWidth={2}
+          />
+          Spending rules
+        </Link>
+        <Link
+          href={`/app/wallet/${encodeURIComponent(name)}/chains`}
+          className={
+            "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
+            "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+          }
+        >
+          <Globe className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
+          Chains
+        </Link>
+        <Link
+          href="/privacy"
+          className={
+            "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
+            "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+          }
+        >
+          <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
+          Private
+        </Link>
+      </div>
     </motion.section>
   );
 }
 
-// ── tab shell ────────────────────────────────────────────────────────
+// ─── Quick actions row ─────────────────────────────────────────────
 
-type TabId = "overview" | "intents" | "proposals" | "activity";
-
-const TABS: { id: TabId; label: string; Icon: LucideIconType }[] = [
-  { id: "overview", label: "Overview", Icon: Layers },
-  { id: "intents", label: "Intents", Icon: ClipboardList },
-  { id: "proposals", label: "Proposals", Icon: Zap },
-  { id: "activity", label: "Activity", Icon: Activity },
-];
-
-function WalletDetailTabs({
-  wallet,
-  bindings,
-  intents,
-  proposals,
-  bindingsLoading,
-  intentsLoading,
-  proposalsLoading,
+function Actions({
+  name,
+  hasIntents,
+  reduce,
 }: {
-  wallet: WalletWithPda;
-  bindings: ChainBindingWithPda[];
-  intents: IntentWithPda[];
-  proposals: ProposalWithPda[];
-  bindingsLoading: boolean;
-  intentsLoading: boolean;
-  proposalsLoading: boolean;
+  name: string;
+  /// null while loading, false once we've confirmed no intents exist.
+  hasIntents: boolean | null;
+  reduce: boolean;
 }) {
-  const [tab, setTab] = useState<TabId>("overview");
-  const [proposeIntentIndex, setProposeIntentIndex] = useState<number | null>(null);
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  const encoded = encodeURIComponent(name);
 
-  const goPropose = (intentIndex: number) => {
-    setProposeIntentIndex(intentIndex);
-    setTab("proposals");
-  };
+  // Default to the Send CTA while loading so we don't flash the setup
+  // affordance for half a second before the intents query resolves.
+  const sendingReady = hasIntents !== false;
 
   return (
-    <div className="flex flex-col gap-4">
-      <WalletHero wallet={wallet} bindings={bindings} intents={intents} />
-
-      <nav
-        role="tablist"
-        aria-label="Wallet sections"
-        className="flex flex-wrap items-center gap-1 rounded-2xl border border-white/10 bg-black p-1 shadow-card-dark"
-      >
-        {TABS.map(({ id, label, Icon }) => {
-          const active = tab === id;
-          return (
-            <button
-              key={id}
-              role="tab"
-              aria-selected={active}
-              onClick={() => setTab(id)}
-              className={[
-                "relative inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors sm:flex-none sm:px-4",
-                active ? "text-black" : "text-white/60 hover:text-white",
-              ].join(" ")}
-            >
-              {active && (
-                <motion.span
-                  layoutId="wallet-tab-active"
-                  className="absolute inset-0 rounded-xl bg-brand-green"
-                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                />
-              )}
-              <Icon size={13} className="relative z-10" />
-              <span className="relative z-10">{label}</span>
-            </button>
-          );
-        })}
-      </nav>
-
-      <AnimatePresence mode="wait">
-        {tab === "overview" && (
-          <motion.div
-            key="overview"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.2 }}
-            className="grid gap-4 xl:grid-cols-[1.25fr_1fr]"
-          >
-            <ChainBindingsPanel
-              walletName={wallet.name}
-              bindings={bindings}
-              loading={bindingsLoading}
-            />
-            <PdasPanel wallet={wallet} />
-          </motion.div>
-        )}
-
-        {tab === "intents" && (
-          <motion.div
-            key="intents"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.2 }}
-            className="flex flex-col gap-4"
-          >
-            <IntentCard walletName={wallet.name} />
-            <IntentTablePanel
-              walletName={wallet.name}
-              intents={intents}
-              loading={intentsLoading}
-              onPropose={goPropose}
-            />
-          </motion.div>
-        )}
-
-        {tab === "proposals" && (
-          <motion.div
-            key="proposals"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.2 }}
-            className="flex flex-col gap-4"
-          >
-            <ProposalCard
-              walletName={wallet.name}
-              initialIntentIndex={proposeIntentIndex}
-            />
-            <RecentProposalsPanel
-              walletName={wallet.name}
-              proposals={proposals}
-              intents={intents}
-              loading={proposalsLoading}
-            />
-          </motion.div>
-        )}
-
-        {tab === "activity" && (
-          <motion.div
-            key="activity"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.2 }}
-          >
-            <TxHistoryPanel walletPda={wallet.pda} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-// ── breadcrumb / empty ───────────────────────────────────────────────
-
-function Breadcrumb({ name }: { name: string }) {
-  return (
-    <div className="flex items-center gap-2 text-xs">
-      <Link
-        href="/app/wallet"
-        className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white/80 px-3 py-1 font-semibold uppercase tracking-wide text-black/70 backdrop-blur transition-colors hover:border-brand-green/40 hover:text-brand-green"
-      >
-        <ArrowLeft size={12} /> Wallets
+    <motion.div
+      {...motionProps}
+      transition={{ duration: 0.35, delay: 0.04 }}
+      className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+    >
+      {sendingReady ? (
+        <Link href={`/send?wallet=${encoded}`} className="block">
+          <Button size="lg" fullWidth>
+            <Send className="h-4 w-4" aria-hidden="true" />
+            Send money
+          </Button>
+        </Link>
+      ) : (
+        <Link href={`/app/wallet/${encoded}/setup`} className="block">
+          <Button size="lg" fullWidth>
+            <Send className="h-4 w-4" aria-hidden="true" />
+            Set up sending
+          </Button>
+        </Link>
+      )}
+      <Link href={`/app/wallet/${encoded}/receive`} className="block">
+        <Button size="lg" variant="secondary" fullWidth>
+          <Download className="h-4 w-4" aria-hidden="true" />
+          Receive money
+        </Button>
       </Link>
-      <span className="text-black/30">/</span>
-      <span className="rounded-full border border-black/10 bg-white/80 px-3 py-1 font-mono text-[11px] text-black/70 backdrop-blur">
-        {name}
-      </span>
-    </div>
+    </motion.div>
   );
 }
 
-function NotFoundState({ name }: { name: string }) {
-  return (
-    <EmptyState
-      title={`No wallet named "${name}"`}
-      description="That multisig isn't deployed on this cluster yet. Create it from the wallets page or switch clusters."
-      action={{ label: "Back to wallets", href: "/app/wallet" }}
-    />
-  );
+// ─── Action needed (filtered to this wallet) ───────────────────────
+
+interface ActionNeededProps {
+  rows: ActionNeededRow[];
+  reduce: boolean;
 }
 
-// ── hero ─────────────────────────────────────────────────────────────
+function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  const batch = useBatchApprove();
+  const running =
+    batch.progress !== null &&
+    batch.progress.completed < batch.progress.total &&
+    !batch.progress.error;
+  const showApproveAll = rows.length >= 2;
 
-function WalletHero({
-  wallet,
-  bindings,
-  intents,
-}: {
-  wallet: WalletWithPda;
-  bindings: ChainBindingWithPda[];
-  intents: IntentWithPda[];
-}) {
-  const customIntentsCount = intents.filter(
-    (i) => i.account && i.account.intentType === IntentType.Custom
-  ).length;
-
-  return (
-    <div className="relative overflow-hidden rounded-3xl border border-brand-green/20 bg-gradient-to-br from-brand-green/10 via-black/30 to-black/20 p-6">
-      <div className="pointer-events-none absolute -right-20 -top-20 h-80 w-80 rounded-full bg-brand-green/15 blur-3xl" />
-
-      <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-brand-green">
-            <Wallet size={12} /> multisig wallet
-          </div>
-          <h1 className="mt-1 font-mono text-2xl font-bold text-brand-white sm:text-3xl">
-            {wallet.name}
-          </h1>
-          <p className="mt-1 flex items-center gap-2 font-mono text-xs text-white/50">
-            {shortPda(wallet.pda.toBase58())}
-            <CopyButton text={wallet.pda.toBase58()} />
-            <ExplorerLink href={addressUrl(wallet.pda.toBase58())} label="View wallet PDA on Solana Explorer" />
-          </p>
-        </div>
-        <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-          <HeroStat label="Chains bound" value={bindings.length} Icon={Plug} />
-          <HeroStat label="Custom intents" value={customIntentsCount} Icon={ShieldCheck} />
-          <HeroStat label="Proposals" value={Number(wallet.account.proposalIndex)} Icon={BadgeCheck} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function HeroStat({
-  label,
-  value,
-  Icon,
-}: {
-  label: string;
-  value: number;
-  Icon: LucideIcon;
-}) {
-  return (
-    <div className="flex flex-col items-center gap-0.5 rounded-2xl border border-white/10 bg-black/40 px-1.5 py-2 text-center sm:gap-1 sm:px-4 sm:py-3">
-      <Icon size={14} className="text-brand-green" />
-      <span className="text-base font-bold text-brand-white sm:text-lg">{value}</span>
-      <span className="text-[9px] font-semibold uppercase tracking-wide text-white/50 sm:text-[10px]">
-        {label}
-      </span>
-    </div>
-  );
-}
-
-// ── chain bindings grid ─────────────────────────────────────────────
-
-const CHAIN_META: Record<
-  number,
-  { label: string; sub: string; Icon: LucideIcon; toneBg: string; toneText: string }
-> = {
-  0: { label: "Solana", sub: "Curve25519 dWallet", Icon: Zap, toneBg: "bg-brand-green/20", toneText: "text-brand-green" },
-  1: { label: "Ethereum", sub: "EIP-1559", Icon: Zap, toneBg: "bg-sky-400/20", toneText: "text-sky-300" },
-  2: { label: "Bitcoin", sub: "P2WPKH (BIP143)", Icon: Bitcoin, toneBg: "bg-amber-400/20", toneText: "text-amber-300" },
-  3: { label: "Zcash", sub: "transparent (ZIP-243)", Icon: Leaf, toneBg: "bg-yellow-300/20", toneText: "text-yellow-200" },
-  4: { label: "ERC-20", sub: "EIP-1559", Icon: Coins, toneBg: "bg-sky-400/20", toneText: "text-sky-300" },
-};
-
-function ChainBindingsPanel({
-  walletName,
-  bindings,
-  loading,
-}: {
-  walletName: string;
-  bindings: ChainBindingWithPda[];
-  loading: boolean;
-}) {
-  const workflow = useWalletWorkflow(walletName);
-  const toast = useToast();
-  const [bindingChain, setBindingChain] = useState<string | null>(null);
-
-  const byKind = useMemo(() => {
-    const m = new Map<number, ChainBindingWithPda>();
-    for (const b of bindings) m.set(b.chainKind, b);
-    return m;
-  }, [bindings]);
-
-  const bindChain = (chainName: string) => {
-    setBindingChain(chainName);
-    workflow.addChainMutation.mutate(
-      { chain: chainName },
-      {
-        onSuccess: () => {
-          toast.success(`Chain "${chainName}" bound`, {
-            details: "DKG ran on the Ika network and the IkaConfig PDA is on chain. Refreshing the bindings panel now.",
-          });
-          workflow.chainsQuery.refetch();
-        },
-        onError: (err) => {
-          toast.error(
-            err instanceof Error ? err.message : `Failed to bind ${chainName}`,
-            { details: String(err) }
-          );
-        },
-        onSettled: () => setBindingChain(null),
-      }
+  const handleApproveAll = () => {
+    batch.approveAll(
+      rows.map((r) => ({
+        walletName: r.walletName,
+        proposalPda: r.proposalPda,
+        label: friendlyIntentLabel(r.intentTemplate),
+      })),
     );
   };
 
   return (
-    <div className="rounded-3xl border border-white/10 bg-black p-5 shadow-card-dark">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-widest text-brand-green">
-            Chain bindings
-          </div>
-          <p className="mt-0.5 text-xs text-text-muted">
-            One Ika dWallet per chain, derived from the multisig policy.
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
-        {[0, 1, 2, 4, 3].map((ck) => {
-          const meta = CHAIN_META[ck];
-          const binding = byKind.get(ck);
-          const chainName = chainKindName(ck);
-          return (
-            <ChainBindingCard
-              key={ck}
-              chainKind={ck}
-              meta={meta}
-              binding={binding}
-              loading={loading}
-              chainName={chainName}
-              onBind={() => bindChain(chainName)}
-              busy={bindingChain === chainName}
-              disabled={bindingChain !== null}
-            />
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function ChainBindingCard({
-  meta,
-  binding,
-  loading,
-  chainName,
-  onBind,
-  busy,
-  disabled,
-}: {
-  chainKind: number;
-  meta: { label: string; sub: string; Icon: LucideIcon; toneBg: string; toneText: string };
-  binding: ChainBindingWithPda | undefined;
-  loading: boolean;
-  chainName: string;
-  onBind: () => void;
-  busy: boolean;
-  disabled: boolean;
-}) {
-  const { Icon } = meta;
-  const bound = Boolean(binding);
-  return (
-    <div
-      className={[
-        "flex items-start gap-3 rounded-2xl border p-3 transition-colors",
-        bound
-          ? "border-brand-green/25 bg-brand-green/5"
-          : "border-white/10 bg-white/[0.02]",
-      ].join(" ")}
+    <motion.section
+      {...motionProps}
+      transition={{ duration: 0.35, delay: 0.08 }}
+      className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
     >
-      <div
-        className={[
-          "rounded-lg p-2",
-          bound ? `${meta.toneBg} ${meta.toneText}` : "bg-white/5 text-white/50",
-        ].join(" ")}
-      >
-        <Icon size={14} />
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+      <header className="flex items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-sm font-medium text-text-strong">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent/10 text-accent">
+            <Bell className="h-3.5 w-3.5" strokeWidth={2} />
+          </span>
+          Needs your approval
+        </h2>
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-brand-white">{meta.label}</span>
-          <span className="text-[10px] uppercase tracking-wide text-white/50">{meta.sub}</span>
-        </div>
-        {loading ? (
-          <span className="text-[11px] text-white/40">loading…</span>
-        ) : bound && binding ? (
-          <div className="flex flex-col gap-0.5 text-[11px] text-white/70">
-            <span className="flex items-center gap-1 font-mono">
-              dWallet · {shortPda(binding.account.dwallet)}
-              <CopyButton text={binding.account.dwallet} />
-              <ExplorerLink href={addressUrl(binding.account.dwallet)} label="View dWallet on Solana Explorer" />
-            </span>
-            <span className="font-mono text-white/40">
-              scheme · {schemeLabel(binding.account.signatureScheme)}
-            </span>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-1">
+          <span className="text-xs text-text-soft">{rows.length}</span>
+          {showApproveAll && (
             <button
               type="button"
-              onClick={onBind}
-              disabled={disabled}
-              className="self-start text-[11px] font-semibold text-brand-green transition-colors hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label={`Bind ${chainName} to this wallet`}
-            >
-              {busy ? "Binding…" : "Bind this chain →"}
-            </button>
-            {busy && <DkgProgress />}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── PDAs panel ──────────────────────────────────────────────────────
-
-function PdasPanel({ wallet }: { wallet: WalletWithPda }) {
-  const pdas = useMemo(
-    () => deriveWalletPdas(wallet.name, CLEAR_WALLET_PROGRAM_ID),
-    [wallet.name]
-  );
-  return (
-    <div className="rounded-3xl border border-white/10 bg-black p-5 shadow-card-dark">
-      <div className="text-[11px] font-semibold uppercase tracking-widest text-brand-green">
-        On-chain addresses
-      </div>
-      <div className="mt-4 flex flex-col gap-2 text-xs">
-        <PdaRow label="Wallet PDA" value={pdas.wallet.toBase58()} />
-        <PdaRow label="Vault (Solana CPI signer)" value={pdas.vault.toBase58()} />
-        <PdaRow label="AddIntent (meta)" value={pdas.addIntent.toBase58()} />
-        <PdaRow label="RemoveIntent (meta)" value={pdas.removeIntent.toBase58()} />
-        <PdaRow label="UpdateIntent (meta)" value={pdas.updateIntent.toBase58()} />
-      </div>
-    </div>
-  );
-}
-
-function PdaRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-start gap-2">
-      <Hash size={12} className="mt-0.5 text-text-muted" />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
-          {label}
-        </span>
-        <span className="flex items-center gap-1 truncate font-mono text-xs text-white/80">
-          {shortPda(value)}
-          <CopyButton text={value} />
-          <ExplorerLink href={addressUrl(value)} label={`View ${label} on Solana Explorer`} />
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/// Indeterminate DKG-progress indicator shown while a chain binding is
-/// in flight. The backend doesn't stream per-stage progress events, so
-/// instead of inventing fake stages on a timer (which lies when the
-/// backend hangs), we surface elapsed time + a stage label that grows
-/// honest as the wait drags on. If/when the backend grows real progress
-/// events, swap this for a streamed status feed.
-function DkgProgress() {
-  const [elapsedSec, setElapsedSec] = useState(0);
-  useEffect(() => {
-    const start = Date.now();
-    const t = setInterval(() => {
-      setElapsedSec(Math.floor((Date.now() - start) / 1000));
-    }, 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  const stage =
-    elapsedSec < 30
-      ? "Running 2PC-MPC DKG on the Ika network…"
-      : elapsedSec < 60
-      ? "Still running — Ika devnet sometimes takes longer than 30s."
-      : elapsedSec < 120
-      ? "Taking longer than usual — backend may be retrying."
-      : "Stuck for over 2 minutes. Check the backend logs.";
-
-  return (
-    <div className="flex items-center gap-1.5 text-[10px] text-white/50">
-      <span className="inline-flex h-3 w-3 items-center justify-center">
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-green" />
-      </span>
-      <span className="font-mono">
-        {elapsedSec}s · {stage}
-      </span>
-    </div>
-  );
-}
-
-/// Tiny chip-style external-explorer link, paired with a CopyButton on
-/// every on-chain identifier we render so judges can verify directly.
-function ExplorerLink({ href, label }: { href: string; label: string }) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      aria-label={label}
-      title="View on Solana Explorer"
-      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-white/40 transition-colors hover:bg-white/10 hover:text-brand-green"
-    >
-      <ExternalLink size={10} />
-    </a>
-  );
-}
-
-// ── intent table ─────────────────────────────────────────────────────
-
-function IntentTablePanel({
-  intents,
-  loading,
-  onPropose,
-}: {
-  walletName: string;
-  intents: IntentWithPda[];
-  loading: boolean;
-  onPropose: (intentIndex: number) => void;
-}) {
-  const active = intents.filter((i) => i.account);
-  return (
-    <div className="rounded-3xl border border-white/10 bg-black p-5 shadow-card-dark">
-      <div>
-        <div className="text-[11px] font-semibold uppercase tracking-widest text-brand-green">
-          Intent table
-        </div>
-        <p className="mt-0.5 text-xs text-text-muted">
-          Governance rules this wallet can propose transactions against.
-        </p>
-      </div>
-
-      <div className="mt-4 overflow-hidden rounded-2xl border border-white/5">
-        {loading ? (
-          <div className="flex flex-col gap-1.5 p-2">
-            {[0, 1, 2, 3].map((i) => (
-              <Skeleton key={i} tone="dark" className="h-9 rounded-lg" />
-            ))}
-          </div>
-        ) : active.length === 0 ? (
-          <div className="flex h-24 items-center justify-center text-xs text-text-muted">
-            no intents yet. Add one from the Intents tab.
-          </div>
-        ) : (
-          <>
-          {/* Mobile: card stack. Avoids the 640px-wide table that
-              forces horizontal scroll below the sm breakpoint. */}
-          <div className="flex flex-col divide-y divide-white/5 sm:hidden">
-            {active.map((row) => {
-              if (!row.account) return null;
-              const a = row.account;
-              return (
-                <div key={row.index} className="flex flex-col gap-2 p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs text-brand-green">
-                      #{row.index}
-                    </span>
-                    <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-white/70">
-                      {INTENT_TYPE_LABEL[a.intentType] ?? a.intentType}
-                    </span>
-                  </div>
-                  <div className="font-mono text-[11px] leading-snug text-white/80">
-                    {a.template || "·"}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 text-[10px]">
-                    <span className="font-mono text-white/60">
-                      {chainKindName(a.chainKind)}
-                    </span>
-                    <span className="font-mono text-white/60">
-                      {a.approvalThreshold}/{a.approvers.length}
-                    </span>
-                    {a.approved ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-brand-green/15 px-2 py-0.5 font-semibold text-brand-green">
-                        <CheckCircle2 size={10} /> approved
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/15 px-2 py-0.5 font-semibold text-amber-300">
-                        <Clock size={10} /> pending
-                      </span>
-                    )}
-                    {a.intentType === IntentType.Custom && a.approved && (
-                      <button
-                        type="button"
-                        onClick={() => onPropose(row.index)}
-                        className="ml-auto inline-flex items-center gap-1 rounded-full bg-brand-green/15 px-2 py-0.5 font-semibold text-brand-green"
-                      >
-                        Propose <ArrowRight size={10} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {/* Desktop: full table on sm+. */}
-          <div className="hidden sm:block">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-white/[0.02] text-[10px] uppercase tracking-wide text-text-muted">
-              <tr>
-                <Th>#</Th>
-                <Th>Type</Th>
-                <Th>Template</Th>
-                <Th>Chain</Th>
-                <Th>Threshold</Th>
-                <Th>Status</Th>
-                <Th></Th>
-              </tr>
-            </thead>
-            <tbody>
-              {active.map((row) => {
-                if (!row.account) return null;
-                const a = row.account;
-                return (
-                  <tr
-                    key={row.index}
-                    className="border-t border-white/5 transition-colors hover:bg-white/[0.03]"
-                  >
-                    <Td>
-                      <span className="font-mono text-brand-green">{row.index}</span>
-                    </Td>
-                    <Td>
-                      <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-white/70">
-                        {INTENT_TYPE_LABEL[a.intentType] ?? a.intentType}
-                      </span>
-                    </Td>
-                    <Td>
-                      <span className="block max-w-[280px] truncate font-mono text-white/80">
-                        {a.template || "·"}
-                      </span>
-                    </Td>
-                    <Td>
-                      <span className="font-mono text-white/70">{chainKindName(a.chainKind)}</span>
-                    </Td>
-                    <Td>
-                      <span className="font-mono text-white/80">
-                        {a.approvalThreshold}/{a.approvers.length}
-                      </span>
-                    </Td>
-                    <Td>
-                      {a.approved ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-brand-green/15 px-2 py-0.5 text-[10px] font-semibold text-brand-green">
-                          <CheckCircle2 size={10} /> approved
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
-                          <Clock size={10} /> pending
-                        </span>
-                      )}
-                    </Td>
-                    <Td>
-                      {a.intentType === IntentType.Custom && a.approved ? (
-                        <button
-                          type="button"
-                          onClick={() => onPropose(row.index)}
-                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-green hover:underline"
-                        >
-                          Propose <ArrowRight size={10} />
-                        </button>
-                      ) : null}
-                    </Td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          </div>
-          </>
-        )}
-      </div>
-
-      <p className="mt-3 flex items-center gap-2 text-[11px] text-text-muted">
-        <Users size={11} />
-        Approvals + cancellations enforced on-chain via `brine_ed25519::sig_verify`.
-      </p>
-    </div>
-  );
-}
-
-function Th({ children }: { children?: React.ReactNode }) {
-  return <th className="px-3 py-2 font-medium">{children}</th>;
-}
-
-function Td({ children }: { children: React.ReactNode }) {
-  return <td className="px-3 py-2 align-middle">{children}</td>;
-}
-
-// ── recent proposals ─────────────────────────────────────────────────
-
-function RecentProposalsPanel({
-  walletName,
-  proposals,
-  intents,
-  loading,
-}: {
-  walletName: string;
-  proposals: ProposalWithPda[];
-  intents: IntentWithPda[];
-  loading: boolean;
-}) {
-  const intentByIndex = useMemo(() => {
-    const m = new Map<number, IntentWithPda["account"]>();
-    for (const i of intents) m.set(i.index, i.account);
-    return m;
-  }, [intents]);
-
-  const sorted = useMemo(() => {
-    return [...proposals]
-      .sort((a, b) =>
-        a.proposalIndex < b.proposalIndex ? 1 : a.proposalIndex > b.proposalIndex ? -1 : 0
-      )
-      .slice(0, 5);
-  }, [proposals]);
-
-  return (
-    <div className="rounded-3xl border border-white/10 bg-black p-5 shadow-card-dark">
-      <div>
-        <div className="text-[11px] font-semibold uppercase tracking-widest text-brand-green">
-          Recent proposals
-        </div>
-        <p className="mt-0.5 text-xs text-text-muted">Click any row to open the signing view.</p>
-      </div>
-
-      <div className="mt-4">
-        {loading ? (
-          <div className="flex flex-col gap-2">
-            {[0, 1, 2].map((i) => (
-              <Skeleton key={i} tone="dark" className="h-12 rounded-2xl" />
-            ))}
-          </div>
-        ) : sorted.length === 0 ? (
-          <div className="flex h-16 items-center justify-center text-xs text-text-muted">
-            no proposals yet.
-          </div>
-        ) : (
-          <ul className="flex flex-col gap-1.5">
-            {sorted.map((p) => {
-              const intent = intentByIndex.get(p.intentIndex) ?? null;
-              let rendered = "·";
-              try {
-                if (intent) {
-                  rendered = renderTemplateToString(
-                    {
-                      params: intent.params,
-                      bytePool: intent.bytePool,
-                      template: intent.template,
-                    },
-                    p.account.paramsData
-                  );
-                }
-              } catch {
-                rendered = "(decode error)";
+              onClick={handleApproveAll}
+              disabled={running}
+              className={
+                "inline-flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-[11px] font-medium text-white shadow-accent-rest " +
+                "transition-[background-color,box-shadow,transform] duration-base ease-out-soft " +
+                "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98] " +
+                "disabled:cursor-not-allowed disabled:opacity-60 " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
               }
-              const chip = statusChip(p.account.status);
-              return (
-                <li key={p.pda.toBase58()}>
-                  <Link
-                    href={`/app/proposals/${encodeURIComponent(p.pda.toBase58())}`}
-                    className="group flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2 transition-colors hover:border-brand-green/30 hover:bg-white/[0.04]"
-                  >
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/5 text-[10px] font-bold text-brand-green">
-                      #{p.proposalIndex.toString(10)}
-                    </span>
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${chip.pillClass}`}
-                    >
-                      <chip.Icon size={10} />
-                      {chip.label}
-                    </span>
-                    <span className="flex-1 truncate font-mono text-xs text-white/80">
-                      {rendered}
-                    </span>
-                    <ArrowRight
-                      size={14}
-                      className="shrink-0 text-white/30 transition-transform group-hover:translate-x-0.5 group-hover:text-brand-green"
-                    />
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+            >
+              {running ? "Approving…" : "Approve all"}
+            </button>
+          )}
+        </div>
+      </header>
+
+      {batch.progress && (
+        <BatchProgressRow progress={batch.progress} onDismiss={batch.reset} />
+      )}
+
+      <ul className="mt-3 flex flex-col divide-y divide-border-soft">
+        {rows.map((row) => (
+          <li key={row.proposalPda}>
+            <Link
+              href={`/app/proposals/${row.proposalPda}`}
+              className={
+                "group flex items-center justify-between gap-3 py-3 " +
+                "transition-colors duration-base ease-out-soft " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+              }
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-text-strong">
+                  {friendlyIntentLabel(row.intentTemplate)}
+                </p>
+                <p className="mt-0.5 truncate text-xs text-text-soft">
+                  {row.approvalsCollected} of {row.approverCount} approved
+                </p>
+              </div>
+              <ArrowRight
+                className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
+                aria-hidden="true"
+              />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </motion.section>
+  );
+}
+
+// ─── Inline batch-progress row (mirrors the dashboard) ─────────────
+
+function BatchProgressRow({
+  progress,
+  onDismiss,
+}: {
+  progress: {
+    total: number;
+    completed: number;
+    error?: string;
+    currentLabel?: string;
+  };
+  onDismiss: () => void;
+}) {
+  const done = progress.completed >= progress.total;
+  const stopped = !!progress.error;
+  const pct = Math.round((progress.completed / progress.total) * 100);
+  return (
+    <div className="mt-3 rounded-soft border border-border-soft bg-canvas px-3 py-2">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="font-medium text-text-strong">
+          {stopped
+            ? `Stopped — approved ${progress.completed} of ${progress.total}`
+            : done
+              ? `Approved ${progress.total} request${progress.total === 1 ? "" : "s"}`
+              : `Approving ${progress.completed + 1} of ${progress.total}…`}
+        </span>
+        {(done || stopped) && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
+          >
+            Dismiss
+          </button>
         )}
       </div>
-
-      {/* Avoid unused-var lint on walletName . it's a stable handle we
-          keep around for future links. */}
-      <span className="hidden">{walletName}</span>
+      {!done && !stopped && progress.currentLabel && (
+        <p className="mt-1 truncate text-[11px] text-text-soft">
+          {progress.currentLabel}
+        </p>
+      )}
+      {stopped && progress.error && (
+        <p className="mt-1 text-[11px] text-warning">{progress.error}</p>
+      )}
+      <div
+        aria-hidden="true"
+        className="mt-2 h-1 overflow-hidden rounded-full bg-border-soft"
+      >
+        <div
+          className="h-full bg-accent transition-[width] duration-base ease-out-soft"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
     </div>
   );
 }
 
-// ── utilities ────────────────────────────────────────────────────────
+// ─── Recent activity (filtered to this wallet) ─────────────────────
 
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  const onCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1000);
-    } catch {
-      /* noop */
-    }
-  };
+interface ActivityProps {
+  rows: RecentActivityRow[];
+  reduce: boolean;
+}
+
+function ActivitySection({ rows, reduce }: ActivityProps) {
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
   return (
-    <button
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        onCopy();
-      }}
-      aria-label="Copy"
-      className="rounded-full p-0.5 text-white/40 hover:bg-white/10 hover:text-white"
+    <motion.section
+      {...motionProps}
+      transition={{ duration: 0.35, delay: 0.12 }}
     >
-      {copied ? <CheckCircle2 size={11} className="text-brand-green" /> : <Copy size={11} />}
-    </button>
+      <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+        Recent activity
+      </h2>
+      <ul className="mt-3 flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
+        {rows.map((row) => (
+          <li key={row.proposalPda}>
+            <Link
+              href={`/app/proposals/${row.proposalPda}`}
+              className={
+                "group flex items-center justify-between gap-3 px-5 py-3 " +
+                "transition-colors duration-base ease-out-soft hover:bg-canvas/40 " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
+              }
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-text-strong">
+                  {friendlyStatus(row.status)}
+                </p>
+                <p className="mt-0.5 text-xs text-text-soft">
+                  {relativeTime(Number(row.proposedAt) * 1000)}
+                </p>
+              </div>
+              <ArrowRight
+                className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
+                aria-hidden="true"
+              />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </motion.section>
   );
 }
 
-function shortPda(s: string): string {
-  if (!s) return "·";
-  if (s.length <= 14) return s;
-  return `${s.slice(0, 6)}…${s.slice(-6)}`;
+function ActivityEmptyState({ reduce }: { reduce: boolean }) {
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  return (
+    <motion.section
+      {...motionProps}
+      transition={{ duration: 0.35, delay: 0.12 }}
+      className="rounded-card border border-dashed border-border-soft bg-surface-raised p-6 text-center shadow-card-rest"
+    >
+      <p className="font-display text-base text-text-strong">
+        Nothing here yet
+      </p>
+      <p className="mt-1 text-sm text-text-soft">
+        When you send money or invite friends, the activity will show up
+        here.
+      </p>
+    </motion.section>
+  );
 }
 
-function chainKindName(k: number): string {
-  switch (k) {
-    case 0:
-      return "solana";
-    case 1:
-      return "evm_1559";
-    case 2:
-      return "bitcoin_p2wpkh";
-    case 3:
-      return "zcash_transparent";
-    case 4:
-      return "evm_1559_erc20";
-    default:
-      return `chain_${k}`;
-  }
+// ─── Loading + not-found ───────────────────────────────────────────
+
+function DetailSkeleton() {
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="-ml-2 h-7 w-24 animate-pulse rounded bg-border-soft" />
+      <div className="rounded-card border border-border-soft bg-surface-raised p-8 shadow-card-rest">
+        <div className="h-3 w-24 animate-pulse rounded bg-border-soft" />
+        <div className="mt-3 h-9 w-2/3 animate-pulse rounded bg-border-soft" />
+        <div className="mt-4 h-4 w-32 animate-pulse rounded bg-border-soft" />
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="h-tap-lg animate-pulse rounded-soft bg-border-soft" />
+        <div className="h-tap-lg animate-pulse rounded-soft bg-border-soft" />
+      </div>
+    </div>
+  );
 }
 
-function schemeLabel(scheme: number): string {
-  switch (scheme) {
-    case 0:
-      return "ed25519";
-    case 1:
-      return "secp256k1 (ECDSA)";
-    case 2:
-      return "secp256k1 (Schnorr)";
-    default:
-      return `scheme_${scheme}`;
-  }
+function NotFound({ name }: { name: string }) {
+  return (
+    <div className="flex flex-col gap-6">
+      <BackLink />
+      <div className="rounded-card border border-border-soft bg-surface-raised p-8 text-center shadow-card-rest">
+        <h1 className="font-display text-display-xs text-text-strong">
+          We couldn&rsquo;t find {name}
+        </h1>
+        <p className="mt-2 max-w-md text-text-soft">
+          The wallet may have been renamed, or you may not be a member.
+          Head back to the dashboard to see your wallets.
+        </p>
+        <Link href="/app/wallet" className="mt-6 inline-block">
+          <Button size="md">
+            Back to wallets
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </Link>
+      </div>
+    </div>
+  );
 }
 
-function statusChip(status: ProposalStatus): {
-  label: string;
-  Icon: typeof Check;
-  pillClass: string;
-} {
-  switch (status) {
-    case ProposalStatus.Active:
-      return {
-        label: "Active",
-        Icon: Clock,
-        pillClass: "border-amber-400/30 bg-amber-400/15 text-amber-300",
-      };
-    case ProposalStatus.Approved:
-      return {
-        label: "Approved",
-        Icon: BadgeCheck,
-        pillClass: "border-brand-green/30 bg-brand-green/15 text-brand-green",
-      };
-    case ProposalStatus.Executed:
-      return {
-        label: "Executed",
-        Icon: CheckCircle2,
-        pillClass: "border-sky-400/30 bg-sky-400/15 text-sky-300",
-      };
-    case ProposalStatus.Cancelled:
-      return {
-        label: "Cancelled",
-        Icon: X,
-        pillClass: "border-rose-400/30 bg-rose-400/15 text-rose-300",
-      };
-    default:
-      return {
-        label: "Unknown",
-        Icon: Check,
-        pillClass: "border-white/10 bg-white/5 text-white/50",
-      };
-  }
-}

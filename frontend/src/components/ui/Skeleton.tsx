@@ -24,7 +24,7 @@ export function Skeleton({ className, tone = "light" }: SkeletonProps) {
       aria-hidden="true"
       className={clsx(
         "inline-block animate-pulse rounded-md",
-        tone === "dark" ? "bg-white/5" : "bg-black/5",
+        tone === "dark" ? "bg-white/5" : "bg-surface-card/5",
         className
       )}
     />

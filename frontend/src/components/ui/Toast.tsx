@@ -8,7 +8,7 @@
 //   - A single shared queue is exposed via `useToast()`; every write
 //     path (create wallet, sign, broadcast) calls the same helpers.
 //   - Toasts stack in the bottom-right on desktop, top on mobile.
-//   - Three kinds: success (brand-green), error (rose), info (neutral).
+//   - Three kinds: success (accent), error (rose), info (neutral).
 //   - Errors get a "details" disclosure so we don't wall-of-text the
 //     user, but power users can still see the raw backend stderr.
 //
@@ -174,10 +174,10 @@ function ToastItem({
         "pointer-events-auto w-full max-w-sm rounded-2xl border px-4 py-3 shadow-2xl backdrop-blur",
         "flex flex-col gap-2",
         entry.kind === "success" &&
-          "border-brand-green/30 bg-black/90 text-white",
+          "border-accent/30 bg-surface-card/90 text-white",
         entry.kind === "error" &&
           "border-rose-500/40 bg-rose-950/90 text-rose-50",
-        entry.kind === "info" && "border-white/15 bg-black/90 text-white",
+        entry.kind === "info" && "border-white/15 bg-surface-card/90 text-white",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -187,7 +187,7 @@ function ToastItem({
           size={18}
           className={
             entry.kind === "success"
-              ? "mt-0.5 shrink-0 text-brand-green"
+              ? "mt-0.5 shrink-0 text-accent"
               : entry.kind === "error"
               ? "mt-0.5 shrink-0 text-rose-300"
               : "mt-0.5 shrink-0 text-white/70"
@@ -210,7 +210,7 @@ function ToastItem({
               href={entry.link.href}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 text-xs font-semibold text-brand-green hover:underline"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-accent hover:underline"
             >
               {entry.link.label}
               <ExternalLink size={12} />
@@ -230,7 +230,7 @@ function ToastItem({
       )}
 
       {showDetails && entry.details && (
-        <pre className="max-h-40 overflow-auto rounded-lg bg-black/40 p-2 pl-7 text-[11px] font-mono leading-snug text-white/70">
+        <pre className="max-h-40 overflow-auto rounded-lg bg-surface-card/40 p-2 pl-7 text-[11px] font-mono leading-snug text-white/70">
           {entry.details}
         </pre>
       )}

@@ -1,70 +1,66 @@
 // Root layout . global styles, font tokens, metadata, and providers.
 //
-// Fonts:
-//   --font-inter   → body sans (--font-inter, matches tailwind `font-sans`)
-//   --font-display → Space Grotesk, hero/display headlines (`font-display`)
-//   --font-mono    → JetBrains Mono, hex + address previews (`font-mono`)
+// Fonts (retail rebuild, locked 2026-04-30):
+//   --font-sans    → Geist, body + UI (Tailwind `font-sans`)
+//   --font-display → Fraunces, headlines + display (Tailwind `font-display`)
+//   --font-mono    → Geist Mono, code + raw bytes (Tailwind `font-mono`)
 //
 // next/font locally hosts the webfonts so we hit zero Google-Fonts requests
 // at runtime and stay ironclad for offline demos.
 
 import type { Metadata, Viewport } from "next";
-import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Fraunces } from "next/font/google";
 import "@solana/wallet-adapter-react-ui/styles.css";
 import "./globals.css";
 import { AppProviders } from "@/components/providers/AppProviders";
 
-const inter = Inter({
+const geist = Geist({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-inter",
+  variable: "--font-sans",
 });
 
-const spaceGrotesk = Space_Grotesk({
+const fraunces = Fraunces({
   subsets: ["latin"],
   display: "swap",
-  weight: ["500", "600", "700"],
   variable: "--font-display",
 });
 
-const jetBrainsMono = JetBrains_Mono({
+const geistMono = Geist_Mono({
   subsets: ["latin"],
   display: "swap",
-  weight: ["400", "500", "700"],
   variable: "--font-mono",
 });
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://clear-msig.xyz"),
   title: {
-    default: "Clear-MSIG · Sign intents, not hex",
-    template: "%s · Clear-MSIG",
+    default: "Clear · Send money with people you trust",
+    template: "%s · Clear",
   },
   description:
-    "A Solana multisig where every signature is a sentence your Ledger can read. One policy controls Solana, Ethereum, Bitcoin, and Zcash treasuries via Ika dWallets.",
+    "A shared wallet for friends, family, or your team. Everyone sees the request, anyone can approve, and nobody has to handle keys alone.",
   keywords: [
-    "Solana multisig",
-    "clear signing",
-    "intent signing",
-    "Ika dWallet",
-    "cross-chain custody",
-    "MPC wallet",
-    "Quasar",
+    "shared wallet",
+    "send money",
+    "split a wallet",
+    "group wallet",
+    "family wallet",
   ],
-  applicationName: "Clear-MSIG",
-  authors: [{ name: "Clear-MSIG" }],
+  applicationName: "Clear",
+  authors: [{ name: "Clear" }],
   openGraph: {
     type: "website",
-    title: "Clear-MSIG · Sign intents, not hex",
+    title: "Clear · Send money with people you trust",
     description:
-      "Solana multisig with clear-signed, human-readable intents. One policy drives Solana, Ethereum, Bitcoin, and Zcash via Ika MPC dWallets.",
-    siteName: "Clear-MSIG",
+      "A shared wallet for friends, family, or your team. Everyone sees the request, anyone can approve.",
+    siteName: "Clear",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Clear-MSIG · Sign intents, not hex",
+    title: "Clear · Send money with people you trust",
     description:
-      "Solana multisig with human-readable signatures. Cross-chain custody via Ika dWallets.",
+      "A shared wallet for friends, family, or your team. Everyone sees the request.",
   },
   robots: {
     index: true,
@@ -82,7 +78,7 @@ export const viewport: Viewport = {
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const fontVars = `${inter.variable} ${spaceGrotesk.variable} ${jetBrainsMono.variable}`;
+  const fontVars = `${geist.variable} ${fraunces.variable} ${geistMono.variable}`;
   return (
     <html lang="en" className={fontVars}>
       <head>

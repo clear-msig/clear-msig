@@ -1,103 +1,104 @@
 "use client";
 
-// Proposal detail deep-link . /app/proposals/<pda>.
+// Request detail — retail rebuild (locked 2026-04-30).
 //
-// Every proposal has a copyable URL so signers can share a single link
-// that lands them directly on the "approve / cancel / execute" view.
-// The page:
-//   - Reads the PDA from the route params.
-//   - Fetches the proposal, parent intent, and wallet directly from
-//     Solana RPC.
-//   - Subscribes to the proposal account via `onAccountChange`, so the
-//     ApprovalBitmap animates in real time when co-signers sign.
-//   - Renders a human-readable summary of the action, the exact signed
-//     bytes, and the appropriate action panel for the current status.
+// The page a member opens when they tap "Needs your approval" on the
+// dashboard or the wallet detail. Replaces the legacy 5-panel proposal
+// console (status hero, action summary, proposal meta, action panel,
+// signable preview, approval bitmap) with what a retail user actually
+// needs:
 //
-// All write paths (approve / cancel / execute) funnel through the same
-// /prepare → wallet.signMessage → /submit rails as the rest of Phase 5.
+//   - What's this request? (intent template, friendly label)
+//   - Where is it? ("in Roommates", with a link back)
+//   - Who created it? ("by you" / "by another member")
+//   - Where are we? ("1 of 2 approved" + relative time)
+//   - What can I do? (Approve / Decline) — only shown while Active
+//
+// Power-user surfaces (raw bitmaps, signable preview hex, PDA
+// inspection) are intentionally not rendered here.
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
+import {
+  useConnection,
+  useWallet,
+} from "@solana/wallet-adapter-react";
+import { PublicKey } from "@solana/web3.js";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
-  BadgeCheck,
   Check,
-  CheckCircle2,
-  Clock,
-  Copy,
-  Hash,
   Loader2,
-  PlayCircle,
-  Share2,
-  ShieldAlert,
-  Trash2,
-  Wallet,
   X,
 } from "lucide-react";
-import { useConnection } from "@solana/wallet-adapter-react";
-import { useQuery } from "@tanstack/react-query";
-import { PublicKey } from "@solana/web3.js";
-import { ApprovalBitmap } from "@/components/proposals/ApprovalBitmap";
-import { SignablePreview } from "@/components/proposals/SignablePreview";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { Skeleton } from "@/components/ui/Skeleton";
-import { useProposalSubscription } from "@/lib/hooks/useProposalSubscription";
-import { useSignWithWallet, WalletSignError } from "@/lib/hooks/useSignWithWallet";
-import { useToast } from "@/components/ui/Toast";
-import { backendApi, executeProposalStreamUrl } from "@/lib/api/endpoints";
 import { fetchProposal } from "@/lib/chain/proposals";
 import { fetchWalletByPda } from "@/lib/chain/wallets";
 import {
-  buildSignableMessage,
-  fromHex,
-  IntentType,
   parseIntent,
   ProposalStatus,
-  renderTemplateToString,
-  toHex,
   type IntentAccount,
   type ProposalAccount,
   type WalletAccount,
 } from "@/lib/msig";
+import { useProposalSubscription } from "@/lib/hooks/useProposalSubscription";
+import { useProposalWorkflow } from "@/lib/hooks/useProposalWorkflow";
+import { WalletSignError } from "@/lib/hooks/useSignWithWallet";
+import { BackendApiError } from "@/lib/api/client";
 import { appConfig } from "@/lib/config";
-import { txUrl } from "@/lib/explorer";
+import { useToast } from "@/components/ui/Toast";
+import { Button } from "@/components/retail/Button";
+import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
+import { relativeTime } from "@/lib/util/relativeTime";
 
-export default function ProposalDetailPage() {
+export default function RequestDetailPage() {
   const params = useParams<{ proposal: string }>();
-  const proposalPda = decodeURIComponent(params.proposal ?? "");
-  const { connection } = useConnection();
+  const proposalPda = useMemo(() => {
+    try {
+      return decodeURIComponent(params?.proposal ?? "");
+    } catch {
+      return params?.proposal ?? "";
+    }
+  }, [params?.proposal]);
 
+  const { connection } = useConnection();
+  const reduce = useReducedMotion();
+
+  // Live updates push the bitmap straight into the proposal cache.
   useProposalSubscription(proposalPda);
 
   const proposalQuery = useQuery<ProposalAccount | null>({
     queryKey: ["proposal", proposalPda],
     queryFn: async () => {
-      let pubkey: PublicKey;
       try {
-        pubkey = new PublicKey(proposalPda);
+        return await fetchProposal(connection, new PublicKey(proposalPda));
       } catch {
         return null;
       }
-      return fetchProposal(connection, pubkey);
     },
-    enabled: isValidPubkey(proposalPda),
+    enabled: proposalPda.length > 0,
     staleTime: 10_000,
   });
 
   const proposal = proposalQuery.data ?? null;
 
-  // Fetch the parent wallet + intent once we know the proposal.
-  const contextQuery = useQuery<{ wallet: WalletAccount; intent: IntentAccount } | null>({
+  const contextQuery = useQuery<{
+    wallet: WalletAccount;
+    intent: IntentAccount;
+  } | null>({
     queryKey: ["proposal-context", proposal?.wallet, proposal?.intent],
     queryFn: async () => {
       if (!proposal) return null;
-      const walletPk = new PublicKey(proposal.wallet);
-      const wallet = await fetchWalletByPda(connection, walletPk);
+      const wallet = await fetchWalletByPda(
+        connection,
+        new PublicKey(proposal.wallet),
+      );
       if (!wallet) return null;
-      // The intent PDA can be derived from the intent field; just fetch it directly.
-      const info = await connection.getAccountInfo(new PublicKey(proposal.intent), "confirmed");
+      const info = await connection.getAccountInfo(
+        new PublicKey(proposal.intent),
+        "confirmed",
+      );
       if (!info) return null;
       return { wallet, intent: parseIntent(new Uint8Array(info.data)) };
     },
@@ -107,867 +108,367 @@ export default function ProposalDetailPage() {
 
   const context = contextQuery.data ?? null;
 
+  if (proposalQuery.isLoading || (proposal && contextQuery.isLoading)) {
+    return <RequestSkeleton />;
+  }
+  if (!proposal || !context) {
+    return <NotFound />;
+  }
+
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25 }}
-      className="flex flex-col gap-4"
-    >
-      <Breadcrumb proposalPda={proposalPda} walletName={context?.wallet.name} />
-
-      {proposalQuery.isLoading || contextQuery.isLoading ? (
-        <LoadingSkeleton />
-      ) : !proposal ? (
-        <NotFoundState proposalPda={proposalPda} />
-      ) : (
-        <Loaded
-          proposal={proposal}
-          intent={context?.intent ?? null}
-          wallet={context?.wallet ?? null}
-          proposalPda={proposalPda}
-          onRefresh={() => {
-            proposalQuery.refetch();
-            contextQuery.refetch();
-          }}
-        />
-      )}
-    </motion.section>
-  );
-}
-
-// ── breadcrumb + empty / loading states ──────────────────────────────
-
-function Breadcrumb({
-  proposalPda,
-  walletName,
-}: {
-  proposalPda: string;
-  walletName?: string;
-}) {
-  // Once the wallet context resolves, point back at that wallet's
-  // detail page (Proposals tab is its native context) rather than
-  // /app/proposals which is a redirect-to-hub.
-  const backHref = walletName
-    ? `/app/wallet/${encodeURIComponent(walletName)}`
-    : "/app/wallet";
-  const backLabel = walletName ?? "Wallets";
-  return (
-    <div className="flex items-center gap-2 text-xs">
-      <Link
-        href={backHref}
-        className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white/80 px-3 py-1 font-semibold uppercase tracking-wide text-black/70 backdrop-blur transition-colors hover:border-brand-green/40 hover:text-brand-green"
-      >
-        <ArrowLeft size={12} /> {backLabel}
-      </Link>
-      <span className="text-black/30">/</span>
-      <span className="rounded-full border border-black/10 bg-white/80 px-3 py-1 font-mono text-[11px] text-black/70 backdrop-blur">
-        {shortPda(proposalPda)}
-      </span>
-      <ShareProposalButton proposalPda={proposalPda} />
-    </div>
-  );
-}
-
-/// "Copy share link" button. Real treasury teams operate by sharing
-/// proposal URLs in Slack/Telegram, so the multisig UX needs first-class
-/// shareability. Click → copies the canonical /app/proposals/<pda> URL
-/// for the current host.
-function ShareProposalButton({ proposalPda }: { proposalPda: string }) {
-  const [copied, setCopied] = useState(false);
-  const onCopy = async () => {
-    try {
-      const url = `${window.location.origin}/app/proposals/${encodeURIComponent(proposalPda)}`;
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      /* clipboard blocked (private mode etc.) — silent noop */
-    }
-  };
-  return (
-    <button
-      type="button"
-      onClick={onCopy}
-      className="ml-auto inline-flex items-center gap-1 rounded-full bg-brand-green/15 px-3 py-1 text-[11px] font-semibold text-brand-green transition-colors hover:bg-brand-green/25"
-      aria-label={copied ? "Share link copied" : "Copy share link"}
-    >
-      {copied ? (
-        <>
-          <Check size={11} /> copied
-        </>
-      ) : (
-        <>
-          <Share2 size={11} /> share
-        </>
-      )}
-    </button>
-  );
-}
-
-function LoadingSkeleton() {
-  return (
-    <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-      <Skeleton tone="dark" className="h-[420px] w-full rounded-3xl" />
-      <Skeleton tone="dark" className="h-[420px] w-full rounded-3xl" />
-    </div>
-  );
-}
-
-function NotFoundState({ proposalPda }: { proposalPda: string }) {
-  return (
-    <EmptyState
-      title="Proposal not found"
-      description={
-        proposalPda
-          ? `No account on-chain at ${shortPda(proposalPda)}. It may have been cleaned up.`
-          : "The proposal address in the URL looks empty."
-      }
-      action={{ label: "Back to your wallets", href: "/app/wallet" }}
+    <Loaded
+      proposal={proposal}
+      intent={context.intent}
+      walletName={context.wallet.name}
+      proposalPda={proposalPda}
+      reduce={!!reduce}
+      onChanged={() => {
+        proposalQuery.refetch();
+        contextQuery.refetch();
+      }}
     />
   );
 }
 
-// ── loaded view ──────────────────────────────────────────────────────
+// ─── Loaded view (the real content) ────────────────────────────────
+
+interface LoadedProps {
+  proposal: ProposalAccount;
+  intent: IntentAccount;
+  walletName: string;
+  proposalPda: string;
+  reduce: boolean;
+  onChanged: () => void;
+}
 
 function Loaded({
   proposal,
   intent,
-  wallet,
-  proposalPda,
-  onRefresh,
-}: {
-  proposal: ProposalAccount;
-  intent: IntentAccount | null;
-  wallet: WalletAccount | null;
-  proposalPda: string;
-  onRefresh: () => void;
-}) {
-  const renderedAction = useMemo(() => {
-    if (!intent) return null;
-    try {
-      return renderTemplateToString(
-        { params: intent.params, bytePool: intent.bytePool, template: intent.template },
-        proposal.paramsData
-      );
-    } catch (err) {
-      return `(decode error: ${err instanceof Error ? err.message : String(err)})`;
-    }
-  }, [intent, proposal.paramsData]);
-
-  const signablePreview = useMemo(() => {
-    if (!intent || !wallet) return null;
-    try {
-      const built = buildSignableMessage({
-        action: "approve",
-        expiry: Math.floor(Date.now() / 1000) + 300,
-        walletName: wallet.name,
-        proposalIndex: proposal.proposalIndex,
-        intent: {
-          intentType: intent.intentType as IntentType,
-          template: intent.template,
-          params: intent.params,
-          bytePool: intent.bytePool,
-        },
-        paramsData: proposal.paramsData,
-      });
-      return { body: built.bodyText, hex: toHex(built.wrapped) };
-    } catch (err) {
-      return { body: `(preview error: ${err instanceof Error ? err.message : String(err)})`, hex: "" };
-    }
-  }, [intent, wallet, proposal.paramsData, proposal.proposalIndex]);
-
-  const status = proposal.status;
-
-  return (
-    <div className="flex flex-col gap-4">
-      <StatusHero proposal={proposal} intent={intent} renderedAction={renderedAction} proposalPda={proposalPda} />
-
-      {/* Mobile: single-column flex with explicit `order` so the sign-
-          /cancel panel sits high enough to reach without scrolling past
-          the bytes preview. Desktop (lg+): 2-col grid with the action
-          + bitmap pinned to the right rail.
-
-          Mobile order top→bottom:
-            1. ActionSummary — what is this asking me to do
-            2. ApprovalBitmap — who's signed already
-            3. ActionPanel    — sign/cancel CTAs
-            4. SignablePreview — the actual bytes (power-user)
-            5. ProposalMeta   — timestamps, PDAs (auditing detail) */}
-      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[2fr_1fr]">
-        <div className="order-1 lg:col-start-1 lg:row-start-1">
-          <ActionSummary
-            proposal={proposal}
-            intent={intent}
-            renderedAction={renderedAction}
-          />
-        </div>
-
-        <div className="order-2 lg:col-start-2 lg:row-start-1">
-          <div className="rounded-2xl border border-white/10 bg-black p-4 shadow-card-dark">
-            {intent ? (
-              <ApprovalBitmap
-                approvers={intent.approvers}
-                approvalBitmap={proposal.approvalBitmap}
-                cancellationBitmap={proposal.cancellationBitmap}
-                threshold={intent.approvalThreshold}
-                proposer={proposal.proposer}
-              />
-            ) : (
-              <p className="text-xs text-text-muted">
-                Waiting for intent metadata…
-              </p>
-            )}
-          </div>
-        </div>
-
-        {wallet && (
-          <div className="order-3 lg:col-start-2 lg:row-start-2">
-            <ActionPanel
-              proposal={proposal}
-              walletName={wallet.name}
-              proposalPda={proposalPda}
-              status={status}
-              onRefresh={onRefresh}
-            />
-          </div>
-        )}
-
-        <div className="order-4 lg:col-start-1 lg:row-start-2">
-          <SignablePreview
-            bodyText={signablePreview?.body ?? null}
-            messageHex={signablePreview?.hex ?? null}
-            context={{
-              action: "approve",
-              wallet: wallet?.name,
-              chain: intent ? chainKindLabel(intent.chainKind) : undefined,
-              threshold: intent
-                ? {
-                    current: popcount(proposal.approvalBitmap),
-                    total: intent.approvers.length,
-                  }
-                : undefined,
-            }}
-            statusChip={
-              <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/50">
-                approve action
-              </span>
-            }
-          />
-        </div>
-
-        <div className="order-5 lg:col-start-1 lg:row-start-3">
-          <ProposalMeta proposal={proposal} wallet={wallet} proposalPda={proposalPda} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── status hero ──────────────────────────────────────────────────────
-
-function StatusHero({
-  proposal,
-  intent,
-  renderedAction,
-  proposalPda,
-}: {
-  proposal: ProposalAccount;
-  intent: IntentAccount | null;
-  renderedAction: string | null;
-  proposalPda: string;
-}) {
-  const chip = statusChip(proposal.status);
-  return (
-    <div
-      className={`relative overflow-hidden rounded-3xl border p-6 ${chip.surfaceClass}`}
-    >
-      <div
-        className={`pointer-events-none absolute inset-0 opacity-60 blur-3xl ${chip.glowClass}`}
-      />
-      <div className="relative z-10 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-white/60">
-            Proposal #{proposal.proposalIndex.toString(10)}
-            <CopyButton text={proposalPda} />
-          </div>
-          <h1 className="mt-1 text-xl font-bold text-brand-white sm:text-2xl">
-            {renderedAction ?? "Loading action…"}
-          </h1>
-          {intent && (
-            <p className="mt-1 text-xs text-white/50">
-              Against intent #{intent.intentIndex} · chain{" "}
-              <span className="font-mono">{chainKindLabel(intent.chainKind)}</span>
-            </p>
-          )}
-        </div>
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wide ${chip.pillClass}`}
-        >
-          <chip.Icon size={12} />
-          {chip.label}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function statusChip(status: ProposalStatus): {
-  label: string;
-  Icon: typeof Check;
-  surfaceClass: string;
-  glowClass: string;
-  pillClass: string;
-} {
-  switch (status) {
-    case ProposalStatus.Active:
-      return {
-        label: "Active",
-        Icon: Clock,
-        surfaceClass: "border-amber-400/30 bg-amber-400/5",
-        glowClass: "bg-amber-400/15",
-        pillClass: "border-amber-400/30 bg-amber-400/15 text-amber-300",
-      };
-    case ProposalStatus.Approved:
-      return {
-        label: "Approved",
-        Icon: BadgeCheck,
-        surfaceClass: "border-brand-green/30 bg-brand-green/5",
-        glowClass: "bg-brand-green/20",
-        pillClass: "border-brand-green/30 bg-brand-green/15 text-brand-green",
-      };
-    case ProposalStatus.Executed:
-      return {
-        label: "Executed",
-        Icon: CheckCircle2,
-        surfaceClass: "border-sky-400/30 bg-sky-400/5",
-        glowClass: "bg-sky-400/15",
-        pillClass: "border-sky-400/30 bg-sky-400/15 text-sky-300",
-      };
-    case ProposalStatus.Cancelled:
-      return {
-        label: "Cancelled",
-        Icon: X,
-        surfaceClass: "border-rose-400/30 bg-rose-400/5",
-        glowClass: "bg-rose-400/15",
-        pillClass: "border-rose-400/30 bg-rose-400/15 text-rose-300",
-      };
-    default:
-      return {
-        label: "Unknown",
-        Icon: ShieldAlert,
-        surfaceClass: "border-white/10 bg-white/[0.02]",
-        glowClass: "bg-white/5",
-        pillClass: "border-white/10 bg-white/5 text-white/50",
-      };
-  }
-}
-
-// ── body pieces ──────────────────────────────────────────────────────
-
-function ActionSummary({
-  proposal,
-  intent,
-  renderedAction,
-}: {
-  proposal: ProposalAccount;
-  intent: IntentAccount | null;
-  renderedAction: string | null;
-}) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-black p-5 shadow-card-dark">
-      <div className="text-[11px] font-semibold uppercase tracking-widest text-brand-green">
-        What's being proposed
-      </div>
-      <p className="mt-2 font-mono text-sm leading-relaxed text-white/90">
-        {renderedAction ?? "·"}
-      </p>
-      {intent && (
-        <div className="mt-4 grid gap-3 text-xs text-white/70 sm:grid-cols-3">
-          <Labelled label="Template">
-            <span className="font-mono text-white/80">{intent.template}</span>
-          </Labelled>
-          <Labelled label="Chain">
-            <span className="font-mono">{chainKindLabel(intent.chainKind)}</span>
-          </Labelled>
-          <Labelled label="Params bytes">
-            <span className="font-mono">{proposal.paramsData.length}</span>
-          </Labelled>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ProposalMeta({
-  proposal,
-  wallet,
-  proposalPda,
-}: {
-  proposal: ProposalAccount;
-  wallet: WalletAccount | null;
-  proposalPda: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-black p-5 shadow-card-dark">
-      <div className="text-[11px] font-semibold uppercase tracking-widest text-text-muted">
-        Metadata
-      </div>
-      <div className="mt-3 grid gap-3 text-xs sm:grid-cols-2">
-        <MetaRow
-          icon={Wallet}
-          label="Wallet"
-          value={wallet ? `${wallet.name} (#${proposal.proposalIndex.toString(10)})` : "loading…"}
-        />
-        <MetaRow
-          icon={Hash}
-          label="Proposer"
-          value={shortPda(proposal.proposer)}
-          copyable={proposal.proposer}
-        />
-        <MetaRow
-          icon={Clock}
-          label="Proposed"
-          value={formatUnixTime(proposal.proposedAt)}
-        />
-        <MetaRow
-          icon={BadgeCheck}
-          label="Approved"
-          value={proposal.approvedAt > 0n ? formatUnixTime(proposal.approvedAt) : "·"}
-        />
-        <MetaRow
-          icon={Hash}
-          label="Proposal PDA"
-          value={shortPda(proposalPda)}
-          copyable={proposalPda}
-        />
-        <MetaRow
-          icon={Hash}
-          label="Intent PDA"
-          value={shortPda(proposal.intent)}
-          copyable={proposal.intent}
-        />
-      </div>
-    </div>
-  );
-}
-
-function MetaRow({
-  icon: Icon,
-  label,
-  value,
-  copyable,
-}: {
-  icon: typeof Hash;
-  label: string;
-  value: string;
-  copyable?: string;
-}) {
-  return (
-    <div className="flex items-start gap-2">
-      <Icon size={12} className="mt-0.5 text-text-muted" />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
-          {label}
-        </span>
-        <span className="flex items-center gap-1 truncate font-mono text-xs text-white/80">
-          {value}
-          {copyable && <CopyButton text={copyable} />}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function Labelled({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
-        {label}
-      </span>
-      {children}
-    </div>
-  );
-}
-
-// ── action panel ─────────────────────────────────────────────────────
-
-function ActionPanel({
   walletName,
   proposalPda,
-  status,
-  onRefresh,
-}: {
-  proposal: ProposalAccount;
-  walletName: string;
-  proposalPda: string;
-  status: ProposalStatus;
-  onRefresh: () => void;
-}) {
+  reduce,
+  onChanged,
+}: LoadedProps) {
+  const wallet = useWallet();
   const toast = useToast();
-  const { signBytes, canSign } = useSignWithWallet();
-  const [busy, setBusy] = useState<"approve" | "cancel" | null>(null);
+  const workflow = useProposalWorkflow(walletName, proposalPda);
 
-  const doVote = async (kind: "approve" | "cancel") => {
+  const approverCount = intent.approvers.length;
+  const approvalsCollected = countBits(proposal.approvalBitmap);
+  const isActive = proposal.status === ProposalStatus.Active;
+
+  const myAddress = wallet.publicKey?.toBase58() ?? "";
+  const isApprover = myAddress.length > 0 && intent.approvers.includes(myAddress);
+  const isProposer = myAddress.length > 0 && proposal.proposer === myAddress;
+
+  const myApproverIndex = intent.approvers.indexOf(myAddress);
+  const alreadyApproved =
+    myApproverIndex >= 0 &&
+    (proposal.approvalBitmap & (1 << myApproverIndex)) !== 0;
+
+  const proposerLabel = proposerName(proposal.proposer, myAddress);
+  const intentLabel = friendlyIntentLabel(intent.template);
+  const statusLabel = friendlyStatus(proposal.status);
+  const createdAgo = relativeTime(Number(proposal.proposedAt) * 1000);
+
+  const handleApprove = async () => {
     try {
-      setBusy(kind);
-      const prepare =
-        kind === "approve"
-          ? await backendApi.prepare.approveProposal(walletName, proposalPda, {})
-          : await backendApi.prepare.cancelProposal(walletName, proposalPda, {});
-      const { signer_pubkey, signature } = await signBytes(
-        fromHex(prepare.message_hex)
-      );
-      const res =
-        kind === "approve"
-          ? await backendApi.submit.approveProposal(walletName, proposalPda, {
-              signer_pubkey,
-              signature,
-              expiry: prepare.expiry,
-            })
-          : await backendApi.submit.cancelProposal(walletName, proposalPda, {
-              signer_pubkey,
-              signature,
-              expiry: prepare.expiry,
-            });
-      toast.success(
-        kind === "approve" ? "Approval signed" : "Cancellation signed",
-        { link: explorerLink(res) }
-      );
-      onRefresh();
+      await workflow.approveMutation.mutateAsync();
+      toast.success("Approved");
+      onChanged();
     } catch (err) {
-      if (err instanceof WalletSignError) {
-        toast.error(
-          err.code === "rejected" ? "Wallet rejected the signature" : err.message
-        );
-      } else {
-        toast.error(
-          err instanceof Error ? err.message : "Submit failed",
-          { details: describeError(err) }
-        );
-      }
-    } finally {
-      setBusy(null);
+      surfaceWriteError(err, toast, "approve");
     }
   };
 
-  const [executing, setExecuting] = useState(false);
-  const [execLog, setExecLog] = useState<string[]>([]);
-  const [execError, setExecError] = useState<string | null>(null);
-
-  const startExecute = () => {
-    const url = executeProposalStreamUrl(walletName, proposalPda, {
-      dwallet_program: appConfig.preAlpha.dwalletProgramId,
-      grpc_url: appConfig.preAlpha.grpcUrl,
-      rpc_url: appConfig.preAlpha.solanaRpcUrl,
-      broadcast: true,
-    });
-    setExecuting(true);
-    setExecLog([]);
-    setExecError(null);
-    const src = new EventSource(url);
-
-    // Inactivity timeout: if no event arrives for STREAM_IDLE_MS, the
-    // backend has hung. Without this the panel sits in "MPC execution
-    // stream" forever with no escape until the user navigates away.
-    const STREAM_IDLE_MS = 90_000;
-    let idleTimer: ReturnType<typeof setTimeout> | null = null;
-    const finish = (err?: string) => {
-      if (idleTimer) clearTimeout(idleTimer);
-      idleTimer = null;
-      src.close();
-      setExecuting(false);
-      if (err) {
-        setExecError(err);
-        toast.error("Execution failed", { details: err });
-      }
-    };
-    const armIdle = () => {
-      if (idleTimer) clearTimeout(idleTimer);
-      idleTimer = setTimeout(
-        () => finish(`No events from backend in ${STREAM_IDLE_MS / 1000}s — execution may have hung.`),
-        STREAM_IDLE_MS
-      );
-    };
-    armIdle();
-
-    src.addEventListener("progress", (ev) => {
-      armIdle();
-      try {
-        const data = (ev as MessageEvent).data as string;
-        setExecLog((prev) => [...prev, data.trim()]);
-      } catch {
-        /* noop */
-      }
-    });
-    src.addEventListener("done", (ev) => {
-      try {
-        const data = JSON.parse((ev as MessageEvent).data as string);
-        toast.success("Proposal executed", {
-          link: explorerLink(data),
-          details: "The backend relayed the Ika MPC signatures on-chain.",
-        });
-      } catch {
-        toast.success("Proposal executed");
-      }
-      finish();
-      onRefresh();
-    });
-    src.addEventListener("error", (ev) => {
-      const data = (ev as MessageEvent).data;
-      finish(typeof data === "string" ? data : "Stream closed unexpectedly");
-    });
-  };
-
-  const cleanup = async () => {
+  const handleDecline = async () => {
     try {
-      await backendApi.cleanupProposal(proposalPda);
-      toast.success("Proposal cleaned up", {
-        details: "Rent refunded to the proposer.",
-      });
-      onRefresh();
+      await workflow.cancelMutation.mutateAsync();
+      toast.success("Declined");
+      onChanged();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Cleanup failed", {
-        details: describeError(err),
-      });
+      surfaceWriteError(err, toast, "decline");
     }
   };
+
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
+
+  const isWorking =
+    workflow.approveMutation.isPending || workflow.cancelMutation.isPending;
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-black p-4 shadow-card-dark">
-      <div className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-text-muted">
-        Actions
-      </div>
+    <motion.div
+      {...motionProps}
+      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      className="flex flex-col gap-6"
+    >
+      <Link
+        href={`/app/wallet/${encodeURIComponent(walletName)}`}
+        className={
+          "-ml-2 inline-flex w-fit items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
+          "transition-colors duration-base ease-out-soft hover:text-text-strong " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+        }
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        {walletName}
+      </Link>
 
-      {status === ProposalStatus.Active && (
-        <div className="flex flex-col gap-2">
-          <ActionButton
-            onClick={() => doVote("approve")}
-            disabled={busy !== null || !canSign}
-            busy={busy === "approve"}
-            tone="green"
-            Icon={Check}
-          >
-            Sign approval
-          </ActionButton>
-          <ActionButton
-            onClick={() => doVote("cancel")}
-            disabled={busy !== null || !canSign}
-            busy={busy === "cancel"}
-            tone="amber"
-            Icon={X}
-          >
-            Sign cancel
-          </ActionButton>
-          {!canSign && (
-            <p className="text-xs text-text-muted">
-              Connect a wallet that supports signMessage.
-            </p>
+      {/* Hero */}
+      <section className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-8">
+        <span
+          className={
+            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em] " +
+            statusChipClasses(proposal.status)
+          }
+        >
+          {proposal.status === ProposalStatus.Active && (
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-50" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-current" />
+            </span>
           )}
-        </div>
-      )}
+          {statusLabel}
+        </span>
 
-      {status === ProposalStatus.Approved && (
-        <div className="flex flex-col gap-2">
-          <ActionButton
-            onClick={startExecute}
-            disabled={executing}
-            busy={executing}
-            tone="green"
-            Icon={PlayCircle}
-          >
-            Execute via Ika MPC
-          </ActionButton>
-          <p className="text-xs text-text-muted">
-            The relayer streams Ika MPC progress back to this panel.
+        <h1 className="mt-3 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+          {intentLabel}
+        </h1>
+        <p className="mt-2 text-base text-text-soft">
+          in <span className="font-medium text-text-strong">{walletName}</span>{" "}
+          · created {createdAgo} {proposerLabel && `· ${proposerLabel}`}
+        </p>
+
+        <div className="mt-5 flex items-center gap-3">
+          <ApprovalProgress
+            collected={approvalsCollected}
+            total={approverCount}
+          />
+          <p className="text-sm font-medium text-text-strong">
+            {approvalsCollected} of {approverCount} approved
           </p>
         </div>
-      )}
+      </section>
 
-      {(status === ProposalStatus.Executed || status === ProposalStatus.Cancelled) && (
-        <ActionButton
-          onClick={cleanup}
-          disabled={false}
-          busy={false}
-          tone="neutral"
-          Icon={Trash2}
-        >
-          Clean up + refund rent
-        </ActionButton>
-      )}
-
-      <AnimatePresence>
-        {(executing || execLog.length > 0 || execError) && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="mt-3 overflow-hidden rounded-xl border border-brand-green/20 bg-black/70"
+      {/* Actions — only while Active */}
+      {isActive && isApprover && !alreadyApproved && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Button
+            size="lg"
+            fullWidth
+            onClick={handleApprove}
+            disabled={isWorking}
           >
-            <div className="flex items-center justify-between border-b border-white/5 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-brand-green">
-              <span className="inline-flex items-center gap-1.5">
-                {executing ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle2 size={10} />}
-                MPC execution stream
-              </span>
-              {!executing && (
-                <button
-                  onClick={() => setExecLog([])}
-                  className="text-white/40 hover:text-white/70"
-                >
-                  clear
-                </button>
-              )}
-            </div>
-            <pre className="max-h-48 overflow-auto px-3 py-2 text-[11px] leading-snug text-white/70">
-              {execLog.join("\n") || (executing ? "waiting for first event…" : "·")}
-              {execError && (
-                <span className="block pt-2 text-rose-300">{execError}</span>
-              )}
-            </pre>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            {workflow.approveMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Approving…
+              </>
+            ) : (
+              <>
+                <Check className="h-4 w-4" aria-hidden="true" />
+                Approve
+              </>
+            )}
+          </Button>
+          <Button
+            size="lg"
+            variant="ghost"
+            fullWidth
+            onClick={handleDecline}
+            disabled={isWorking}
+          >
+            {workflow.cancelMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Declining…
+              </>
+            ) : (
+              <>
+                <X className="h-4 w-4" aria-hidden="true" />
+                Decline
+              </>
+            )}
+          </Button>
+        </div>
+      )}
+
+      {isActive && isApprover && alreadyApproved && (
+        <InfoCard
+          title="You've approved this"
+          body={`Waiting on ${approverCount - approvalsCollected} more friend${
+            approverCount - approvalsCollected === 1 ? "" : "s"
+          } to approve.`}
+        />
+      )}
+
+      {isActive && !isApprover && !isProposer && (
+        <InfoCard
+          title="You're watching this request"
+          body="Only the friends listed on this wallet can approve."
+        />
+      )}
+
+      {!isActive && (
+        <InfoCard
+          title={`This request is ${statusLabel.toLowerCase()}`}
+          body={
+            proposal.status === ProposalStatus.Executed
+              ? "The money has been sent."
+              : proposal.status === ProposalStatus.Approved
+                ? "Enough friends have approved. It's about to send."
+                : "No further action is needed."
+          }
+        />
+      )}
+    </motion.div>
+  );
+}
+
+// ─── Bits & pieces ─────────────────────────────────────────────────
+
+function ApprovalProgress({
+  collected,
+  total,
+}: {
+  collected: number;
+  total: number;
+}) {
+  return (
+    <div
+      className="flex items-center gap-1"
+      role="progressbar"
+      aria-valuenow={collected}
+      aria-valuemin={0}
+      aria-valuemax={total}
+      aria-label={`${collected} of ${total} approved`}
+    >
+      {Array.from({ length: total }, (_, i) => (
+        <span
+          key={i}
+          className={
+            "h-2 w-6 rounded-full transition-colors duration-base ease-out-soft " +
+            (i < collected ? "bg-accent" : "bg-border-soft")
+          }
+        />
+      ))}
     </div>
   );
 }
 
-function ActionButton({
-  children,
-  onClick,
-  disabled,
-  busy,
-  tone,
-  Icon,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  disabled: boolean;
-  busy: boolean;
-  tone: "green" | "amber" | "neutral";
-  Icon: typeof Check;
-}) {
-  const toneClass = {
-    green:
-      "bg-brand-green text-black shadow-glow hover:bg-emerald-300 hover:shadow-glow-hover",
-    amber:
-      "bg-amber-400/15 text-amber-200 ring-1 ring-amber-400/30 hover:bg-amber-400/25",
-    neutral:
-      "bg-white/5 text-white/80 ring-1 ring-white/10 hover:bg-white/10 hover:text-white",
-  }[tone];
+function InfoCard({ title, body }: { title: string; body: string }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`group inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
-    >
-      {busy ? <Loader2 size={14} className="animate-spin" /> : <Icon size={14} />}
-      {children}
-    </button>
+    <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+      <p className="font-display text-base text-text-strong">{title}</p>
+      <p className="mt-1 text-sm text-text-soft">{body}</p>
+    </div>
   );
 }
 
-// ── tiny utilities ───────────────────────────────────────────────────
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  const onCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1000);
-    } catch {
-      /* noop */
-    }
-  };
+function RequestSkeleton() {
   return (
-    <button
-      onClick={onCopy}
-      aria-label="Copy"
-      className="rounded-full p-0.5 text-white/40 hover:bg-white/10 hover:text-white"
-    >
-      {copied ? <CheckCircle2 size={11} className="text-brand-green" /> : <Copy size={11} />}
-    </button>
+    <div className="flex flex-col gap-6">
+      <div className="-ml-2 h-7 w-24 animate-pulse rounded bg-border-soft" />
+      <div className="rounded-card border border-border-soft bg-surface-raised p-8 shadow-card-rest">
+        <div className="h-5 w-28 animate-pulse rounded-full bg-border-soft" />
+        <div className="mt-3 h-9 w-2/3 animate-pulse rounded bg-border-soft" />
+        <div className="mt-3 h-4 w-1/2 animate-pulse rounded bg-border-soft" />
+        <div className="mt-5 h-2 w-32 animate-pulse rounded-full bg-border-soft" />
+      </div>
+    </div>
   );
 }
 
-function isValidPubkey(s: string): boolean {
-  if (!s || s.length < 32) return false;
-  try {
-    new PublicKey(s);
-    return true;
-  } catch {
-    return false;
+function NotFound() {
+  return (
+    <div className="flex flex-col gap-6">
+      <Link
+        href="/app/wallet"
+        className="-ml-2 inline-flex w-fit items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft hover:text-text-strong"
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        Wallets
+      </Link>
+      <div className="rounded-card border border-border-soft bg-surface-raised p-8 text-center shadow-card-rest">
+        <h1 className="font-display text-display-xs text-text-strong">
+          We couldn&rsquo;t find that request
+        </h1>
+        <p className="mt-2 max-w-md text-text-soft">
+          It may have already been completed, declined, or you may not be a
+          member of the wallet it belongs to.
+        </p>
+        <Link href="/app/wallet" className="mt-6 inline-block">
+          <Button size="md">Back to wallets</Button>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+// Shared error surface for approve / decline. Mirrors the diagnostic
+// toast pattern used in /welcome and /send so a backend-down state
+// reads the same way everywhere instead of "Failed to fetch."
+function surfaceWriteError(
+  err: unknown,
+  toast: ReturnType<typeof useToast>,
+  action: "approve" | "decline",
+) {
+  console.error(`[request-${action}]`, err);
+  const msg =
+    err instanceof BackendApiError
+      ? err.message
+      : err instanceof WalletSignError
+        ? err.message
+        : err instanceof Error
+          ? err.message
+          : `Couldn't ${action} this request`;
+  const isNetwork =
+    msg === "Failed to fetch" ||
+    msg === "NetworkError when attempting to fetch resource.";
+  if (isNetwork) {
+    toast.error("Can't reach the server", {
+      details:
+        `Tried ${appConfig.backendApiUrl}. ` +
+        "Start the backend with `cargo run -p clear-msig-backend-api`.",
+      durationMs: 0,
+    });
+  } else {
+    toast.error(msg);
   }
 }
 
-function shortPda(s: string): string {
-  if (!s) return "·";
-  if (s.length <= 14) return s;
-  return `${s.slice(0, 6)}…${s.slice(-6)}`;
-}
-
-function chainKindLabel(k: number): string {
-  switch (k) {
-    case 0:
-      return "solana";
-    case 1:
-      return "evm_1559";
-    case 2:
-      return "bitcoin_p2wpkh";
-    case 3:
-      return "zcash";
-    case 4:
-      return "evm_1559_erc20";
+function statusChipClasses(s: ProposalStatus): string {
+  switch (s) {
+    case ProposalStatus.Active:
+      return "border-warning/30 bg-warning/10 text-warning";
+    case ProposalStatus.Approved:
+      return "border-accent/30 bg-accent/10 text-accent";
+    case ProposalStatus.Executed:
+      return "border-success/30 bg-success/10 text-success";
+    case ProposalStatus.Cancelled:
+      return "border-border-soft bg-canvas text-text-soft";
     default:
-      return `chain_${k}`;
+      return "border-border-soft bg-canvas text-text-soft";
   }
 }
 
-function formatUnixTime(unix: bigint): string {
-  if (unix <= 0n) return "·";
-  const ms = Number(unix) * 1000;
-  const d = new Date(ms);
-  return d.toISOString().replace("T", " ").slice(0, 19) + " UTC";
-}
-
-function explorerLink(
-  res: Record<string, unknown>
-): { label: string; href: string } | undefined {
-  const txid = res.txid as string | undefined;
-  if (!txid) return undefined;
-  return {
-    label: `tx ${txid.slice(0, 8)}…`,
-    href: txUrl(txid),
-  };
-}
-
-function describeError(err: unknown): string | undefined {
-  if (!err || typeof err !== "object") return undefined;
-  const e = err as { payload?: Record<string, unknown> };
-  if (!e.payload) return undefined;
-  try {
-    return JSON.stringify(e.payload, null, 2);
-  } catch {
-    return undefined;
-  }
-}
-
-/// Local popcount for the approval/cancellation bitmaps. Mirrors the
-/// helper in ApprovalBitmap.tsx; kept inline to avoid tightly coupling
-/// this page to that component's internals.
-function popcount(n: number): number {
+function countBits(n: number): number {
+  let count = 0;
   let v = n >>> 0;
-  let c = 0;
   while (v) {
-    c += v & 1;
+    count += v & 1;
     v >>>= 1;
   }
-  return c;
+  return count;
 }
 
+// "by you" if connected user is the proposer; otherwise "by another
+// member" — until a contacts/names layer exists, we don't render
+// addresses on screen per the retail rules.
+function proposerName(proposer: string, me: string): string {
+  if (!proposer) return "";
+  if (me && proposer === me) return "by you";
+  return "by another member";
+}

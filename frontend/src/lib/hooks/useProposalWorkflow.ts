@@ -7,8 +7,10 @@
 // `getAccountInfo`. Both live-update via `useProposalSubscription` when
 // a specific proposal is selected.
 //
-// Writes: `/prepare/**` relayer routes until Phase 5 wires the full
-// signMessage flow.
+// Writes: full prepare → sign → submit flow for approve + cancel so
+// the on-chain bitmap actually changes when the user taps "Approve" /
+// "Decline." (Earlier scaffold only called the prepare step and never
+// landed on chain — silently broken.)
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useConnection } from "@solana/wallet-adapter-react";
@@ -21,11 +23,13 @@ import {
   listProposalsForWallet,
   type ProposalWithPda,
 } from "@/lib/chain/proposals";
-import type { ProposalAccount } from "@/lib/msig";
+import { fromHex, type ProposalAccount } from "@/lib/msig";
 import { useProposalSubscription } from "@/lib/hooks/useProposalSubscription";
+import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 
 export function useProposalWorkflow(walletName: string, selectedProposal: string) {
   const { connection } = useConnection();
+  const { signBytes } = useSignWithWallet();
 
   // Push live bitmap updates straight into the ["proposal", addr] cache.
   useProposalSubscription(selectedProposal);
@@ -64,8 +68,23 @@ export function useProposalWorkflow(walletName: string, selectedProposal: string
     },
   });
 
+  // Approve = prepare + sign + submit. Approve / cancel /approve carry
+  // a `params_data_hex` that's optional in the PreSignedPayload type
+  // (the proposal already holds those bytes on chain), so we let the
+  // backend default it.
   const approveMutation = useMutation({
-    mutationFn: () => backendApiLegacy.approveProposal(walletName, selectedProposal),
+    mutationFn: async () => {
+      const dry = await backendApi.prepare.approveProposal(
+        walletName,
+        selectedProposal,
+        {},
+      );
+      const signed = await signBytes(fromHex(dry.message_hex));
+      return backendApi.submit.approveProposal(walletName, selectedProposal, {
+        ...signed,
+        expiry: dry.expiry,
+      });
+    },
     onSuccess: async () => {
       await detailQuery.refetch();
       await listQuery.refetch();
@@ -73,7 +92,18 @@ export function useProposalWorkflow(walletName: string, selectedProposal: string
   });
 
   const cancelMutation = useMutation({
-    mutationFn: () => backendApiLegacy.cancelProposal(walletName, selectedProposal),
+    mutationFn: async () => {
+      const dry = await backendApi.prepare.cancelProposal(
+        walletName,
+        selectedProposal,
+        {},
+      );
+      const signed = await signBytes(fromHex(dry.message_hex));
+      return backendApi.submit.cancelProposal(walletName, selectedProposal, {
+        ...signed,
+        expiry: dry.expiry,
+      });
+    },
     onSuccess: async () => {
       await detailQuery.refetch();
       await listQuery.refetch();

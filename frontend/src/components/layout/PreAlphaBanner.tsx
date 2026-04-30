@@ -1,10 +1,12 @@
 "use client";
 
-// "Ika pre-alpha · mock signer · devnet only" banner.
+// Preview banner — retail rebuild.
 //
 // Pinned under the header on every /app/* route. Dismissible for the
-// current tab session (sessionStorage . never suppresses permanently).
-// Matches DEVELOPMENT.md §16.2.1.
+// current tab session (sessionStorage — never suppresses permanently).
+// Plain-language warning so non-technical users understand this is a
+// preview. The "MPC mock signer · Ika pre-alpha · devnet" framing was
+// retired with the retail pivot.
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -47,18 +49,17 @@ export function PreAlphaBanner() {
           role="note"
           className="overflow-hidden"
         >
-          <div className="mx-auto flex w-full max-w-[91rem] items-start gap-3 rounded-2xl border border-amber-400/40 bg-amber-100/60 px-4 py-3 text-amber-950 shadow-sm backdrop-blur">
+          <div className="mx-auto flex w-full max-w-[91rem] items-start gap-3 rounded-card border border-amber-400/40 bg-amber-100/60 px-4 py-3 text-amber-950 shadow-card-rest">
             <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-600" />
             <div className="flex-1 text-xs leading-relaxed sm:text-sm">
-              <span className="font-bold">Ika pre-alpha</span> · currently uses
-              a single mock signer, not the distributed MPC network. All
-              cryptography is real; the distribution is emulated.{" "}
-              <span className="whitespace-nowrap font-semibold">Devnet only.</span>
+              <span className="font-semibold">This is a preview.</span>{" "}
+              Everything works, but it&rsquo;s running on a test network —
+              keep amounts small while we&rsquo;re still in early days.
             </div>
             <button
               onClick={dismiss}
-              aria-label="Dismiss pre-alpha notice"
-              className="rounded-full p-1 text-amber-700 transition-colors hover:bg-amber-200/70"
+              aria-label="Dismiss preview notice"
+              className="rounded-full p-1 text-amber-700 transition-colors duration-base ease-out-soft hover:bg-amber-200/70"
             >
               <X size={14} />
             </button>
