@@ -17,6 +17,7 @@ import { motion } from "framer-motion";
 import { CardShell } from "@/components/ui/CardShell";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { txUrl } from "@/lib/explorer";
 
 export function TxHistoryPanel({ walletPda }: { walletPda: PublicKey }) {
   const { connection } = useConnection();
@@ -112,7 +113,7 @@ function TxRow({ sig, index }: { sig: ConfirmedSignatureInfo; index: number }) {
       </div>
 
       <a
-        href={`https://explorer.solana.com/tx/${sig.signature}?cluster=devnet`}
+        href={txUrl(sig.signature)}
         target="_blank"
         rel="noreferrer"
         className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-brand-green transition-colors hover:bg-brand-green/15"

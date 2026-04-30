@@ -8,6 +8,7 @@
 // at 60fps even on mid-tier mobile.
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, X } from "lucide-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
@@ -15,6 +16,12 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useOnboarding } from "@/lib/hooks/useOnboarding";
 import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
 import { OnboardingDiagram } from "@/components/onboarding/OnboardingDiagram";
+
+// Routes where the welcome modal makes sense for first-time visitors:
+// the landing page and the wallet hub. Deep-link routes (proposal
+// detail, wallet detail) are visited via shared URLs and the modal
+// would block the actual content the visitor came to see.
+const ONBOARDING_ROUTES = new Set<string>(["/", "/app/wallet"]);
 
 interface Slide {
   eyebrow: string;
@@ -47,9 +54,11 @@ const SLIDES: Slide[] = [
 export function OnboardingWalkthrough() {
   const { hydrated, completed, complete } = useOnboarding();
   const { connected } = useWallet();
+  const pathname = usePathname();
+  const onboardingRoute = ONBOARDING_ROUTES.has(pathname);
   const [step, setStep] = useState(0);
   const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(dialogRef, hydrated && !completed);
+  useFocusTrap(dialogRef, hydrated && !completed && onboardingRoute);
 
   // Auto-dismiss the moment a wallet connects, regardless of how the user
   // got to the wallet-selector — they could have clicked Connect on the
@@ -69,7 +78,7 @@ export function OnboardingWalkthrough() {
     return () => window.removeEventListener("keydown", onKey);
   }, [hydrated, completed, complete]);
 
-  if (!hydrated || completed) return null;
+  if (!hydrated || completed || !onboardingRoute) return null;
 
   const isLast = step === SLIDES.length - 1;
   const slide = SLIDES[step];

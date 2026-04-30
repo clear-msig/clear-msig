@@ -22,6 +22,7 @@ import { appConfig } from "@/lib/config";
 import { backendApi } from "@/lib/api/endpoints";
 import { BackendApiError } from "@/lib/api/client";
 import { sendOrganizationInvite } from "@/lib/organizations/client";
+import { txUrl } from "@/lib/explorer";
 import { CardShell } from "@/components/ui/CardShell";
 import { useToast } from "@/components/ui/Toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -548,7 +549,7 @@ function explorerLink(
   if (!txid) return undefined;
   return {
     label: `tx ${txid.slice(0, 8)}…`,
-    href: `https://explorer.solana.com/tx/${txid}?cluster=devnet`,
+    href: txUrl(txid),
   };
 }
 

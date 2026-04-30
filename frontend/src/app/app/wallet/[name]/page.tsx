@@ -685,8 +685,59 @@ function IntentTablePanel({
             no intents yet. Add one from the Intents tab.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-left text-xs">
+          <>
+          {/* Mobile: card stack. Avoids the 640px-wide table that
+              forces horizontal scroll below the sm breakpoint. */}
+          <div className="flex flex-col divide-y divide-white/5 sm:hidden">
+            {active.map((row) => {
+              if (!row.account) return null;
+              const a = row.account;
+              return (
+                <div key={row.index} className="flex flex-col gap-2 p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs text-brand-green">
+                      #{row.index}
+                    </span>
+                    <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-white/70">
+                      {INTENT_TYPE_LABEL[a.intentType] ?? a.intentType}
+                    </span>
+                  </div>
+                  <div className="font-mono text-[11px] leading-snug text-white/80">
+                    {a.template || "·"}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 text-[10px]">
+                    <span className="font-mono text-white/60">
+                      {chainKindName(a.chainKind)}
+                    </span>
+                    <span className="font-mono text-white/60">
+                      {a.approvalThreshold}/{a.approvers.length}
+                    </span>
+                    {a.approved ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-brand-green/15 px-2 py-0.5 font-semibold text-brand-green">
+                        <CheckCircle2 size={10} /> approved
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/15 px-2 py-0.5 font-semibold text-amber-300">
+                        <Clock size={10} /> pending
+                      </span>
+                    )}
+                    {a.intentType === IntentType.Custom && a.approved && (
+                      <button
+                        type="button"
+                        onClick={() => onPropose(row.index)}
+                        className="ml-auto inline-flex items-center gap-1 rounded-full bg-brand-green/15 px-2 py-0.5 font-semibold text-brand-green"
+                      >
+                        Propose <ArrowRight size={10} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {/* Desktop: full table on sm+. */}
+          <div className="hidden sm:block">
+          <table className="w-full text-left text-xs">
             <thead className="bg-white/[0.02] text-[10px] uppercase tracking-wide text-text-muted">
               <tr>
                 <Th>#</Th>
@@ -756,6 +807,7 @@ function IntentTablePanel({
             </tbody>
           </table>
           </div>
+          </>
         )}
       </div>
 

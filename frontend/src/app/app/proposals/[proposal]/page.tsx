@@ -62,6 +62,7 @@ import {
   type WalletAccount,
 } from "@/lib/msig";
 import { appConfig } from "@/lib/config";
+import { txUrl } from "@/lib/explorer";
 
 export default function ProposalDetailPage() {
   const params = useParams<{ proposal: string }>();
@@ -925,7 +926,7 @@ function explorerLink(
   if (!txid) return undefined;
   return {
     label: `tx ${txid.slice(0, 8)}…`,
-    href: `https://explorer.solana.com/tx/${txid}?cluster=devnet`,
+    href: txUrl(txid),
   };
 }
 
