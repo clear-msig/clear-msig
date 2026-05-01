@@ -37,6 +37,12 @@ import { MemberAvatarStack } from "@/components/retail/MemberAvatar";
 import { relativeTime } from "@/lib/util/relativeTime";
 import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
 import { formatBalance } from "@/lib/retail/format";
+import { avatarGradient } from "@/lib/retail/avatar";
+import {
+  getWalletAppearance,
+  gradientFor,
+  SHAPE_LABEL,
+} from "@/lib/retail/walletAppearance";
 
 export default function WalletDetailPage() {
   const params = useParams<{ name: string }>();
@@ -219,18 +225,55 @@ function Hero({
   const balance =
     balanceLamports !== null ? formatBalance(balanceLamports) : null;
 
+  // Pull the picker output. Both fall back gracefully — wallets
+  // created before the appearance store existed get the
+  // deterministic gradient and no shape subtitle.
+  const walletGrad = useMemo(
+    () => gradientFor(name, avatarGradient(name)),
+    [name],
+  );
+  const shapeLabel = useMemo(() => {
+    const a = getWalletAppearance(name);
+    return a?.shape ? SHAPE_LABEL[a.shape] : null;
+  }, [name]);
+
   return (
     <motion.section
       {...motionProps}
       transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
       className="rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest sm:p-8"
     >
+      {/* Header avatar — picks up the picker color from welcome.
+          Gives the hub the same identity hook the sidebar shows so
+          the user knows they're in the right wallet at a glance. */}
+      <div className="mb-4 flex justify-center">
+        <span
+          aria-hidden="true"
+          className={
+            "flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br text-xl font-semibold text-white shadow-card-rest " +
+            walletGrad.from +
+            " " +
+            walletGrad.to
+          }
+        >
+          {name.trim().charAt(0).toUpperCase() || "?"}
+        </span>
+      </div>
       <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
-        Shared wallet
+        {shapeLabel ? `${shapeLabel} wallet` : "Shared wallet"}
       </p>
       <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
         {name}
       </h1>
+      {/* Sub-line: shape preset + member count. Carries the create-
+          time choice through to the hub so the user feels the wallet
+          remembers what they set it up for. */}
+      {shapeLabel && memberCount !== null && (
+        <p className="mt-1 text-xs text-text-soft">
+          For {shapeLabel.toLowerCase()} · {memberCount}{" "}
+          {memberCount === 1 ? "member" : "members"}
+        </p>
+      )}
 
       {/* Balance — biggest visual hierarchy after the name. SOL is
           the primary currency; secondary chains pick up balances in

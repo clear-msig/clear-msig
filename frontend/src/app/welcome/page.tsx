@@ -25,6 +25,10 @@ import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
+import {
+  COLOR_PALETTE,
+  saveWalletAppearance,
+} from "@/lib/retail/walletAppearance";
 
 type Stage = "intro" | "shape" | "name" | "confirm" | "success";
 
@@ -119,6 +123,10 @@ export default function WelcomePage() {
     () => SHAPES.find((s) => s.id === shape) ?? SHAPES[0],
     [shape],
   );
+  /// Optional color override for the wallet's avatar. Picked on
+  /// confirm; saved alongside the shape into walletAppearance after
+  /// the on-chain create lands. `null` = use deterministic gradient.
+  const [pickedColor, setPickedColor] = useState<string | null>(null);
 
   const cleanName = useMemo(() => name.trim(), [name]);
   // The on-chain wallet name is `String<64>` — 64 bytes UTF-8, not
@@ -185,6 +193,14 @@ export default function WelcomePage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-organizations"] });
+      // Persist the picker output now that the wallet is on chain.
+      // Both fields are optional in the store; we only write what
+      // the user actually chose so existing wallets keep their
+      // deterministic look.
+      saveWalletAppearance(cleanName, {
+        shape,
+        color: pickedColor ?? undefined,
+      });
       setStage("success");
     },
     onError: (err) => {
@@ -446,7 +462,24 @@ export default function WelcomePage() {
                   Ready to create
                 </h2>
                 <div className="mt-6 rounded-card border border-border-soft bg-surface-raised px-5 py-6">
-                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+                  {/* Live preview avatar — uses the picked color
+                      (or the deterministic gradient when none is
+                      picked) so the user sees what their wallet will
+                      look like in the sidebar before committing. */}
+                  <div className="flex justify-center">
+                    <span
+                      aria-hidden="true"
+                      className={
+                        "flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br text-xl font-semibold text-white shadow-card-rest " +
+                        (pickedColor
+                          ? COLOR_PALETTE.find((p) => p.id === pickedColor)?.from + " " + COLOR_PALETTE.find((p) => p.id === pickedColor)?.to
+                          : COLOR_PALETTE[0].from + " " + COLOR_PALETTE[0].to)
+                      }
+                    >
+                      {cleanName.charAt(0).toUpperCase() || "?"}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
                     {currentShape.label}
                   </p>
                   <p className="mt-2 font-display text-display-xs text-text-strong">
@@ -456,6 +489,58 @@ export default function WelcomePage() {
                     {currentShape.flavor}
                   </p>
                 </div>
+
+                {/* Color picker — optional. Blank state ("auto")
+                    leaves the wallet on its deterministic gradient.
+                    Cash App's $cashtag-photo move, dialed for a
+                    multisig: the user gives the wallet an identity
+                    they recognize at a glance in the sidebar. */}
+                <div className="mt-4 rounded-card border border-border-soft bg-surface-raised p-4 text-left">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+                    Pick a color (optional)
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPickedColor(null)}
+                      aria-pressed={pickedColor === null}
+                      aria-label="Use the default color"
+                      className={
+                        "flex h-9 w-9 items-center justify-center rounded-full border-2 text-[10px] font-medium text-text-soft " +
+                        "transition-colors duration-base ease-out-soft " +
+                        (pickedColor === null
+                          ? "border-accent bg-accent/5"
+                          : "border-border-soft bg-canvas hover:border-accent/40")
+                      }
+                    >
+                      Auto
+                    </button>
+                    {COLOR_PALETTE.map((p) => {
+                      const selected = pickedColor === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setPickedColor(p.id)}
+                          aria-pressed={selected}
+                          aria-label={p.label}
+                          title={p.label}
+                          className={
+                            "h-9 w-9 rounded-full bg-gradient-to-br border-2 transition-[border-color,transform] duration-base ease-out-soft " +
+                            p.from +
+                            " " +
+                            p.to +
+                            " " +
+                            (selected
+                              ? "border-text-strong scale-110"
+                              : "border-transparent hover:scale-105")
+                          }
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <p className="mt-4 text-base text-text-soft">
                   You&apos;ll be the first member.{" "}
                   {currentShape.expectedMembers > 1

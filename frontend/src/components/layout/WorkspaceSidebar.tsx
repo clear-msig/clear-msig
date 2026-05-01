@@ -31,6 +31,7 @@ import {
 import { friendlyStatus } from "@/lib/retail/labels";
 import { relativeTime } from "@/lib/util/relativeTime";
 import { avatarGradient } from "@/lib/retail/avatar";
+import { gradientFor } from "@/lib/retail/walletAppearance";
 
 type Props = {
   /// Called after a navigation link fires — used by the mobile drawer
@@ -346,11 +347,11 @@ function SidebarOrgLink({
   // we skip rendering rather than show a raw address.
   if (!name) return null;
 
-  // Per-wallet identity: deterministic gradient avatar with the
-  // wallet name's first letter. Gives each row a distinct visual
-  // hook so a sidebar with 10 wallets isn't a wall of text — same
-  // trick Cash App uses for friend rows.
-  const grad = avatarGradient(name);
+  // Per-wallet identity: gradient avatar with the wallet name's
+  // first letter. The user can override the gradient at create time
+  // (welcome confirm picker); we fall back to the deterministic
+  // gradient so wallets created before the picker still look right.
+  const grad = gradientFor(name, avatarGradient(name));
   const initial = name.trim().charAt(0).toUpperCase() || "?";
 
   return (
