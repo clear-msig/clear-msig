@@ -202,10 +202,9 @@ export default function AddFriendPage() {
       // 2. Sign
       const signed = await signBytes(fromHex(dry.message_hex));
 
-      // 3. Submit: lands the UpdateIntent proposal on chain. With
-      //    1-of-1 approval the proposal is immediately approved but
-      //    Execute is what actually swaps in the new proposer /
-      //    approver lists.
+      // 3. Submit propose: lands the UpdateIntent proposal in Active
+      //    state. The propose call does NOT count as an approval —
+      //    we have to flip the bit explicitly with a second sign.
       const submitted = await backendApi.submit.updateIntent(name, {
         ...signed,
         params_data_hex: dry.params_data_hex,
@@ -214,12 +213,29 @@ export default function AddFriendPage() {
         file: TEMPLATE_FILE,
       });
 
-      // 4. Execute — without this the friend never actually appears
-      //    in the on-chain approver list.
       const proposal = (submitted as Record<string, unknown>)?.proposal;
-      if (typeof proposal === "string" && proposal.length > 0) {
-        await backendApi.executeProposal(name, proposal, {});
+      if (typeof proposal !== "string" || proposal.length === 0) {
+        throw new Error(
+          "Backend didn't return a proposal address from the propose step",
+        );
       }
+
+      // 4. Approve: second wallet popup. With threshold=1 this flips
+      //    the proposal from Active → Approved.
+      const approveDry = await backendApi.prepare.approveProposal(
+        name,
+        proposal,
+        { actor_pubkey: wallet.publicKey.toBase58() },
+      );
+      const approveSigned = await signBytes(fromHex(approveDry.message_hex));
+      await backendApi.submit.approveProposal(name, proposal, {
+        ...approveSigned,
+        expiry: approveDry.expiry,
+      });
+
+      // 5. Execute: actually run UpdateIntent and swap the on-chain
+      //    approver/proposer lists. No user signature needed.
+      await backendApi.executeProposal(name, proposal, {});
       return submitted;
     },
     onSuccess: (result) => {

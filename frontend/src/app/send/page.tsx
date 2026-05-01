@@ -219,13 +219,65 @@ function SendPage() {
       // 2. Sign with the user's wallet.
       const signed = await signBytes(fromHex(dry.message_hex));
 
-      // 3. Submit the signed payload to land the proposal on-chain.
-      return backendApi.submit.createProposal(walletName, {
+      // 3. Submit propose: lands the proposal on chain in Active
+      //    state with empty bitmap. Propose does not auto-flip the
+      //    proposer's approval bit, so without the steps below the
+      //    money never moves.
+      const submitted = await backendApi.submit.createProposal(walletName, {
         ...signed,
         params_data_hex: dry.params_data_hex,
         expiry: dry.expiry,
         intent_index: firstIntent.account.intentIndex,
       });
+
+      const proposal = (submitted as Record<string, unknown>)?.proposal;
+      const me = wallet.publicKey?.toBase58();
+      if (typeof proposal !== "string" || proposal.length === 0 || !me) {
+        return submitted;
+      }
+
+      // 4. If the user is also an approver, flip their bit in the
+      //    same flow so a 1-of-1 wallet doesn't get stuck waiting
+      //    for "someone" to approve their own request.
+      const intent = firstIntent.account;
+      const userIsApprover = intent.approvers.includes(me);
+      if (userIsApprover) {
+        try {
+          const approveDry = await backendApi.prepare.approveProposal(
+            walletName,
+            proposal,
+            { actor_pubkey: me },
+          );
+          const approveSigned = await signBytes(fromHex(approveDry.message_hex));
+          await backendApi.submit.approveProposal(walletName, proposal, {
+            ...approveSigned,
+            expiry: approveDry.expiry,
+          });
+        } catch (err) {
+          // Don't poison the send if the user cancels the approve
+          // popup — the proposal is already on chain and they (or
+          // their friends) can approve it later from the inbox.
+          console.warn("[send] propose ok but approve step failed", err);
+          return submitted;
+        }
+      }
+
+      // 5. If we have enough approvals (threshold met), execute now
+      //    so the SOL actually moves. Otherwise the proposal sits
+      //    in the inbox waiting for the remaining friends to sign.
+      const approvalsAfterUs =
+        (userIsApprover ? 1 : 0) /* this proposal had bitmap=0 from propose */;
+      if (approvalsAfterUs >= intent.approvalThreshold) {
+        try {
+          await backendApi.executeProposal(walletName, proposal, {});
+        } catch (err) {
+          // Same as above — execute is best-effort. The proposal
+          // is approved on chain; an explicit retry from the
+          // proposal-detail page will land it.
+          console.warn("[send] approve ok but execute failed", err);
+        }
+      }
+      return submitted;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });

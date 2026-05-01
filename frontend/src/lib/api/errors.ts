@@ -158,6 +158,35 @@ export function friendlyError(
     };
   }
 
+  // ── Stuck pending proposal blocks new propose ────────────────
+  // The on-chain `active_proposal_count` rejects a second proposal
+  // on the same intent until the first is executed or cancelled. A
+  // failed setup before this fix could leave that counter > 0 with
+  // no way for the user to know what to do next.
+  if (
+    hay.includes("toomanyactiveproposals") ||
+    hay.includes("too many active proposals") ||
+    hay.includes("intent has active proposals")
+  ) {
+    return {
+      title: "There's already a pending request on this rule",
+      body:
+        "Approve or cancel the existing request first, then try again. " +
+        "Look in the wallet's request inbox — the one in 'Active' status " +
+        "is blocking the new one.",
+    };
+  }
+
+  // ── Proposal status mismatch on execute ──────────────────────
+  if (hay.includes("must be 'approved' to execute") || hay.includes("must be approved to execute")) {
+    return {
+      title: "This request still needs approvals before it can run",
+      body:
+        "Approve it first (and ask any other friends required by the rule " +
+        "to do the same). Once it's Approved, it can execute.",
+    };
+  }
+
   // ── Wallet name conflicts ─────────────────────────────────────
   if (
     context === "create-wallet" &&

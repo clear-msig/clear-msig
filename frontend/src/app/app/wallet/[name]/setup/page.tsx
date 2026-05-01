@@ -95,10 +95,10 @@ export default function SetupSpendingPage() {
       // 2. Sign: user's wallet pops up its sign-message UI.
       const signed = await signBytes(fromHex(dry.message_hex));
 
-      // 3. Submit: backend submits the AddIntent *proposal* (the
-      //    user's signature counts as the 1-of-1 approval). At this
-      //    point the proposal is approved on chain but the actual
-      //    SolTransfer rule doesn't exist yet — Execute creates it.
+      // 3. Submit propose: lands the AddIntent proposal on chain in
+      //    `Active` status with empty approval bitmap. The proposer's
+      //    signature does NOT auto-flip an approval bit — that's a
+      //    separate step.
       const submitted = await backendApi.submit.addIntent(name, {
         ...signed,
         params_data_hex: dry.params_data_hex,
@@ -106,26 +106,32 @@ export default function SetupSpendingPage() {
         file: TEMPLATE_FILE,
       });
 
-      // 4. Execute: turn the approved AddIntent proposal into a real
-      //    SolTransfer rule. Without this step `wallet.intent_index`
-      //    never bumps and /send keeps bouncing back to /setup.
-      //    Sponsored by the relayer's keypair — no second user
-      //    signature needed.
       const proposal = (submitted as Record<string, unknown>)?.proposal;
-      if (typeof proposal === "string" && proposal.length > 0) {
-        try {
-          await backendApi.executeProposal(name, proposal, {});
-        } catch (err) {
-          // Surface but don't fail the setup flow — the proposal is
-          // already on chain. The user can retry execute manually
-          // from the proposal-detail page.
-          console.warn(
-            "[setup-spending] propose succeeded but execute failed",
-            err,
-          );
-          throw err;
-        }
+      if (typeof proposal !== "string" || proposal.length === 0) {
+        throw new Error(
+          "Backend didn't return a proposal address from the propose step",
+        );
       }
+
+      // 4. Approve: second wallet popup. Flips the proposer's bit in
+      //    the bitmap, which (with threshold=1) flips proposal status
+      //    from Active → Approved. Without this, Execute can't run.
+      const approveDry = await backendApi.prepare.approveProposal(
+        name,
+        proposal,
+        { actor_pubkey: me },
+      );
+      const approveSigned = await signBytes(fromHex(approveDry.message_hex));
+      await backendApi.submit.approveProposal(name, proposal, {
+        ...approveSigned,
+        expiry: approveDry.expiry,
+      });
+
+      // 5. Execute: now that the proposal is Approved, run it. The
+      //    AddIntent meta-handler creates the SolTransfer intent and
+      //    bumps `wallet.intent_index`. Sponsored by the relayer —
+      //    no third user signature needed.
+      await backendApi.executeProposal(name, proposal, {});
       return submitted;
     },
     onSuccess: () => {

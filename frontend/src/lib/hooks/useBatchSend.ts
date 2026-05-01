@@ -261,6 +261,37 @@ async function runRowWithRetry(
       });
       const proposalPda =
         typeof submission?.proposal === "string" ? submission.proposal : undefined;
+
+      // Propose alone leaves the proposal in Active state. Flip the
+      // proposer's bit (second wallet popup) so a 1-of-1 wallet
+      // doesn't get stuck waiting on itself, then run Execute so
+      // the SOL actually moves. Both steps are best-effort — if the
+      // user rejects approve mid-batch we still consider the row a
+      // success (the proposal landed and they can approve later).
+      if (proposalPda && actorPubkey) {
+        try {
+          const approveDry = await backendApi.prepare.approveProposal(
+            walletName,
+            proposalPda,
+            { actor_pubkey: actorPubkey },
+          );
+          const approveSigned = await signBytes(fromHex(approveDry.message_hex));
+          await backendApi.submit.approveProposal(walletName, proposalPda, {
+            ...approveSigned,
+            expiry: approveDry.expiry,
+          });
+          await backendApi.executeProposal(walletName, proposalPda, {});
+        } catch (innerErr) {
+          // Per-row partial success — the proposal's on chain even if
+          // approve/execute didn't land. Surface in console for
+          // debugging without poisoning the rest of the batch.
+          console.warn(
+            `[batch-send] row ${row.label}: propose ok but approve/execute failed`,
+            innerErr,
+          );
+        }
+      }
+
       return { kind: "ok", message: "ok", proposalPda };
     } catch (err) {
       const fe = friendlyError(err, "send");
