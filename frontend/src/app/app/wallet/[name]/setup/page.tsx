@@ -26,6 +26,7 @@ import { fromHex } from "@/lib/msig";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
+import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 
 // Backend reads template files relative to the workspace root. The
 // SolTransfer template gives the wallet a generic "send to anyone, any
@@ -243,10 +244,14 @@ export default function SetupSpendingPage() {
               </div>
             </div>
 
+            <div className="mt-6 w-full">
+              <WalletPopupNarration action="enable sending" popups={2} />
+            </div>
+
             <Button
               size="lg"
               fullWidth
-              className="mt-6"
+              className="mt-3"
               onClick={() => setup.mutate()}
               disabled={setup.isPending}
             >

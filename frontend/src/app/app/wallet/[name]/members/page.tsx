@@ -12,19 +12,22 @@
 // with an honest "coming when Encrypt is live" note, mirroring the
 // FHE-scaffold we shipped at /privacy.
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Lock, UserPlus } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, Lock, Trash2, UserPlus } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { deriveRole, listWatchers, type Role } from "@/lib/retail/roles";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { avatarInitials } from "@/lib/retail/avatar";
+import { useRemoveMember } from "@/lib/hooks/useRemoveMember";
+import { useToast } from "@/components/ui/Toast";
+import { friendlyError } from "@/lib/api/errors";
 
 export default function MembersPage() {
   const params = useParams<{ name: string }>();
@@ -180,6 +183,7 @@ export default function MembersPage() {
             {members.map((m, i) => (
               <MemberRow
                 key={m.address}
+                walletName={name}
                 address={m.address}
                 role={m.role}
                 isYou={m.isYou}
@@ -224,6 +228,7 @@ export default function MembersPage() {
 // ─── Row — one member ──────────────────────────────────────────────
 
 interface MemberRowProps {
+  walletName: string;
   address: string;
   role: Role | "unknown";
   isYou: boolean;
@@ -232,6 +237,7 @@ interface MemberRowProps {
 }
 
 function MemberRow({
+  walletName,
   address,
   role,
   isYou,
@@ -245,29 +251,106 @@ function MemberRow({
   const displayName = isYou ? "You" : `Member ${initials}`;
   const subtitle =
     role === "full"
-      ? isYou
-        ? "Can spend and approve"
-        : "Can spend and approve"
+      ? "Can spend and approve"
       : role === "approver"
         ? "Can approve requests"
         : role === "watcher"
           ? "Watching"
           : "Member";
 
+  const remove = useRemoveMember();
+  const toast = useToast();
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+
+  const canRemove = !isYou && role !== "unknown";
+
+  const handleConfirmRemove = async () => {
+    try {
+      await remove.mutateAsync({ walletName, friendAddress: address, role });
+      toast.success(
+        role === "watcher"
+          ? "Watcher removed"
+          : `${displayName} removed from ${walletName}`,
+      );
+      setConfirmingRemove(false);
+    } catch (err) {
+      console.error("[remove-member]", err);
+      const fe = friendlyError(err, "add-friend");
+      toast.error(fe.title, { details: fe.body });
+    }
+  };
+
   return (
     <motion.li
       {...motionProps}
       transition={{ duration: 0.3, delay, ease: [0.22, 1, 0.36, 1] }}
-      className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest"
+      className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest"
     >
-      <MemberAvatar address={address} size="md" />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-text-strong">
-          {displayName}
-        </p>
-        <p className="mt-0.5 text-xs text-text-soft">{subtitle}</p>
+      <div className="flex items-center gap-3">
+        <MemberAvatar address={address} size="md" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-text-strong">
+            {displayName}
+          </p>
+          <p className="mt-0.5 text-xs text-text-soft">{subtitle}</p>
+        </div>
+        <RoleChip role={role} />
+        {canRemove && !confirmingRemove && (
+          <button
+            type="button"
+            onClick={() => setConfirmingRemove(true)}
+            disabled={remove.isPending}
+            aria-label={`Remove ${displayName}`}
+            className={
+              "rounded-soft p-1.5 text-text-soft transition-colors duration-base ease-out-soft " +
+              "hover:bg-canvas hover:text-danger " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
+              "disabled:cursor-not-allowed disabled:opacity-40"
+            }
+          >
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+          </button>
+        )}
       </div>
-      <RoleChip role={role} />
+      {confirmingRemove && (
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-soft border border-danger/30 bg-danger/5 px-3 py-2 text-xs">
+          <span className="text-text-strong">
+            {role === "watcher"
+              ? `Stop watching with ${displayName}?`
+              : `Remove ${displayName} from ${walletName}? You'll sign 2 wallet popups.`}
+          </span>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmingRemove(false)}
+              disabled={remove.isPending}
+              className="text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmRemove}
+              disabled={remove.isPending}
+              className={
+                "inline-flex items-center gap-1 rounded-full bg-danger px-3 py-1 text-[11px] font-medium text-white " +
+                "transition-[background-color,transform] duration-base ease-out-soft " +
+                "hover:bg-danger/90 active:scale-[0.98] " +
+                "disabled:cursor-not-allowed disabled:opacity-60"
+              }
+            >
+              {remove.isPending ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                  Removing…
+                </>
+              ) : (
+                "Remove"
+              )}
+            </button>
+          </div>
+        </div>
+      )}
     </motion.li>
   );
 }

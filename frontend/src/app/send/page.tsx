@@ -45,6 +45,7 @@ import { useContacts } from "@/lib/hooks/useContacts";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
+import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 
 type Stage = "compose" | "sending" | "sent";
 const STAGE_TRANSITION = {
@@ -566,10 +567,14 @@ function ComposeStage({
         />
       </div>
 
+      <div className="mt-6">
+        <WalletPopupNarration action="send this request" popups={2} />
+      </div>
+
       <Button
         size="lg"
         fullWidth
-        className="mt-6"
+        className="mt-3"
         disabled={!canSubmit || waitingForRule}
         onClick={onSubmit}
       >

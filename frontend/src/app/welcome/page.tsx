@@ -25,17 +25,76 @@ import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 
-type Stage = "intro" | "name" | "confirm" | "success";
+type Stage = "intro" | "shape" | "name" | "confirm" | "success";
 
-const STAGES: Stage[] = ["intro", "name", "confirm", "success"];
-const PROGRESS_STAGES: Stage[] = ["intro", "name", "confirm"];
+const STAGES: Stage[] = ["intro", "shape", "name", "confirm", "success"];
+const PROGRESS_STAGES: Stage[] = ["intro", "shape", "name", "confirm"];
 
-const NAME_SUGGESTIONS = [
-  "Roommates",
-  "Family",
-  "Soccer Trip",
-  "Book Club",
-  "Wedding",
+// Wallet "shape" presets — Cash App-style "what is this for" picker
+// that Squads notably doesn't have. Each preset suggests a default
+// name and shapes the copy through the rest of the flow ("invite
+// your family", "share with your roommate", etc.). Threshold stays
+// 1 at create-time because the wallet only has the connected user
+// to begin with; the preset's `expectedMembers` becomes a follow-up
+// nudge on the success screen telling them to invite the rest.
+type ShapeId = "just_me" | "couple" | "family" | "roommates" | "team";
+
+interface WalletShape {
+  id: ShapeId;
+  /// Pill label rendered on the picker.
+  label: string;
+  /// One-line subtitle on the picker tile.
+  blurb: string;
+  /// Pre-fills the name input — user can override.
+  defaultName: string;
+  /// Drives the success-stage nudge ("invite your N family members").
+  /// 1 = solo wallet, no follow-up invite needed.
+  expectedMembers: number;
+  /// Shown on the confirm screen as a vibe-check.
+  flavor: string;
+}
+
+const SHAPES: WalletShape[] = [
+  {
+    id: "just_me",
+    label: "Just me",
+    blurb: "A solo wallet with shared-wallet protections.",
+    defaultName: "My wallet",
+    expectedMembers: 1,
+    flavor: "You're the only signer — every send is your call.",
+  },
+  {
+    id: "couple",
+    label: "Me + a partner",
+    blurb: "The two of you decide together.",
+    defaultName: "Us",
+    expectedMembers: 2,
+    flavor: "Both of you approve every send.",
+  },
+  {
+    id: "family",
+    label: "Family",
+    blurb: "Parents, kids, anyone household.",
+    defaultName: "Family",
+    expectedMembers: 4,
+    flavor: "A few approvals before money moves.",
+  },
+  {
+    id: "roommates",
+    label: "Roommates",
+    blurb: "Rent, utilities, the group fridge.",
+    defaultName: "Roommates",
+    expectedMembers: 3,
+    flavor: "Most of the house has to agree.",
+  },
+  {
+    id: "team",
+    label: "Team",
+    blurb: "Co-founders, club, payroll, treasury.",
+    defaultName: "Team",
+    expectedMembers: 5,
+    flavor: "You'll set the approval rule after inviting people.",
+  },
 ];
 
 // Single source of timing/easing — the perf budget says compositor-only,
@@ -51,6 +110,14 @@ export default function WelcomePage() {
 
   const [stage, setStage] = useState<Stage>("intro");
   const [name, setName] = useState("");
+  /// Which shape the user picked. Drives default name + post-create
+  /// "invite N people" nudge. Defaults to "just_me" so users who
+  /// blow past the picker still get a sensible solo wallet.
+  const [shape, setShape] = useState<ShapeId>("just_me");
+  const currentShape = useMemo(
+    () => SHAPES.find((s) => s.id === shape) ?? SHAPES[0],
+    [shape],
+  );
 
   const cleanName = useMemo(() => name.trim(), [name]);
   // The on-chain wallet name is `String<64>` — 64 bytes UTF-8, not
@@ -220,11 +287,98 @@ export default function WelcomePage() {
                   size="lg"
                   fullWidth
                   className="mt-8"
-                  onClick={() => setStage("name")}
+                  onClick={() => setStage("shape")}
                 >
                   Create your first wallet
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Button>
+              </motion.section>
+            )}
+
+            {stage === "shape" && (
+              <motion.section
+                key="shape"
+                {...pageMotion}
+                transition={TRANSITION}
+                className="flex flex-col"
+              >
+                <h2 className="text-center font-display text-display-sm text-text-strong">
+                  Who&rsquo;s this wallet for?
+                </h2>
+                <p className="mt-2 text-center text-base text-text-soft">
+                  Pick the shape that fits — we&rsquo;ll tailor the rest.
+                </p>
+
+                <ul className="mt-8 flex flex-col gap-2">
+                  {SHAPES.map((s) => {
+                    const selected = shape === s.id;
+                    return (
+                      <li key={s.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShape(s.id);
+                            // Pre-fill name only if the user hasn't
+                            // typed something else already.
+                            if (!name.trim()) setName(s.defaultName);
+                          }}
+                          aria-pressed={selected}
+                          className={
+                            "flex w-full items-start gap-3 rounded-card border bg-surface-raised p-4 text-left shadow-card-rest " +
+                            "transition-[border-color,background-color,transform] duration-base ease-out-soft " +
+                            "hover:-translate-y-0.5 " +
+                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
+                            (selected
+                              ? "border-accent bg-accent/5"
+                              : "border-border-soft hover:border-accent/40")
+                          }
+                        >
+                          <span
+                            className={
+                              "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold " +
+                              (selected
+                                ? "bg-accent text-white"
+                                : "bg-canvas text-text-soft")
+                            }
+                          >
+                            {s.expectedMembers}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-text-strong">
+                              {s.label}
+                            </p>
+                            <p className="mt-0.5 text-xs text-text-soft">
+                              {s.blurb}
+                            </p>
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+
+                <div className="mt-8 flex items-center justify-between gap-3">
+                  <Button
+                    variant="ghost"
+                    size="md"
+                    onClick={() => setStage("intro")}
+                  >
+                    <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back
+                  </Button>
+                  <Button
+                    size="lg"
+                    onClick={() => {
+                      // Belt-and-braces: if the user landed here and
+                      // the input is still empty, seed it from the
+                      // selected shape so "Continue" later is unblocked.
+                      if (!name.trim()) setName(currentShape.defaultName);
+                      setStage("name");
+                    }}
+                  >
+                    Continue
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                </div>
               </motion.section>
             )}
 
@@ -245,7 +399,7 @@ export default function WelcomePage() {
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Roommates"
+                  placeholder={currentShape.defaultName}
                   autoFocus
                   maxLength={64}
                   className={
@@ -256,30 +410,15 @@ export default function WelcomePage() {
                   }
                 />
 
-                <div className="mt-4 flex flex-wrap justify-center gap-2">
-                  {NAME_SUGGESTIONS.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setName(s)}
-                      className={
-                        "rounded-full border border-border-soft bg-surface-raised " +
-                        "px-3 py-1.5 text-sm text-text-soft " +
-                        "transition-colors duration-base ease-out-soft " +
-                        "hover:border-accent hover:text-accent " +
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-                      }
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
+                <p className="mt-3 text-center text-xs text-text-soft">
+                  We pre-filled <span className="font-medium text-text-strong">{currentShape.defaultName}</span> from your pick — change it to anything you like.
+                </p>
 
                 <div className="mt-8 flex items-center justify-between gap-3">
                   <Button
                     variant="ghost"
                     size="md"
-                    onClick={() => setStage("intro")}
+                    onClick={() => setStage("shape")}
                   >
                     <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back
                   </Button>
@@ -306,15 +445,34 @@ export default function WelcomePage() {
                   Ready to create
                 </h2>
                 <div className="mt-6 rounded-card border border-border-soft bg-surface-raised px-5 py-6">
-                  <p className="text-sm text-text-soft">Your shared wallet</p>
-                  <p className="mt-1 font-display text-display-xs text-text-strong">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+                    {currentShape.label}
+                  </p>
+                  <p className="mt-2 font-display text-display-xs text-text-strong">
                     {cleanName}
+                  </p>
+                  <p className="mt-2 text-sm text-text-soft">
+                    {currentShape.flavor}
                   </p>
                 </div>
                 <p className="mt-4 text-base text-text-soft">
-                  You&apos;ll be the first member. You can add friends right
-                  after.
+                  You&apos;ll be the first member.{" "}
+                  {currentShape.expectedMembers > 1
+                    ? `Invite the other ${currentShape.expectedMembers - 1} right after.`
+                    : "You can add friends later if you change your mind."}
                 </p>
+
+                {/* Wallet-popup narration — Squads omits this, retail
+                    needs it. The next click triggers Solflare/Phantom
+                    to ask for a signature; we say so out loud. */}
+                <div className="mt-4 rounded-card border border-accent/30 bg-accent/5 p-3 text-left text-xs text-text-soft">
+                  <span className="font-medium text-text-strong">
+                    Your wallet will pop up.
+                  </span>{" "}
+                  It&rsquo;ll ask you to confirm <em>create wallet</em>.
+                  Tap Approve. Nothing leaves your account — this just
+                  sets up the rules on chain.
+                </div>
 
                 <div className="mt-8 flex items-center justify-between gap-3">
                   <Button
@@ -373,7 +531,15 @@ export default function WelcomePage() {
                   {cleanName} is ready
                 </h2>
                 <p className="mt-3 text-base text-text-soft">
-                  Set up sending next, then start moving money.
+                  {currentShape.expectedMembers > 1
+                    ? `Set up sending next, then invite the other ${
+                        currentShape.expectedMembers - 1
+                      } so they can ${
+                        currentShape.id === "team"
+                          ? "join the wallet"
+                          : "start approving with you"
+                      }.`
+                    : "Set up sending next, then start moving money."}
                 </p>
                 <div className="mt-8 flex w-full flex-col gap-3">
                   <Button
@@ -388,6 +554,20 @@ export default function WelcomePage() {
                     Open {cleanName}
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </Button>
+                  {currentShape.expectedMembers > 1 && (
+                    <Link
+                      href={`/app/wallet/${encodeURIComponent(slug(cleanName))}/members/add`}
+                      className={
+                        "inline-flex w-full items-center justify-center gap-1.5 rounded-card border border-border-soft " +
+                        "bg-surface-raised px-4 py-2.5 text-sm font-medium text-text-strong shadow-card-rest " +
+                        "transition-[border-color,transform] duration-base ease-out-soft " +
+                        "hover:-translate-y-0.5 hover:border-accent " +
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+                      }
+                    >
+                      Invite a {currentShape.id === "team" ? "teammate" : currentShape.id === "couple" ? "partner" : currentShape.id === "family" ? "family member" : "roommate"}
+                    </Link>
+                  )}
                 </div>
               </motion.section>
             )}

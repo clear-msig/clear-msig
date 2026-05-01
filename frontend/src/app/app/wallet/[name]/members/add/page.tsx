@@ -37,8 +37,10 @@ import {
   ROLE_LABEL,
   type Role,
 } from "@/lib/retail/roles";
+import { sendOrganizationInvite } from "@/lib/organizations/client";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
+import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import { useToast } from "@/components/ui/Toast";
 
 // Same template the setup flow used. We're updating an existing
@@ -268,7 +270,7 @@ export default function AddFriendPage() {
       await backendApi.executeProposal(name, proposal, {});
       return submitted;
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       // Watcher path saves to contacts inline above; chain path saves
       // here so the on-chain success is the gate.
       if (!(result as { watcher?: boolean })?.watcher) {
@@ -285,6 +287,26 @@ export default function AddFriendPage() {
       }
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });
       queryClient.invalidateQueries({ queryKey: ["wallet", name] });
+
+      // Fire the actual invite email if the user supplied an address
+      // AND the inviter wallet is connected. This is best-effort —
+      // the on-chain change is already done; an email failure (SMTP
+      // misconfig, throttling) shouldn't block the success toast.
+      let emailDelivered = false;
+      if (trimmedEmail && wallet.publicKey && role !== "watcher") {
+        try {
+          await sendOrganizationInvite({
+            walletName: name,
+            reason: "",
+            inviterAddress: wallet.publicKey.toBase58(),
+            invitee: { address: trimmedAddress, email: trimmedEmail },
+          });
+          emailDelivered = true;
+        } catch (emailErr) {
+          console.warn("[add-friend] email invite failed", emailErr);
+        }
+      }
+
       const roleLabel =
         role === "watcher"
           ? "as a watcher"
@@ -292,9 +314,11 @@ export default function AddFriendPage() {
             ? "as an approver"
             : "";
       const base = `${trimmedName} added to ${name}${roleLabel ? " " + roleLabel : ""}`;
-      const message = trimmedEmail
-        ? `${base} — we'll email ${trimmedEmail}`
-        : base;
+      const message = !trimmedEmail
+        ? base
+        : emailDelivered
+          ? `${base} — invite emailed to ${trimmedEmail}`
+          : `${base} — couldn't reach ${trimmedEmail}, share the wallet link manually`;
       toast.success(message);
       router.push(
         `/app/wallet/${encodeURIComponent(name)}/members`,
@@ -428,6 +452,13 @@ export default function AddFriendPage() {
         />
       )}
 
+      {role !== "watcher" && (
+        <WalletPopupNarration
+          action={`add ${trimmedName || "this friend"}`}
+          popups={2}
+        />
+      )}
+
       <Button
         size="lg"
         fullWidth
@@ -448,8 +479,9 @@ export default function AddFriendPage() {
       </Button>
 
       <p className="text-center text-xs text-text-soft">
-        Your wallet will ask you to confirm. The change is signed and
-        applied to {name}&rsquo;s on-chain rule.
+        {role === "watcher"
+          ? "Watchers are saved on this device. No on-chain signature needed."
+          : `The change is signed and applied to ${name}'s on-chain rule.`}
       </p>
     </div>
   );
