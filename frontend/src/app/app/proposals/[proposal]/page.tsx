@@ -48,6 +48,7 @@ import { friendlyError } from "@/lib/api/errors";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
+import { SignPayloadPreview } from "@/components/retail/SignPayloadPreview";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
 import { relativeTime } from "@/lib/util/relativeTime";
@@ -257,6 +258,24 @@ function Loaded({
       {/* Actions: only while Active */}
       {isActive && isApprover && !alreadyApproved && (
         <div className="flex flex-col gap-3">
+          <SignPayloadPreview
+            action={`Approve: ${intentLabel}`}
+            details={[
+              { label: "In wallet", value: walletName },
+              {
+                label: "Approvals so far",
+                value: `${approvalsCollected} of ${approverCount}`,
+              },
+              {
+                label: "Created",
+                value: createdAgo,
+              },
+              {
+                label: "Your role",
+                value: isProposer ? "Proposer + approver" : "Approver",
+              },
+            ]}
+          />
           <WalletPopupNarration action="approve this request" />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Button

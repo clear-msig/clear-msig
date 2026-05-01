@@ -33,6 +33,7 @@ import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Button } from "@/components/retail/Button";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
+import { SignPayloadPreview } from "@/components/retail/SignPayloadPreview";
 import { NextStepCard } from "@/components/retail/NextStepCard";
 
 // Backend reads template files relative to the workspace root. The
@@ -344,7 +345,24 @@ export default function SetupSpendingPage() {
               </div>
             </div>
 
-            <div className="mt-6 w-full">
+            <div className="mt-6 flex w-full flex-col gap-3">
+              <SignPayloadPreview
+                action={`Enable sending in ${name}`}
+                details={[
+                  { label: "Wallet", value: name },
+                  {
+                    label: "Approvers",
+                    value: "Just you for now",
+                  },
+                  {
+                    label: "Pace",
+                    value:
+                      delaySeconds === 0
+                        ? "Ships immediately"
+                        : "Wait 24 hours",
+                  },
+                ]}
+              />
               <WalletPopupNarration action="enable sending" popups={2} />
             </div>
 

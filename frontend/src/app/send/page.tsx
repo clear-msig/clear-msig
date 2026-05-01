@@ -50,6 +50,7 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
+import { SignPayloadPreview } from "@/components/retail/SignPayloadPreview";
 import { NextStepCard } from "@/components/retail/NextStepCard";
 import { QuickSendInput } from "@/components/retail/QuickSendInput";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
@@ -512,6 +513,10 @@ function ComposeStage({
       };
 
   const display = useMemo(() => formatAmount(amount), [amount]);
+  const amountValid = useMemo(() => {
+    const n = parseFloat(amount);
+    return !isNaN(n) && n > 0;
+  }, [amount]);
 
   return (
     <motion.section
@@ -641,7 +646,45 @@ function ComposeStage({
         walletName={walletName}
       />
 
-      <div className="mt-6">
+      <div className="mt-6 flex flex-col gap-3">
+        <SignPayloadPreview
+          action={
+            amountValid && (resolved.kind === "contact" || resolved.kind === "address")
+              ? `Send ${formatAmount(amount)} SOL to ${
+                  resolved.kind === "contact"
+                    ? resolved.contact.name
+                    : shortAddress(resolved.address)
+                }`
+              : "Fill in the amount and recipient above"
+          }
+          details={[
+            { label: "From wallet", value: walletName || "your wallet" },
+            { label: "Chain", value: "Solana" },
+            ...(resolved.kind === "address"
+              ? [
+                  {
+                    label: "Recipient",
+                    value: shortAddress(resolved.address),
+                    emphasis: "mono" as const,
+                  },
+                ]
+              : []),
+            ...(amountValid
+              ? [
+                  {
+                    label: "Amount",
+                    value: `${formatAmount(amount)} SOL`,
+                    emphasis: "amount" as const,
+                  },
+                ]
+              : []),
+          ]}
+          warning={
+            resolved.kind === "address"
+              ? "You are sending to a raw address (no contact match). Money sent to the wrong address cannot be reversed."
+              : undefined
+          }
+        />
         <WalletPopupNarration action="send this request" popups={2} />
       </div>
 

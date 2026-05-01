@@ -44,6 +44,7 @@ import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
+import { SignPayloadPreview } from "@/components/retail/SignPayloadPreview";
 import { NextStepCard } from "@/components/retail/NextStepCard";
 import { useToast } from "@/components/ui/Toast";
 
@@ -534,10 +535,32 @@ export default function AddFriendPage() {
       )}
 
       {role !== "watcher" && (
-        <WalletPopupNarration
-          action={`add ${trimmedName || "this friend"}`}
-          popups={2}
-        />
+        <div className="flex flex-col gap-3">
+          <SignPayloadPreview
+            action={`Add ${trimmedName || "this friend"} to ${name}`}
+            details={[
+              { label: "Wallet", value: name },
+              {
+                label: "Their role",
+                value: role === "full" ? "Can spend & approve" : "Approves only",
+              },
+              {
+                label: "Address",
+                value: trimmedAddress
+                  ? shortAddress(trimmedAddress)
+                  : "(paste above)",
+                emphasis: "mono",
+              },
+              ...(trimmedEmail
+                ? [{ label: "Invite email", value: trimmedEmail }]
+                : []),
+            ]}
+          />
+          <WalletPopupNarration
+            action={`add ${trimmedName || "this friend"}`}
+            popups={2}
+          />
+        </div>
       )}
 
       <Button
