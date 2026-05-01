@@ -42,7 +42,14 @@ pub struct PersistedConfig {
     pub ledger_account: Option<u32>,
 }
 
-fn default_expiry_seconds() -> u64 { 300 }
+/// Default signed-message expiry window. The flow is prepare →
+/// (user reads + opens wallet + signs) → submit → CLI sends → chain
+/// confirms. Five minutes was tight: a user pausing on the confirm
+/// screen, or a slow wallet popup, easily ate the buffer and the
+/// chain rejected with WalletError::Expired (0x1777). 30 minutes is
+/// safely above any realistic human-pause budget without being so
+/// long that a stolen signature is dangerous to leave outstanding.
+fn default_expiry_seconds() -> u64 { 1800 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 #[serde(rename_all = "snake_case")]
