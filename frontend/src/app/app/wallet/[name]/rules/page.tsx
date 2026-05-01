@@ -80,21 +80,15 @@ export default function RulesPage() {
     [intentsQuery.data],
   );
 
-  // No rules yet → send the user to the one-tap setup. Mirrors /send.
-  useEffect(() => {
-    if (intentsQuery.isLoading || walletQuery.isLoading) return;
-    if (!walletQuery.data) return;
-    if (liveIntents.length === 0) {
-      router.replace(`/app/wallet/${encodeURIComponent(name)}/setup`);
-    }
-  }, [
-    intentsQuery.isLoading,
-    walletQuery.isLoading,
-    walletQuery.data,
-    liveIntents.length,
-    router,
-    name,
-  ]);
+  // No rules yet → render an empty-state card with a clear CTA
+  // instead of silently bouncing the user. The auto-redirect was
+  // disorienting ("I clicked Rules but ended up on Setup with no
+  // breadcrumb of why").
+  const needsSetup =
+    !intentsQuery.isLoading &&
+    !walletQuery.isLoading &&
+    !!walletQuery.data &&
+    liveIntents.length === 0;
 
   const motionProps = reduce
     ? {}
@@ -149,6 +143,13 @@ export default function RulesPage() {
         <div className="flex flex-col gap-3">
           <RuleCardSkeleton />
           <RuleCardSkeleton />
+        </div>
+      ) : needsSetup ? (
+        <div className="rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest">
+          <p className="text-sm text-text-soft">
+            No spending rule yet. Set one up below to enable sending —
+            you&rsquo;ll do this once per wallet.
+          </p>
         </div>
       ) : (
         <ul className="flex flex-col gap-3">

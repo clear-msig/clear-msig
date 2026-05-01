@@ -34,6 +34,12 @@ export interface RecentActivityRow {
   statusLabel: ProposalWithPda["account"]["statusLabel"];
   proposedAt: bigint;
   approvalBitmap: number;
+  /// Coarse template hint derived from intentIndex — the program's
+  /// bootstrap intents always sit at slots 0/1/2 (AddIntent /
+  /// RemoveIntent / UpdateIntent), so anything below 3 is meta and
+  /// shouldn't read "Sent" when executed. Custom intents fall through
+  /// to the actual template name once a contacts/intent layer joins.
+  intentTemplate: string;
 }
 
 export function useRecentActivity(limit = 5) {
@@ -109,6 +115,14 @@ export function useRecentActivity(limit = 5) {
           statusLabel: p.account.statusLabel,
           proposedAt: p.account.proposedAt,
           approvalBitmap: p.account.approvalBitmap,
+          intentTemplate:
+            p.intentIndex === 0
+              ? "AddIntent"
+              : p.intentIndex === 1
+                ? "RemoveIntent"
+                : p.intentIndex === 2
+                  ? "UpdateIntent"
+                  : "Custom",
         });
       }
     }

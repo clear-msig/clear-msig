@@ -129,24 +129,16 @@ function SendPage() {
     );
   }, [intentsQuery.data]);
 
-  // If the wallet doesn't have a spending rule yet, bounce to setup.
-  useEffect(() => {
-    if (!walletName) return;
-    if (intentsQuery.isLoading || walletQuery.isLoading) return;
-    if (!walletQuery.data) return;
-    if (firstIntent === null) {
-      router.replace(
-        `/app/wallet/${encodeURIComponent(walletName)}/setup`,
-      );
-    }
-  }, [
-    walletName,
-    intentsQuery.isLoading,
-    walletQuery.isLoading,
-    walletQuery.data,
-    firstIntent,
-    router,
-  ]);
+  // No silent redirect to /setup when the wallet's missing a rule —
+  // the page renders an inform-and-choose card below. Auto-redirect
+  // was disorienting ("I tapped Send, ended up on Setup with no
+  // breadcrumb of why").
+  const needsSetup =
+    !!walletName &&
+    !intentsQuery.isLoading &&
+    !walletQuery.isLoading &&
+    !!walletQuery.data &&
+    firstIntent === null;
 
   const [stage, setStage] = useState<Stage>("compose");
   const [amount, setAmount] = useState("");
@@ -360,6 +352,36 @@ function SendPage() {
 
       <div className="relative z-10 flex flex-1 items-center justify-center px-gutter py-10">
         <div className="w-full max-w-md">
+          {needsSetup && (
+            <div className="mb-6 rounded-card border border-warning/30 bg-warning/5 p-5 text-center shadow-card-rest">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-warning">
+                Set up sending first
+              </p>
+              <p className="mt-2 text-sm text-text-strong">
+                <strong>{walletName}</strong> doesn&rsquo;t have a
+                spending rule yet. Enable sending — once that&rsquo;s
+                done, you can come back and send anything you want.
+              </p>
+              <div className="mt-4 flex justify-center gap-2">
+                <Link
+                  href={`/app/wallet/${encodeURIComponent(walletName)}/setup`}
+                  className={
+                    "inline-flex items-center gap-1.5 rounded-soft bg-accent px-3.5 py-2 text-sm font-medium text-white shadow-accent-rest " +
+                    "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98]"
+                  }
+                >
+                  Enable sending
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </Link>
+                <Link
+                  href={`/app/wallet/${encodeURIComponent(walletName)}`}
+                  className="inline-flex items-center rounded-soft border border-border-soft bg-surface-raised px-3.5 py-2 text-sm font-medium text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
+                >
+                  Back to {walletName}
+                </Link>
+              </div>
+            </div>
+          )}
           {stage === "compose" && (
             <ComposeStage
               walletName={walletName || "your shared wallet"}

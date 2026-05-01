@@ -96,23 +96,15 @@ export default function AddFriendPage() {
     );
   }, [intentsQuery.data]);
 
-  // Bounce to setup if the wallet has no spending rule yet — there's
-  // nothing to update.
-  useEffect(() => {
-    if (!name) return;
-    if (walletQuery.isLoading || intentsQuery.isLoading) return;
-    if (!walletQuery.data) return;
-    if (firstIntent === null) {
-      router.replace(`/app/wallet/${encodeURIComponent(name)}/setup`);
-    }
-  }, [
-    name,
-    walletQuery.isLoading,
-    intentsQuery.isLoading,
-    walletQuery.data,
-    firstIntent,
-    router,
-  ]);
+  // We used to silently router.replace() to /setup when no spending
+  // rule existed yet — that yanked the user mid-flow with no context.
+  // Now we render an explanatory card below (see needsSetupCta) so
+  // the user chooses to proceed.
+  const needsSetup =
+    !walletQuery.isLoading &&
+    !intentsQuery.isLoading &&
+    !!walletQuery.data &&
+    firstIntent === null;
 
   const [friendName, setFriendName] = useState("");
   const [friendAddress, setFriendAddress] = useState("");
@@ -358,14 +350,54 @@ export default function AddFriendPage() {
           <UserPlus className="h-5 w-5" strokeWidth={1.75} />
         </div>
         <h1 className="mt-4 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          Add a friend to {name}
+          Add someone to {name}
         </h1>
         <p className="mt-2 max-w-md text-base text-text-soft">
-          They&rsquo;ll be able to send requests and approve them.
-          You&rsquo;ll need their Solana wallet address — ask them
-          before you get started.
+          A friend, teammate, or board member who&rsquo;ll help approve
+          requests. You&rsquo;ll need their Solana wallet address — ask
+          them before you get started.
         </p>
       </motion.section>
+
+      {/* Pre-flight gate: adding a member modifies the wallet's
+          spending rule, which doesn't exist until setup-spending has
+          run. Surface this explicitly with a clear next-step instead
+          of silently kicking the user to /setup. */}
+      {needsSetup && (
+        <div className="rounded-card border border-warning/30 bg-warning/5 p-5 shadow-card-rest">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-warning">
+            Set up sending first
+          </p>
+          <p className="mt-2 text-sm text-text-strong">
+            Adding people changes <strong>{name}</strong>&rsquo;s
+            spending rule — but no rule exists yet. Enable sending,
+            then come back here. It&rsquo;s a 2-popup setup that takes
+            about a minute.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link
+              href={`/app/wallet/${encodeURIComponent(name)}/setup`}
+              className={
+                "inline-flex items-center gap-1.5 rounded-soft bg-accent px-3.5 py-2 text-sm font-medium text-white shadow-accent-rest " +
+                "transition-[background-color,transform] duration-base ease-out-soft " +
+                "hover:bg-accent-hover active:scale-[0.98]"
+              }
+            >
+              Enable sending
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </Link>
+            <Link
+              href={`/app/wallet/${encodeURIComponent(name)}`}
+              className={
+                "inline-flex items-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3.5 py-2 text-sm font-medium text-text-soft " +
+                "transition-colors duration-base ease-out-soft hover:text-text-strong"
+              }
+            >
+              Back to {name}
+            </Link>
+          </div>
+        </div>
+      )}
 
       <form
         onSubmit={(e) => {

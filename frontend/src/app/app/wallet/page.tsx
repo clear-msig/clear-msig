@@ -687,7 +687,7 @@ function ActivityRow({ row }: { row: RecentActivityRow }) {
             {row.walletName}
           </p>
           <p className="mt-0.5 text-xs text-text-soft">
-            <span className={statusColor(row.status)}>{friendlyStatus(row.status)}</span>
+            <span className={statusColor(row.status)}>{friendlyStatus(row.status, row.intentTemplate)}</span>
             <span className="mx-1.5 text-text-soft/40">·</span>
             <span>{time}</span>
           </p>

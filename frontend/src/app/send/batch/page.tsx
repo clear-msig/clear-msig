@@ -106,23 +106,15 @@ function BatchSendPage() {
     );
   }, [intentsQuery.data]);
 
-  // Bounce to setup if there's no spending rule on the wallet — same
-  // safety net the single-send page uses.
-  useEffect(() => {
-    if (!walletName) return;
-    if (intentsQuery.isLoading || walletQuery.isLoading) return;
-    if (!walletQuery.data) return;
-    if (firstIntent === null) {
-      router.replace(`/app/wallet/${encodeURIComponent(walletName)}/setup`);
-    }
-  }, [
-    walletName,
-    intentsQuery.isLoading,
-    walletQuery.isLoading,
-    walletQuery.data,
-    firstIntent,
-    router,
-  ]);
+  // No spending rule yet → render an explanatory state instead of
+  // silently routing to /setup. Same pattern as /members/add and
+  // /rules — auto-redirect was disorienting.
+  const needsSetup =
+    !!walletName &&
+    !intentsQuery.isLoading &&
+    !walletQuery.isLoading &&
+    !!walletQuery.data &&
+    firstIntent === null;
 
   const [stage, setStage] = useState<Stage>("compose");
   const [drafts, setDrafts] = useState<DraftRow[]>(() => [emptyRow()]);
@@ -228,6 +220,36 @@ function BatchSendPage() {
           transition={STAGE_TRANSITION}
           className="w-full max-w-xl"
         >
+          {needsSetup && (
+            <div className="mb-6 rounded-card border border-warning/30 bg-warning/5 p-5 shadow-card-rest text-center">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-warning">
+                Set up sending first
+              </p>
+              <p className="mt-2 text-sm text-text-strong">
+                Batch send needs <strong>{walletName}</strong>&rsquo;s
+                spending rule to be in place. Enable sending, then come
+                back here.
+              </p>
+              <div className="mt-4 flex justify-center gap-2">
+                <Link
+                  href={`/app/wallet/${encodeURIComponent(walletName)}/setup`}
+                  className={
+                    "inline-flex items-center gap-1.5 rounded-soft bg-accent px-3.5 py-2 text-sm font-medium text-white shadow-accent-rest " +
+                    "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98]"
+                  }
+                >
+                  Enable sending
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </Link>
+                <Link
+                  href={`/app/wallet/${encodeURIComponent(walletName)}`}
+                  className="inline-flex items-center rounded-soft border border-border-soft bg-surface-raised px-3.5 py-2 text-sm font-medium text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
+                >
+                  Back to {walletName}
+                </Link>
+              </div>
+            </div>
+          )}
           {stage === "compose" && (
             <ComposeStage
               walletName={walletName}

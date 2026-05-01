@@ -313,7 +313,7 @@ function SidebarActivityRow({
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate font-medium">{row.walletName}</span>
           <span className="flex items-center gap-1.5 text-[10px] text-white/40">
-            <span>{friendlyStatus(row.status)}</span>
+            <span>{friendlyStatus(row.status, row.intentTemplate)}</span>
             {row.proposedAt > 0n && (
               <>
                 <span className="text-white/20">·</span>

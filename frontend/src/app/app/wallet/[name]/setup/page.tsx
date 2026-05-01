@@ -187,7 +187,11 @@ export default function SetupSpendingPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });
       queryClient.invalidateQueries({ queryKey: ["wallet", name] });
-      toast.success("Sending is set up");
+      toast.success(`${name} is ready to send`, {
+        details:
+          "Spending rule is on chain. The activity row you'll see is " +
+          "the rule going into effect — no money has moved yet.",
+      });
       router.push(`/app/wallet/${encodeURIComponent(name)}`);
     },
     onError: (err) => {

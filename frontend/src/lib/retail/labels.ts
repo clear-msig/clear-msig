@@ -10,14 +10,32 @@ import { ProposalStatus } from "@/lib/msig";
 
 export type ProposalStatusLike = ProposalStatus | number;
 
-export function friendlyStatus(s: ProposalStatusLike): string {
+// Template families that mutate the wallet's rules rather than move
+// money. For these, "Executed" should read as "Done" — saying "Sent"
+// next to "Set up a spending rule" makes users think they just lost
+// SOL. We branch on template name to keep the per-status word right.
+const META_TEMPLATES = new Set([
+  "AddIntent",
+  "RemoveIntent",
+  "UpdateIntent",
+  "UpdateApprovers",
+  "UpdateThreshold",
+  "Cleanup",
+]);
+
+export function friendlyStatus(
+  s: ProposalStatusLike,
+  intentTemplate?: string,
+): string {
+  const isMeta =
+    typeof intentTemplate === "string" && META_TEMPLATES.has(intentTemplate);
   switch (s) {
     case ProposalStatus.Active:
       return "Waiting for approval";
     case ProposalStatus.Approved:
-      return "Ready to send";
+      return isMeta ? "Ready" : "Ready to send";
     case ProposalStatus.Executed:
-      return "Sent";
+      return isMeta ? "Done" : "Sent";
     case ProposalStatus.Cancelled:
       return "Cancelled";
     default:

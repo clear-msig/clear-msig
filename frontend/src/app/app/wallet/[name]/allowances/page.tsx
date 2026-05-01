@@ -164,12 +164,17 @@ export default function AllowancesPage() {
           Spending limits
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          What each friend can spend
+          What each member can spend
         </h1>
         <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
-          Pick a per-period limit for each person. Requests inside the
-          limit are easier to approve; anything above it follows the
-          full {name} approval rule.
+          Pick a per-period limit for each person — friend, teammate,
+          or board member. Requests inside the limit are easier to
+          approve; anything above it follows the full {name} approval
+          rule.
+        </p>
+        <p className="mt-3 inline-flex items-center gap-1 rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] text-text-soft">
+          Watchers don&rsquo;t spend, so they&rsquo;re not listed.
+          Max 16 members per wallet (chain limit).
         </p>
       </motion.section>
 
@@ -204,33 +209,12 @@ export default function AllowancesPage() {
                 )}
               </div>
 
+              {/* Period FIRST, amount second — feedback: tapping the
+                  amount input first read as broken because it's
+                  disabled until a non-"no-limit" period is chosen.
+                  Asking for the period up front matches the actual
+                  decision order ("how often" → "how much"). */}
               <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                <div className="flex flex-1 items-baseline gap-2">
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={draft.amountSol}
-                    onChange={(e) =>
-                      setDrafts((d) => ({
-                        ...d,
-                        [m.address]: {
-                          ...d[m.address],
-                          amountSol: sanitizeAmount(e.target.value),
-                        },
-                      }))
-                    }
-                    placeholder="0"
-                    disabled={draft.period === "none"}
-                    maxLength={20}
-                    className={
-                      "flex-1 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-base text-text-strong outline-none " +
-                      "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-                      "focus:border-accent focus:shadow-accent-rest " +
-                      "disabled:cursor-not-allowed disabled:opacity-50"
-                    }
-                  />
-                  <span className="text-sm text-text-soft">SOL</span>
-                </div>
                 <select
                   value={draft.period}
                   onChange={(e) =>
@@ -245,7 +229,7 @@ export default function AllowancesPage() {
                   className={
                     "rounded-soft border border-border-soft bg-canvas px-3 py-2 text-sm text-text-strong outline-none " +
                     "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-                    "focus:border-accent focus:shadow-accent-rest"
+                    "focus:border-accent focus:shadow-accent-rest sm:w-44"
                   }
                 >
                   {PERIOD_OPTIONS.map((p) => (
@@ -254,6 +238,34 @@ export default function AllowancesPage() {
                     </option>
                   ))}
                 </select>
+                <div className="flex flex-1 items-baseline gap-2">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={draft.amountSol}
+                    onChange={(e) =>
+                      setDrafts((d) => ({
+                        ...d,
+                        [m.address]: {
+                          ...d[m.address],
+                          amountSol: sanitizeAmount(e.target.value),
+                        },
+                      }))
+                    }
+                    placeholder={
+                      draft.period === "none" ? "Pick a period first" : "0"
+                    }
+                    disabled={draft.period === "none"}
+                    maxLength={20}
+                    className={
+                      "flex-1 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-base text-text-strong outline-none " +
+                      "transition-[border-color,box-shadow] duration-base ease-out-soft " +
+                      "focus:border-accent focus:shadow-accent-rest " +
+                      "disabled:cursor-not-allowed disabled:opacity-50"
+                    }
+                  />
+                  <span className="text-sm text-text-soft">SOL</span>
+                </div>
               </div>
 
               <div className="mt-3 flex items-center justify-between gap-2">

@@ -356,21 +356,22 @@ function MemberRow({
 }
 
 function RoleChip({ role }: { role: Role | "unknown" }) {
+  // Self-describing labels — feedback: "at first I was confused
+  // what 'Full' meant". Replacing with the verb makes the chip
+  // legible without context.
   const styles =
     role === "full"
       ? "border-accent/30 bg-accent/10 text-accent"
       : role === "approver"
         ? "border-warning/30 bg-warning/10 text-warning"
-        : role === "watcher"
-          ? "border-border-soft bg-canvas text-text-soft"
-          : "border-border-soft bg-canvas text-text-soft";
+        : "border-border-soft bg-canvas text-text-soft";
   const label =
     role === "full"
-      ? "Full"
+      ? "Spend & approve"
       : role === "approver"
-        ? "Approver"
+        ? "Approve only"
         : role === "watcher"
-          ? "Watcher"
+          ? "Watching"
           : "Member";
   return (
     <span
