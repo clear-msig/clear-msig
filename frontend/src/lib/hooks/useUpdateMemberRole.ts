@@ -17,7 +17,7 @@
 // record.
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@/lib/wallet";
 import { backendApi } from "@/lib/api/endpoints";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { fetchWalletByName } from "@/lib/chain/wallets";

@@ -22,12 +22,11 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
-  ExternalLink,
   Lock,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { DynamicWidget } from "@dynamic-labs/sdk-react-core";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
 
@@ -156,32 +155,21 @@ function ConnectPage() {
                 <ShieldCheck className="h-6 w-6" strokeWidth={1.75} />
               </div>
               <h2 className="font-display text-display-xs leading-[1.1] text-text-strong">
-                Connect your wallet
+                Sign in or sign up
               </h2>
               <p className="mt-2 text-sm text-text-soft">
-                Pick the wallet you already use. Don&rsquo;t worry,
-                this just proves it&rsquo;s you. No transaction fires
-                yet.
+                Use your email, your phone, or a wallet you already have.
+                We will set the rest up for you.
               </p>
 
               <div className="mt-6">
-                <WalletMultiButton />
+                <DynamicWidget />
               </div>
 
-              <Link
-                href="https://phantom.app/download"
-                target="_blank"
-                rel="noreferrer"
-                className={
-                  "mt-5 inline-flex items-center gap-1.5 text-xs text-text-soft " +
-                  "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
-                  "rounded-soft px-1.5 py-0.5"
-                }
-              >
-                Don&rsquo;t have one yet? Get a wallet
-                <ExternalLink className="h-3 w-3" aria-hidden="true" />
-              </Link>
+              <p className="mt-5 text-[11px] leading-snug text-text-soft">
+                Email and social sign-in mint a built-in wallet. You stay
+                in control; we never see the keys.
+              </p>
             </div>
 
             {/* Trust strip — three brief lines justifying the ask.

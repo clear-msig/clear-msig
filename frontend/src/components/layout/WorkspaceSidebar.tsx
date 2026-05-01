@@ -16,7 +16,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWallet } from "@/lib/wallet";
 import { Github, LogOut, Plus, Search, Settings, Wallet } from "lucide-react";
 import clsx from "clsx";
 import {

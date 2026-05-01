@@ -17,7 +17,7 @@
 // program without contract changes.
 
 import { useCallback, useRef, useState } from "react";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@/lib/wallet";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Connection } from "@solana/web3.js";
 import { backendApi } from "@/lib/api/endpoints";

@@ -17,7 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { useConnection } from "@solana/wallet-adapter-react";
+import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Check, Copy, Plus } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";

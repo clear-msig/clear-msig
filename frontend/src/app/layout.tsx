@@ -10,7 +10,6 @@
 
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Fraunces } from "next/font/google";
-import "@solana/wallet-adapter-react-ui/styles.css";
 import "./globals.css";
 import { AppProviders } from "@/components/providers/AppProviders";
 

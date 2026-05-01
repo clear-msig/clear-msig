@@ -16,7 +16,7 @@ import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { useConnection } from "@solana/wallet-adapter-react";
+import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,

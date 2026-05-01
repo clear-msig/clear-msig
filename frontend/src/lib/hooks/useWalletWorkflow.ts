@@ -13,7 +13,7 @@
 // can consume the typed `WalletAccount` / `ChainBindingWithPda[]`.
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useConnection } from "@solana/wallet-adapter-react";
+import { useConnection } from "@/lib/wallet";
 import { backendApi } from "@/lib/api/endpoints";
 import type { AddChainInput, CreateWalletInput } from "@/lib/api/types";
 import { fetchWalletByName, type WalletWithPda } from "@/lib/chain/wallets";

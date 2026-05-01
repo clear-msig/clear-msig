@@ -5,7 +5,7 @@
 // fetching this is a derivation, not extra RPC.
 
 import { useMemo } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWallet } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import { fetchOnchainMemberships } from "@/lib/memberships/client";
 import { useRecentActivity } from "@/lib/hooks/useRecentActivity";

@@ -16,7 +16,7 @@
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useConnection } from "@solana/wallet-adapter-react";
+import { useConnection } from "@/lib/wallet";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import {
   listProposalsForWallet,

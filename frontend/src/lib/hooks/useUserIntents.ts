@@ -6,7 +6,7 @@
 // every intent searchable.
 
 import { useMemo } from "react";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@/lib/wallet";
 import { PublicKey } from "@solana/web3.js";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import {

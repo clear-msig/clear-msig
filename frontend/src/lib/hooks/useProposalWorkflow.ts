@@ -13,7 +13,7 @@
 // landed on chain — silently broken.)
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@/lib/wallet";
 import { PublicKey } from "@solana/web3.js";
 import { backendApi, backendApiLegacy } from "@/lib/api/endpoints";
 import type { CreateProposalInput, ExecuteProposalInput } from "@/lib/api/types";

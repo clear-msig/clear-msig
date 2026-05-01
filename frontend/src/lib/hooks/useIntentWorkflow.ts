@@ -8,7 +8,7 @@
 // Phase 5 wires up the full signMessage flow.
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useConnection } from "@solana/wallet-adapter-react";
+import { useConnection } from "@/lib/wallet";
 import { backendApiLegacy } from "@/lib/api/endpoints";
 import type { AddIntentInput } from "@/lib/api/types";
 import { fetchWalletByName } from "@/lib/chain/wallets";

@@ -18,7 +18,7 @@ import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { backendApi } from "@/lib/api/endpoints";
 import { fromHex } from "@/lib/msig";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWallet } from "@/lib/wallet";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { friendlyError } from "@/lib/api/errors";
 

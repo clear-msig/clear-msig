@@ -3,8 +3,8 @@
 //
 // Two consumption patterns:
 //   - React components / hooks: `const { connection } = useConnection()`
-//     from @solana/wallet-adapter-react, then pass into the chain/*
-//     helpers. This shares the same Connection the wallet adapter owns.
+//     from @/lib/wallet, then pass into the chain/* helpers. The shim
+//     hands back the same shared Connection the rest of the app uses.
 //   - Non-React contexts (init scripts, tests): `getConnection()`
 //     returns a lazy-initialised singleton.
 //
@@ -36,7 +36,7 @@ export function setConnection(conn: Connection): void {
 }
 
 /// Get a shared Connection for non-React contexts. React components
-/// should use `useConnection()` from @solana/wallet-adapter-react.
+/// should use `useConnection()` from @/lib/wallet.
 export function getConnection(): Connection {
   if (!singleton) {
     singleton = new Connection(solanaClusterRpc, DEFAULT_COMMITMENT);

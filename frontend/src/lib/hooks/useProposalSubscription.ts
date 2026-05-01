@@ -11,7 +11,7 @@
 // `["proposal", <pda>]` re-renders automatically.
 
 import { useEffect } from "react";
-import { useConnection } from "@solana/wallet-adapter-react";
+import { useConnection } from "@/lib/wallet";
 import { PublicKey } from "@solana/web3.js";
 import { useQueryClient } from "@tanstack/react-query";
 import {

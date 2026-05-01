@@ -10,7 +10,7 @@
 // signMessage" errors consistent, and gives us a single place to add
 // analytics / telemetry later.
 
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWallet } from "@/lib/wallet";
 import { useCallback } from "react";
 import { toHex } from "@/lib/msig";
 

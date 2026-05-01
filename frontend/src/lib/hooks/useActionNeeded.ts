@@ -10,7 +10,7 @@
 // so this is pure derivation, not extra RPC.
 
 import { useMemo } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWallet } from "@/lib/wallet";
 import { useRecentActivity } from "@/lib/hooks/useRecentActivity";
 import { useUserIntents } from "@/lib/hooks/useUserIntents";
 import { ProposalStatus } from "@/lib/msig";

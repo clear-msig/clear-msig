@@ -24,7 +24,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import {
   useConnection,
   useWallet,
-} from "@solana/wallet-adapter-react";
+} from "@/lib/wallet";
 import { PublicKey } from "@solana/web3.js";
 import { useQuery } from "@tanstack/react-query";
 import {
