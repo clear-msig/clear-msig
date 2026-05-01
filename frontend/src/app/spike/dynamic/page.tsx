@@ -189,68 +189,82 @@ function SpikeBody() {
           <div className="mt-4">
             <DynamicWidget />
           </div>
-          {/* Diagnostic: show every wallet Dynamic exposed for this
-              user — chain id, address, primary flag. The "Sign" button
-              below activates as soon as ANY of these is a Solana wallet,
-              not just the primary. If you see no SOL row, your Dynamic
-              project doesn't have Solana enabled — fix in the Dynamic
-              dashboard under Configurations → Chains and Networks. */}
-          {allWallets.length > 0 && (
-            <ul className="mt-4 flex flex-col gap-1.5 rounded-soft border border-border-soft bg-canvas p-3 text-[11px]">
-              <li className="font-medium uppercase tracking-[0.18em] text-text-soft">
-                Wallets Dynamic returned
+          {/* Diagnostic: always render this block so a logged-in user
+              with zero wallets is visible (instead of staring at an
+              inert button). Three states:
+              - allWallets > 0 with a SOL entry → button active
+              - allWallets > 0 but no SOL → fix Embedded Wallets config
+              - allWallets == 0 → wallet hasn't been minted; usually
+                Embedded Wallets isn't enabled at all. */}
+          <ul className="mt-4 flex flex-col gap-1.5 rounded-soft border border-border-soft bg-canvas p-3 text-[11px]">
+            <li className="font-medium uppercase tracking-[0.18em] text-text-soft">
+              Wallets Dynamic returned ({allWallets.length})
+            </li>
+            {allWallets.length === 0 && (
+              <li className="text-text-soft">
+                None. The user is logged in but no embedded wallet has
+                been minted.
               </li>
-              {allWallets.map((w) => {
-                if (!w) return null;
-                const sol = isSolanaWallet(w);
-                const isPrimary = primaryWallet?.id === w.id;
-                return (
-                  <li
-                    key={w.id}
-                    className={
-                      "flex items-center justify-between gap-3 rounded-soft px-2 py-1 " +
-                      (sol
-                        ? "bg-accent/5 text-text-strong"
-                        : "text-text-soft")
-                    }
-                  >
-                    <span className="font-mono">
-                      <span className="font-semibold">{w.chain ?? "?"}</span>
-                      <span className="ml-2 text-text-soft">
-                        {w.address?.slice(0, 4)}…{w.address?.slice(-4)}
+            )}
+            {allWallets.map((w) => {
+              if (!w) return null;
+              const sol = isSolanaWallet(w);
+              const isPrimary = primaryWallet?.id === w.id;
+              return (
+                <li
+                  key={w.id}
+                  className={
+                    "flex items-center justify-between gap-3 rounded-soft px-2 py-1 " +
+                    (sol
+                      ? "bg-accent/5 text-text-strong"
+                      : "text-text-soft")
+                  }
+                >
+                  <span className="font-mono">
+                    <span className="font-semibold">{w.chain ?? "?"}</span>
+                    <span className="ml-2 text-text-soft">
+                      {w.address?.slice(0, 4)}…{w.address?.slice(-4)}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    {isPrimary && (
+                      <span className="rounded-full bg-text-soft/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wide">
+                        primary
                       </span>
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      {isPrimary && (
-                        <span className="rounded-full bg-text-soft/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wide">
-                          primary
-                        </span>
-                      )}
-                      {sol && (
-                        <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-accent">
-                          ed25519 ✓
-                        </span>
-                      )}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          {!solanaWallet && allWallets.length > 0 && (
-            <p className="mt-3 text-[11px] text-warning">
-              No Solana wallet in the list above. Open your project at{" "}
-              <a
-                href="https://app.dynamic.xyz"
-                target="_blank"
-                rel="noreferrer"
-                className="text-accent underline"
-              >
-                app.dynamic.xyz
-              </a>{" "}
-              → Configurations → Chains and Networks → enable Solana,
-              save, then reload this page.
-            </p>
+                    )}
+                    {sol && (
+                      <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-accent">
+                        ed25519 ✓
+                      </span>
+                    )}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          {!solanaWallet && (
+            <div className="mt-3 rounded-soft border border-warning/30 bg-warning/5 p-3 text-[11px] text-text-soft">
+              <p className="font-medium text-text-strong">
+                {allWallets.length === 0
+                  ? "Embedded wallets aren't switched on for this Dynamic project."
+                  : "No Solana wallet was minted for your email login."}
+              </p>
+              <p className="mt-1 leading-snug">
+                Open your project on{" "}
+                <a
+                  href="https://app.dynamic.xyz/dashboard/embedded-wallets"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-accent underline"
+                >
+                  app.dynamic.xyz → Wallets → Embedded Wallets
+                </a>
+                . Toggle the <strong>Solana</strong> chain on (separate
+                from the Chains &amp; Networks page — that one only
+                allows the chain, this one wires up wallet minting on
+                login). Save, sign out + back in, then reload this page.
+              </p>
+            </div>
           )}
         </section>
 
