@@ -132,10 +132,17 @@ export type PrepareCreateProposalInput = {
   intent_index: number;
   params: string[];
   expiry?: string;
+  /// Connected wallet's pubkey (base58). Used by the CLI's dry-run
+  /// proposer/approver validation. Without it the CLI falls back to
+  /// its filesystem keypair, which isn't in any user's intent —
+  /// every prepare call would fail "signer is not a proposer".
+  actor_pubkey?: string;
 };
 
 export type PrepareApproveCancelInput = {
   expiry?: string;
+  /// See `PrepareCreateProposalInput::actor_pubkey`.
+  actor_pubkey?: string;
 };
 
 // ── Signed submit bodies ───────────────────────────────────────────────

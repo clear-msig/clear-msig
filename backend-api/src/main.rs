@@ -452,11 +452,20 @@ struct PrepareProposalCreateRequest {
     intent_index: u8,
     params: Vec<String>,
     expiry: Option<String>,
+    /// Connected wallet's pubkey. Forwarded to the CLI as
+    /// `--signer-pubkey` so the proposer / approver validation runs
+    /// against the user's identity, not the relayer's filesystem
+    /// keypair. Optional only for back-compat — without it the CLI
+    /// falls back to its own keypair and any subsequent in-list
+    /// check fails.
+    actor_pubkey: Option<String>,
 }
 
 #[derive(Deserialize)]
 struct PrepareApproveCancelRequest {
     expiry: Option<String>,
+    /// See `PrepareProposalCreateRequest::actor_pubkey`.
+    actor_pubkey: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -968,6 +977,31 @@ fn push_policy_ciphertexts(args: &mut Vec<String>, ids: &[String]) {
     args.push(ids.join(","));
 }
 
+/// Forward the connected wallet's pubkey to the CLI as
+/// `--signer-pubkey`. Only used in dry-run prepare paths so the CLI's
+/// proposer / approver validation runs against the user's identity
+/// rather than the relayer's filesystem keypair (which is never in
+/// the on-chain approver list and so always fails the check).
+///
+/// Validates the base58 length so a malformed pubkey from the
+/// frontend gets a clean 400 instead of a confusing CLI error.
+fn push_actor_pubkey(
+    args: &mut Vec<String>,
+    actor: &Option<String>,
+) -> Result<(), ApiError> {
+    let Some(pk) = actor.as_deref() else {
+        return Ok(());
+    };
+    let trimmed = pk.trim();
+    if trimmed.is_empty() {
+        return Ok(());
+    }
+    ensure_base58(trimmed, "actor_pubkey", 32, 44)?;
+    args.push("--signer-pubkey".to_string());
+    args.push(trimmed.to_string());
+    Ok(())
+}
+
 async fn show_wallet(
     State(state): State<AppState>,
     Path(name): Path<String>,
@@ -1404,6 +1438,7 @@ async fn prepare_proposal_create(
     ensure_wallet_name(&name, "name")?;
     ensure_non_empty_vec(&body.params, "params")?;
     let mut args = vec!["--dry-run".into()];
+    push_actor_pubkey(&mut args, &body.actor_pubkey)?;
     args.extend([
         "proposal".into(),
         "create".into(),
@@ -1451,6 +1486,7 @@ async fn prepare_approve_or_cancel(
     ensure_wallet_name(&name, "name")?;
     ensure_base58(&proposal, "proposal", 32, 88)?;
     let mut args = vec!["--dry-run".into()];
+    push_actor_pubkey(&mut args, &body.actor_pubkey)?;
     args.extend([
         "proposal".into(),
         if is_approve { "approve".into() } else { "cancel".into() },

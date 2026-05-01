@@ -17,6 +17,7 @@
 // program without contract changes.
 
 import { useCallback, useRef, useState } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
@@ -64,6 +65,8 @@ const BATCH_LOG_KEY = "clear-msig:batches:v1";
 
 export function useBatchSend() {
   const { signBytes } = useSignWithWallet();
+  const { publicKey } = useWallet();
+  const actorPubkey = publicKey?.toBase58();
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState<BatchSendProgress | null>(null);
   /// Cancellation goes through a ref because React state updates are
@@ -127,6 +130,7 @@ export function useBatchSend() {
           intentIndex,
           row,
           signBytes,
+          actorPubkey,
         });
 
         if (result.kind === "ok") {
@@ -182,7 +186,7 @@ export function useBatchSend() {
 
       return { batchId, succeeded, failed, proposalPdas };
     },
-    [signBytes, queryClient],
+    [signBytes, queryClient, actorPubkey],
   );
 
   const cancel = useCallback(() => {
@@ -222,6 +226,7 @@ interface RowAttemptArgs {
   intentIndex: number;
   row: BatchSendRow;
   signBytes: (bytes: Uint8Array) => Promise<{ signer_pubkey: string; signature: string }>;
+  actorPubkey: string | undefined;
 }
 
 /// Run prepare → sign → submit for one row. Retries on transient
@@ -230,7 +235,7 @@ interface RowAttemptArgs {
 /// rebuilding the message from a fresh prepare. Wallet rejections
 /// fail fast — never re-prompt the user without their click.
 async function runRowWithRetry(
-  { walletName, intentIndex, row, signBytes }: RowAttemptArgs,
+  { walletName, intentIndex, row, signBytes, actorPubkey }: RowAttemptArgs,
 ): Promise<RowAttemptResult> {
   const maxAttempts = 3;
   let lastMessage = "Send failed";
@@ -245,6 +250,7 @@ async function runRowWithRetry(
           `amount=${row.lamports}`,
           `nonce_value=${nonceHex}`,
         ],
+        actor_pubkey: actorPubkey,
       });
       const signed = await signBytes(fromHex(dry.message_hex));
       const submission = await backendApi.submit.createProposal(walletName, {

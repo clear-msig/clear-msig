@@ -13,7 +13,7 @@
 // landed on chain — silently broken.)
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useConnection } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 import { backendApi, backendApiLegacy } from "@/lib/api/endpoints";
 import type { CreateProposalInput, ExecuteProposalInput } from "@/lib/api/types";
@@ -29,7 +29,9 @@ import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 
 export function useProposalWorkflow(walletName: string, selectedProposal: string) {
   const { connection } = useConnection();
+  const { publicKey } = useWallet();
   const { signBytes } = useSignWithWallet();
+  const actorPubkey = publicKey?.toBase58();
 
   // Push live bitmap updates straight into the ["proposal", addr] cache.
   useProposalSubscription(selectedProposal);
@@ -77,7 +79,7 @@ export function useProposalWorkflow(walletName: string, selectedProposal: string
       const dry = await backendApi.prepare.approveProposal(
         walletName,
         selectedProposal,
-        {},
+        { actor_pubkey: actorPubkey },
       );
       const signed = await signBytes(fromHex(dry.message_hex));
       return backendApi.submit.approveProposal(walletName, selectedProposal, {
@@ -96,7 +98,7 @@ export function useProposalWorkflow(walletName: string, selectedProposal: string
       const dry = await backendApi.prepare.cancelProposal(
         walletName,
         selectedProposal,
-        {},
+        { actor_pubkey: actorPubkey },
       );
       const signed = await signBytes(fromHex(dry.message_hex));
       return backendApi.submit.cancelProposal(walletName, selectedProposal, {

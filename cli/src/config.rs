@@ -1,5 +1,8 @@
 use crate::error::*;
-use crate::signing::{KeypairMessageSigner, MessageSigner, PreSignedMessageSigner};
+use crate::signing::{
+    KeypairMessageSigner, MessageSigner, PreSignedMessageSigner,
+    PubkeyOnlyMessageSigner,
+};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -154,10 +157,28 @@ pub fn load_config(globals: &CliGlobals) -> Result<RuntimeConfig> {
 
             Box::new(PreSignedMessageSigner::new(pubkey, signature)?)
         }
+        (Some(pk_b58), None) if globals.dry_run => {
+            // Dry-run with just the pubkey — relayer is asking "what
+            // would this user need to sign?" before prompting them.
+            // We don't need a signature yet; the pubkey is enough for
+            // the CLI's proposer / approver validation checks.
+            let pk_bytes = bs58::decode(pk_b58)
+                .into_vec()
+                .with_context(|| format!("invalid --signer-pubkey (expected base58): {pk_b58}"))?;
+            if pk_bytes.len() != 32 {
+                return Err(anyhow!(
+                    "--signer-pubkey must decode to 32 bytes, got {}",
+                    pk_bytes.len()
+                ));
+            }
+            let mut pubkey = [0u8; 32];
+            pubkey.copy_from_slice(&pk_bytes);
+            Box::new(PubkeyOnlyMessageSigner::new(pubkey))
+        }
         (Some(_), None) | (None, Some(_)) => {
             return Err(anyhow!(
                 "--signer-pubkey and --signature must be supplied together \
-                 (pre-signed mode is all-or-nothing)"
+                 outside of --dry-run mode (pre-signed mode is all-or-nothing)"
             ));
         }
         (None, None) => {

@@ -57,6 +57,41 @@ impl MessageSigner for PreSignedMessageSigner {
     }
 }
 
+/// A signer that only knows its pubkey — never produces a signature.
+/// Used in dry-run mode when the relayer has the user's pubkey but
+/// the user hasn't been prompted yet, so no signature exists. The
+/// pubkey alone is enough for the CLI's proposer / approver
+/// validation; the actual signing work happens later in a separate
+/// `--signer-pubkey` + `--signature` invocation.
+///
+/// Refusing to sign here is a safety property: if someone wires this
+/// signer into a non-dry-run code path by mistake, we fail loudly
+/// instead of silently producing garbage on chain.
+pub struct PubkeyOnlyMessageSigner {
+    pubkey: [u8; 32],
+}
+
+impl PubkeyOnlyMessageSigner {
+    pub fn new(pubkey: [u8; 32]) -> Self {
+        Self { pubkey }
+    }
+}
+
+impl MessageSigner for PubkeyOnlyMessageSigner {
+    fn pubkey(&self) -> [u8; 32] {
+        self.pubkey
+    }
+
+    fn sign_message(&self, _message: &[u8]) -> Result<[u8; 64]> {
+        Err(anyhow!(
+            "PubkeyOnlyMessageSigner cannot sign — this signer is only \
+             valid in --dry-run mode for proposer/approver validation. \
+             Re-invoke with --signer-pubkey + --signature to actually \
+             submit."
+        ))
+    }
+}
+
 pub struct KeypairMessageSigner {
     key: ed25519_dalek::SigningKey,
 }

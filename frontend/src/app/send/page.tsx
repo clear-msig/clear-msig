@@ -203,6 +203,10 @@ function SendPage() {
           `amount=${lamports}`,
           `nonce_value=${nonceHex}`,
         ],
+        // Tells the CLI which identity to validate against during
+        // dry-run; without this it uses its filesystem keypair which
+        // isn't in any user's proposers list.
+        actor_pubkey: wallet.publicKey.toBase58(),
       });
 
       // 2. Sign with the user's wallet.
