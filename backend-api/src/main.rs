@@ -247,6 +247,10 @@ impl CliRunner {
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
         if !output.status.success() {
+            // Truncate to keep tracing JSON small but still useful —
+            // the CLI's anyhow chains can run into KB on a deep error.
+            let stderr_preview = stderr.chars().take(800).collect::<String>();
+            let stdout_preview = stdout.chars().take(400).collect::<String>();
             tracing::warn!(
                 subcommand,
                 dry_run,
@@ -254,6 +258,8 @@ impl CliRunner {
                 elapsed_ms,
                 outcome = "cli_error",
                 code = output.status.code(),
+                stderr = %stderr_preview,
+                stdout = %stdout_preview,
                 "clear-msig CLI invocation"
             );
             return Err(ApiError::CommandFailed {

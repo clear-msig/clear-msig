@@ -274,11 +274,33 @@ export function friendlyError(
     generic: "Something went wrong",
   };
 
+  // Prefer stderr/stdout when the wrapper message is the generic
+  // "clear-msig command failed" — without this the toast is opaque
+  // (the real diagnostic from the CLI is sitting in stderr). Cap the
+  // surfaced text so we don't flood the toast with a 5KB anyhow chain.
+  const wrapperOnly =
+    bag.payloadError === "clear-msig command failed" ||
+    bag.message === "clear-msig command failed";
+  const detail = wrapperOnly
+    ? firstNonEmpty(bag.stderr, bag.stdout, bag.payloadError, bag.message)
+    : firstNonEmpty(bag.message, bag.payloadError, bag.stderr, bag.stdout);
+
   return {
     title: fallbackTitle[context],
-    body:
-      bag.message ||
-      bag.payloadError ||
-      "Try again. If it keeps happening, check the console for details.",
+    body: detail
+      ? truncate(detail.trim(), 320)
+      : "Try again. If it keeps happening, check the console for details.",
   };
+}
+
+function firstNonEmpty(...candidates: string[]): string {
+  for (const c of candidates) {
+    const t = c?.trim();
+    if (t && t !== "clear-msig command failed") return t;
+  }
+  return "";
+}
+
+function truncate(s: string, max: number): string {
+  return s.length <= max ? s : s.slice(0, max).trimEnd() + "…";
 }
