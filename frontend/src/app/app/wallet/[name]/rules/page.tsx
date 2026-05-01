@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
-import type { IntentAccount } from "@/lib/msig";
+import { IntentType, type IntentAccount } from "@/lib/msig";
 import { Button } from "@/components/retail/Button";
 import { friendlyIntentLabel } from "@/lib/retail/labels";
 import { encryptStatus } from "@/lib/encrypt/client";
@@ -59,8 +59,7 @@ export default function RulesPage() {
     queryKey: ["wallet-intents", walletQuery.data?.pda.toBase58() ?? null],
     queryFn: async () => {
       if (!walletQuery.data) return [];
-      const upTo = walletQuery.data.account.intentIndex - 1;
-      if (upTo < 0) return [];
+      const upTo = walletQuery.data.account.intentIndex;
       return listIntents(connection, walletQuery.data.pda, upTo);
     },
     enabled: !!walletQuery.data,
@@ -71,7 +70,13 @@ export default function RulesPage() {
     () =>
       (intentsQuery.data ?? [])
         .map((it) => it.account)
-        .filter((a): a is IntentAccount => a !== null),
+        // Only the user-facing rules. Bootstrap AddIntent /
+        // RemoveIntent / UpdateIntent at slots 0/1/2 are program
+        // plumbing, not "spending rules" in retail terms.
+        .filter(
+          (a): a is IntentAccount =>
+            a !== null && a.intentType === IntentType.Custom,
+        ),
     [intentsQuery.data],
   );
 

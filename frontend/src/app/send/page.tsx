@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
-import { fromHex, toHex } from "@/lib/msig";
+import { fromHex, IntentType, toHex } from "@/lib/msig";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import {
@@ -105,20 +105,27 @@ function SendPage() {
     queryKey: ["wallet-intents", walletQuery.data?.pda.toBase58() ?? null],
     queryFn: async () => {
       if (!walletQuery.data) return [];
-      const upTo = walletQuery.data.account.intentIndex - 1;
-      if (upTo < 0) return [];
+      // `wallet.intent_index` is the highest used slot, inclusive.
+      const upTo = walletQuery.data.account.intentIndex;
       return listIntents(connection, walletQuery.data.pda, upTo);
     },
     enabled: !!walletQuery.data,
     staleTime: 30_000,
   });
 
-  // First live intent is the spending rule we send against. Setup
-  // creates a SolTransfer at index 0; if more land later, we still
-  // pick the first by simplicity.
+  // First *user-defined* spending rule. Slots 0/1/2 are the program's
+  // bootstrap AddIntent / RemoveIntent / UpdateIntent; user intents
+  // (intentType = Custom = 3) are added on top by setup-spending.
+  // Skipping the bootstrap intents matters because they have no
+  // user-facing params — encoding {destination, amount} against them
+  // produces empty params_data and the submit then rejects.
   const firstIntent = useMemo(() => {
     if (!intentsQuery.data) return null;
-    return intentsQuery.data.find((it) => it.account !== null) ?? null;
+    return (
+      intentsQuery.data.find(
+        (it) => it.account !== null && it.account.intentType === IntentType.Custom,
+      ) ?? null
+    );
   }, [intentsQuery.data]);
 
   // If the wallet doesn't have a spending rule yet, bounce to setup.

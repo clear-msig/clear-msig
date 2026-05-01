@@ -62,10 +62,11 @@ export default function WalletDetailPage() {
     queryKey: ["wallet-intents", walletQuery.data?.pda.toBase58() ?? null],
     queryFn: async () => {
       if (!walletQuery.data) return [];
-      // intentIndex on the wallet is the *next* slot, so the last
-      // existing slot is intentIndex - 1. listIntents iterates 0..upTo.
-      const upTo = walletQuery.data.account.intentIndex - 1;
-      if (upTo < 0) return [];
+      // `wallet.intent_index` is the *highest used* slot (program
+      // creates the wallet with intent_index=2 covering slots 0/1/2,
+      // and bumps intent_index when a new intent lands). listIntents
+      // iterates inclusive 0..=upTo.
+      const upTo = walletQuery.data.account.intentIndex;
       return listIntents(connection, walletQuery.data.pda, upTo);
     },
     enabled: !!walletQuery.data,

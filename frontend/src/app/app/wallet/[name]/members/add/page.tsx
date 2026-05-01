@@ -22,7 +22,7 @@ import { friendlyError } from "@/lib/api/errors";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
-import { fromHex } from "@/lib/msig";
+import { fromHex, IntentType } from "@/lib/msig";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useContacts } from "@/lib/hooks/useContacts";
 import {
@@ -75,8 +75,7 @@ export default function AddFriendPage() {
     queryKey: ["wallet-intents", walletQuery.data?.pda.toBase58() ?? null],
     queryFn: async () => {
       if (!walletQuery.data) return [];
-      const upTo = walletQuery.data.account.intentIndex - 1;
-      if (upTo < 0) return [];
+      const upTo = walletQuery.data.account.intentIndex;
       return listIntents(connection, walletQuery.data.pda, upTo);
     },
     enabled: !!walletQuery.data,
@@ -85,7 +84,13 @@ export default function AddFriendPage() {
 
   const firstIntent = useMemo(() => {
     if (!intentsQuery.data) return null;
-    return intentsQuery.data.find((it) => it.account !== null) ?? null;
+    // Skip bootstrap intents (slots 0/1/2 are AddIntent/RemoveIntent/
+    // UpdateIntent). The user's spending rule is the first Custom.
+    return (
+      intentsQuery.data.find(
+        (it) => it.account !== null && it.account.intentType === IntentType.Custom,
+      ) ?? null
+    );
   }, [intentsQuery.data]);
 
   // Bounce to setup if the wallet has no spending rule yet — there's

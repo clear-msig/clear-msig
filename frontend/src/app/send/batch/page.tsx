@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
+import { IntentType } from "@/lib/msig";
 import { friendlyError } from "@/lib/api/errors";
 import {
   isValidSolanaAddress,
@@ -89,8 +90,7 @@ function BatchSendPage() {
     queryKey: ["wallet-intents", walletQuery.data?.pda.toBase58() ?? null],
     queryFn: async () => {
       if (!walletQuery.data) return [];
-      const upTo = walletQuery.data.account.intentIndex - 1;
-      if (upTo < 0) return [];
+      const upTo = walletQuery.data.account.intentIndex;
       return listIntents(connection, walletQuery.data.pda, upTo);
     },
     enabled: !!walletQuery.data,
@@ -98,7 +98,12 @@ function BatchSendPage() {
   });
   const firstIntent = useMemo(() => {
     if (!intentsQuery.data) return null;
-    return intentsQuery.data.find((it) => it.account !== null) ?? null;
+    // See send/page.tsx — skip bootstrap intents (slots 0/1/2).
+    return (
+      intentsQuery.data.find(
+        (it) => it.account !== null && it.account.intentType === IntentType.Custom,
+      ) ?? null
+    );
   }, [intentsQuery.data]);
 
   // Bounce to setup if there's no spending rule on the wallet — same
