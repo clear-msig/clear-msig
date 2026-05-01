@@ -95,14 +95,38 @@ export default function SetupSpendingPage() {
       // 2. Sign: user's wallet pops up its sign-message UI.
       const signed = await signBytes(fromHex(dry.message_hex));
 
-      // 3. Submit: backend takes the signature + bytes and submits
-      //    the on-chain transaction.
-      return backendApi.submit.addIntent(name, {
+      // 3. Submit: backend submits the AddIntent *proposal* (the
+      //    user's signature counts as the 1-of-1 approval). At this
+      //    point the proposal is approved on chain but the actual
+      //    SolTransfer rule doesn't exist yet — Execute creates it.
+      const submitted = await backendApi.submit.addIntent(name, {
         ...signed,
         params_data_hex: dry.params_data_hex,
         expiry: dry.expiry,
         file: TEMPLATE_FILE,
       });
+
+      // 4. Execute: turn the approved AddIntent proposal into a real
+      //    SolTransfer rule. Without this step `wallet.intent_index`
+      //    never bumps and /send keeps bouncing back to /setup.
+      //    Sponsored by the relayer's keypair — no second user
+      //    signature needed.
+      const proposal = (submitted as Record<string, unknown>)?.proposal;
+      if (typeof proposal === "string" && proposal.length > 0) {
+        try {
+          await backendApi.executeProposal(name, proposal, {});
+        } catch (err) {
+          // Surface but don't fail the setup flow — the proposal is
+          // already on chain. The user can retry execute manually
+          // from the proposal-detail page.
+          console.warn(
+            "[setup-spending] propose succeeded but execute failed",
+            err,
+          );
+          throw err;
+        }
+      }
+      return submitted;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });

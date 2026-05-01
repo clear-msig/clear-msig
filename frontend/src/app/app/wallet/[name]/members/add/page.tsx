@@ -202,14 +202,25 @@ export default function AddFriendPage() {
       // 2. Sign
       const signed = await signBytes(fromHex(dry.message_hex));
 
-      // 3. Submit
-      return backendApi.submit.updateIntent(name, {
+      // 3. Submit: lands the UpdateIntent proposal on chain. With
+      //    1-of-1 approval the proposal is immediately approved but
+      //    Execute is what actually swaps in the new proposer /
+      //    approver lists.
+      const submitted = await backendApi.submit.updateIntent(name, {
         ...signed,
         params_data_hex: dry.params_data_hex,
         expiry: dry.expiry,
         index: intent.intentIndex,
         file: TEMPLATE_FILE,
       });
+
+      // 4. Execute — without this the friend never actually appears
+      //    in the on-chain approver list.
+      const proposal = (submitted as Record<string, unknown>)?.proposal;
+      if (typeof proposal === "string" && proposal.length > 0) {
+        await backendApi.executeProposal(name, proposal, {});
+      }
+      return submitted;
     },
     onSuccess: (result) => {
       // Watcher path saves to contacts inline above; chain path saves
