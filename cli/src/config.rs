@@ -78,10 +78,22 @@ impl PersistedConfig {
         let path = config_path();
         if path.exists() {
             let content = std::fs::read_to_string(&path).unwrap_or_default();
-            serde_json::from_str(&content).unwrap_or_default()
+            serde_json::from_str(&content).unwrap_or_else(|_| Self::fresh())
         } else {
-            Self::default()
+            // File missing → route through the deserializer with an
+            // empty object so every `#[serde(default = "fn")]` hint
+            // fires (esp. expiry_seconds; the derived `Default` for a
+            // u64 is 0, which would silently turn every signed
+            // message into "expired the moment it's prepared").
+            Self::fresh()
         }
+    }
+
+    /// Defaults that honor the serde `#[serde(default = ...)]` hints.
+    /// `Self::default()` (auto-derived) does NOT — it just returns
+    /// each field's type-level default (0 for u64, "" for String).
+    fn fresh() -> Self {
+        serde_json::from_str("{}").expect("PersistedConfig serde defaults are sound")
     }
 
     pub fn save(&self) -> Result<()> {
