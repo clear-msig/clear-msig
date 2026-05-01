@@ -14,6 +14,7 @@
 // yet) — a price feed plugs in here when the network is live.
 
 import { Suspense, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
@@ -27,6 +28,7 @@ import {
   ShieldAlert,
   Star,
   UserPlus,
+  Users,
 } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
@@ -525,6 +527,23 @@ function ComposeStage({
         Your friends in {walletName} will be asked to approve before it
         sends.
       </p>
+
+      {/* Batch entry point — same template, N rows. Surfaced here so
+          it doesn't compete with the primary single-send CTA but is
+          one tap away when a payroll-style send is needed. */}
+      <Link
+        href={`/send/batch?wallet=${encodeURIComponent(walletName)}`}
+        className={
+          "mt-4 inline-flex items-center justify-center gap-2 self-center rounded-full border border-border-soft " +
+          "bg-surface-raised px-3.5 py-1.5 text-xs font-medium text-text-soft " +
+          "transition-[border-color,color,transform] duration-base ease-out-soft " +
+          "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+        }
+      >
+        <Users className="h-3.5 w-3.5" aria-hidden="true" />
+        Send to many at once
+      </Link>
     </motion.section>
   );
 }
