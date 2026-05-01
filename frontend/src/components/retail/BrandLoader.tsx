@@ -25,15 +25,45 @@ interface BrandLoaderProps {
   className?: string;
   /// Accessible label. Defaults to "Loading".
   label?: string;
+  /// "accent" (default) — green ring on tinted ghost. Use on canvas
+  /// or surface-raised backgrounds.
+  /// "on-accent" — white ring on white-tinted ghost. Use inside
+  /// accent-coloured buttons / chips so the loader stays legible.
+  /// "neutral" — text-soft tone for skeleton-y row contexts.
+  tone?: "accent" | "on-accent" | "neutral";
 }
+
+const TONE_CLASSES: Record<NonNullable<BrandLoaderProps["tone"]>, {
+  ghost: string;
+  ring: string;
+  dot: string;
+}> = {
+  accent: {
+    ghost: "bg-accent/15",
+    ring: "border-accent border-t-transparent",
+    dot: "bg-accent",
+  },
+  "on-accent": {
+    ghost: "bg-white/20",
+    ring: "border-white border-t-transparent",
+    dot: "bg-white",
+  },
+  neutral: {
+    ghost: "bg-text-soft/15",
+    ring: "border-text-soft border-t-transparent",
+    dot: "bg-text-soft",
+  },
+};
 
 export function BrandLoader({
   variant = "ring",
   size,
   className,
   label = "Loading",
+  tone = "accent",
 }: BrandLoaderProps) {
   const reduce = useReducedMotion();
+  const t = TONE_CLASSES[tone];
   if (variant === "dot") {
     const px = size ?? 8;
     return (
@@ -51,7 +81,9 @@ export function BrandLoader({
               animationDelay: reduce ? undefined : `${i * 160}ms`,
             }}
             className={
-              "block rounded-full bg-accent " +
+              "block rounded-full " +
+              t.dot +
+              " " +
               (reduce ? "opacity-70" : "animate-bounce")
             }
           />
@@ -68,12 +100,12 @@ export function BrandLoader({
       className={"relative inline-flex shrink-0 " + (className ?? "")}
       style={{ width: px, height: px }}
     >
-      {/* Ghost — accent-tinted disc behind the ring. Gives the loader
-          a "filled" identity even at small sizes where a pure ring
+      {/* Ghost — tinted disc behind the ring. Gives the loader a
+          "filled" identity even at small sizes where a pure ring
           reads as a generic icon. */}
       <span
         aria-hidden="true"
-        className="absolute inset-0 rounded-full bg-accent/15"
+        className={"absolute inset-0 rounded-full " + t.ghost}
       />
       {/* Rotating ring — three-quarter arc so the rotation is
           legible. transform-only animation, no layout. */}
@@ -81,7 +113,9 @@ export function BrandLoader({
         aria-hidden="true"
         style={{ borderWidth: Math.max(2, Math.round(px / 16)) }}
         className={
-          "absolute inset-0 rounded-full border-accent border-t-transparent " +
+          "absolute inset-0 rounded-full " +
+          t.ring +
+          " " +
           (reduce ? "" : "animate-spin")
         }
       />

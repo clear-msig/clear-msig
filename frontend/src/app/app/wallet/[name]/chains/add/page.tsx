@@ -26,7 +26,9 @@ import {
 } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
+import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { Button } from "@/components/retail/Button";
+import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import {
   CHAIN_CATALOG,
@@ -118,17 +120,20 @@ function AddChainPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        href={`/app/wallet/${encodeURIComponent(walletName)}/chains`}
-        className={
-          "-ml-2 inline-flex w-fit items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
-          "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-        }
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Chains
-      </Link>
+      <Breadcrumb
+        segments={[
+          { label: "Wallets", href: "/app/wallet" },
+          {
+            label: walletName,
+            href: `/app/wallet/${encodeURIComponent(walletName)}`,
+          },
+          {
+            label: "Chains",
+            href: `/app/wallet/${encodeURIComponent(walletName)}/chains`,
+          },
+          { label: "Add a chain" },
+        ]}
+      />
 
       {stage === "pick" && (
         <motion.section
@@ -344,10 +349,7 @@ function BindingStage({
                   aria-hidden="true"
                 />
               ) : active ? (
-                <Loader2
-                  className="h-4 w-4 animate-spin text-accent"
-                  aria-hidden="true"
-                />
+                <BrandLoader size={16} label="Working" />
               ) : (
                 <span className="h-4 w-4 rounded-full border border-border-soft" />
               )}

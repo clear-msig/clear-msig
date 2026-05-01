@@ -28,6 +28,7 @@ import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { fromHex } from "@/lib/msig";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
+import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { Button } from "@/components/retail/Button";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import { NextStepCard } from "@/components/retail/NextStepCard";
@@ -221,18 +222,14 @@ export default function SetupSpendingPage() {
         <div className="absolute -left-32 -top-16 h-[55vh] w-[80vw] max-w-[640px] rounded-full bg-accent/[0.06] blur-3xl" />
       </div>
 
-      <header className="relative z-10 flex items-center justify-between px-gutter pt-6">
-        <Link
-          href={`/app/wallet/${encodeURIComponent(name)}`}
-          className={
-            "-ml-2 inline-flex items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-          }
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          {name}
-        </Link>
+      <header className="relative z-10 px-gutter pt-6">
+        <Breadcrumb
+          segments={[
+            { label: "Wallets", href: "/app/wallet" },
+            { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
+            { label: "Set up sending" },
+          ]}
+        />
       </header>
 
       <div className="relative z-10 flex flex-1 items-center justify-center px-gutter py-10">

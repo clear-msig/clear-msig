@@ -42,6 +42,7 @@ import { useContacts } from "@/lib/hooks/useContacts";
 import { useBatchSend, type BatchSendRow } from "@/lib/hooks/useBatchSend";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
+import { BrandLoader } from "@/components/retail/BrandLoader";
 
 // Hard cap on rows per batch — high enough for real payroll, low
 // enough to prevent runaway sign-prompt loops.
@@ -596,10 +597,7 @@ function SendingStage({
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
   return (
     <div className="flex flex-col items-center text-center">
-      <Loader2
-        className="h-10 w-10 animate-spin text-accent"
-        aria-hidden="true"
-      />
+      <BrandLoader size={40} label="Sending batch" />
       <h1 className="mt-6 font-display text-display-sm leading-[1.05] text-text-strong">
         Sending batch…
       </h1>

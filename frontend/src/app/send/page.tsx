@@ -47,6 +47,7 @@ import { useContacts } from "@/lib/hooks/useContacts";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
+import { BrandLoader } from "@/components/retail/BrandLoader";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import { NextStepCard } from "@/components/retail/NextStepCard";
 
@@ -831,7 +832,7 @@ function SendingStage({ reduce }: { reduce: boolean }) {
       className="flex flex-col items-center text-center"
     >
       <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-raised shadow-card-rest">
-        <Loader2 className="h-7 w-7 animate-spin text-accent" />
+        <BrandLoader size={32} label="Creating request" />
       </div>
       <p className="mt-5 text-base text-text-soft">Creating request…</p>
       <p className="mt-1 text-xs text-text-soft">

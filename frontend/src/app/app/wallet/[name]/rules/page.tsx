@@ -30,6 +30,7 @@ import {
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { IntentType, type IntentAccount } from "@/lib/msig";
+import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { Button } from "@/components/retail/Button";
 import { friendlyIntentLabel } from "@/lib/retail/labels";
 import { encryptStatus } from "@/lib/encrypt/client";
@@ -98,17 +99,13 @@ export default function RulesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        href={`/app/wallet/${encodeURIComponent(name)}`}
-        className={
-          "-ml-2 inline-flex w-fit items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
-          "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-        }
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        {name}
-      </Link>
+      <Breadcrumb
+        segments={[
+          { label: "Wallets", href: "/app/wallet" },
+          { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
+          { label: "Spending rules" },
+        ]}
+      />
 
       <motion.section
         {...motionProps}

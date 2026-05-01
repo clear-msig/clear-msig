@@ -38,6 +38,7 @@ import {
   type Role,
 } from "@/lib/retail/roles";
 import { sendOrganizationInvite } from "@/lib/organizations/client";
+import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
@@ -336,17 +337,17 @@ export default function AddFriendPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        href={`/app/wallet/${encodeURIComponent(name)}/members`}
-        className={
-          "-ml-2 inline-flex w-fit items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
-          "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-        }
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Members
-      </Link>
+      <Breadcrumb
+        segments={[
+          { label: "Wallets", href: "/app/wallet" },
+          { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
+          {
+            label: "Members",
+            href: `/app/wallet/${encodeURIComponent(name)}/members`,
+          },
+          { label: "Add someone" },
+        ]}
+      />
 
       <motion.section
         {...motionProps}

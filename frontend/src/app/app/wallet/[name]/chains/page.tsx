@@ -23,6 +23,7 @@ import { ArrowLeft, Check, Copy, Plus } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { findVaultAddress } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
+import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import {
   CHAIN_CATALOG,
@@ -95,17 +96,13 @@ export default function ChainsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        href={`/app/wallet/${encodeURIComponent(name)}`}
-        className={
-          "-ml-2 inline-flex w-fit items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
-          "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-        }
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        {name}
-      </Link>
+      <Breadcrumb
+        segments={[
+          { label: "Wallets", href: "/app/wallet" },
+          { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
+          { label: "Chains" },
+        ]}
+      />
 
       <motion.section
         {...motionProps}

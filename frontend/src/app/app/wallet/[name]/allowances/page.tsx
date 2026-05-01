@@ -26,6 +26,7 @@ import {
 } from "@/lib/retail/allowances";
 import { useContacts } from "@/lib/hooks/useContacts";
 import { shortAddress } from "@/lib/retail/contacts";
+import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { useToast } from "@/components/ui/Toast";
 
@@ -140,17 +141,17 @@ export default function AllowancesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        href={`/app/wallet/${encodeURIComponent(name)}/members`}
-        className={
-          "-ml-2 inline-flex w-fit items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
-          "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-        }
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Members
-      </Link>
+      <Breadcrumb
+        segments={[
+          { label: "Wallets", href: "/app/wallet" },
+          { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
+          {
+            label: "Members",
+            href: `/app/wallet/${encodeURIComponent(name)}/members`,
+          },
+          { label: "Spending limits" },
+        ]}
+      />
 
       <motion.section
         {...motionProps}

@@ -148,6 +148,13 @@ export default function WalletDetailPage() {
         loadingBalance={balanceQuery.isLoading}
         reduce={!!reduce}
       />
+      <NextStepsStripe
+        name={name}
+        hasIntents={hasIntents}
+        memberCount={memberCount}
+        activityCount={walletActivity.length}
+        loading={intentsQuery.isLoading}
+      />
       <Actions
         name={name}
         hasIntents={hasIntents}
@@ -640,6 +647,103 @@ function NotFound({ name }: { name: string }) {
         </Link>
       </div>
     </div>
+  );
+}
+
+// ─── Next Steps stripe ─────────────────────────────────────────────
+//
+// Surfaces the most useful single next move based on what the wallet
+// is missing. Picks one of three:
+//
+//   - No spending rule yet → enable sending
+//   - Rule but only the connected user → invite someone
+//   - Rule + members + zero activity → send the first request
+//
+// We render at most one nudge so the wallet hub stays calm. Once
+// activity exists OR the wallet is fully fleshed out, the stripe
+// goes away entirely. Loading state hides it (avoids flash of
+// "Set up sending" while data is in flight).
+
+interface NextStepsStripeProps {
+  name: string;
+  hasIntents: boolean | null;
+  memberCount: number | null;
+  activityCount: number;
+  loading: boolean;
+}
+
+function NextStepsStripe({
+  name,
+  hasIntents,
+  memberCount,
+  activityCount,
+  loading,
+}: NextStepsStripeProps) {
+  if (loading || hasIntents === null) return null;
+
+  const encoded = encodeURIComponent(name);
+  let nudge:
+    | {
+        title: string;
+        body: string;
+        cta: string;
+        href: string;
+      }
+    | null = null;
+
+  if (!hasIntents) {
+    nudge = {
+      title: "Set up sending",
+      body: `${name} can't send money yet. Enable sending — takes ~1 minute and 2 wallet popups.`,
+      cta: "Enable sending",
+      href: `/app/wallet/${encoded}/setup`,
+    };
+  } else if ((memberCount ?? 0) <= 1) {
+    nudge = {
+      title: "Invite someone",
+      body: "You're the only signer right now. Add a friend, teammate, or board member so requests get a second look.",
+      cta: "Add someone",
+      href: `/app/wallet/${encoded}/members/add`,
+    };
+  } else if (activityCount === 0) {
+    nudge = {
+      title: "Send your first request",
+      body: `${name} is set up and has signers. Make the first send to put the rule into practice.`,
+      cta: "Send a request",
+      href: `/send?wallet=${encoded}`,
+    };
+  }
+
+  if (!nudge) return null;
+
+  return (
+    <section
+      aria-label="Next step"
+      className="rounded-card border border-accent/30 bg-accent/[0.05] p-4 shadow-card-rest sm:p-5"
+    >
+      <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">
+            Next step · {name}
+          </p>
+          <p className="mt-1 font-display text-base text-text-strong">
+            {nudge.title}
+          </p>
+          <p className="mt-1 text-sm text-text-soft">{nudge.body}</p>
+        </div>
+        <Link
+          href={nudge.href}
+          className={
+            "inline-flex shrink-0 items-center gap-1.5 self-stretch rounded-soft bg-accent px-4 py-2 text-sm font-medium text-white shadow-accent-rest sm:self-auto " +
+            "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          }
+        >
+          {nudge.cta}
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
+      </div>
+    </section>
   );
 }
 
