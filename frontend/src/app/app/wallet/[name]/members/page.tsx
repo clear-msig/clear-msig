@@ -142,6 +142,18 @@ export default function MembersPage() {
         </Button>
       </Link>
 
+      <Link
+        href={`/app/wallet/${encodeURIComponent(name)}/allowances`}
+        className={
+          "self-center inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3.5 py-1.5 text-xs font-medium text-text-soft " +
+          "transition-[border-color,color,transform] duration-base ease-out-soft " +
+          "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+        }
+      >
+        Set spending limits
+      </Link>
+
       {/* Member list */}
       <section>
         <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
