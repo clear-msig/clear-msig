@@ -50,6 +50,7 @@ import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import { NextStepCard } from "@/components/retail/NextStepCard";
+import { QuickSendInput } from "@/components/retail/QuickSendInput";
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
 
@@ -410,6 +411,13 @@ function SendPage() {
               onSubmit={handleSubmit}
               waitingForRule={intentsQuery.isLoading || walletQuery.isLoading}
               budgetUsage={budgetUsage}
+              contactNames={contacts.contacts.map((c) => c.name)}
+              onQuickFill={(parsed) => {
+                if (parsed.recipientText) setRecipientText(parsed.recipientText);
+                if (parsed.amountSol !== undefined)
+                  setAmount(String(parsed.amountSol));
+                if (parsed.note !== undefined) setNote(parsed.note);
+              }}
               pendingUsd={amountValid ? numericAmount * (quotePerWhole("SOL")?.usdPerWhole ?? 0) : 0}
               reduce={!!reduce}
             />
@@ -462,6 +470,12 @@ interface ComposeStageProps {
   waitingForRule: boolean;
   budgetUsage: ReturnType<typeof useWalletBudgetUsage>;
   pendingUsd: number;
+  contactNames: string[];
+  onQuickFill: (parsed: {
+    recipientText?: string;
+    amountSol?: number;
+    note?: string;
+  }) => void;
   reduce: boolean;
 }
 
@@ -483,6 +497,8 @@ function ComposeStage({
   waitingForRule,
   budgetUsage,
   pendingUsd,
+  contactNames,
+  onQuickFill,
   reduce,
 }: ComposeStageProps) {
   const motionProps = reduce
@@ -503,6 +519,17 @@ function ComposeStage({
       <p className="text-center text-[11px] font-medium uppercase tracking-[0.18em] text-text-soft">
         Sending from {walletName}
       </p>
+
+      {/* Quick-send shortcut — type a sentence, the form fills.
+          Sits above the canonical step-by-step inputs so users who
+          want it find it; users who don't can ignore the strip and
+          fill the form normally. The user reviews + signs as usual. */}
+      <div className="mt-5">
+        <QuickSendInput
+          contactNames={contactNames}
+          onParsed={onQuickFill}
+        />
+      </div>
 
       {/* The big number IS the input — typing updates the value
           users see. Type SOL directly; ticker rendered as a quiet
