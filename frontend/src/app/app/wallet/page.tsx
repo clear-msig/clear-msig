@@ -17,6 +17,7 @@
 // The legacy wizard (CreateWalletCard, WalletPanel) and WorkflowTips
 // are intentionally NOT rendered here — they're being retired.
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
@@ -27,6 +28,7 @@ import { fetchOnchainMemberships, type OnchainMembership } from "@/lib/membershi
 import { useRecentActivity, type RecentActivityRow } from "@/lib/hooks/useRecentActivity";
 import { useActionNeeded, type ActionNeededRow } from "@/lib/hooks/useActionNeeded";
 import { useBatchApprove } from "@/lib/hooks/useBatchApprove";
+import { listBatches } from "@/lib/hooks/useBatchSend";
 import { findVaultAddress, ProposalStatus } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
 import { Button } from "@/components/retail/Button";
@@ -375,15 +377,22 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
   const running = batch.progress !== null && batch.progress.completed < batch.progress.total && !batch.progress.error;
   const showApproveAll = rows.length >= 2;
 
-  const handleApproveAll = () => {
-    batch.approveAll(
-      rows.map((r) => ({
-        walletName: r.walletName,
-        proposalPda: r.proposalPda,
-        label: `${friendlyIntentLabel(r.intentTemplate)} in ${r.walletName}`,
-      })),
-    );
-  };
+  // Group rows that came out of /send/batch under one card so the
+  // inbox doesn't render 50 near-identical lines for a payroll. The
+  // batch metadata (id + member proposals) lives in localStorage,
+  // stamped by useBatchSend after each row lands.
+  const grouped = useMemo(() => groupRowsByBatch(rows), [rows]);
+
+  const approveTargets = (subset: ActionNeededRow[]) =>
+    subset.map((r) => ({
+      walletName: r.walletName,
+      proposalPda: r.proposalPda,
+      label: `${friendlyIntentLabel(r.intentTemplate)} in ${r.walletName}`,
+    }));
+
+  const handleApproveAll = () => batch.approveAll(approveTargets(rows));
+  const handleApproveBatch = (batchRows: ActionNeededRow[]) =>
+    batch.approveAll(approveTargets(batchRows));
 
   return (
     <motion.section
@@ -424,9 +433,20 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
       )}
 
       <ul className="mt-3 flex flex-col divide-y divide-border-soft">
-        {rows.map((row) => (
-          <ActionRow key={row.proposalPda} row={row} />
-        ))}
+        {grouped.map((entry: GroupedActionRow) =>
+          entry.kind === "single" ? (
+            <ActionRow key={entry.row.proposalPda} row={entry.row} />
+          ) : (
+            <BatchActionRow
+              key={entry.batchId}
+              batchId={entry.batchId}
+              walletName={entry.walletName}
+              rows={entry.rows}
+              disabled={running}
+              onApprove={() => handleApproveBatch(entry.rows)}
+            />
+          ),
+        )}
       </ul>
     </motion.section>
   );
@@ -481,6 +501,116 @@ function BatchProgressRow({
         />
       </div>
     </div>
+  );
+}
+
+type GroupedActionRow =
+  | { kind: "single"; row: ActionNeededRow }
+  | {
+      kind: "batch";
+      batchId: string;
+      walletName: string;
+      rows: ActionNeededRow[];
+    };
+
+/// Collapse pending rows that came out of /send/batch under a single
+/// entry. We look up the batch records the send hook stamps into
+/// `clear-msig:batches:v1` and bucket rows whose proposal PDA is in
+/// any record. Rows that belong to no batch fall through as singles.
+/// Order is preserved within a batch (the action-needed feed is
+/// already sorted oldest-first, which works for payroll display too).
+function groupRowsByBatch(rows: ActionNeededRow[]): GroupedActionRow[] {
+  if (rows.length === 0) return [];
+  const batches = listBatches();
+  if (batches.length === 0) {
+    return rows.map((row) => ({ kind: "single", row }));
+  }
+  const batchByProposal = new Map<string, string>();
+  const batchMeta = new Map<string, { walletName: string }>();
+  for (const b of batches) {
+    batchMeta.set(b.batchId, { walletName: b.walletName });
+    for (const pda of b.proposalPdas) batchByProposal.set(pda, b.batchId);
+  }
+  const out: GroupedActionRow[] = [];
+  const grouped = new Map<string, ActionNeededRow[]>();
+  for (const row of rows) {
+    const batchId = batchByProposal.get(row.proposalPda);
+    if (!batchId) {
+      out.push({ kind: "single", row });
+      continue;
+    }
+    if (!grouped.has(batchId)) {
+      grouped.set(batchId, []);
+      // Reserve the slot in the output where this batch lives so
+      // mixed feeds (some batched, some single) keep chronological
+      // order.
+      out.push({
+        kind: "batch",
+        batchId,
+        walletName: batchMeta.get(batchId)?.walletName ?? row.walletName,
+        rows: grouped.get(batchId)!,
+      });
+    }
+    grouped.get(batchId)!.push(row);
+  }
+  // The batch slot's `rows` reference is shared with `grouped`, so
+  // pushes above already populated it. Drop empty batches just in
+  // case (paranoid: every batch we created has at least one row).
+  return out.filter((e) => e.kind === "single" || e.rows.length > 0);
+}
+
+function BatchActionRow({
+  batchId,
+  walletName,
+  rows,
+  disabled,
+  onApprove,
+}: {
+  batchId: string;
+  walletName: string;
+  rows: ActionNeededRow[];
+  disabled: boolean;
+  onApprove: () => void;
+}) {
+  const allCollected = rows[0]?.approverCount ?? 0;
+  const minPending = Math.min(
+    ...rows.map((r) => allCollected - r.approvalsCollected),
+  );
+  return (
+    <li>
+      <div className="flex items-start justify-between gap-3 py-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-text-strong">
+            Batch in {walletName}
+          </p>
+          <p className="mt-0.5 truncate text-xs text-text-soft">
+            {rows.length} request{rows.length === 1 ? "" : "s"} · waiting on{" "}
+            {minPending} more
+          </p>
+          <Link
+            href={`/app/proposals/${rows[0].proposalPda}`}
+            className="mt-1 inline-block text-[11px] text-text-soft underline-offset-2 hover:text-accent hover:underline"
+            data-batch-id={batchId}
+          >
+            See first request
+          </Link>
+        </div>
+        <button
+          type="button"
+          onClick={onApprove}
+          disabled={disabled}
+          className={
+            "shrink-0 rounded-full bg-accent px-3 py-1 text-[11px] font-medium text-white shadow-accent-rest " +
+            "transition-[background-color,box-shadow,transform] duration-base ease-out-soft " +
+            "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98] " +
+            "disabled:cursor-not-allowed disabled:opacity-60 " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+          }
+        >
+          Approve batch ({rows.length})
+        </button>
+      </div>
+    </li>
   );
 }
 
