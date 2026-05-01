@@ -12,6 +12,10 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@dynamic-labs/embedded-wallet-solana": "^4.79.0",
+    "@dynamic-labs/sdk-react-core": "^4.79.0",
+    "@dynamic-labs/solana-core": "^4.79.0",
+    "@dynamic-labs/wallet-connector-core": "^4.79.0",
     "@noble/hashes": "^1.5.0",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
@@ -37,6 +41,7 @@
     "react-hook-form": "^7.57.0",
     "tailwind-merge": "^3.5.0",
     "three": "^0.183.2",
+    "tweetnacl": "^1.0.3",
     "zod": "^3.24.4"
   },
   "devDependencies": {
