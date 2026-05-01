@@ -37,6 +37,14 @@ COPY --from=builder /build/target/release/clear-msig-backend-api /usr/local/bin/
 COPY ops/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
+# Intent JSON templates the CLI loads at prepare-time. The backend
+# forwards a relative path like `examples/intents/solana_transfer.json`
+# from the frontend straight into the spawned CLI, so the CLI's CWD
+# has to contain that tree. WORKDIR below pins it.
+COPY examples /app/examples
+
+WORKDIR /app
+
 ENV CLEAR_MSIG_BIN=/usr/local/bin/clear-msig
 ENV BACKEND_API_BIND=0.0.0.0:8080
 ENV RUST_LOG=info
