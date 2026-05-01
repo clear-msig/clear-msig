@@ -22,7 +22,8 @@ import { friendlyError } from "@/lib/api/errors";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
-import { fromHex, IntentType } from "@/lib/msig";
+import { listProposalsForWallet } from "@/lib/chain/proposals";
+import { fromHex, IntentType, ProposalStatus } from "@/lib/msig";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useContacts } from "@/lib/hooks/useContacts";
 import {
@@ -143,6 +144,35 @@ export default function AddFriendPage() {
       if (!wallet.publicKey) throw new Error("Connect your wallet first");
       const intent = firstIntent?.account;
       if (!intent) throw new Error("No spending rule on this wallet");
+
+      // Recovery sweep: UpdateIntent on chain refuses if the target
+      // intent has any active proposals (program error
+      // `IntentHasActiveProposals` = 0x1780). A previous failed
+      // execute could have left an Approved-but-not-Executed
+      // proposal blocking us. Try to drain those before the update.
+      // Execute is sponsored — no signature needed.
+      if (walletQuery.data && (intent.activeProposalCount ?? 0) > 0) {
+        const proposals = await listProposalsForWallet(
+          connection,
+          walletQuery.data.pda,
+          walletQuery.data.account,
+        );
+        const stuck = proposals.filter(
+          (p) =>
+            p.intentIndex === intent.intentIndex &&
+            p.account.status === ProposalStatus.Approved,
+        );
+        for (const p of stuck) {
+          try {
+            await backendApi.executeProposal(name, p.pda.toBase58(), {});
+          } catch (sweepErr) {
+            console.warn(
+              `[add-friend] couldn't auto-execute stuck proposal ${p.pda.toBase58()}`,
+              sweepErr,
+            );
+          }
+        }
+      }
 
       // Watchers don't touch the chain — they're a local "people who
       // can read this wallet's activity" pin. Save to the watchers

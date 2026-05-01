@@ -277,10 +277,18 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             let intent_data = rpc::fetch_account(&client, &intent_pubkey)?;
             let intent_account = accounts::parse_intent(&intent_data)?;
 
-            // Meta-intents (AddIntent=0, RemoveIntent=1, UpdateIntent=2) use
-            // the local execute instruction. Custom intents (3) go through
-            // Ika dWallet signing for all chains.
-            if intent_account.intent_type <= 2 {
+            // Routing:
+            // - Meta-intents (AddIntent=0, RemoveIntent=1, UpdateIntent=2)
+            //   always run locally — they mutate program state, no remote
+            //   chain involved.
+            // - Custom intents (3) on chain_kind=0 (Solana) also run via
+            //   the local execute path — the program's `execute_custom`
+            //   handler does the CPI directly. SOL transfers fall here.
+            // - Custom intents on any other chain go through Ika dWallet
+            //   signing.
+            let is_local = intent_account.intent_type <= 2
+                || intent_account.chain_kind == 0;
+            if is_local {
                 let payer_pubkey = solana_sdk::signer::Signer::pubkey(&config.payer);
                 let remaining = resolve::resolve_remaining_accounts(
                     &client,
@@ -298,9 +306,14 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                     remaining,
                 );
                 let sig = rpc::send_instruction(&client, config, ix)?;
+                let path = if intent_account.intent_type <= 2 {
+                    "meta-intent"
+                } else {
+                    "custom-local"
+                };
                 print_json(&serde_json::json!({
                     "txid": sig.to_string(),
-                    "path": "meta-intent",
+                    "path": path,
                     "status": "executed",
                 }));
             } else {
