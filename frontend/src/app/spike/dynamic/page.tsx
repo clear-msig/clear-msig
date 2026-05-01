@@ -39,6 +39,14 @@ import { isSolanaWallet } from "@dynamic-labs/solana-core";
 // connector import needed for those.
 import { TurnkeySolanaWalletConnectors } from "@dynamic-labs/embedded-wallet-solana";
 import { DynamicWaasSVMConnectors } from "@dynamic-labs/waas-svm";
+// EVM + Sui WaaS connectors — Dynamic mints embedded wallets on
+// every chain a project has enabled under Wallets → Embedded
+// Wallets, and throws if it can't find the connector for one of
+// them. Including these means the spike doesn't have to fight the
+// dashboard config. (BTC's WaaS connector isn't on npm yet —
+// disable BTC in the Embedded Wallets settings if it errors.)
+import { DynamicWaasEVMConnectors } from "@dynamic-labs/waas-evm";
+import { DynamicWaasSuiConnectors } from "@dynamic-labs/waas-sui";
 import { toHex } from "@/lib/msig";
 
 const TEST_MESSAGE = new TextEncoder().encode(
@@ -89,6 +97,8 @@ export default function DynamicSpikePage() {
         environmentId,
         walletConnectors: [
           DynamicWaasSVMConnectors,
+          DynamicWaasEVMConnectors,
+          DynamicWaasSuiConnectors,
           TurnkeySolanaWalletConnectors,
         ],
       }}
