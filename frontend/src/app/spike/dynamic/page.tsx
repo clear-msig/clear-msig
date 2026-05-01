@@ -24,6 +24,7 @@ import {
   DynamicContextProvider,
   DynamicWidget,
   useDynamicContext,
+  useUserWallets,
 } from "@dynamic-labs/sdk-react-core";
 import { isSolanaWallet } from "@dynamic-labs/solana-core";
 // Embedded-wallet-solana is the Turnkey-backed connector that mints
@@ -97,25 +98,34 @@ interface SignResult {
 
 function SpikeBody() {
   const { primaryWallet } = useDynamicContext();
+  // `primaryWallet` is just the user's *active* wallet; if email
+  // login minted multiple chain wallets (e.g. EVM + Solana) we want
+  // to find the Solana one regardless of which is current. Same for
+  // chain-mismatched primaries on legacy projects.
+  const allWallets = useUserWallets();
   const [result, setResult] = useState<SignResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [signing, setSigning] = useState(false);
 
-  const isSolana = useMemo(
-    () => (primaryWallet ? isSolanaWallet(primaryWallet) : false),
-    [primaryWallet],
-  );
+  const solanaWallet = useMemo(() => {
+    if (primaryWallet && isSolanaWallet(primaryWallet)) return primaryWallet;
+    return allWallets.find((w) => w && isSolanaWallet(w)) ?? null;
+  }, [primaryWallet, allWallets]);
 
   const handleSign = async () => {
-    if (!primaryWallet || !isSolanaWallet(primaryWallet)) {
-      setError("Connect a Solana wallet first.");
+    if (!solanaWallet) {
+      setError(
+        "No Solana wallet detected. If you logged in with email, " +
+          "make sure your Dynamic project has Solana enabled in " +
+          "Configurations → Chains and Networks.",
+      );
       return;
     }
     setSigning(true);
     setError(null);
     setResult(null);
     try {
-      const signer = await primaryWallet.getSigner();
+      const signer = await solanaWallet.getSigner();
       const signed = await signer.signMessage(TEST_MESSAGE);
       // Dynamic returns either Uint8Array directly or {signature: ...}
       // depending on version — normalize.
@@ -123,7 +133,7 @@ function SpikeBody() {
         signed instanceof Uint8Array
           ? signed
           : (signed as { signature: Uint8Array }).signature;
-      const pubkey = primaryWallet.address;
+      const pubkey = solanaWallet.address;
 
       // Verify against tweetnacl, the same ed25519 algorithm the
       // Clear program uses on chain via brine_ed25519. If this
@@ -179,14 +189,67 @@ function SpikeBody() {
           <div className="mt-4">
             <DynamicWidget />
           </div>
-          {primaryWallet && (
-            <p className="mt-3 text-xs text-text-soft">
-              Connected as{" "}
-              <code className="font-mono text-text-strong">
-                {primaryWallet.address?.slice(0, 4)}…
-                {primaryWallet.address?.slice(-4)}
-              </code>{" "}
-              · {isSolana ? "Solana wallet ✓" : "NOT a Solana wallet ✗"}
+          {/* Diagnostic: show every wallet Dynamic exposed for this
+              user — chain id, address, primary flag. The "Sign" button
+              below activates as soon as ANY of these is a Solana wallet,
+              not just the primary. If you see no SOL row, your Dynamic
+              project doesn't have Solana enabled — fix in the Dynamic
+              dashboard under Configurations → Chains and Networks. */}
+          {allWallets.length > 0 && (
+            <ul className="mt-4 flex flex-col gap-1.5 rounded-soft border border-border-soft bg-canvas p-3 text-[11px]">
+              <li className="font-medium uppercase tracking-[0.18em] text-text-soft">
+                Wallets Dynamic returned
+              </li>
+              {allWallets.map((w) => {
+                if (!w) return null;
+                const sol = isSolanaWallet(w);
+                const isPrimary = primaryWallet?.id === w.id;
+                return (
+                  <li
+                    key={w.id}
+                    className={
+                      "flex items-center justify-between gap-3 rounded-soft px-2 py-1 " +
+                      (sol
+                        ? "bg-accent/5 text-text-strong"
+                        : "text-text-soft")
+                    }
+                  >
+                    <span className="font-mono">
+                      <span className="font-semibold">{w.chain ?? "?"}</span>
+                      <span className="ml-2 text-text-soft">
+                        {w.address?.slice(0, 4)}…{w.address?.slice(-4)}
+                      </span>
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      {isPrimary && (
+                        <span className="rounded-full bg-text-soft/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wide">
+                          primary
+                        </span>
+                      )}
+                      {sol && (
+                        <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-accent">
+                          ed25519 ✓
+                        </span>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {!solanaWallet && allWallets.length > 0 && (
+            <p className="mt-3 text-[11px] text-warning">
+              No Solana wallet in the list above. Open your project at{" "}
+              <a
+                href="https://app.dynamic.xyz"
+                target="_blank"
+                rel="noreferrer"
+                className="text-accent underline"
+              >
+                app.dynamic.xyz
+              </a>{" "}
+              → Configurations → Chains and Networks → enable Solana,
+              save, then reload this page.
             </p>
           )}
         </section>
@@ -204,7 +267,7 @@ function SpikeBody() {
           <button
             type="button"
             onClick={handleSign}
-            disabled={!primaryWallet || !isSolana || signing}
+            disabled={!solanaWallet || signing}
             className={
               "mt-4 inline-flex items-center justify-center rounded-soft bg-accent px-4 py-2 text-sm font-medium text-white shadow-accent-rest " +
               "transition-[background-color,transform] duration-base ease-out-soft " +
