@@ -7,11 +7,26 @@
 // wallet (Get started, dashboard deep links, /welcome, /send) bounce
 // here via `useWalletGate`, which appends a `?next=<original-path>`
 // so we land them back where they meant to go after connecting.
+//
+// Visual direction: not "a centered text + button" — that read as
+// half-finished. The connect screen is the user's *first* impression
+// of the brand, so we lay out a small floating preview cluster (sample
+// balance card, member avatars, a request-approved chip) behind the
+// connect surface to communicate what they're about to see. Squads
+// pulls the same trick with a blurred app preview behind their modal.
 
 import { Suspense } from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft, ExternalLink, ShieldCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  ExternalLink,
+  Lock,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
 
@@ -31,11 +46,11 @@ function ConnectPage() {
   useWalletGate();
   const reduce = useReducedMotion();
 
-  const fadeIn = (delay = 0) =>
+  const fadeIn = (delay = 0, y = 12) =>
     reduce
       ? {}
       : {
-          initial: { opacity: 0, y: 12 },
+          initial: { opacity: 0, y },
           animate: { opacity: 1, y: 0 },
           transition: {
             duration: 0.45,
@@ -45,13 +60,27 @@ function ConnectPage() {
         };
 
   return (
-    <main className="relative flex min-h-screen flex-col bg-canvas">
-      {/* Single soft accent wash — same atmosphere as the welcome flow. */}
+    <main className="relative flex min-h-screen flex-col overflow-hidden bg-canvas">
+      {/* Background — layered atmosphere instead of a single wash:
+          1. Two soft accent blooms anchoring opposite corners.
+          2. A faint dot-grid texture for depth (Tailwind's
+             `bg-[radial-gradient]` with a tight stop). The opacity is
+             low enough that it never competes with foreground content
+             but the eye reads "made", not "default Tailwind page". */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 overflow-hidden"
       >
-        <div className="absolute -left-32 -top-16 h-[55vh] w-[80vw] max-w-[640px] rounded-full bg-accent/[0.06] blur-3xl" />
+        <div className="absolute -left-32 -top-24 h-[60vh] w-[80vw] max-w-[680px] rounded-full bg-accent/[0.10] blur-3xl" />
+        <div className="absolute -right-32 bottom-[-10vh] h-[55vh] w-[70vw] max-w-[600px] rounded-full bg-accent/[0.06] blur-3xl" />
+        <div
+          className="absolute inset-0 opacity-[0.35]"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 1px 1px, rgba(15,23,42,0.06) 1px, transparent 0)",
+            backgroundSize: "20px 20px",
+          }}
+        />
       </div>
 
       <header className="relative z-10 flex items-center justify-between px-gutter pt-6">
@@ -69,48 +98,211 @@ function ConnectPage() {
       </header>
 
       <div className="relative z-10 flex flex-1 items-center justify-center px-gutter py-10">
-        <div className="w-full max-w-md">
-          <motion.section
-            {...fadeIn(0)}
-            className="flex flex-col items-center text-center"
-          >
-            <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-accent/10 text-accent">
-              <ShieldCheck className="h-7 w-7" strokeWidth={1.75} />
-            </div>
-            <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
-              Connect your wallet
+        <div className="grid w-full max-w-5xl items-center gap-12 lg:grid-cols-[1.1fr_1fr]">
+          {/* Left column — the brand argument. Bigger Fraunces hero,
+              one trust line, and the floating preview cluster that
+              communicates what's behind the wall. On mobile it stacks
+              above the connect card. */}
+          <motion.section {...fadeIn(0)} className="flex flex-col">
+            <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-accent">
+              <Sparkles className="h-3 w-3" strokeWidth={2.25} aria-hidden="true" />
+              Shared wallets, signed by you
+            </span>
+            <h1 className="mt-5 font-display text-display-md leading-[0.95] text-text-strong text-balance lg:text-display-lg">
+              Money you decide on,{" "}
+              <span className="text-accent">together</span>.
             </h1>
-            <p className="mt-3 max-w-sm text-base text-text-soft">
-              Your wallet is how Clear knows it&rsquo;s really you. We
-              never see your keys — only your wallet does.
+            <p className="mt-4 max-w-md text-base text-text-soft">
+              Send and approve from a wallet you share with people you
+              trust — partners, family, your team. Every move is signed
+              by your own wallet; we never see your keys.
             </p>
 
-            {/* The wallet-adapter button. Styled green via the
-                wallet-adapter overrides in globals.css; uses the SDK's
-                modal under the hood so we always pick up newly
-                installed extensions without bookkeeping here. */}
-            <motion.div {...fadeIn(0.08)} className="mt-8">
-              <WalletMultiButton />
-            </motion.div>
-
-            <motion.a
-              {...fadeIn(0.16)}
-              href="https://phantom.app/download"
-              target="_blank"
-              rel="noreferrer"
-              className={
-                "mt-8 inline-flex items-center gap-1.5 text-sm text-text-soft " +
-                "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
-                "rounded-soft px-2 py-1"
-              }
+            {/* Floating preview cluster — three small cards angled
+                slightly, evoking "the dashboard you're about to see".
+                Hidden on small screens to keep the connect card front
+                and center. Pure decoration: pointer-events-none so
+                they never intercept clicks. */}
+            <div
+              aria-hidden="true"
+              className="pointer-events-none relative mt-10 hidden h-56 lg:block"
             >
-              Don&rsquo;t have a wallet yet? Get one
-              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-            </motion.a>
+              <PreviewCard
+                className="absolute left-0 top-0 w-60 rotate-[-4deg]"
+                kind="wallet"
+                {...fadeIn(0.18, 16)}
+              />
+              <PreviewCard
+                className="absolute left-32 top-16 w-56 rotate-[3deg]"
+                kind="request"
+                {...fadeIn(0.26, 16)}
+              />
+              <PreviewCard
+                className="absolute left-4 top-32 w-52 rotate-[-2deg]"
+                kind="members"
+                {...fadeIn(0.34, 16)}
+              />
+            </div>
+          </motion.section>
+
+          {/* Right column — the connect surface. */}
+          <motion.section
+            {...fadeIn(0.08)}
+            className="relative mx-auto w-full max-w-md"
+          >
+            <div className="rounded-card border border-border-soft bg-surface-raised p-7 shadow-card-raised sm:p-8">
+              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">
+                <ShieldCheck className="h-6 w-6" strokeWidth={1.75} />
+              </div>
+              <h2 className="font-display text-display-xs leading-[1.1] text-text-strong">
+                Connect your wallet
+              </h2>
+              <p className="mt-2 text-sm text-text-soft">
+                Pick the wallet you already use. Don&rsquo;t worry —
+                this just proves it&rsquo;s you. No transaction fires
+                yet.
+              </p>
+
+              <div className="mt-6">
+                <WalletMultiButton />
+              </div>
+
+              <Link
+                href="https://phantom.app/download"
+                target="_blank"
+                rel="noreferrer"
+                className={
+                  "mt-5 inline-flex items-center gap-1.5 text-xs text-text-soft " +
+                  "transition-colors duration-base ease-out-soft hover:text-text-strong " +
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
+                  "rounded-soft px-1.5 py-0.5"
+                }
+              >
+                Don&rsquo;t have one yet? Get a wallet
+                <ExternalLink className="h-3 w-3" aria-hidden="true" />
+              </Link>
+            </div>
+
+            {/* Trust strip — three brief lines justifying the ask.
+                Stacked vertically below the connect card so they read
+                as the immediate "why am I trusting this" answer
+                without distracting from the primary action. */}
+            <ul className="mt-5 flex flex-col gap-2 text-xs text-text-soft">
+              <TrustItem icon={Lock} text="We never see your keys — your wallet signs everything." />
+              <TrustItem icon={ShieldCheck} text="Spending rules are encrypted on chain." />
+              <TrustItem icon={Check} text="Open source — every signature is auditable." />
+            </ul>
           </motion.section>
         </div>
       </div>
+
+      <footer className="relative z-10 flex items-center justify-center gap-4 px-gutter pb-6 text-xs text-text-soft">
+        <Link
+          href="/privacy"
+          className="rounded-soft px-1.5 py-0.5 transition-colors duration-base ease-out-soft hover:text-text-strong"
+        >
+          How privacy works
+        </Link>
+        <span aria-hidden="true">·</span>
+        <Link
+          href="/"
+          className="rounded-soft px-1.5 py-0.5 transition-colors duration-base ease-out-soft hover:text-text-strong"
+        >
+          What is Clear?
+        </Link>
+      </footer>
     </main>
+  );
+}
+
+// ─── Preview cluster cards ─────────────────────────────────────────
+
+interface PreviewCardProps {
+  className: string;
+  kind: "wallet" | "request" | "members";
+  initial?: { opacity: number; y: number };
+  animate?: { opacity: number; y: number };
+  transition?: { duration: number; delay: number; ease: readonly [number, number, number, number] };
+}
+
+function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
+  const inner = (() => {
+    if (kind === "wallet") {
+      return (
+        <>
+          <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-text-soft">
+            Family
+          </p>
+          <p className="mt-1 font-display text-2xl text-text-strong">
+            $4,820
+          </p>
+          <p className="mt-1 text-[10px] text-text-soft">
+            Balance · 4 members
+          </p>
+        </>
+      );
+    }
+    if (kind === "request") {
+      return (
+        <>
+          <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-accent">
+            Approved
+          </p>
+          <p className="mt-1 text-sm font-medium text-text-strong">
+            Send $120 to Sarah
+          </p>
+          <div className="mt-2 flex items-center gap-1">
+            <span className="h-1.5 w-6 rounded-full bg-accent" />
+            <span className="h-1.5 w-6 rounded-full bg-accent" />
+            <span className="h-1.5 w-6 rounded-full bg-border-soft" />
+            <span className="ml-1 text-[10px] text-text-soft">2/3</span>
+          </div>
+        </>
+      );
+    }
+    return (
+      <>
+        <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-text-soft">
+          Members
+        </p>
+        <div className="mt-2 flex -space-x-2">
+          {["bg-accent", "bg-accent/70", "bg-text-soft/40", "bg-warning"].map(
+            (bg, i) => (
+              <span
+                key={i}
+                className={
+                  "h-6 w-6 rounded-full ring-2 ring-surface-raised " + bg
+                }
+              />
+            ),
+          )}
+        </div>
+        <p className="mt-1.5 text-[10px] text-text-soft">You + 3 friends</p>
+      </>
+    );
+  })();
+  return (
+    <motion.div
+      {...motionProps}
+      className={
+        "rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest " +
+        className
+      }
+    >
+      {inner}
+    </motion.div>
+  );
+}
+
+function TrustItem({ icon: Icon, text }: { icon: typeof Lock; text: string }) {
+  return (
+    <li className="flex items-start gap-2">
+      <Icon
+        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent"
+        strokeWidth={2}
+        aria-hidden="true"
+      />
+      <span>{text}</span>
+    </li>
   );
 }

@@ -12,12 +12,15 @@
 // member-management layer lands, this should expand to the full
 // member set.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { fetchWalletByName } from "@/lib/chain/wallets";
+import { listIntents } from "@/lib/chain/intents";
+import { IntentType } from "@/lib/msig";
 import { ArrowLeft, ArrowRight, Clock, Loader2, Send, Zap } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
@@ -45,10 +48,56 @@ export default function SetupSpendingPage() {
 
   const router = useRouter();
   const wallet = useWallet();
+  const { connection } = useConnection();
   const { signBytes } = useSignWithWallet();
   const toast = useToast();
   const reduce = useReducedMotion();
   const queryClient = useQueryClient();
+
+  // Guard against landing here for a wallet that's already set up.
+  // Without this, a user reloading /setup on a wallet with an
+  // existing SolTransfer would happily start adding a duplicate
+  // rule — second rule lands at a higher slot, /send picks the wrong
+  // intent, and the wallet popup behavior gets confusing fast. The
+  // guard is a redirect rather than a hidden CTA so the user
+  // arriving at the page mistakenly is moved on to where they
+  // actually want to be.
+  const walletQuery = useQuery({
+    queryKey: ["wallet", name],
+    queryFn: () => fetchWalletByName(connection, name),
+    enabled: name.length > 0,
+    staleTime: 30_000,
+  });
+  const intentsQuery = useQuery({
+    queryKey: ["wallet-intents", walletQuery.data?.pda.toBase58() ?? null],
+    queryFn: async () => {
+      if (!walletQuery.data) return [];
+      return listIntents(
+        connection,
+        walletQuery.data.pda,
+        walletQuery.data.account.intentIndex,
+      );
+    },
+    enabled: !!walletQuery.data,
+    staleTime: 30_000,
+  });
+  const alreadySetUp = useMemo(() => {
+    return (intentsQuery.data ?? []).some(
+      (it) => it.account?.intentType === IntentType.Custom,
+    );
+  }, [intentsQuery.data]);
+  useEffect(() => {
+    if (!name || intentsQuery.isLoading || walletQuery.isLoading) return;
+    if (alreadySetUp) {
+      router.replace(`/app/wallet/${encodeURIComponent(name)}`);
+    }
+  }, [
+    name,
+    intentsQuery.isLoading,
+    walletQuery.isLoading,
+    alreadySetUp,
+    router,
+  ]);
 
   // Time-lock choice. 0 = ship immediately once approvals land.
   // 24 * 3600 = 86_400s wait. Per the retail-pivot Months 3-4 spec,

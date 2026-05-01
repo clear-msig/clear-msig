@@ -30,6 +30,7 @@ import {
 } from "@/lib/hooks/useRecentActivity";
 import { friendlyStatus } from "@/lib/retail/labels";
 import { relativeTime } from "@/lib/util/relativeTime";
+import { avatarGradient } from "@/lib/retail/avatar";
 
 type Props = {
   /// Called after a navigation link fires — used by the mobile drawer
@@ -142,6 +143,15 @@ export function WorkspaceSidebar({ onNavigate }: Props) {
       </SidebarSection>
 
       <div className="mt-auto flex flex-col gap-1 border-t border-white/10 pt-4">
+        {wallet.connected && address && (
+          <ConnectedAsPill
+            address={address}
+            onDisconnect={() => {
+              wallet.disconnect();
+              onNavigate?.();
+            }}
+          />
+        )}
         <Link
           href="/app/settings"
           onClick={onNavigate}
@@ -171,19 +181,62 @@ export function WorkspaceSidebar({ onNavigate }: Props) {
           <Github size={14} className="text-white/40" />
           GitHub
         </a>
-        {wallet.connected && (
-          <button
-            type="button"
-            onClick={() => {
-              wallet.disconnect();
-              onNavigate?.();
-            }}
-            className="inline-flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-medium text-rose-300 transition-colors duration-base ease-out-soft hover:bg-rose-500/10"
-          >
-            <LogOut size={14} />
-            Disconnect
-          </button>
-        )}
+      </div>
+    </div>
+  );
+}
+
+function ConnectedAsPill({
+  address,
+  onDisconnect,
+}: {
+  address: string;
+  onDisconnect: () => void;
+}) {
+  // Shortened address — first 4 + last 4 of base58, the convention
+  // every Solana wallet UI uses. Hover reveals the disconnect action
+  // so the bottom of the sidebar isn't dominated by a destructive
+  // verb the user almost never wants to click.
+  const grad = avatarGradient(address);
+  const short = `${address.slice(0, 4)}…${address.slice(-4)}`;
+  return (
+    <div className="group/pill relative">
+      <div
+        className={
+          "flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.03] px-2.5 py-2 text-xs " +
+          "transition-colors duration-base ease-out-soft group-hover/pill:border-white/20 group-hover/pill:bg-white/[0.06]"
+        }
+      >
+        <span
+          className={clsx(
+            "flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-white shadow-sm",
+            grad.from,
+            grad.to,
+          )}
+          aria-hidden="true"
+        >
+          <span className="block h-1.5 w-1.5 rounded-full bg-white/90" />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col leading-tight">
+          <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/40">
+            Connected
+          </span>
+          <span className="truncate font-mono text-[11px] text-white/80">
+            {short}
+          </span>
+        </span>
+        <button
+          type="button"
+          onClick={onDisconnect}
+          aria-label="Disconnect wallet"
+          className={
+            "rounded-md p-1 text-white/40 transition-colors duration-base ease-out-soft " +
+            "hover:bg-rose-500/15 hover:text-rose-300 " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card-strong"
+          }
+        >
+          <LogOut size={13} />
+        </button>
       </div>
     </div>
   );
@@ -293,24 +346,44 @@ function SidebarOrgLink({
   // we skip rendering rather than show a raw address.
   if (!name) return null;
 
+  // Per-wallet identity: deterministic gradient avatar with the
+  // wallet name's first letter. Gives each row a distinct visual
+  // hook so a sidebar with 10 wallets isn't a wall of text — same
+  // trick Cash App uses for friend rows.
+  const grad = avatarGradient(name);
+  const initial = name.trim().charAt(0).toUpperCase() || "?";
+
   return (
-    <li>
+    <li className="relative">
+      {/* Active-state accent bar — Linear/Notion's move. Sits flush
+          with the row edge and reads "this is your context" without
+          relying on color contrast alone. */}
+      {active && (
+        <span
+          aria-hidden="true"
+          className="absolute left-0 top-1.5 h-[calc(100%-12px)] w-0.5 rounded-full bg-accent"
+        />
+      )}
       <Link
         href={href}
         onClick={onNavigate}
         className={clsx(
-          "group flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-colors duration-base ease-out-soft",
+          "group flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium transition-colors duration-base ease-out-soft",
           active
             ? "bg-accent/15 text-accent"
-            : "text-white/70 hover:bg-white/5 hover:text-white",
+            : "text-white/75 hover:bg-white/5 hover:text-white",
         )}
       >
-        <Wallet
-          size={14}
-          className={
-            active ? "text-accent" : "text-white/40 group-hover:text-white"
-          }
-        />
+        <span
+          className={clsx(
+            "flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br text-[10px] font-semibold text-white shadow-sm",
+            grad.from,
+            grad.to,
+          )}
+          aria-hidden="true"
+        >
+          {initial}
+        </span>
         <span className="truncate">{name}</span>
         {pendingCount > 0 && (
           <span
