@@ -27,12 +27,18 @@ import {
   useUserWallets,
 } from "@dynamic-labs/sdk-react-core";
 import { isSolanaWallet } from "@dynamic-labs/solana-core";
-// Embedded-wallet-solana is the Turnkey-backed connector that mints
-// a Solana wallet for users who log in with email / passkey / social.
-// External Solana wallets (Phantom / Solflare / Backpack) come in
-// through Dynamic's wallet-standard auto-discovery without an extra
-// connector import.
+// Dynamic ships two embedded-Solana paths:
+//  - TurnkeySolanaWalletConnectors (Turnkey-backed; legacy default)
+//  - DynamicWaasSVMConnectors      (TSS-MPC WaaS; new default, what
+//    the dashboard switches to when you enable Solana under
+//    Wallets → Embedded Wallets)
+// Including both lets the SDK pick whichever the project's
+// environment is configured for, instead of failing init when one
+// is missing. External wallets (Phantom / Solflare / Backpack) come
+// through Dynamic's wallet-standard auto-discovery — no extra
+// connector import needed for those.
 import { TurnkeySolanaWalletConnectors } from "@dynamic-labs/embedded-wallet-solana";
+import { DynamicWaasSVMConnectors } from "@dynamic-labs/waas-svm";
 import { toHex } from "@/lib/msig";
 
 const TEST_MESSAGE = new TextEncoder().encode(
@@ -81,7 +87,10 @@ export default function DynamicSpikePage() {
     <DynamicContextProvider
       settings={{
         environmentId,
-        walletConnectors: [TurnkeySolanaWalletConnectors],
+        walletConnectors: [
+          DynamicWaasSVMConnectors,
+          TurnkeySolanaWalletConnectors,
+        ],
       }}
     >
       <SpikeBody />
