@@ -50,6 +50,8 @@ import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import { NextStepCard } from "@/components/retail/NextStepCard";
+import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
+import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
 
 type Stage = "compose" | "sending" | "sent";
 const STAGE_TRANSITION = {
@@ -172,6 +174,10 @@ function SendPage() {
     amountValid &&
     (resolved.kind === "contact" || resolved.kind === "address") &&
     !!firstIntent;
+
+  // Cross-chain budget tracker — used to render the "this send fits
+  // your $X cap" / "would push you over" hint above the CTA.
+  const budgetUsage = useWalletBudgetUsage(walletName);
 
   const submit = useMutation({
     mutationFn: async () => {
@@ -403,6 +409,8 @@ function SendPage() {
               canSubmit={canSubmit}
               onSubmit={handleSubmit}
               waitingForRule={intentsQuery.isLoading || walletQuery.isLoading}
+              budgetUsage={budgetUsage}
+              pendingUsd={amountValid ? numericAmount * (quotePerWhole("SOL")?.usdPerWhole ?? 0) : 0}
               reduce={!!reduce}
             />
           )}
@@ -452,6 +460,8 @@ interface ComposeStageProps {
   canSubmit: boolean;
   onSubmit: () => void;
   waitingForRule: boolean;
+  budgetUsage: ReturnType<typeof useWalletBudgetUsage>;
+  pendingUsd: number;
   reduce: boolean;
 }
 
@@ -471,6 +481,8 @@ function ComposeStage({
   canSubmit,
   onSubmit,
   waitingForRule,
+  budgetUsage,
+  pendingUsd,
   reduce,
 }: ComposeStageProps) {
   const motionProps = reduce
@@ -592,6 +604,12 @@ function ComposeStage({
           maxLength={140}
         />
       </div>
+
+      <BudgetHint
+        budgetUsage={budgetUsage}
+        pendingUsd={pendingUsd}
+        walletName={walletName}
+      />
 
       <div className="mt-6">
         <WalletPopupNarration action="send this request" popups={2} />
@@ -931,5 +949,64 @@ function SentStage({
         Or, dismiss this and stay here
       </button>
     </motion.section>
+  );
+}
+
+// ─── Budget hint (cross-chain spending limit nudge) ────────────────
+//
+// Sits above the wallet-popup narration on /send. Three states:
+//   1. No budget set — silent (don't pile a CTA on top of the
+//      send flow's existing surface area).
+//   2. Send fits — green "fits within $X left this week".
+//   3. Send overshoots — warning "would push {wallet} $X over its
+//      weekly cap. Friends still need to approve, this is a heads-up".
+//
+// Today's a heads-up; the wallet's approval rule still gates every
+// send. When the program enforces the cap on chain, the warning
+// becomes a hard stop and this component grows a "request override"
+// button instead of just narrating.
+
+function BudgetHint({
+  budgetUsage,
+  pendingUsd,
+  walletName,
+}: {
+  budgetUsage: ReturnType<typeof useWalletBudgetUsage>;
+  pendingUsd: number;
+  walletName: string;
+}) {
+  const cap = budgetUsage.budget?.weeklyUsd ?? null;
+  if (cap === null || cap === undefined) return null;
+  if (pendingUsd <= 0) return null;
+
+  const remaining = cap - budgetUsage.spentUsd;
+  const wouldExceed = pendingUsd > remaining;
+  if (!wouldExceed) {
+    return (
+      <p className="mt-4 text-center text-xs text-text-soft">
+        ✓ Fits within {formatUsd(remaining)} left in {walletName}&rsquo;s
+        weekly cap.
+      </p>
+    );
+  }
+  const overage = pendingUsd - Math.max(0, remaining);
+  return (
+    <div className="mt-4 rounded-card border border-warning/30 bg-warning/5 p-3 text-left text-xs text-text-soft">
+      <p className="font-medium text-text-strong">
+        Heads up: this send would push {walletName} {formatUsd(overage)}{" "}
+        over its weekly cap.
+      </p>
+      <p className="mt-1 leading-snug">
+        Friends still need to approve — the cap is a guide today, not a
+        hard stop. Lower the amount or update the cap on{" "}
+        <Link
+          href={`/app/wallet/${encodeURIComponent(walletName)}/budget`}
+          className="text-accent underline-offset-2 hover:underline"
+        >
+          {walletName}&rsquo;s budget page
+        </Link>
+        .
+      </p>
+    </div>
   );
 }

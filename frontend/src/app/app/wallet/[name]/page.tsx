@@ -43,6 +43,8 @@ import {
   gradientFor,
   SHAPE_LABEL,
 } from "@/lib/retail/walletAppearance";
+import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
+import { formatUsd } from "@/lib/retail/priceConversion";
 
 export default function WalletDetailPage() {
   const params = useParams<{ name: string }>();
@@ -161,6 +163,7 @@ export default function WalletDetailPage() {
         activityCount={walletActivity.length}
         loading={intentsQuery.isLoading}
       />
+      <BudgetStripe name={name} />
       <Actions
         name={name}
         hasIntents={hasIntents}
@@ -356,6 +359,17 @@ function Hero({
         >
           <Globe className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
           Chains
+        </Link>
+        <Link
+          href={`/app/wallet/${encodeURIComponent(name)}/budget`}
+          className={
+            "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
+            "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+          }
+        >
+          <ShieldCheck className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
+          Weekly limit
         </Link>
         <Link
           href="/privacy"
@@ -787,6 +801,87 @@ function NextStepsStripe({
         </Link>
       </div>
     </section>
+  );
+}
+
+
+// ─── Budget stripe ─────────────────────────────────────────────────
+//
+// Compact tracker showing this-week spending vs the wallet's
+// weekly cap. Renders only when a cap is set; otherwise we let the
+// /budget page's own empty-state-with-CTA do the work. Keeps the
+// hub from filling up with promotional surfaces.
+
+function BudgetStripe({ name }: { name: string }) {
+  const usage = useWalletBudgetUsage(name);
+  if (usage.loading) return null;
+  const cap = usage.budget?.weeklyUsd ?? null;
+  if (cap === null || cap === undefined) return null;
+
+  // No-limit case — saved as null. The render-gate above already
+  // filters this; defensive belt-and-braces in case the storage
+  // shape evolves.
+  if (cap === 0) {
+    return (
+      <Link
+        href={`/app/wallet/${encodeURIComponent(name)}/budget`}
+        className="rounded-card border border-border-soft bg-surface-raised px-4 py-3 text-xs text-text-soft shadow-card-rest hover:text-text-strong"
+      >
+        Weekly cap is $0 — every send needs full approval. Edit →
+      </Link>
+    );
+  }
+
+  const pct = usage.pctUsed ?? 0;
+  const over = pct >= 1;
+  const tone = over ? "danger" : pct >= 0.8 ? "warning" : "accent";
+  return (
+    <Link
+      href={`/app/wallet/${encodeURIComponent(name)}/budget`}
+      className={
+        "block rounded-card border bg-surface-raised p-4 shadow-card-rest transition-[border-color,transform] duration-base ease-out-soft " +
+        "hover:-translate-y-0.5 hover:border-accent/40 " +
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
+        (over
+          ? "border-danger/30"
+          : pct >= 0.8
+            ? "border-warning/30"
+            : "border-border-soft")
+      }
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <p className={"text-xs font-medium uppercase tracking-[0.18em] text-" + tone}>
+          {over ? "Over weekly limit" : "Weekly limit"}
+        </p>
+        <p className="text-xs text-text-soft">{usage.proposalCount} {usage.proposalCount === 1 ? "send" : "sends"} this week</p>
+      </div>
+      <div className="mt-2 flex items-baseline justify-between gap-3">
+        <p className="font-display text-base text-text-strong">
+          {formatUsd(usage.spentUsd)}{" "}
+          <span className="text-text-soft">of {formatUsd(cap)}</span>
+        </p>
+        <p className={"text-xs " + (over ? "text-danger" : "text-text-soft")}>
+          {usage.remainingUsd !== null && usage.remainingUsd >= 0
+            ? `${formatUsd(usage.remainingUsd)} left`
+            : `${formatUsd(Math.abs(usage.remainingUsd ?? 0))} over`}
+        </p>
+      </div>
+      <div
+        className="mt-2 h-1.5 overflow-hidden rounded-full bg-border-soft"
+        role="progressbar"
+        aria-valuenow={Math.round(pct * 100)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
+        <div
+          style={{ width: `${Math.min(100, Math.round(pct * 100))}%` }}
+          className={
+            "h-full transition-[width] duration-base ease-out-soft " +
+            (over ? "bg-danger" : pct >= 0.8 ? "bg-warning" : "bg-accent")
+          }
+        />
+      </div>
+    </Link>
   );
 }
 
