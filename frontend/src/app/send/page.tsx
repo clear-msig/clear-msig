@@ -24,6 +24,8 @@ import {
   ArrowRight,
   Check,
   Copy,
+  Home,
+  List as ListIcon,
   Loader2,
   ShieldAlert,
   Star,
@@ -46,6 +48,7 @@ import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
+import { NextStepCard } from "@/components/retail/NextStepCard";
 
 type Stage = "compose" | "sending" | "sent";
 const STAGE_TRANSITION = {
@@ -893,10 +896,39 @@ function SentStage({
         <span className="font-medium text-text-strong">{walletName}</span>.
       </p>
 
-      <Button size="lg" fullWidth className="mt-8" onClick={onDone}>
-        Done
-        <ArrowRight className="h-4 w-4" aria-hidden="true" />
-      </Button>
+      <div className="mt-8 w-full">
+        <NextStepCard
+          title={`Anything else from ${walletName}?`}
+          options={[
+            {
+              label: "Send another request",
+              hint: "Same wallet, different recipient.",
+              href: `/send?wallet=${encodeURIComponent(walletName)}`,
+              primary: true,
+              icon: ArrowRight,
+            },
+            {
+              label: "View activity",
+              hint: "See approvals coming in.",
+              href: `/app/wallet/${encodeURIComponent(walletName)}`,
+              icon: ListIcon,
+            },
+            {
+              label: "Back to home",
+              href: "/app/wallet",
+              icon: Home,
+            },
+          ]}
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={onDone}
+        className="mt-4 text-xs text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
+      >
+        Or, dismiss this and stay here
+      </button>
     </motion.section>
   );
 }

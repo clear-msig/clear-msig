@@ -24,6 +24,7 @@ import { fetchOnchainMemberships } from "@/lib/memberships/client";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
+import { BrandLoader } from "@/components/retail/BrandLoader";
 
 type Stage = "intro" | "shape" | "name" | "confirm" | "success";
 
@@ -607,7 +608,7 @@ function ExistingWalletLoadingState({ reduce }: { reduce: boolean }) {
         className="relative z-10 flex flex-col items-center text-center"
       >
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-raised shadow-card-rest">
-          <Loader2 className="h-7 w-7 animate-spin text-accent" />
+          <BrandLoader size={32} label="Loading your wallets" />
         </div>
         <p className="mt-5 font-display text-base text-text-strong">
           Loading your wallets…

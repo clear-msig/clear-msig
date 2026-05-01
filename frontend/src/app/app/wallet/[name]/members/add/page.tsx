@@ -16,7 +16,7 @@ import { useParams, useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Check, Loader2, UserPlus } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Loader2, Pencil, UserPlus, Users } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
@@ -41,6 +41,7 @@ import { sendOrganizationInvite } from "@/lib/organizations/client";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
+import { NextStepCard } from "@/components/retail/NextStepCard";
 import { useToast } from "@/components/ui/Toast";
 
 // Same template the setup flow used. We're updating an existing
@@ -114,6 +115,11 @@ export default function AddFriendPage() {
   /// matches the previous behavior where every friend got both
   /// proposer + approver power.
   const [role, setRole] = useState<Role>("full");
+  // Set on add-friend success so the page renders the NextStepCard
+  // instead of routing straight to /members. Captured separately
+  // from `friendName` so a half-typed name doesn't appear in the
+  // success copy by accident.
+  const [justAddedName, setJustAddedName] = useState<string | null>(null);
 
   const trimmedName = friendName.trim();
   const trimmedAddress = friendAddress.trim();
@@ -312,9 +318,10 @@ export default function AddFriendPage() {
           ? `${base} — invite emailed to ${trimmedEmail}`
           : `${base} — couldn't reach ${trimmedEmail}, share the wallet link manually`;
       toast.success(message);
-      router.push(
-        `/app/wallet/${encodeURIComponent(name)}/members`,
-      );
+      // Don't router.push — let the success view show NextStepCard
+      // so the user picks where to go (add another, set their limit,
+      // back to members).
+      setJustAddedName(trimmedName);
     },
     onError: (err) => {
       console.error("[add-friend]", err);
@@ -358,6 +365,39 @@ export default function AddFriendPage() {
           them before you get started.
         </p>
       </motion.section>
+
+      {justAddedName && (
+        <NextStepCard
+          title={`${justAddedName} is in. What now?`}
+          subtitle={`They can start ${role === "watcher" ? "watching" : "approving"} ${name} requests immediately.`}
+          options={[
+            {
+              label: "Add another person",
+              hint: "Reset the form and invite the next one.",
+              onClick: () => {
+                setFriendName("");
+                setFriendAddress("");
+                setFriendEmail("");
+                setRole("full");
+                setJustAddedName(null);
+              },
+              icon: UserPlus,
+              primary: true,
+            },
+            {
+              label: `Set ${justAddedName}'s spending limit`,
+              hint: "Optional — limits read on the inbox before approval.",
+              href: `/app/wallet/${encodeURIComponent(name)}/allowances`,
+              icon: Pencil,
+            },
+            {
+              label: "Back to members",
+              href: `/app/wallet/${encodeURIComponent(name)}/members`,
+              icon: Users,
+            },
+          ]}
+        />
+      )}
 
       {/* Pre-flight gate: adding a member modifies the wallet's
           spending rule, which doesn't exist until setup-spending has

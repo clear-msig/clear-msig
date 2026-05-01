@@ -21,7 +21,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { IntentType } from "@/lib/msig";
-import { ArrowLeft, ArrowRight, Clock, Loader2, Send, Zap } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Clock, Loader2, Send, UserPlus, Wallet, Zap } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
@@ -30,6 +30,7 @@ import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
+import { NextStepCard } from "@/components/retail/NextStepCard";
 
 // Backend reads template files relative to the workspace root. The
 // SolTransfer template gives the wallet a generic "send to anyone, any
@@ -104,6 +105,9 @@ export default function SetupSpendingPage() {
   // this is "Wait 24h before sending" — a cooling-off period for
   // shared wallets that want a buffer against impulse / mistakes.
   const [delaySeconds, setDelaySeconds] = useState<number>(0);
+  // Stays true after the on-chain enable lands so we can render the
+  // NextStepCard inline instead of router.push'ing the user away.
+  const [showDone, setShowDone] = useState(false);
 
   const setup = useMutation({
     mutationFn: async () => {
@@ -187,12 +191,12 @@ export default function SetupSpendingPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });
       queryClient.invalidateQueries({ queryKey: ["wallet", name] });
-      toast.success(`${name} is ready to send`, {
-        details:
-          "Spending rule is on chain. The activity row you'll see is " +
-          "the rule going into effect — no money has moved yet.",
-      });
-      router.push(`/app/wallet/${encodeURIComponent(name)}`);
+      // Don't push the user away — render a NextStepCard inline so
+      // they choose where to go next (send their first request,
+      // invite someone, or back to the hub). The toast captures the
+      // celebration; the card captures the next move.
+      toast.success(`${name} is ready to send`);
+      setShowDone(true);
     },
     onError: (err) => {
       console.error("[setup-spending]", err);
@@ -237,6 +241,45 @@ export default function SetupSpendingPage() {
           transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
           className="w-full max-w-md"
         >
+          {showDone ? (
+            <div className="flex flex-col items-center text-center">
+              <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-accent text-white shadow-accent-rest">
+                <Check className="h-8 w-8" strokeWidth={2.5} />
+              </div>
+              <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
+                {name} is ready to send
+              </h1>
+              <p className="mt-3 max-w-sm text-base text-text-soft">
+                Spending rule is on chain. The activity row you see is the
+                rule going into effect — no money has moved yet.
+              </p>
+              <div className="mt-8 w-full">
+                <NextStepCard
+                  title={`What do you want to do in ${name}?`}
+                  options={[
+                    {
+                      label: "Send your first request",
+                      hint: "Pick someone, enter an amount, sign once.",
+                      href: `/send?wallet=${encodeURIComponent(name)}`,
+                      primary: true,
+                      icon: Send,
+                    },
+                    {
+                      label: "Invite someone",
+                      hint: "Friend, teammate, or board member.",
+                      href: `/app/wallet/${encodeURIComponent(name)}/members/add`,
+                      icon: UserPlus,
+                    },
+                    {
+                      label: `Back to ${name}`,
+                      href: `/app/wallet/${encodeURIComponent(name)}`,
+                      icon: Wallet,
+                    },
+                  ]}
+                />
+              </div>
+            </div>
+          ) : (
           <div className="flex flex-col items-center text-center">
             <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-accent/10 text-accent">
               <Send className="h-7 w-7" strokeWidth={1.75} />
@@ -321,6 +364,7 @@ export default function SetupSpendingPage() {
               )}
             </Button>
           </div>
+          )}
         </motion.section>
       </div>
     </main>

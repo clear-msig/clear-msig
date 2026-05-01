@@ -18,14 +18,15 @@ import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Loader2, Lock, Trash2, UserPlus } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, Lock, Pencil, Trash2, UserPlus } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
-import { deriveRole, listWatchers, type Role } from "@/lib/retail/roles";
+import { deriveRole, listWatchers, ROLE_HINT, ROLE_LABEL, type Role } from "@/lib/retail/roles";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { avatarInitials } from "@/lib/retail/avatar";
 import { useRemoveMember } from "@/lib/hooks/useRemoveMember";
+import { useUpdateMemberRole } from "@/lib/hooks/useUpdateMemberRole";
 import { useToast } from "@/components/ui/Toast";
 import { friendlyError } from "@/lib/api/errors";
 
@@ -259,10 +260,40 @@ function MemberRow({
           : "Member";
 
   const remove = useRemoveMember();
+  const updateRole = useUpdateMemberRole();
   const toast = useToast();
   const [confirmingRemove, setConfirmingRemove] = useState(false);
+  const [editingRole, setEditingRole] = useState(false);
 
   const canRemove = !isYou && role !== "unknown";
+  const canEditRole = !isYou && role !== "unknown";
+  const busy = remove.isPending || updateRole.isPending;
+
+  const handleChangeRole = async (next: Role) => {
+    if (next === role) {
+      setEditingRole(false);
+      return;
+    }
+    try {
+      await updateRole.mutateAsync({
+        walletName,
+        friendAddress: address,
+        newRole: next,
+      });
+      const verb =
+        next === "watcher"
+          ? "now watching"
+          : next === "approver"
+            ? "now approve-only"
+            : "now spends and approves";
+      toast.success(`${displayName} is ${verb}`);
+      setEditingRole(false);
+    } catch (err) {
+      console.error("[update-role]", err);
+      const fe = friendlyError(err, "add-friend");
+      toast.error(fe.title, { details: fe.body });
+    }
+  };
 
   const handleConfirmRemove = async () => {
     try {
@@ -295,11 +326,27 @@ function MemberRow({
           <p className="mt-0.5 text-xs text-text-soft">{subtitle}</p>
         </div>
         <RoleChip role={role} />
-        {canRemove && !confirmingRemove && (
+        {canEditRole && !editingRole && !confirmingRemove && (
+          <button
+            type="button"
+            onClick={() => setEditingRole(true)}
+            disabled={busy}
+            aria-label={`Change role for ${displayName}`}
+            className={
+              "rounded-soft p-1.5 text-text-soft transition-colors duration-base ease-out-soft " +
+              "hover:bg-canvas hover:text-text-strong " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
+              "disabled:cursor-not-allowed disabled:opacity-40"
+            }
+          >
+            <Pencil className="h-4 w-4" aria-hidden="true" />
+          </button>
+        )}
+        {canRemove && !confirmingRemove && !editingRole && (
           <button
             type="button"
             onClick={() => setConfirmingRemove(true)}
-            disabled={remove.isPending}
+            disabled={busy}
             aria-label={`Remove ${displayName}`}
             className={
               "rounded-soft p-1.5 text-text-soft transition-colors duration-base ease-out-soft " +
@@ -312,6 +359,60 @@ function MemberRow({
           </button>
         )}
       </div>
+      {editingRole && (
+        <div className="mt-3 rounded-soft border border-border-soft bg-canvas p-3">
+          <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-text-soft">
+            Change role · {displayName}
+          </p>
+          <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-3">
+            {(["full", "approver", "watcher"] as Role[]).map((r) => {
+              const selected = r === role;
+              return (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => handleChangeRole(r)}
+                  disabled={busy}
+                  className={
+                    "flex flex-col items-start gap-0.5 rounded-soft border p-2 text-left transition-[border-color,background-color] duration-base ease-out-soft " +
+                    "disabled:cursor-not-allowed disabled:opacity-50 " +
+                    (selected
+                      ? "border-accent bg-accent/5 text-text-strong"
+                      : "border-border-soft bg-surface-raised hover:border-accent/40")
+                  }
+                >
+                  <span className="text-xs font-medium text-text-strong">
+                    {ROLE_LABEL[r]}
+                    {selected && (
+                      <span className="ml-1 text-[10px] text-text-soft">
+                        (current)
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-[10px] leading-snug text-text-soft">
+                    {ROLE_HINT[r]}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
+            <span className="text-text-soft">
+              {updateRole.isPending
+                ? "Updating…"
+                : "You'll sign 2 wallet popups unless switching to/from watcher only."}
+            </span>
+            <button
+              type="button"
+              onClick={() => setEditingRole(false)}
+              disabled={busy}
+              className="text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       {confirmingRemove && (
         <div className="mt-3 flex items-center justify-between gap-3 rounded-soft border border-danger/30 bg-danger/5 px-3 py-2 text-xs">
           <span className="text-text-strong">
