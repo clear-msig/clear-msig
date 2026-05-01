@@ -114,30 +114,26 @@ export function useBatchSend() {
           done: false,
         });
 
-        try {
-          const nonceHex = generateNonceHex();
-          const dry = await backendApi.prepare.createProposal(walletName, {
-            intent_index: intentIndex,
-            params: [
-              `destination=${row.destination}`,
-              `amount=${row.lamports}`,
-              `nonce_value=${nonceHex}`,
-            ],
-          });
-          const signed = await signBytes(fromHex(dry.message_hex));
-          const submission = await backendApi.submit.createProposal(walletName, {
-            ...signed,
-            params_data_hex: dry.params_data_hex,
-            expiry: dry.expiry,
-            intent_index: intentIndex,
-          });
-          if (typeof submission?.proposal === "string") {
-            proposalPdas.push(submission.proposal);
-          }
+        // Each proposal slot on chain is keyed by the wallet's
+        // current `proposal_index`. The CLI's `prepare` reads that
+        // index from the wallet account every call, so we have to
+        // make sure the previous submit has been observed by the RPC
+        // before the next prepare runs — otherwise both rows compute
+        // the same PDA and the second submit fails with "account
+        // already in use." Retry the prepare → sign → submit cycle a
+        // few times on transient errors before giving up on the row.
+        const result = await runRowWithRetry({
+          walletName,
+          intentIndex,
+          row,
+          signBytes,
+        });
+
+        if (result.kind === "ok") {
+          if (result.proposalPda) proposalPdas.push(result.proposalPda);
           succeeded += 1;
-        } catch (err) {
-          const fe = friendlyError(err, "send");
-          failures.push({ row, message: fe.title });
+        } else {
+          failures.push({ row, message: result.message });
           failed += 1;
         }
 
@@ -149,6 +145,14 @@ export function useBatchSend() {
           currentLabel: i + 1 < rows.length ? rows[i + 1].label : undefined,
           done: false,
         });
+
+        // Pause briefly between rows so the next prepare reads the
+        // post-submit chain state. 600ms is empirically enough for
+        // devnet `confirmed` reads to catch up; tune up if we still
+        // see PDA collisions.
+        if (i + 1 < rows.length) {
+          await sleep(600);
+        }
       }
 
       // Stamp the batch locally so /app/wallet can group these
@@ -196,6 +200,85 @@ function generateNonceHex(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   return "0x" + toHex(bytes);
+}
+
+const RETRYABLE_HINTS = [
+  "already in use",
+  "alreadyinitialized",
+  "blockhash not found",
+  "node is behind",
+  "tx simulation failed",
+  "expired",
+];
+
+interface RowAttemptResult {
+  kind: "ok" | "fail";
+  message: string;
+  proposalPda?: string;
+}
+
+interface RowAttemptArgs {
+  walletName: string;
+  intentIndex: number;
+  row: BatchSendRow;
+  signBytes: (bytes: Uint8Array) => Promise<{ signer_pubkey: string; signature: string }>;
+}
+
+/// Run prepare → sign → submit for one row. Retries on transient
+/// chain errors (PDA collision from RPC lag, blockhash not found,
+/// "node behind" — see `RETRYABLE_HINTS`) by waiting a beat and
+/// rebuilding the message from a fresh prepare. Wallet rejections
+/// fail fast — never re-prompt the user without their click.
+async function runRowWithRetry(
+  { walletName, intentIndex, row, signBytes }: RowAttemptArgs,
+): Promise<RowAttemptResult> {
+  const maxAttempts = 3;
+  let lastMessage = "Send failed";
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const nonceHex = generateNonceHex();
+      const dry = await backendApi.prepare.createProposal(walletName, {
+        intent_index: intentIndex,
+        params: [
+          `destination=${row.destination}`,
+          `amount=${row.lamports}`,
+          `nonce_value=${nonceHex}`,
+        ],
+      });
+      const signed = await signBytes(fromHex(dry.message_hex));
+      const submission = await backendApi.submit.createProposal(walletName, {
+        ...signed,
+        params_data_hex: dry.params_data_hex,
+        expiry: dry.expiry,
+        intent_index: intentIndex,
+      });
+      const proposalPda =
+        typeof submission?.proposal === "string" ? submission.proposal : undefined;
+      return { kind: "ok", message: "ok", proposalPda };
+    } catch (err) {
+      const fe = friendlyError(err, "send");
+      lastMessage = fe.title;
+      const raw = (err instanceof Error ? err.message : String(err)).toLowerCase();
+      const userRejected =
+        raw.includes("user rejected") ||
+        raw.includes("user declined") ||
+        raw.includes("cancelled the signature") ||
+        fe.title.toLowerCase().includes("cancelled");
+      if (userRejected) return { kind: "fail", message: lastMessage };
+      const retryable = RETRYABLE_HINTS.some((h) => raw.includes(h));
+      if (!retryable || attempt === maxAttempts) {
+        return { kind: "fail", message: lastMessage };
+      }
+      // Back off a bit before retrying so the chain catches up.
+      await sleep(800 * attempt);
+    }
+  }
+  return { kind: "fail", message: lastMessage };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function generateBatchId(): string {

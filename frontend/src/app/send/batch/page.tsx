@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
+import { friendlyError } from "@/lib/api/errors";
 import {
   isValidSolanaAddress,
   shortAddress,
@@ -160,18 +161,36 @@ function BatchSendPage() {
       });
       return;
     }
-    setStage("sending");
     const rows: BatchSendRow[] = validRows.map((r) => ({
       label: r.label,
       destination: r.destination,
       lamports: r.lamports,
     }));
-    await batch.sendBatch({
-      walletName,
-      intentIndex: firstIntent.account.intentIndex,
-      rows,
-    });
-    setStage("done");
+    // Clear any leftover state from a previous batch before flipping
+    // stages so the "sending" view never shows stale numbers.
+    batch.reset();
+    setStage("sending");
+    try {
+      const result = await batch.sendBatch({
+        walletName,
+        intentIndex: firstIntent.account.intentIndex,
+        rows,
+      });
+      setStage("done");
+      if (result.failed > 0 && result.succeeded === 0) {
+        toast.error("Couldn't send the batch", {
+          details:
+            "Every row failed. Check the per-row notes and retry just those.",
+        });
+      }
+    } catch (err) {
+      // sendBatch swallows row-level errors — anything thrown here is
+      // a setup-level problem (wallet disconnected mid-flight, etc.).
+      console.error("[batch-send]", err);
+      const fe = friendlyError(err, "send");
+      toast.error(fe.title, { details: fe.body });
+      setStage("compose");
+    }
   };
 
   const motionProps = reduce
@@ -227,10 +246,11 @@ function BatchSendPage() {
               onSend={handleSendBatch}
             />
           )}
-          {stage === "sending" && batch.progress && (
+          {stage === "sending" && (
             <SendingStage
               progress={batch.progress}
               onCancel={batch.cancel}
+              fallbackTotal={validRows.length}
             />
           )}
           {stage === "done" && batch.progress && (
@@ -531,13 +551,22 @@ function ReviewStage({
 function SendingStage({
   progress,
   onCancel,
+  fallbackTotal,
 }: {
   progress: ReturnType<typeof useBatchSend>["progress"];
   onCancel: () => void;
+  fallbackTotal: number;
 }) {
-  if (!progress) return null;
-  const completed = progress.succeeded + progress.failed;
-  const pct = Math.round((completed / progress.total) * 100);
+  // The hook calls `setProgress` synchronously inside `sendBatch`,
+  // but that state lands one render after `setStage("sending")`. Show
+  // a generic spinner for the brief gap so the screen never goes
+  // blank between stages.
+  const total = progress?.total ?? fallbackTotal;
+  const succeeded = progress?.succeeded ?? 0;
+  const failed = progress?.failed ?? 0;
+  const currentLabel = progress?.currentLabel;
+  const completed = succeeded + failed;
+  const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
   return (
     <div className="flex flex-col items-center text-center">
       <Loader2
@@ -548,9 +577,11 @@ function SendingStage({
         Sending batch…
       </h1>
       <p className="mt-2 max-w-sm text-base text-text-soft">
-        {progress.currentLabel
-          ? `Now: ${progress.currentLabel}. Confirm each in your wallet popup.`
-          : "Wrapping up the last few."}
+        {currentLabel
+          ? `Now: ${currentLabel}. Confirm each in your wallet popup.`
+          : completed === 0
+            ? "Getting ready — your wallet will pop up shortly."
+            : "Wrapping up the last few."}
       </p>
 
       <div className="mt-6 w-full overflow-hidden rounded-full bg-border-soft">
@@ -558,15 +589,14 @@ function SendingStage({
           role="progressbar"
           aria-valuenow={completed}
           aria-valuemin={0}
-          aria-valuemax={progress.total}
+          aria-valuemax={total}
           aria-label="Batch progress"
           style={{ width: `${pct}%` }}
           className="h-2 bg-accent transition-[width] duration-base ease-out-soft"
         />
       </div>
       <p className="mt-2 text-sm text-text-soft">
-        {completed} of {progress.total} processed · {progress.succeeded} sent ·{" "}
-        {progress.failed} failed
+        {completed} of {total} processed · {succeeded} sent · {failed} failed
       </p>
 
       <button
