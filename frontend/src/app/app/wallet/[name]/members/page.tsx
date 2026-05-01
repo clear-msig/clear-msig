@@ -21,6 +21,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Lock, UserPlus } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
+import { deriveRole, listWatchers, type Role } from "@/lib/retail/roles";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { avatarInitials } from "@/lib/retail/avatar";
@@ -61,23 +62,34 @@ export default function MembersPage() {
 
   const members = useMemo(() => {
     if (!intentsQuery.data) return [];
-    const seen = new Map<string, { isApprover: boolean }>();
+    // Aggregate proposers + approvers across all intents so a friend
+    // who's an approver-only on one rule and a proposer on another
+    // shows up correctly. Today we only have one rule, but the data
+    // model supports multiple.
+    const proposerSet = new Set<string>();
+    const approverSet = new Set<string>();
     for (const it of intentsQuery.data) {
       if (!it.account) continue;
-      for (const a of it.account.approvers) {
-        const prev = seen.get(a) ?? { isApprover: false };
-        seen.set(a, { isApprover: true });
-      }
+      for (const a of it.account.approvers) approverSet.add(a);
+      for (const p of it.account.proposers) proposerSet.add(p);
     }
     // Make sure the connected user shows up even if the wallet hasn't
     // yet been bound to an intent (fresh wallets pre-setup).
-    if (me && !seen.has(me)) seen.set(me, { isApprover: true });
-    return Array.from(seen.entries()).map(([address, info]) => ({
+    if (me) approverSet.add(me);
+    const watchers = listWatchers(name);
+    const allAddresses = new Set<string>([
+      ...proposerSet,
+      ...approverSet,
+      ...watchers.map((w) => w.address),
+    ]);
+    const proposersArr = Array.from(proposerSet);
+    const approversArr = Array.from(approverSet);
+    return Array.from(allAddresses).map((address) => ({
       address,
-      isApprover: info.isApprover,
+      role: deriveRole(address, proposersArr, approversArr, watchers),
       isYou: address === me,
     }));
-  }, [intentsQuery.data, me]);
+  }, [intentsQuery.data, me, name]);
 
   const motionProps = reduce
     ? {}
@@ -170,7 +182,7 @@ export default function MembersPage() {
               <MemberRow
                 key={m.address}
                 address={m.address}
-                isApprover={m.isApprover}
+                role={m.role}
                 isYou={m.isYou}
                 delay={i * 0.04}
                 reduce={!!reduce}
@@ -214,7 +226,7 @@ export default function MembersPage() {
 
 interface MemberRowProps {
   address: string;
-  isApprover: boolean;
+  role: Role | "unknown";
   isYou: boolean;
   delay: number;
   reduce: boolean;
@@ -222,7 +234,7 @@ interface MemberRowProps {
 
 function MemberRow({
   address,
-  isApprover,
+  role,
   isYou,
   delay,
   reduce,
@@ -232,6 +244,16 @@ function MemberRow({
     : { initial: { opacity: 0, y: 6 }, animate: { opacity: 1, y: 0 } };
   const initials = avatarInitials(address);
   const displayName = isYou ? "You" : `Member ${initials}`;
+  const subtitle =
+    role === "full"
+      ? isYou
+        ? "Can spend and approve"
+        : "Can spend and approve"
+      : role === "approver"
+        ? "Can approve requests"
+        : role === "watcher"
+          ? "Watching"
+          : "Member";
 
   return (
     <motion.li
@@ -244,30 +266,38 @@ function MemberRow({
         <p className="truncate text-sm font-medium text-text-strong">
           {displayName}
         </p>
-        <p className="mt-0.5 text-xs text-text-soft">
-          {isApprover
-            ? isYou
-              ? "Can spend and approve"
-              : "Can approve requests"
-            : "Watching"}
-        </p>
+        <p className="mt-0.5 text-xs text-text-soft">{subtitle}</p>
       </div>
-      <RoleChip kind={isApprover ? "approver" : "viewer"} />
+      <RoleChip role={role} />
     </motion.li>
   );
 }
 
-function RoleChip({ kind }: { kind: "approver" | "viewer" }) {
-  if (kind === "approver") {
-    return (
-      <span className="inline-flex items-center rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[11px] font-medium text-accent">
-        Approver
-      </span>
-    );
-  }
+function RoleChip({ role }: { role: Role | "unknown" }) {
+  const styles =
+    role === "full"
+      ? "border-accent/30 bg-accent/10 text-accent"
+      : role === "approver"
+        ? "border-warning/30 bg-warning/10 text-warning"
+        : role === "watcher"
+          ? "border-border-soft bg-canvas text-text-soft"
+          : "border-border-soft bg-canvas text-text-soft";
+  const label =
+    role === "full"
+      ? "Full"
+      : role === "approver"
+        ? "Approver"
+        : role === "watcher"
+          ? "Watcher"
+          : "Member";
   return (
-    <span className="inline-flex items-center rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
-      Viewer
+    <span
+      className={
+        "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium " +
+        styles
+      }
+    >
+      {label}
     </span>
   );
 }

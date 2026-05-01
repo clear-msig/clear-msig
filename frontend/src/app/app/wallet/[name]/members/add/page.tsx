@@ -30,6 +30,12 @@ import {
   isValidSolanaAddress,
   shortAddress,
 } from "@/lib/retail/contacts";
+import {
+  addWatcher,
+  ROLE_HINT,
+  ROLE_LABEL,
+  type Role,
+} from "@/lib/retail/roles";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { useToast } from "@/components/ui/Toast";
@@ -103,6 +109,11 @@ export default function AddFriendPage() {
   const [friendName, setFriendName] = useState("");
   const [friendAddress, setFriendAddress] = useState("");
   const [friendEmail, setFriendEmail] = useState("");
+  /// Role drives both the on-chain intent update (which lists the
+  /// friend lands in) and the local watchers store. Default "full"
+  /// matches the previous behavior where every friend got both
+  /// proposer + approver power.
+  const [role, setRole] = useState<Role>("full");
 
   const trimmedName = friendName.trim();
   const trimmedAddress = friendAddress.trim();
@@ -112,11 +123,14 @@ export default function AddFriendPage() {
   const emailValid = trimmedEmail.length === 0 || isValidEmail(trimmedEmail);
   const alreadyMember =
     firstIntent?.account?.approvers.includes(trimmedAddress) ?? false;
+  // Watchers never touch the chain, so the "already in approvers" gate
+  // shouldn't block adding someone to the local watch list. The
+  // localStorage layer dedupes by address itself.
   const canSubmit =
     nameValid &&
     addressValid &&
     emailValid &&
-    !alreadyMember &&
+    (role === "watcher" || !alreadyMember) &&
     !!firstIntent?.account;
 
   const addFriend = useMutation({
@@ -125,12 +139,34 @@ export default function AddFriendPage() {
       const intent = firstIntent?.account;
       if (!intent) throw new Error("No spending rule on this wallet");
 
-      const newApprovers = [...intent.approvers, trimmedAddress];
-      // Mirror the friend into proposers so they can also create
-      // requests, not just approve them.
-      const newProposers = intent.proposers.includes(trimmedAddress)
-        ? [...intent.proposers]
-        : [...intent.proposers, trimmedAddress];
+      // Watchers don't touch the chain — they're a local "people who
+      // can read this wallet's activity" pin. Save to the watchers
+      // store and exit early before any signed write.
+      if (role === "watcher") {
+        addWatcher({
+          walletName: name,
+          address: trimmedAddress,
+          name: trimmedName,
+        });
+        contacts.save({
+          name: trimmedName,
+          address: trimmedAddress,
+          email: trimmedEmail || undefined,
+        });
+        return { watcher: true } as const;
+      }
+
+      const newApprovers = intent.approvers.includes(trimmedAddress)
+        ? [...intent.approvers]
+        : [...intent.approvers, trimmedAddress];
+      // Role decides whether the friend can also create requests.
+      // "full" = proposer + approver. "approver" = approver only.
+      const wantProposer = role === "full";
+      const newProposers = wantProposer
+        ? intent.proposers.includes(trimmedAddress)
+          ? [...intent.proposers]
+          : [...intent.proposers, trimmedAddress]
+        : [...intent.proposers];
 
       // 0. Run the new approver/proposer lists through the Encrypt
       //    surface so the policy mutation flows as ciphertext IDs
@@ -170,28 +206,33 @@ export default function AddFriendPage() {
         file: TEMPLATE_FILE,
       });
     },
-    onSuccess: () => {
-      // Save the friend locally too — next /send recognizes them by
-      // name without the user having to paste the address again.
-      try {
-        contacts.save({
-          name: trimmedName,
-          address: trimmedAddress,
-          email: trimmedEmail || undefined,
-        });
-      } catch {
-        // saveContact validates internally; if it errors we still
-        // want the on-chain success path to land.
+    onSuccess: (result) => {
+      // Watcher path saves to contacts inline above; chain path saves
+      // here so the on-chain success is the gate.
+      if (!(result as { watcher?: boolean })?.watcher) {
+        try {
+          contacts.save({
+            name: trimmedName,
+            address: trimmedAddress,
+            email: trimmedEmail || undefined,
+          });
+        } catch {
+          // saveContact validates internally; if it errors we still
+          // want the on-chain success path to land.
+        }
       }
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });
       queryClient.invalidateQueries({ queryKey: ["wallet", name] });
-      // The on-chain change is in. The "we'll email them" framing
-      // captures user intent — when a backend email service ships
-      // (Resend/SendGrid), it gets fired here keyed off the saved
-      // contact's email. For now the message is the promise.
+      const roleLabel =
+        role === "watcher"
+          ? "as a watcher"
+          : role === "approver"
+            ? "as an approver"
+            : "";
+      const base = `${trimmedName} added to ${name}${roleLabel ? " " + roleLabel : ""}`;
       const message = trimmedEmail
-        ? `${trimmedName} added to ${name} — we'll email ${trimmedEmail}`
-        : `${trimmedName} added to ${name}`;
+        ? `${base} — we'll email ${trimmedEmail}`
+        : base;
       toast.success(message);
       router.push(
         `/app/wallet/${encodeURIComponent(name)}/members`,
@@ -269,9 +310,11 @@ export default function AddFriendPage() {
             That doesn&rsquo;t look like a valid Solana address.
           </p>
         )}
-        {addressValid && alreadyMember && (
+        {addressValid && alreadyMember && role !== "watcher" && (
           <p className="ml-[4.5rem] text-xs text-warning">
-            This address is already a member of {name}.
+            This address is already a member of {name}. Pick &ldquo;Can
+            watch&rdquo; if you want to keep them in the watchers list
+            instead.
           </p>
         )}
         <div className="h-px bg-border-soft" />
@@ -297,11 +340,28 @@ export default function AddFriendPage() {
         )}
       </form>
 
-      {addressValid && nameValid && !alreadyMember && (
+      <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+        <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+          What can they do?
+        </p>
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          {(["full", "approver", "watcher"] as Role[]).map((r) => (
+            <RoleTile
+              key={r}
+              role={r}
+              selected={role === r}
+              onSelect={() => setRole(r)}
+            />
+          ))}
+        </div>
+      </div>
+
+      {addressValid && nameValid && (role === "watcher" || !alreadyMember) && (
         <ConfirmCard
           name={trimmedName}
           address={trimmedAddress}
           walletName={name}
+          role={role}
           reduce={!!reduce}
         />
       )}
@@ -393,11 +453,13 @@ function ConfirmCard({
   name,
   address,
   walletName,
+  role,
   reduce,
 }: {
   name: string;
   address: string;
   walletName: string;
+  role: Role;
   reduce: boolean;
 }) {
   const motionProps = reduce
@@ -424,9 +486,44 @@ function ConfirmCard({
         </div>
         <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-medium text-accent">
           <Check className="h-3 w-3" strokeWidth={3} />
-          to {walletName}
+          {ROLE_LABEL[role]}
         </span>
       </div>
     </motion.div>
+  );
+}
+
+// ─── Role tile ─────────────────────────────────────────────────────
+
+function RoleTile({
+  role,
+  selected,
+  onSelect,
+}: {
+  role: Role;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={
+        "flex flex-col items-start gap-1 rounded-card border p-3 text-left " +
+        "transition-[border-color,background-color,box-shadow] duration-base ease-out-soft " +
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
+        (selected
+          ? "border-accent bg-accent/5 shadow-card-rest"
+          : "border-border-soft bg-canvas hover:border-accent/40")
+      }
+    >
+      <p className="text-sm font-medium text-text-strong">
+        {ROLE_LABEL[role]}
+      </p>
+      <p className="text-[11px] leading-snug text-text-soft">
+        {ROLE_HINT[role]}
+      </p>
+    </button>
   );
 }
