@@ -190,9 +190,17 @@ function SendPage() {
 
       // 1. Prepare the proposal: backend builds the unsigned
       //    transaction and returns the bytes the user has to sign.
+      // The CLI's `encode_params` looks each value up by name from the
+      // intent's param list, so we send `key=value` pairs (not bare
+      // positional values). Names match the SolTransfer template:
+      // `examples/intents/solana_transfer.json`.
       const dry = await backendApi.prepare.createProposal(walletName, {
         intent_index: firstIntent.account.intentIndex,
-        params: [destination, lamports, nonceHex],
+        params: [
+          `destination=${destination}`,
+          `amount=${lamports}`,
+          `nonce_value=${nonceHex}`,
+        ],
       });
 
       // 2. Sign with the user's wallet.
