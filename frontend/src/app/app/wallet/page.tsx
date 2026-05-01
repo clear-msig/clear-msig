@@ -22,7 +22,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useQuery } from "@tanstack/react-query";
 import { PublicKey } from "@solana/web3.js";
-import { ArrowRight, Bell, Contact, Lock, Plus, Settings as SettingsIcon, Users } from "lucide-react";
+import { ArrowRight, Bell, Contact, Lock, Settings as SettingsIcon, Users } from "lucide-react";
 import { fetchOnchainMemberships, type OnchainMembership } from "@/lib/memberships/client";
 import { useRecentActivity, type RecentActivityRow } from "@/lib/hooks/useRecentActivity";
 import { useActionNeeded, type ActionNeededRow } from "@/lib/hooks/useActionNeeded";
@@ -111,26 +111,6 @@ export default function WalletDashboard() {
       )}
 
       {!isFirstVisit && <ShortcutGrid reduce={!!reduce} />}
-
-      {!isFirstVisit && (
-        <Link
-          href="/welcome"
-          className={
-            "group inline-flex items-center justify-center gap-2 self-start rounded-card " +
-            "border border-border-soft bg-surface-raised px-5 py-3 text-sm font-medium text-text-strong shadow-card-rest " +
-            "transition-[transform,box-shadow,border-color] duration-base ease-out-soft " +
-            "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-          }
-        >
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          Create another shared wallet
-          <ArrowRight
-            className="h-4 w-4 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
-            aria-hidden="true"
-          />
-        </Link>
-      )}
     </div>
   );
 }
@@ -169,14 +149,8 @@ function ShortcutGrid({ reduce }: { reduce: boolean }) {
     <motion.div
       {...motionProps}
       transition={{ duration: 0.35, delay: 0.04 }}
-      className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+      className="grid grid-cols-3 gap-3"
     >
-      <ShortcutCard
-        href="/welcome"
-        Icon={Plus}
-        label="New wallet"
-        body="Spin up another shared wallet."
-      />
       <ShortcutCard
         href="/app/contacts"
         Icon={Contact}
@@ -206,7 +180,7 @@ function ShortcutCard({
   body,
 }: {
   href: string;
-  Icon: typeof Plus;
+  Icon: typeof Contact;
   label: string;
   body: string;
 }) {

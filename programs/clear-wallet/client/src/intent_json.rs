@@ -57,8 +57,11 @@ impl ChainKindJson {
         }
     }
 
+    /// Solana intents execute locally via CPI and have no remote
+    /// transaction envelope. Every other variant goes out through Ika
+    /// `ika_sign` and carries a chain-specific `tx_template`.
     pub fn is_remote(self) -> bool {
-        true
+        !matches!(self, Self::Solana)
     }
 
     /// True if the chain serializer reads any bytes from `tx_template`.
