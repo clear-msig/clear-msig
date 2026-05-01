@@ -21,6 +21,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { IntentType } from "@/lib/msig";
+import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { ArrowLeft, ArrowRight, Check, Clock, Loader2, Send, UserPlus, Wallet, Zap } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
@@ -29,6 +30,7 @@ import { fromHex } from "@/lib/msig";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
+import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Button } from "@/components/retail/Button";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import { NextStepCard } from "@/components/retail/NextStepCard";
@@ -168,19 +170,24 @@ export default function SetupSpendingPage() {
         );
       }
 
-      // 4. Approve: second wallet popup. Flips the proposer's bit in
-      //    the bitmap, which (with threshold=1) flips proposal status
-      //    from Active → Approved. Without this, Execute can't run.
-      const approveDry = await backendApi.prepare.approveProposal(
-        name,
-        proposal,
-        { actor_pubkey: me },
-      );
-      const approveSigned = await signBytes(fromHex(approveDry.message_hex));
-      await backendApi.submit.approveProposal(name, proposal, {
-        ...approveSigned,
-        expiry: approveDry.expiry,
-      });
+      // 4. Approve, but only if the propose didn't already flip the
+      //    proposer's bit and meet threshold on chain. With the
+      //    auto-approve program update this is the common case for
+      //    1-of-1 wallets and the second popup goes away. Old
+      //    program → still falls through to the explicit approve.
+      const decision = await approveIfNeeded(connection, proposal);
+      if (decision.needsApproveSignature) {
+        const approveDry = await backendApi.prepare.approveProposal(
+          name,
+          proposal,
+          { actor_pubkey: me },
+        );
+        const approveSigned = await signBytes(fromHex(approveDry.message_hex));
+        await backendApi.submit.approveProposal(name, proposal, {
+          ...approveSigned,
+          expiry: approveDry.expiry,
+        });
+      }
 
       // 5. Execute: now that the proposal is Approved, run it. The
       //    AddIntent meta-handler creates the SolTransfer intent and
@@ -222,7 +229,7 @@ export default function SetupSpendingPage() {
         <div className="absolute -left-32 -top-16 h-[55vh] w-[80vw] max-w-[640px] rounded-full bg-accent/[0.06] blur-3xl" />
       </div>
 
-      <header className="relative z-10 px-gutter pt-6">
+      <StickyTopBar>
         <Breadcrumb
           segments={[
             { label: "Wallets", href: "/app/wallet" },
@@ -230,7 +237,7 @@ export default function SetupSpendingPage() {
             { label: "Set up sending" },
           ]}
         />
-      </header>
+      </StickyTopBar>
 
       <div className="relative z-10 flex flex-1 items-center justify-center px-gutter py-10">
         <motion.section
@@ -248,7 +255,7 @@ export default function SetupSpendingPage() {
               </h1>
               <p className="mt-3 max-w-sm text-base text-text-soft">
                 Spending rule is on chain. The activity row you see is the
-                rule going into effect — no money has moved yet.
+                rule going into effect. No money has moved yet.
               </p>
               <div className="mt-8 w-full">
                 <NextStepCard
@@ -286,7 +293,7 @@ export default function SetupSpendingPage() {
             </h1>
             <p className="mt-3 max-w-sm text-base text-text-soft">
               One quick setup so this wallet can send money. Your wallet
-              will ask you to confirm — that&rsquo;s how the rule
+              will ask you to confirm. That&rsquo;s how the rule
               becomes part of {name}.
             </p>
 

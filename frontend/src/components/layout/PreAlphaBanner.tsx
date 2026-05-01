@@ -53,8 +53,8 @@ export function PreAlphaBanner() {
             <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-600" />
             <div className="flex-1 text-xs leading-relaxed sm:text-sm">
               <span className="font-semibold">This is a preview.</span>{" "}
-              Everything works, but it&rsquo;s running on a test network —
-              keep amounts small while we&rsquo;re still in early days.
+              Everything works, but it&rsquo;s running on a test network.
+              Keep amounts small while we&rsquo;re still in early days.
             </div>
             <button
               onClick={dismiss}

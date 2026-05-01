@@ -17,6 +17,7 @@ import { useParams, useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Check, Loader2, Wallet as WalletIcon } from "lucide-react";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
+import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Button } from "@/components/retail/Button";
 import { useToast } from "@/components/ui/Toast";
 import {
@@ -103,13 +104,15 @@ export default function BudgetPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Breadcrumb
-        segments={[
-          { label: "Wallets", href: "/app/wallet" },
-          { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
-          { label: "Weekly limit" },
-        ]}
-      />
+      <StickyTopBar offset="header">
+        <Breadcrumb
+          segments={[
+            { label: "Wallets", href: "/app/wallet" },
+            { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
+            { label: "Weekly limit" },
+          ]}
+        />
+      </StickyTopBar>
 
       <motion.section
         {...motionProps}
@@ -227,7 +230,7 @@ export default function BudgetPage() {
       <p className="text-center text-xs text-text-soft">
         <strong className="text-text-strong">Heads up:</strong> we&rsquo;re
         showing this against demo prices ({formatUsd(quotePerWhole("SOL")?.usdPerWhole ?? 0)}{" "}
-        / SOL etc.) and the cap is a nudge today — wallet approvals
+        / SOL etc.) and the cap is a nudge today; wallet approvals
         still rule. Real on-chain enforcement lands when the policy
         program ships the field.
       </p>
@@ -303,7 +306,7 @@ function CurrentUsageCard({
       )}
       {noBudget && (
         <p className="mt-2 text-xs text-text-soft">
-          No cap set yet — pick one below to start tracking.
+          No cap set yet. Pick one below to start tracking.
         </p>
       )}
     </div>

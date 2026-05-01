@@ -29,7 +29,7 @@ export default function WorkspaceLayout({ children }: Readonly<{ children: React
   const y = useTransform(scrollY, [0, 1000], [0, 300]);
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-background px-3 pb-32 pt-24 font-sans sm:px-4 sm:pb-16 sm:pt-28 lg:px-6">
+    <main className="relative min-h-screen overflow-x-hidden bg-background px-3 pb-32 pt-24 font-sans sm:px-4 sm:pb-16 sm:pt-28 lg:px-6">
       {/* Two soft brand-coloured blurs — same visual vocabulary the
           landing page uses on its sections (ProblemSection, etc.) so
           the connected app feels like a natural continuation, not a

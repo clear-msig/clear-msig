@@ -37,6 +37,7 @@ import { friendlyError } from "@/lib/api/errors";
 import { fromHex, IntentType, toHex } from "@/lib/msig";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
+import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import {
   isValidSolanaAddress,
   recentContacts,
@@ -51,6 +52,7 @@ import { BrandLoader } from "@/components/retail/BrandLoader";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import { NextStepCard } from "@/components/retail/NextStepCard";
 import { QuickSendInput } from "@/components/retail/QuickSendInput";
+import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
 
@@ -240,12 +242,13 @@ function SendPage() {
         return submitted;
       }
 
-      // 4. If the user is also an approver, flip their bit in the
-      //    same flow so a 1-of-1 wallet doesn't get stuck waiting
-      //    for "someone" to approve their own request.
+      // 4. If the user is also an approver, flip their bit — but
+      //    only if propose didn't already do it on chain (program
+      //    auto-approves proposer when proposer ∈ approvers).
       const intent = firstIntent.account;
       const userIsApprover = intent.approvers.includes(me);
-      if (userIsApprover) {
+      const decision = await approveIfNeeded(connection, proposal);
+      if (userIsApprover && decision.needsApproveSignature) {
         try {
           const approveDry = await backendApi.prepare.approveProposal(
             walletName,
@@ -266,11 +269,11 @@ function SendPage() {
         }
       }
 
-      // 5. If we have enough approvals (threshold met), execute now
-      //    so the SOL actually moves. Otherwise the proposal sits
-      //    in the inbox waiting for the remaining friends to sign.
+      // 5. If the proposal has reached threshold (either from the
+      //    program's auto-approve or our explicit approve above),
+      //    execute now so the SOL actually moves.
       const approvalsAfterUs =
-        (userIsApprover ? 1 : 0) /* this proposal had bitmap=0 from propose */;
+        (userIsApprover ? 1 : 0) /* propose either auto-set or we just set it */;
       if (approvalsAfterUs >= intent.approvalThreshold) {
         try {
           await backendApi.executeProposal(walletName, proposal, {});
@@ -333,7 +336,7 @@ function SendPage() {
         <div className="absolute -left-32 -top-16 h-[55vh] w-[80vw] max-w-[640px] rounded-full bg-accent/[0.06] blur-3xl" />
       </div>
 
-      <header className="relative z-10 flex items-center justify-between px-gutter pt-6">
+      <StickyTopBar innerClassName="justify-between gap-3">
         <button
           type="button"
           onClick={() => {
@@ -359,7 +362,7 @@ function SendPage() {
         <span className="rounded-full border border-border-soft bg-surface-raised px-3 py-1 text-xs font-medium text-text-strong">
           {walletName || "your shared wallet"}
         </span>
-      </header>
+      </StickyTopBar>
 
       <div className="relative z-10 flex flex-1 items-center justify-center px-gutter py-10">
         <div className="w-full max-w-md">
@@ -370,7 +373,7 @@ function SendPage() {
               </p>
               <p className="mt-2 text-sm text-text-strong">
                 <strong>{walletName}</strong> doesn&rsquo;t have a
-                spending rule yet. Enable sending — once that&rsquo;s
+                spending rule yet. Enable sending. Once that&rsquo;s
                 done, you can come back and send anything you want.
               </p>
               <div className="mt-4 flex justify-center gap-2">
@@ -758,7 +761,7 @@ function PastedAddressNotice({
           <span className="font-mono text-text-soft">
             {shortAddress(address)}
           </span>
-          . Make sure this is correct — money sent to the wrong address
+          . Make sure this is correct. Money sent to the wrong address
           can&rsquo;t be reversed.
         </span>
       </p>
@@ -1024,7 +1027,7 @@ function BudgetHint({
         over its weekly cap.
       </p>
       <p className="mt-1 leading-snug">
-        Friends still need to approve — the cap is a guide today, not a
+        Friends still need to approve. The cap is a guide today, not a
         hard stop. Lower the amount or update the cap on{" "}
         <Link
           href={`/app/wallet/${encodeURIComponent(walletName)}/budget`}

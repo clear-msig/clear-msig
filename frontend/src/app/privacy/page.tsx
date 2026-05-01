@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/retail/Button";
+import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { encryptStatus, localCiphertextCount } from "@/lib/encrypt/client";
 
 export default function PrivacyPage() {
@@ -51,7 +52,7 @@ export default function PrivacyPage() {
         <div className="absolute -left-32 -top-16 h-[55vh] w-[80vw] max-w-[640px] rounded-full bg-accent/[0.06] blur-3xl" />
       </div>
 
-      <header className="relative z-10 flex items-center justify-between px-gutter pt-6">
+      <StickyTopBar>
         <Link
           href="/"
           className={
@@ -63,7 +64,7 @@ export default function PrivacyPage() {
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Clear
         </Link>
-      </header>
+      </StickyTopBar>
 
       <div className="relative z-10 flex flex-1 flex-col items-center px-gutter py-10">
         <motion.section
@@ -84,8 +85,8 @@ export default function PrivacyPage() {
             </h1>
             <p className="mt-4 max-w-xl text-base text-text-soft">
               Clear&rsquo;s shared wallets are private by design. Who can
-              spend, how many friends need to approve, the limits you set
-              — none of it is readable by anyone else.
+              spend, how many friends need to approve, the limits you set.
+              None of it is readable by anyone else.
             </p>
           </div>
 
@@ -93,7 +94,7 @@ export default function PrivacyPage() {
             <Tile
               Icon={EyeOff}
               title="What stays hidden"
-              body="Member list, approval thresholds, allowances per friend, and recipient lists you set up. The wallet works the same — but the rules aren't visible to outsiders."
+              body="Member list, approval thresholds, allowances per friend, and recipient lists you set up. The wallet works the same; the rules aren't visible to outsiders."
             />
             <Tile
               Icon={Eye}
@@ -115,7 +116,7 @@ export default function PrivacyPage() {
                   Clear uses encryption that lets the on-chain program
                   check approvals against your rules{" "}
                   <em>without ever decrypting them</em>. So the network
-                  enforces what you set up — but only your wallet&rsquo;s
+                  enforces what you set up, but only your wallet&rsquo;s
                   members can see what those rules are.
                 </p>
                 <p className="mt-3 text-xs text-text-soft">

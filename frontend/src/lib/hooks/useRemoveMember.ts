@@ -16,6 +16,7 @@ import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { listProposalsForWallet } from "@/lib/chain/proposals";
+import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import {
   fromHex,
   IntentType,
@@ -165,18 +166,23 @@ export function useRemoveMember() {
         );
       }
 
-      // 4. Approve — second wallet popup. Flips the proposal Active
-      //    → Approved with the actor's bit.
-      const approveDry = await backendApi.prepare.approveProposal(
-        walletName,
-        proposal,
-        { actor_pubkey: me },
-      );
-      const approveSigned = await signBytes(fromHex(approveDry.message_hex));
-      await backendApi.submit.approveProposal(walletName, proposal, {
-        ...approveSigned,
-        expiry: approveDry.expiry,
-      });
+      // 4. Approve — only if propose didn't already auto-approve
+      //    (the program flips the proposer's bit when proposer is
+      //    in approvers; with threshold=1 this lands the proposal
+      //    Approved directly).
+      const decision = await approveIfNeeded(connection, proposal);
+      if (decision.needsApproveSignature) {
+        const approveDry = await backendApi.prepare.approveProposal(
+          walletName,
+          proposal,
+          { actor_pubkey: me },
+        );
+        const approveSigned = await signBytes(fromHex(approveDry.message_hex));
+        await backendApi.submit.approveProposal(walletName, proposal, {
+          ...approveSigned,
+          expiry: approveDry.expiry,
+        });
+      }
 
       // 5. Execute — sponsored, no signature. Actually swaps the
       //    on-chain proposer/approver lists.

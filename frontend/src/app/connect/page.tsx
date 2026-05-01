@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
+import { StickyTopBar } from "@/components/retail/StickyTopBar";
 
 export default function ConnectPageWrapper() {
   return (
@@ -60,7 +61,7 @@ function ConnectPage() {
         };
 
   return (
-    <main className="relative flex min-h-screen flex-col overflow-hidden bg-canvas">
+    <main className="relative flex min-h-screen flex-col overflow-x-hidden bg-canvas">
       {/* Background — layered atmosphere instead of a single wash:
           1. Two soft accent blooms anchoring opposite corners.
           2. A faint dot-grid texture for depth (Tailwind's
@@ -83,7 +84,7 @@ function ConnectPage() {
         />
       </div>
 
-      <header className="relative z-10 flex items-center justify-between px-gutter pt-6">
+      <StickyTopBar>
         <Link
           href="/"
           className={
@@ -95,7 +96,7 @@ function ConnectPage() {
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Clear
         </Link>
-      </header>
+      </StickyTopBar>
 
       <div className="relative z-10 flex flex-1 items-center justify-center px-gutter py-10">
         <div className="grid w-full max-w-5xl items-center gap-12 lg:grid-cols-[1.1fr_1fr]">
@@ -114,7 +115,7 @@ function ConnectPage() {
             </h1>
             <p className="mt-4 max-w-md text-base text-text-soft">
               Send and approve from a wallet you share with people you
-              trust — partners, family, your team. Every move is signed
+              trust. Partners, family, your team. Every move is signed
               by your own wallet; we never see your keys.
             </p>
 
@@ -158,7 +159,7 @@ function ConnectPage() {
                 Connect your wallet
               </h2>
               <p className="mt-2 text-sm text-text-soft">
-                Pick the wallet you already use. Don&rsquo;t worry —
+                Pick the wallet you already use. Don&rsquo;t worry,
                 this just proves it&rsquo;s you. No transaction fires
                 yet.
               </p>
@@ -188,9 +189,9 @@ function ConnectPage() {
                 as the immediate "why am I trusting this" answer
                 without distracting from the primary action. */}
             <ul className="mt-5 flex flex-col gap-2 text-xs text-text-soft">
-              <TrustItem icon={Lock} text="We never see your keys — your wallet signs everything." />
+              <TrustItem icon={Lock} text="We never see your keys. Your wallet signs everything." />
               <TrustItem icon={ShieldCheck} text="Spending rules are encrypted on chain." />
-              <TrustItem icon={Check} text="Open source — every signature is auditable." />
+              <TrustItem icon={Check} text="Open source. Every signature is auditable." />
             </ul>
           </motion.section>
         </div>

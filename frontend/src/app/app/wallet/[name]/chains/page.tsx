@@ -24,6 +24,7 @@ import { fetchWalletByName } from "@/lib/chain/wallets";
 import { findVaultAddress } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
+import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import {
   CHAIN_CATALOG,
@@ -96,13 +97,15 @@ export default function ChainsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Breadcrumb
-        segments={[
-          { label: "Wallets", href: "/app/wallet" },
-          { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
-          { label: "Chains" },
-        ]}
-      />
+      <StickyTopBar offset="header">
+        <Breadcrumb
+          segments={[
+            { label: "Wallets", href: "/app/wallet" },
+            { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
+            { label: "Chains" },
+          ]}
+        />
+      </StickyTopBar>
 
       <motion.section
         {...motionProps}
@@ -285,7 +288,7 @@ function ActiveChainRow({
         </button>
       ) : (
         <p className="text-xs text-text-soft">
-          Address pending — refresh once the dWallet finishes spinning up.
+          Address pending. Refresh once the dWallet finishes spinning up.
         </p>
       )}
     </motion.li>

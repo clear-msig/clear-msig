@@ -138,7 +138,7 @@ export default function HomePage() {
               </h3>
               <p className="mt-2 text-base text-text-soft">
                 Who&rsquo;s in the wallet, who can spend, and the rules
-                you set are kept private — verified on-chain, but no one
+                you set are kept private. Verified on-chain, but no one
                 else can read them. Not us, not anyone.
               </p>
             </div>

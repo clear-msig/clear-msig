@@ -44,7 +44,7 @@ export default function ErrorBoundary({
             Something went wrong
           </h1>
           <p className="mt-3 text-base text-text-soft">
-            Try again — this is usually a hiccup, not a real problem. If
+            Try again. This is usually a hiccup, not a real problem. If
             it keeps happening, let us know.
           </p>
 

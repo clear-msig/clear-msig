@@ -103,7 +103,7 @@ export function QuickSendInput({ contactNames, onParsed }: QuickSendInputProps) 
               handleSubmit();
             }
           }}
-          placeholder="Just say it — “send Sarah 5 sol for rent”"
+          placeholder="Just say it. “send Sarah 5 sol for rent”"
           maxLength={280}
           spellCheck={false}
           autoComplete="off"
@@ -143,7 +143,7 @@ export function QuickSendInput({ contactNames, onParsed }: QuickSendInputProps) 
       </div>
       {hint && (
         <p className="mt-2 pl-6 text-[11px] text-text-soft">
-          ⚠️ {hint} — double-check the form before signing.
+          ⚠️ {hint}. Double-check the form before signing.
         </p>
       )}
       {error && (

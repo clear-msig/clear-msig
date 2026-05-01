@@ -24,6 +24,7 @@ import { fetchWalletByName } from "@/lib/chain/wallets";
 import { findVaultAddress } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
+import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import {
@@ -146,7 +147,7 @@ export default function ReceivePage() {
         <div className="absolute -left-32 -top-16 h-[55vh] w-[80vw] max-w-[640px] rounded-full bg-accent/[0.06] blur-3xl" />
       </div>
 
-      <header className="relative z-10 px-gutter pt-6">
+      <StickyTopBar>
         <Breadcrumb
           segments={[
             { label: "Wallets", href: "/app/wallet" },
@@ -154,7 +155,7 @@ export default function ReceivePage() {
             { label: "Receive" },
           ]}
         />
-      </header>
+      </StickyTopBar>
 
       <div className="relative z-10 flex flex-1 items-center justify-center px-gutter py-10">
         <motion.section
@@ -174,8 +175,8 @@ export default function ReceivePage() {
             </h1>
             <p className="mt-3 max-w-sm text-base text-text-soft">
               {hasMultipleChains
-                ? "Pick a chain, then share the address. Anyone with it can fund the wallet — only members can spend."
-                : "Send SOL to the address below. Anyone with the address can fund the wallet — but only members can spend from it."}
+                ? "Pick a chain, then share the address. Anyone with it can fund the wallet. Only members can spend."
+                : "Send SOL to the address below. Anyone with the address can fund the wallet, but only members can spend from it."}
             </p>
 
             {/* Chain picker — only when we have more than just Solana. */}
@@ -274,7 +275,7 @@ export default function ReceivePage() {
 
             <p className="mt-4 max-w-sm text-xs text-text-soft">
               Sending money you can&rsquo;t afford to lose? Don&rsquo;t.
-              This wallet is on a test network for now — only send test
+              This wallet is on a test network for now. Only send test
               funds.
             </p>
 

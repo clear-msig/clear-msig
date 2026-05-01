@@ -431,6 +431,11 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
       {batch.progress && (
         <BatchProgressRow progress={batch.progress} onDismiss={batch.reset} />
       )}
+      {!batch.progress && rows.length > 0 && (
+        <p className="mt-2 text-[11px] text-text-soft">
+          Approving fires one wallet popup per request. Tap Approve in each.
+        </p>
+      )}
 
       <ul className="mt-3 flex flex-col divide-y divide-border-soft">
         {grouped.map((entry: GroupedActionRow) =>
@@ -468,7 +473,7 @@ function BatchProgressRow({
       <div className="flex items-center justify-between gap-2 text-xs">
         <span className="font-medium text-text-strong">
           {stopped
-            ? `Stopped — approved ${progress.completed} of ${progress.total}`
+            ? `Stopped. Approved ${progress.completed} of ${progress.total}`
             : done
               ? `Approved ${progress.total} request${progress.total === 1 ? "" : "s"}`
               : `Approving ${progress.completed + 1} of ${progress.total}…`}

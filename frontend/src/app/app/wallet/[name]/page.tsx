@@ -34,6 +34,7 @@ import { useBatchApprove } from "@/lib/hooks/useBatchApprove";
 import { ProposalStatus } from "@/lib/msig";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatarStack } from "@/components/retail/MemberAvatar";
+import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { relativeTime } from "@/lib/util/relativeTime";
 import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
 import { formatBalance } from "@/lib/retail/format";
@@ -185,17 +186,19 @@ export default function WalletDetailPage() {
 
 function BackLink() {
   return (
-    <Link
-      href="/app/wallet"
-      className={
-        "-ml-2 inline-flex w-fit items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
-        "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-      }
-    >
-      <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-      Wallets
-    </Link>
+    <StickyTopBar offset="header">
+      <Link
+        href="/app/wallet"
+        className={
+          "-ml-2 inline-flex w-fit items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
+          "transition-colors duration-base ease-out-soft hover:text-text-strong " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+        }
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        Wallets
+      </Link>
+    </StickyTopBar>
   );
 }
 
@@ -504,6 +507,11 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
       {batch.progress && (
         <BatchProgressRow progress={batch.progress} onDismiss={batch.reset} />
       )}
+      {!batch.progress && rows.length > 0 && (
+        <p className="mt-2 text-[11px] text-text-soft">
+          Approving fires one wallet popup per request. Tap Approve in each.
+        </p>
+      )}
 
       <ul className="mt-3 flex flex-col divide-y divide-border-soft">
         {rows.map((row) => (
@@ -558,7 +566,7 @@ function BatchProgressRow({
       <div className="flex items-center justify-between gap-2 text-xs">
         <span className="font-medium text-text-strong">
           {stopped
-            ? `Stopped — approved ${progress.completed} of ${progress.total}`
+            ? `Stopped. Approved ${progress.completed} of ${progress.total}`
             : done
               ? `Approved ${progress.total} request${progress.total === 1 ? "" : "s"}`
               : `Approving ${progress.completed + 1} of ${progress.total}…`}
@@ -751,7 +759,7 @@ function NextStepsStripe({
   if (!hasIntents) {
     nudge = {
       title: "Set up sending",
-      body: `${name} can't send money yet. Enable sending — takes ~1 minute and 2 wallet popups.`,
+      body: `${name} can't send money yet. Enable sending. Takes about 1 minute and 2 wallet popups.`,
       cta: "Enable sending",
       href: `/app/wallet/${encoded}/setup`,
     };
@@ -827,7 +835,7 @@ function BudgetStripe({ name }: { name: string }) {
         href={`/app/wallet/${encodeURIComponent(name)}/budget`}
         className="rounded-card border border-border-soft bg-surface-raised px-4 py-3 text-xs text-text-soft shadow-card-rest hover:text-text-strong"
       >
-        Weekly cap is $0 — every send needs full approval. Edit →
+        Weekly cap is $0. Every send needs full approval. Edit →
       </Link>
     );
   }

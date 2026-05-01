@@ -20,6 +20,7 @@ import {
 } from "@/lib/retail/contacts";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
+import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { useToast } from "@/components/ui/Toast";
 
 export default function ContactsPage() {
@@ -51,17 +52,19 @@ export default function ContactsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        href="/app/wallet"
-        className={
-          "-ml-2 inline-flex w-fit items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
-          "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-        }
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Home
-      </Link>
+      <StickyTopBar offset="header">
+        <Link
+          href="/app/wallet"
+          className={
+            "-ml-2 inline-flex w-fit items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
+            "transition-colors duration-base ease-out-soft hover:text-text-strong " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          }
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Home
+        </Link>
+      </StickyTopBar>
 
       <motion.section
         {...motionProps}

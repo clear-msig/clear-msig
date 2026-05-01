@@ -23,6 +23,7 @@ import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { listProposalsForWallet } from "@/lib/chain/proposals";
+import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { fromHex, IntentType, ProposalStatus } from "@/lib/msig";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useContacts } from "@/lib/hooks/useContacts";
@@ -39,6 +40,7 @@ import {
 } from "@/lib/retail/roles";
 import { sendOrganizationInvite } from "@/lib/organizations/client";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
+import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
@@ -251,18 +253,22 @@ export default function AddFriendPage() {
         );
       }
 
-      // 4. Approve: second wallet popup. With threshold=1 this flips
-      //    the proposal from Active → Approved.
-      const approveDry = await backendApi.prepare.approveProposal(
-        name,
-        proposal,
-        { actor_pubkey: wallet.publicKey.toBase58() },
-      );
-      const approveSigned = await signBytes(fromHex(approveDry.message_hex));
-      await backendApi.submit.approveProposal(name, proposal, {
-        ...approveSigned,
-        expiry: approveDry.expiry,
-      });
+      // 4. Approve, but only if propose didn't already land it
+      //    Approved on chain (program auto-approves the proposer's
+      //    bit when proposer ∈ approvers).
+      const decision = await approveIfNeeded(connection, proposal);
+      if (decision.needsApproveSignature) {
+        const approveDry = await backendApi.prepare.approveProposal(
+          name,
+          proposal,
+          { actor_pubkey: wallet.publicKey.toBase58() },
+        );
+        const approveSigned = await signBytes(fromHex(approveDry.message_hex));
+        await backendApi.submit.approveProposal(name, proposal, {
+          ...approveSigned,
+          expiry: approveDry.expiry,
+        });
+      }
 
       // 5. Execute: actually run UpdateIntent and swap the on-chain
       //    approver/proposer lists. No user signature needed.
@@ -316,8 +322,8 @@ export default function AddFriendPage() {
       const message = !trimmedEmail
         ? base
         : emailDelivered
-          ? `${base} — invite emailed to ${trimmedEmail}`
-          : `${base} — couldn't reach ${trimmedEmail}, share the wallet link manually`;
+          ? `${base}. Invite emailed to ${trimmedEmail}`
+          : `${base}. Couldn't reach ${trimmedEmail}; share the wallet link manually`;
       toast.success(message);
       // Don't router.push — let the success view show NextStepCard
       // so the user picks where to go (add another, set their limit,
@@ -337,17 +343,19 @@ export default function AddFriendPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Breadcrumb
-        segments={[
-          { label: "Wallets", href: "/app/wallet" },
-          { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
-          {
-            label: "Members",
-            href: `/app/wallet/${encodeURIComponent(name)}/members`,
-          },
-          { label: "Add someone" },
-        ]}
-      />
+      <StickyTopBar offset="header">
+        <Breadcrumb
+          segments={[
+            { label: "Wallets", href: "/app/wallet" },
+            { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
+            {
+              label: "Members",
+              href: `/app/wallet/${encodeURIComponent(name)}/members`,
+            },
+            { label: "Add someone" },
+          ]}
+        />
+      </StickyTopBar>
 
       <motion.section
         {...motionProps}
@@ -362,7 +370,7 @@ export default function AddFriendPage() {
         </h1>
         <p className="mt-2 max-w-md text-base text-text-soft">
           A friend, teammate, or board member who&rsquo;ll help approve
-          requests. You&rsquo;ll need their Solana wallet address — ask
+          requests. You&rsquo;ll need their Solana wallet address; ask
           them before you get started.
         </p>
       </motion.section>
@@ -387,7 +395,7 @@ export default function AddFriendPage() {
             },
             {
               label: `Set ${justAddedName}'s spending limit`,
-              hint: "Optional — limits read on the inbox before approval.",
+              hint: "Optional. Limits read on the inbox before approval.",
               href: `/app/wallet/${encodeURIComponent(name)}/allowances`,
               icon: Pencil,
             },
@@ -411,7 +419,7 @@ export default function AddFriendPage() {
           </p>
           <p className="mt-2 text-sm text-text-strong">
             Adding people changes <strong>{name}</strong>&rsquo;s
-            spending rule — but no rule exists yet. Enable sending,
+            spending rule, but no rule exists yet. Enable sending,
             then come back here. It&rsquo;s a 2-popup setup that takes
             about a minute.
           </p>

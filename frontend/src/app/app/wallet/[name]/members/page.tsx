@@ -23,6 +23,7 @@ import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { deriveRole, listWatchers, ROLE_HINT, ROLE_LABEL, type Role } from "@/lib/retail/roles";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
+import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { avatarInitials } from "@/lib/retail/avatar";
@@ -104,13 +105,15 @@ export default function MembersPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Breadcrumb
-        segments={[
-          { label: "Wallets", href: "/app/wallet" },
-          { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
-          { label: "Members" },
-        ]}
-      />
+      <StickyTopBar offset="header">
+        <Breadcrumb
+          segments={[
+            { label: "Wallets", href: "/app/wallet" },
+            { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
+            { label: "Members" },
+          ]}
+        />
+      </StickyTopBar>
 
       <motion.section
         {...motionProps}
@@ -205,7 +208,7 @@ export default function MembersPage() {
             </p>
             <p className="mt-1.5 text-sm leading-relaxed text-text-soft">
               Set a daily, weekly, or monthly cap for each friend. The
-              wallet enforces it on chain — and the limits stay
+              wallet enforces it on chain, and the limits stay
               encrypted, so nobody outside this wallet can read them.
             </p>
             <p className="mt-2 text-xs text-text-soft">

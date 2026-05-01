@@ -27,6 +27,7 @@ import {
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
+import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
@@ -120,20 +121,22 @@ function AddChainPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Breadcrumb
-        segments={[
-          { label: "Wallets", href: "/app/wallet" },
-          {
-            label: walletName,
-            href: `/app/wallet/${encodeURIComponent(walletName)}`,
-          },
-          {
-            label: "Chains",
-            href: `/app/wallet/${encodeURIComponent(walletName)}/chains`,
-          },
-          { label: "Add a chain" },
-        ]}
-      />
+      <StickyTopBar offset="header">
+        <Breadcrumb
+          segments={[
+            { label: "Wallets", href: "/app/wallet" },
+            {
+              label: walletName,
+              href: `/app/wallet/${encodeURIComponent(walletName)}`,
+            },
+            {
+              label: "Chains",
+              href: `/app/wallet/${encodeURIComponent(walletName)}/chains`,
+            },
+            { label: "Add a chain" },
+          ]}
+        />
+      </StickyTopBar>
 
       {stage === "pick" && (
         <motion.section
@@ -215,7 +218,7 @@ function AddChainPage() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                Your spending rules apply on {selected.name} too — same
+                Your spending rules apply on {selected.name} too. Same
                 friends, same approvals.
               </li>
               <li className="flex items-start gap-2">
@@ -321,7 +324,7 @@ function BindingStage({
           Setting up {chain.name}…
         </h1>
         <p className="mt-2 max-w-md text-base text-text-soft">
-          This usually takes about 30 seconds. Hang tight — you don&rsquo;t
+          This usually takes about 30 seconds. Hang tight; you don&rsquo;t
           need to do anything.
         </p>
       </div>

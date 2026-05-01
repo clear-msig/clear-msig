@@ -27,6 +27,7 @@ import {
 import { useContacts } from "@/lib/hooks/useContacts";
 import { shortAddress } from "@/lib/retail/contacts";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
+import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { useToast } from "@/components/ui/Toast";
 
@@ -141,17 +142,19 @@ export default function AllowancesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Breadcrumb
-        segments={[
-          { label: "Wallets", href: "/app/wallet" },
-          { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
-          {
-            label: "Members",
-            href: `/app/wallet/${encodeURIComponent(name)}/members`,
-          },
-          { label: "Spending limits" },
-        ]}
-      />
+      <StickyTopBar offset="header">
+        <Breadcrumb
+          segments={[
+            { label: "Wallets", href: "/app/wallet" },
+            { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
+            {
+              label: "Members",
+              href: `/app/wallet/${encodeURIComponent(name)}/members`,
+            },
+            { label: "Spending limits" },
+          ]}
+        />
+      </StickyTopBar>
 
       <motion.section
         {...motionProps}
@@ -168,8 +171,8 @@ export default function AllowancesPage() {
           What each member can spend
         </h1>
         <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
-          Pick a per-period limit for each person — friend, teammate,
-          or board member. Requests inside the limit are easier to
+          Pick a per-period limit for each person (friend, teammate,
+          or board member). Requests inside the limit are easier to
           approve; anything above it follows the full {name} approval
           rule.
         </p>
@@ -311,7 +314,7 @@ export default function AllowancesPage() {
 
       <p className="text-center text-xs text-text-soft">
         Limits are saved on this device while we wait for on-chain
-        enforcement. They&rsquo;re a hint to you — every request still
+        enforcement. They&rsquo;re a hint to you; every request still
         follows {name}&rsquo;s approval rule today.
       </p>
     </div>

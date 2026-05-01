@@ -31,6 +31,7 @@ import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { IntentType, type IntentAccount } from "@/lib/msig";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
+import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Button } from "@/components/retail/Button";
 import { friendlyIntentLabel } from "@/lib/retail/labels";
 import { encryptStatus } from "@/lib/encrypt/client";
@@ -99,13 +100,15 @@ export default function RulesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Breadcrumb
-        segments={[
-          { label: "Wallets", href: "/app/wallet" },
-          { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
-          { label: "Spending rules" },
-        ]}
-      />
+      <StickyTopBar offset="header">
+        <Breadcrumb
+          segments={[
+            { label: "Wallets", href: "/app/wallet" },
+            { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
+            { label: "Spending rules" },
+          ]}
+        />
+      </StickyTopBar>
 
       <motion.section
         {...motionProps}
@@ -144,8 +147,8 @@ export default function RulesPage() {
       ) : needsSetup ? (
         <div className="rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest">
           <p className="text-sm text-text-soft">
-            No spending rule yet. Set one up below to enable sending —
-            you&rsquo;ll do this once per wallet.
+            No spending rule yet. Set one up below to enable sending.
+            You&rsquo;ll do this once per wallet.
           </p>
         </div>
       ) : (

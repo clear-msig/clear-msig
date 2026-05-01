@@ -14,6 +14,13 @@
 // `popups` defaults to 1. Use 2 when the flow is propose + approve
 // (every meta-intent path) so the user isn't surprised by the second
 // popup mid-flow.
+//
+// Hex disclaimer: 2026-05-01 team review flagged that Solana wallets
+// show technical-looking bytes in the signing prompt instead of a
+// human-readable summary. We cannot change what the wallet renders
+// (Solana signMessage is bytes-only), so the narration explicitly
+// tells the user the bytes are normal and what they represent. The
+// disclaimer is on by default; compact mode hides it.
 
 import { ShieldCheck } from "lucide-react";
 
@@ -24,11 +31,16 @@ interface WalletPopupNarrationProps {
   /// How many wallet popups will fire end-to-end. Defaults to 1.
   popups?: number;
   /// Optional override of the trailing reassurance line. Defaults to
-  /// "Nothing leaves your account — this just sets up the rules on chain."
+  /// "Nothing leaves your account. This just sets up the rules on chain."
   note?: string;
   /// Compact rendering (smaller padding + text) for inline embedding
-  /// on dense screens like the proposal-detail action panel.
+  /// on dense screens like the proposal-detail action panel. Hides the
+  /// hex disclaimer to keep the footprint tight.
   compact?: boolean;
+  /// Force-disable the hex disclaimer even outside compact mode.
+  /// Default false. Use only on surfaces that already have their own
+  /// honest narration (e.g. the welcome confirm step).
+  hideHexDisclaimer?: boolean;
 }
 
 export function WalletPopupNarration({
@@ -36,6 +48,7 @@ export function WalletPopupNarration({
   popups = 1,
   note,
   compact = false,
+  hideHexDisclaimer = false,
 }: WalletPopupNarrationProps) {
   const popupCopy =
     popups === 1
@@ -43,7 +56,8 @@ export function WalletPopupNarration({
       : `Your wallet will pop up ${popups} times.`;
   const trailing =
     note ??
-    "Nothing leaves your account — this just sets up the rules on chain.";
+    "Nothing leaves your account. This just sets up the rules on chain.";
+  const showHex = !compact && !hideHexDisclaimer;
   return (
     <div
       role="note"
@@ -60,20 +74,30 @@ export function WalletPopupNarration({
         strokeWidth={2}
         aria-hidden="true"
       />
-      <p className="leading-snug">
-        <span className="font-medium text-text-strong">{popupCopy}</span>{" "}
-        {popups === 1 ? (
-          <>
-            It&rsquo;ll ask you to confirm <em>{action}</em>. Tap Approve.{" "}
-          </>
-        ) : (
-          <>
-            One to start <em>{action}</em>, one to approve it. Tap Approve
-            both times.{" "}
-          </>
+      <div className="leading-snug">
+        <p>
+          <span className="font-medium text-text-strong">{popupCopy}</span>{" "}
+          {popups === 1 ? (
+            <>
+              It&rsquo;ll ask you to confirm <em>{action}</em>. Tap Approve.{" "}
+            </>
+          ) : (
+            <>
+              One to start <em>{action}</em>, one to approve it. Tap Approve
+              both times.{" "}
+            </>
+          )}
+          {trailing}
+        </p>
+        {showHex && (
+          <p className="mt-2 text-text-soft/90">
+            <span className="font-medium text-text-strong">Heads up.</span>{" "}
+            Solana wallets show technical-looking text instead of a friendly
+            summary in the signing prompt. That is the message your wallet
+            is signing for you. It is normal.
+          </p>
         )}
-        {trailing}
-      </p>
+      </div>
     </div>
   );
 }

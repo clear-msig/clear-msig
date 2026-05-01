@@ -72,16 +72,39 @@ impl<'info> Propose<'info> {
         brine_ed25519::sig_verify(args.proposer_pubkey, args.signature, msg_buf.as_bytes())
             .map_err(|_| WalletError::InvalidSignature)?;
 
+        // Auto-approve the proposer's bit when the proposer is also
+        // in the approvers list. Cuts the popup count for any solo
+        // wallet (and the common case where the proposer also
+        // counts toward quorum) from 2 — propose then approve — to
+        // 1, matching what users expect from Squads' multisig flow.
+        // If the proposer isn't an approver, the bitmap stays zero
+        // and the proposal still needs the usual approve step.
+        let mut approval_bitmap = 0u16;
+        let mut approved_at = 0i64;
+        let mut status = ProposalStatus::Active;
+        if let Some(idx) = self.intent.approver_index(&proposer_addr) {
+            approval_bitmap = 1u16 << idx;
+            // If the proposer's single bit already meets threshold
+            // (e.g. 1-of-1, or any wallet where the proposer's vote
+            // alone is enough), flip status to Approved so the
+            // execute can run without a second user signature.
+            let approvals_now = approval_bitmap.count_ones() as u8;
+            if approvals_now >= self.intent.approval_threshold {
+                status = ProposalStatus::Approved;
+                approved_at = clock.unix_timestamp.get();
+            }
+        }
+
         self.proposal.set_inner(ProposalInner {
             wallet: *self.wallet.address(),
             intent: *self.intent.address(),
             proposal_index,
             proposer: proposer_addr,
-            status: ProposalStatus::Active,
+            status,
             proposed_at: clock.unix_timestamp.get(),
-            approved_at: 0i64,
+            approved_at,
             bump: bumps.proposal,
-            approval_bitmap: 0u16,
+            approval_bitmap,
             cancellation_bitmap: 0u16,
             rent_refund: *self.payer.address(),
             params_data: args.params_data,

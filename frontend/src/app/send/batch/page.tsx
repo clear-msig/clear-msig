@@ -43,6 +43,7 @@ import { useBatchSend, type BatchSendRow } from "@/lib/hooks/useBatchSend";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
+import { StickyTopBar } from "@/components/retail/StickyTopBar";
 
 // Hard cap on rows per batch — high enough for real payroll, low
 // enough to prevent runaway sign-prompt loops.
@@ -197,7 +198,7 @@ function BatchSendPage() {
 
   return (
     <main className="relative flex min-h-screen flex-col bg-canvas">
-      <header className="relative z-10 flex items-center justify-between px-gutter pt-6">
+      <StickyTopBar>
         <Link
           href={
             walletName
@@ -213,7 +214,7 @@ function BatchSendPage() {
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           {walletName || "Wallets"}
         </Link>
-      </header>
+      </StickyTopBar>
 
       <div className="relative z-10 flex flex-1 justify-center px-gutter py-10">
         <motion.section
@@ -334,7 +335,7 @@ function ComposeStage({
         Send a batch from {walletName}
       </h1>
       <p className="mt-3 max-w-sm text-base text-text-soft">
-        Pay many people at once — payroll, splits, an event. Each row
+        Pay many people at once: payroll, splits, an event. Each row
         becomes its own request your friends can approve together.
       </p>
 
@@ -524,7 +525,7 @@ function ReviewStage({
         <span className="font-medium text-text-strong">
           {rows.length} time{rows.length === 1 ? "" : "s"}
         </span>{" "}
-        — once per recipient — so you can confirm each one.
+        (once per recipient) so you can confirm each one.
       </p>
 
       <ul className="mt-6 w-full divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised text-left shadow-card-rest">
@@ -605,7 +606,7 @@ function SendingStage({
         {currentLabel
           ? `Now: ${currentLabel}. Confirm each in your wallet popup.`
           : completed === 0
-            ? "Getting ready — your wallet will pop up shortly."
+            ? "Getting ready. Your wallet will pop up shortly."
             : "Wrapping up the last few."}
       </p>
 
@@ -663,7 +664,7 @@ function DoneStage({
       <h1 className="mt-6 font-display text-display-sm leading-[1.05] text-text-strong">
         {allSucceeded
           ? `Sent ${progress.succeeded} of ${progress.total}`
-          : `Sent ${progress.succeeded} of ${progress.total} — ${progress.failed} need another look`}
+          : `Sent ${progress.succeeded} of ${progress.total}. ${progress.failed} need another look`}
       </h1>
       <p className="mt-2 max-w-sm text-base text-text-soft">
         {allSucceeded

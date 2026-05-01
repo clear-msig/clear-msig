@@ -223,7 +223,7 @@ export function encryptStatus(): EncryptStatus {
     live: true,
     scheme: "passthrough-v1",
     description:
-      "Your wallet's rules are routed through Encrypt every time you change them — who can spend, the approvals you need, and the limits you set.",
+      "Your wallet's rules are routed through Encrypt every time you change them. Who can spend, the approvals you need, and the limits you set.",
     learnMoreHref: "/privacy",
   };
 }

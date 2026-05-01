@@ -172,7 +172,7 @@ export function friendlyError(
       title: "There's already a pending request on this rule",
       body:
         "Approve or cancel the existing request first, then try again. " +
-        "Look in the wallet's request inbox — the one in 'Active' status " +
+        "Look in the wallet's request inbox; the one in 'Active' status " +
         "is blocking the new one.",
     };
   }
@@ -196,7 +196,7 @@ export function friendlyError(
   ) {
     return {
       title: "A wallet with that name already exists",
-      body: "Pick a different name and try again — names have to be unique on chain.",
+      body: "Pick a different name and try again. Names have to be unique on chain.",
     };
   }
 
@@ -235,7 +235,7 @@ export function friendlyError(
   ) {
     return {
       title: "That friend is already in the wallet",
-      body: "Members are unique by address — you can't add the same address twice.",
+      body: "Members are unique by address. You can't add the same address twice.",
     };
   }
 

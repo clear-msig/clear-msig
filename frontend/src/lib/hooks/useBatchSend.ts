@@ -17,12 +17,14 @@
 // program without contract changes.
 
 import { useCallback, useRef, useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useQueryClient } from "@tanstack/react-query";
+import type { Connection } from "@solana/web3.js";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { fromHex, toHex } from "@/lib/msig";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
+import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 
 export interface BatchSendRow {
   /// Recipient label (contact name or shortened address) for status UI.
@@ -66,6 +68,7 @@ const BATCH_LOG_KEY = "clear-msig:batches:v1";
 export function useBatchSend() {
   const { signBytes } = useSignWithWallet();
   const { publicKey } = useWallet();
+  const { connection } = useConnection();
   const actorPubkey = publicKey?.toBase58();
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState<BatchSendProgress | null>(null);
@@ -131,6 +134,7 @@ export function useBatchSend() {
           row,
           signBytes,
           actorPubkey,
+          connection,
         });
 
         if (result.kind === "ok") {
@@ -227,6 +231,7 @@ interface RowAttemptArgs {
   row: BatchSendRow;
   signBytes: (bytes: Uint8Array) => Promise<{ signer_pubkey: string; signature: string }>;
   actorPubkey: string | undefined;
+  connection: Connection;
 }
 
 /// Run prepare → sign → submit for one row. Retries on transient
@@ -235,7 +240,7 @@ interface RowAttemptArgs {
 /// rebuilding the message from a fresh prepare. Wallet rejections
 /// fail fast — never re-prompt the user without their click.
 async function runRowWithRetry(
-  { walletName, intentIndex, row, signBytes, actorPubkey }: RowAttemptArgs,
+  { walletName, intentIndex, row, signBytes, actorPubkey, connection }: RowAttemptArgs,
 ): Promise<RowAttemptResult> {
   const maxAttempts = 3;
   let lastMessage = "Send failed";
@@ -262,24 +267,27 @@ async function runRowWithRetry(
       const proposalPda =
         typeof submission?.proposal === "string" ? submission.proposal : undefined;
 
-      // Propose alone leaves the proposal in Active state. Flip the
-      // proposer's bit (second wallet popup) so a 1-of-1 wallet
-      // doesn't get stuck waiting on itself, then run Execute so
-      // the SOL actually moves. Both steps are best-effort — if the
-      // user rejects approve mid-batch we still consider the row a
-      // success (the proposal landed and they can approve later).
+      // Propose may auto-approve on chain (program flips proposer
+      // bit when proposer ∈ approvers + threshold met). Skip the
+      // approve popup in that case — every saved popup × N rows is
+      // a meaningful UX win for a 50-row payroll. Best-effort: if
+      // the user rejects mid-batch we still consider the row a
+      // success (proposal's on chain, can be approved later).
       if (proposalPda && actorPubkey) {
         try {
-          const approveDry = await backendApi.prepare.approveProposal(
-            walletName,
-            proposalPda,
-            { actor_pubkey: actorPubkey },
-          );
-          const approveSigned = await signBytes(fromHex(approveDry.message_hex));
-          await backendApi.submit.approveProposal(walletName, proposalPda, {
-            ...approveSigned,
-            expiry: approveDry.expiry,
-          });
+          const decision = await approveIfNeeded(connection, proposalPda);
+          if (decision.needsApproveSignature) {
+            const approveDry = await backendApi.prepare.approveProposal(
+              walletName,
+              proposalPda,
+              { actor_pubkey: actorPubkey },
+            );
+            const approveSigned = await signBytes(fromHex(approveDry.message_hex));
+            await backendApi.submit.approveProposal(walletName, proposalPda, {
+              ...approveSigned,
+              expiry: approveDry.expiry,
+            });
+          }
           await backendApi.executeProposal(walletName, proposalPda, {});
         } catch (innerErr) {
           // Per-row partial success — the proposal's on chain even if

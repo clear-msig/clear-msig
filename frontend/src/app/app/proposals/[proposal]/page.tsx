@@ -47,6 +47,8 @@ import { useProposalWorkflow } from "@/lib/hooks/useProposalWorkflow";
 import { friendlyError } from "@/lib/api/errors";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
+import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
+import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
 import { relativeTime } from "@/lib/util/relativeTime";
 
@@ -202,17 +204,19 @@ function Loaded({
       transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
       className="flex flex-col gap-6"
     >
-      <Link
-        href={`/app/wallet/${encodeURIComponent(walletName)}`}
-        className={
-          "-ml-2 inline-flex w-fit items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
-          "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-        }
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        {walletName}
-      </Link>
+      <StickyTopBar offset="header">
+        <Link
+          href={`/app/wallet/${encodeURIComponent(walletName)}`}
+          className={
+            "-ml-2 inline-flex w-fit items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
+            "transition-colors duration-base ease-out-soft hover:text-text-strong " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          }
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          {walletName}
+        </Link>
+      </StickyTopBar>
 
       {/* Hero */}
       <section className="flex flex-col items-center rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest sm:p-8">
@@ -250,9 +254,11 @@ function Loaded({
         </div>
       </section>
 
-      {/* Actions — only while Active */}
+      {/* Actions: only while Active */}
       {isActive && isApprover && !alreadyApproved && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="flex flex-col gap-3">
+          <WalletPopupNarration action="approve this request" />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Button
             size="lg"
             fullWidth
@@ -290,6 +296,7 @@ function Loaded({
               </>
             )}
           </Button>
+          </div>
         </div>
       )}
 
