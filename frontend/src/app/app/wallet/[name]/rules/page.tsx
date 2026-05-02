@@ -206,7 +206,7 @@ function RuleCard({ intent, delay, reduce }: RuleCardProps) {
     ? {}
     : { initial: { opacity: 0, y: 6 }, animate: { opacity: 1, y: 0 } };
 
-  const label = friendlyIntentLabel(intent.template);
+  const label = friendlyIntentLabel(intent);
   const isImmediate = intent.timelockSeconds === 0;
   const timelockLabel = isImmediate
     ? "Sends right away"

@@ -164,6 +164,15 @@ export function useWalletBudgetUsage(walletName: string): BudgetUsageResult {
   };
 }
 
+/// Sanity ceiling for any single decoded send. Devnet test wallets
+/// often hold proposals from earlier debug iterations with absurd
+/// lamport values (typing a SOL amount as if it were lamports yields
+/// 1e9× the intended size). Without a clamp those entries dominate
+/// the budget tracker and produce numbers like "$113M spent" on a
+/// fresh-looking demo. We treat anything above this threshold as
+/// devnet noise and exclude it from the cumulative spent.
+const SANITY_CEILING_USD = 1_000_000;
+
 /// Decode `paramsData` into a `{usd, ticker}` pair. Returns null for
 /// templates we don't know how to read yet (gracefully degrade; the
 /// budget stripe is a hint, not enforcement). Add cases as new chain
@@ -180,6 +189,16 @@ function decodeProposalSpend(
   const lamports = view.getBigUint64(0, true);
   const usd = lamportsToUsd(lamports, SOL_LAMPORTS_PER_WHOLE, "SOL");
   if (usd <= 0) return null;
+  if (usd > SANITY_CEILING_USD) {
+    // Almost certainly leftover devnet noise. Don't count it.
+    if (typeof console !== "undefined") {
+      console.debug(
+        `[budget] skipping implausibly large send (${usd.toFixed(2)} USD) ` +
+          `from proposal ${p.pda.toBase58()}`,
+      );
+    }
+    return null;
+  }
   return { usd, ticker: "SOL" };
 }
 

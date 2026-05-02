@@ -10,7 +10,14 @@ html,
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: #f4f4f5;
+  /* Subtle vertical gradient on the canvas. Top reads ~3% lighter
+     than the bottom; the eye picks up "the page has depth" without
+     the gradient itself being legible. background-attachment: fixed
+     keeps it stable while content scrolls. */
+  background:
+    radial-gradient(60% 40% at 50% 0%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, #fafafa 0%, #f4f4f5 55%, #ededee 100%);
+  background-attachment: fixed;
   color: #18181b;
   /* Base sans-serif stack . overridden per-page by Tailwind font-sans/display/mono. */
   font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system,

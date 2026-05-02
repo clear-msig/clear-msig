@@ -142,8 +142,14 @@ const config: Config = {
 
       boxShadow: {
         // ── Semantic ──────────────────────────────────────────────
-        "card-rest": "0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.06)",
-        "card-raised": "0 4px 12px rgba(15, 23, 42, 0.08), 0 12px 32px rgba(15, 23, 42, 0.10)",
+        // Layered shadows + a 1px top highlight. The highlight reads
+        // as a soft rim-light from above, the layered drops give
+        // cards a touch of depth without crossing into skeuomorphism.
+        // Cash App / Venmo as the reference; very subtle.
+        "card-rest":
+          "inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 1px 2px rgba(15, 23, 42, 0.05), 0 6px 18px rgba(15, 23, 42, 0.07), 0 2px 6px rgba(15, 23, 42, 0.04)",
+        "card-raised":
+          "inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 4px 14px rgba(15, 23, 42, 0.10), 0 16px 40px rgba(15, 23, 42, 0.12)",
         "accent-rest": "0 8px 24px -8px rgba(22, 163, 74, 0.30)",
         "accent-hover": "0 16px 36px -10px rgba(22, 163, 74, 0.40)",
 
