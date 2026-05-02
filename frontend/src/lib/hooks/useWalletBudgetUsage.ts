@@ -1,18 +1,20 @@
 "use client";
 
-// useWalletBudgetUsage — folds the wallet's executed proposals into
-// a rolling-week USD total + compares against the locally-stored
-// weekly cap.
+// useWalletBudgetUsage. Folds the wallet's executed proposals into:
+//   - Wallet-wide rolling-week USD total.
+//   - Per-chain rolling-week USD totals (Solana, Ethereum, Bitcoin,
+//     Zcash) so each chain's cap can render its own progress bar.
+//   - Sends-in-the-last-24h count for the velocity check.
 //
-// Today this only knows how to decode SolTransfer params (the only
-// shipped Custom intent). When other chain templates land
-// (TokenTransfer, EvmTransfer, etc), extend `usdForProposal()` with
-// per-template decoders. The price oracle is a single swap point in
-// `lib/retail/priceConversion.ts`.
+// Today only SolTransfer is decoded (the only shipped Custom intent).
+// When TokenTransfer / EvmTransfer / etc. land, extend the
+// `decodeProposalSpend()` switch with per-template decoders. The
+// price oracle is a single swap point in `lib/retail/priceConversion.ts`.
 //
-// Returns null `budget` when the user hasn't set one — caller
-// renders a "set a budget" CTA in that case rather than a meaningless
-// "0% used" bar.
+// Returns null `budget` when the user hasn't set one, so the caller
+// renders a "set a budget" CTA instead of a meaningless "0% used"
+// bar. Per-chain caps default to undefined; the UI only renders
+// progress bars for chains the user has explicitly capped.
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -24,22 +26,48 @@ import {
 } from "@/lib/chain/proposals";
 import { ProposalStatus } from "@/lib/msig";
 import {
+  computeVelocityWindowStart,
   computeWindowStart,
+  countWindowSends,
   getBudget,
+  POLICY_CHAIN_TICKERS,
   sumWindowUsd,
+  sumWindowUsdByChain,
+  type PolicyChainTicker,
+  type PriceableSpend,
   type WalletBudget,
 } from "@/lib/retail/spendingBudget";
 import { lamportsToUsd } from "@/lib/retail/priceConversion";
 
+/// Per-chain breakdown for one ticker. `cap === null` means the user
+/// hasn't capped this chain; the UI hides the progress bar but the
+/// `spentUsd` is still useful for the sign-time impact preview.
+export interface ChainBudgetUsage {
+  ticker: PolicyChainTicker;
+  spentUsd: number;
+  cap: number | null;
+  /// Difference between cap and spent. `null` when no cap is set;
+  /// negative when overspent.
+  remainingUsd: number | null;
+  /// 0..1 fraction (clamped). `null` when no cap is set.
+  pctUsed: number | null;
+}
+
 export interface BudgetUsageResult {
   budget: WalletBudget | null;
+  /// Wallet-wide totals.
   spentUsd: number;
   proposalCount: number;
-  /// Difference between cap and spent. `null` when no budget is set;
-  /// can be negative when the user has overspent.
   remainingUsd: number | null;
-  /// 0–1 fraction (clamped). `null` when no budget is set.
   pctUsed: number | null;
+  /// Per-chain totals for every ticker we know how to price (one
+  /// entry per ticker in POLICY_CHAIN_TICKERS, even when the user
+  /// hasn't set a cap and hasn't spent on that chain).
+  perChain: ChainBudgetUsage[];
+  /// Sends executed in the last 24h (the velocity window).
+  sendsLast24h: number;
+  /// True if velocityPerDay is set and sendsLast24h is at or above it.
+  velocityHit: boolean;
   loading: boolean;
 }
 
@@ -48,9 +76,6 @@ const SOL_LAMPORTS_PER_WHOLE = 1_000_000_000n;
 export function useWalletBudgetUsage(walletName: string): BudgetUsageResult {
   const { connection } = useConnection();
 
-  // Read the wallet's full proposal list; the rolling-window filter
-  // happens in-memory so we can swap the window length without
-  // re-querying the chain.
   const walletQuery = useQuery({
     queryKey: ["wallet", walletName],
     queryFn: () => fetchWalletByName(connection, walletName),
@@ -71,69 +96,92 @@ export function useWalletBudgetUsage(walletName: string): BudgetUsageResult {
     staleTime: 30_000,
   });
 
-  // Re-read budget from storage on every render — tiny + lets the
-  // setter page reflect changes without a full re-mount of the
-  // consumer.
   const budget = useMemo(() => getBudget(walletName), [walletName]);
 
-  const usage = useMemo(() => {
+  const computed = useMemo(() => {
     const rows = proposalsQuery.data ?? [];
-    // Only executed proposals "count" against the weekly limit —
-    // active / approved are intent, not spend.
+    // Only executed proposals "count" against caps. Active / Approved
+    // are intent, not spend.
     const executed = rows.filter(
       (r) => r.account.status === ProposalStatus.Executed,
     );
-    const dollarRows = executed.flatMap((r) => {
-      const usd = usdForProposal(r);
-      // The proposal carries `proposedAt` (seconds) but no separate
-      // `executedAt`. Approve-then-execute is usually within
-      // minutes, so proposedAt is a good-enough cohort marker for a
-      // 7-day window.
+
+    const dollarRows: PriceableSpend[] = executed.flatMap((r) => {
+      const spend = decodeProposalSpend(r);
+      // proposedAt is a good-enough proxy for executedAt; approve-then-
+      // execute is usually within minutes.
       const executedAtMs = Number(r.account.proposedAt) * 1000;
-      return usd > 0 ? [{ executedAtMs, usd }] : [];
+      return spend ? [{ ...spend, executedAtMs }] : [];
     });
-    return sumWindowUsd(dollarRows);
+
+    const totals = sumWindowUsd(dollarRows);
+    const perChainSpend = sumWindowUsdByChain(dollarRows);
+    const sendsLast24h = countWindowSends(
+      executed.map((r) => ({
+        executedAtMs: Number(r.account.proposedAt) * 1000,
+      })),
+    );
+
+    return { totals, perChainSpend, sendsLast24h };
   }, [proposalsQuery.data]);
 
   const cap = budget?.weeklyUsd ?? null;
-  const remainingUsd = cap !== null ? cap - usage.spentUsd : null;
+  const remainingUsd = cap !== null ? cap - computed.totals.spentUsd : null;
   const pctUsed =
     cap !== null && cap > 0
-      ? Math.max(0, Math.min(1, usage.spentUsd / cap))
+      ? Math.max(0, Math.min(1, computed.totals.spentUsd / cap))
       : cap === 0
         ? 1
         : null;
 
+  const perChain: ChainBudgetUsage[] = POLICY_CHAIN_TICKERS.map((ticker) => {
+    const spent = computed.perChainSpend[ticker] ?? 0;
+    const chainCap = budget?.perChainUsd?.[ticker] ?? null;
+    const remaining = chainCap !== null ? chainCap - spent : null;
+    const pct =
+      chainCap !== null && chainCap > 0
+        ? Math.max(0, Math.min(1, spent / chainCap))
+        : chainCap === 0
+          ? 1
+          : null;
+    return { ticker, spentUsd: spent, cap: chainCap, remainingUsd: remaining, pctUsed: pct };
+  });
+
+  const velocityCap = budget?.velocityPerDay ?? null;
+  const velocityHit =
+    velocityCap !== null && velocityCap > 0 && computed.sendsLast24h >= velocityCap;
+
   return {
     budget,
-    spentUsd: usage.spentUsd,
-    proposalCount: usage.proposalCount,
+    spentUsd: computed.totals.spentUsd,
+    proposalCount: computed.totals.proposalCount,
     remainingUsd,
     pctUsed,
+    perChain,
+    sendsLast24h: computed.sendsLast24h,
+    velocityHit,
     loading: walletQuery.isLoading || proposalsQuery.isLoading,
   };
 }
 
-/// Decode `paramsData` into a USD value. Returns 0 for templates
-/// we don't know how to read yet (gracefully degrade — the budget
-/// stripe is a hint, not an enforcement). Add cases as new chain
+/// Decode `paramsData` into a `{usd, ticker}` pair. Returns null for
+/// templates we don't know how to read yet (gracefully degrade; the
+/// budget stripe is a hint, not enforcement). Add cases as new chain
 /// transfer templates land.
-function usdForProposal(p: ProposalWithPda): number {
+function decodeProposalSpend(
+  p: ProposalWithPda,
+): { usd: number; ticker: PolicyChainTicker } | null {
   const data = p.account.paramsData;
   // SolTransfer layout: 32-byte destination + 8-byte u64 lamports
   // (LE) + 32-byte nonce. Anything shorter than 40 bytes can't be
-  // SolTransfer, so we bail.
-  if (data.length < 40) return 0;
-  // u64 little-endian read. DataView reads up to bigint via
-  // getBigUint64; jsdom in Vitest supports it, browsers do too.
-  const view = new DataView(
-    data.buffer,
-    data.byteOffset + 32,
-    8,
-  );
+  // SolTransfer.
+  if (data.length < 40) return null;
+  const view = new DataView(data.buffer, data.byteOffset + 32, 8);
   const lamports = view.getBigUint64(0, true);
-  return lamportsToUsd(lamports, SOL_LAMPORTS_PER_WHOLE, "SOL");
+  const usd = lamportsToUsd(lamports, SOL_LAMPORTS_PER_WHOLE, "SOL");
+  if (usd <= 0) return null;
+  return { usd, ticker: "SOL" };
 }
 
 /// Re-export so consumers don't need a second import for the constant.
-export { computeWindowStart };
+export { computeWindowStart, computeVelocityWindowStart };

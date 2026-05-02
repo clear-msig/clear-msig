@@ -50,7 +50,10 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
-import { SignPayloadPreview } from "@/components/retail/SignPayloadPreview";
+import {
+  SignPayloadPreview,
+  type SignPayloadDetail,
+} from "@/components/retail/SignPayloadPreview";
 import { NextStepCard } from "@/components/retail/NextStepCard";
 import { QuickSendInput } from "@/components/retail/QuickSendInput";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
@@ -80,6 +83,90 @@ function generateNonceHex(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   return "0x" + toHex(bytes);
+}
+
+// Build the SignPayloadPreview detail rows for /send. Stays a pure
+// function so it can render the policy impact (per-chain + wallet-
+// wide) without dragging hook plumbing into the JSX.
+interface SendPreviewArgs {
+  walletName: string;
+  amount: string;
+  amountValid: boolean;
+  resolved: ResolvedRecipient;
+  pendingUsd: number;
+  budgetUsage: ReturnType<typeof useWalletBudgetUsage>;
+}
+
+function buildSendPreviewDetails(args: SendPreviewArgs): SignPayloadDetail[] {
+  const { walletName, amount, amountValid, resolved, pendingUsd, budgetUsage } = args;
+  const details: SignPayloadDetail[] = [
+    { label: "From wallet", value: walletName || "your wallet" },
+    { label: "Chain", value: "Solana" },
+  ];
+  if (resolved.kind === "address") {
+    details.push({
+      label: "Recipient",
+      value: shortAddress(resolved.address),
+      emphasis: "mono",
+    });
+  }
+  if (amountValid) {
+    details.push({
+      label: "Amount",
+      value: `${formatAmount(amount)} SOL`,
+      emphasis: "amount",
+    });
+  }
+
+  // Policy-impact rows. Only render when the user has set the cap
+  // they affect; otherwise the detail row would be noise.
+  const sol = budgetUsage.perChain.find((c) => c.ticker === "SOL");
+  if (amountValid && sol && sol.cap !== null && pendingUsd > 0) {
+    const after = sol.spentUsd + pendingUsd;
+    details.push({
+      label: "Solana / week",
+      value: `${formatUsd(after)} of ${formatUsd(sol.cap)}`,
+    });
+  }
+  const cap = budgetUsage.budget?.weeklyUsd ?? null;
+  if (amountValid && cap !== null && cap > 0 && pendingUsd > 0) {
+    const after = budgetUsage.spentUsd + pendingUsd;
+    details.push({
+      label: "Wallet / week",
+      value: `${formatUsd(after)} of ${formatUsd(cap)}`,
+    });
+  }
+  return details;
+}
+
+function buildSendPreviewWarning(args: {
+  resolved: ResolvedRecipient;
+  pendingUsd: number;
+  budgetUsage: ReturnType<typeof useWalletBudgetUsage>;
+}): string | undefined {
+  const { resolved, pendingUsd, budgetUsage } = args;
+
+  // Policy breach warnings take priority over recipient warnings;
+  // they're more consequential.
+  const sol = budgetUsage.perChain.find((c) => c.ticker === "SOL");
+  if (sol && sol.cap !== null && sol.spentUsd + pendingUsd > sol.cap) {
+    const over = sol.spentUsd + pendingUsd - sol.cap;
+    return `This send pushes Solana ${formatUsd(over)} over its ${formatUsd(sol.cap)} weekly cap. Friends still need to approve; the cap is a guide today.`;
+  }
+  const cap = budgetUsage.budget?.weeklyUsd ?? null;
+  if (cap !== null && cap > 0 && budgetUsage.spentUsd + pendingUsd > cap) {
+    const over = budgetUsage.spentUsd + pendingUsd - cap;
+    return `This send pushes ${budgetUsage.budget?.walletName ?? "the wallet"} ${formatUsd(over)} over its ${formatUsd(cap)} weekly cap.`;
+  }
+  if (budgetUsage.velocityHit) {
+    return `You have already sent ${budgetUsage.sendsLast24h} times in the last 24 hours, at the per-day limit. This send would go above it.`;
+  }
+
+  // Recipient warning — last priority.
+  if (resolved.kind === "address") {
+    return "You are sending to a raw address (no contact match). Money sent to the wrong address cannot be reversed.";
+  }
+  return undefined;
 }
 
 export default function SendPageWrapper() {
@@ -657,33 +744,19 @@ function ComposeStage({
                 }`
               : "Fill in the amount and recipient above"
           }
-          details={[
-            { label: "From wallet", value: walletName || "your wallet" },
-            { label: "Chain", value: "Solana" },
-            ...(resolved.kind === "address"
-              ? [
-                  {
-                    label: "Recipient",
-                    value: shortAddress(resolved.address),
-                    emphasis: "mono" as const,
-                  },
-                ]
-              : []),
-            ...(amountValid
-              ? [
-                  {
-                    label: "Amount",
-                    value: `${formatAmount(amount)} SOL`,
-                    emphasis: "amount" as const,
-                  },
-                ]
-              : []),
-          ]}
-          warning={
-            resolved.kind === "address"
-              ? "You are sending to a raw address (no contact match). Money sent to the wrong address cannot be reversed."
-              : undefined
-          }
+          details={buildSendPreviewDetails({
+            walletName,
+            amount,
+            amountValid,
+            resolved,
+            pendingUsd,
+            budgetUsage,
+          })}
+          warning={buildSendPreviewWarning({
+            resolved,
+            pendingUsd,
+            budgetUsage,
+          })}
         />
         <WalletPopupNarration action="send this request" popups={2} />
       </div>

@@ -1,37 +1,58 @@
 "use client";
 
-// Per-wallet weekly spending budget — the cross-chain moat.
+// Per-wallet spending policy. The cross-chain moat.
 //
-// "5 ETH OR 50k USDC OR 0.1 BTC per week, total cap" sounds like a
-// spec; for retail it's just "this wallet can spend $5,000 a week."
-// One number, denominated in dollars. The UI sums every executed
-// proposal's USD value over the rolling 7-day window and compares
-// to the cap.
+// v1 was a single number: "{wallet} can spend $X per week, total."
+// v2 layers two more dimensions on top of that single cap:
 //
-// Stored locally because the on-chain Custom intent doesn't yet
-// carry a wallet-wide budget field. Same migration path as
-// allowances.ts and walletAppearance.ts — when the program adds a
-// `weekly_spend_cap_usd` (or its FHE-encrypted equivalent), this
-// module becomes a cache that proxies through the backend. Single
-// swap point.
+//   1. Per-chain caps. "Up to $5k/wk on Solana, $10k/wk on Ethereum,
+//      $1k/wk on Bitcoin." A user can leave a chain unspecified
+//      (null), which means "no chain-level limit; the wallet-wide
+//      cap is the only ceiling."
+//   2. Daily velocity. "At most N sends in 24 hours." Catches both
+//      runaway-script attacks and impulse-spend behaviour. null
+//      means "no per-day count limit."
 //
-// Why advisory v1 instead of waiting for the program: the user can
-// already SEE their cap going up against actual usage, which is the
-// behavior change that makes the moat stick. Real prevention lands
-// when the program enforces it; today it's a nudge.
+// Storage is still local. Same migration path as v1: when the
+// program adds the policy fields (or their FHE-encrypted equivalent),
+// this module becomes a cache that proxies through the backend.
+// Single swap point.
+//
+// Why advisory: the user can already SEE rules being checked at
+// sign time, which is the behaviour change that builds trust. Real
+// prevention lands when the program enforces it; today every signed
+// preview shows "after this send: $X of $Y on {chain}", so the user
+// is the policy enforcer.
 
 const STORAGE_KEY = "clear-msig:spending-budget:v1";
 
-/// Rolling window length. 7 calendar days, denominated in ms so
-/// math with `Date.now()` is straightforward.
+/// Rolling window length for the wallet-wide and per-chain caps.
+/// 7 calendar days, denominated in ms so math with `Date.now()` is
+/// straightforward.
 export const BUDGET_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+/// Window for the velocity (sends-per-day) limit. 24 hours.
+export const VELOCITY_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/// Tickers we currently know how to price. Drives the per-chain UI
+/// and the breakdown buckets. Add to this when a new chain template
+/// gets a price oracle entry in priceConversion.ts.
+export const POLICY_CHAIN_TICKERS = ["SOL", "ETH", "BTC", "ZEC"] as const;
+export type PolicyChainTicker = (typeof POLICY_CHAIN_TICKERS)[number];
 
 export interface WalletBudget {
   walletName: string;
-  /// Weekly cap in USD. `null` means "no limit explicitly set" —
-  /// distinct from `0`, which the UI shouldn't render as "set" but
-  /// is technically valid (locks the wallet).
+  /// Wallet-wide weekly cap in USD. `null` means "no overall limit
+  /// explicitly set"; distinct from `0` which locks the wallet.
   weeklyUsd: number | null;
+  /// Per-chain weekly caps in USD, keyed by ticker. Missing or null
+  /// keys mean "no per-chain cap". The wallet-wide cap still applies
+  /// independently of these.
+  perChainUsd?: Partial<Record<PolicyChainTicker, number | null>>;
+  /// Maximum number of executed sends per 24-hour rolling window.
+  /// `null` means no velocity limit. Catches "I just signed 50
+  /// approvals" pattern when something is off.
+  velocityPerDay?: number | null;
   updatedAt: number;
 }
 
@@ -61,27 +82,66 @@ export function getBudget(walletName: string): WalletBudget | null {
   return loadAll().find((r) => r.walletName === walletName) ?? null;
 }
 
-export function saveBudget(walletName: string, weeklyUsd: number | null): WalletBudget {
+/// Replace any existing budget for this wallet with the supplied
+/// fields. Pass undefined for fields you want to leave at default
+/// (null/missing); pass null to explicitly clear a previously-set cap.
+export interface SaveBudgetInput {
+  walletName: string;
+  weeklyUsd?: number | null;
+  perChainUsd?: Partial<Record<PolicyChainTicker, number | null>>;
+  velocityPerDay?: number | null;
+}
+
+export function saveBudget(input: SaveBudgetInput): WalletBudget;
+/// Back-compat overload for the v1 call site that passed
+/// `(walletName, weeklyUsd)` positionally.
+export function saveBudget(walletName: string, weeklyUsd: number | null): WalletBudget;
+export function saveBudget(
+  arg0: SaveBudgetInput | string,
+  arg1?: number | null,
+): WalletBudget {
+  const input: SaveBudgetInput =
+    typeof arg0 === "string"
+      ? { walletName: arg0, weeklyUsd: arg1 ?? null }
+      : arg0;
   const all = loadAll();
+  const existing = all.find((r) => r.walletName === input.walletName);
   const next: WalletBudget = {
-    walletName,
-    weeklyUsd,
+    walletName: input.walletName,
+    weeklyUsd:
+      input.weeklyUsd !== undefined ? input.weeklyUsd : (existing?.weeklyUsd ?? null),
+    perChainUsd: mergeChainCaps(existing?.perChainUsd, input.perChainUsd),
+    velocityPerDay:
+      input.velocityPerDay !== undefined
+        ? input.velocityPerDay
+        : (existing?.velocityPerDay ?? null),
     updatedAt: Date.now(),
   };
-  const rest = all.filter((r) => r.walletName !== walletName);
+  const rest = all.filter((r) => r.walletName !== input.walletName);
   rest.push(next);
   persist(rest);
   return next;
 }
 
+function mergeChainCaps(
+  existing: Partial<Record<PolicyChainTicker, number | null>> | undefined,
+  patch: Partial<Record<PolicyChainTicker, number | null>> | undefined,
+): Partial<Record<PolicyChainTicker, number | null>> | undefined {
+  if (!patch) return existing;
+  const out: Partial<Record<PolicyChainTicker, number | null>> = { ...existing };
+  for (const ticker of POLICY_CHAIN_TICKERS) {
+    if (ticker in patch) out[ticker] = patch[ticker];
+  }
+  return out;
+}
+
 export interface BudgetUsageWindow {
-  /// Total USD spent across all chains in the rolling window.
+  /// Total USD spent across all chains in the rolling weekly window.
   spentUsd: number;
-  /// Counts of underlying proposals folded into spentUsd. Useful for
-  /// the UI ("$120 across 3 sends this week").
+  /// Counts of underlying proposals folded into spentUsd.
   proposalCount: number;
-  /// The window's left edge, as a unix timestamp (ms). Anything
-  /// older than this isn't counted.
+  /// The window's left edge as a unix timestamp (ms). Anything older
+  /// is excluded.
   windowStartMs: number;
 }
 
@@ -89,12 +149,23 @@ export function computeWindowStart(now = Date.now()): number {
   return now - BUDGET_WINDOW_MS;
 }
 
+export function computeVelocityWindowStart(now = Date.now()): number {
+  return now - VELOCITY_WINDOW_MS;
+}
+
+export interface PriceableSpend {
+  executedAtMs: number;
+  usd: number;
+  /// Chain ticker (SOL/ETH/BTC/ZEC) so the per-chain breakdown can
+  /// bucket the spend. Unknown tickers are still summed in the
+  /// wallet-wide total.
+  ticker: PolicyChainTicker | string;
+}
+
 /// Sum the USD value of every executed proposal in the rolling
-/// window. Caller hands us a flat list of `{ executedAtMs, usd }`
-/// pairs (derived from useRecentActivity + price conversion at the
-/// call site so this module stays storage-only and easy to test).
+/// weekly window across all chains.
 export function sumWindowUsd(
-  rows: ReadonlyArray<{ executedAtMs: number; usd: number }>,
+  rows: ReadonlyArray<PriceableSpend>,
   now = Date.now(),
 ): BudgetUsageWindow {
   const windowStartMs = computeWindowStart(now);
@@ -109,12 +180,56 @@ export function sumWindowUsd(
   return { spentUsd, proposalCount, windowStartMs };
 }
 
+/// Bucket spend by chain ticker. Same window as sumWindowUsd; useful
+/// for the per-chain progress bars and the sign-time impact preview.
+export function sumWindowUsdByChain(
+  rows: ReadonlyArray<PriceableSpend>,
+  now = Date.now(),
+): Record<string, number> {
+  const windowStartMs = computeWindowStart(now);
+  const out: Record<string, number> = {};
+  for (const r of rows) {
+    if (r.executedAtMs < windowStartMs) continue;
+    if (r.usd <= 0) continue;
+    out[r.ticker] = (out[r.ticker] ?? 0) + r.usd;
+  }
+  return out;
+}
+
+/// Count executed sends in the velocity window. Used by the per-day
+/// rate limit hint.
+export function countWindowSends(
+  rows: ReadonlyArray<{ executedAtMs: number }>,
+  now = Date.now(),
+): number {
+  const windowStartMs = computeVelocityWindowStart(now);
+  let n = 0;
+  for (const r of rows) {
+    if (r.executedAtMs < windowStartMs) continue;
+    n += 1;
+  }
+  return n;
+}
+
 function isBudget(r: unknown): r is WalletBudget {
   if (!r || typeof r !== "object") return false;
   const o = r as Record<string, unknown>;
-  return (
-    typeof o.walletName === "string" &&
-    typeof o.updatedAt === "number" &&
-    (o.weeklyUsd === null || typeof o.weeklyUsd === "number")
-  );
+  if (typeof o.walletName !== "string") return false;
+  if (typeof o.updatedAt !== "number") return false;
+  if (o.weeklyUsd !== null && typeof o.weeklyUsd !== "number") return false;
+  // Optional v2 fields. Older v1 records have neither; both are valid.
+  if (
+    o.perChainUsd !== undefined &&
+    (typeof o.perChainUsd !== "object" || o.perChainUsd === null)
+  ) {
+    return false;
+  }
+  if (
+    o.velocityPerDay !== undefined &&
+    o.velocityPerDay !== null &&
+    typeof o.velocityPerDay !== "number"
+  ) {
+    return false;
+  }
+  return true;
 }

@@ -824,7 +824,17 @@ function BudgetStripe({ name }: { name: string }) {
   const usage = useWalletBudgetUsage(name);
   if (usage.loading) return null;
   const cap = usage.budget?.weeklyUsd ?? null;
-  if (cap === null || cap === undefined) return null;
+  const cappedChains = usage.perChain.filter((c) => c.cap !== null);
+  const velocityCap = usage.budget?.velocityPerDay ?? null;
+  // Render the stripe if ANY policy field is set; v1 only checked
+  // the wallet-wide cap, v2 also surfaces per-chain + velocity.
+  if (
+    (cap === null || cap === undefined) &&
+    cappedChains.length === 0 &&
+    !velocityCap
+  ) {
+    return null;
+  }
 
   // No-limit case — saved as null. The render-gate above already
   // filters this; defensive belt-and-braces in case the storage
@@ -840,9 +850,14 @@ function BudgetStripe({ name }: { name: string }) {
     );
   }
 
+  // The stripe always renders something now that any of three rules
+  // can be in play. Wallet-wide block only when cap is positive;
+  // otherwise the header reads "Spending policy" and we lead with
+  // per-chain or velocity.
+  const hasWalletCap = cap !== null && cap > 0;
   const pct = usage.pctUsed ?? 0;
-  const over = pct >= 1;
-  const tone = over ? "danger" : pct >= 0.8 ? "warning" : "accent";
+  const over = hasWalletCap && pct >= 1;
+  const tone = over ? "danger" : pct >= 0.8 && hasWalletCap ? "warning" : "accent";
   return (
     <Link
       href={`/app/wallet/${encodeURIComponent(name)}/budget`}
@@ -852,17 +867,28 @@ function BudgetStripe({ name }: { name: string }) {
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
         (over
           ? "border-danger/30"
-          : pct >= 0.8
+          : hasWalletCap && pct >= 0.8
             ? "border-warning/30"
             : "border-border-soft")
       }
     >
       <div className="flex items-baseline justify-between gap-3">
         <p className={"text-xs font-medium uppercase tracking-[0.18em] text-" + tone}>
-          {over ? "Over weekly limit" : "Weekly limit"}
+          {over
+            ? "Over weekly limit"
+            : hasWalletCap
+              ? "Weekly limit"
+              : "Spending policy"}
         </p>
-        <p className="text-xs text-text-soft">{usage.proposalCount} {usage.proposalCount === 1 ? "send" : "sends"} this week</p>
+        <p className="text-xs text-text-soft">
+          {usage.proposalCount} {usage.proposalCount === 1 ? "send" : "sends"} this week
+          {velocityCap
+            ? ` · ${usage.sendsLast24h} of ${velocityCap} today`
+            : ""}
+        </p>
       </div>
+      {hasWalletCap && (
+        <>
       <div className="mt-2 flex items-baseline justify-between gap-3">
         <p className="font-display text-base text-text-strong">
           {formatUsd(usage.spentUsd)}{" "}
@@ -889,6 +915,47 @@ function BudgetStripe({ name }: { name: string }) {
           }
         />
       </div>
+        </>
+      )}
+      {cappedChains.length > 0 && (
+        <ul className="mt-3 flex flex-col gap-2 border-t border-border-soft pt-3">
+          {cappedChains.map((c) => {
+            const chainCap = c.cap;
+            if (chainCap === null) return null;
+            const chainPct = c.pctUsed ?? 0;
+            const chainOver = chainPct >= 1;
+            return (
+              <li key={c.ticker}>
+                <div className="flex items-baseline justify-between gap-2 text-[11px] text-text-soft">
+                  <span className="font-medium text-text-strong">{c.ticker}</span>
+                  <span className={chainOver ? "text-danger" : ""}>
+                    {formatUsd(c.spentUsd)} of {formatUsd(chainCap)}
+                  </span>
+                </div>
+                <div
+                  className="mt-1 h-1 overflow-hidden rounded-full bg-border-soft"
+                  role="progressbar"
+                  aria-valuenow={Math.round(chainPct * 100)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
+                  <div
+                    style={{ width: `${Math.min(100, Math.round(chainPct * 100))}%` }}
+                    className={
+                      "h-full transition-[width] duration-base ease-out-soft " +
+                      (chainOver
+                        ? "bg-danger"
+                        : chainPct >= 0.8
+                          ? "bg-warning"
+                          : "bg-accent")
+                    }
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </Link>
   );
 }
