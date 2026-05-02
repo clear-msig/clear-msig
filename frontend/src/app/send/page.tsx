@@ -58,6 +58,7 @@ import { NextStepCard } from "@/components/retail/NextStepCard";
 import { QuickSendInput } from "@/components/retail/QuickSendInput";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
+import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
 
 type Stage = "compose" | "sending" | "sent";
@@ -485,6 +486,9 @@ function SendPage() {
             </div>
           )}
           {stage === "compose" && (
+            <SendChainPicker walletName={walletName} activeKind={0} />
+          )}
+          {stage === "compose" && (
             <ComposeStage
               walletName={walletName || "your shared wallet"}
               amount={amount}
@@ -805,6 +809,7 @@ function ComposeStage({
     </motion.section>
   );
 }
+
 
 // ─── Recipient status row ──────────────────────────────────────────
 
