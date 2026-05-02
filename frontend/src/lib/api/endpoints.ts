@@ -8,6 +8,7 @@
 // Reads are unchanged: GETs + the /health probe.
 import { apiRequest } from "@/lib/api/client";
 import { appConfig } from "@/lib/config";
+import { withRetry } from "@/lib/api/retry";
 import type {
   AddChainInput,
   CreateWalletInput,
@@ -35,11 +36,15 @@ export const backendApi = {
   // payed for and submitted by the relayer's sponsored-gas keypair).
   // Bootstrap chains multiple ixns + RPC confirms; bump past the 30s
   // default so a slow first-time devnet round trip doesn't surface as
-  // a misleading timeout.
+  // a misleading timeout. Wrapped in withRetry so a single transient
+  // RPC blip ("blockhash not found", "node is behind") doesn't fail
+  // the whole flow.
   createWallet: (input: CreateWalletInput) =>
-    apiRequest<Record<string, unknown>, CreateWalletInput>("/wallets", "POST", input, {
-      timeoutMs: 60_000,
-    }),
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, CreateWalletInput>("/wallets", "POST", input, {
+        timeoutMs: 60_000,
+      }),
+    ),
   showWallet: (walletName: string) =>
     apiRequest<Record<string, unknown>>(`/wallets/${encodeURIComponent(walletName)}`, "GET"),
   listWalletChains: (walletName: string) =>
@@ -51,11 +56,18 @@ export const backendApi = {
   // the user it can take >30s, so the request must outlive that
   // window. 3 minutes gives headroom for retries.
   addWalletChain: (walletName: string, input: AddChainInput) =>
-    apiRequest<Record<string, unknown>, AddChainInput>(
-      `/wallets/${encodeURIComponent(walletName)}/chains/add`,
-      "POST",
-      input,
-      { timeoutMs: 180_000 }
+    withRetry(
+      () =>
+        apiRequest<Record<string, unknown>, AddChainInput>(
+          `/wallets/${encodeURIComponent(walletName)}/chains/add`,
+          "POST",
+          input,
+          { timeoutMs: 180_000 },
+        ),
+      // DKG is expensive to redo, so cap to a single retry with a
+      // longer wait — the most common transient is the post-DKG
+      // confirm being a beat behind the cluster.
+      { maxAttempts: 2, delayMs: 1500 },
     ),
 
   // Reads.
@@ -107,50 +119,71 @@ export const backendApi = {
   },
 
   // ── Signed submit routes ─────────────────────────────────────────────
+  //
+  // Every submit is wrapped in withRetry: signed payloads bind to a
+  // fixed proposal index + nonce, so retrying targets the same slot.
+  // If the original landed silently, the retry fails fast with an
+  // "already" hint that friendlyError surfaces as "this request has
+  // already been handled". User rejections + rate limits do NOT
+  // retry — see lib/api/retry.ts for the predicate.
   submit: {
     addIntent: (walletName: string, input: SignedAddIntentInput) =>
-      apiRequest<Record<string, unknown>, SignedAddIntentInput>(
-        `/wallets/${encodeURIComponent(walletName)}/intents/add`,
-        "POST",
-        input
+      withRetry(() =>
+        apiRequest<Record<string, unknown>, SignedAddIntentInput>(
+          `/wallets/${encodeURIComponent(walletName)}/intents/add`,
+          "POST",
+          input
+        ),
       ),
     removeIntent: (walletName: string, input: SignedRemoveIntentInput) =>
-      apiRequest<Record<string, unknown>, SignedRemoveIntentInput>(
-        `/wallets/${encodeURIComponent(walletName)}/intents/remove`,
-        "POST",
-        input
+      withRetry(() =>
+        apiRequest<Record<string, unknown>, SignedRemoveIntentInput>(
+          `/wallets/${encodeURIComponent(walletName)}/intents/remove`,
+          "POST",
+          input
+        ),
       ),
     updateIntent: (walletName: string, input: SignedUpdateIntentInput) =>
-      apiRequest<Record<string, unknown>, SignedUpdateIntentInput>(
-        `/wallets/${encodeURIComponent(walletName)}/intents/update`,
-        "POST",
-        input
+      withRetry(() =>
+        apiRequest<Record<string, unknown>, SignedUpdateIntentInput>(
+          `/wallets/${encodeURIComponent(walletName)}/intents/update`,
+          "POST",
+          input
+        ),
       ),
     createProposal: (walletName: string, input: SignedCreateProposalInput) =>
-      apiRequest<Record<string, unknown>, SignedCreateProposalInput>(
-        `/wallets/${encodeURIComponent(walletName)}/proposals`,
-        "POST",
-        input
+      withRetry(() =>
+        apiRequest<Record<string, unknown>, SignedCreateProposalInput>(
+          `/wallets/${encodeURIComponent(walletName)}/proposals`,
+          "POST",
+          input
+        ),
       ),
     approveProposal: (walletName: string, proposalAddress: string, input: SignedApproveCancelInput) =>
-      apiRequest<Record<string, unknown>, SignedApproveCancelInput>(
-        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/approve`,
-        "POST",
-        input
+      withRetry(() =>
+        apiRequest<Record<string, unknown>, SignedApproveCancelInput>(
+          `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/approve`,
+          "POST",
+          input
+        ),
       ),
     cancelProposal: (walletName: string, proposalAddress: string, input: SignedApproveCancelInput) =>
-      apiRequest<Record<string, unknown>, SignedApproveCancelInput>(
-        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/cancel`,
-        "POST",
-        input
+      withRetry(() =>
+        apiRequest<Record<string, unknown>, SignedApproveCancelInput>(
+          `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/cancel`,
+          "POST",
+          input
+        ),
       )
   },
 
   executeProposal: (walletName: string, proposalAddress: string, input: ExecuteProposalInput) =>
-    apiRequest<Record<string, unknown>, ExecuteProposalInput>(
-      `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/execute`,
-      "POST",
-      input
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, ExecuteProposalInput>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/execute`,
+        "POST",
+        input
+      ),
     ),
 
   cleanupProposal: (proposalAddress: string) =>
