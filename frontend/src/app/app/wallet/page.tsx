@@ -158,7 +158,7 @@ function ShortcutGrid({ reduce }: { reduce: boolean }) {
     <motion.div
       {...motionProps}
       transition={{ duration: 0.35, delay: 0.04 }}
-      className="grid grid-cols-3 gap-3"
+      className="grid grid-cols-1 gap-3 sm:grid-cols-3"
     >
       <ShortcutCard
         href="/app/contacts"

@@ -35,8 +35,39 @@ const TEST_MESSAGE = new TextEncoder().encode(
 // The global DynamicContextProvider in AppProviders handles env
 // validation + connector setup. This page just renders its body and
 // reads from the parent context.
+//
+// Production gate: this is a dev-only proof. We don't want it to be
+// publicly discoverable on the live URL where it would just confuse
+// retail visitors who landed on it by accident. The route is hidden
+// behind NEXT_PUBLIC_SHOW_SPIKES=1 in production; dev (NODE_ENV !==
+// "production") always shows it because that's where it's useful.
+const SPIKES_VISIBLE =
+  typeof process !== "undefined" &&
+  (process.env.NODE_ENV !== "production" ||
+    process.env.NEXT_PUBLIC_SHOW_SPIKES === "1");
+
 export default function DynamicSpikePage() {
+  if (!SPIKES_VISIBLE) return <SpikeHidden />;
   return <SpikeBody />;
+}
+
+function SpikeHidden() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-canvas px-gutter">
+      <div className="max-w-sm text-center">
+        <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+          404
+        </p>
+        <h1 className="mt-2 font-display text-display-xs text-text-strong">
+          Nothing here
+        </h1>
+        <p className="mt-2 text-sm text-text-soft">
+          You&rsquo;re looking for a developer spike that isn&rsquo;t
+          enabled in this build.
+        </p>
+      </div>
+    </main>
+  );
 }
 
 interface SignResult {

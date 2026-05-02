@@ -26,12 +26,17 @@ import { DynamicWaasEVMConnectors } from "@dynamic-labs/waas-evm";
 import { DynamicWaasSuiConnectors } from "@dynamic-labs/waas-sui";
 import { SolanaWalletConnectors } from "@dynamic-labs/solana";
 import { ToastProvider } from "@/components/ui/Toast";
+import { validateConfig } from "@/lib/config";
 
 type Props = {
   children: React.ReactNode;
 };
 
 export function AppProviders({ children }: Props) {
+  const configGaps = validateConfig();
+  if (configGaps.length > 0) {
+    return <ConfigGapBanner gaps={configGaps} />;
+  }
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -93,5 +98,51 @@ export function AppProviders({ children }: Props) {
         <ToastProvider>{children}</ToastProvider>
       </DynamicContextProvider>
     </QueryClientProvider>
+  );
+}
+
+// ─── Production misconfiguration screen ───────────────────────────
+//
+// When a NEXT_PUBLIC_ var the production deploy depends on is
+// missing, the silent failure mode (calls to localhost, an empty
+// Dynamic widget) is much worse than a fatal banner. This screen
+// ships in place of the app and lists exactly what's missing + why.
+// Renders only in NODE_ENV === "production"; dev hacking is unaffected.
+
+function ConfigGapBanner({
+  gaps,
+}: {
+  gaps: ReturnType<typeof validateConfig>;
+}) {
+  return (
+    <main className="min-h-screen bg-canvas px-gutter py-12">
+      <div className="mx-auto max-w-xl rounded-card border border-danger/40 bg-danger/[0.05] p-6">
+        <p className="text-xs font-medium uppercase tracking-[0.18em] text-danger">
+          This deployment is misconfigured
+        </p>
+        <h1 className="mt-2 font-display text-display-xs text-text-strong">
+          {gaps.length === 1 ? "1 environment variable" : `${gaps.length} environment variables`}{" "}
+          missing
+        </h1>
+        <p className="mt-2 text-sm text-text-soft">
+          The production build started without the required configuration.
+          Set the variables below in the Vercel project settings and
+          redeploy.
+        </p>
+        <ul className="mt-4 flex flex-col gap-3">
+          {gaps.map((g) => (
+            <li
+              key={g.envVar}
+              className="rounded-soft border border-border-soft bg-surface-raised p-3"
+            >
+              <code className="font-mono text-sm font-medium text-text-strong">
+                {g.envVar}
+              </code>
+              <p className="mt-1 text-xs text-text-soft">{g.why}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </main>
   );
 }
