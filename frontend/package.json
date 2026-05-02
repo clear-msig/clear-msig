@@ -14,6 +14,7 @@
   "dependencies": {
     "@dynamic-labs/embedded-wallet-solana": "^4.79.0",
     "@dynamic-labs/sdk-react-core": "^4.79.0",
+    "@dynamic-labs/solana": "^4.79.0",
     "@dynamic-labs/solana-core": "^4.79.0",
     "@dynamic-labs/waas-evm": "^4.79.0",
     "@dynamic-labs/waas-sui": "^4.79.0",

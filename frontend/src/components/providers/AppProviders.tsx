@@ -24,6 +24,7 @@ import { TurnkeySolanaWalletConnectors } from "@dynamic-labs/embedded-wallet-sol
 import { DynamicWaasSVMConnectors } from "@dynamic-labs/waas-svm";
 import { DynamicWaasEVMConnectors } from "@dynamic-labs/waas-evm";
 import { DynamicWaasSuiConnectors } from "@dynamic-labs/waas-sui";
+import { SolanaWalletConnectors } from "@dynamic-labs/solana";
 import { ToastProvider } from "@/components/ui/Toast";
 
 type Props = {
@@ -68,10 +69,21 @@ export function AppProviders({ children }: Props) {
   const settings: DynamicContextProps["settings"] = {
     environmentId: environmentId ?? "",
     walletConnectors: [
+      // External Solana wallets (Phantom / Solflare / Backpack /
+      // Coinbase Wallet) — wallet-standard auto-discovery. Without
+      // this connector explicitly listed, Dynamic's widget hides
+      // the "Connect wallet" option even when the dashboard has
+      // external wallets enabled.
+      SolanaWalletConnectors,
+      // Embedded Solana wallets (TSS-MPC + Turnkey) — for the
+      // email/social signup path that mints a wallet on the fly.
       DynamicWaasSVMConnectors,
+      TurnkeySolanaWalletConnectors,
+      // EVM + Sui WaaS — Dynamic mints embedded wallets on every
+      // chain enabled in the project's Embedded Wallets settings,
+      // and throws on init if it cannot find the matching connector.
       DynamicWaasEVMConnectors,
       DynamicWaasSuiConnectors,
-      TurnkeySolanaWalletConnectors,
     ],
   };
 

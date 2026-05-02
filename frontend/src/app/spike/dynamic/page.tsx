@@ -21,91 +21,22 @@
 import { useMemo, useState } from "react";
 import nacl from "tweetnacl";
 import {
-  DynamicContextProvider,
   DynamicWidget,
   useDynamicContext,
   useUserWallets,
 } from "@dynamic-labs/sdk-react-core";
 import { isSolanaWallet } from "@dynamic-labs/solana-core";
-// Dynamic ships two embedded-Solana paths:
-//  - TurnkeySolanaWalletConnectors (Turnkey-backed; legacy default)
-//  - DynamicWaasSVMConnectors      (TSS-MPC WaaS; new default, what
-//    the dashboard switches to when you enable Solana under
-//    Wallets → Embedded Wallets)
-// Including both lets the SDK pick whichever the project's
-// environment is configured for, instead of failing init when one
-// is missing. External wallets (Phantom / Solflare / Backpack) come
-// through Dynamic's wallet-standard auto-discovery — no extra
-// connector import needed for those.
-import { TurnkeySolanaWalletConnectors } from "@dynamic-labs/embedded-wallet-solana";
-import { DynamicWaasSVMConnectors } from "@dynamic-labs/waas-svm";
-// EVM + Sui WaaS connectors — Dynamic mints embedded wallets on
-// every chain a project has enabled under Wallets → Embedded
-// Wallets, and throws if it can't find the connector for one of
-// them. Including these means the spike doesn't have to fight the
-// dashboard config. (BTC's WaaS connector isn't on npm yet —
-// disable BTC in the Embedded Wallets settings if it errors.)
-import { DynamicWaasEVMConnectors } from "@dynamic-labs/waas-evm";
-import { DynamicWaasSuiConnectors } from "@dynamic-labs/waas-sui";
 import { toHex } from "@/lib/msig";
 
 const TEST_MESSAGE = new TextEncoder().encode(
   "Clear spike: does Dynamic's embedded-wallet signMessage produce an ed25519 sig the Clear program accepts?",
 );
 
+// The global DynamicContextProvider in AppProviders handles env
+// validation + connector setup. This page just renders its body and
+// reads from the parent context.
 export default function DynamicSpikePage() {
-  const environmentId = process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID;
-
-  if (!environmentId) {
-    return (
-      <main className="min-h-screen bg-canvas px-gutter py-12">
-        <div className="mx-auto max-w-xl rounded-card border border-warning/30 bg-warning/5 p-6">
-          <h1 className="font-display text-display-xs text-text-strong">
-            Dynamic env ID not set
-          </h1>
-          <p className="mt-2 text-sm text-text-soft">
-            This spike page reads{" "}
-            <code className="rounded bg-canvas px-1 py-0.5 font-mono text-xs">
-              NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID
-            </code>{" "}
-            from env. Get one from{" "}
-            <a
-              href="https://app.dynamic.xyz"
-              className="text-accent underline"
-              target="_blank"
-              rel="noreferrer"
-            >
-              app.dynamic.xyz
-            </a>
-            , add it to{" "}
-            <code className="rounded bg-canvas px-1 py-0.5 font-mono text-xs">
-              .env.local
-            </code>
-            , and restart the dev server.
-          </p>
-          <pre className="mt-4 overflow-x-auto rounded bg-canvas p-3 text-xs text-text-strong">
-            NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID=&lt;your-id&gt;
-          </pre>
-        </div>
-      </main>
-    );
-  }
-
-  return (
-    <DynamicContextProvider
-      settings={{
-        environmentId,
-        walletConnectors: [
-          DynamicWaasSVMConnectors,
-          DynamicWaasEVMConnectors,
-          DynamicWaasSuiConnectors,
-          TurnkeySolanaWalletConnectors,
-        ],
-      }}
-    >
-      <SpikeBody />
-    </DynamicContextProvider>
-  );
+  return <SpikeBody />;
 }
 
 interface SignResult {
