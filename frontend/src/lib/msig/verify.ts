@@ -62,20 +62,35 @@ export class MessageVerificationError extends Error {
   }
 }
 
-const VALID_ACTIONS: ReadonlySet<Action> = new Set([
-  "propose",
-  "approve",
-  "cancel",
-] as const);
+/// The descriptor's `action` is a high-level route verb chosen by the
+/// CLI (`intent_add`, `proposal_create`, `proposal_approve`, etc.).
+/// The bytes inside `message_hex` are built with a SHORT verb that
+/// appears literally in the signed text (`propose`, `approve`,
+/// `cancel`). The frontend must translate before rebuilding the bytes
+/// or the byte-compare will always fail. Source of truth lives in
+/// `cli/src/commands/{intent,proposal}.rs`; keep this map in sync.
+const ACTION_TO_BYTE_VERB: Record<string, Action> = {
+  intent_add: "propose",
+  intent_remove: "propose",
+  intent_update: "propose",
+  proposal_create: "propose",
+  proposal_approve: "approve",
+  proposal_cancel: "cancel",
+  // Pass-through for callers that already speak the short form.
+  propose: "propose",
+  approve: "approve",
+  cancel: "cancel",
+};
 
-function asAction(s: string): Action {
-  if (!VALID_ACTIONS.has(s as Action)) {
+function asAction(descriptorAction: string): Action {
+  const verb = ACTION_TO_BYTE_VERB[descriptorAction];
+  if (!verb) {
     throw new MessageVerificationError(
       "invalid_action",
-      `Descriptor action ${JSON.stringify(s)} is not a recognised signable action`,
+      `Descriptor action ${JSON.stringify(descriptorAction)} is not a recognised signable action`,
     );
   }
-  return s as Action;
+  return verb;
 }
 
 /// Take a backend-supplied descriptor, rebuild the signable bytes
