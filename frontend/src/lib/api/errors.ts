@@ -205,10 +205,9 @@ export function friendlyError(
 
   // ── Solana RPC: simulation failure / preflight rejection ──────
   // -32002 covers a family: simulation failed, signature verification
-  // failed, transaction precheck failed, "Transaction" stub messages.
-  // Most commonly fires when the previous transaction is still
-  // confirming, the wallet doesn't have enough lamports for rent, or
-  // a program-side check rejected the instruction.
+  // failed, transaction precheck failed. The on-chain program emits
+  // 23 specific WalletError variants; check those FIRST so the toast
+  // shows what actually went wrong instead of a generic catch-all.
   if (
     hay.includes("rpc response error -32002") ||
     hay.includes("transaction simulation failed") ||
@@ -216,12 +215,23 @@ export function friendlyError(
     hay.includes("transaction precheck failed") ||
     hay.match(/rpc response error -32002:\s*transaction\.?$/m)
   ) {
-    const programErr = extractProgramError(hay);
+    const friendly = walletProgramErrorMessage(hay);
+    if (friendly) return friendly;
+    // Anchor / system error not in our catalogue. Surface the
+    // useful trailing chunk of stderr so a developer can grep it,
+    // with a stripped framing the user can act on.
+    const tail = pickLastUsefulLine(bag);
+    if (tail) {
+      return {
+        title: "Solana didn't accept that transaction",
+        body: `${tail.slice(0, 220)} — wait a few seconds and try again. If it keeps failing, refresh the page and retry from a fresh state.`,
+      };
+    }
     return {
       title: "Solana didn't accept that transaction",
-      body: programErr
-        ? `Program rejected the call: ${programErr}. Refresh and try again. If it keeps failing, check the wallet has enough SOL for fees and rent.`
-        : "Common causes: the previous transaction is still confirming, this wallet name is already taken, or the wallet doesn't have enough SOL for rent. Wait 5 seconds and retry.",
+      body:
+        "The network rejected this submission. Wait a few seconds and try again. " +
+        "If the wallet name is new and it still fails, the previous attempt might still be confirming — refresh to see.",
     };
   }
 
@@ -427,44 +437,205 @@ function truncate(s: string, max: number): string {
   return s.length <= max ? s : s.slice(0, max).trimEnd() + "…";
 }
 
-/// Pull a program-side error name out of a Solana RPC simulation
-/// failure message. Looks for "custom program error: 0xNN" (Anchor
-/// style) and a small set of human-readable error names the program
-/// emits via msg!(). Returns null when nothing usable is in the
-/// haystack so the caller can fall back to its generic copy.
-function extractProgramError(hay: string): string | null {
+/// Match the haystack against the on-chain WalletError catalogue.
+/// Returns a fully-rendered FriendlyError when a known variant fires.
+/// Source of truth: programs/clear-wallet/src/error.rs. Keep this
+/// table in sync when new variants land.
+function walletProgramErrorMessage(hay: string): FriendlyError | null {
+  // 1. Anchor logs the variant by name in the simulation output:
+  //    `Program log: AnchorError caused by account: ... Error Code:
+  //    TooManyActiveProposals.` Hay is already lowercased upstream;
+  //    match anchored by `error code:` to avoid false positives like
+  //    a wallet name that happens to contain "expired".
+  for (const [name, msg] of Object.entries(WALLET_ERRORS)) {
+    const needle = name.toLowerCase();
+    if (
+      hay.includes(`error code: ${needle}`) ||
+      hay.includes(`error name: ${needle}`) ||
+      hay.includes(`anchorerror caused by`) && hay.includes(needle)
+    ) {
+      return msg;
+    }
+  }
+  // 2. Anchor also emits the hex code: `custom program error: 0x1782`.
+  //    Map back via the offset from the base discriminant (6000).
   const customCode = hay.match(/custom program error:\s*0x([0-9a-f]+)/i);
   if (customCode) {
-    const hex = customCode[1];
-    const known = KNOWN_PROGRAM_ERRORS[`0x${hex.toLowerCase()}`];
-    return known ?? `custom error 0x${hex}`;
-  }
-  for (const name of KNOWN_NAMED_ERRORS) {
-    if (hay.includes(name.toLowerCase())) return name;
+    const code = parseInt(customCode[1], 16);
+    if (code >= 6000 && code <= 6022) {
+      const name = WALLET_ERROR_INDEX[code - 6000];
+      const msg = WALLET_ERRORS[name];
+      if (msg) return msg;
+    }
+    // System / token errors users see most often.
+    if (code === 0x0) {
+      return {
+        title: "An account already exists with that address",
+        body:
+          "The wallet or proposal slot you're trying to create is already on chain. " +
+          "Pick a different name (for create) or refresh to see the existing record.",
+      };
+    }
+    if (code === 0x1) {
+      return {
+        title: "Not enough SOL to cover rent and fees",
+        body:
+          "Solana charges rent for every account it stores. The relayer's " +
+          "sponsored-gas keypair needs more devnet SOL. Try the airdrop button or " +
+          "ping the operator.",
+      };
+    }
   }
   return null;
 }
 
-/// Anchor-style 0xNN hex codes the on-chain program emits. Keep in
-/// sync with `programs/clear-wallet/src/error.rs` when new variants
-/// land. Order doesn't matter; lookups are O(1).
-const KNOWN_PROGRAM_ERRORS: Record<string, string> = {
-  // Standard Anchor / token errors users see most often.
-  "0x1": "insufficient funds",
-  "0x0": "account already in use",
-  "0x65": "constraint mismatch",
+/// Pick the most-recent informative line from the error bag. Trims
+/// stack frames, "Caused by:" headers, and other noise so the toast
+/// surfaces the line a developer would copy-paste into a search bar.
+function pickLastUsefulLine(b: SignalBag): string | null {
+  const merged = [b.payloadError, b.message, b.stderr, b.stdout]
+    .filter((s) => s && s.trim())
+    .join("\n");
+  const lines = merged
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(
+      (l) =>
+        l &&
+        !l.startsWith("Caused by") &&
+        !l.match(/^[0-9]+:/) && // anyhow chain numbering
+        !l.startsWith("at ") && // stack frame
+        !l.match(/^\s*$/),
+    );
+  // Prefer a line containing the actual diagnostic.
+  const diag =
+    lines.find((l) => l.toLowerCase().includes("rpc response error")) ??
+    lines[lines.length - 1];
+  return diag ?? null;
+}
+
+/// Map of on-chain `WalletError` variants → friendly copy. Keep in
+/// sync with `programs/clear-wallet/src/error.rs`.
+const WALLET_ERRORS: Record<string, FriendlyError> = {
+  TooManyProposers: {
+    title: "Too many proposers on this wallet",
+    body: "The on-chain limit is 16 proposers. Drop someone before adding another.",
+  },
+  TooManyApprovers: {
+    title: "Too many approvers on this wallet",
+    body: "The on-chain limit is 16 approvers. Drop someone before adding another.",
+  },
+  InvalidApprovalThreshold: {
+    title: "Approval threshold doesn't fit the wallet",
+    body: "The number of approvals required must be at least 1 and at most the number of approvers. Adjust and retry.",
+  },
+  InvalidCancellationThreshold: {
+    title: "Cancellation threshold doesn't fit the wallet",
+    body: "The number of cancellations required must be at least 1 and at most the number of approvers. Adjust and retry.",
+  },
+  ProposalNotActive: {
+    title: "This request isn't open anymore",
+    body: "It was already approved, executed, or cancelled by someone else. Refresh to see the latest state.",
+  },
+  ProposalNotApproved: {
+    title: "This request still needs approvals before it can run",
+    body: "Approve it first (and ask any other friends required by the rule to do the same). Once it's Approved, it can execute.",
+  },
+  ProposalNotFinalized: {
+    title: "This request hasn't finished yet",
+    body: "Wait for it to execute or be cancelled before cleaning up.",
+  },
+  Expired: {
+    title: "This request has expired",
+    body: "Each signed message has an expiry timestamp. Create a new request and try again.",
+  },
+  TimelockNotElapsed: {
+    title: "Still inside the safety timelock",
+    body: "This rule has a wait period between approval and execution. Try again once the timer is up.",
+  },
+  AlreadyApproved: {
+    title: "You already approved this request",
+    body: "Refresh to see the current state. Another approval would be a no-op.",
+  },
+  AlreadyCancelled: {
+    title: "You already declined this request",
+    body: "Refresh to see the current state. Another decline would be a no-op.",
+  },
+  InvalidMemberIndex: {
+    title: "Couldn't match your wallet to a slot in this request",
+    body: "Your wallet may have been removed from the approvers list. Refresh and check the members page.",
+  },
+  InvalidProposalIndex: {
+    title: "Another request landed before yours",
+    body: "Someone else (or your previous attempt) created a request just before this one. Try again — the new one will use the next slot.",
+  },
+  InvalidSignature: {
+    title: "Signature didn't verify",
+    body: "The wallet signed something that doesn't match what the program expected. This is usually a stale request — refresh and try again from a fresh state.",
+  },
+  NotProposer: {
+    title: "Your wallet can't propose from this rule",
+    body: "Only members on the proposers list can create requests against this rule. Ask one of them to propose, or have an admin add you.",
+  },
+  IntentNotApproved: {
+    title: "This rule needs more approvals before it can be used",
+    body: "Approve the rule's setup first; once it's Approved, sends can flow through it.",
+  },
+  IntentHasActiveProposals: {
+    title: "There's a pending request on this rule",
+    body: "Approve or cancel the existing request first, then try again. Look in the wallet's request inbox; the one in 'Active' status is blocking the change.",
+  },
+  TooManyIntents: {
+    title: "This wallet is full",
+    body: "The on-chain limit is 256 rules per wallet. Remove an old rule before adding a new one.",
+  },
+  TooManyActiveProposals: {
+    title: "Too many active requests on this rule",
+    body: "Resolve some of the existing pending requests (approve, decline, or wait for them to expire) before creating another.",
+  },
+  TooManyAccounts: {
+    title: "This rule references too many accounts",
+    body: "The on-chain limit is 32 accounts per rule definition. Simplify the rule or split it into two.",
+  },
+  AccountCountMismatch: {
+    title: "Rule definition is out of sync",
+    body: "The accounts the request needs don't match the rule on chain. Refresh the wallet and retry; if it persists, the rule may need to be re-saved.",
+  },
+  AccountAddressMismatch: {
+    title: "An account address didn't match",
+    body: "One of the accounts the program expected doesn't match what was passed. This is usually a stale state — refresh and retry.",
+  },
+  ParamConstraintViolation: {
+    title: "A value in this request breaks the rule's constraints",
+    body: "The amount, recipient, or another field doesn't satisfy the rule's limits. Adjust and try again.",
+  },
 };
 
-/// Plain-string error names the program emits via msg!(). Cheap
-/// substring match.
-const KNOWN_NAMED_ERRORS = [
-  "TooManyActiveProposals",
-  "ThresholdExceedsApprovers",
-  "AlreadyApproved",
-  "AlreadyExecuted",
-  "AlreadyCancelled",
+/// Ordered list of WalletError names by Anchor discriminant offset
+/// (variant index from the base 6000). Lookups by hex code map back
+/// through this index. Source: programs/clear-wallet/src/error.rs.
+const WALLET_ERROR_INDEX: ReadonlyArray<string> = [
+  "TooManyProposers",
+  "TooManyApprovers",
+  "InvalidApprovalThreshold",
+  "InvalidCancellationThreshold",
+  "ProposalNotActive",
+  "ProposalNotApproved",
+  "ProposalNotFinalized",
   "Expired",
-  "NotProposer",
-  "NotApprover",
+  "TimelockNotElapsed",
+  "AlreadyApproved",
+  "AlreadyCancelled",
+  "InvalidMemberIndex",
+  "InvalidProposalIndex",
   "InvalidSignature",
+  "NotProposer",
+  "IntentNotApproved",
+  "IntentHasActiveProposals",
+  "TooManyIntents",
+  "TooManyActiveProposals",
+  "TooManyAccounts",
+  "AccountCountMismatch",
+  "AccountAddressMismatch",
+  "ParamConstraintViolation",
 ];
