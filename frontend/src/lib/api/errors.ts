@@ -290,15 +290,27 @@ export function friendlyError(
   }
 
   // ── Wallet name conflicts ─────────────────────────────────────
+  // The on-chain program derives the wallet PDA from sha256(name)
+  // alone (not creator-scoped), so names are globally unique on
+  // devnet — any name a previous user took is permanently locked.
+  // Anchor surfaces the conflict three different ways: as a system
+  // error ("account already in use"), as an Anchor constraint
+  // ("AlreadyInitialized"), and as a runtime error from the
+  // create_account ix ("instruction requires an uninitialized
+  // account"). All three end up here.
   if (
     context === "create-wallet" &&
     (hay.includes("already exists") ||
       hay.includes("alreadyinitialized") ||
-      hay.includes("account already in use"))
+      hay.includes("account already in use") ||
+      hay.includes("instruction requires an uninitialized account"))
   ) {
     return {
-      title: "A wallet with that name already exists",
-      body: "Pick a different name and try again. Names have to be unique on chain.",
+      title: "That wallet name is already taken on devnet",
+      body:
+        "Wallet names are globally unique across the network. Try a more " +
+        "specific name (your handle, a year, a couple of words) and create " +
+        "again.",
     };
   }
 
