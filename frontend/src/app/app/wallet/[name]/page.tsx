@@ -35,6 +35,7 @@ import { ProposalStatus } from "@/lib/msig";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatarStack } from "@/components/retail/MemberAvatar";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { QuickActionInput } from "@/components/retail/QuickActionInput";
 import { relativeTime } from "@/lib/util/relativeTime";
 import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
 import { formatBalance } from "@/lib/retail/format";
@@ -165,6 +166,7 @@ export default function WalletDetailPage() {
         loading={intentsQuery.isLoading}
       />
       <BudgetStripe name={name} />
+      <QuickActionInput walletName={name} />
       <Actions
         name={name}
         hasIntents={hasIntents}

@@ -239,9 +239,15 @@ function SendPage() {
     firstIntent === null;
 
   const [stage, setStage] = useState<Stage>("compose");
-  const [amount, setAmount] = useState("");
-  const [recipientText, setRecipientText] = useState("");
-  const [note, setNote] = useState("");
+  // Initialise amount/recipient/note from URL params so the QuickAction
+  // input on /app/wallet/[name] can route here with the form already
+  // filled in. Subsequent edits override; we never re-read after mount.
+  const initialAmount = params?.get("amount")?.trim() ?? "";
+  const initialRecipient = params?.get("recipient")?.trim() ?? "";
+  const initialNote = params?.get("note")?.trim() ?? "";
+  const [amount, setAmount] = useState(initialAmount);
+  const [recipientText, setRecipientText] = useState(initialRecipient);
+  const [note, setNote] = useState(initialNote);
   const [savedNewContact, setSavedNewContact] = useState(false);
 
   // Resolve the typed recipient: contact-by-name first, raw address

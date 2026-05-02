@@ -12,7 +12,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -64,6 +64,7 @@ export default function AddFriendPage() {
   }, [params?.name]);
 
   const router = useRouter();
+  const searchParams = useSearchParams();
   const wallet = useWallet();
   const { connection } = useConnection();
   const { signBytes } = useSignWithWallet();
@@ -111,14 +112,25 @@ export default function AddFriendPage() {
     !!walletQuery.data &&
     firstIntent === null;
 
-  const [friendName, setFriendName] = useState("");
-  const [friendAddress, setFriendAddress] = useState("");
-  const [friendEmail, setFriendEmail] = useState("");
+  // Initial values from URL params so the QuickAction input on
+  // /app/wallet/[name] can route here with the form pre-filled.
+  const [friendName, setFriendName] = useState(
+    () => searchParams?.get("name")?.trim() ?? "",
+  );
+  const [friendAddress, setFriendAddress] = useState(
+    () => searchParams?.get("address")?.trim() ?? "",
+  );
+  const [friendEmail, setFriendEmail] = useState(
+    () => searchParams?.get("email")?.trim() ?? "",
+  );
   /// Role drives both the on-chain intent update (which lists the
   /// friend lands in) and the local watchers store. Default "full"
   /// matches the previous behavior where every friend got both
   /// proposer + approver power.
-  const [role, setRole] = useState<Role>("full");
+  const [role, setRole] = useState<Role>(() => {
+    const r = searchParams?.get("role")?.trim();
+    return r === "approver" || r === "watcher" || r === "full" ? r : "full";
+  });
   // Set on add-friend success so the page renders the NextStepCard
   // instead of routing straight to /members. Captured separately
   // from `friendName` so a half-typed name doesn't appear in the

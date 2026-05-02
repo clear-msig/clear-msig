@@ -146,9 +146,11 @@ function SendEthPage() {
   const needsIntent = allLoaded && !!ethBinding && !ethIntent;
 
   const [stage, setStage] = useState<Stage>("compose");
-  const [amount, setAmount] = useState("");
-  const [recipient, setRecipient] = useState("");
-  const [note, setNote] = useState("");
+  // Initial values from URL params so /app/wallet/[name]'s
+  // QuickAction input can route here with the form pre-filled.
+  const [amount, setAmount] = useState(() => params?.get("amount")?.trim() ?? "");
+  const [recipient, setRecipient] = useState(() => params?.get("recipient")?.trim() ?? "");
+  const [note, setNote] = useState(() => params?.get("note")?.trim() ?? "");
   const [sentLabel, setSentLabel] = useState<{
     amount: string;
     to: string;
