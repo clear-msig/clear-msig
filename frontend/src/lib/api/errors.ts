@@ -217,21 +217,20 @@ export function friendlyError(
   ) {
     const friendly = walletProgramErrorMessage(hay);
     if (friendly) return friendly;
-    // Anchor / system error not in our catalogue. Surface the
-    // useful trailing chunk of stderr so a developer can grep it,
-    // with a stripped framing the user can act on.
+    // Anchor / system error outside our catalogue. Try to surface
+    // an actually informative stderr line — but ONLY if it looks
+    // like prose. The previous version would happily prepend a
+    // bare `}` from a JSON dump, producing toasts like
+    // "} — wait a few seconds and try again". The picker now
+    // refuses junk and the catch-all falls through to a clean
+    // prose body when nothing prose-shaped is available.
     const tail = pickLastUsefulLine(bag);
-    if (tail) {
-      return {
-        title: "Solana didn't accept that transaction",
-        body: `${tail.slice(0, 220)} — wait a few seconds and try again. If it keeps failing, refresh the page and retry from a fresh state.`,
-      };
-    }
     return {
       title: "Solana didn't accept that transaction",
-      body:
-        "The network rejected this submission. Wait a few seconds and try again. " +
-        "If the wallet name is new and it still fails, the previous attempt might still be confirming — refresh to see.",
+      body: tail
+        ? `${tail.slice(0, 220)} Wait a few seconds and try again. If it keeps failing, refresh the page and retry from a fresh state.`
+        : "The network rejected this submission. Wait a few seconds and try again. " +
+          "If the wallet name is new and it still fails, the previous attempt might still be confirming — refresh to see.",
     };
   }
 
@@ -489,9 +488,12 @@ function walletProgramErrorMessage(hay: string): FriendlyError | null {
   return null;
 }
 
-/// Pick the most-recent informative line from the error bag. Trims
-/// stack frames, "Caused by:" headers, and other noise so the toast
-/// surfaces the line a developer would copy-paste into a search bar.
+/// Pick the most-recent prose-shaped line from the error bag. Trims
+/// stack frames, "Caused by:" headers, JSON brackets, and any line
+/// that's not actual diagnostic prose so the toast never surfaces a
+/// bare `}` or `[` as if it were the error message. When nothing
+/// looks prose-shaped, returns null and the caller falls through to
+/// a static message.
 function pickLastUsefulLine(b: SignalBag): string | null {
   const merged = [b.payloadError, b.message, b.stderr, b.stdout]
     .filter((s) => s && s.trim())
@@ -499,19 +501,31 @@ function pickLastUsefulLine(b: SignalBag): string | null {
   const lines = merged
     .split("\n")
     .map((l) => l.trim())
-    .filter(
-      (l) =>
-        l &&
-        !l.startsWith("Caused by") &&
-        !l.match(/^[0-9]+:/) && // anyhow chain numbering
-        !l.startsWith("at ") && // stack frame
-        !l.match(/^\s*$/),
-    );
-  // Prefer a line containing the actual diagnostic.
+    .filter(isProseLine);
+  // Prefer a line containing the actual diagnostic, otherwise fall
+  // back to the last surviving prose line.
   const diag =
     lines.find((l) => l.toLowerCase().includes("rpc response error")) ??
     lines[lines.length - 1];
-  return diag ?? null;
+  if (!diag) return null;
+  // Ensure the line ends with terminal punctuation so concatenating
+  // " Wait a few seconds..." reads as prose, not as a fragment.
+  return /[.!?]$/.test(diag) ? diag : `${diag}.`;
+}
+
+function isProseLine(l: string): boolean {
+  if (!l) return false;
+  if (l.length < 12) return false; // single chars, brackets, short noise
+  if (l.startsWith("Caused by")) return false;
+  if (/^[0-9]+:/.test(l)) return false; // anyhow chain numbering
+  if (l.startsWith("at ")) return false; // stack frame
+  // Reject lines that are mostly punctuation / brackets / hex blobs.
+  // A prose line has a healthy alpha-character ratio.
+  const alpha = (l.match(/[a-zA-Z]/g) ?? []).length;
+  if (alpha / l.length < 0.4) return false;
+  // Reject pure-JSON-shape lines (open with `{`/`[`, close with `}`/`]`).
+  if (/^[{[].*[}\]]$/.test(l) && !/[a-zA-Z]\s/.test(l)) return false;
+  return true;
 }
 
 /// Map of on-chain `WalletError` variants → friendly copy. Keep in
