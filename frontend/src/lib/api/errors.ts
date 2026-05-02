@@ -19,6 +19,7 @@
 
 import { BackendApiError } from "@/lib/api/client";
 import { WalletSignError } from "@/lib/hooks/useSignWithWallet";
+import { PolicyViolationError } from "@/lib/retail/policyEvaluation";
 import { appConfig } from "@/lib/config";
 
 export interface FriendlyError {
@@ -115,6 +116,14 @@ export function friendlyError(
   err: unknown,
   context: ActionContext = "generic",
 ): FriendlyError {
+  // ── Wallet policy: pre-flight check rejected the send ─────────
+  // PolicyViolationError fires BEFORE any network or wallet step,
+  // so it has the cleanest title + body of any error class. Show
+  // verbatim — the violation copy is already action-oriented.
+  if (err instanceof PolicyViolationError) {
+    return { title: err.message, body: err.body };
+  }
+
   const bag = bagFromError(err);
   const hay = haystack(bag);
 

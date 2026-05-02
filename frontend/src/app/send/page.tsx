@@ -49,6 +49,7 @@ import {
 import { useContacts } from "@/lib/hooks/useContacts";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
+import { evaluatePolicy, PolicyViolationError } from "@/lib/retail/policyEvaluation";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
@@ -307,6 +308,24 @@ function SendPage() {
             : null;
       if (!destination)
         throw new Error("Pick a contact or paste an address");
+
+      // Policy pre-flight. Block before the wallet popup opens so the
+      // user never signs a doomed send. Sources of truth: localStorage
+      // allowlist + time window + per-friend allowance + wallet-wide
+      // budget. Client-side enforcement; see lib/retail/policyEvaluation.ts.
+      const policy = evaluatePolicy({
+        walletName,
+        recipientAddress: destination,
+        amountSol: numericAmount,
+        ticker: "SOL",
+        spentUsdThisWindow: budgetUsage.spentUsd,
+        spentUsdByChain: Object.fromEntries(
+          budgetUsage.perChain.map((c) => [c.ticker, c.spentUsd]),
+        ),
+      });
+      if (!policy.ok) {
+        throw new PolicyViolationError(policy.violations);
+      }
 
       const nonceHex = generateNonceHex();
       // SOL → lamports. Solana's smallest unit, 1 SOL = 1e9 lamports.

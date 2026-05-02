@@ -377,6 +377,17 @@ function Hero({
           Weekly limit
         </Link>
         <Link
+          href={`/app/wallet/${encodeURIComponent(name)}/policy`}
+          className={
+            "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
+            "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+          }
+        >
+          <ShieldCheck className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
+          Policy
+        </Link>
+        <Link
           href="/privacy"
           className={
             "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
