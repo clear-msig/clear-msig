@@ -80,12 +80,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       const id = nextId.current++;
       const entry: ToastEntry = { id, kind, message, ...opts };
       setEntries((prev) => [...prev, entry]);
-      // Errors auto-dismiss in 5 seconds — no pinned errors. Callers
-      // that previously passed `durationMs: 0` (network down,
-      // sign-rejection diagnostics) have their pin clamped to 5s so
-      // the page never carries a permanent banner.
+      // Errors auto-dismiss in 10 seconds — long enough for users to
+      // read a stack-trace-flavoured message and decide whether to
+      // retry, but not so long the page carries a stale banner.
+      // Callers that previously passed `durationMs: 0` (network down,
+      // sign-rejection diagnostics) have their pin clamped to 10s.
       const requested = opts.durationMs;
-      const fallback = kind === "error" ? 5000 : 4000;
+      const fallback = kind === "error" ? 10000 : 4000;
       const duration =
         requested === undefined || requested <= 0 ? fallback : requested;
       if (duration > 0) {

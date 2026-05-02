@@ -143,6 +143,60 @@ export function friendlyError(
     };
   }
 
+  // ── Solana RPC: transient network state ───────────────────────
+  // "blockhash not found" / "node is behind" usually mean the RPC
+  // we hit is a beat behind the cluster. The CLI already retries on
+  // these in some flows; surfacing them here covers the cases where
+  // it bubbles up to the user (single-shot sends, create-wallet).
+  if (
+    hay.includes("blockhash not found") ||
+    hay.includes("node is behind") ||
+    hay.includes("nodebehind") ||
+    hay.includes("slot was skipped") ||
+    hay.includes("rpc response error -32007") ||
+    hay.includes("rpc response error -32004") ||
+    hay.includes("rpc response error -32014") ||
+    hay.includes("rpc response error -32016")
+  ) {
+    return {
+      title: "The network is catching up",
+      body: "Solana's RPC is a beat behind. Wait a few seconds and try again.",
+    };
+  }
+
+  // ── Solana RPC: simulation failure / preflight rejection ──────
+  // -32002 covers a family: simulation failed, signature verification
+  // failed, transaction precheck failed, "Transaction" stub messages.
+  // Most commonly fires when the previous transaction is still
+  // confirming, the wallet doesn't have enough lamports for rent, or
+  // a program-side check rejected the instruction.
+  if (
+    hay.includes("rpc response error -32002") ||
+    hay.includes("transaction simulation failed") ||
+    hay.includes("transaction signature verification failed") ||
+    hay.includes("transaction precheck failed") ||
+    hay.match(/rpc response error -32002:\s*transaction\.?$/m)
+  ) {
+    const programErr = extractProgramError(hay);
+    return {
+      title: "Solana didn't accept that transaction",
+      body: programErr
+        ? `Program rejected the call: ${programErr}. Refresh and try again. If it keeps failing, check the wallet has enough SOL for fees and rent.`
+        : "Common causes: the previous transaction is still confirming, this wallet name is already taken, or the wallet doesn't have enough SOL for rent. Wait 5 seconds and retry.",
+    };
+  }
+
+  // ── Solana RPC: catch-all for any other -3200X error ──────────
+  // Surface the code so a developer can grep, but give the user a
+  // human "the network rejected it" framing instead of raw RPC text.
+  const rpcCodeMatch = hay.match(/rpc response error (-32\d{3})/);
+  if (rpcCodeMatch) {
+    return {
+      title: "Solana rejected the transaction",
+      body: `The network refused the request (code ${rpcCodeMatch[1]}). Try again in a few seconds. If it keeps happening, refresh and retry from a fresh state.`,
+    };
+  }
+
   // ── Chain already bound (add-chain dedupe) ────────────────────
   if (
     hay.includes("already bound") ||
@@ -333,3 +387,45 @@ function firstNonEmpty(...candidates: string[]): string {
 function truncate(s: string, max: number): string {
   return s.length <= max ? s : s.slice(0, max).trimEnd() + "…";
 }
+
+/// Pull a program-side error name out of a Solana RPC simulation
+/// failure message. Looks for "custom program error: 0xNN" (Anchor
+/// style) and a small set of human-readable error names the program
+/// emits via msg!(). Returns null when nothing usable is in the
+/// haystack so the caller can fall back to its generic copy.
+function extractProgramError(hay: string): string | null {
+  const customCode = hay.match(/custom program error:\s*0x([0-9a-f]+)/i);
+  if (customCode) {
+    const hex = customCode[1];
+    const known = KNOWN_PROGRAM_ERRORS[`0x${hex.toLowerCase()}`];
+    return known ?? `custom error 0x${hex}`;
+  }
+  for (const name of KNOWN_NAMED_ERRORS) {
+    if (hay.includes(name.toLowerCase())) return name;
+  }
+  return null;
+}
+
+/// Anchor-style 0xNN hex codes the on-chain program emits. Keep in
+/// sync with `programs/clear-wallet/src/error.rs` when new variants
+/// land. Order doesn't matter; lookups are O(1).
+const KNOWN_PROGRAM_ERRORS: Record<string, string> = {
+  // Standard Anchor / token errors users see most often.
+  "0x1": "insufficient funds",
+  "0x0": "account already in use",
+  "0x65": "constraint mismatch",
+};
+
+/// Plain-string error names the program emits via msg!(). Cheap
+/// substring match.
+const KNOWN_NAMED_ERRORS = [
+  "TooManyActiveProposals",
+  "ThresholdExceedsApprovers",
+  "AlreadyApproved",
+  "AlreadyExecuted",
+  "AlreadyCancelled",
+  "Expired",
+  "NotProposer",
+  "NotApprover",
+  "InvalidSignature",
+];
