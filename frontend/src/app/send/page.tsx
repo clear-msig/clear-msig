@@ -34,7 +34,9 @@ import {
 } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
-import { IntentType, toHex } from "@/lib/msig";
+import { IntentType, toHex, findProposalAddress } from "@/lib/msig";
+import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
+import { PublicKey } from "@solana/web3.js";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
@@ -249,6 +251,10 @@ function SendPage() {
     firstIntent === null;
 
   const [stage, setStage] = useState<Stage>("compose");
+  // Substep state inside the "sending" stage. Tells the user which
+  // step is in flight so a slow Solana RPC doesn't read as a frozen
+  // app. Each step in the mutation pushes to this ref via setPhase.
+  const [phase, setPhase] = useState<SendingPhase>("preparing");
   // Initialise amount/recipient/note from URL params so the QuickAction
   // input on /app/wallet/[name] can route here with the form already
   // filled in. Subsequent edits override; we never re-read after mount.
@@ -314,6 +320,7 @@ function SendPage() {
       // intent's param list, so we send `key=value` pairs (not bare
       // positional values). Names match the SolTransfer template:
       // `examples/intents/solana_transfer.json`.
+      setPhase("preparing");
       const dry = await backendApi.prepare.createProposal(walletName, {
         intent_index: firstIntent.account.intentIndex,
         params: [
@@ -328,18 +335,41 @@ function SendPage() {
       });
 
       // 2. Sign with the user's wallet.
+      setPhase("signing");
       const signed = await signDescriptor(dry);
 
       // 3. Submit propose: lands the proposal on chain in Active
       //    state with empty bitmap. Propose does not auto-flip the
       //    proposer's approval bit, so without the steps below the
       //    money never moves.
-      const submitted = await backendApi.submit.createProposal(walletName, {
-        ...signed,
-        params_data_hex: dry.params_data_hex,
-        expiry: dry.expiry,
-        intent_index: firstIntent.account.intentIndex,
-      });
+      //
+      // Resilience: if the submit throws AFTER the wallet signed
+      // (network blip, RPC stub, backend timeout), the on-chain
+      // proposal might still be there. We compute the expected PDA
+      // from the descriptor + index and poll Solana directly before
+      // surfacing an error. The retry layer in lib/api/retry.ts
+      // handles transient hints for us; this handles the case where
+      // it gave up but the chain saw the tx.
+      setPhase("submitting");
+      let submitted: Record<string, unknown> | undefined;
+      try {
+        submitted = (await backendApi.submit.createProposal(walletName, {
+          ...signed,
+          params_data_hex: dry.params_data_hex,
+          expiry: dry.expiry,
+          intent_index: firstIntent.account.intentIndex,
+        })) as Record<string, unknown>;
+      } catch (err) {
+        const recovered = await findProposalIfLanded(
+          dry,
+          connection,
+        );
+        if (recovered) {
+          submitted = { proposal: recovered };
+        } else {
+          throw err;
+        }
+      }
 
       const proposal = (submitted as Record<string, unknown>)?.proposal;
       const me = wallet.publicKey?.toBase58();
@@ -354,6 +384,7 @@ function SendPage() {
       const userIsApprover = intent.approvers.includes(me);
       const decision = await approveIfNeeded(connection, proposal);
       if (userIsApprover && decision.needsApproveSignature) {
+        setPhase("approving");
         try {
           const approveDry = await backendApi.prepare.approveProposal(
             walletName,
@@ -380,6 +411,7 @@ function SendPage() {
       const approvalsAfterUs =
         (userIsApprover ? 1 : 0) /* propose either auto-set or we just set it */;
       if (approvalsAfterUs >= intent.approvalThreshold) {
+        setPhase("executing");
         try {
           await backendApi.executeProposal(walletName, proposal, {});
         } catch (err) {
@@ -406,6 +438,7 @@ function SendPage() {
 
   const handleSubmit = () => {
     if (!canSubmit) return;
+    setPhase("preparing");
     setStage("sending");
     submit.mutate();
   };
@@ -533,7 +566,9 @@ function SendPage() {
               reduce={!!reduce}
             />
           )}
-          {stage === "sending" && <SendingStage reduce={!!reduce} />}
+          {stage === "sending" && (
+            <SendingStage reduce={!!reduce} phase={phase} />
+          )}
           {stage === "sent" && (
             <SentStage
               amountDisplay={sentAmountDisplay}
@@ -1006,10 +1041,51 @@ function Field({
 
 // ─── Stage 2: sending ──────────────────────────────────────────────
 
-function SendingStage({ reduce }: { reduce: boolean }) {
+/// Substep within the "sending" stage. Each value maps to a status
+/// line in <SendingStage>; the mutation in handleSubmit pushes to it
+/// at each step so the user sees progress instead of a frozen spinner
+/// during slow Solana RPC round-trips.
+type SendingPhase =
+  | "preparing"
+  | "signing"
+  | "submitting"
+  | "approving"
+  | "executing";
+
+const PHASE_LABEL: Record<SendingPhase, { primary: string; hint: string }> = {
+  preparing: {
+    primary: "Building your request",
+    hint: "Pulling the latest wallet state from Solana.",
+  },
+  signing: {
+    primary: "Waiting for your signature",
+    hint: "Approve the message in your wallet or on your Ledger.",
+  },
+  submitting: {
+    primary: "Sending to Solana",
+    hint: "This usually takes 2-5 seconds.",
+  },
+  approving: {
+    primary: "Approving the request",
+    hint: "Approve the second prompt in your wallet to flip your bit.",
+  },
+  executing: {
+    primary: "Releasing the funds",
+    hint: "Threshold met. Asking the chain to execute.",
+  },
+};
+
+function SendingStage({
+  reduce,
+  phase,
+}: {
+  reduce: boolean;
+  phase: SendingPhase;
+}) {
   const motionProps = reduce
     ? { initial: false as const, animate: { opacity: 1 } }
     : { initial: { opacity: 0 }, animate: { opacity: 1 } };
+  const { primary, hint } = PHASE_LABEL[phase];
   return (
     <motion.section
       {...motionProps}
@@ -1017,14 +1093,49 @@ function SendingStage({ reduce }: { reduce: boolean }) {
       className="flex flex-col items-center text-center"
     >
       <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-raised shadow-card-rest">
-        <BrandLoader size={32} label="Creating request" />
+        <BrandLoader size={32} label={primary} />
       </div>
-      <p className="mt-5 text-base text-text-soft">Creating request…</p>
-      <p className="mt-1 text-xs text-text-soft">
-        Your wallet may ask you to confirm.
-      </p>
+      <p className="mt-5 text-base text-text-strong">{primary}…</p>
+      <p className="mt-1 text-xs text-text-soft">{hint}</p>
     </motion.section>
   );
+}
+
+/// After a submit throws, see if the proposal is on chain anyway.
+/// The descriptor binds the signed payload to a fixed (intent_pubkey,
+/// proposal_index), so we can compute the expected PDA and ask the
+/// RPC directly. Returns the proposal pubkey when the account exists,
+/// null otherwise. Polls a few times because RPCs lag.
+async function findProposalIfLanded(
+  descriptor: { intent_pubkey: string; proposal_index?: number },
+  connection: import("@solana/web3.js").Connection,
+): Promise<string | null> {
+  if (descriptor.proposal_index === undefined || descriptor.proposal_index === null) {
+    return null;
+  }
+  let intentPk: PublicKey;
+  try {
+    intentPk = new PublicKey(descriptor.intent_pubkey);
+  } catch {
+    return null;
+  }
+  const [pda] = findProposalAddress(
+    intentPk,
+    BigInt(descriptor.proposal_index),
+    CLEAR_WALLET_PROGRAM_ID,
+  );
+  // Poll for ~3 seconds — RPC propagation lag is usually under a
+  // second, but devnet's public RPC has been observed at 2s+.
+  for (let i = 0; i < 4; i++) {
+    try {
+      const info = await connection.getAccountInfo(pda, "confirmed");
+      if (info) return pda.toBase58();
+    } catch {
+      // ignore — try again
+    }
+    await new Promise((r) => setTimeout(r, 800));
+  }
+  return null;
 }
 
 // ─── Stage 3: sent ─────────────────────────────────────────────────
