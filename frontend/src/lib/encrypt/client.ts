@@ -224,16 +224,25 @@ export function encryptStatus(): EncryptStatus {
   // The split between `live` and `wired` exists because we used to
   // overload `live = true` to mean "the integration is wired,"
   // which leaked through to chips reading "Encrypted" / "Private
-  // list" before the cryptography existed. The honest framing for
-  // pre-alpha is: the wire path is real, the cryptography is not.
-  // When the network goes live, flip `live` to true; chips and
-  // status text adopt without further code changes.
+  // list" before the cryptography existed. Honest pre-alpha
+  // framing: the FRONTEND wire path is real (this module). Two
+  // pieces still need work for "switch on" to be more than a flag:
+  //
+  //   1. CLI today logs `policy_ciphertexts` rather than threading
+  //      them into the on-chain instruction. (cli/src/commands/intent.rs)
+  //   2. The Solana program has no FHE-aware handlers
+  //      (`#[encrypt_fn]`, `EUint*`). Approval / threshold checks
+  //      need to operate on encrypted refs, not plaintext.
+  //
+  // When Encrypt ships their npm SDK and Solana FHE crate, the
+  // frontend swap is one file; the CLI + program work is the bulk
+  // of the lift. /SECURITY.md tracks this honestly.
   return {
     live: false,
     wired: true,
     scheme: "passthrough-v1",
     description:
-      "Your wallet's rules are routed through the Encrypt surface every time you change them. The integration is in place; real FHE encryption switches on when Encrypt's network leaves pre-alpha.",
+      "The frontend routes every policy change through the Encrypt surface today. CLI and on-chain program still operate on plaintext; both need updates before real FHE encryption flips on. See /SECURITY.md for the full status.",
     learnMoreHref: "/privacy",
   };
 }

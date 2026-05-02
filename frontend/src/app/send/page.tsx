@@ -980,7 +980,7 @@ function Field({
 }: FieldProps) {
   return (
     <label className="flex items-center gap-3">
-      <span className="w-10 shrink-0 text-xs font-medium uppercase tracking-wide text-text-soft">
+      <span className="inline-flex min-w-[64px] shrink-0 items-baseline whitespace-nowrap text-xs font-medium uppercase tracking-wide text-text-soft">
         {label}
         {optional && (
           <span className="ml-1 normal-case tracking-normal text-text-soft/60">
@@ -996,7 +996,7 @@ function Field({
         maxLength={maxLength}
         spellCheck={false}
         className={
-          "flex-1 bg-transparent py-1.5 text-base text-text-strong outline-none " +
+          "min-w-0 flex-1 bg-transparent py-1.5 text-base text-text-strong outline-none " +
           "placeholder:text-text-soft/60"
         }
       />

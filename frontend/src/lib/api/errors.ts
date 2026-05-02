@@ -40,6 +40,9 @@ interface SignalBag {
   retryAfterSecs?: number;
   isNetwork: boolean;
   isWalletReject: boolean;
+  /// Set when the wallet error is a Ledger device-state issue
+  /// (transport, app-not-open, etc.) rather than a real user reject.
+  walletErrorCode?: WalletSignError["code"];
 }
 
 function bagFromError(err: unknown): SignalBag {
@@ -51,6 +54,8 @@ function bagFromError(err: unknown): SignalBag {
   let isNetwork = false;
   let isWalletReject = false;
 
+  let walletErrorCode: WalletSignError["code"] | undefined;
+
   if (err instanceof BackendApiError) {
     message = err.message ?? "";
     payloadError = err.payload?.error ?? "";
@@ -60,6 +65,7 @@ function bagFromError(err: unknown): SignalBag {
   } else if (err instanceof WalletSignError) {
     message = err.message ?? "";
     isWalletReject = err.code === "rejected";
+    walletErrorCode = err.code;
   } else if (err instanceof Error) {
     message = err.message ?? "";
   } else if (typeof err === "string") {
@@ -83,6 +89,7 @@ function bagFromError(err: unknown): SignalBag {
     retryAfterSecs,
     isNetwork,
     isWalletReject,
+    walletErrorCode,
   };
 }
 
@@ -122,7 +129,30 @@ export function friendlyError(
     };
   }
 
-  // ── Wallet UX: user cancelled the signature ───────────────────
+  // ── Wallet UX: Ledger device-state errors (app closed, etc.) ──
+  // These came in as "rejected" before, telling users they cancelled
+  // when their device just had the Solana app closed. Each code gets
+  // the actionable next step.
+  if (bag.walletErrorCode === "ledger_app_closed") {
+    return {
+      title: "Open the Solana app on your Ledger",
+      body: "Unlock the device, open the Solana app, and tap the action again.",
+    };
+  }
+  if (bag.walletErrorCode === "ledger_transport") {
+    return {
+      title: "Lost the connection to your Ledger",
+      body: "Reconnect the cable, unlock the device, then try again.",
+    };
+  }
+  if (bag.walletErrorCode === "ledger_unsupported") {
+    return {
+      title: "Hardware wallets need WebHID",
+      body: "Open this page in Chrome, Edge, or Brave to use a Ledger.",
+    };
+  }
+
+  // ── Wallet UX: user actually cancelled the signature ──────────
   if (bag.isWalletReject || hay.includes("user rejected") || hay.includes("user declined")) {
     return {
       title: "You cancelled the signature",

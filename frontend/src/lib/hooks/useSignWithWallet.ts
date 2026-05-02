@@ -17,6 +17,7 @@ import {
   rebuildAndVerifyMessage,
   MessageVerificationError,
 } from "@/lib/msig";
+import { LedgerError } from "@/lib/wallet/ledger";
 import type { DryRunDescriptor } from "@/lib/api/types";
 
 export interface SignedPayload {
@@ -32,6 +33,9 @@ export class WalletSignError extends Error {
     | "not_connected"
     | "no_sign_message"
     | "rejected"
+    | "ledger_app_closed"
+    | "ledger_transport"
+    | "ledger_unsupported"
     | "unknown"
     | "message_mismatch";
   /// Set when `code === "message_mismatch"` — the bytes the backend
@@ -84,11 +88,11 @@ export function useSignWithWallet() {
       try {
         sig = await signMessage(messageBytes);
       } catch (err) {
-        // Phantom / Solflare surface "User rejected" strings; treat
-        // anything thrown from the wallet as a user-visible rejection.
-        const message =
-          err instanceof Error ? err.message : "Wallet rejected the signature";
-        throw new WalletSignError("rejected", message);
+        // Distinguish real user rejections from device/transport
+        // errors. Treating everything as "rejected" was telling
+        // users they cancelled when their Ledger had closed the
+        // Solana app or the cable came loose.
+        throw classifySignError(err);
       }
       if (sig.length !== 64) {
         throw new WalletSignError(
@@ -133,4 +137,43 @@ export function useSignWithWallet() {
     signDescriptor,
     canSign: Boolean(connected && publicKey && signMessage),
   };
+}
+
+/// Translate any throwable from the underlying wallet/device into a
+/// typed `WalletSignError`. Real user rejections get `rejected`; the
+/// device-state cases (Ledger Solana app closed, cable lost) keep
+/// their own codes so `friendlyError` can show "open the Solana app"
+/// instead of "you cancelled".
+function classifySignError(err: unknown): WalletSignError {
+  if (err instanceof LedgerError) {
+    switch (err.code) {
+      case "rejected":
+        return new WalletSignError("rejected", err.message);
+      case "app_closed":
+        return new WalletSignError("ledger_app_closed", err.message);
+      case "transport_lost":
+      case "no_device":
+        return new WalletSignError("ledger_transport", err.message);
+      case "unsupported":
+        return new WalletSignError("ledger_unsupported", err.message);
+      default:
+        return new WalletSignError("unknown", err.message);
+    }
+  }
+  if (err instanceof Error) {
+    const m = err.message.toLowerCase();
+    if (
+      m.includes("user rejected") ||
+      m.includes("user declined") ||
+      m.includes("user denied") ||
+      m.includes("rejected by the user") ||
+      m.includes("rejected the request") ||
+      m.includes("cancelled by user") ||
+      m.includes("approval denied")
+    ) {
+      return new WalletSignError("rejected", err.message);
+    }
+    return new WalletSignError("unknown", err.message);
+  }
+  return new WalletSignError("unknown", "Wallet returned an unknown error");
 }

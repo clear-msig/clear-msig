@@ -155,22 +155,26 @@ function ConnectPage() {
             className="relative mx-auto w-full max-w-md"
           >
             <div className="rounded-card border border-border-soft bg-surface-raised p-7 shadow-card-raised sm:p-8">
-              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">
-                <ShieldCheck className="h-6 w-6" strokeWidth={1.75} />
+              <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-accent/10 text-accent">
+                <ShieldCheck className="h-7 w-7" strokeWidth={1.75} />
               </div>
-              <h2 className="font-display text-display-xs leading-[1.1] text-text-strong">
+              <h2 className="font-display text-display-sm leading-[1.05] text-text-strong">
                 Sign in or sign up
               </h2>
-              <p className="mt-2 text-sm text-text-soft">
+              <p className="mt-2 text-base text-text-soft">
                 Use your email, your phone, or a wallet you already have.
                 We will set the rest up for you.
               </p>
 
-              <div className="mt-6">
+              {/* Wrap Dynamic widget in a container that visually scales
+                  the default button. Dynamic's primary CTA is small by
+                  default; a thin layout wrapper makes it read as the
+                  hero CTA without forking their component. */}
+              <div className="mt-6 [&_button]:!min-h-[52px] [&_button]:!text-base [&_button]:!font-semibold">
                 <DynamicWidget />
               </div>
 
-              <p className="mt-5 text-[11px] leading-snug text-text-soft">
+              <p className="mt-5 text-xs leading-snug text-text-soft">
                 Email and social sign-in mint a built-in wallet. You stay
                 in control; we never see the keys.
               </p>
@@ -333,35 +337,38 @@ function LedgerConnectRow() {
   }
 
   return (
-    <div className="mt-5 border-t border-border-soft pt-5">
+    <div className="mt-6 border-t border-border-soft pt-6">
+      <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-text-soft">
+        Or use hardware
+      </p>
       <button
         type="button"
         onClick={handleClick}
         disabled={!supportsHid || ledger.connecting}
         className={
-          "flex w-full items-center justify-center gap-2 rounded-card border border-border-soft bg-canvas px-4 py-3 text-sm font-medium text-text-strong " +
+          "flex min-h-[52px] w-full items-center justify-center gap-2 rounded-card border-2 border-border-strong bg-canvas px-4 py-3 text-base font-semibold text-text-strong " +
           "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
           "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-rest " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
-          "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:border-border-soft disabled:hover:shadow-none"
+          "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:border-border-strong disabled:hover:shadow-none"
         }
       >
         {ledger.connecting ? (
           <>
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
             Waiting for your Ledger
           </>
         ) : (
           <>
-            <Usb className="h-4 w-4 text-text-soft" aria-hidden="true" />
-            Use a Ledger device
+            <Usb className="h-5 w-5" aria-hidden="true" />
+            Connect Ledger
           </>
         )}
       </button>
-      <p className="mt-2 text-[11px] leading-snug text-text-soft">
+      <p className="mt-2 text-xs leading-snug text-text-soft">
         {supportsHid
-          ? "Plug the Ledger in, unlock it, and open the Solana app. The device shows you the full message before you approve."
-          : "Hardware wallets need WebHID. Open this page in Chrome, Edge, or Brave to use a Ledger."}
+          ? "Plug it in, unlock it, open the Solana app. The device displays the full message before you approve."
+          : "Hardware wallets need WebHID. Open this page in Chrome, Edge, or Brave."}
       </p>
     </div>
   );
