@@ -25,7 +25,6 @@ import { listIntents } from "@/lib/chain/intents";
 import { listProposalsForWallet } from "@/lib/chain/proposals";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import {
-  fromHex,
   IntentType,
   ProposalStatus,
   type IntentAccount,
@@ -47,7 +46,7 @@ interface UpdateArgs {
 
 export function useUpdateMemberRole() {
   const { connection } = useConnection();
-  const { signBytes } = useSignWithWallet();
+  const { signDescriptor } = useSignWithWallet();
   const wallet = useWallet();
   const queryClient = useQueryClient();
 
@@ -181,7 +180,7 @@ export function useUpdateMemberRole() {
       });
 
       // 2. Sign propose — first wallet popup.
-      const signed = await signBytes(fromHex(dry.message_hex));
+      const signed = await signDescriptor(dry);
       const submitted = await backendApi.submit.updateIntent(walletName, {
         ...signed,
         params_data_hex: dry.params_data_hex,
@@ -207,7 +206,7 @@ export function useUpdateMemberRole() {
           proposal,
           { actor_pubkey: me },
         );
-        const approveSigned = await signBytes(fromHex(approveDry.message_hex));
+        const approveSigned = await signDescriptor(approveDry);
         await backendApi.submit.approveProposal(walletName, proposal, {
           ...approveSigned,
           expiry: approveDry.expiry,

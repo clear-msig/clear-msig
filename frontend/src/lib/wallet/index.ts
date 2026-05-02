@@ -28,15 +28,24 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import { useDynamicContext, useUserWallets } from "@dynamic-labs/sdk-react-core";
 import { isSolanaWallet } from "@dynamic-labs/solana-core";
 import { solanaClusterRpc } from "@/lib/solana/cluster";
+import { useLedger } from "@/lib/wallet/LedgerProvider";
 
 /// Drop-in replacement for `useWallet()` from @solana/wallet-adapter-react.
 /// Returns a Solana wallet view derived from Dynamic's primary wallet,
 /// or any Solana wallet attached to the logged-in user. signMessage
 /// resolves the embedded-wallet signer lazily on each call so the
 /// returned signature is ed25519 over the bytes we passed in.
+///
+/// When a Ledger session exists (set up via `<LedgerProvider>` and
+/// the connect button on /connect), it takes precedence over Dynamic
+/// for both the surfaced public key and signMessage. Routing all
+/// signing through the device is what earns the "clear signing"
+/// claim — the Solana app on the Ledger renders the offchain message
+/// body as text on the device screen rather than hex in a popup.
 export function useWallet() {
   const { primaryWallet, handleLogOut, sdkHasLoaded } = useDynamicContext();
   const allWallets = useUserWallets();
+  const ledger = useLedger();
 
   // Prefer the active wallet when it's Solana; otherwise grab any
   // Solana wallet the user has minted (e.g. they logged in via email,
@@ -46,7 +55,7 @@ export function useWallet() {
     return allWallets.find((w) => w && isSolanaWallet(w)) ?? null;
   }, [primaryWallet, allWallets]);
 
-  const publicKey = useMemo(() => {
+  const dynamicPublicKey = useMemo(() => {
     if (!solanaWallet?.address) return null;
     try {
       return new PublicKey(solanaWallet.address);
@@ -55,10 +64,28 @@ export function useWallet() {
     }
   }, [solanaWallet]);
 
-  const connected = !!solanaWallet && !!publicKey;
+  const ledgerPublicKey = useMemo(() => {
+    if (!ledger.session) return null;
+    try {
+      return new PublicKey(ledger.session.pubkeyBase58);
+    } catch {
+      return null;
+    }
+  }, [ledger.session]);
+
+  // Ledger always wins when connected. The whole point is that the
+  // device, not the embedded wallet, signs.
+  const publicKey = ledgerPublicKey ?? dynamicPublicKey;
+  const connected = !!publicKey && (!!ledger.session || !!solanaWallet);
 
   const signMessage = useCallback(
     async (bytes: Uint8Array): Promise<Uint8Array> => {
+      if (ledger.session) {
+        // Ledger expects the offchain-wrapped buffer verbatim. The
+        // caller passes exactly that (via `wrapOffchain`); the device
+        // recognises the magic prefix and renders the body as text.
+        return ledger.session.signOffchainMessage(bytes);
+      }
       if (!solanaWallet) {
         throw new Error("Connect a wallet before signing");
       }
@@ -73,12 +100,15 @@ export function useWallet() {
       }
       return sig;
     },
-    [solanaWallet],
+    [solanaWallet, ledger.session],
   );
 
   const disconnect = useCallback(async () => {
+    if (ledger.session) {
+      await ledger.disconnect();
+    }
     await handleLogOut();
-  }, [handleLogOut]);
+  }, [handleLogOut, ledger]);
 
   return {
     publicKey,
@@ -97,7 +127,12 @@ export function useWallet() {
     /// True if the user is logged into Dynamic but no Solana wallet
     /// has been minted yet. Lets callers distinguish "not logged in"
     /// from "logged in but no Solana wallet" for clearer UX.
-    loggedInWithoutSolana: !!primaryWallet && !solanaWallet,
+    loggedInWithoutSolana: !!primaryWallet && !solanaWallet && !ledger.session,
+    /// True when signing routes through a Ledger device (signOffchain
+    /// shows full text on the screen). Consumers use this to swap
+    /// "your wallet shows hex" copy for "your Ledger shows the full
+    /// message". See `<WalletPopupNarration>`.
+    isLedger: !!ledger.session,
   };
 }
 

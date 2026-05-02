@@ -25,7 +25,7 @@ import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
-import { IntentType, fromHex } from "@/lib/msig";
+import { IntentType } from "@/lib/msig";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import {
   ArrowLeft,
@@ -70,7 +70,7 @@ export default function SetupEthPage() {
   const router = useRouter();
   const wallet = useWallet();
   const { connection } = useConnection();
-  const { signBytes } = useSignWithWallet();
+  const { signDescriptor } = useSignWithWallet();
   const toast = useToast();
   const reduce = useReducedMotion();
   const queryClient = useQueryClient();
@@ -171,7 +171,7 @@ export default function SetupEthPage() {
         timelock: delaySeconds,
         policy_ciphertexts,
       });
-      const signed = await signBytes(fromHex(dry.message_hex));
+      const signed = await signDescriptor(dry);
       const submitted = await backendApi.submit.addIntent(name, {
         ...signed,
         params_data_hex: dry.params_data_hex,
@@ -192,7 +192,7 @@ export default function SetupEthPage() {
           proposal,
           { actor_pubkey: me },
         );
-        const approveSigned = await signBytes(fromHex(approveDry.message_hex));
+        const approveSigned = await signDescriptor(approveDry);
         await backendApi.submit.approveProposal(name, proposal, {
           ...approveSigned,
           expiry: approveDry.expiry,

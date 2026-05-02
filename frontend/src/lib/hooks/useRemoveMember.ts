@@ -18,7 +18,6 @@ import { listIntents } from "@/lib/chain/intents";
 import { listProposalsForWallet } from "@/lib/chain/proposals";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import {
-  fromHex,
   IntentType,
   ProposalStatus,
   type IntentAccount,
@@ -38,7 +37,7 @@ interface RemoveArgs {
 
 export function useRemoveMember() {
   const { connection } = useConnection();
-  const { signBytes } = useSignWithWallet();
+  const { signDescriptor } = useSignWithWallet();
   const wallet = useWallet();
   const queryClient = useQueryClient();
 
@@ -148,7 +147,7 @@ export function useRemoveMember() {
       });
 
       // 2. Sign — first wallet popup.
-      const signed = await signBytes(fromHex(dry.message_hex));
+      const signed = await signDescriptor(dry);
 
       // 3. Submit propose.
       const submitted = await backendApi.submit.updateIntent(walletName, {
@@ -177,7 +176,7 @@ export function useRemoveMember() {
           proposal,
           { actor_pubkey: me },
         );
-        const approveSigned = await signBytes(fromHex(approveDry.message_hex));
+        const approveSigned = await signDescriptor(approveDry);
         await backendApi.submit.approveProposal(walletName, proposal, {
           ...approveSigned,
           expiry: approveDry.expiry,

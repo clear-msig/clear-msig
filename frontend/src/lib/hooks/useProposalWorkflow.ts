@@ -23,14 +23,14 @@ import {
   listProposalsForWallet,
   type ProposalWithPda,
 } from "@/lib/chain/proposals";
-import { fromHex, type ProposalAccount } from "@/lib/msig";
+import { type ProposalAccount } from "@/lib/msig";
 import { useProposalSubscription } from "@/lib/hooks/useProposalSubscription";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 
 export function useProposalWorkflow(walletName: string, selectedProposal: string) {
   const { connection } = useConnection();
   const { publicKey } = useWallet();
-  const { signBytes } = useSignWithWallet();
+  const { signDescriptor } = useSignWithWallet();
   const actorPubkey = publicKey?.toBase58();
 
   // Push live bitmap updates straight into the ["proposal", addr] cache.
@@ -81,7 +81,7 @@ export function useProposalWorkflow(walletName: string, selectedProposal: string
         selectedProposal,
         { actor_pubkey: actorPubkey },
       );
-      const signed = await signBytes(fromHex(dry.message_hex));
+      const signed = await signDescriptor(dry);
       return backendApi.submit.approveProposal(walletName, selectedProposal, {
         ...signed,
         expiry: dry.expiry,
@@ -100,7 +100,7 @@ export function useProposalWorkflow(walletName: string, selectedProposal: string
         selectedProposal,
         { actor_pubkey: actorPubkey },
       );
-      const signed = await signBytes(fromHex(dry.message_hex));
+      const signed = await signDescriptor(dry);
       return backendApi.submit.cancelProposal(walletName, selectedProposal, {
         ...signed,
         expiry: dry.expiry,

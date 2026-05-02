@@ -10,8 +10,21 @@
 // needs ("destination: 8xKqRVKvw…"). When the user pastes an address
 // they don't have a contact for, we surface it with an explicit
 // warning rather than silently disguising it.
+//
+// Integrity: each entry carries an HMAC-SHA256 over its load-bearing
+// fields, keyed by a per-device secret. On load, mismatched entries
+// are dropped (and exposed via lastIntegrityReport for the UI to
+// warn). This raises the bar against:
+//   - DevTools edits that swap a single address
+//   - Browser-extension key-by-key tampering
+//   - Cross-device clipboard imports of a forged JSON
+// It does NOT defeat XSS — same-origin JS reads both the key and the
+// entries. See SECURITY.md surface C for the model.
 
 import { PublicKey } from "@solana/web3.js";
+import { hmac } from "@noble/hashes/hmac";
+import { sha256 } from "@noble/hashes/sha256";
+import { bytesToHex, hexToBytes, randomBytes, utf8ToBytes } from "@noble/hashes/utils";
 
 export interface Contact {
   id: string;
@@ -26,7 +39,62 @@ export interface Contact {
   createdAt: number;
 }
 
+interface StoredContact extends Contact {
+  /// Hex HMAC-SHA256(deviceKey, "id|name|address|email|createdAt").
+  /// Optional only for backward compatibility: pre-integrity entries
+  /// are accepted on first load and re-signed via persist().
+  sig?: string;
+}
+
 const STORAGE_KEY = "clear.contacts.v1";
+const INTEGRITY_KEY = "clear.contacts.integritykey.v1";
+
+interface IntegrityReport {
+  tamperedIds: string[];
+  unsignedIds: string[];
+}
+
+let lastIntegrityReport: IntegrityReport = { tamperedIds: [], unsignedIds: [] };
+
+export function getIntegrityReport(): IntegrityReport {
+  return { ...lastIntegrityReport };
+}
+
+function loadOrCreateDeviceKey(): Uint8Array {
+  if (typeof window === "undefined") return new Uint8Array(0);
+  try {
+    const existing = window.localStorage.getItem(INTEGRITY_KEY);
+    if (existing && /^[0-9a-f]{64}$/i.test(existing)) {
+      return hexToBytes(existing);
+    }
+    const fresh = randomBytes(32);
+    window.localStorage.setItem(INTEGRITY_KEY, bytesToHex(fresh));
+    return fresh;
+  } catch {
+    // localStorage blocked — fall back to a transient key. Integrity
+    // protection is reduced to the lifetime of this script execution
+    // but the rest of the API still works.
+    return randomBytes(32);
+  }
+}
+
+function signContact(c: Contact, key: Uint8Array): string {
+  const payload = `${c.id}|${c.name}|${c.address}|${c.email ?? ""}|${c.createdAt}`;
+  return bytesToHex(hmac(sha256, key, utf8ToBytes(payload)));
+}
+
+function verifyContact(c: StoredContact, key: Uint8Array): boolean {
+  if (!c.sig) return false;
+  const expected = signContact(c, key);
+  // Constant-time compare via @noble's hex roundtrip is overkill for
+  // a localStorage check, but cheap.
+  if (expected.length !== c.sig.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) {
+    diff |= expected.charCodeAt(i) ^ c.sig.charCodeAt(i);
+  }
+  return diff === 0;
+}
 
 export function isValidSolanaAddress(s: string): boolean {
   if (!s || s.length < 32 || s.length > 44) return false;
@@ -40,21 +108,63 @@ export function isValidSolanaAddress(s: string): boolean {
 
 export function loadContacts(): Contact[] {
   if (typeof window === "undefined") return [];
+  const tampered: string[] = [];
+  const unsigned: string[] = [];
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
+    if (!raw) {
+      lastIntegrityReport = { tamperedIds: [], unsignedIds: [] };
+      return [];
+    }
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (c): c is Contact =>
+    if (!Array.isArray(parsed)) {
+      lastIntegrityReport = { tamperedIds: [], unsignedIds: [] };
+      return [];
+    }
+    const key = loadOrCreateDeviceKey();
+    const wellShaped = parsed.filter(
+      (c): c is StoredContact =>
         c &&
         typeof c.id === "string" &&
         typeof c.name === "string" &&
         typeof c.address === "string" &&
         typeof c.createdAt === "number" &&
-        (c.email === undefined || typeof c.email === "string"),
+        (c.email === undefined || typeof c.email === "string") &&
+        (c.sig === undefined || typeof c.sig === "string"),
     );
+    const accepted: Contact[] = [];
+    let needsRewrite = false;
+    for (const stored of wellShaped) {
+      if (stored.sig) {
+        if (verifyContact(stored, key)) {
+          const { sig: _drop, ...clean } = stored;
+          void _drop;
+          accepted.push(clean);
+        } else {
+          tampered.push(stored.id);
+          if (typeof console !== "undefined") {
+            console.warn(
+              `[contacts] integrity check failed for ${stored.id}; dropping entry`,
+            );
+          }
+        }
+      } else {
+        // Pre-integrity entry. Trust on first load + re-sign on next
+        // persist so the next read enforces.
+        unsigned.push(stored.id);
+        const { sig: _drop, ...clean } = stored;
+        void _drop;
+        accepted.push(clean);
+        needsRewrite = true;
+      }
+    }
+    lastIntegrityReport = { tamperedIds: tampered, unsignedIds: unsigned };
+    if (needsRewrite || tampered.length > 0) {
+      persist(accepted);
+    }
+    return accepted;
   } catch {
+    lastIntegrityReport = { tamperedIds: [], unsignedIds: [] };
     return [];
   }
 }
@@ -62,7 +172,12 @@ export function loadContacts(): Contact[] {
 function persist(contacts: Contact[]): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(contacts));
+    const key = loadOrCreateDeviceKey();
+    const signed: StoredContact[] = contacts.map((c) => ({
+      ...c,
+      sig: signContact(c, key),
+    }));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(signed));
   } catch {
     /* localStorage full or blocked — silently noop */
   }

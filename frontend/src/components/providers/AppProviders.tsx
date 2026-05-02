@@ -27,6 +27,7 @@ import { DynamicWaasSuiConnectors } from "@dynamic-labs/waas-sui";
 import { SolanaWalletConnectors } from "@dynamic-labs/solana";
 import { ToastProvider } from "@/components/ui/Toast";
 import { validateConfig } from "@/lib/config";
+import { LedgerProvider } from "@/lib/wallet/LedgerProvider";
 
 type Props = {
   children: React.ReactNode;
@@ -95,7 +96,9 @@ export function AppProviders({ children }: Props) {
   return (
     <QueryClientProvider client={queryClient}>
       <DynamicContextProvider settings={settings}>
-        <ToastProvider>{children}</ToastProvider>
+        <LedgerProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </LedgerProvider>
       </DynamicContextProvider>
     </QueryClientProvider>
   );

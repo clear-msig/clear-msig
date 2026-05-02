@@ -21,6 +21,8 @@
 // claude-haiku-4-5. At Haiku's price that's a fraction of a cent.
 
 import { NextRequest, NextResponse } from "next/server";
+import { assertSameOrigin, clientIp } from "@/lib/api/guard";
+import { checkRateLimit } from "@/lib/api/rateLimit";
 
 const MAX_TEXT_LEN = 280;
 const MAX_CONTACTS = 50;
@@ -35,6 +37,17 @@ interface ParseResponse {
 }
 
 export async function POST(request: NextRequest) {
+  const blocked = assertSameOrigin(request);
+  if (blocked) return blocked;
+
+  // 20 burst, ~1 req/sec sustained. Each call is a paid Anthropic
+  // request, so we bias to a small surface against scripted loops.
+  const limited = await checkRateLimit("nl/parse", clientIp(request), {
+    capacity: 20,
+    refillPerSec: 1,
+  });
+  if (limited) return limited;
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json(

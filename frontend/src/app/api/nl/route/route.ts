@@ -24,6 +24,8 @@
 // prompt cannot inject open-redirect URLs.
 
 import { NextRequest, NextResponse } from "next/server";
+import { assertSameOrigin, clientIp } from "@/lib/api/guard";
+import { checkRateLimit } from "@/lib/api/rateLimit";
 
 const MAX_TEXT_LEN = 280;
 const MAX_CONTACTS = 50;
@@ -48,6 +50,15 @@ interface RouteResponse {
 }
 
 export async function POST(request: NextRequest) {
+  const blocked = assertSameOrigin(request);
+  if (blocked) return blocked;
+
+  const limited = await checkRateLimit("nl/route", clientIp(request), {
+    capacity: 20,
+    refillPerSec: 1,
+  });
+  if (limited) return limited;
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json(

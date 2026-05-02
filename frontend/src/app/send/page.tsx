@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
-import { fromHex, IntentType, toHex } from "@/lib/msig";
+import { IntentType, toHex } from "@/lib/msig";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
@@ -104,10 +104,20 @@ function buildSendPreviewDetails(args: SendPreviewArgs): SignPayloadDetail[] {
     { label: "From wallet", value: walletName || "your wallet" },
     { label: "Chain", value: "Solana" },
   ];
-  if (resolved.kind === "address") {
+  // Always surface the destination address — even for contact-resolved
+  // sends. Without this, an attacker who tampers localStorage to swap
+  // a contact's address (XSS, malicious extension, shared device) can
+  // trick the user into signing "Send 5 SOL to Sarah" while the bytes
+  // route to attacker. Showing the abbreviated address gives the user
+  // a chance to spot the mismatch before signing.
+  if (resolved.kind === "address" || resolved.kind === "contact") {
+    const addr =
+      resolved.kind === "contact"
+        ? resolved.contact.address
+        : resolved.address;
     details.push({
-      label: "Recipient",
-      value: shortAddress(resolved.address),
+      label: "Recipient address",
+      value: shortAddress(addr),
       emphasis: "mono",
     });
   }
@@ -186,7 +196,7 @@ function SendPage() {
   const reduce = useReducedMotion();
   const wallet = useWallet();
   const { connection } = useConnection();
-  const { signBytes } = useSignWithWallet();
+  const { signDescriptor } = useSignWithWallet();
   const toast = useToast();
   const queryClient = useQueryClient();
   const contacts = useContacts();
@@ -318,7 +328,7 @@ function SendPage() {
       });
 
       // 2. Sign with the user's wallet.
-      const signed = await signBytes(fromHex(dry.message_hex));
+      const signed = await signDescriptor(dry);
 
       // 3. Submit propose: lands the proposal on chain in Active
       //    state with empty bitmap. Propose does not auto-flip the
@@ -350,7 +360,7 @@ function SendPage() {
             proposal,
             { actor_pubkey: me },
           );
-          const approveSigned = await signBytes(fromHex(approveDry.message_hex));
+          const approveSigned = await signDescriptor(approveDry);
           await backendApi.submit.approveProposal(walletName, proposal, {
             ...approveSigned,
             expiry: approveDry.expiry,

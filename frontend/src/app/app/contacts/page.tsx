@@ -82,6 +82,23 @@ export default function ContactsPage() {
 
       <AddContactForm onAdd={handleAdd} />
 
+      {contacts.tamperedCount > 0 ? (
+        <div
+          role="alert"
+          className="rounded-card border border-danger/40 bg-danger/[0.06] p-3 text-sm text-text-strong"
+        >
+          <p className="font-medium">
+            {contacts.tamperedCount === 1
+              ? "1 contact failed an integrity check and was removed."
+              : `${contacts.tamperedCount} contacts failed an integrity check and were removed.`}
+          </p>
+          <p className="mt-1 text-xs text-text-soft">
+            Something edited the saved list outside this app. Re-add the
+            person from a trusted source before sending.
+          </p>
+        </div>
+      ) : null}
+
       {!contacts.hydrated ? (
         <div className="space-y-2">
           <ContactRowSkeleton />

@@ -10,9 +10,14 @@
 // signMessage" errors consistent, and gives us a single place to add
 // analytics / telemetry later.
 
-import { useWallet } from "@/lib/wallet";
+import { useWallet, useConnection } from "@/lib/wallet";
 import { useCallback } from "react";
-import { toHex } from "@/lib/msig";
+import {
+  toHex,
+  rebuildAndVerifyMessage,
+  MessageVerificationError,
+} from "@/lib/msig";
+import type { DryRunDescriptor } from "@/lib/api/types";
 
 export interface SignedPayload {
   /// Base58 pubkey of the wallet that signed, ready to drop into the
@@ -23,18 +28,43 @@ export interface SignedPayload {
 }
 
 export class WalletSignError extends Error {
-  code: "not_connected" | "no_sign_message" | "rejected" | "unknown";
-  constructor(code: WalletSignError["code"], message: string) {
+  code:
+    | "not_connected"
+    | "no_sign_message"
+    | "rejected"
+    | "unknown"
+    | "message_mismatch";
+  /// Set when `code === "message_mismatch"` — the bytes the backend
+  /// asked us to sign did not match the bytes the frontend rebuilt
+  /// from chain state. Includes both for debugging.
+  expectedHex?: string;
+  gotHex?: string;
+  constructor(
+    code: WalletSignError["code"],
+    message: string,
+    extras?: { expectedHex?: string; gotHex?: string },
+  ) {
     super(message);
     this.name = "WalletSignError";
     this.code = code;
+    if (extras) {
+      this.expectedHex = extras.expectedHex;
+      this.gotHex = extras.gotHex;
+    }
   }
 }
 
 /// Returns a stable `signBytes(messageBytes)` callback that resolves
 /// with `{signer_pubkey, signature}` or throws a typed `WalletSignError`.
+///
+/// Also returns `signDescriptor(descriptor)` which is the preferred
+/// entry point for any signed write: it rebuilds the signable bytes
+/// locally from on-chain state and verifies them against
+/// `descriptor.message_hex` before invoking the wallet. See
+/// `rebuildAndVerifyMessage` and SECURITY.md surface A.
 export function useSignWithWallet() {
   const { signMessage, publicKey, connected } = useWallet();
+  const { connection } = useConnection();
 
   const signBytes = useCallback(
     async (messageBytes: Uint8Array): Promise<SignedPayload> => {
@@ -74,5 +104,33 @@ export function useSignWithWallet() {
     [connected, publicKey, signMessage]
   );
 
-  return { signBytes, canSign: Boolean(connected && publicKey && signMessage) };
+  /// Rebuild the signable bytes from chain state, verify they match
+  /// the backend-supplied `message_hex`, then ask the wallet to sign
+  /// the locally-rebuilt bytes. Throws `WalletSignError` with code
+  /// `"message_mismatch"` if the backend tried to swap them.
+  const signDescriptor = useCallback(
+    async (descriptor: DryRunDescriptor): Promise<SignedPayload> => {
+      let bytes: Uint8Array;
+      try {
+        bytes = await rebuildAndVerifyMessage(descriptor, connection);
+      } catch (err) {
+        if (err instanceof MessageVerificationError) {
+          throw new WalletSignError(
+            "message_mismatch",
+            err.message,
+            { expectedHex: err.expected, gotHex: err.got },
+          );
+        }
+        throw err;
+      }
+      return signBytes(bytes);
+    },
+    [connection, signBytes],
+  );
+
+  return {
+    signBytes,
+    signDescriptor,
+    canSign: Boolean(connected && publicKey && signMessage),
+  };
 }

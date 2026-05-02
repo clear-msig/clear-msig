@@ -1,15 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { buildMultisigInviteEmail } from "@/lib/email/templates/multisigInvite";
+import { assertSameOrigin, clientIp } from "@/lib/api/guard";
+import { checkRateLimit } from "@/lib/api/rateLimit";
 
 class BadRequestError extends Error {}
 class ConfigError extends Error {}
 
-function requireField(name: string, value: string | undefined) {
+const LIMITS = {
+  walletName: 80,
+  reason: 500,
+  address: 64,
+  email: 254,
+} as const;
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const BASE58_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
+/// Strip CR/LF and other control characters that nodemailer / SMTP
+/// servers treat as header separators. Defence-in-depth on top of
+/// nodemailer's own sanitization.
+function sanitizeHeader(value: string, max: number): string {
+  return value.replace(/[\r\n\t\v\f\x00-\x1f\x7f]/g, " ").trim().slice(0, max);
+}
+
+function requireField(name: string, value: string | undefined, max: number) {
   if (!value || !value.trim()) {
     throw new BadRequestError(`Missing ${name}`);
   }
-  return value;
+  const cleaned = sanitizeHeader(value, max);
+  if (!cleaned) {
+    throw new BadRequestError(`Missing ${name}`);
+  }
+  return cleaned;
 }
 
 function requireEnv(name: string, value: string | undefined) {
@@ -20,6 +43,17 @@ function requireEnv(name: string, value: string | undefined) {
 }
 
 export async function POST(request: NextRequest) {
+  const blocked = assertSameOrigin(request);
+  if (blocked) return blocked;
+
+  // Email is paid + reputational. Tight bucket: 5 burst, refill one
+  // every 30 seconds. A real signer never trips this in normal use.
+  const limited = await checkRateLimit("invitations", clientIp(request), {
+    capacity: 5,
+    refillPerSec: 1 / 30,
+  });
+  if (limited) return limited;
+
   try {
     const body = (await request.json()) as {
       walletName?: string;
@@ -28,10 +62,18 @@ export async function POST(request: NextRequest) {
       invitee?: { address?: string; email?: string };
     };
 
-    const walletName = requireField("walletName", body.walletName);
-    const inviterAddress = requireField("inviterAddress", body.inviterAddress);
-    const inviteeAddress = requireField("invitee.address", body.invitee?.address);
-    const inviteeEmail = requireField("invitee.email", body.invitee?.email);
+    const walletName = requireField("walletName", body.walletName, LIMITS.walletName);
+    const inviterAddress = requireField("inviterAddress", body.inviterAddress, LIMITS.address);
+    const inviteeAddress = requireField("invitee.address", body.invitee?.address, LIMITS.address);
+    const inviteeEmail = requireField("invitee.email", body.invitee?.email, LIMITS.email);
+    const reason = sanitizeHeader(body.reason ?? "", LIMITS.reason);
+
+    if (!EMAIL_RE.test(inviteeEmail)) {
+      throw new BadRequestError("Invalid email address");
+    }
+    if (!BASE58_RE.test(inviterAddress) || !BASE58_RE.test(inviteeAddress)) {
+      throw new BadRequestError("Invalid wallet address");
+    }
 
     const host = requireEnv("SMTP_HOST", process.env.SMTP_HOST);
     const port = Number(process.env.SMTP_PORT ?? "587");
@@ -48,7 +90,7 @@ export async function POST(request: NextRequest) {
 
     const template = buildMultisigInviteEmail({
       walletName,
-      reason: body.reason?.trim() ?? "",
+      reason,
       inviterAddress,
       inviteeAddress
     });

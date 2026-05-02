@@ -9,19 +9,23 @@ import {
   loadContacts,
   saveContact as saveContactRaw,
   removeContact as removeContactRaw,
+  getIntegrityReport,
 } from "@/lib/retail/contacts";
 
 export function useContacts() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const [tamperedCount, setTamperedCount] = useState(0);
 
   useEffect(() => {
     setContacts(loadContacts());
+    setTamperedCount(getIntegrityReport().tamperedIds.length);
     setHydrated(true);
   }, []);
 
   const refresh = useCallback(() => {
     setContacts(loadContacts());
+    setTamperedCount(getIntegrityReport().tamperedIds.length);
   }, []);
 
   const save = useCallback(
@@ -41,5 +45,5 @@ export function useContacts() {
     [refresh],
   );
 
-  return { contacts, hydrated, save, remove, refresh };
+  return { contacts, hydrated, save, remove, refresh, tamperedCount };
 }

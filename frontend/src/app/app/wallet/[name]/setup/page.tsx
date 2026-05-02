@@ -26,7 +26,7 @@ import { ArrowLeft, ArrowRight, Check, Clock, Loader2, Send, UserPlus, Wallet, Z
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
-import { fromHex } from "@/lib/msig";
+
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
@@ -54,7 +54,7 @@ export default function SetupSpendingPage() {
   const router = useRouter();
   const wallet = useWallet();
   const { connection } = useConnection();
-  const { signBytes } = useSignWithWallet();
+  const { signDescriptor } = useSignWithWallet();
   const toast = useToast();
   const reduce = useReducedMotion();
   const queryClient = useQueryClient();
@@ -151,7 +151,7 @@ export default function SetupSpendingPage() {
       });
 
       // 2. Sign: user's wallet pops up its sign-message UI.
-      const signed = await signBytes(fromHex(dry.message_hex));
+      const signed = await signDescriptor(dry);
 
       // 3. Submit propose: lands the AddIntent proposal on chain in
       //    `Active` status with empty approval bitmap. The proposer's
@@ -183,7 +183,7 @@ export default function SetupSpendingPage() {
           proposal,
           { actor_pubkey: me },
         );
-        const approveSigned = await signBytes(fromHex(approveDry.message_hex));
+        const approveSigned = await signDescriptor(approveDry);
         await backendApi.submit.approveProposal(name, proposal, {
           ...approveSigned,
           expiry: approveDry.expiry,

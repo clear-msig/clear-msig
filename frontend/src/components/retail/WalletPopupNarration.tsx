@@ -15,14 +15,17 @@
 // (every meta-intent path) so the user isn't surprised by the second
 // popup mid-flow.
 //
-// Hex disclaimer: 2026-05-01 team review flagged that Solana wallets
-// show technical-looking bytes in the signing prompt instead of a
-// human-readable summary. We cannot change what the wallet renders
-// (Solana signMessage is bytes-only), so the narration explicitly
-// tells the user the bytes are normal and what they represent. The
-// disclaimer is on by default; compact mode hides it.
+// Two narration modes, picked from `useWallet().isLedger`:
+//   - Software wallet (Phantom / Solflare / embedded): the popup
+//     renders technical-looking bytes. Disclaimer says "that's
+//     normal" so users don't bail.
+//   - Ledger device: the device renders the full message text on its
+//     screen (`signOffchainMessage` + format-byte 0). Copy flips to
+//     "your Ledger will show the full message — read it before
+//     approving" because the device IS the source of truth.
 
 import { ShieldCheck } from "lucide-react";
+import { useWallet } from "@/lib/wallet";
 
 interface WalletPopupNarrationProps {
   /// Verb-phrase the wallet will be confirming. Lowercased so it
@@ -50,14 +53,18 @@ export function WalletPopupNarration({
   compact = false,
   hideHexDisclaimer = false,
 }: WalletPopupNarrationProps) {
-  const popupCopy =
-    popups === 1
+  const { isLedger } = useWallet();
+  const popupCopy = isLedger
+    ? popups === 1
+      ? "Your Ledger will prompt you."
+      : `Your Ledger will prompt you ${popups} times.`
+    : popups === 1
       ? "Your wallet will pop up."
       : `Your wallet will pop up ${popups} times.`;
   const trailing =
     note ??
     "Nothing leaves your account. This just sets up the rules on chain.";
-  const showHex = !compact && !hideHexDisclaimer;
+  const showFooter = !compact && !hideHexDisclaimer;
   return (
     <div
       role="note"
@@ -77,7 +84,20 @@ export function WalletPopupNarration({
       <div className="leading-snug">
         <p>
           <span className="font-medium text-text-strong">{popupCopy}</span>{" "}
-          {popups === 1 ? (
+          {isLedger ? (
+            popups === 1 ? (
+              <>
+                Read the message on the device, then press the right
+                button to approve <em>{action}</em>.{" "}
+              </>
+            ) : (
+              <>
+                Read each message on the device. One to start{" "}
+                <em>{action}</em>, one to approve it. Press the right
+                button both times.{" "}
+              </>
+            )
+          ) : popups === 1 ? (
             <>
               It&rsquo;ll ask you to confirm <em>{action}</em>. Tap Approve.{" "}
             </>
@@ -89,12 +109,25 @@ export function WalletPopupNarration({
           )}
           {trailing}
         </p>
-        {showHex && (
+        {showFooter && (
           <p className="mt-2 text-text-soft/90">
-            <span className="font-medium text-text-strong">Heads up.</span>{" "}
-            Solana wallets show technical-looking text instead of a friendly
-            summary in the signing prompt. That is the message your wallet
-            is signing for you. It is normal.
+            {isLedger ? (
+              <>
+                <span className="font-medium text-text-strong">
+                  Read it before approving.
+                </span>{" "}
+                Your Ledger displays the exact message it&rsquo;s about
+                to sign. If anything looks off, cancel on the device.
+              </>
+            ) : (
+              <>
+                <span className="font-medium text-text-strong">Heads up.</span>{" "}
+                Solana software wallets show technical-looking text
+                instead of a friendly summary in the signing prompt.
+                That is the message your wallet is signing for you. It
+                is normal.
+              </>
+            )}
           </p>
         )}
       </div>

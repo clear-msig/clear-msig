@@ -24,7 +24,7 @@ import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { listProposalsForWallet } from "@/lib/chain/proposals";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
-import { fromHex, IntentType, ProposalStatus } from "@/lib/msig";
+import { IntentType, ProposalStatus } from "@/lib/msig";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useContacts } from "@/lib/hooks/useContacts";
 import {
@@ -67,7 +67,7 @@ export default function AddFriendPage() {
   const searchParams = useSearchParams();
   const wallet = useWallet();
   const { connection } = useConnection();
-  const { signBytes } = useSignWithWallet();
+  const { signDescriptor } = useSignWithWallet();
   const toast = useToast();
   const reduce = useReducedMotion();
   const queryClient = useQueryClient();
@@ -246,7 +246,7 @@ export default function AddFriendPage() {
       });
 
       // 2. Sign
-      const signed = await signBytes(fromHex(dry.message_hex));
+      const signed = await signDescriptor(dry);
 
       // 3. Submit propose: lands the UpdateIntent proposal in Active
       //    state. The propose call does NOT count as an approval —
@@ -276,7 +276,7 @@ export default function AddFriendPage() {
           proposal,
           { actor_pubkey: wallet.publicKey.toBase58() },
         );
-        const approveSigned = await signBytes(fromHex(approveDry.message_hex));
+        const approveSigned = await signDescriptor(approveDry);
         await backendApi.submit.approveProposal(name, proposal, {
           ...approveSigned,
           expiry: approveDry.expiry,

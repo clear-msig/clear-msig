@@ -56,7 +56,7 @@ import { friendlyError } from "@/lib/api/errors";
 import { fetchOnchainMemberships } from "@/lib/memberships/client";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
-import { fromHex } from "@/lib/msig";
+
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
@@ -127,7 +127,7 @@ export default function WelcomePage() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const reduce = useReducedMotion();
-  const { signBytes } = useSignWithWallet();
+  const { signDescriptor } = useSignWithWallet();
   const { connection } = useConnection();
 
   const [stage, setStage] = useState<Stage>("shape_name");
@@ -215,7 +215,7 @@ export default function WelcomePage() {
         timelock: delaySeconds,
         policy_ciphertexts: enableIds,
       });
-      const signed = await signBytes(fromHex(dry.message_hex));
+      const signed = await signDescriptor(dry);
       const submitted = await backendApi.submit.addIntent(walletSlug, {
         ...signed,
         params_data_hex: dry.params_data_hex,
@@ -237,7 +237,7 @@ export default function WelcomePage() {
           proposal,
           { actor_pubkey: me },
         );
-        const approveSigned = await signBytes(fromHex(approveDry.message_hex));
+        const approveSigned = await signDescriptor(approveDry);
         await backendApi.submit.approveProposal(walletSlug, proposal, {
           ...approveSigned,
           expiry: approveDry.expiry,

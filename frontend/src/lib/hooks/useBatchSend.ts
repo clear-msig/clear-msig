@@ -22,8 +22,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { Connection } from "@solana/web3.js";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
-import { fromHex, toHex } from "@/lib/msig";
-import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
+import { toHex } from "@/lib/msig";
+import { useSignWithWallet, type SignedPayload } from "@/lib/hooks/useSignWithWallet";
+import type { DryRunDescriptor } from "@/lib/api/types";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 
 export interface BatchSendRow {
@@ -66,7 +67,7 @@ interface BatchSendArgs {
 const BATCH_LOG_KEY = "clear-msig:batches:v1";
 
 export function useBatchSend() {
-  const { signBytes } = useSignWithWallet();
+  const { signDescriptor } = useSignWithWallet();
   const { publicKey } = useWallet();
   const { connection } = useConnection();
   const actorPubkey = publicKey?.toBase58();
@@ -132,7 +133,7 @@ export function useBatchSend() {
           walletName,
           intentIndex,
           row,
-          signBytes,
+          signDescriptor,
           actorPubkey,
           connection,
         });
@@ -190,7 +191,7 @@ export function useBatchSend() {
 
       return { batchId, succeeded, failed, proposalPdas };
     },
-    [signBytes, queryClient, actorPubkey],
+    [signDescriptor, queryClient, actorPubkey],
   );
 
   const cancel = useCallback(() => {
@@ -229,7 +230,7 @@ interface RowAttemptArgs {
   walletName: string;
   intentIndex: number;
   row: BatchSendRow;
-  signBytes: (bytes: Uint8Array) => Promise<{ signer_pubkey: string; signature: string }>;
+  signDescriptor: (descriptor: DryRunDescriptor) => Promise<SignedPayload>;
   actorPubkey: string | undefined;
   connection: Connection;
 }
@@ -240,7 +241,7 @@ interface RowAttemptArgs {
 /// rebuilding the message from a fresh prepare. Wallet rejections
 /// fail fast — never re-prompt the user without their click.
 async function runRowWithRetry(
-  { walletName, intentIndex, row, signBytes, actorPubkey, connection }: RowAttemptArgs,
+  { walletName, intentIndex, row, signDescriptor, actorPubkey, connection }: RowAttemptArgs,
 ): Promise<RowAttemptResult> {
   const maxAttempts = 3;
   let lastMessage = "Send failed";
@@ -257,7 +258,7 @@ async function runRowWithRetry(
         ],
         actor_pubkey: actorPubkey,
       });
-      const signed = await signBytes(fromHex(dry.message_hex));
+      const signed = await signDescriptor(dry);
       const submission = await backendApi.submit.createProposal(walletName, {
         ...signed,
         params_data_hex: dry.params_data_hex,
@@ -282,7 +283,7 @@ async function runRowWithRetry(
               proposalPda,
               { actor_pubkey: actorPubkey },
             );
-            const approveSigned = await signBytes(fromHex(approveDry.message_hex));
+            const approveSigned = await signDescriptor(approveDry);
             await backendApi.submit.approveProposal(walletName, proposalPda, {
               ...approveSigned,
               expiry: approveDry.expiry,

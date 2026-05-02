@@ -45,7 +45,7 @@ import {
 } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
-import { fromHex, IntentType } from "@/lib/msig";
+import { IntentType } from "@/lib/msig";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
@@ -91,7 +91,7 @@ function SendEthPage() {
   const reduce = useReducedMotion();
   const wallet = useWallet();
   const { connection } = useConnection();
-  const { signBytes } = useSignWithWallet();
+  const { signDescriptor } = useSignWithWallet();
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -203,7 +203,7 @@ function SendEthPage() {
 
       // 3. Sign on Solana. Proves to the program that this user is
       //    a proposer + counts as their approval.
-      const signed = await signBytes(fromHex(dry.message_hex));
+      const signed = await signDescriptor(dry);
 
       // 4. Submit. Lands the proposal Approved on chain (program's
       //    auto-approve when proposer-in-approvers).
@@ -227,7 +227,7 @@ function SendEthPage() {
           proposal,
           { actor_pubkey: wallet.publicKey.toBase58() },
         );
-        const approveSigned = await signBytes(fromHex(approveDry.message_hex));
+        const approveSigned = await signDescriptor(approveDry);
         await backendApi.submit.approveProposal(walletName, proposal, {
           ...approveSigned,
           expiry: approveDry.expiry,

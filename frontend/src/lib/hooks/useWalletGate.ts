@@ -81,7 +81,12 @@ export function useWalletGate() {
           router.replace("/app/wallet");
         } else {
           // First-timer — honor ?next, fall back to /welcome.
-          router.replace(next && next.startsWith("/") ? next : "/welcome");
+          // Open-redirect hardening: require single leading "/", reject
+          // protocol-relative ("//attacker.com") + scheme-prefixed
+          // ("javascript:..."), and reject anything containing ":".
+          // Without these gates an attacker crafts /connect?next=//evil
+          // and gets the user dropped on evil.com after sign-in.
+          router.replace(isSafeNext(next) ? next! : "/welcome");
         }
         return;
       }
@@ -116,4 +121,26 @@ export function useWalletGate() {
     /// embedded wallet hasn't been provisioned yet.
     loggedInWithoutSolana: wallet.loggedInWithoutSolana,
   };
+}
+
+/// Open-redirect guard for ?next= values supplied by /connect's
+/// query string. Accepts only single-leading-slash same-origin
+/// paths. Rejects:
+///   - null / empty
+///   - protocol-relative URLs ("//evil.com" — would route to evil.com
+///     because router.replace treats it as a host-relative URL)
+///   - scheme-prefixed URLs ("javascript:...", "data:...", "https:...")
+///   - any path containing ":" before the first "/" (custom schemes)
+function isSafeNext(next: string | null): boolean {
+  if (!next) return false;
+  if (next.length === 0 || next.length > 200) return false;
+  if (!next.startsWith("/")) return false;
+  if (next.startsWith("//")) return false;
+  if (next.startsWith("/\\")) return false; // Windows-style escape
+  // No colon allowed anywhere in the first segment — blocks
+  // "javascript:" tucked inside encoded query params, etc.
+  const firstSlash = next.indexOf("/", 1);
+  const firstSegment = firstSlash === -1 ? next : next.slice(0, firstSlash);
+  if (firstSegment.includes(":")) return false;
+  return true;
 }

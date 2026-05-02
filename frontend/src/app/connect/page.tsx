@@ -22,13 +22,17 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  Loader2,
   Lock,
   ShieldCheck,
   Sparkles,
+  Usb,
 } from "lucide-react";
 import { DynamicWidget } from "@dynamic-labs/sdk-react-core";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { useLedger } from "@/lib/wallet/LedgerProvider";
+import { useToast } from "@/components/ui/Toast";
 
 export default function ConnectPageWrapper() {
   return (
@@ -170,6 +174,8 @@ function ConnectPage() {
                 Email and social sign-in mint a built-in wallet. You stay
                 in control; we never see the keys.
               </p>
+
+              <LedgerConnectRow />
             </div>
 
             {/* Trust strip — three brief lines justifying the ask.
@@ -280,6 +286,84 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
     >
       {inner}
     </motion.div>
+  );
+}
+
+// ─── Ledger row ───────────────────────────────────────────────────
+//
+// Sits below the Dynamic widget as a subdued power-user option.
+// Retail users ignore it; users who care about hardware-device clear
+// signing see it and pick it. On success the wallet gate redirects;
+// no extra navigation here.
+
+function LedgerConnectRow() {
+  const ledger = useLedger();
+  const toast = useToast();
+  const supportsHid =
+    typeof window !== "undefined" && typeof navigator !== "undefined" && "hid" in navigator;
+
+  const handleClick = async () => {
+    try {
+      await ledger.connect();
+      toast.success("Ledger connected. Signing routes through your device now.");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not connect Ledger",
+      );
+    }
+  };
+
+  if (ledger.session) {
+    return (
+      <div className="mt-5 flex items-center justify-between gap-3 rounded-card border border-accent/30 bg-accent/5 p-3 text-xs text-text-strong">
+        <span className="inline-flex items-center gap-2">
+          <Check className="h-4 w-4 text-accent" strokeWidth={2.25} />
+          Ledger connected. Your device will show the full message when
+          you sign.
+        </span>
+        <button
+          type="button"
+          onClick={() => ledger.disconnect()}
+          className="rounded-soft px-2 py-1 text-[11px] text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+        >
+          Disconnect
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-5 border-t border-border-soft pt-5">
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={!supportsHid || ledger.connecting}
+        className={
+          "flex w-full items-center justify-center gap-2 rounded-card border border-border-soft bg-canvas px-4 py-3 text-sm font-medium text-text-strong " +
+          "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
+          "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-rest " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
+          "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:border-border-soft disabled:hover:shadow-none"
+        }
+      >
+        {ledger.connecting ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            Waiting for your Ledger
+          </>
+        ) : (
+          <>
+            <Usb className="h-4 w-4 text-text-soft" aria-hidden="true" />
+            Use a Ledger device
+          </>
+        )}
+      </button>
+      <p className="mt-2 text-[11px] leading-snug text-text-soft">
+        {supportsHid
+          ? "Plug the Ledger in, unlock it, and open the Solana app. The device shows you the full message before you approve."
+          : "Hardware wallets need WebHID. Open this page in Chrome, Edge, or Brave to use a Ledger."}
+      </p>
+    </div>
   );
 }
 

@@ -44,6 +44,10 @@ export {
   type SignableIntent,
 } from "@/lib/msig/message";
 export {
+  rebuildAndVerifyMessage,
+  MessageVerificationError,
+} from "@/lib/msig/verify";
+export {
   parseWallet,
   parseIntent,
   parseProposal,

@@ -17,7 +17,7 @@
 import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { backendApi } from "@/lib/api/endpoints";
-import { fromHex } from "@/lib/msig";
+
 import { useWallet } from "@/lib/wallet";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { friendlyError } from "@/lib/api/errors";
@@ -43,7 +43,7 @@ export interface BatchProgress {
 }
 
 export function useBatchApprove() {
-  const { signBytes } = useSignWithWallet();
+  const { signDescriptor } = useSignWithWallet();
   const { publicKey } = useWallet();
   const actorPubkey = publicKey?.toBase58();
   const queryClient = useQueryClient();
@@ -68,7 +68,7 @@ export function useBatchApprove() {
             row.proposalPda,
             { actor_pubkey: actorPubkey },
           );
-          const signed = await signBytes(fromHex(dry.message_hex));
+          const signed = await signDescriptor(dry);
           await backendApi.submit.approveProposal(
             row.walletName,
             row.proposalPda,
@@ -99,7 +99,7 @@ export function useBatchApprove() {
       queryClient.invalidateQueries({ queryKey: ["my-organizations"] });
       return { completed: rows.length, total: rows.length };
     },
-    [signBytes, queryClient, actorPubkey],
+    [signDescriptor, queryClient, actorPubkey],
   );
 
   const reset = useCallback(() => setProgress(null), []);
