@@ -95,6 +95,11 @@ export function useRecentActivity(limit = 5) {
         },
         enabled: ready,
         staleTime: 15_000,
+        // Live badge: refetch every 30s so the sidebar's "needs your
+        // approval" count stays fresh without the user having to
+        // navigate away and back. Polite cadence — proposals land at
+        // human pace, not stream-rate.
+        refetchInterval: 30_000,
       };
     }),
   });

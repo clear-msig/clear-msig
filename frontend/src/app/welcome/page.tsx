@@ -272,6 +272,17 @@ export default function WelcomePage() {
   //   2. Connected, memberships loading: brand loader.
   //   3. Connected, memberships found: redirect to /app/wallet.
   if (!gate.connected) {
+    // Distinguish "not signed in" from "signed in via Dynamic but no
+    // Solana wallet minted yet." Otherwise the user sees "taking you
+    // to connect" while sitting on a connected session.
+    if (gate.loggedInWithoutSolana) {
+      return (
+        <NeutralWait
+          label="Setting up your Solana wallet."
+          reduce={!!reduce}
+        />
+      );
+    }
     return <NeutralWait label="Taking you to connect a wallet." reduce={!!reduce} />;
   }
   if (memberships.isLoading) {

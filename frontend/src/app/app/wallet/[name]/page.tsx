@@ -383,7 +383,7 @@ function Hero({
           }
         >
           <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-          Private
+          Privacy-ready · pre-alpha
         </Link>
       </div>
     </motion.section>
@@ -637,7 +637,7 @@ function ActivitySection({ rows, reduce }: ActivityProps) {
                   {friendlyStatus(row.status)}
                 </p>
                 <p className="mt-0.5 text-xs text-text-soft">
-                  {relativeTime(Number(row.proposedAt) * 1000)}
+                  {relativeTime(row.proposedAt)}
                 </p>
               </div>
               <ArrowRight

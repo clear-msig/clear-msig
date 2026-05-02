@@ -8,6 +8,21 @@
 // Months and years use the average-Gregorian convention (30.44 days
 // per month, 365.25 per year) so a steady drumbeat of activity
 // doesn't flicker between "29d ago" and "1mo ago" on day 30.
+//
+// Input contract:
+//   - Date            → date.getTime() (ms)
+//   - bigint          → unix seconds (Solana convention)
+//   - number          → unix seconds, OR unix ms — autodetected
+//                       by magnitude. Anything ≥ 10^12 is assumed
+//                       to be ms (10^12 unix seconds is year 33658,
+//                       10^12 ms is 2001 — easy to disambiguate).
+//
+// The autodetect exists because three call sites historically
+// pre-multiplied a bigint-second to ms before calling, then the
+// function multiplied again, putting timestamps a thousand years
+// in the future. The bug printed "just now" forever. The fix at
+// the call sites is a separate change; this autodetect is the
+// belt-and-braces so a future contributor can't reintroduce it.
 
 const MINUTE = 60;
 const HOUR = 3600;
@@ -16,11 +31,20 @@ const WEEK = 7 * DAY;
 const MONTH = 2_629_800; // 30.4375 days, average Gregorian month
 const YEAR = 31_557_600; // 365.25 days
 
+/// Threshold above which a number-input is treated as ms instead of
+/// unix seconds. ~Sat Sep 09 2001 in seconds; same number is year
+/// 33658 in seconds, so any real timestamp falls cleanly on one side.
+const MS_THRESHOLD = 1_000_000_000_000;
+
 export function relativeTime(date: Date | number | bigint): string {
   let target: number;
-  if (date instanceof Date) target = date.getTime();
-  else if (typeof date === "bigint") target = Number(date) * 1000;
-  else target = date * 1000;
+  if (date instanceof Date) {
+    target = date.getTime();
+  } else if (typeof date === "bigint") {
+    target = Number(date) * 1000;
+  } else {
+    target = date >= MS_THRESHOLD ? date : date * 1000;
+  }
 
   if (!Number.isFinite(target) || target <= 0) return "—";
 

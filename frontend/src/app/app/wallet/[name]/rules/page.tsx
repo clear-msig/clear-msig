@@ -135,7 +135,7 @@ export default function RulesPage() {
           }
         >
           <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-          Encrypted
+          Encryption-ready · pre-alpha
         </Link>
       </motion.section>
 

@@ -170,7 +170,7 @@ function Loaded({
   const proposerLabel = proposerName(proposal.proposer, myAddress);
   const intentLabel = friendlyIntentLabel(intent.template);
   const statusLabel = friendlyStatus(proposal.status);
-  const createdAgo = relativeTime(Number(proposal.proposedAt) * 1000);
+  const createdAgo = relativeTime(proposal.proposedAt);
 
   const handleApprove = async () => {
     try {

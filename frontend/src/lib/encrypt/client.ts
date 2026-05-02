@@ -201,9 +201,18 @@ export async function decryptPolicy(
 }
 
 export interface EncryptStatus {
-  /// True when Encrypt's network is live and policies are real
-  /// ciphertext. Today: false.
+  /// True when Encrypt's network is live and policies travel as real
+  /// FHE ciphertext on chain. Today: false (pre-alpha; the SDK's own
+  /// disclaimer is "no real encryption, data is plaintext on chain").
+  /// Consumers gate "Encrypted" badging and "Encryption active"
+  /// status text on this; flip flips the UI in one swap.
   live: boolean;
+  /// True when the integration code path is in place: every policy
+  /// mutation routes through the Encrypt surface, ciphertext IDs
+  /// flow frontend → backend → CLI, the swap to real FHE only
+  /// touches this module. Today: true. Distinct from `live` so the
+  /// UI can say "ready, not yet active" honestly.
+  wired: boolean;
   scheme: EncryptScheme;
   /// User-facing one-liner about the current state.
   description: string;
@@ -212,18 +221,19 @@ export interface EncryptStatus {
 }
 
 export function encryptStatus(): EncryptStatus {
-  // Encrypt's network is still pre-alpha (their disclaimer: "no real
-  // encryption — all data is plaintext on chain"), but the full wire
-  // path is integrated end-to-end on Clear's stack: every policy
-  // mutation routes through the Encrypt surface, ciphertext IDs flow
-  // frontend → backend → CLI, and the swap to real FHE only touches
-  // this module. From the user's perspective the integration is in
-  // place — `live` reflects "wired and active," not "FHE-cryptographic."
+  // The split between `live` and `wired` exists because we used to
+  // overload `live = true` to mean "the integration is wired,"
+  // which leaked through to chips reading "Encrypted" / "Private
+  // list" before the cryptography existed. The honest framing for
+  // pre-alpha is: the wire path is real, the cryptography is not.
+  // When the network goes live, flip `live` to true; chips and
+  // status text adopt without further code changes.
   return {
-    live: true,
+    live: false,
+    wired: true,
     scheme: "passthrough-v1",
     description:
-      "Your wallet's rules are routed through Encrypt every time you change them. Who can spend, the approvals you need, and the limits you set.",
+      "Your wallet's rules are routed through the Encrypt surface every time you change them. The integration is in place; real FHE encryption switches on when Encrypt's network leaves pre-alpha.",
     learnMoreHref: "/privacy",
   };
 }

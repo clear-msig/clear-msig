@@ -54,6 +54,17 @@ export function useWalletGate() {
     // deep links to /connect before the adapter resolves.
     if (wallet.connecting || wallet.disconnecting) return;
 
+    // Dynamic edge case: the user has logged in via email/social but
+    // no Solana wallet has been minted yet (TSS-MPC takes a beat
+    // after first verify, or the dashboard's Embedded Wallets →
+    // Solana toggle is off). Without this guard /welcome would bounce
+    // to /connect, /connect would see them as "logged in" and not
+    // know what to do, and they'd loop. Stay on the current page;
+    // /connect's DynamicWidget will render its own status, and
+    // /welcome (and other gates) render a NeutralWait that resolves
+    // once the Solana wallet appears.
+    if (wallet.loggedInWithoutSolana) return;
+
     if (wallet.connected) {
       if (pathname === "/connect") {
         // Wait for the memberships query to settle so we don't flash
@@ -88,6 +99,7 @@ export function useWalletGate() {
     wallet.connected,
     wallet.connecting,
     wallet.disconnecting,
+    wallet.loggedInWithoutSolana,
     pathname,
     router,
     memberships.isLoading,
@@ -98,5 +110,10 @@ export function useWalletGate() {
   return {
     connected: wallet.connected,
     publicKey: wallet.publicKey?.toBase58() ?? null,
+    /// Surfaced from the wallet shim so consumers can render a
+    /// "minting your Solana wallet" wait state instead of "taking
+    /// you to connect" when Dynamic auth completed but the Solana
+    /// embedded wallet hasn't been provisioned yet.
+    loggedInWithoutSolana: wallet.loggedInWithoutSolana,
   };
 }

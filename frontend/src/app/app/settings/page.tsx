@@ -192,10 +192,11 @@ export default function SettingsPage() {
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-text-strong">
-            Private policies
+            Privacy
           </p>
           <p className="mt-0.5 text-xs text-text-soft">
-            Your wallet&rsquo;s rules are encrypted on-chain.
+            How your wallet&rsquo;s rules stay private. Encryption-ready,
+            switches on when Encrypt&rsquo;s network leaves pre-alpha.
           </p>
         </div>
         <ArrowRight
@@ -210,9 +211,10 @@ export default function SettingsPage() {
           <Wifi className="h-5 w-5" strokeWidth={1.75} />
         </div>
         <div className="flex-1">
-          <p className="text-sm font-medium text-text-strong">Test network</p>
+          <p className="text-sm font-medium text-text-strong">Test networks</p>
           <p className="mt-0.5 text-xs text-text-soft">
-            You&rsquo;re on Solana devnet. Money here isn&rsquo;t real.
+            Solana devnet for the multisig, Sepolia for Ethereum. Money
+            on either isn&rsquo;t real.
           </p>
         </div>
       </section>

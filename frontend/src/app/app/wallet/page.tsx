@@ -54,7 +54,12 @@ export default function WalletDashboard() {
 
   const wallets = memberships.data ?? [];
   const stillLoading = memberships.isLoading;
-  const isFirstVisit = !stillLoading && wallets.length === 0;
+  // Distinguish "RPC errored" from "user genuinely has no wallets."
+  // Without this guard, a transient memberships failure renders the
+  // first-visit CTA — which then sends the user through /welcome to
+  // create a duplicate wallet.
+  const hasError = !stillLoading && memberships.isError;
+  const isFirstVisit = !stillLoading && !hasError && wallets.length === 0;
 
   // Batch-fetch every wallet's vault balance in a single RPC. Re-keys
   // on the wallet set so the cache invalidates cleanly when memberships
@@ -91,7 +96,9 @@ export default function WalletDashboard() {
     <div className="flex flex-col gap-6">
       <Greeting reduce={!!reduce} />
 
-      {isFirstVisit ? (
+      {hasError ? (
+        <MembershipsErrorCard onRetry={() => memberships.refetch()} />
+      ) : isFirstVisit ? (
         <FirstVisitCard />
       ) : (
         <WalletsGrid
@@ -202,6 +209,31 @@ function ShortcutCard({
       <span className="text-sm font-medium text-text-strong">{label}</span>
       <span className="text-xs leading-snug text-text-soft">{body}</span>
     </Link>
+  );
+}
+
+// ─── Memberships error state ───────────────────────────────────────
+//
+// When the on-chain memberships fetch fails (RPC blip, connection
+// dropped mid-load), we used to render the first-visit CTA which
+// tells the user to "Create your first wallet" — for someone who
+// already has wallets, that's a dangerous nudge. This card replaces
+// the silent fallback with an explicit retry.
+
+function MembershipsErrorCard({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="rounded-card border border-warning/30 bg-warning/[0.06] p-6 shadow-card-rest">
+      <p className="text-xs font-medium uppercase tracking-[0.18em] text-warning">
+        Couldn&rsquo;t load your wallets
+      </p>
+      <p className="mt-2 text-sm text-text-strong">
+        Quick hiccup talking to the network. Your wallets are safe; we
+        just couldn&rsquo;t fetch them right now.
+      </p>
+      <Button size="md" className="mt-4" onClick={onRetry}>
+        Try again
+      </Button>
+    </div>
   );
 }
 
@@ -676,7 +708,10 @@ function RecentActivitySection({ rows, reduce }: RecentActivityProps) {
 }
 
 function ActivityRow({ row }: { row: RecentActivityRow }) {
-  const time = relativeTime(Number(row.proposedAt) * 1000);
+  // proposedAt is unix seconds (bigint); relativeTime handles the
+  // ms conversion. Passing pre-multiplied milliseconds here was a
+  // long-standing bug that printed "just now" forever.
+  const time = relativeTime(row.proposedAt);
   return (
     <li>
       <Link

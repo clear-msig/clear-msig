@@ -140,7 +140,7 @@ export default function MembersPage() {
           }
         >
           <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-          Private list
+          Privacy-ready · pre-alpha
         </Link>
       </motion.section>
 
