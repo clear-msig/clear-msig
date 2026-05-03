@@ -64,6 +64,24 @@ export function useWallet() {
     }
   }, [solanaWallet]);
 
+  // Detect Dynamic's WaaS-SVM connector. Its signMessage decodes the
+  // input bytes as UTF-8 before signing (Buffer.from(bytes).toString())
+  // which corrupts our offchain envelope's leading `\xff` byte. Until
+  // Dynamic ships a bytes-safe signer or your project enables Turnkey,
+  // this signer can't sign clear-msig messages. Consumers gate banners
+  // on this flag so users hit the explanation before the failed sign.
+  const isLossySigner = useMemo(() => {
+    if (ledger.session) return false; // Ledger always wins; never lossy.
+    if (!solanaWallet) return false;
+    // Duck-type the connector identifier; the SDK's WalletConnector
+    // type doesn't expose `overrideKey` in its public types but the
+    // value is set on the WaaS connector at runtime ('dynamicwaas').
+    const c = (solanaWallet as unknown as { connector?: { key?: string; name?: string; overrideKey?: string } }).connector;
+    if (!c) return false;
+    const id = c.key ?? c.overrideKey ?? c.name ?? "";
+    return /dynamicwaas/i.test(id);
+  }, [solanaWallet, ledger.session]);
+
   const ledgerPublicKey = useMemo(() => {
     if (!ledger.session) return null;
     try {
@@ -133,6 +151,12 @@ export function useWallet() {
     /// "your wallet shows hex" copy for "your Ledger shows the full
     /// message". See `<WalletPopupNarration>`.
     isLedger: !!ledger.session,
+    /// True when the active signer corrupts message bytes and can't
+    /// produce a verifiable signature for clear-msig (currently:
+    /// Dynamic's WaaS-SVM connector). Use this to render an upfront
+    /// "use a different wallet" banner instead of letting the user
+    /// hit a doomed signing flow. See `<WaasLimitationBanner>`.
+    isLossySigner,
   };
 }
 

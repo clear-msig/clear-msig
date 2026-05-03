@@ -29,6 +29,7 @@ import { fetchOnchainMemberships } from "@/lib/memberships/client";
 import { useRecentActivity } from "@/lib/hooks/useRecentActivity";
 import { ProposalStatus } from "@/lib/msig";
 import { friendlyStatus } from "@/lib/retail/labels";
+import { toDisplayName } from "@/lib/retail/walletNames";
 
 type CommandPaletteHandle = {
   open: () => void;
@@ -150,19 +151,23 @@ export function CommandPalette() {
               className="mb-2 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-white/40"
             >
               {wallets.map((m) => {
-                const name = m.wallet_name ?? "";
-                if (!name) return null; // Unnamed memberships are skipped — addresses don't belong on screen.
+                const onChainName = m.wallet_name ?? "";
+                if (!onChainName) return null; // Unnamed memberships are skipped — addresses don't belong on screen.
+                const display = toDisplayName(onChainName);
                 return (
                   <Command.Item
                     key={m.wallet}
-                    value={`wallet:${name}`}
+                    // value drives the cmdk fuzzy matcher; include
+                    // both the typed name and the on-chain form so
+                    // power users can find a wallet either way.
+                    value={`wallet:${display} ${onChainName}`}
                     onSelect={() =>
-                      goto(`/app/wallet/${encodeURIComponent(name)}`)
+                      goto(`/app/wallet/${encodeURIComponent(onChainName)}`)
                     }
                     className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-xs text-white/80 aria-selected:bg-accent/15 aria-selected:text-accent"
                   >
                     <Wallet size={14} />
-                    <span className="truncate font-medium">{name}</span>
+                    <span className="truncate font-medium">{display}</span>
                   </Command.Item>
                 );
               })}
@@ -195,7 +200,7 @@ export function CommandPalette() {
                 return (
                   <Command.Item
                     key={p.proposalPda}
-                    value={`request:${p.walletName} ${friendly} ${p.proposalPda}`}
+                    value={`request:${toDisplayName(p.walletName)} ${friendly} ${p.proposalPda}`}
                     onSelect={() =>
                       goto(`/app/proposals/${encodeURIComponent(p.proposalPda)}`)
                     }
@@ -203,7 +208,7 @@ export function CommandPalette() {
                   >
                     <StatusIcon size={12} className={statusTone} />
                     <span className="min-w-0 flex-1 truncate font-medium">
-                      {p.walletName}
+                      {toDisplayName(p.walletName)}
                     </span>
                     <span className="ml-auto truncate text-[10px] text-white/40">
                       {friendly}

@@ -36,6 +36,7 @@ import { relativeTime } from "@/lib/util/relativeTime";
 import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
 import { formatBalance } from "@/lib/retail/format";
 import { toDisplayName } from "@/lib/retail/walletNames";
+import { WaasLimitationBanner } from "@/components/retail/WaasLimitationBanner";
 
 export default function WalletDashboard() {
   const wallet = useWallet();
@@ -95,6 +96,7 @@ export default function WalletDashboard() {
 
   return (
     <div className="flex flex-col gap-6">
+      <WaasLimitationBanner />
       <Greeting reduce={!!reduce} />
 
       {hasError ? (

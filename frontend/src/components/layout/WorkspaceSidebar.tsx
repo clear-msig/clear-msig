@@ -29,6 +29,7 @@ import {
   type RecentActivityRow,
 } from "@/lib/hooks/useRecentActivity";
 import { friendlyStatus } from "@/lib/retail/labels";
+import { toDisplayName } from "@/lib/retail/walletNames";
 import { relativeTime } from "@/lib/util/relativeTime";
 import { avatarGradient } from "@/lib/retail/avatar";
 import { gradientFor } from "@/lib/retail/walletAppearance";
@@ -312,7 +313,7 @@ function SidebarActivityRow({
         )}
       >
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate font-medium">{row.walletName}</span>
+          <span className="truncate font-medium">{toDisplayName(row.walletName)}</span>
           <span className="flex items-center gap-1.5 text-[10px] text-white/40">
             <span>{friendlyStatus(row.status, row.intentTemplate)}</span>
             {row.proposedAt > 0n && (
@@ -339,20 +340,23 @@ function SidebarOrgLink({
   pendingCount: number;
   onNavigate?: () => void;
 }) {
-  const name = membership.wallet_name ?? "";
-  const href = name ? `/app/wallet/${encodeURIComponent(name)}` : "#";
-  const active = name && pathname.startsWith(href);
+  const onChainName = membership.wallet_name ?? "";
+  const href = onChainName ? `/app/wallet/${encodeURIComponent(onChainName)}` : "#";
+  const active = onChainName && pathname.startsWith(href);
 
   // Without a name (rare — wallet missing from the on-chain account)
   // we skip rendering rather than show a raw address.
-  if (!name) return null;
+  if (!onChainName) return null;
 
+  // Display strips the per-creator suffix; URLs and PDA lookups
+  // keep the on-chain form so chain reads still resolve.
+  const display = toDisplayName(onChainName);
   // Per-wallet identity: gradient avatar with the wallet name's
-  // first letter. The user can override the gradient at create time
-  // (welcome confirm picker); we fall back to the deterministic
-  // gradient so wallets created before the picker still look right.
-  const grad = gradientFor(name, avatarGradient(name));
-  const initial = name.trim().charAt(0).toUpperCase() || "?";
+  // first letter. Hash the on-chain name (suffixed) so two creators
+  // who both call their wallet "Family" still get visually distinct
+  // gradients.
+  const grad = gradientFor(onChainName, avatarGradient(onChainName));
+  const initial = display.trim().charAt(0).toUpperCase() || "?";
 
   return (
     <li className="relative">
@@ -385,7 +389,7 @@ function SidebarOrgLink({
         >
           {initial}
         </span>
-        <span className="truncate">{name}</span>
+        <span className="truncate">{display}</span>
         {pendingCount > 0 && (
           <span
             aria-label={`${pendingCount} need${pendingCount === 1 ? "s" : ""} approval`}

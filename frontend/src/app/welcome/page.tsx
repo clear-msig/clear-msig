@@ -62,6 +62,7 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { WaasLimitationBanner } from "@/components/retail/WaasLimitationBanner";
 import {
   COLOR_PALETTE,
   saveWalletAppearance,
@@ -383,7 +384,10 @@ export default function WelcomePage() {
       )}
 
       <div className="relative z-10 flex flex-1 items-center justify-center px-gutter pb-16 pt-8">
-        <div className="w-full max-w-md">
+        <div className="flex w-full max-w-md flex-col gap-4">
+          <WaasLimitationBanner
+            title="You won't be able to finish creating a wallet with this sign-in"
+          />
           <AnimatePresence mode="wait" initial={false}>
             {stage === "shape_name" && (
               <motion.section
