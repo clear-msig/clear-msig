@@ -41,9 +41,40 @@ export function toDisplayName(onChain: string): string {
   return cleaned.slice(0, idx);
 }
 
+/// Display name with the first letter capitalised. Handy in headlines
+/// like "Add someone to Family" so the wallet name doesn't render as
+/// a sentence ending in a person's lowercase name. We capitalise here
+/// (display-only) rather than at create-time so the on-chain bytes
+/// stay exactly what the user typed.
+export function toHeadingName(onChain: string): string {
+  const display = toDisplayName(onChain);
+  if (!display) return display;
+  // Use codePointAt to handle the rare emoji-led wallet name; we only
+  // upper-case the first ASCII letter, so emoji and CJK pass through.
+  const first = display[0];
+  if (!first || !/[a-z]/.test(first)) return display;
+  return first.toUpperCase() + display.slice(1);
+}
+
 /// True when the name carries our suffix shape. Used both internally
 /// and by the create-wallet form to avoid double-appending when a
 /// power user pastes an already-suffixed name.
 export function hasSuffix(name: string): boolean {
   return new RegExp(`${SEPARATOR}[1-9A-HJ-NP-Za-km-z]{${SUFFIX_LEN}}$`).test(name);
+}
+
+/// True when `address` is the creator of the wallet, derived from
+/// the on-chain name's suffix (the first 6 base58 chars of the
+/// creator's pubkey are appended at create-time). Used to render a
+/// "creator" badge on the member list and to gate destructive
+/// actions (you can't kick the wallet's owner — they need to stay
+/// in to authorise their own departure if they ever want to).
+///
+/// Returns false for legacy names without a suffix.
+export function isCreatorAddress(onChainName: string, address: string): boolean {
+  if (!onChainName || !address) return false;
+  if (!hasSuffix(onChainName)) return false;
+  const idx = onChainName.lastIndexOf(SEPARATOR);
+  const suffix = onChainName.slice(idx + 1);
+  return address.startsWith(suffix);
 }

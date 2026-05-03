@@ -10,7 +10,7 @@
 //   <NextStepCard
 //     title="Sending is on. What's next?"
 //     options={[
-//       { label: "Send your first request", href: "/send?wallet=...", primary: true },
+//       { label: "Send your first request", href: "/app/wallet/<name>/send", primary: true },
 //       { label: "Invite someone",        href: "/.../members/add" },
 //       { label: "Back to wallet",        href: "/.../" },
 //     ]}

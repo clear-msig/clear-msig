@@ -7,7 +7,7 @@
 // What a retail user actually needs to see and do here:
 //
 //   - Which wallet is this (name + member count).
-//   - Send money (route to /send?wallet=…).
+//   - Send money (route to /app/wallet/[name]/send).
 //   - Invite a friend (route to /welcome/invite?wallet=…).
 //   - What's waiting on me ("needs your approval", filtered).
 //   - What just happened ("recent activity", filtered).
@@ -23,7 +23,7 @@ import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Bell, Download, Globe, Lock, Send, ShieldCheck, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bell, Download, Send, ShieldCheck, Users } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { findVaultAddress } from "@/lib/msig";
@@ -40,7 +40,7 @@ import { relativeTime } from "@/lib/util/relativeTime";
 import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
 import { formatBalance } from "@/lib/retail/format";
 import { avatarGradient } from "@/lib/retail/avatar";
-import { toDisplayName } from "@/lib/retail/walletNames";
+import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
 import {
   getWalletAppearance,
   gradientFor,
@@ -153,8 +153,16 @@ export default function WalletDetailPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <BackLink />
+    <div className="flex flex-col gap-4">
+      {/* The "← Wallets" sticky bar floats below the HeaderBar with
+          mostly-empty width on desktop, leaving a wide blank band
+          above the hero. The sidebar already provides cross-wallet
+          navigation on md+, so the back affordance is redundant
+          there. Keep it on mobile where the sidebar lives behind a
+          drawer and the back link is the only way out. */}
+      <div className="md:hidden">
+        <BackLink />
+      </div>
       <Hero
         name={name}
         memberCount={memberCount}
@@ -254,7 +262,7 @@ function Hero({
   return (
     <motion.section
       {...motionProps}
-      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       className="rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest sm:p-8"
     >
       {/* Header avatar — picks up the picker color from welcome.
@@ -277,14 +285,15 @@ function Hero({
         {shapeLabel ? `${shapeLabel} wallet` : "Shared wallet"}
       </p>
       <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-        {toDisplayName(name)}
+        {toHeadingName(name)}
       </h1>
       {/* Sub-line: shape preset + member count. Carries the create-
           time choice through to the hub so the user feels the wallet
           remembers what they set it up for. */}
       {shapeLabel && memberCount !== null && (
         <p className="mt-1 text-xs text-text-soft">
-          For {shapeLabel.toLowerCase()} · {memberCount}{" "}
+          For {shapeLabel.toLowerCase()} ·{" "}
+          <span className="font-medium text-text-strong">{memberCount}</span>{" "}
           {memberCount === 1 ? "member" : "members"}
         </p>
       )}
@@ -301,13 +310,17 @@ function Hero({
         ) : (
           <p className="mt-1 font-display text-display-xs text-text-strong">
             {balance ? balance.amount : "0"}{" "}
-            <span className="text-text-soft">
+            <span className="text-text-strong/70">
               {balance?.ticker ?? "SOL"}
             </span>
           </p>
         )}
       </div>
 
+      {/* Hero footer: just members + settings. The pre-trim version
+          had five competing pills (Spending rules / Weekly limit /
+          Policy / Chains / Privacy-ready) which read as a settings
+          dump. They live under one Settings page now. */}
       <div className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-text-soft">
         <Link
           href={`/app/wallet/${encodeURIComponent(name)}/members`}
@@ -346,7 +359,7 @@ function Hero({
           )}
         </Link>
         <Link
-          href={`/app/wallet/${encodeURIComponent(name)}/rules`}
+          href={`/app/wallet/${encodeURIComponent(name)}/settings`}
           className={
             "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
             "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
@@ -358,51 +371,7 @@ function Hero({
             aria-hidden="true"
             strokeWidth={2}
           />
-          Spending rules
-        </Link>
-        <Link
-          href={`/app/wallet/${encodeURIComponent(name)}/chains`}
-          className={
-            "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-          }
-        >
-          <Globe className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-          Chains
-        </Link>
-        <Link
-          href={`/app/wallet/${encodeURIComponent(name)}/budget`}
-          className={
-            "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-          }
-        >
-          <ShieldCheck className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-          Weekly limit
-        </Link>
-        <Link
-          href={`/app/wallet/${encodeURIComponent(name)}/policy`}
-          className={
-            "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-          }
-        >
-          <ShieldCheck className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-          Policy
-        </Link>
-        <Link
-          href="/privacy"
-          className={
-            "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-          }
-        >
-          <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-          Privacy-ready · pre-alpha
+          Settings
         </Link>
       </div>
     </motion.section>
@@ -433,11 +402,11 @@ function Actions({
   return (
     <motion.div
       {...motionProps}
-      transition={{ duration: 0.35, delay: 0.04 }}
+      transition={{ duration: 0.2 }}
       className="grid grid-cols-1 gap-3 sm:grid-cols-2"
     >
       {sendingReady ? (
-        <Link href={`/send?wallet=${encoded}`} className="block">
+        <Link href={`/app/wallet/${encoded}/send`} className="block">
           <Button size="lg" fullWidth>
             <Send className="h-4 w-4" aria-hidden="true" />
             Send money
@@ -492,7 +461,7 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
   return (
     <motion.section
       {...motionProps}
-      transition={{ duration: 0.35, delay: 0.08 }}
+      transition={{ duration: 0.2 }}
       className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
     >
       <header className="flex items-center justify-between gap-2">
@@ -635,7 +604,7 @@ function ActivitySection({ rows, reduce }: ActivityProps) {
   return (
     <motion.section
       {...motionProps}
-      transition={{ duration: 0.35, delay: 0.12 }}
+      transition={{ duration: 0.2 }}
     >
       <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
         Recent activity
@@ -678,15 +647,28 @@ function ActivityEmptyState({ reduce }: { reduce: boolean }) {
   return (
     <motion.section
       {...motionProps}
-      transition={{ duration: 0.35, delay: 0.12 }}
-      className="rounded-card border border-dashed border-border-soft bg-surface-raised p-6 text-center shadow-card-rest"
+      transition={{ duration: 0.2 }}
+      className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
     >
-      <p className="font-display text-base text-text-strong">
-        Nothing here yet
+      <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+        Activity
+      </h2>
+      {/* Ghost row — same shape as a real activity row, just muted.
+          Cash App pattern: tell the user what this surface looks like
+          when it has content, so the empty state isn't a void. */}
+      <div className="mt-3 flex items-center gap-3 rounded-soft border border-dashed border-border-soft px-3 py-3">
+        <div className="h-8 w-8 shrink-0 rounded-full bg-border-soft/40" />
+        <div className="min-w-0 flex-1">
+          <div className="h-2.5 w-32 rounded bg-border-soft/40" />
+          <div className="mt-2 h-2 w-20 rounded bg-border-soft/30" />
+        </div>
+      </div>
+      <p className="mt-3 text-sm text-text-strong">
+        Your first send or invite shows up here.
       </p>
-      <p className="mt-1 text-sm text-text-soft">
-        When you send money or invite friends, the activity will show up
-        here.
+      <p className="mt-1 text-xs text-text-soft">
+        Every move on this wallet — sent, approved, declined — gets a
+        row, with the friend who acted and when.
       </p>
     </motion.section>
   );
@@ -717,7 +699,7 @@ function NotFound({ name }: { name: string }) {
       <BackLink />
       <div className="rounded-card border border-border-soft bg-surface-raised p-8 text-center shadow-card-rest">
         <h1 className="font-display text-display-xs text-text-strong">
-          We couldn&rsquo;t find {name}
+          We couldn&rsquo;t find {toDisplayName(name)}
         </h1>
         <p className="mt-2 max-w-md text-text-soft">
           The wallet may have been renamed, or you may not be a member.
@@ -795,7 +777,7 @@ function NextStepsStripe({
       title: "Send your first request",
       body: `${display} is set up and has signers. Make the first send to put the rule into practice.`,
       cta: "Send a request",
-      href: `/send?wallet=${encoded}`,
+      href: `/app/wallet/${encoded}/send`,
     };
   }
 

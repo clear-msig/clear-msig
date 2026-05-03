@@ -141,8 +141,14 @@ export function CommandPalette() {
         </div>
 
         <Command.List className="max-h-[60vh] overflow-y-auto px-2 py-2 text-sm">
-          <Command.Empty className="px-3 py-6 text-center text-xs text-white/40">
-            No matches.
+          <Command.Empty className="px-4 py-8 text-center">
+            <p className="text-sm font-medium text-white/80">
+              No matches
+            </p>
+            <p className="mt-1 text-xs text-white/40">
+              Try a wallet name, a friend, or part of an action like
+              &ldquo;send sarah&rdquo;.
+            </p>
           </Command.Empty>
 
           {wallets.length > 0 && (

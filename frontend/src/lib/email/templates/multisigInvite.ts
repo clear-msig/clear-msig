@@ -38,19 +38,19 @@ export function buildMultisigInviteEmail(input: InviteTemplateInput) {
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#101010;border:1px solid #2a2a2a;border-radius:14px;overflow:hidden;">
               <tr>
                 <td style="padding:20px 24px;border-bottom:1px solid #2a2a2a;">
-                  <h1 style="margin:0;font-size:20px;line-height:1.2;">Multisig invitation</h1>
+                  <h1 style="margin:0;font-size:20px;line-height:1.2;">You're in</h1>
                 </td>
               </tr>
               <tr>
                 <td style="padding:22px 24px;">
-                  <p style="margin:0 0 12px 0;color:#d0d0d0;font-size:14px;line-height:1.6;">You have been added as a signer in a Clear-MSIG organization.</p>
+                  <p style="margin:0 0 12px 0;color:#d0d0d0;font-size:14px;line-height:1.6;">You were added to a shared wallet on Clear. From now on you can see what the group is sending and approve any request that needs your sign-off.</p>
                   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#0b0b0b;border:1px solid #2a2a2a;border-radius:10px;">
-                    <tr><td style="padding:12px 14px;color:#8f8f8f;font-size:12px;">Organization</td><td style="padding:12px 14px;color:#ffffff;font-size:13px;">${walletName}</td></tr>
-                    <tr><td style="padding:12px 14px;color:#8f8f8f;font-size:12px;">Reason</td><td style="padding:12px 14px;color:#ffffff;font-size:13px;">${reason}</td></tr>
-                    <tr><td style="padding:12px 14px;color:#8f8f8f;font-size:12px;">Inviter</td><td style="padding:12px 14px;color:#ffffff;font-size:13px;">${inviterAddress}</td></tr>
-                    <tr><td style="padding:12px 14px;color:#8f8f8f;font-size:12px;">Your wallet</td><td style="padding:12px 14px;color:#ffffff;font-size:13px;">${inviteeAddress}</td></tr>
+                    <tr><td style="padding:12px 14px;color:#8f8f8f;font-size:12px;">Wallet</td><td style="padding:12px 14px;color:#ffffff;font-size:13px;">${walletName}</td></tr>
+                    <tr><td style="padding:12px 14px;color:#8f8f8f;font-size:12px;">Note</td><td style="padding:12px 14px;color:#ffffff;font-size:13px;">${reason}</td></tr>
+                    <tr><td style="padding:12px 14px;color:#8f8f8f;font-size:12px;">Added by</td><td style="padding:12px 14px;color:#ffffff;font-size:13px;">${inviterAddress}</td></tr>
+                    <tr><td style="padding:12px 14px;color:#8f8f8f;font-size:12px;">Your address</td><td style="padding:12px 14px;color:#ffffff;font-size:13px;">${inviteeAddress}</td></tr>
                   </table>
-                  <p style="margin:14px 0 0 0;color:#8f8f8f;font-size:12px;line-height:1.5;">Connect your wallet in the dashboard to review and approve proposals for this organization.</p>
+                  <p style="margin:14px 0 0 0;color:#8f8f8f;font-size:12px;line-height:1.5;">Open Clear in your browser and connect your wallet to see this shared wallet alongside any others you're already in.</p>
                 </td>
               </tr>
             </table>
@@ -62,11 +62,13 @@ export function buildMultisigInviteEmail(input: InviteTemplateInput) {
   `;
 
   const text = [
-    "Multisig invitation",
-    `Organization: ${input.walletName}`,
-    `Reason: ${input.reason || "No reason provided"}`,
-    `Inviter: ${input.inviterAddress}`,
-    `Your wallet: ${input.inviteeAddress}`
+    "You're in",
+    `You were added to a shared wallet on Clear: ${input.walletName}`,
+    `Note: ${input.reason || "No note provided"}`,
+    `Added by: ${input.inviterAddress}`,
+    `Your address: ${input.inviteeAddress}`,
+    "",
+    "Open Clear and connect your wallet to see it.",
   ].join("\n");
 
   return { subject, html, text };

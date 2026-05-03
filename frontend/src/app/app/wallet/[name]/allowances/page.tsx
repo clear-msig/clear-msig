@@ -159,7 +159,7 @@ export default function AllowancesPage() {
 
       <motion.section
         {...motionProps}
-        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
         className="flex flex-col items-center text-center"
       >
         <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">
@@ -174,7 +174,7 @@ export default function AllowancesPage() {
         <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
           Pick a per-period limit for each person (friend, teammate,
           or board member). Requests inside the limit are easier to
-          approve; anything above it follows the full {name} approval
+          approve; anything above it follows the full {toDisplayName(name)} approval
           rule.
         </p>
         <p className="mt-3 inline-flex items-center gap-1 rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] text-text-soft">
@@ -316,7 +316,7 @@ export default function AllowancesPage() {
       <p className="text-center text-xs text-text-soft">
         Limits are saved on this device while we wait for on-chain
         enforcement. They&rsquo;re a hint to you; every request still
-        follows {name}&rsquo;s approval rule today.
+        follows {toDisplayName(name)}&rsquo;s approval rule today.
       </p>
     </div>
   );

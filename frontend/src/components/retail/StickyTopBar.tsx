@@ -47,11 +47,16 @@ export function StickyTopBar({
     offset === "header"
       ? "sticky top-20 -mx-3 px-3 sm:top-24 sm:-mx-4 sm:px-4 lg:-mx-6 lg:px-6"
       : "sticky top-0 px-gutter";
+  // No bottom border, lighter padding. The previous bordered band read
+  // as a horizontal "scar" between header and content, especially on
+  // wide screens where the breadcrumb is short and most of the band
+  // is empty. The 95%-canvas background is enough to occlude content
+  // scrolling under without needing a divider line.
   return (
     <div
       className={
         stickClass +
-        " z-30 border-b border-border-soft/60 bg-canvas/95 py-3"
+        " z-30 bg-canvas/95 py-2"
       }
     >
       <div

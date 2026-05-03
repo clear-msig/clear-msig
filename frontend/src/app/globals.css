@@ -144,3 +144,16 @@ body {
 .text-pretty {
   text-wrap: pretty;
 }
+
+/* ── headline weight (post-Fraunces, 2026-05-03) ───────────────────
+ * `font-display` used to swap in Fraunces (semibold by default in
+ * its display masters). After the single-sans rebuild, the class
+ * resolves to Geist — but Geist regular at 2.5rem reads thin and
+ * editorial. Lift to 700 here so every existing call site picks up
+ * the right weight without a 30-file diff. Override with
+ * `font-medium` / `font-semibold` per-call where you want lighter.
+ */
+.font-display {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}

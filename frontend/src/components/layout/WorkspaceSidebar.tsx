@@ -17,7 +17,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useWallet } from "@/lib/wallet";
-import { Github, LogOut, Plus, Search, Settings, Wallet } from "lucide-react";
+import { Github, LogOut, Plus, Search, Settings } from "lucide-react";
+import { BrandMark } from "@/components/retail/BrandMark";
 import clsx from "clsx";
 import {
   fetchOnchainMemberships,
@@ -53,7 +54,11 @@ export function WorkspaceSidebar({ onNavigate }: Props) {
   });
 
   const memberships = myOrganizationsQuery.data ?? [];
-  const recent = useRecentActivity(5);
+  // Sidebar Recent shows the 3 most recent rows. Tighter than the
+  // dashboard's 5-row feed because the sidebar is navigation, not
+  // read-the-feed. The dashboard's RecentActivitySection is where you
+  // actually browse activity.
+  const recent = useRecentActivity(3);
 
   return (
     <div className="flex h-full flex-col gap-5 p-5 text-sm text-white">
@@ -95,31 +100,39 @@ export function WorkspaceSidebar({ onNavigate }: Props) {
         New shared wallet
       </Link>
 
-      <SidebarSection
-        label="Your wallets"
-        count={memberships.length}
-        loading={myOrganizationsQuery.isLoading}
-      >
-        {memberships.length === 0 && !myOrganizationsQuery.isLoading ? (
-          <p className="px-2 text-[11px] text-white/40">
-            {wallet.connected
-              ? "No wallets yet. Create one above."
-              : "Connect to see your wallets."}
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-0.5">
-            {memberships.map((m) => (
-              <SidebarOrgLink
-                key={m.wallet}
-                membership={m}
-                pathname={pathname}
-                pendingCount={recent.pendingByWallet.get(m.wallet) ?? 0}
-                onNavigate={onNavigate}
-              />
-            ))}
-          </ul>
-        )}
-      </SidebarSection>
+      {/* Wallet list is hidden on the dashboard (/app/wallet) where
+          the page already renders the same wallets as cards with
+          richer info (balance, avatar, member count). On every other
+          /app/* route, the user's drilled into one wallet and needs
+          the cross-wallet list back in the sidebar to jump between
+          them. */}
+      {pathname !== "/app/wallet" && (
+        <SidebarSection
+          label="Your wallets"
+          count={memberships.length}
+          loading={myOrganizationsQuery.isLoading}
+        >
+          {memberships.length === 0 && !myOrganizationsQuery.isLoading ? (
+            <p className="px-2 text-[11px] text-white/40">
+              {wallet.connected
+                ? "No wallets yet. Create one above."
+                : "Connect to see your wallets."}
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-0.5">
+              {memberships.map((m) => (
+                <SidebarOrgLink
+                  key={m.wallet}
+                  membership={m}
+                  pathname={pathname}
+                  pendingCount={recent.pendingByWallet.get(m.wallet) ?? 0}
+                  onNavigate={onNavigate}
+                />
+              ))}
+            </ul>
+          )}
+        </SidebarSection>
+      )}
 
       <SidebarSection
         label="Recent"
@@ -251,7 +264,7 @@ function BrandRow() {
       className="flex items-center gap-2 rounded-xl px-1 py-1 transition-opacity duration-base ease-out-soft hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card-strong"
     >
       <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/15 text-accent">
-        <Wallet size={16} />
+        <BrandMark size={20} />
       </div>
       <span className="font-display text-base font-semibold tracking-tight text-white">
         Clear

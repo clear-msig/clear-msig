@@ -18,7 +18,7 @@ import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Loader2, Lock, Pencil, Trash2, UserPlus } from "lucide-react";
+import { ArrowLeft, ArrowRight, Crown, Loader2, Lock, Pencil, Trash2, UserPlus } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { deriveRole, listWatchers, ROLE_HINT, ROLE_LABEL, type Role } from "@/lib/retail/roles";
@@ -27,7 +27,7 @@ import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { avatarInitials } from "@/lib/retail/avatar";
-import { toDisplayName } from "@/lib/retail/walletNames";
+import { isCreatorAddress, toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
 import { useRemoveMember } from "@/lib/hooks/useRemoveMember";
 import { useUpdateMemberRole } from "@/lib/hooks/useUpdateMemberRole";
 import { useToast } from "@/components/ui/Toast";
@@ -118,14 +118,14 @@ export default function MembersPage() {
 
       <motion.section
         {...motionProps}
-        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
         className="rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest sm:p-8"
       >
         <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
           Members
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          Who&rsquo;s in {toDisplayName(name)}
+          Who&rsquo;s in <span className="text-accent">{toHeadingName(name)}</span>
         </h1>
         <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
           {members.length === 1
@@ -251,9 +251,17 @@ function MemberRow({
     : { initial: { opacity: 0, y: 6 }, animate: { opacity: 1, y: 0 } };
   const walletDisplay = toDisplayName(walletName);
   const initials = avatarInitials(address);
+  // Creator is identified by the wallet name's #suffix matching the
+  // address prefix (see isCreatorAddress). Spectre flagged on
+  // 2026-05-03 that creator and signer looked identical and that
+  // someone could remove the creator from the UI; both fixed here.
+  const isCreator = isCreatorAddress(walletName, address);
   const displayName = isYou ? "You" : `Member ${initials}`;
-  const subtitle =
-    role === "full"
+  const subtitle = isCreator
+    ? role === "full"
+      ? "Created this wallet · spends and approves"
+      : "Created this wallet"
+    : role === "full"
       ? "Can spend and approve"
       : role === "approver"
         ? "Can approve requests"
@@ -267,8 +275,12 @@ function MemberRow({
   const [confirmingRemove, setConfirmingRemove] = useState(false);
   const [editingRole, setEditingRole] = useState(false);
 
-  const canRemove = !isYou && role !== "unknown";
-  const canEditRole = !isYou && role !== "unknown";
+  // Creator is permanent. Removing them would brick the wallet — every
+  // future approval needs an authorised signer, and the creator's
+  // pubkey is the seed component that derives the wallet PDA. Same
+  // logic for role: creator stays as proposer + approver, no edits.
+  const canRemove = !isYou && !isCreator && role !== "unknown";
+  const canEditRole = !isYou && !isCreator && role !== "unknown";
   const busy = remove.isPending || updateRole.isPending;
 
   const handleChangeRole = async (next: Role) => {
@@ -322,8 +334,17 @@ function MemberRow({
       <div className="flex items-center gap-3">
         <MemberAvatar address={address} size="md" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-text-strong">
-            {displayName}
+          <p className="flex items-center gap-1.5 truncate text-sm font-medium text-text-strong">
+            <span className="truncate">{displayName}</span>
+            {isCreator && (
+              <span
+                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent"
+                title="Created this wallet — can't be removed"
+              >
+                <Crown className="h-3 w-3" strokeWidth={2.25} aria-hidden="true" />
+                Creator
+              </span>
+            )}
           </p>
           <p className="mt-0.5 text-xs text-text-soft">{subtitle}</p>
         </div>

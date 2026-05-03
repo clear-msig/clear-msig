@@ -92,6 +92,18 @@ export function AppProviders({ children }: Props) {
       DynamicWaasEVMConnectors,
       DynamicWaasSuiConnectors,
     ],
+    // Connect-only mode. We do not run a Dynamic-side user account
+    // for external wallets — Phantom / Solflare / Backpack just
+    // connect and we use their pubkey as the user's identity. Without
+    // this, Dynamic prompts the user to "set up a password" / register
+    // a passkey on first connect, which reads as broken to retail
+    // users who already have a wallet they trust.
+    initialAuthenticationMode: "connect-only",
+    // Suppress the device-registration modal (the "setup password with
+    // some boxes to check" the team flagged). We don't run device-
+    // gated MFA in pre-alpha; if we re-enable it later, this flips on
+    // and the SDK will surface its standard enrollment flow.
+    deviceRegistrationModal: { enabled: false },
   };
 
   return (

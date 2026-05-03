@@ -12,7 +12,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Plus, Settings, type LucideIcon } from "lucide-react";
+import { Home, Plus, UserCircle2, type LucideIcon } from "lucide-react";
 import clsx from "clsx";
 
 type NavItem = {
@@ -33,7 +33,11 @@ const items: NavItem[] = [
     matchPrefixes: ["/app/wallet", "/app/proposals"],
   },
   { href: "/welcome", label: "New", Icon: Plus },
-  { href: "/app/settings", label: "Settings", Icon: Settings },
+  // "Account" instead of "Settings" so it doesn't read as the same
+  // affordance as the wallet hub's per-wallet Settings link. /app/settings
+  // is identity + network + sign-out; the wallet's Settings is rules,
+  // limits, allowlist, chains.
+  { href: "/app/settings", label: "Account", Icon: UserCircle2 },
 ];
 
 function isActive(pathname: string | null, item: NavItem): boolean {

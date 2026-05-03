@@ -64,7 +64,7 @@ export default function HomePage() {
           className="mt-6 font-display text-display-md leading-[1.02] text-text-strong text-balance sm:text-display-lg"
         >
           Send money with people you{" "}
-          <span className="italic text-accent">trust</span>.
+          <span className="text-accent">trust</span>.
         </motion.h1>
 
         <motion.p
@@ -195,7 +195,7 @@ function Step({ index, Icon, title, body, reduce, delay }: StepProps) {
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/10 text-accent">
           <Icon className="h-4 w-4" strokeWidth={1.75} />
         </span>
-        <span className="font-display text-sm italic text-text-soft">
+        <span className="font-mono text-xs tracking-wider text-text-soft">
           0{index}
         </span>
       </div>

@@ -64,14 +64,12 @@ const config: Config = {
       },
 
       fontFamily: {
+        // One sans family, everywhere. `font-display` survives as a
+        // class so existing callers don't need to be touched, but it
+        // resolves to the same Geist family — weight + size do the
+        // hierarchy lifting now.
         sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
-        display: [
-          "var(--font-display)",
-          "var(--font-sans)",
-          "ui-serif",
-          "Georgia",
-          "serif",
-        ],
+        display: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
         mono: [
           "var(--font-mono)",
           "ui-monospace",
@@ -82,18 +80,21 @@ const config: Config = {
       },
 
       fontSize: {
-        // ── Display scale (Fraunces) — mobile-first ──────────────
-        "display-xs": ["2rem", { lineHeight: "1.1", letterSpacing: "-0.02em" }],
-        "display-sm": ["2.5rem", { lineHeight: "1.05", letterSpacing: "-0.025em" }],
-        "display-md": ["3.25rem", { lineHeight: "1.02", letterSpacing: "-0.03em" }],
-        "display-lg": ["4rem", { lineHeight: "1", letterSpacing: "-0.035em" }],
-        "display-xl": ["5rem", { lineHeight: "0.98", letterSpacing: "-0.04em" }],
+        // Display scale — sans-tightened, capped at 2.5rem on desktop.
+        // Old scale (Fraunces) climbed to 5rem, which read as magazine
+        // hero, not money app. Geist at 2.5rem with weight 700 is the
+        // Cash App / Apple Wallet register.
+        "display-xs": ["1.75rem", { lineHeight: "1.15", letterSpacing: "-0.015em" }],
+        "display-sm": ["2rem", { lineHeight: "1.1", letterSpacing: "-0.02em" }],
+        "display-md": ["2.25rem", { lineHeight: "1.08", letterSpacing: "-0.022em" }],
+        "display-lg": ["2.5rem", { lineHeight: "1.05", letterSpacing: "-0.025em" }],
+        "display-xl": ["2.5rem", { lineHeight: "1.05", letterSpacing: "-0.025em" }],
 
-        // ── Legacy hero-* (retire during overlap) ────────────────
-        "hero-sm": ["2.75rem", { lineHeight: "1.05", letterSpacing: "-0.02em" }],
-        "hero-md": ["3.75rem", { lineHeight: "1.02", letterSpacing: "-0.025em" }],
-        "hero-lg": ["5rem", { lineHeight: "0.98", letterSpacing: "-0.03em" }],
-        "hero-xl": ["6.25rem", { lineHeight: "0.96", letterSpacing: "-0.035em" }],
+        // Legacy hero-* — same cap. Retire over time.
+        "hero-sm": ["2rem", { lineHeight: "1.1", letterSpacing: "-0.02em" }],
+        "hero-md": ["2.25rem", { lineHeight: "1.08", letterSpacing: "-0.022em" }],
+        "hero-lg": ["2.5rem", { lineHeight: "1.05", letterSpacing: "-0.025em" }],
+        "hero-xl": ["2.5rem", { lineHeight: "1.05", letterSpacing: "-0.025em" }],
       },
 
       letterSpacing: {

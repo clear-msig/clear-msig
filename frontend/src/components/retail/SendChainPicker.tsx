@@ -1,11 +1,11 @@
 "use client";
 
-// SendChainPicker. Strip of chips at the top of /send and /send/eth
-// showing every chain the wallet can act on. Solana is always
+// SendChainPicker. Strip of chips at the top of the wallet's send
+// pages showing every chain the wallet can act on. Solana is always
 // present. Ethereum shows up when bound; tapping it routes to
-// /send/eth (or to the per-chain setup page when the EvmTransfer
-// intent isn't there yet). BTC / Zcash render as "Coming soon"
-// until UTXO management lands.
+// /app/wallet/[name]/send/eth (or to the per-chain setup page when
+// the EvmTransfer intent isn't there yet). BTC / Zcash render as
+// "Coming soon" until UTXO management lands.
 //
 // activeKind dims the current chain so the user knows where they
 // are. The picker self-hides when only one chain is available, so
@@ -90,12 +90,12 @@ function sendHrefFor(
     return `/app/wallet/${encodeURIComponent(walletName)}/chains/add`;
   }
   if (kind === 0) {
-    return `/send?wallet=${encodeURIComponent(walletName)}`;
+    return `/app/wallet/${encodeURIComponent(walletName)}/send`;
   }
   if (kind === 1) {
     return status === "needs_setup"
       ? `/app/wallet/${encodeURIComponent(walletName)}/setup/eth`
-      : `/send/eth?wallet=${encodeURIComponent(walletName)}`;
+      : `/app/wallet/${encodeURIComponent(walletName)}/send/eth`;
   }
   return null;
 }

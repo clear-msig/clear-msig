@@ -136,7 +136,7 @@ function Greeting({ reduce }: { reduce: boolean }) {
   return (
     <motion.div
       {...motionProps}
-      transition={{ duration: 0.35 }}
+      transition={{ duration: 0.2 }}
       className="text-center"
     >
       <h1 className="font-display text-display-xs leading-tight text-text-strong">
@@ -160,7 +160,7 @@ function ShortcutGrid({ reduce }: { reduce: boolean }) {
   return (
     <motion.div
       {...motionProps}
-      transition={{ duration: 0.35, delay: 0.04 }}
+      transition={{ duration: 0.2 }}
       className="grid grid-cols-1 gap-3 sm:grid-cols-3"
     >
       <ShortcutCard
@@ -367,7 +367,7 @@ function WalletCard({
             ) : (
               <p className="mt-1 font-display text-base text-text-strong">
                 {balance ? balance.amount : "0"}{" "}
-                <span className="text-text-soft">
+                <span className="text-text-strong/70">
                   {balance?.ticker ?? "SOL"}
                 </span>
               </p>
@@ -426,7 +426,7 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
     subset.map((r) => ({
       walletName: r.walletName,
       proposalPda: r.proposalPda,
-      label: `${friendlyIntentLabel(r.intentTemplate)} in ${r.walletName}`,
+      label: `${friendlyIntentLabel(r.intentTemplate)} in ${toDisplayName(r.walletName)}`,
     }));
 
   const handleApproveAll = () => batch.approveAll(approveTargets(rows));
@@ -436,7 +436,7 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
   return (
     <motion.section
       {...motionProps}
-      transition={{ duration: 0.35, delay: 0.08 }}
+      transition={{ duration: 0.2 }}
       className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
     >
       <header className="flex items-center justify-between gap-2">
@@ -625,7 +625,7 @@ function BatchActionRow({
       <div className="flex items-start justify-between gap-3 py-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-text-strong">
-            Batch in {walletName}
+            Batch in {toDisplayName(walletName)}
           </p>
           <p className="mt-0.5 truncate text-xs text-text-soft">
             {rows.length} request{rows.length === 1 ? "" : "s"} · waiting on{" "}
@@ -675,7 +675,7 @@ function ActionRow({ row }: { row: ActionNeededRow }) {
             {friendlyTemplate}
           </p>
           <p className="mt-0.5 truncate text-xs text-text-soft">
-            in {row.walletName} · {row.approvalsCollected} of{" "}
+            in {toDisplayName(row.walletName)} · {row.approvalsCollected} of{" "}
             {row.approverCount} approved
           </p>
         </div>
@@ -702,7 +702,7 @@ function RecentActivitySection({ rows, reduce }: RecentActivityProps) {
   return (
     <motion.section
       {...motionProps}
-      transition={{ duration: 0.35, delay: 0.12 }}
+      transition={{ duration: 0.2 }}
     >
       <SectionLabel>Recent activity</SectionLabel>
       <ul className="mt-3 flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
@@ -731,7 +731,7 @@ function ActivityRow({ row }: { row: RecentActivityRow }) {
       >
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-text-strong">
-            {row.walletName}
+            {toDisplayName(row.walletName)}
           </p>
           <p className="mt-0.5 text-xs text-text-soft">
             <span className={statusColor(row.status)}>{friendlyStatus(row.status, row.intentTemplate)}</span>

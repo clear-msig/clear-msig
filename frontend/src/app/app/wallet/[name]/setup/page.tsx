@@ -22,7 +22,7 @@ import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { IntentType } from "@/lib/msig";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
-import { toDisplayName } from "@/lib/retail/walletNames";
+import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
 import { ArrowLeft, ArrowRight, Check, Clock, Loader2, Send, UserPlus, Wallet, Zap } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
@@ -205,7 +205,7 @@ export default function SetupSpendingPage() {
       // they choose where to go next (send their first request,
       // invite someone, or back to the hub). The toast captures the
       // celebration; the card captures the next move.
-      toast.success(`${name} is ready to send`);
+      toast.success(`${toHeadingName(name)} is ready to send`);
       setShowDone(true);
     },
     onError: (err) => {
@@ -224,13 +224,6 @@ export default function SetupSpendingPage() {
 
   return (
     <main className="relative flex min-h-screen flex-col bg-canvas">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 overflow-hidden"
-      >
-        <div className="absolute -left-32 -top-16 h-[55vh] w-[80vw] max-w-[640px] rounded-full bg-accent/[0.06] blur-3xl" />
-      </div>
-
       <StickyTopBar>
         <Breadcrumb
           segments={[
@@ -244,7 +237,7 @@ export default function SetupSpendingPage() {
       <div className="relative z-10 flex flex-1 items-center justify-center px-gutter py-10">
         <motion.section
           {...motionProps}
-          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
           className="w-full max-w-md"
         >
           {showDone ? (
@@ -253,7 +246,7 @@ export default function SetupSpendingPage() {
                 <Check className="h-8 w-8" strokeWidth={2.5} />
               </div>
               <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
-                {name} is ready to send
+                <span className="text-accent">{toHeadingName(name)}</span> is ready to send
               </h1>
               <p className="mt-3 max-w-sm text-base text-text-soft">
                 Spending rule is on chain. The activity row you see is the
@@ -261,12 +254,12 @@ export default function SetupSpendingPage() {
               </p>
               <div className="mt-8 w-full">
                 <NextStepCard
-                  title={`What do you want to do in ${name}?`}
+                  title={`What do you want to do in ${toDisplayName(name)}?`}
                   options={[
                     {
                       label: "Send your first request",
                       hint: "Pick someone, enter an amount, sign once.",
-                      href: `/send?wallet=${encodeURIComponent(name)}`,
+                      href: `/app/wallet/${encodeURIComponent(name)}/send`,
                       primary: true,
                       icon: Send,
                     },
@@ -277,7 +270,7 @@ export default function SetupSpendingPage() {
                       icon: UserPlus,
                     },
                     {
-                      label: `Back to ${name}`,
+                      label: `Back to ${toDisplayName(name)}`,
                       href: `/app/wallet/${encodeURIComponent(name)}`,
                       icon: Wallet,
                     },
@@ -291,12 +284,12 @@ export default function SetupSpendingPage() {
               <Send className="h-7 w-7" strokeWidth={1.75} />
             </div>
             <h1 className="font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-              Set up sending in {name}
+              Set up sending in <span className="text-accent">{toHeadingName(name)}</span>
             </h1>
             <p className="mt-3 max-w-sm text-base text-text-soft">
               One quick setup so this wallet can send money. Your wallet
               will ask you to confirm. That&rsquo;s how the rule
-              becomes part of {name}.
+              becomes part of {toDisplayName(name)}.
             </p>
 
             <div className="mt-6 w-full rounded-card border border-border-soft bg-surface-raised p-5 text-left shadow-card-rest">
@@ -348,9 +341,9 @@ export default function SetupSpendingPage() {
 
             <div className="mt-6 flex w-full flex-col gap-3">
               <SignPayloadPreview
-                action={`Enable sending in ${name}`}
+                action={`Enable sending in ${toDisplayName(name)}`}
                 details={[
-                  { label: "Wallet", value: name },
+                  { label: "Wallet", value: toDisplayName(name) },
                   {
                     label: "Approvers",
                     value: "Just you for now",

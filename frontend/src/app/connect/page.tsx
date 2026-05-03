@@ -28,9 +28,10 @@ import {
   Sparkles,
   Usb,
 } from "lucide-react";
-import { DynamicWidget } from "@dynamic-labs/sdk-react-core";
+import { useDynamicContext, DynamicWidget } from "@dynamic-labs/sdk-react-core";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { Button } from "@/components/retail/Button";
 import { useLedger } from "@/lib/wallet/LedgerProvider";
 import { useToast } from "@/components/ui/Toast";
 
@@ -71,21 +72,11 @@ function ConnectPage() {
              `bg-[radial-gradient]` with a tight stop). The opacity is
              low enough that it never competes with foreground content
              but the eye reads "made", not "default Tailwind page". */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 overflow-hidden"
-      >
-        <div className="absolute -left-32 -top-24 h-[60vh] w-[80vw] max-w-[680px] rounded-full bg-accent/[0.10] blur-3xl" />
-        <div className="absolute -right-32 bottom-[-10vh] h-[55vh] w-[70vw] max-w-[600px] rounded-full bg-accent/[0.06] blur-3xl" />
-        <div
-          className="absolute inset-0 opacity-[0.35]"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 1px 1px, rgba(15,23,42,0.06) 1px, transparent 0)",
-            backgroundSize: "20px 20px",
-          }}
-        />
-      </div>
+      {/* Background was a layered atmosphere (two accent blooms + a
+          dot-grid) — fine on a marketing page, but /connect is the
+          first time a user touches the actual product. The flat
+          canvas matches Cash App / Apple Wallet / Squads. The card
+          itself is the visual interest. */}
 
       <StickyTopBar>
         <Link
@@ -166,12 +157,18 @@ function ConnectPage() {
                 We will set the rest up for you.
               </p>
 
-              {/* Wrap Dynamic widget in a container that visually scales
-                  the default button. Dynamic's primary CTA is small by
-                  default; a thin layout wrapper makes it read as the
-                  hero CTA without forking their component. */}
-              <div className="mt-6 [&_button]:!min-h-[52px] [&_button]:!text-base [&_button]:!font-semibold">
-                <DynamicWidget />
+              {/* Replace the DynamicWidget's default outline CTA with
+                  our own Button primary so it matches the rest of the
+                  product (full-width, accent green, shadow-accent-rest).
+                  setShowAuthFlow opens the same modal DynamicWidget
+                  uses internally; we still mount <DynamicWidget /> in
+                  a hidden node so the modal/portal stays wired up,
+                  but the user-facing CTA is the Button below. */}
+              <div className="mt-6">
+                <ConnectCta />
+                <div className="hidden">
+                  <DynamicWidget />
+                </div>
               </div>
 
               <p className="mt-5 text-xs leading-snug text-text-soft">
@@ -211,6 +208,28 @@ function ConnectPage() {
         </Link>
       </footer>
     </main>
+  );
+}
+
+// ─── Brand-aligned Dynamic CTA ─────────────────────────────────────
+//
+// Dynamic's default CTA is a small white outline button that ignored
+// our scoped CSS overrides (its inner button uses inline styles via
+// emotion that win against arbitrary-variant Tailwind). Replacing it
+// with our Button primitive that calls `setShowAuthFlow` opens the
+// same modal — Dynamic doesn't care who opens it.
+
+function ConnectCta() {
+  const { setShowAuthFlow } = useDynamicContext();
+  return (
+    <Button
+      size="lg"
+      fullWidth
+      onClick={() => setShowAuthFlow(true)}
+    >
+      Log in or sign up
+      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+    </Button>
   );
 }
 
@@ -295,10 +314,12 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
 
 // ─── Ledger row ───────────────────────────────────────────────────
 //
-// Sits below the Dynamic widget as a subdued power-user option.
-// Retail users ignore it; users who care about hardware-device clear
-// signing see it and pick it. On success the wallet gate redirects;
-// no extra navigation here.
+// Demoted to a small inline link below the email CTA. Old version
+// rendered as a 52px button equal in weight to the primary CTA;
+// users had to decide between two hero-level affordances at first
+// paint. Squads moved off this exact pattern for the same reason.
+// Hardware-wallet users still find it; retail users skip past.
+// On success the wallet gate redirects; no extra navigation here.
 
 function LedgerConnectRow() {
   const ledger = useLedger();
@@ -317,6 +338,8 @@ function LedgerConnectRow() {
     }
   };
 
+  // Already connected — keep the prominent success card; the user
+  // needs to know their device is in the loop and how to back out.
   if (ledger.session) {
     return (
       <div className="mt-5 flex items-center justify-between gap-3 rounded-card border border-accent/30 bg-accent/5 p-3 text-xs text-text-strong">
@@ -336,40 +359,37 @@ function LedgerConnectRow() {
     );
   }
 
+  // Browser without WebHID — silent. Retail users get nothing, power
+  // users who do `navigator.hid` know what's missing. The previous
+  // "Hardware wallets need WebHID" message was a teaching moment we
+  // didn't need to surface at this height.
+  if (!supportsHid) return null;
+
   return (
-    <div className="mt-6 border-t border-border-soft pt-6">
-      <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-text-soft">
-        Or use hardware
-      </p>
+    <div className="mt-4">
       <button
         type="button"
         onClick={handleClick}
-        disabled={!supportsHid || ledger.connecting}
+        disabled={ledger.connecting}
         className={
-          "flex min-h-[52px] w-full items-center justify-center gap-2 rounded-card border-2 border-border-strong bg-canvas px-4 py-3 text-base font-semibold text-text-strong " +
-          "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
-          "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-rest " +
+          "inline-flex w-full items-center justify-center gap-1.5 rounded-soft px-2 py-1 text-xs text-text-soft " +
+          "transition-colors duration-base ease-out-soft hover:text-text-strong " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
-          "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:border-border-strong disabled:hover:shadow-none"
+          "disabled:cursor-not-allowed disabled:opacity-60"
         }
       >
         {ledger.connecting ? (
           <>
-            <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
             Waiting for your Ledger
           </>
         ) : (
           <>
-            <Usb className="h-5 w-5" aria-hidden="true" />
-            Connect Ledger
+            <Usb className="h-3.5 w-3.5" aria-hidden="true" />
+            Use a hardware wallet instead
           </>
         )}
       </button>
-      <p className="mt-2 text-xs leading-snug text-text-soft">
-        {supportsHid
-          ? "Plug it in, unlock it, open the Solana app. The device displays the full message before you approve."
-          : "Hardware wallets need WebHID. Open this page in Chrome, Edge, or Brave."}
-      </p>
     </div>
   );
 }
