@@ -1,9 +1,23 @@
 use sha2::{Digest, Sha256};
 use solana_address::Address;
 
-pub fn find_wallet_address(name: &str, program_id: &Address) -> (Address, u8) {
+/// Derive the wallet PDA. As of the creator-scoped seed change, the
+/// wallet's namespace is owned by the creator (the payer at create
+/// time). Two creators can both pick the same name without collision.
+///
+/// Callers MUST pass the creator who originally signed the create_wallet
+/// instruction. Wallets created against the older name-only seed live
+/// at different PDAs and won't be found by this function.
+pub fn find_wallet_address(
+    name: &str,
+    creator: &Address,
+    program_id: &Address,
+) -> (Address, u8) {
     let name_hash = compute_name_hash(name);
-    Address::find_program_address(&[b"clear_wallet", &name_hash], program_id)
+    Address::find_program_address(
+        &[b"clear_wallet", creator.as_ref(), &name_hash],
+        program_id,
+    )
 }
 
 pub fn find_vault_address(wallet: &Address, program_id: &Address) -> (Address, u8) {

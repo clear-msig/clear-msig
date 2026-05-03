@@ -140,7 +140,8 @@ fn create_wallet_ix(
     payer: Pubkey, name: &str, proposers: &[Pubkey], approvers: &[Pubkey], threshold: u8,
 ) -> (Instruction, Vec<Account>) {
     let name_hash = Pubkey::from(compute_name_hash(name));
-    let (wallet, _) = find_wallet_address(name, &crate::ID);
+    let creator = solana_address::Address::new_from_array(payer.to_bytes());
+    let (wallet, _) = find_wallet_address(name, &creator, &crate::ID);
     let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
     let (remove_intent, _) = find_intent_address(&wallet, 1, &crate::ID);
     let (update_intent, _) = find_intent_address(&wallet, 2, &crate::ID);
@@ -268,7 +269,8 @@ fn test_create_wallet() {
     let result = svm.process_instruction(&instruction, &accounts);
     assert!(result.is_ok(), "create failed: {:?}", result.raw_result);
 
-    let (wallet, _) = find_wallet_address("treasury", &crate::ID);
+    let creator = solana_address::Address::new_from_array(payer.to_bytes());
+    let (wallet, _) = find_wallet_address("treasury", &creator, &crate::ID);
     assert_eq!(result.account(&wallet).unwrap().data[0], 1);
     for index in 0..3u8 {
         let (intent_address, _) = find_intent_address(&wallet, index, &crate::ID);
@@ -283,7 +285,7 @@ fn test_create_wallet_wrong_wallet_address_fails() {
     let payer = Pubkey::new_unique();
     let proposer = Pubkey::new_unique();
     let approver = Pubkey::new_unique();
-    let (wallet, _) = find_wallet_address("wrong-name", &crate::ID);
+    let (wallet, _) = find_wallet_address("wrong-name", &solana_address::Address::new_from_array(payer.to_bytes()), &crate::ID);
     let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
     let (remove_intent, _) = find_intent_address(&wallet, 1, &crate::ID);
     let (update_intent, _) = find_intent_address(&wallet, 2, &crate::ID);
@@ -324,7 +326,7 @@ fn test_propose_add_intent() {
     let (instruction, accounts) = create_wallet_ix(payer, wallet_name, &[pubkey_of(&proposer)], &[pubkey_of(&approver)], 1);
     assert!(svm.process_instruction(&instruction, &accounts).is_ok());
 
-    let (wallet, _) = find_wallet_address(wallet_name, &crate::ID);
+    let (wallet, _) = find_wallet_address(wallet_name, &solana_address::Address::new_from_array(payer.to_bytes()), &crate::ID);
     let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
 
     let built = intents::transfer_sol::build(&intents::transfer_sol::IntentConfig {
@@ -357,7 +359,7 @@ fn test_propose_and_approve_add_intent() {
     let (instruction, accounts) = create_wallet_ix(payer, wallet_name, &[pubkey_of(&proposer)], &[pubkey_of(&approver)], 1);
     assert!(svm.process_instruction(&instruction, &accounts).is_ok());
 
-    let (wallet, _) = find_wallet_address(wallet_name, &crate::ID);
+    let (wallet, _) = find_wallet_address(wallet_name, &solana_address::Address::new_from_array(payer.to_bytes()), &crate::ID);
     let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
 
     let built = intents::transfer_sol::build(&intents::transfer_sol::IntentConfig {
@@ -400,7 +402,7 @@ fn test_cancel_overrides_approval() {
         &[pubkey_of(&proposer)], &[pubkey_of(&approver1), pubkey_of(&approver2)], 2);
     assert!(svm.process_instruction(&instruction, &accounts).is_ok());
 
-    let (wallet, _) = find_wallet_address(wallet_name, &crate::ID);
+    let (wallet, _) = find_wallet_address(wallet_name, &solana_address::Address::new_from_array(payer.to_bytes()), &crate::ID);
     let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
 
     let built = intents::transfer_sol::build(&intents::transfer_sol::IntentConfig {
@@ -445,7 +447,7 @@ fn test_wrong_signer_propose_fails() {
     let (instruction, accounts) = create_wallet_ix(payer, wallet_name, &[pubkey_of(&proposer)], &[pubkey_of(&approver)], 1);
     assert!(svm.process_instruction(&instruction, &accounts).is_ok());
 
-    let (wallet, _) = find_wallet_address(wallet_name, &crate::ID);
+    let (wallet, _) = find_wallet_address(wallet_name, &solana_address::Address::new_from_array(payer.to_bytes()), &crate::ID);
     let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
 
     let params_data = vec![0u8; 10];
@@ -470,7 +472,7 @@ fn test_expired_signature_fails() {
     let (instruction, accounts) = create_wallet_ix(payer, wallet_name, &[pubkey_of(&proposer)], &[pubkey_of(&approver)], 1);
     assert!(svm.process_instruction(&instruction, &accounts).is_ok());
 
-    let (wallet, _) = find_wallet_address(wallet_name, &crate::ID);
+    let (wallet, _) = find_wallet_address(wallet_name, &solana_address::Address::new_from_array(payer.to_bytes()), &crate::ID);
     let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
 
     let params_data = vec![0u8; 10];
@@ -496,7 +498,7 @@ fn test_propose_remove_intent() {
     let (instruction, accounts) = create_wallet_ix(payer, wallet_name, &[pubkey_of(&proposer)], &[pubkey_of(&approver)], 1);
     assert!(svm.process_instruction(&instruction, &accounts).is_ok());
 
-    let (wallet, _) = find_wallet_address(wallet_name, &crate::ID);
+    let (wallet, _) = find_wallet_address(wallet_name, &solana_address::Address::new_from_array(payer.to_bytes()), &crate::ID);
     let (remove_intent, _) = find_intent_address(&wallet, 1, &crate::ID);
 
     let params_data = vec![0u8]; // target_index = 0
@@ -524,7 +526,7 @@ fn test_duplicate_approval_fails() {
     let (instruction, accounts) = create_wallet_ix(payer, wallet_name, &[pubkey_of(&proposer)], &[pubkey_of(&approver)], 1);
     assert!(svm.process_instruction(&instruction, &accounts).is_ok());
 
-    let (wallet, _) = find_wallet_address(wallet_name, &crate::ID);
+    let (wallet, _) = find_wallet_address(wallet_name, &solana_address::Address::new_from_array(payer.to_bytes()), &crate::ID);
     let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
     let proposal_address = get_proposal_address(add_intent, 0);
 
@@ -561,7 +563,7 @@ fn test_execute_add_intent() {
     let (instruction, accounts) = create_wallet_ix(payer, wallet_name, &[pubkey_of(&proposer)], &[pubkey_of(&approver)], 1);
     assert!(svm.process_instruction(&instruction, &accounts).is_ok());
 
-    let (wallet, _) = find_wallet_address(wallet_name, &crate::ID);
+    let (wallet, _) = find_wallet_address(wallet_name, &solana_address::Address::new_from_array(payer.to_bytes()), &crate::ID);
     let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
     let (new_intent_address, _) = find_intent_address(&wallet, 3, &crate::ID);
 
@@ -595,7 +597,7 @@ fn test_execute_remove_intent() {
     let (instruction, accounts) = create_wallet_ix(payer, wallet_name, &[pubkey_of(&proposer)], &[pubkey_of(&approver)], 1);
     assert!(svm.process_instruction(&instruction, &accounts).is_ok());
 
-    let (wallet, _) = find_wallet_address(wallet_name, &crate::ID);
+    let (wallet, _) = find_wallet_address(wallet_name, &solana_address::Address::new_from_array(payer.to_bytes()), &crate::ID);
     let (remove_intent, _) = find_intent_address(&wallet, 1, &crate::ID);
     let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
 
@@ -623,7 +625,7 @@ fn test_removed_intent_cannot_be_used() {
     let (instruction, accounts) = create_wallet_ix(payer, wallet_name, &[pubkey_of(&proposer)], &[pubkey_of(&approver)], 1);
     assert!(svm.process_instruction(&instruction, &accounts).is_ok());
 
-    let (wallet, _) = find_wallet_address(wallet_name, &crate::ID);
+    let (wallet, _) = find_wallet_address(wallet_name, &solana_address::Address::new_from_array(payer.to_bytes()), &crate::ID);
     let (remove_intent, _) = find_intent_address(&wallet, 1, &crate::ID);
     let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
 
@@ -663,7 +665,7 @@ fn test_timelock_enforcement() {
     let wallet_name = "timelock-test";
 
     let name_hash = Pubkey::from(compute_name_hash(wallet_name));
-    let (wallet, _) = find_wallet_address(wallet_name, &crate::ID);
+    let (wallet, _) = find_wallet_address(wallet_name, &solana_address::Address::new_from_array(payer.to_bytes()), &crate::ID);
     let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
     let (remove_intent, _) = find_intent_address(&wallet, 1, &crate::ID);
     let (update_intent, _) = find_intent_address(&wallet, 2, &crate::ID);
@@ -717,7 +719,7 @@ fn test_execute_not_approved_fails() {
     let (instruction, accounts) = create_wallet_ix(payer, wallet_name, &[pubkey_of(&proposer)], &[pubkey_of(&approver)], 1);
     assert!(svm.process_instruction(&instruction, &accounts).is_ok());
 
-    let (wallet, _) = find_wallet_address(wallet_name, &crate::ID);
+    let (wallet, _) = find_wallet_address(wallet_name, &solana_address::Address::new_from_array(payer.to_bytes()), &crate::ID);
     let (remove_intent, _) = find_intent_address(&wallet, 1, &crate::ID);
     let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
 
@@ -752,7 +754,7 @@ fn test_multi_approver_threshold() {
         &[pubkey_of(&proposer)], &[pubkey_of(&approver1), pubkey_of(&approver2), pubkey_of(&approver3)], 2);
     assert!(svm.process_instruction(&instruction, &accounts).is_ok());
 
-    let (wallet, _) = find_wallet_address(wallet_name, &crate::ID);
+    let (wallet, _) = find_wallet_address(wallet_name, &solana_address::Address::new_from_array(payer.to_bytes()), &crate::ID);
     let (remove_intent, _) = find_intent_address(&wallet, 1, &crate::ID);
     let proposal_address = get_proposal_address(remove_intent, 0);
 
@@ -788,7 +790,7 @@ fn test_cancel_reverts_approved_to_active() {
     let wallet_name = "revert-test";
 
     let name_hash = Pubkey::from(compute_name_hash(wallet_name));
-    let (wallet, _) = find_wallet_address(wallet_name, &crate::ID);
+    let (wallet, _) = find_wallet_address(wallet_name, &solana_address::Address::new_from_array(payer.to_bytes()), &crate::ID);
     let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
     let (remove_intent, _) = find_intent_address(&wallet, 1, &crate::ID);
     let (update_intent, _) = find_intent_address(&wallet, 2, &crate::ID);
@@ -847,7 +849,7 @@ fn test_non_approver_approve_fails() {
     let (instruction, accounts) = create_wallet_ix(payer, wallet_name, &[pubkey_of(&proposer)], &[pubkey_of(&approver)], 1);
     assert!(svm.process_instruction(&instruction, &accounts).is_ok());
 
-    let (wallet, _) = find_wallet_address(wallet_name, &crate::ID);
+    let (wallet, _) = find_wallet_address(wallet_name, &solana_address::Address::new_from_array(payer.to_bytes()), &crate::ID);
     let (remove_intent, _) = find_intent_address(&wallet, 1, &crate::ID);
     let proposal_address = get_proposal_address(remove_intent, 0);
 
@@ -878,7 +880,7 @@ fn test_full_add_then_remove_lifecycle() {
     let (instruction, accounts) = create_wallet_ix(payer, wallet_name, &[pubkey_of(&proposer)], &[pubkey_of(&approver)], 1);
     assert!(svm.process_instruction(&instruction, &accounts).is_ok());
 
-    let (wallet, _) = find_wallet_address(wallet_name, &crate::ID);
+    let (wallet, _) = find_wallet_address(wallet_name, &solana_address::Address::new_from_array(payer.to_bytes()), &crate::ID);
     let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
     let (remove_intent, _) = find_intent_address(&wallet, 1, &crate::ID);
     let (new_intent_address, _) = find_intent_address(&wallet, 3, &crate::ID);
@@ -936,7 +938,7 @@ fn test_remove_add_intent_blocks_future_adds() {
     let (instruction, accounts) = create_wallet_ix(payer, wallet_name, &[pubkey_of(&proposer)], &[pubkey_of(&approver)], 1);
     assert!(svm.process_instruction(&instruction, &accounts).is_ok());
 
-    let (wallet, _) = find_wallet_address(wallet_name, &crate::ID);
+    let (wallet, _) = find_wallet_address(wallet_name, &solana_address::Address::new_from_array(payer.to_bytes()), &crate::ID);
     let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
     let (remove_intent, _) = find_intent_address(&wallet, 1, &crate::ID);
 
@@ -980,7 +982,7 @@ fn test_cleanup_executed_proposal() {
     let (instruction, accounts) = create_wallet_ix(payer, wallet_name, &[pubkey_of(&proposer)], &[pubkey_of(&approver)], 1);
     assert!(svm.process_instruction(&instruction, &accounts).is_ok());
 
-    let (wallet, _) = find_wallet_address(wallet_name, &crate::ID);
+    let (wallet, _) = find_wallet_address(wallet_name, &solana_address::Address::new_from_array(payer.to_bytes()), &crate::ID);
     let (remove_intent, _) = find_intent_address(&wallet, 1, &crate::ID);
     let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
 
@@ -1018,7 +1020,7 @@ fn test_cleanup_active_proposal_fails() {
     let (instruction, accounts) = create_wallet_ix(payer, wallet_name, &[pubkey_of(&proposer)], &[pubkey_of(&approver)], 1);
     assert!(svm.process_instruction(&instruction, &accounts).is_ok());
 
-    let (wallet, _) = find_wallet_address(wallet_name, &crate::ID);
+    let (wallet, _) = find_wallet_address(wallet_name, &solana_address::Address::new_from_array(payer.to_bytes()), &crate::ID);
     let (remove_intent, _) = find_intent_address(&wallet, 1, &crate::ID);
 
     let params_data = vec![0u8];
@@ -1063,7 +1065,7 @@ fn test_execute_spl_token_transfer() {
     );
     svm.process_instruction(&instruction, &accounts).unwrap();
 
-    let (wallet, _) = find_wallet_address(wallet_name, &crate::ID);
+    let (wallet, _) = find_wallet_address(wallet_name, &solana_address::Address::new_from_array(payer.to_bytes()), &crate::ID);
     let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
     let (vault, _) = find_vault_address(&wallet, &crate::ID);
 

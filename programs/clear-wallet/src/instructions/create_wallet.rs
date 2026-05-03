@@ -14,6 +14,10 @@ use crate::{
 /// `name_hash` is an UncheckedAccount whose address equals sha256(name).
 /// The client derives this off-chain. Verified on-chain.
 ///
+/// PDA layout: `["clear_wallet", payer, name_hash]`. The payer's pubkey
+/// scopes the namespace so two users can both create a wallet called
+/// "Family" without colliding — each lands at a different PDA.
+///
 /// Proposer/approver addresses are passed as instruction data (the `addresses`
 /// tail field): first `num_proposers * 32` bytes are proposer pubkeys, rest
 /// are approver pubkeys. This avoids remaining-account dedup issues when
@@ -26,7 +30,7 @@ pub struct CreateWallet<'info> {
     #[account(
         init,
         payer = payer,
-        seeds = ClearWallet::seeds(name_hash),
+        seeds = ClearWallet::seeds(payer, name_hash),
         bump,
     )]
     pub wallet: Account<ClearWallet<'info>>,
@@ -117,6 +121,7 @@ impl<'info> CreateWallet<'info> {
                 bump: bumps.wallet,
                 proposal_index: 0u64,
                 intent_index: 2u8, // three intents: 0, 1, 2
+                creator: *self.payer.address(),
                 name: args.name,
             },
             self.payer.to_account_view(),
