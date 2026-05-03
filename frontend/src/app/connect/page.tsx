@@ -98,7 +98,7 @@ function ConnectPage() {
           }
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          ClearSig
+          Clear
         </Link>
       </StickyTopBar>
 
@@ -214,7 +214,7 @@ function ConnectPage() {
           href="/"
           className="rounded-soft px-1.5 py-0.5 transition-colors duration-base ease-out-soft hover:text-text-strong"
         >
-          What is ClearSig?
+          What is Clear?
         </Link>
       </footer>
     </main>

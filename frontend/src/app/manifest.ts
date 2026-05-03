@@ -8,10 +8,10 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Clear-MSIG",
-    short_name: "Clear-MSIG",
+    name: "Clear",
+    short_name: "Clear",
     description:
-      "Solana multisig with clear-signed, human-readable intents. One policy, every chain.",
+      "A shared wallet for friends, family, or your team. Anyone can ask, everyone agrees, and nobody has to handle keys alone.",
     start_url: "/",
     display: "standalone",
     background_color: "#000000",

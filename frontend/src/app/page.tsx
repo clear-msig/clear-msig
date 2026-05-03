@@ -211,7 +211,7 @@ function Footer() {
       <div className="mx-auto flex w-full max-w-5xl flex-col items-start justify-between gap-6 px-gutter py-8 sm:flex-row sm:items-center">
         <div>
           <p className="font-display text-base font-semibold text-text-strong">
-            ClearSig
+            Clear
           </p>
           <p className="mt-1 text-xs text-text-soft">
             Send money with people you trust.

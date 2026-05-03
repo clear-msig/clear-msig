@@ -10,7 +10,7 @@ import { ImageResponse } from "next/og";
 export const runtime = "edge";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "Clear-MSIG · Sign intents, not hex";
+export const alt = "Clear · Send money with people you trust";
 
 export default async function OpengraphImage() {
   return new ImageResponse(
@@ -103,8 +103,8 @@ export default async function OpengraphImage() {
                 lineHeight: 1,
               }}
             >
-              <span style={{ fontSize: 28, fontWeight: 700, letterSpacing: -0.5 }}>
-                Clear-MSIG
+              <span style={{ fontSize: 32, fontWeight: 700, letterSpacing: -0.5 }}>
+                Clear
               </span>
               <span
                 style={{
@@ -115,7 +115,7 @@ export default async function OpengraphImage() {
                   textTransform: "uppercase",
                 }}
               >
-                Cross-chain multisig
+                Shared wallets
               </span>
             </div>
           </div>
