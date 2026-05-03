@@ -72,7 +72,11 @@ fn wrap_offchain(body: &[u8]) -> Vec<u8> {
 }
 
 fn sign_message(key: &ed25519_dalek::SigningKey, msg: &[u8]) -> [u8; 64] {
-    key.sign(&wrap_offchain(msg)).to_bytes()
+    // `msg` is already an offchain-wrapped message produced by
+    // `add_intent_msg` / `remove_intent_msg` / a hand-rolled
+    // `wrap_offchain(...)`. The on-chain `MessageBuilder` produces
+    // the same single-wrapped form, so signing it as-is matches.
+    key.sign(msg).to_bytes()
 }
 
 fn sha256_hash(data: &[u8]) -> [u8; 32] {
