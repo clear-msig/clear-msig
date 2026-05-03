@@ -38,7 +38,7 @@ export function HeaderBar() {
         {/* Brand — links home. Always rendered. */}
         <Link
           href="/"
-          aria-label="Clear home"
+          aria-label="ClearSig home"
           className={
             "inline-flex items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 " +
             "text-sm font-semibold text-text-strong shadow-card-rest " +
@@ -50,7 +50,7 @@ export function HeaderBar() {
           <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent/15 text-accent">
             <WalletIcon size={11} strokeWidth={2.25} />
           </span>
-          Clear
+          ClearSig
         </Link>
 
         {/* Mobile menu button — only on /app/* once a wallet is

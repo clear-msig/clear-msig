@@ -254,7 +254,7 @@ function BrandRow() {
         <Wallet size={16} />
       </div>
       <span className="font-display text-base font-semibold tracking-tight text-white">
-        Clear
+        ClearSig
       </span>
     </Link>
   );

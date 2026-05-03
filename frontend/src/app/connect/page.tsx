@@ -28,9 +28,10 @@ import {
   Sparkles,
   Usb,
 } from "lucide-react";
-import { DynamicWidget } from "@dynamic-labs/sdk-react-core";
+import { useDynamicContext, DynamicWidget } from "@dynamic-labs/sdk-react-core";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { Button } from "@/components/retail/Button";
 import { useLedger } from "@/lib/wallet/LedgerProvider";
 import { useToast } from "@/components/ui/Toast";
 
@@ -97,7 +98,7 @@ function ConnectPage() {
           }
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Clear
+          ClearSig
         </Link>
       </StickyTopBar>
 
@@ -166,12 +167,18 @@ function ConnectPage() {
                 We will set the rest up for you.
               </p>
 
-              {/* Wrap Dynamic widget in a container that visually scales
-                  the default button. Dynamic's primary CTA is small by
-                  default; a thin layout wrapper makes it read as the
-                  hero CTA without forking their component. */}
-              <div className="mt-6 [&_button]:!min-h-[52px] [&_button]:!text-base [&_button]:!font-semibold">
-                <DynamicWidget />
+              {/* Replace the DynamicWidget's default outline CTA with
+                  our own Button primary so it matches the rest of the
+                  product (full-width, accent green, shadow-accent-rest).
+                  setShowAuthFlow opens the same modal DynamicWidget
+                  uses internally; we still mount <DynamicWidget /> in
+                  a hidden node so the modal/portal stays wired up,
+                  but the user-facing CTA is the Button below. */}
+              <div className="mt-6">
+                <ConnectCta />
+                <div className="hidden">
+                  <DynamicWidget />
+                </div>
               </div>
 
               <p className="mt-5 text-xs leading-snug text-text-soft">
@@ -207,10 +214,32 @@ function ConnectPage() {
           href="/"
           className="rounded-soft px-1.5 py-0.5 transition-colors duration-base ease-out-soft hover:text-text-strong"
         >
-          What is Clear?
+          What is ClearSig?
         </Link>
       </footer>
     </main>
+  );
+}
+
+// ─── Brand-aligned Dynamic CTA ─────────────────────────────────────
+//
+// Dynamic's default CTA is a small white outline button that ignored
+// our scoped CSS overrides (its inner button uses inline styles via
+// emotion that win against arbitrary-variant Tailwind). Replacing it
+// with our Button primitive that calls `setShowAuthFlow` opens the
+// same modal — Dynamic doesn't care who opens it.
+
+function ConnectCta() {
+  const { setShowAuthFlow } = useDynamicContext();
+  return (
+    <Button
+      size="lg"
+      fullWidth
+      onClick={() => setShowAuthFlow(true)}
+    >
+      Log in or sign up
+      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+    </Button>
   );
 }
 
