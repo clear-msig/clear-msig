@@ -1,15 +1,18 @@
 // Root layout . global styles, font tokens, metadata, and providers.
 //
-// Fonts (retail rebuild, locked 2026-04-30):
-//   --font-sans    → Geist, body + UI (Tailwind `font-sans`)
-//   --font-display → Fraunces, headlines + display (Tailwind `font-display`)
+// Fonts (single-family rebuild 2026-05-03):
+//   --font-sans    → Geist, every text surface in the product
+//   --font-display → also Geist (alias). The class stays for callers,
+//                    but the rendered font is the same; size + weight
+//                    do the hierarchy lifting now.
 //   --font-mono    → Geist Mono, code + raw bytes (Tailwind `font-mono`)
 //
-// next/font locally hosts the webfonts so we hit zero Google-Fonts requests
-// at runtime and stay ironclad for offline demos.
+// We retired Fraunces (display serif) on 2026-05-03 because it was
+// making a money app read as an editorial site. Cash App, Venmo, Apple
+// Wallet, Squads — all sans-only. We follow.
 
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Fraunces } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "@/components/providers/AppProviders";
 
@@ -17,12 +20,6 @@ const geist = Geist({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-sans",
-});
-
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-display",
 });
 
 const geistMono = Geist_Mono({
@@ -77,7 +74,7 @@ export const viewport: Viewport = {
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const fontVars = `${geist.variable} ${fraunces.variable} ${geistMono.variable}`;
+  const fontVars = `${geist.variable} ${geistMono.variable}`;
   return (
     <html lang="en" className={fontVars}>
       <head>

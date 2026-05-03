@@ -81,7 +81,7 @@ export default function PrivacyPage() {
             </p>
             <h1 className="mt-2 font-display text-display-md leading-[1.02] text-text-strong text-balance">
               Your rules are{" "}
-              <span className="italic text-accent">yours alone</span>.
+              <span className="text-accent">yours alone</span>.
             </h1>
             <p className="mt-4 max-w-xl text-base text-text-soft">
               Clear&rsquo;s shared wallets are private by design. Who can
