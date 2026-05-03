@@ -116,7 +116,7 @@ export default function SetupEthPage() {
     if (!name || intentsQuery.isLoading || walletQuery.isLoading) return;
     if (existingEthIntent) {
       router.replace(
-        `/send/eth?wallet=${encodeURIComponent(name)}`,
+        `/app/wallet/${encodeURIComponent(name)}/send/eth`,
       );
     }
   }, [
@@ -207,7 +207,7 @@ export default function SetupEthPage() {
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });
       queryClient.invalidateQueries({ queryKey: ["wallet", name] });
       toast.success(`${name} can now send Ethereum`);
-      router.push(`/send/eth?wallet=${encodeURIComponent(name)}`);
+      router.push(`/app/wallet/${encodeURIComponent(name)}/send/eth`);
     },
     onError: (err) => {
       console.error("[setup-eth]", err);

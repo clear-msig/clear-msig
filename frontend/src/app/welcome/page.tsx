@@ -518,7 +518,7 @@ export default function WelcomePage() {
                     fullWidth
                     onClick={() =>
                       router.push(
-                        `/send?wallet=${encodeURIComponent(slug(cleanName))}`,
+                        `/app/wallet/${encodeURIComponent(slug(cleanName))}/send`,
                       )
                     }
                   >

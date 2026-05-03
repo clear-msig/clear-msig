@@ -12,7 +12,7 @@
 // Response: { action, route, summary, confidence, ambiguity? }
 //
 // "send sarah 5 sol for groceries"
-//   → action=send, route=/send?wallet=...&recipient=Sarah&amount=5&note=groceries
+//   → action=send, route=/app/wallet/<wallet>/send?recipient=Sarah&amount=5&note=groceries
 //
 // "add mark with email mark@gmail.com"
 //   → action=add_friend, route=/app/wallet/.../members/add?name=Mark&email=mark%40gmail.com
@@ -339,13 +339,14 @@ function buildRoute(
       const recipient = pickString(input.recipient, 60) ?? "";
       const amount = pickPositiveNumber(input.amountSol);
       const note = pickString(input.note, 140) ?? "";
-      const params = new URLSearchParams({ wallet: walletName });
+      const params = new URLSearchParams();
       if (recipient) params.set("recipient", recipient);
       if (amount !== null) params.set("amount", String(amount));
       if (note) params.set("note", note);
+      const qs = params.toString();
       return {
         action: "send_sol",
-        route: `/send?${params.toString()}`,
+        route: `/app/wallet/${wallet}/send${qs ? `?${qs}` : ""}`,
         summary: amount && recipient
           ? `Send ${amount} SOL to ${recipient}`
           : "Open the SOL send form",
@@ -357,13 +358,14 @@ function buildRoute(
       const recipient = pickString(input.recipient, 60) ?? "";
       const amount = pickPositiveNumber(input.amountEth);
       const note = pickString(input.note, 140) ?? "";
-      const params = new URLSearchParams({ wallet: walletName });
+      const params = new URLSearchParams();
       if (recipient) params.set("recipient", recipient);
       if (amount !== null) params.set("amount", String(amount));
       if (note) params.set("note", note);
+      const qs = params.toString();
       return {
         action: "send_eth",
-        route: `/send/eth?${params.toString()}`,
+        route: `/app/wallet/${wallet}/send/eth${qs ? `?${qs}` : ""}`,
         summary: amount && recipient
           ? `Send ${amount} ETH to ${recipient}`
           : "Open the ETH send form",

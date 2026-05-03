@@ -266,7 +266,7 @@ export default function SetupSpendingPage() {
                     {
                       label: "Send your first request",
                       hint: "Pick someone, enter an amount, sign once.",
-                      href: `/send?wallet=${encodeURIComponent(name)}`,
+                      href: `/app/wallet/${encodeURIComponent(name)}/send`,
                       primary: true,
                       icon: Send,
                     },

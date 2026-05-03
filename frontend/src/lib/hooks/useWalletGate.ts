@@ -5,6 +5,9 @@
 // Protected routes (/app/**, /welcome/**, /send) require a connected
 // wallet. Unconnected visitors are bounced to /connect with a `next`
 // query param so they land back where they meant to go after connecting.
+// /send/** is kept protected only so the legacy redirect (now living
+// at app/send/page.tsx) waits for a connection before forwarding to
+// the canonical /app/wallet/[name]/send path.
 //
 // Connected visitors on / or /connect are forwarded into the app
 // shell. The post-connect destination depends on whether the user is

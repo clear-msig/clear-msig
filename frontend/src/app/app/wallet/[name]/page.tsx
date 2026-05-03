@@ -7,7 +7,7 @@
 // What a retail user actually needs to see and do here:
 //
 //   - Which wallet is this (name + member count).
-//   - Send money (route to /send?wallet=…).
+//   - Send money (route to /app/wallet/[name]/send).
 //   - Invite a friend (route to /welcome/invite?wallet=…).
 //   - What's waiting on me ("needs your approval", filtered).
 //   - What just happened ("recent activity", filtered).
@@ -437,7 +437,7 @@ function Actions({
       className="grid grid-cols-1 gap-3 sm:grid-cols-2"
     >
       {sendingReady ? (
-        <Link href={`/send?wallet=${encoded}`} className="block">
+        <Link href={`/app/wallet/${encoded}/send`} className="block">
           <Button size="lg" fullWidth>
             <Send className="h-4 w-4" aria-hidden="true" />
             Send money
@@ -795,7 +795,7 @@ function NextStepsStripe({
       title: "Send your first request",
       body: `${display} is set up and has signers. Make the first send to put the rule into practice.`,
       cta: "Send a request",
-      href: `/send?wallet=${encoded}`,
+      href: `/app/wallet/${encoded}/send`,
     };
   }
 
