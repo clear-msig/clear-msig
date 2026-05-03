@@ -22,6 +22,7 @@ import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { IntentType } from "@/lib/msig";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
+import { toDisplayName } from "@/lib/retail/walletNames";
 import { ArrowLeft, ArrowRight, Check, Clock, Loader2, Send, UserPlus, Wallet, Zap } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
@@ -234,7 +235,7 @@ export default function SetupSpendingPage() {
         <Breadcrumb
           segments={[
             { label: "Wallets", href: "/app/wallet" },
-            { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
+            { label: toDisplayName(name), href: `/app/wallet/${encodeURIComponent(name)}` },
             { label: "Set up sending" },
           ]}
         />

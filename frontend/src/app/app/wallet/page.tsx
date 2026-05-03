@@ -35,6 +35,7 @@ import { Button } from "@/components/retail/Button";
 import { relativeTime } from "@/lib/util/relativeTime";
 import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
 import { formatBalance } from "@/lib/retail/format";
+import { toDisplayName } from "@/lib/retail/walletNames";
 
 export default function WalletDashboard() {
   const wallet = useWallet();
@@ -329,7 +330,11 @@ function WalletCard({
   delay,
   reduce,
 }: WalletCardProps) {
-  const name = membership.wallet_name ?? "Wallet";
+  const onChainName = membership.wallet_name ?? "Wallet";
+  // The on-chain name carries a creator-derived suffix to keep PDAs
+  // unique per user (see lib/retail/walletNames). Strip it for
+  // display; URLs and API calls keep using the on-chain form.
+  const name = toDisplayName(onChainName);
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
@@ -342,7 +347,7 @@ function WalletCard({
       transition={{ duration: 0.35, delay, ease: [0.22, 1, 0.36, 1] }}
     >
       <Link
-        href={`/app/wallet/${encodeURIComponent(name)}`}
+        href={`/app/wallet/${encodeURIComponent(onChainName)}`}
         className={
           "group relative flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest " +
           "transition-[transform,box-shadow,border-color] duration-base ease-out-soft " +

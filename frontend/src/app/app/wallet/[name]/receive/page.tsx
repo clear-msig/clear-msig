@@ -32,6 +32,7 @@ import {
   chainByKind,
   type ChainMeta,
 } from "@/lib/retail/chains";
+import { toDisplayName } from "@/lib/retail/walletNames";
 import {
   chainAddress,
   useWalletChains,
@@ -151,7 +152,7 @@ export default function ReceivePage() {
         <Breadcrumb
           segments={[
             { label: "Wallets", href: "/app/wallet" },
-            { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
+            { label: toDisplayName(name), href: `/app/wallet/${encodeURIComponent(name)}` },
             { label: "Receive" },
           ]}
         />

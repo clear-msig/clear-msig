@@ -53,6 +53,7 @@ import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
+import { toOnChainName } from "@/lib/retail/walletNames";
 import { fetchOnchainMemberships } from "@/lib/memberships/client";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
@@ -167,7 +168,13 @@ export default function WelcomePage() {
     mutationFn: async () => {
       if (!gate.publicKey) throw new Error("Connect your wallet first.");
       const me = gate.publicKey;
-      const walletSlug = slug(cleanName);
+      // The on-chain program derives the wallet PDA from the name
+      // alone, so two users picking the same display name would
+      // collide. Suffix the slug with the creator's pubkey so the
+      // PDA stays unique per (name, creator). The display layer
+      // strips the suffix in toDisplayName(). The proper fix
+      // (creator-scoped PDA seeds in the program) is in Plan B.
+      const walletSlug = toOnChainName(slug(cleanName), me);
       const initialMembers = [me];
       const threshold = 1;
 

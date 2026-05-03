@@ -46,6 +46,7 @@ import {
 } from "@/lib/retail/priceConversion";
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { CHAIN_CATALOG, type ChainMeta } from "@/lib/retail/chains";
+import { toDisplayName } from "@/lib/retail/walletNames";
 
 const QUICK_WALLET_AMOUNTS: ReadonlyArray<{ label: string; usd: number }> = [
   { label: "$500", usd: 500 },
@@ -195,7 +196,7 @@ export default function BudgetPage() {
         <Breadcrumb
           segments={[
             { label: "Wallets", href: "/app/wallet" },
-            { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
+            { label: toDisplayName(name), href: `/app/wallet/${encodeURIComponent(name)}` },
             { label: "Spending policy" },
           ]}
         />

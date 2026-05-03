@@ -40,6 +40,7 @@ import {
   type Allowlist,
   type TimeWindow,
 } from "@/lib/retail/policy";
+import { toDisplayName } from "@/lib/retail/walletNames";
 
 export default function PolicyPage() {
   const params = useParams<{ name: string }>();
@@ -62,7 +63,7 @@ export default function PolicyPage() {
         <Breadcrumb
           segments={[
             { label: "Wallets", href: "/app/wallet" },
-            { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
+            { label: toDisplayName(name), href: `/app/wallet/${encodeURIComponent(name)}` },
             { label: "Policy" },
           ]}
         />
@@ -77,7 +78,7 @@ export default function PolicyPage() {
           Spending policy
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          How {name} controls money
+          How {toDisplayName(name)} controls money
         </h1>
         <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
           Layers of guardrails on top of your wallet's threshold rules.

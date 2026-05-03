@@ -40,6 +40,7 @@ import { relativeTime } from "@/lib/util/relativeTime";
 import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
 import { formatBalance } from "@/lib/retail/format";
 import { avatarGradient } from "@/lib/retail/avatar";
+import { toDisplayName } from "@/lib/retail/walletNames";
 import {
   getWalletAppearance,
   gradientFor,
@@ -51,6 +52,10 @@ import { formatUsd } from "@/lib/retail/priceConversion";
 export default function WalletDetailPage() {
   const params = useParams<{ name: string }>();
   const rawName = params?.name ?? "";
+  // `name` is the on-chain wallet name (carries the creator suffix
+  // for PDA uniqueness). Used for chain lookups, URLs, API calls.
+  // For display, run it through toDisplayName() so the user sees
+  // their typed name without the suffix.
   const name = useMemo(() => {
     try {
       return decodeURIComponent(rawName);
@@ -58,6 +63,7 @@ export default function WalletDetailPage() {
       return rawName;
     }
   }, [rawName]);
+  const displayName = useMemo(() => toDisplayName(name), [name]);
   const reduce = useReducedMotion();
   const { connection } = useConnection();
 
@@ -271,7 +277,7 @@ function Hero({
         {shapeLabel ? `${shapeLabel} wallet` : "Shared wallet"}
       </p>
       <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-        {name}
+        {toDisplayName(name)}
       </h1>
       {/* Sub-line: shape preset + member count. Carries the create-
           time choice through to the hub so the user feels the wallet
@@ -769,10 +775,11 @@ function NextStepsStripe({
       }
     | null = null;
 
+  const display = toDisplayName(name);
   if (!hasIntents) {
     nudge = {
       title: "Set up sending",
-      body: `${name} can't send money yet. Enable sending. Takes about 1 minute and 2 wallet popups.`,
+      body: `${display} can't send money yet. Enable sending. Takes about 1 minute and 2 wallet popups.`,
       cta: "Enable sending",
       href: `/app/wallet/${encoded}/setup`,
     };
@@ -786,7 +793,7 @@ function NextStepsStripe({
   } else if (activityCount === 0) {
     nudge = {
       title: "Send your first request",
-      body: `${name} is set up and has signers. Make the first send to put the rule into practice.`,
+      body: `${display} is set up and has signers. Make the first send to put the rule into practice.`,
       cta: "Send a request",
       href: `/send?wallet=${encoded}`,
     };
@@ -802,7 +809,7 @@ function NextStepsStripe({
       <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">
-            Next step · {name}
+            Next step · {display}
           </p>
           <p className="mt-1 font-display text-base text-text-strong">
             {nudge.title}

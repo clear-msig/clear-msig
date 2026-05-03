@@ -1,0 +1,49 @@
+// Wallet name suffix — disambiguates names per creator without
+// requiring an on-chain program change.
+//
+// The on-chain program derives wallet PDAs from sha256(name) only,
+// so two users on devnet can't both have a "Team" wallet. The proper
+// fix is creator-scoped seeds in the program (slated for Plan B).
+// Until then we suffix the user-typed name with a 6-char base58
+// fragment of the creator's pubkey before storing it on chain. The
+// PDA is unique per (name, creator); the user never sees the suffix.
+//
+// Layout of an on-chain name:   <typed>#<pubkey-prefix>
+//                e.g.            "Team#9Da5az"
+//
+// Display layer: anywhere we show a wallet name from chain, run it
+// through toDisplay() to strip the suffix. Direct entries (older
+// wallets created before this change) flow through unchanged because
+// the regex only matches our suffix shape.
+
+const SEPARATOR = "#";
+const SUFFIX_LEN = 6;
+
+/// Turn a user-typed name + creator pubkey into the unique on-chain
+/// name. Idempotent: passing an already-suffixed name through again
+/// is a no-op (the suffix is detected and reused).
+export function toOnChainName(typed: string, creatorBase58: string): string {
+  const cleaned = typed.trim();
+  if (!cleaned) return cleaned;
+  if (hasSuffix(cleaned)) return cleaned;
+  const suffix = creatorBase58.slice(0, SUFFIX_LEN);
+  return `${cleaned}${SEPARATOR}${suffix}`;
+}
+
+/// Turn a possibly-suffixed on-chain name into the display name.
+/// The suffix is the trailing `#XXXXXX` (6 base58 chars). Names
+/// without that exact shape pass through unchanged.
+export function toDisplayName(onChain: string): string {
+  if (!onChain) return onChain;
+  const cleaned = onChain.trim();
+  if (!hasSuffix(cleaned)) return cleaned;
+  const idx = cleaned.lastIndexOf(SEPARATOR);
+  return cleaned.slice(0, idx);
+}
+
+/// True when the name carries our suffix shape. Used both internally
+/// and by the create-wallet form to avoid double-appending when a
+/// power user pastes an already-suffixed name.
+export function hasSuffix(name: string): boolean {
+  return new RegExp(`${SEPARATOR}[1-9A-HJ-NP-Za-km-z]{${SUFFIX_LEN}}$`).test(name);
+}

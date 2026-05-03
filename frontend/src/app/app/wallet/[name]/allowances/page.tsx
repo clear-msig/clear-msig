@@ -26,6 +26,7 @@ import {
 } from "@/lib/retail/allowances";
 import { useContacts } from "@/lib/hooks/useContacts";
 import { shortAddress } from "@/lib/retail/contacts";
+import { toDisplayName } from "@/lib/retail/walletNames";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
@@ -146,7 +147,7 @@ export default function AllowancesPage() {
         <Breadcrumb
           segments={[
             { label: "Wallets", href: "/app/wallet" },
-            { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
+            { label: toDisplayName(name), href: `/app/wallet/${encodeURIComponent(name)}` },
             {
               label: "Members",
               href: `/app/wallet/${encodeURIComponent(name)}/members`,
