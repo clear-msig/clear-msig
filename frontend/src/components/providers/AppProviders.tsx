@@ -21,7 +21,6 @@ import {
   type DynamicContextProps,
 } from "@dynamic-labs/sdk-react-core";
 import { TurnkeySolanaWalletConnectors } from "@dynamic-labs/embedded-wallet-solana";
-import { DynamicWaasSVMConnectors } from "@dynamic-labs/waas-svm";
 import { DynamicWaasEVMConnectors } from "@dynamic-labs/waas-evm";
 import { DynamicWaasSuiConnectors } from "@dynamic-labs/waas-sui";
 import { SolanaWalletConnectors } from "@dynamic-labs/solana";
@@ -65,29 +64,34 @@ export function AppProviders({ children }: Props) {
     }
   }
 
-  // Connector list mirrors the spike. Two Solana paths are included so
-  // the SDK can pick whichever the dashboard configured (TSS WaaS is
-  // the new default, Turnkey is legacy). EVM + Sui WaaS connectors are
-  // listed because Dynamic mints embedded wallets for every chain
-  // enabled in the project's Embedded Wallets settings, and throws if
-  // it cannot find a connector for one. BTC's WaaS connector isn't on
-  // npm yet; disable BTC in the dashboard if init errors mention it.
+  // Solana embedded wallets route exclusively through Turnkey here.
+  // The DynamicWaasSVMConnectors path is intentionally omitted: its
+  // signer (DynamicWaasSVMSigner.signMessage) calls
+  // `Buffer.from(bytes).toString()` which UTF-8 decodes the input
+  // before passing to the TSS backend. Our offchain-wrapped messages
+  // start with `\xff` — an invalid UTF-8 byte that gets replaced with
+  // U+FFFD, so the wallet ends up signing different bytes than we
+  // asked. The CLI's PreSignedMessageSigner then fails verification
+  // and the backend returns 502. Turnkey's signMessage takes a
+  // Uint8Array and forwards it intact, so it is the safe path until
+  // Dynamic ships a bytes-safe WaaS signer.
+  //
+  // EVM + Sui WaaS connectors are still listed because Dynamic mints
+  // embedded wallets for every chain enabled in the project's
+  // Embedded Wallets settings, and throws on init when a chain is
+  // turned on but its connector isn't registered. BTC's WaaS
+  // connector isn't on npm yet; disable BTC in the dashboard if
+  // init errors mention it.
   const settings: DynamicContextProps["settings"] = {
     environmentId: environmentId ?? "",
     walletConnectors: [
       // External Solana wallets (Phantom / Solflare / Backpack /
-      // Coinbase Wallet) — wallet-standard auto-discovery. Without
-      // this connector explicitly listed, Dynamic's widget hides
-      // the "Connect wallet" option even when the dashboard has
-      // external wallets enabled.
+      // Coinbase Wallet) — wallet-standard auto-discovery.
       SolanaWalletConnectors,
-      // Embedded Solana wallets (TSS-MPC + Turnkey) — for the
-      // email/social signup path that mints a wallet on the fly.
-      DynamicWaasSVMConnectors,
+      // Embedded Solana wallets via Turnkey (bytes-safe signMessage).
       TurnkeySolanaWalletConnectors,
-      // EVM + Sui WaaS — Dynamic mints embedded wallets on every
-      // chain enabled in the project's Embedded Wallets settings,
-      // and throws on init if it cannot find the matching connector.
+      // EVM + Sui WaaS — needed to satisfy Dynamic's per-chain
+      // connector requirement; not used for Solana signing.
       DynamicWaasEVMConnectors,
       DynamicWaasSuiConnectors,
     ],

@@ -295,10 +295,13 @@ export default function WelcomePage() {
   if (memberships.isLoading) {
     return <NeutralWait label="Checking your wallets." reduce={!!reduce} />;
   }
-  if ((memberships.data?.length ?? 0) > 0 && stage !== "success") {
-    router.replace("/app/wallet");
-    return <NeutralWait label="You already have a wallet. Taking you home." reduce={!!reduce} />;
-  }
+  // (Returning users explicitly clicking "+ New shared wallet" land
+  // here on purpose. The auto-redirect that used to fire on any
+  // memberships > 0 was bouncing them back to the dashboard before
+  // they could create a second wallet. /connect's gate already
+  // routes returning users home when they sign in fresh, so the
+  // duplicate guard here was always a safety belt for an edge case
+  // that doesn't justify breaking the second-wallet path.)
 
   const pageMotion = reduce
     ? { initial: false, animate: { opacity: 1 }, exit: { opacity: 1 } }

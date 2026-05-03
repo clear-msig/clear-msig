@@ -12,6 +12,7 @@
 
 import { useWallet, useConnection } from "@/lib/wallet";
 import { useCallback } from "react";
+import nacl from "tweetnacl";
 import {
   toHex,
   rebuildAndVerifyMessage,
@@ -37,7 +38,8 @@ export class WalletSignError extends Error {
     | "ledger_transport"
     | "ledger_unsupported"
     | "unknown"
-    | "message_mismatch";
+    | "message_mismatch"
+    | "wallet_signed_wrong_bytes";
   /// Set when `code === "message_mismatch"` — the bytes the backend
   /// asked us to sign did not match the bytes the frontend rebuilt
   /// from chain state. Includes both for debugging.
@@ -93,6 +95,23 @@ export function useSignWithWallet() {
         // users they cancelled when their Ledger had closed the
         // Solana app or the cable came loose.
         throw classifySignError(err);
+      }
+      // Local ed25519 verify. Some embedded-wallet implementations
+      // (notably Dynamic's WaaS-SVM signer) UTF-8-decode the input
+      // bytes before signing, so the signature ends up over a
+      // different byte sequence than what we asked for. Catching
+      // that here means the user gets a clean error in the browser
+      // instead of a 502 from the CLI's verifier.
+      if (
+        !nacl.sign.detached.verify(messageBytes, sig, publicKey.toBytes())
+      ) {
+        throw new WalletSignError(
+          "wallet_signed_wrong_bytes",
+          "Your wallet signed something different from what we asked. " +
+            "This is a known issue with some embedded-wallet providers. " +
+            "Sign in with an external wallet (Phantom, Solflare, Backpack) " +
+            "or a Ledger to work around it.",
+        );
       }
       if (sig.length !== 64) {
         throw new WalletSignError(

@@ -138,6 +138,19 @@ export function friendlyError(
     };
   }
 
+  // ── Wallet UX: signer mangled the message bytes ───────────────
+  // Caught by local ed25519 verify after signing. Common with the
+  // Dynamic WaaS-SVM signer's UTF-8 byte conversion bug; the
+  // wallet's signature is over different bytes than we asked for.
+  if (bag.walletErrorCode === "wallet_signed_wrong_bytes") {
+    return {
+      title: "Your wallet signed the wrong bytes",
+      body: "This is a known issue with some embedded-wallet providers. " +
+        "For now, sign in with Phantom, Solflare, Backpack, or a Ledger; " +
+        "everything else works through those.",
+    };
+  }
+
   // ── Wallet UX: Ledger device-state errors (app closed, etc.) ──
   // These came in as "rejected" before, telling users they cancelled
   // when their device just had the Solana app closed. Each code gets
