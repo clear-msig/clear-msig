@@ -43,7 +43,7 @@ body {
 /* ── accessibility ─────────────────────────────────────────────────── */
 
 *:focus-visible {
-  outline: 2px solid #16a34a;
+  outline: 2px solid #0f766e;
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -72,13 +72,13 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(22, 163, 74, 0.25);
+  background: rgba(15, 118, 110, 0.25);
   border-radius: 9999px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(22, 163, 74, 0.5);
+  background: rgba(15, 118, 110, 0.5);
   background-clip: content-box;
 }
 
@@ -103,14 +103,14 @@ body {
  * other CTA in the app. Same shape, same shadow, same hover lift.
  */
 .wallet-adapter-button {
-  background-color: #16a34a !important; /* accent */
+  background-color: #0f766e !important; /* accent (teal-700) */
   color: #ffffff !important;
   font-weight: 500 !important;
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif !important;
   border-radius: 10px !important; /* matches `rounded-soft` */
   min-height: 56px !important; /* matches Button size="lg" */
   padding: 0 1.5rem !important;
-  box-shadow: 0 8px 24px -8px rgba(22, 163, 74, 0.30) !important; /* shadow-accent-rest */
+  box-shadow: 0 8px 24px -8px rgba(15, 118, 110, 0.30) !important; /* shadow-accent-rest */
   transition:
     background-color 250ms cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 250ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -118,9 +118,9 @@ body {
 }
 
 .wallet-adapter-button:hover {
-  background-color: #15803d !important; /* accent-hover */
+  background-color: #115e59 !important; /* accent-hover (teal-800) */
   color: #ffffff !important;
-  box-shadow: 0 16px 36px -10px rgba(22, 163, 74, 0.40) !important; /* shadow-accent-hover */
+  box-shadow: 0 16px 36px -10px rgba(15, 118, 110, 0.40) !important; /* shadow-accent-hover */
 }
 
 .wallet-adapter-button:active {

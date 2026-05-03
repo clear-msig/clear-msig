@@ -32,10 +32,17 @@ const config: Config = {
         "surface-soft": "#52525b",
         "surface-raised": "#ffffff",
 
-        accent: "#16a34a",
-        "accent-hover": "#15803d",
-        "accent-bright": "#22c55e",
-        "accent-emerald": "#10b981",
+        // Teal experiment 2026-05-03: shifting off finance-default
+        // green (#16a34a is identical to Cash App / Robinhood /
+        // Splitwise / Mint). teal-700 is mature, confident, less
+        // commodity. Hover/bright are scaled inside the same family
+        // so shadow-accent-* and bg-accent/15 transitions still feel
+        // coherent. Revert by changing these four values back if we
+        // decide the green was right after all.
+        accent: "#0f766e",
+        "accent-hover": "#115e59",
+        "accent-bright": "#14b8a6",
+        "accent-emerald": "#0d9488",
 
         "text-strong": "#0f172a",
         "text-primary": "#18181b",
