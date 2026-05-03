@@ -858,10 +858,16 @@ fn ensure_non_empty_vec(value: &[String], field: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
-/// Validate a wallet name. Wallet names hash into a PDA seed and reach
-/// the CLI as a positional arg, so the charset is locked down: ASCII
-/// alnum, dash, underscore, max 64 chars (matches the on-chain
-/// `String<64>` constraint).
+/// Validate a wallet name. The on-chain account stores the name as
+/// `String<64>`, so the only hard constraint is the UTF-8 byte length.
+/// We previously locked the charset to `[A-Za-z0-9_-]`, but that
+/// blocked retail names like "Soccer Trip" / "Mum & Dad" and broke
+/// the per-creator suffix the frontend appends for PDA uniqueness.
+/// Names reach the CLI via tokio::process::Command::arg, which does
+/// no shell expansion, so any UTF-8 string is safe.
+///
+/// Control characters are still rejected so a malicious caller can't
+/// stuff CRLF / NUL into log lines or break the CLI's stderr framing.
 fn ensure_wallet_name(value: &str, field: &str) -> Result<(), ApiError> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -872,12 +878,9 @@ fn ensure_wallet_name(value: &str, field: &str) -> Result<(), ApiError> {
             "{field} must be 64 characters or fewer"
         )));
     }
-    if !trimmed
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-    {
+    if trimmed.chars().any(|c| c.is_control()) {
         return Err(ApiError::BadRequest(format!(
-            "{field} must contain only letters, digits, '-' or '_'"
+            "{field} must not contain control characters"
         )));
     }
     Ok(())

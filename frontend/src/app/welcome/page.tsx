@@ -145,14 +145,17 @@ export default function WelcomePage() {
   );
 
   const cleanName = useMemo(() => name.trim(), [name]);
-  // The on-chain wallet name field is `String<64>`. JS `.length` counts
-  // code units, not UTF-8 bytes; guard the encoded byte length so emoji
-  // and accented names cannot silently overflow.
+  // The on-chain wallet name field is `String<64>`. The frontend
+  // appends a 7-byte creator suffix ("#XXXXXX") in toOnChainName so
+  // PDAs are unique per (typed-name, creator). Cap the typed name at
+  // 57 bytes so the final on-chain name fits the 64-byte limit. JS
+  // `.length` counts UTF-16 code units, not UTF-8 bytes — the byte
+  // count is what the program enforces.
   const nameByteLength = useMemo(
     () => new TextEncoder().encode(cleanName).length,
     [cleanName],
   );
-  const nameValid = cleanName.length >= 2 && nameByteLength <= 64;
+  const nameValid = cleanName.length >= 2 && nameByteLength <= 57;
 
   // Membership probe. Drives the connection gate: we never render the
   // create flow until this resolves with an empty list. Disabled when
@@ -473,7 +476,7 @@ export default function WelcomePage() {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder={currentShape.defaultName}
-                      maxLength={64}
+                      maxLength={57}
                       className={
                         "min-w-0 flex-1 rounded-card border border-border-soft bg-surface-raised " +
                         "px-4 py-3 text-base text-text-strong placeholder:text-text-soft " +
@@ -872,16 +875,21 @@ function inviteNoun(id: ShapeId): string {
 }
 
 /// Wallet names go on chain and the backend allows only [a-zA-Z0-9_-].
-/// Convert the user's friendly label into a valid slug without
-/// surfacing the constraint to them. "Soccer Trip" becomes
-/// "soccer-trip"; nothing breaks.
+/// Pass the user's typed name through cleanly — only trim whitespace
+/// and clamp to the on-chain 64-byte limit. Earlier versions
+/// lowercased + dashed every non-alnum character, but that meant
+/// "Soccer Trip" became "soccer-trip" on chain (and visible to other
+/// members), which is hostile to retail. The backend allows any
+/// non-control UTF-8 within 64 bytes, so we let the typed name flow
+/// through.
 function slug(s: string): string {
-  return (
-    s
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 64) || "wallet"
-  );
+  const trimmed = s.trim();
+  if (!trimmed) return "wallet";
+  // 64 BYTES, not 64 chars — emoji are 4 bytes each in UTF-8.
+  const enc = new TextEncoder();
+  const bytes = enc.encode(trimmed);
+  if (bytes.length <= 64) return trimmed;
+  // Truncate by bytes without splitting a multi-byte codepoint.
+  const truncated = enc.encode(trimmed).subarray(0, 64);
+  return new TextDecoder("utf-8", { fatal: false }).decode(truncated);
 }
