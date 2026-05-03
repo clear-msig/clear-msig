@@ -54,7 +54,11 @@ export function WorkspaceSidebar({ onNavigate }: Props) {
   });
 
   const memberships = myOrganizationsQuery.data ?? [];
-  const recent = useRecentActivity(5);
+  // Sidebar Recent shows the 3 most recent rows. Tighter than the
+  // dashboard's 5-row feed because the sidebar is navigation, not
+  // read-the-feed. The dashboard's RecentActivitySection is where you
+  // actually browse activity.
+  const recent = useRecentActivity(3);
 
   return (
     <div className="flex h-full flex-col gap-5 p-5 text-sm text-white">
@@ -96,31 +100,39 @@ export function WorkspaceSidebar({ onNavigate }: Props) {
         New shared wallet
       </Link>
 
-      <SidebarSection
-        label="Your wallets"
-        count={memberships.length}
-        loading={myOrganizationsQuery.isLoading}
-      >
-        {memberships.length === 0 && !myOrganizationsQuery.isLoading ? (
-          <p className="px-2 text-[11px] text-white/40">
-            {wallet.connected
-              ? "No wallets yet. Create one above."
-              : "Connect to see your wallets."}
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-0.5">
-            {memberships.map((m) => (
-              <SidebarOrgLink
-                key={m.wallet}
-                membership={m}
-                pathname={pathname}
-                pendingCount={recent.pendingByWallet.get(m.wallet) ?? 0}
-                onNavigate={onNavigate}
-              />
-            ))}
-          </ul>
-        )}
-      </SidebarSection>
+      {/* Wallet list is hidden on the dashboard (/app/wallet) where
+          the page already renders the same wallets as cards with
+          richer info (balance, avatar, member count). On every other
+          /app/* route, the user's drilled into one wallet and needs
+          the cross-wallet list back in the sidebar to jump between
+          them. */}
+      {pathname !== "/app/wallet" && (
+        <SidebarSection
+          label="Your wallets"
+          count={memberships.length}
+          loading={myOrganizationsQuery.isLoading}
+        >
+          {memberships.length === 0 && !myOrganizationsQuery.isLoading ? (
+            <p className="px-2 text-[11px] text-white/40">
+              {wallet.connected
+                ? "No wallets yet. Create one above."
+                : "Connect to see your wallets."}
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-0.5">
+              {memberships.map((m) => (
+                <SidebarOrgLink
+                  key={m.wallet}
+                  membership={m}
+                  pathname={pathname}
+                  pendingCount={recent.pendingByWallet.get(m.wallet) ?? 0}
+                  onNavigate={onNavigate}
+                />
+              ))}
+            </ul>
+          )}
+        </SidebarSection>
+      )}
 
       <SidebarSection
         label="Recent"

@@ -143,7 +143,7 @@ function AddChainPage() {
       {stage === "pick" && (
         <motion.section
           {...motionProps}
-          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
           className="flex flex-col gap-6"
         >
           <div className="flex flex-col items-center text-center">
@@ -195,7 +195,7 @@ function AddChainPage() {
       {stage === "confirm" && selected && (
         <motion.section
           {...motionProps}
-          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
           className="flex flex-col gap-6"
         >
           <div className="flex flex-col items-center text-center">
@@ -385,7 +385,7 @@ function DoneStage({
     <motion.section
       initial={reduce ? false : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       className="flex flex-col items-center gap-6 text-center"
     >
       <motion.div

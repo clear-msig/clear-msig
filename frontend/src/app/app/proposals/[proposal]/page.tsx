@@ -204,7 +204,7 @@ function Loaded({
   return (
     <motion.div
       {...motionProps}
-      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       className="flex flex-col gap-6"
     >
       <StickyTopBar offset="header">

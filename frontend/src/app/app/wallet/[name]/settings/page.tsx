@@ -141,7 +141,7 @@ export default function WalletSettingsPage() {
       <motion.section
         initial={reduce ? false : { opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
         className="flex flex-col items-center text-center"
       >
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">

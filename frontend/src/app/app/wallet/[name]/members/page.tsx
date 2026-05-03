@@ -118,7 +118,7 @@ export default function MembersPage() {
 
       <motion.section
         {...motionProps}
-        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
         className="rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest sm:p-8"
       >
         <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">

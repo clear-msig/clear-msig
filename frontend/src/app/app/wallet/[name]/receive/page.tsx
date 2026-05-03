@@ -161,7 +161,7 @@ export default function ReceivePage() {
       <div className="relative z-10 flex flex-1 items-center justify-center px-gutter py-10">
         <motion.section
           {...motionProps}
-          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
           className="w-full max-w-md"
         >
           <div className="flex flex-col items-center text-center">

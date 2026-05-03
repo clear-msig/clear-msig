@@ -373,7 +373,7 @@ export default function AddFriendPage() {
 
       <motion.section
         {...motionProps}
-        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
         className="flex flex-col items-center text-center"
       >
         <h1 className="font-display text-display-sm leading-[1.05] text-text-strong text-balance">

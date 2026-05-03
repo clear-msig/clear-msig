@@ -254,7 +254,7 @@ function Hero({
   return (
     <motion.section
       {...motionProps}
-      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       className="rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest sm:p-8"
     >
       {/* Header avatar — picks up the picker color from welcome.
@@ -394,7 +394,7 @@ function Actions({
   return (
     <motion.div
       {...motionProps}
-      transition={{ duration: 0.35, delay: 0.04 }}
+      transition={{ duration: 0.2 }}
       className="grid grid-cols-1 gap-3 sm:grid-cols-2"
     >
       {sendingReady ? (
@@ -453,7 +453,7 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
   return (
     <motion.section
       {...motionProps}
-      transition={{ duration: 0.35, delay: 0.08 }}
+      transition={{ duration: 0.2 }}
       className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
     >
       <header className="flex items-center justify-between gap-2">
@@ -596,7 +596,7 @@ function ActivitySection({ rows, reduce }: ActivityProps) {
   return (
     <motion.section
       {...motionProps}
-      transition={{ duration: 0.35, delay: 0.12 }}
+      transition={{ duration: 0.2 }}
     >
       <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
         Recent activity
@@ -639,7 +639,7 @@ function ActivityEmptyState({ reduce }: { reduce: boolean }) {
   return (
     <motion.section
       {...motionProps}
-      transition={{ duration: 0.35, delay: 0.12 }}
+      transition={{ duration: 0.2 }}
       className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
     >
       <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">

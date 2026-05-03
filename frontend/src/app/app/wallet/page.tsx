@@ -136,7 +136,7 @@ function Greeting({ reduce }: { reduce: boolean }) {
   return (
     <motion.div
       {...motionProps}
-      transition={{ duration: 0.35 }}
+      transition={{ duration: 0.2 }}
       className="text-center"
     >
       <h1 className="font-display text-display-xs leading-tight text-text-strong">
@@ -160,7 +160,7 @@ function ShortcutGrid({ reduce }: { reduce: boolean }) {
   return (
     <motion.div
       {...motionProps}
-      transition={{ duration: 0.35, delay: 0.04 }}
+      transition={{ duration: 0.2 }}
       className="grid grid-cols-1 gap-3 sm:grid-cols-3"
     >
       <ShortcutCard
@@ -436,7 +436,7 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
   return (
     <motion.section
       {...motionProps}
-      transition={{ duration: 0.35, delay: 0.08 }}
+      transition={{ duration: 0.2 }}
       className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
     >
       <header className="flex items-center justify-between gap-2">
@@ -702,7 +702,7 @@ function RecentActivitySection({ rows, reduce }: RecentActivityProps) {
   return (
     <motion.section
       {...motionProps}
-      transition={{ duration: 0.35, delay: 0.12 }}
+      transition={{ duration: 0.2 }}
     >
       <SectionLabel>Recent activity</SectionLabel>
       <ul className="mt-3 flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest">

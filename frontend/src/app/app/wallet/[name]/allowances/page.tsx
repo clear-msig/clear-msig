@@ -159,7 +159,7 @@ export default function AllowancesPage() {
 
       <motion.section
         {...motionProps}
-        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
         className="flex flex-col items-center text-center"
       >
         <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">
