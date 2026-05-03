@@ -23,7 +23,7 @@ import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Bell, Download, Globe, Lock, Send, ShieldCheck, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bell, Download, Send, ShieldCheck, Users } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { findVaultAddress } from "@/lib/msig";
@@ -308,6 +308,10 @@ function Hero({
         )}
       </div>
 
+      {/* Hero footer: just members + settings. The pre-trim version
+          had five competing pills (Spending rules / Weekly limit /
+          Policy / Chains / Privacy-ready) which read as a settings
+          dump. They live under one Settings page now. */}
       <div className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-text-soft">
         <Link
           href={`/app/wallet/${encodeURIComponent(name)}/members`}
@@ -346,7 +350,7 @@ function Hero({
           )}
         </Link>
         <Link
-          href={`/app/wallet/${encodeURIComponent(name)}/rules`}
+          href={`/app/wallet/${encodeURIComponent(name)}/settings`}
           className={
             "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
             "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
@@ -358,51 +362,7 @@ function Hero({
             aria-hidden="true"
             strokeWidth={2}
           />
-          Spending rules
-        </Link>
-        <Link
-          href={`/app/wallet/${encodeURIComponent(name)}/chains`}
-          className={
-            "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-          }
-        >
-          <Globe className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-          Chains
-        </Link>
-        <Link
-          href={`/app/wallet/${encodeURIComponent(name)}/budget`}
-          className={
-            "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-          }
-        >
-          <ShieldCheck className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-          Weekly limit
-        </Link>
-        <Link
-          href={`/app/wallet/${encodeURIComponent(name)}/policy`}
-          className={
-            "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-          }
-        >
-          <ShieldCheck className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-          Policy
-        </Link>
-        <Link
-          href="/privacy"
-          className={
-            "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-          }
-        >
-          <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-          Privacy-ready · pre-alpha
+          Settings
         </Link>
       </div>
     </motion.section>
