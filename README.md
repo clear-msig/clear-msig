@@ -74,6 +74,32 @@ Proposal (PDA: ["proposal", intent, index])
   └── params_data, approval/cancellation bitmaps
 ```
 
+## Encrypt — confidential policies (pre-alpha)
+
+A multisig is only as private as its on-chain footprint. The **proposers list, approvers list, threshold, allowances, recipient allowlists** sit in plaintext today, which means a Solana explorer can read your wallet's full org chart and spending rules. clear-msig integrates [Encrypt](https://encrypt.xyz) ([dwallet-labs/encrypt-pre-alpha](https://github.com/dwallet-labs/encrypt-pre-alpha)) to fix that: every policy field becomes an FHE ciphertext on chain, the program runs threshold checks and allowance arithmetic *directly on the encrypted bytes* via `#[encrypt_fn]` handlers, and only the wallet members ever see plaintext.
+
+### Role of Encrypt in this app
+
+- **Confidentiality.** Approvers, thresholds, per-friend allowances, and recipient allowlists are stored as ciphertext identifiers, not plaintext. An off-chain reader sees opaque blobs.
+- **Computation on ciphertexts.** Approval threshold, allowance arithmetic, and recipient allowlist matching run inside FHE-aware program handlers. The program never sees plaintext.
+- **Pre-share at edit time, not run time.** When a user changes a policy, the frontend encrypts the new value against the network's public key off-chain, the program references the resulting ciphertext identifier, and verifications happen at signing / executing time without round-tripping plaintext.
+
+### Current state — honest
+
+| Layer | Status | Where |
+|---|---|---|
+| Frontend client + UI scaffold | **Wired.** Every policy mutation routes through `encryptPolicy` / `encryptPolicyBatch`. | `frontend/src/lib/encrypt/client.ts` |
+| Local pass-through SDK shim | **Live.** Returns deterministic `ciphertext_id` so persistence + UI work end-to-end before the network ships. | `frontend/src/lib/encrypt/local-client.ts` |
+| Real network client (`@encrypt.xyz/pre-alpha-solana-client`) | **Pending.** SDK not yet on npm. Single-file swap when it ships. | one diff in `client.ts` |
+| CLI forwarding of ciphertext IDs | **Logs only.** IDs flow frontend → backend → CLI, get printed (`[encrypt] intent-add received N policy ciphertext id(s): …`) but are not yet threaded into the on-chain instruction. | `cli/src/commands/intent.rs`, `cli/src/commands/wallet.rs` |
+| On-chain `#[encrypt_fn]` handlers + `EUint*` slots | **Not implemented.** The program has zero FHE-aware code today. Approval / threshold / allowance checks operate on plaintext. | `programs/clear-wallet/` |
+
+Net: the wire path is real and the UI shows "encryption-ready · pre-alpha" on every relevant chip, but **policies are not actually encrypted on chain yet**. The full security accounting lives in [SECURITY.md](SECURITY.md). Anyone reading the README literally and missing the pre-alpha label has been overclaimed to.
+
+### Why the scaffold matters before the network is live
+
+When Encrypt's pre-alpha network ships its npm SDK and exposes a public gRPC endpoint, the frontend swap is one diff in `lib/encrypt/client.ts` (replace `localEncryptClient` with the real gRPC-Web client + the network's encryption key). The CLI + program work is the bulk of the lift after that, but the application surface — `encryptPolicy(plaintext, ctx)` → `EncryptedPayload`, `decryptPolicy(payload)` → bytes — is already the shape the integration will land at, so call sites don't change.
+
 ## Quick Start
 
 ### Try the live devnet deployment

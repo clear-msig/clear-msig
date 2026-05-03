@@ -39,6 +39,7 @@ import {
   type Role,
 } from "@/lib/retail/roles";
 import { sendOrganizationInvite } from "@/lib/organizations/client";
+import { toDisplayName } from "@/lib/retail/walletNames";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Button } from "@/components/retail/Button";
@@ -360,7 +361,7 @@ export default function AddFriendPage() {
         <Breadcrumb
           segments={[
             { label: "Wallets", href: "/app/wallet" },
-            { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
+            { label: toDisplayName(name), href: `/app/wallet/${encodeURIComponent(name)}` },
             {
               label: "Members",
               href: `/app/wallet/${encodeURIComponent(name)}/members`,
@@ -379,7 +380,7 @@ export default function AddFriendPage() {
           <UserPlus className="h-5 w-5" strokeWidth={1.75} />
         </div>
         <h1 className="mt-4 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          Add someone to {name}
+          Add someone to {toDisplayName(name)}
         </h1>
         <p className="mt-2 max-w-md text-base text-text-soft">
           A friend, teammate, or board member who&rsquo;ll help approve

@@ -72,14 +72,18 @@ export function SignPayloadPreview({
           {details.map((d) => (
             <div
               key={d.label}
-              className="flex items-baseline justify-between gap-2 rounded-soft bg-canvas/60 px-2.5 py-1.5"
+              // Stacked label-over-value so long values ("Just you
+              // for now", "Ships immediately") aren't truncated by
+              // the narrow right-aligned column. Each cell breaks
+              // its own value across lines if needed.
+              className="flex flex-col gap-0.5 rounded-soft bg-canvas/60 px-2.5 py-1.5"
             >
-              <dt className="shrink-0 text-[11px] font-medium uppercase tracking-[0.14em] text-text-soft">
+              <dt className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-soft">
                 {d.label}
               </dt>
               <dd
                 className={
-                  "min-w-0 truncate text-right text-sm " +
+                  "break-words text-sm leading-snug " +
                   (d.emphasis === "mono"
                     ? "font-mono text-xs text-text-strong"
                     : d.emphasis === "amount"

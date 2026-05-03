@@ -29,7 +29,7 @@ export default function WorkspaceLayout({ children }: Readonly<{ children: React
   const y = useTransform(scrollY, [0, 1000], [0, 300]);
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-background px-3 pb-32 pt-24 font-sans sm:px-4 sm:pb-16 sm:pt-28 lg:px-6">
+    <main className="relative min-h-screen overflow-x-hidden bg-background px-3 pb-32 pt-20 font-sans sm:px-4 sm:pb-16 sm:pt-20 lg:px-6 lg:pt-16">
       {/* Two soft brand-coloured blurs — same visual vocabulary the
           landing page uses on its sections (ProblemSection, etc.) so
           the connected app feels like a natural continuation, not a
@@ -51,11 +51,11 @@ export default function WorkspaceLayout({ children }: Readonly<{ children: React
         {/* Persistent sidebar on md+; hidden on mobile (lives in the
             HeaderBar drawer instead). Sticky so it stays visible as the
             main column scrolls. */}
-        <aside className="sticky top-24 hidden h-[calc(100vh-7rem)] overflow-y-auto rounded-3xl border border-white/10 bg-surface-card-strong shadow-card-dark md:block">
+        <aside className="sticky top-20 hidden h-[calc(100vh-6rem)] overflow-y-auto rounded-3xl border border-white/10 bg-surface-card-strong shadow-card-dark md:block lg:top-16 lg:h-[calc(100vh-5rem)]">
           <WorkspaceSidebar />
         </aside>
 
-        <div className="flex min-w-0 flex-col gap-6">
+        <div className="flex min-w-0 flex-col gap-4">
           <PreAlphaBanner />
           <section className="relative z-20 min-w-0">{children}</section>
         </div>
