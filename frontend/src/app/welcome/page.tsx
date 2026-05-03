@@ -320,12 +320,6 @@ export default function WelcomePage() {
 
   return (
     <main className="relative flex min-h-screen flex-col bg-canvas">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 overflow-hidden"
-      >
-        <div className="absolute -left-32 -top-16 h-[55vh] w-[80vw] max-w-[640px] rounded-full bg-accent/[0.07] blur-3xl" />
-      </div>
 
       <StickyTopBar>
         <Link
@@ -568,12 +562,6 @@ export default function WelcomePage() {
 function NeutralWait({ label, reduce }: { label: string; reduce: boolean }) {
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center bg-canvas px-gutter">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 overflow-hidden"
-      >
-        <div className="absolute -left-32 -top-16 h-[55vh] w-[80vw] max-w-[640px] rounded-full bg-accent/[0.06] blur-3xl" />
-      </div>
       <motion.div
         initial={reduce ? false : { opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}

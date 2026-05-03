@@ -16,10 +16,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
-import { Menu, Wallet as WalletIcon, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { useWallet } from "@/lib/wallet";
 import { useOnboarding } from "@/lib/hooks/useOnboarding";
 import { WorkspaceSidebar } from "@/components/layout/WorkspaceSidebar";
+import { BrandMark } from "@/components/retail/BrandMark";
 
 export function HeaderBar() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -47,8 +48,8 @@ export function HeaderBar() {
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
           }
         >
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent/15 text-accent">
-            <WalletIcon size={11} strokeWidth={2.25} />
+          <span className="flex h-5 w-5 items-center justify-center text-accent">
+            <BrandMark size={18} />
           </span>
           Clear
         </Link>

@@ -72,21 +72,11 @@ function ConnectPage() {
              `bg-[radial-gradient]` with a tight stop). The opacity is
              low enough that it never competes with foreground content
              but the eye reads "made", not "default Tailwind page". */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 overflow-hidden"
-      >
-        <div className="absolute -left-32 -top-24 h-[60vh] w-[80vw] max-w-[680px] rounded-full bg-accent/[0.10] blur-3xl" />
-        <div className="absolute -right-32 bottom-[-10vh] h-[55vh] w-[70vw] max-w-[600px] rounded-full bg-accent/[0.06] blur-3xl" />
-        <div
-          className="absolute inset-0 opacity-[0.35]"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 1px 1px, rgba(15,23,42,0.06) 1px, transparent 0)",
-            backgroundSize: "20px 20px",
-          }}
-        />
-      </div>
+      {/* Background was a layered atmosphere (two accent blooms + a
+          dot-grid) — fine on a marketing page, but /connect is the
+          first time a user touches the actual product. The flat
+          canvas matches Cash App / Apple Wallet / Squads. The card
+          itself is the visual interest. */}
 
       <StickyTopBar>
         <Link

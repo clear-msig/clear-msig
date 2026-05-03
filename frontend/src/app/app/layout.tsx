@@ -21,29 +21,18 @@ import { PreAlphaBanner } from "@/components/layout/PreAlphaBanner";
 import { WorkspaceSidebar } from "@/components/layout/WorkspaceSidebar";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 import { BottomNav } from "@/components/retail/BottomNav";
-import { motion, useScroll, useTransform } from "framer-motion";
 
 export default function WorkspaceLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   useWalletGate();
-  const { scrollY } = useScroll();
-  const y = useTransform(scrollY, [0, 1000], [0, 300]);
 
   return (
+    // Workspace surface is now flat. The decorative parallax blobs
+    // (brand-green + cyan) have been retired — Apple Wallet, Cash App,
+    // Squads, Safe all run crisp surfaces inside the app. Soft blurs
+    // signal "marketing page" and undermined the money-app register.
+    // The landing page keeps its single accent wash; the workspace is
+    // a working surface.
     <main className="relative min-h-screen overflow-x-hidden bg-background px-3 pb-32 pt-20 font-sans sm:px-4 sm:pb-16 sm:pt-20 lg:px-6 lg:pt-16">
-      {/* Two soft brand-coloured blurs — same visual vocabulary the
-          landing page uses on its sections (ProblemSection, etc.) so
-          the connected app feels like a natural continuation, not a
-          different product. */}
-      <motion.div
-        aria-hidden="true"
-        style={{ y }}
-        className="pointer-events-none absolute -right-[10%] top-0 h-[60vw] w-[60vw] rounded-full bg-brand-green/15 blur-[150px]"
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -left-[10%] top-[40%] h-[40vw] w-[40vw] rounded-full bg-cyan-300/10 blur-[140px]"
-      />
-
       <HeaderBar />
       <CommandPalette />
 

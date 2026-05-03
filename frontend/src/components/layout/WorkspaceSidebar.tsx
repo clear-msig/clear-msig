@@ -17,7 +17,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useWallet } from "@/lib/wallet";
-import { Github, LogOut, Plus, Search, Settings, Wallet } from "lucide-react";
+import { Github, LogOut, Plus, Search, Settings } from "lucide-react";
+import { BrandMark } from "@/components/retail/BrandMark";
 import clsx from "clsx";
 import {
   fetchOnchainMemberships,
@@ -251,7 +252,7 @@ function BrandRow() {
       className="flex items-center gap-2 rounded-xl px-1 py-1 transition-opacity duration-base ease-out-soft hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card-strong"
     >
       <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/15 text-accent">
-        <Wallet size={16} />
+        <BrandMark size={20} />
       </div>
       <span className="font-display text-base font-semibold tracking-tight text-white">
         Clear
