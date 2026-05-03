@@ -32,7 +32,7 @@ import {
   chainByKind,
   type ChainMeta,
 } from "@/lib/retail/chains";
-import { toDisplayName } from "@/lib/retail/walletNames";
+import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
 import {
   chainAddress,
   useWalletChains,
@@ -172,7 +172,7 @@ export default function ReceivePage() {
               Receive money
             </p>
             <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-              Add money to {name}
+              Add money to <span className="text-accent">{toHeadingName(name)}</span>
             </h1>
             <p className="mt-3 max-w-sm text-base text-text-soft">
               {hasMultipleChains
@@ -285,7 +285,7 @@ export default function ReceivePage() {
               className="mt-6 inline-block w-full"
             >
               <Button size="lg" variant="secondary" fullWidth>
-                Back to {name}
+                Back to {toDisplayName(name)}
               </Button>
             </Link>
           </div>

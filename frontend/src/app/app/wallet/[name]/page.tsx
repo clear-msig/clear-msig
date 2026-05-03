@@ -640,14 +640,27 @@ function ActivityEmptyState({ reduce }: { reduce: boolean }) {
     <motion.section
       {...motionProps}
       transition={{ duration: 0.35, delay: 0.12 }}
-      className="rounded-card border border-dashed border-border-soft bg-surface-raised p-6 text-center shadow-card-rest"
+      className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
     >
-      <p className="font-display text-base text-text-strong">
-        Nothing here yet
+      <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+        Activity
+      </h2>
+      {/* Ghost row — same shape as a real activity row, just muted.
+          Cash App pattern: tell the user what this surface looks like
+          when it has content, so the empty state isn't a void. */}
+      <div className="mt-3 flex items-center gap-3 rounded-soft border border-dashed border-border-soft px-3 py-3">
+        <div className="h-8 w-8 shrink-0 rounded-full bg-border-soft/40" />
+        <div className="min-w-0 flex-1">
+          <div className="h-2.5 w-32 rounded bg-border-soft/40" />
+          <div className="mt-2 h-2 w-20 rounded bg-border-soft/30" />
+        </div>
+      </div>
+      <p className="mt-3 text-sm text-text-strong">
+        Your first send or invite shows up here.
       </p>
-      <p className="mt-1 text-sm text-text-soft">
-        When you send money or invite friends, the activity will show up
-        here.
+      <p className="mt-1 text-xs text-text-soft">
+        Every move on this wallet — sent, approved, declined — gets a
+        row, with the friend who acted and when.
       </p>
     </motion.section>
   );
@@ -678,7 +691,7 @@ function NotFound({ name }: { name: string }) {
       <BackLink />
       <div className="rounded-card border border-border-soft bg-surface-raised p-8 text-center shadow-card-rest">
         <h1 className="font-display text-display-xs text-text-strong">
-          We couldn&rsquo;t find {name}
+          We couldn&rsquo;t find {toDisplayName(name)}
         </h1>
         <p className="mt-2 max-w-md text-text-soft">
           The wallet may have been renamed, or you may not be a member.

@@ -426,7 +426,7 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
     subset.map((r) => ({
       walletName: r.walletName,
       proposalPda: r.proposalPda,
-      label: `${friendlyIntentLabel(r.intentTemplate)} in ${r.walletName}`,
+      label: `${friendlyIntentLabel(r.intentTemplate)} in ${toDisplayName(r.walletName)}`,
     }));
 
   const handleApproveAll = () => batch.approveAll(approveTargets(rows));
@@ -625,7 +625,7 @@ function BatchActionRow({
       <div className="flex items-start justify-between gap-3 py-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-text-strong">
-            Batch in {walletName}
+            Batch in {toDisplayName(walletName)}
           </p>
           <p className="mt-0.5 truncate text-xs text-text-soft">
             {rows.length} request{rows.length === 1 ? "" : "s"} · waiting on{" "}
@@ -675,7 +675,7 @@ function ActionRow({ row }: { row: ActionNeededRow }) {
             {friendlyTemplate}
           </p>
           <p className="mt-0.5 truncate text-xs text-text-soft">
-            in {row.walletName} · {row.approvalsCollected} of{" "}
+            in {toDisplayName(row.walletName)} · {row.approvalsCollected} of{" "}
             {row.approverCount} approved
           </p>
         </div>
@@ -731,7 +731,7 @@ function ActivityRow({ row }: { row: RecentActivityRow }) {
       >
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-text-strong">
-            {row.walletName}
+            {toDisplayName(row.walletName)}
           </p>
           <p className="mt-0.5 text-xs text-text-soft">
             <span className={statusColor(row.status)}>{friendlyStatus(row.status, row.intentTemplate)}</span>

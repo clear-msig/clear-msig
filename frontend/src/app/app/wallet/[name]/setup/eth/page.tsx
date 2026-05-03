@@ -27,6 +27,7 @@ import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { IntentType } from "@/lib/msig";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
+import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
 import {
   ArrowLeft,
   ArrowRight,
@@ -206,7 +207,7 @@ export default function SetupEthPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });
       queryClient.invalidateQueries({ queryKey: ["wallet", name] });
-      toast.success(`${name} can now send Ethereum`);
+      toast.success(`${toHeadingName(name)} can now send Ethereum`);
       router.push(`/app/wallet/${encodeURIComponent(name)}/send/eth`);
     },
     onError: (err) => {
@@ -255,12 +256,12 @@ export default function SetupEthPage() {
               </div>
             )}
             <h1 className="font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-              Enable Ethereum sending in {name}
+              Enable Ethereum sending in <span className="text-accent">{toHeadingName(name)}</span>
             </h1>
             <p className="mt-3 max-w-sm text-base text-text-soft">
-              Adds a spending rule for Ethereum so {name} can move ETH on
-              the Sepolia testnet. One quick setup; the rule is signed
-              by you and lives on chain.
+              Adds a spending rule for Ethereum so {toDisplayName(name)} can
+              move ETH on the Sepolia testnet. One quick setup; the rule
+              is signed by you and lives on chain.
             </p>
 
             {needsBinding && (
@@ -331,9 +332,9 @@ export default function SetupEthPage() {
 
                 <div className="mt-6 w-full flex flex-col gap-3">
                   <SignPayloadPreview
-                    action={`Enable Ethereum sending in ${name}`}
+                    action={`Enable Ethereum sending in ${toDisplayName(name)}`}
                     details={[
-                      { label: "Wallet", value: name },
+                      { label: "Wallet", value: toDisplayName(name) },
                       { label: "Chain", value: "Ethereum (Sepolia)" },
                       ethAddress
                         ? {

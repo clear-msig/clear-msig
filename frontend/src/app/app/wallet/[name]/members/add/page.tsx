@@ -332,7 +332,7 @@ export default function AddFriendPage() {
           : role === "approver"
             ? "as an approver"
             : "";
-      const base = `${trimmedName} added to ${name}${roleLabel ? " " + roleLabel : ""}`;
+      const base = `${trimmedName} added to ${toDisplayName(name)}${roleLabel ? " " + roleLabel : ""}`;
       const message = !trimmedEmail
         ? base
         : emailDelivered
@@ -388,7 +388,7 @@ export default function AddFriendPage() {
       {justAddedName && (
         <NextStepCard
           title={`${justAddedName} is in. What now?`}
-          subtitle={`They can start ${role === "watcher" ? "watching" : "approving"} ${name} requests immediately.`}
+          subtitle={`They can start ${role === "watcher" ? "watching" : "approving"} ${toDisplayName(name)} requests immediately.`}
           options={[
             {
               label: "Add another person",
@@ -428,7 +428,7 @@ export default function AddFriendPage() {
             Set up sending first
           </p>
           <p className="mt-2 text-sm text-text-strong">
-            Adding people changes <strong>{name}</strong>&rsquo;s
+            Adding people changes <strong>{toDisplayName(name)}</strong>&rsquo;s
             spending rule, but no rule exists yet. Enable sending,
             then come back here. It&rsquo;s a 2-popup setup that takes
             about a minute.
@@ -452,7 +452,7 @@ export default function AddFriendPage() {
                 "transition-colors duration-base ease-out-soft hover:text-text-strong"
               }
             >
-              Back to {name}
+              Back to {toDisplayName(name)}
             </Link>
           </div>
         </div>
@@ -489,7 +489,7 @@ export default function AddFriendPage() {
         )}
         {addressValid && alreadyMember && role !== "watcher" && (
           <p className="ml-[4.5rem] text-xs text-warning">
-            This address is already a member of {name}. Pick &ldquo;Can
+            This address is already a member of {toDisplayName(name)}. Pick &ldquo;Can
             watch&rdquo; if you want to keep them in the watchers list
             instead.
           </p>
@@ -572,9 +572,9 @@ export default function AddFriendPage() {
       {role !== "watcher" && nameValid && addressValid && (
         <div className="flex flex-col gap-3">
           <SignPayloadPreview
-            action={`Add ${trimmedName} to ${name}`}
+            action={`Add ${trimmedName} to ${toDisplayName(name)}`}
             details={[
-              { label: "Wallet", value: name },
+              { label: "Wallet", value: toDisplayName(name) },
               {
                 label: "Their role",
                 value: role === "full" ? "Can spend & approve" : "Approves only",
@@ -618,7 +618,7 @@ export default function AddFriendPage() {
       <p className="text-center text-xs text-text-soft">
         {role === "watcher"
           ? "Watchers are saved on this device. No on-chain signature needed."
-          : `The change is signed and applied to ${name}'s on-chain rule.`}
+          : `The change is signed and applied to ${toDisplayName(name)}'s on-chain rule.`}
       </p>
     </div>
   );

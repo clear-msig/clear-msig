@@ -184,7 +184,7 @@ export default function BudgetPage() {
       perChainUsd,
       velocityPerDay,
     });
-    toast.success(`${name}'s policy saved`, {
+    toast.success(`${toDisplayName(name)}'s policy saved`, {
       details: summarisePolicy(weeklyUsd, perChainUsd, velocityPerDay),
     });
     router.push(`/app/wallet/${encodeURIComponent(name)}`);

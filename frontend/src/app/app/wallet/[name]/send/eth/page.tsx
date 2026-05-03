@@ -424,7 +424,7 @@ function ComposeStage({
   const ethMeta = chainByKind(ETH_CHAIN_KIND);
 
   const previewDetails: SignPayloadDetail[] = [
-    { label: "From wallet", value: walletName || "your wallet" },
+    { label: "From wallet", value: toDisplayName(walletName) || "your wallet" },
     { label: "Chain", value: "Ethereum (Sepolia)" },
     walletEthAddress
       ? {
