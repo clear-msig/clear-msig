@@ -43,11 +43,9 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
-  Clock,
   Loader2,
   Send,
   Users,
-  Zap,
 } from "lucide-react";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
@@ -63,13 +61,15 @@ import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { WaasLimitationBanner } from "@/components/retail/WaasLimitationBanner";
-import {
-  COLOR_PALETTE,
-  saveWalletAppearance,
-} from "@/lib/retail/walletAppearance";
+import { saveWalletAppearance } from "@/lib/retail/walletAppearance";
 
-type Stage = "shape_name" | "pace" | "confirm" | "success";
-const WIZARD_STAGES: Stage[] = ["shape_name", "pace", "confirm"];
+// Welcome was a 3-stage wizard (shape_name → pace → confirm). Honest
+// review (2026-05-03): the pace choice never moved a user; the
+// confirm stage was the third instance of the same preview card.
+// Collapsed to a single create screen + a success payoff. Cooling-off
+// and color customization moved to the wallet's spending rules where
+// they're load-bearing rather than ceremonial.
+type Stage = "create" | "success";
 
 const SOL_TRANSFER_TEMPLATE = "examples/intents/solana_transfer.json";
 
@@ -132,13 +132,13 @@ export default function WelcomePage() {
   const { signDescriptor } = useSignWithWallet();
   const { connection } = useConnection();
 
-  const [stage, setStage] = useState<Stage>("shape_name");
+  const [stage, setStage] = useState<Stage>("create");
   const [shape, setShape] = useState<ShapeId>("just_me");
   const [name, setName] = useState("");
-  const [pickedColor, setPickedColor] = useState<string | null>(null);
-  /// 0 ships immediately when approvals land. 86400 is a 24-hour
-  /// cooling-off period before the send goes out.
-  const [delaySeconds, setDelaySeconds] = useState<number>(0);
+  /// Cooling-off lives on the wallet's spending rule, not the create
+  /// flow. New wallets default to immediate send (0 delay); the
+  /// owner can flip it on /app/wallet/[name]/rules later.
+  const delaySeconds = 0;
 
   const currentShape = useMemo(
     () => SHAPES.find((s) => s.id === shape) ?? SHAPES[0],
@@ -262,10 +262,10 @@ export default function WelcomePage() {
       queryClient.invalidateQueries({ queryKey: ["my-organizations"] });
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });
       queryClient.invalidateQueries({ queryKey: ["wallet", walletSlug] });
-      saveWalletAppearance(cleanName, {
-        shape,
-        color: pickedColor ?? undefined,
-      });
+      // Color picker moved out of the create flow. Wallet appearance
+      // gets derived from the name hash at render time; the user can
+      // pick a real color from the wallet's settings later.
+      saveWalletAppearance(cleanName, { shape });
       setStage("success");
     },
     onError: (err) => {
@@ -315,12 +315,8 @@ export default function WelcomePage() {
         exit: { opacity: 0, y: -12 },
       };
 
-  const stageIdx = WIZARD_STAGES.indexOf(stage as Stage);
-
-  function goBack() {
-    if (stage === "pace") setStage("shape_name");
-    else if (stage === "confirm") setStage("pace");
-  }
+  // Single-screen create flow — no in-page back affordance needed.
+  // The StickyTopBar always renders the home link.
 
   return (
     <main className="relative flex min-h-screen flex-col bg-canvas">
@@ -332,56 +328,18 @@ export default function WelcomePage() {
       </div>
 
       <StickyTopBar>
-        {stage === "shape_name" || stage === "success" ? (
-          <Link
-            href="/"
-            className={
-              "-ml-2 inline-flex items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
-              "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-            }
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Clear
-          </Link>
-        ) : (
-          <button
-            type="button"
-            onClick={goBack}
-            disabled={setupAll.isPending}
-            className={
-              "-ml-2 inline-flex items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
-              "transition-colors duration-base ease-out-soft hover:text-text-strong disabled:opacity-50 " +
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-            }
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Back
-          </button>
-        )}
-      </StickyTopBar>
-
-      {/* Progress dots. Only on wizard stages so the success screen
-          reads as payoff, not "step 4 of 3". */}
-      {stage !== "success" && (
-        <div
-          aria-hidden="true"
-          className="relative z-10 flex items-center justify-center gap-2 px-gutter pt-6"
+        <Link
+          href="/"
+          className={
+            "-ml-2 inline-flex items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
+            "transition-colors duration-base ease-out-soft hover:text-text-strong " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          }
         >
-          {WIZARD_STAGES.map((s, i) => {
-            const reached = stageIdx >= i;
-            return (
-              <span
-                key={s}
-                className={
-                  "h-1.5 w-8 rounded-full transition-colors duration-base ease-out-soft " +
-                  (reached ? "bg-accent" : "bg-border-soft")
-                }
-              />
-            );
-          })}
-        </div>
-      )}
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Clear
+        </Link>
+      </StickyTopBar>
 
       <div className="relative z-10 flex flex-1 items-center justify-center px-gutter pb-16 pt-8">
         <div className="flex w-full max-w-md flex-col gap-4">
@@ -389,9 +347,9 @@ export default function WelcomePage() {
             title="You won't be able to finish creating a wallet with this sign-in"
           />
           <AnimatePresence mode="wait" initial={false}>
-            {stage === "shape_name" && (
+            {stage === "create" && (
               <motion.section
-                key="shape_name"
+                key="create"
                 {...pageMotion}
                 transition={TRANSITION}
                 className="flex flex-col"
@@ -401,56 +359,18 @@ export default function WelcomePage() {
                     <Users className="h-7 w-7 text-accent" strokeWidth={1.75} />
                   </div>
                   <h2 className="font-display text-display-sm text-text-strong text-balance">
-                    Who is this wallet for?
+                    Create your shared wallet
                   </h2>
                   <p className="mt-2 text-base text-text-soft">
-                    Pick the shape, give it a name. We will tailor the rest.
+                    Name it, pick who it's for. You can invite friends after.
                   </p>
                 </div>
 
-                <ul className="mt-8 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {SHAPES.map((s) => {
-                    const selected = shape === s.id;
-                    return (
-                      <li key={s.id}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShape(s.id);
-                            if (!name.trim()) setName(s.defaultName);
-                          }}
-                          aria-pressed={selected}
-                          className={
-                            "flex h-full w-full flex-col items-start gap-1 rounded-card border p-3 text-left " +
-                            "transition-[border-color,background-color,transform,box-shadow] duration-base ease-out-soft " +
-                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
-                            (selected
-                              ? "border-accent bg-accent/5 shadow-card-rest"
-                              : "border-border-soft bg-surface-raised hover:border-accent/40 hover:-translate-y-px")
-                          }
-                        >
-                          <span
-                            className={
-                              "flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold " +
-                              (selected
-                                ? "bg-accent text-white"
-                                : "bg-canvas text-text-soft")
-                            }
-                          >
-                            {s.expectedMembers}
-                          </span>
-                          <p className="mt-1 text-sm font-medium text-text-strong">
-                            {s.label}
-                          </p>
-                          <p className="text-[11px] leading-snug text-text-soft">
-                            {s.blurb}
-                          </p>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-
+                {/* Name input first — that's the only field with real
+                    free-form work. Avatar derives from the typed name
+                    + selected shape; no color picker. (Color moved to
+                    /app/wallet/[name]/rules where it can live with
+                    the rest of the wallet's settings.) */}
                 <div className="mt-8">
                   <label
                     htmlFor="wallet-name"
@@ -461,17 +381,7 @@ export default function WelcomePage() {
                   <div className="mt-2 flex items-stretch gap-3">
                     <span
                       aria-hidden="true"
-                      className={
-                        "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br " +
-                        "text-lg font-semibold text-white shadow-card-rest " +
-                        ((pickedColor
-                          ? COLOR_PALETTE.find((p) => p.id === pickedColor)
-                          : COLOR_PALETTE[0])?.from ?? "") +
-                        " " +
-                        ((pickedColor
-                          ? COLOR_PALETTE.find((p) => p.id === pickedColor)
-                          : COLOR_PALETTE[0])?.to ?? "")
-                      }
+                      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/15 text-lg font-semibold text-accent shadow-card-rest"
                     >
                       {cleanName.charAt(0).toUpperCase() || "?"}
                     </span>
@@ -481,6 +391,7 @@ export default function WelcomePage() {
                       onChange={(e) => setName(e.target.value)}
                       placeholder={currentShape.defaultName}
                       maxLength={57}
+                      autoFocus
                       className={
                         "min-w-0 flex-1 rounded-card border border-border-soft bg-surface-raised " +
                         "px-4 py-3 text-base text-text-strong placeholder:text-text-soft " +
@@ -489,212 +400,60 @@ export default function WelcomePage() {
                       }
                     />
                   </div>
+                </div>
 
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPickedColor(null)}
-                      aria-pressed={pickedColor === null}
-                      aria-label="Use the default color"
-                      className={
-                        "flex h-7 w-7 items-center justify-center rounded-full border-2 text-[10px] font-medium " +
-                        "transition-colors duration-base ease-out-soft " +
-                        (pickedColor === null
-                          ? "border-accent bg-accent/5 text-accent"
-                          : "border-border-soft bg-canvas text-text-soft hover:border-accent/40")
-                      }
-                    >
-                      Auto
-                    </button>
-                    {COLOR_PALETTE.map((p) => {
-                      const selected = pickedColor === p.id;
+                {/* Shape: tighter chip row instead of the old big-tile
+                    grid. The choice still informs default name + invite
+                    copy, but visually it stays out of the way of the
+                    actual decisions (name + create). */}
+                <div className="mt-6">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+                    Who's it for?
+                  </p>
+                  <ul className="mt-2 flex flex-wrap gap-1.5">
+                    {SHAPES.map((s) => {
+                      const selected = shape === s.id;
                       return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => setPickedColor(p.id)}
-                          aria-pressed={selected}
-                          aria-label={p.label}
-                          title={p.label}
-                          className={
-                            "h-7 w-7 rounded-full bg-gradient-to-br border-2 " +
-                            "transition-[border-color,transform] duration-base ease-out-soft " +
-                            p.from +
-                            " " +
-                            p.to +
-                            " " +
-                            (selected
-                              ? "border-text-strong scale-110"
-                              : "border-transparent hover:scale-105")
-                          }
-                        />
+                        <li key={s.id}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShape(s.id);
+                              if (!name.trim()) setName(s.defaultName);
+                            }}
+                            aria-pressed={selected}
+                            className={
+                              "rounded-full border px-3 py-1.5 text-xs font-medium " +
+                              "transition-[border-color,background-color,color] duration-base ease-out-soft " +
+                              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
+                              (selected
+                                ? "border-accent bg-accent/10 text-accent"
+                                : "border-border-soft bg-surface-raised text-text-soft hover:border-accent/40 hover:text-text-strong")
+                            }
+                          >
+                            {s.label}
+                          </button>
+                        </li>
                       );
                     })}
-                  </div>
-                </div>
-
-                <Button
-                  size="lg"
-                  fullWidth
-                  className="mt-8"
-                  onClick={() => setStage("pace")}
-                  disabled={!nameValid}
-                >
-                  Continue
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Button>
-              </motion.section>
-            )}
-
-            {stage === "pace" && (
-              <motion.section
-                key="pace"
-                {...pageMotion}
-                transition={TRANSITION}
-                className="flex flex-col"
-              >
-                <div className="text-center">
-                  <div className="mb-5 inline-flex h-14 w-14 items-center justify-center rounded-full bg-accent/10">
-                    <Clock className="h-7 w-7 text-accent" strokeWidth={1.75} />
-                  </div>
-                  <h2 className="font-display text-display-sm text-text-strong text-balance">
-                    When approvals are in
-                  </h2>
-                  <p className="mt-2 text-base text-text-soft">
-                    A cooling-off day is the safer pick for shared money. You
-                    can change this later.
-                  </p>
-                </div>
-
-                <div className="mt-8 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <PaceTile
-                    selected={delaySeconds === 0}
-                    onSelect={() => setDelaySeconds(0)}
-                    Icon={Zap}
-                    title="Send right away"
-                    body="Goes the moment everyone approves."
-                  />
-                  <PaceTile
-                    selected={delaySeconds === 86400}
-                    onSelect={() => setDelaySeconds(86400)}
-                    Icon={Clock}
-                    title="Wait 24 hours"
-                    body="A cooling-off day before it ships."
-                  />
-                </div>
-
-                <Button
-                  size="lg"
-                  fullWidth
-                  className="mt-8"
-                  onClick={() => setStage("confirm")}
-                >
-                  Continue
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Button>
-              </motion.section>
-            )}
-
-            {stage === "confirm" && (
-              <motion.section
-                key="confirm"
-                {...pageMotion}
-                transition={TRANSITION}
-                className="flex flex-col text-center"
-              >
-                <h2 className="font-display text-display-sm text-text-strong text-balance">
-                  Ready to create
-                </h2>
-                <p className="mt-2 text-base text-text-soft">
-                  Two quick wallet popups, then you are sending.
-                </p>
-
-                {/* Preview card. Full vibe-check before the user signs:
-                    avatar, shape pill, name, the rule, the pace. */}
-                <div className="mt-6 rounded-card border border-border-soft bg-surface-raised px-5 py-6 text-left shadow-card-rest">
-                  <div className="flex items-center gap-3">
-                    <span
-                      aria-hidden="true"
-                      className={
-                        "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br " +
-                        "text-lg font-semibold text-white shadow-card-rest " +
-                        ((pickedColor
-                          ? COLOR_PALETTE.find((p) => p.id === pickedColor)
-                          : COLOR_PALETTE[0])?.from ?? "") +
-                        " " +
-                        ((pickedColor
-                          ? COLOR_PALETTE.find((p) => p.id === pickedColor)
-                          : COLOR_PALETTE[0])?.to ?? "")
-                      }
-                    >
-                      {cleanName.charAt(0).toUpperCase() || "?"}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-soft">
-                        {currentShape.label}
-                      </p>
-                      <p className="font-display text-base text-text-strong">
-                        {cleanName || currentShape.defaultName}
-                      </p>
-                    </div>
-                  </div>
-                  <ul className="mt-4 flex flex-col gap-2 text-sm text-text-strong">
-                    <li className="flex items-start gap-2">
-                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                      You are the only member to start.
-                      {currentShape.expectedMembers > 1
-                        ? ` Invite the other ${currentShape.expectedMembers - 1} after.`
-                        : ""}
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                      Sends need 1 of 1 approvals (just you, for now).
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                      {delaySeconds === 0
-                        ? "Sends ship the moment they are approved."
-                        : "Sends wait 24 hours after approval before they ship."}
-                    </li>
                   </ul>
                 </div>
 
-                {/* Honest popup narration. The team flagged that the
-                    wallet popup shows hex bytes and users expect
-                    human-readable intent. We cannot change what the
-                    wallet shows (Solana signMessage is bytes-only), so
-                    we tell the user up front: here is what each popup
-                    is for, and the technical-looking text is normal. */}
-                <div className="mt-4 rounded-card border border-accent/30 bg-accent/[0.04] p-4 text-left text-sm">
-                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-accent">
+                {/* Honest popup narration. Solana signMessage shows
+                    hex bytes, not a friendly summary; we surface that
+                    fact up front so users don't think their wallet is
+                    broken. Compact form (was a full-width card on the
+                    old confirm screen). */}
+                <div className="mt-6 rounded-card border border-border-soft bg-surface-raised p-4 text-left text-sm shadow-card-rest">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
                     What happens next
                   </p>
-                  <ol className="mt-3 flex flex-col gap-3 text-text-strong">
-                    <li className="flex items-start gap-2.5">
-                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-semibold text-white">
-                        1
-                      </span>
-                      <span>
-                        Your wallet pops up to confirm{" "}
-                        <span className="font-medium">create wallet</span>.
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2.5">
-                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-semibold text-white">
-                        2
-                      </span>
-                      <span>
-                        It pops up again to confirm{" "}
-                        <span className="font-medium">enable sending</span>.
-                      </span>
-                    </li>
-                  </ol>
-                  <p className="mt-3 text-xs text-text-soft">
-                    Heads up. Solana wallets show technical-looking text in
-                    the signing prompt instead of a friendly summary. That
-                    is normal. The text is the message your wallet is
-                    signing for you. Nothing leaves your account at this
-                    point; you are setting up rules on chain.
+                  <p className="mt-2 text-text-strong">
+                    Two wallet popups: one to{" "}
+                    <span className="font-medium">create the wallet</span>,
+                    one to <span className="font-medium">enable sending</span>.
+                    Each shows technical-looking signing text — that's
+                    normal. Nothing leaves your account.
                   </p>
                 </div>
 
@@ -715,7 +474,7 @@ export default function WelcomePage() {
                     </>
                   ) : (
                     <>
-                      Create {cleanName || "wallet"}
+                      Create {cleanName || currentShape.defaultName}
                       <ArrowRight className="h-4 w-4" aria-hidden="true" />
                     </>
                   )}
@@ -803,46 +562,9 @@ export default function WelcomePage() {
 
 // ─── Subcomponents ─────────────────────────────────────────────────
 
-interface PaceTileProps {
-  selected: boolean;
-  onSelect: () => void;
-  Icon: typeof Zap;
-  title: string;
-  body: string;
-}
-
-function PaceTile({ selected, onSelect, Icon, title, body }: PaceTileProps) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      className={
-        "flex flex-col items-start gap-2 rounded-card border p-4 text-left " +
-        "transition-[border-color,background-color,box-shadow] duration-base ease-out-soft " +
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
-        (selected
-          ? "border-accent bg-accent/5 shadow-card-rest"
-          : "border-border-soft bg-surface-raised hover:border-accent/40")
-      }
-    >
-      <div
-        className={
-          "flex h-9 w-9 items-center justify-center rounded-full " +
-          (selected ? "bg-accent text-white" : "bg-accent/10 text-accent")
-        }
-      >
-        <Icon className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
-      </div>
-      <p className="text-sm font-medium text-text-strong">{title}</p>
-      <p className="text-[11px] leading-snug text-text-soft">{body}</p>
-    </button>
-  );
-}
-
 /// Neutral holding state used by every pre-wizard branch (disconnected,
-/// memberships loading, has-existing-wallets redirect). Keeps the
-/// create CTA off-screen until we have proof the user needs it.
+/// memberships loading). Keeps the create CTA off-screen until we have
+/// proof the user needs it.
 function NeutralWait({ label, reduce }: { label: string; reduce: boolean }) {
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center bg-canvas px-gutter">
