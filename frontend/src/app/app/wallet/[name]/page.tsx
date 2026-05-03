@@ -153,8 +153,16 @@ export default function WalletDetailPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <BackLink />
+    <div className="flex flex-col gap-4">
+      {/* The "← Wallets" sticky bar floats below the HeaderBar with
+          mostly-empty width on desktop, leaving a wide blank band
+          above the hero. The sidebar already provides cross-wallet
+          navigation on md+, so the back affordance is redundant
+          there. Keep it on mobile where the sidebar lives behind a
+          drawer and the back link is the only way out. */}
+      <div className="md:hidden">
+        <BackLink />
+      </div>
       <Hero
         name={name}
         memberCount={memberCount}

@@ -62,3 +62,19 @@ export function toHeadingName(onChain: string): string {
 export function hasSuffix(name: string): boolean {
   return new RegExp(`${SEPARATOR}[1-9A-HJ-NP-Za-km-z]{${SUFFIX_LEN}}$`).test(name);
 }
+
+/// True when `address` is the creator of the wallet, derived from
+/// the on-chain name's suffix (the first 6 base58 chars of the
+/// creator's pubkey are appended at create-time). Used to render a
+/// "creator" badge on the member list and to gate destructive
+/// actions (you can't kick the wallet's owner — they need to stay
+/// in to authorise their own departure if they ever want to).
+///
+/// Returns false for legacy names without a suffix.
+export function isCreatorAddress(onChainName: string, address: string): boolean {
+  if (!onChainName || !address) return false;
+  if (!hasSuffix(onChainName)) return false;
+  const idx = onChainName.lastIndexOf(SEPARATOR);
+  const suffix = onChainName.slice(idx + 1);
+  return address.startsWith(suffix);
+}
