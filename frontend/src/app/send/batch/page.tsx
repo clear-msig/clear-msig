@@ -38,6 +38,7 @@ import {
   shortAddress,
   type Contact,
 } from "@/lib/retail/contacts";
+import { toDisplayName } from "@/lib/retail/walletNames";
 import { useContacts } from "@/lib/hooks/useContacts";
 import { useBatchSend, type BatchSendRow } from "@/lib/hooks/useBatchSend";
 import { useToast } from "@/components/ui/Toast";
@@ -81,6 +82,7 @@ function BatchSendPage() {
   const batch = useBatchSend();
 
   const walletName = params?.get("wallet")?.trim() || "";
+  const walletDisplay = toDisplayName(walletName);
 
   const walletQuery = useQuery({
     queryKey: ["wallet", walletName],
@@ -228,7 +230,7 @@ function BatchSendPage() {
                 Set up sending first
               </p>
               <p className="mt-2 text-sm text-text-strong">
-                Batch send needs <strong>{walletName}</strong>&rsquo;s
+                Batch send needs <strong>{walletDisplay}</strong>&rsquo;s
                 spending rule to be in place. Enable sending, then come
                 back here.
               </p>
@@ -247,7 +249,7 @@ function BatchSendPage() {
                   href={`/app/wallet/${encodeURIComponent(walletName)}`}
                   className="inline-flex items-center rounded-soft border border-border-soft bg-surface-raised px-3.5 py-2 text-sm font-medium text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
                 >
-                  Back to {walletName}
+                  Back to {walletDisplay}
                 </Link>
               </div>
             </div>
@@ -326,13 +328,14 @@ function ComposeStage({
   onUpdateRow,
   onReview,
 }: ComposeProps) {
+  const walletDisplay = toDisplayName(walletName);
   return (
     <div className="flex flex-col items-center text-center">
       <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-accent/10 text-accent">
         <Users className="h-7 w-7" strokeWidth={1.75} />
       </div>
       <h1 className="font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-        Send a batch from {walletName}
+        Send a batch from {walletDisplay}
       </h1>
       <p className="mt-3 max-w-sm text-base text-text-soft">
         Pay many people at once: payroll, splits, an event. Each row
@@ -514,11 +517,12 @@ function ReviewStage({
   onBack: () => void;
   onSend: () => void;
 }) {
+  const walletDisplay = toDisplayName(walletName);
   return (
     <div className="flex flex-col items-center text-center">
       <h1 className="font-display text-display-sm leading-[1.05] text-text-strong text-balance">
         Send {rows.length} request{rows.length === 1 ? "" : "s"} from{" "}
-        {walletName}?
+        {walletDisplay}?
       </h1>
       <p className="mt-3 max-w-sm text-base text-text-soft">
         Each row becomes its own request. Your wallet will pop up{" "}
@@ -647,6 +651,7 @@ function DoneStage({
   progress: ReturnType<typeof useBatchSend>["progress"];
   onSendAnother: () => void;
 }) {
+  const walletDisplay = toDisplayName(walletName);
   if (!progress) return null;
   const allSucceeded = progress.failed === 0;
   return (
@@ -668,7 +673,7 @@ function DoneStage({
       </h1>
       <p className="mt-2 max-w-sm text-base text-text-soft">
         {allSucceeded
-          ? `Each request is waiting for your friends to approve. Track them on ${walletName}'s page.`
+          ? `Each request is waiting for your friends to approve. Track them on ${walletDisplay}'s page.`
           : "Some rows didn't go through. Review the list below, then retry just those."}
       </p>
 
@@ -699,7 +704,7 @@ function DoneStage({
           className="flex-1"
         >
           <Button size="lg" fullWidth>
-            Back to {walletName}
+            Back to {walletDisplay}
           </Button>
         </Link>
         <Button

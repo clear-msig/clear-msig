@@ -69,6 +69,7 @@ import {
   type SignPayloadDetail,
 } from "@/components/retail/SignPayloadPreview";
 import { chainByKind } from "@/lib/retail/chains";
+import { toDisplayName } from "@/lib/retail/walletNames";
 import { appConfig } from "@/lib/config";
 
 const ETH_CHAIN_KIND = 1;
@@ -96,6 +97,7 @@ function SendEthPage() {
   const queryClient = useQueryClient();
 
   const walletName = params?.get("wallet")?.trim() || "";
+  const walletDisplay = toDisplayName(walletName);
 
   const walletQuery = useQuery({
     queryKey: ["wallet", walletName],
@@ -410,6 +412,7 @@ function ComposeStage({
   canSubmit,
   onSubmit,
 }: ComposeStageProps) {
+  const walletDisplay = toDisplayName(walletName);
   const ethMeta = chainByKind(ETH_CHAIN_KIND);
 
   const previewDetails: SignPayloadDetail[] = [
@@ -443,7 +446,7 @@ function ComposeStage({
       <div className="flex flex-col items-center text-center">
         {ethMeta && <ChainBadge chain={ethMeta} size="lg" />}
         <h1 className="mt-4 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          Send ETH from {walletName}
+          Send ETH from {walletDisplay}
         </h1>
         <p className="mt-2 text-base text-text-soft">
           On Sepolia, the Ethereum testnet. Don&rsquo;t send mainnet ETH
@@ -597,6 +600,7 @@ interface SentStageProps {
 }
 
 function SentStage({ amount, to, walletName, onDone, reduce }: SentStageProps) {
+  const walletDisplay = toDisplayName(walletName);
   return (
     <div className="flex flex-col items-center text-center">
       <motion.div
@@ -614,7 +618,7 @@ function SentStage({ amount, to, walletName, onDone, reduce }: SentStageProps) {
         Approved + broadcast through Ika. Watch for it on Sepolia.
       </p>
       <Button size="lg" fullWidth className="mt-8 max-w-xs" onClick={onDone}>
-        Back to {walletName}
+        Back to {walletDisplay}
       </Button>
     </div>
   );

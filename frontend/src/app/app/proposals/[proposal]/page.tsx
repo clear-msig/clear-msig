@@ -51,6 +51,7 @@ import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import { SignPayloadPreview } from "@/components/retail/SignPayloadPreview";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
+import { toDisplayName } from "@/lib/retail/walletNames";
 import { relativeTime } from "@/lib/util/relativeTime";
 
 export default function RequestDetailPage() {
@@ -153,6 +154,7 @@ function Loaded({
   const wallet = useWallet();
   const toast = useToast();
   const workflow = useProposalWorkflow(walletName, proposalPda);
+  const walletDisplay = toDisplayName(walletName);
 
   const approverCount = intent.approvers.length;
   const approvalsCollected = countBits(proposal.approvalBitmap);
@@ -215,7 +217,7 @@ function Loaded({
           }
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          {walletName}
+          {walletDisplay}
         </Link>
       </StickyTopBar>
 
@@ -240,7 +242,7 @@ function Loaded({
           {intentLabel}
         </h1>
         <p className="mt-2 text-base text-text-soft">
-          in <span className="font-medium text-text-strong">{walletName}</span>{" "}
+          in <span className="font-medium text-text-strong">{walletDisplay}</span>{" "}
           · created {createdAgo} {proposerLabel && `· ${proposerLabel}`}
         </p>
 
@@ -261,7 +263,7 @@ function Loaded({
           <SignPayloadPreview
             action={`Approve: ${intentLabel}`}
             details={[
-              { label: "In wallet", value: walletName },
+              { label: "In wallet", value: walletDisplay },
               {
                 label: "Approvals so far",
                 value: `${approvalsCollected} of ${approverCount}`,

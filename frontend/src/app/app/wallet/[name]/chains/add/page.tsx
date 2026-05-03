@@ -37,6 +37,7 @@ import {
   type ChainMeta,
 } from "@/lib/retail/chains";
 import { useToast } from "@/components/ui/Toast";
+import { toDisplayName } from "@/lib/retail/walletNames";
 
 type Stage = "pick" | "confirm" | "binding" | "done";
 
@@ -67,6 +68,7 @@ function AddChainPage() {
       return params?.name ?? "";
     }
   }, [params?.name]);
+  const walletDisplay = toDisplayName(walletName);
 
   const initialChain = useMemo(() => {
     const fromQuery = search?.get("chain");
@@ -126,7 +128,7 @@ function AddChainPage() {
           segments={[
             { label: "Wallets", href: "/app/wallet" },
             {
-              label: walletName,
+              label: walletDisplay,
               href: `/app/wallet/${encodeURIComponent(walletName)}`,
             },
             {
@@ -149,7 +151,7 @@ function AddChainPage() {
               Pick a chain
             </h1>
             <p className="mt-2 max-w-md text-base text-text-soft">
-              Each chain you add lets {walletName} send money there.
+              Each chain you add lets {walletDisplay} send money there.
               You only need to set this up once per chain.
             </p>
           </div>
@@ -199,7 +201,7 @@ function AddChainPage() {
           <div className="flex flex-col items-center text-center">
             <ChainBadge chain={selected} size="lg" />
             <h1 className="mt-5 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-              Add {selected.name} to {walletName}
+              Add {selected.name} to {walletDisplay}
             </h1>
             <p className="mt-2 max-w-md text-base text-text-soft">
               {selected.description}
@@ -213,7 +215,7 @@ function AddChainPage() {
             <ul className="mt-3 flex flex-col gap-2 text-sm text-text-strong">
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                We&rsquo;ll create a new key for {walletName} on{" "}
+                We&rsquo;ll create a new key for {walletDisplay} on{" "}
                 {selected.name} (about 30 seconds).
               </li>
               <li className="flex items-start gap-2">
@@ -223,7 +225,7 @@ function AddChainPage() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                You can send {selected.ticker} from {walletName} as
+                You can send {selected.ticker} from {walletDisplay} as
                 soon as it&rsquo;s ready.
               </li>
             </ul>
@@ -378,6 +380,7 @@ function DoneStage({
   onContinue: () => void;
   reduce: boolean;
 }) {
+  const walletDisplay = toDisplayName(walletName);
   return (
     <motion.section
       initial={reduce ? false : { opacity: 0, y: 12 }}
@@ -403,7 +406,7 @@ function DoneStage({
           {chain.name} is ready
         </h1>
         <p className="mt-2 max-w-md text-base text-text-soft">
-          {walletName} can now send {chain.ticker} the same way it
+          {walletDisplay} can now send {chain.ticker} the same way it
           sends Solana. Your friends approve, the network signs.
         </p>
       </div>

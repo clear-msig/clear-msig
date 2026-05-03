@@ -35,6 +35,7 @@ import {
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { IntentType, toHex, findProposalAddress } from "@/lib/msig";
+import { toDisplayName } from "@/lib/retail/walletNames";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
 import { PublicKey } from "@solana/web3.js";
 import { fetchWalletByName } from "@/lib/chain/wallets";
@@ -104,7 +105,7 @@ interface SendPreviewArgs {
 function buildSendPreviewDetails(args: SendPreviewArgs): SignPayloadDetail[] {
   const { walletName, amount, amountValid, resolved, pendingUsd, budgetUsage } = args;
   const details: SignPayloadDetail[] = [
-    { label: "From wallet", value: walletName || "your wallet" },
+    { label: "From wallet", value: toDisplayName(walletName) || "your wallet" },
     { label: "Chain", value: "Solana" },
   ];
   // Always surface the destination address — even for contact-resolved
@@ -170,7 +171,7 @@ function buildSendPreviewWarning(args: {
   const cap = budgetUsage.budget?.weeklyUsd ?? null;
   if (cap !== null && cap > 0 && budgetUsage.spentUsd + pendingUsd > cap) {
     const over = budgetUsage.spentUsd + pendingUsd - cap;
-    return `This send pushes ${budgetUsage.budget?.walletName ?? "the wallet"} ${formatUsd(over)} over its ${formatUsd(cap)} weekly cap.`;
+    return `This send pushes ${budgetUsage.budget ? toDisplayName(budgetUsage.budget.walletName) : "the wallet"} ${formatUsd(over)} over its ${formatUsd(cap)} weekly cap.`;
   }
   if (budgetUsage.velocityHit) {
     return `You have already sent ${budgetUsage.sendsLast24h} times in the last 24 hours, at the per-day limit. This send would go above it.`;
@@ -205,6 +206,10 @@ function SendPage() {
   const contacts = useContacts();
 
   const walletName = params?.get("wallet")?.trim() || "";
+  // walletName carries the on-chain creator suffix (see lib/retail/walletNames).
+  // Use walletDisplay for any user-visible text; walletName stays for
+  // routing, API, and chain reads.
+  const walletDisplay = toDisplayName(walletName);
 
   // Load wallet + intents to resolve which intent_index to bind to.
   const walletQuery = useQuery({
@@ -517,7 +522,7 @@ function SendPage() {
           {stage === "sent" ? "Done" : "Back"}
         </button>
         <span className="rounded-full border border-border-soft bg-surface-raised px-3 py-1 text-xs font-medium text-text-strong">
-          {walletName || "your shared wallet"}
+          {walletDisplay || "your shared wallet"}
         </span>
       </StickyTopBar>
 
@@ -529,7 +534,7 @@ function SendPage() {
                 Set up sending first
               </p>
               <p className="mt-2 text-sm text-text-strong">
-                <strong>{walletName}</strong> doesn&rsquo;t have a
+                <strong>{walletDisplay}</strong> doesn&rsquo;t have a
                 spending rule yet. Enable sending. Once that&rsquo;s
                 done, you can come back and send anything you want.
               </p>
@@ -548,7 +553,7 @@ function SendPage() {
                   href={`/app/wallet/${encodeURIComponent(walletName)}`}
                   className="inline-flex items-center rounded-soft border border-border-soft bg-surface-raised px-3.5 py-2 text-sm font-medium text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
                 >
-                  Back to {walletName}
+                  Back to {walletDisplay}
                 </Link>
               </div>
             </div>
@@ -558,7 +563,7 @@ function SendPage() {
           )}
           {stage === "compose" && (
             <ComposeStage
-              walletName={walletName || "your shared wallet"}
+              walletName={walletDisplay || "your shared wallet"}
               amount={amount}
               setAmount={setAmount}
               recipientText={recipientText}
@@ -592,7 +597,7 @@ function SendPage() {
             <SentStage
               amountDisplay={sentAmountDisplay}
               recipientDisplay={sentRecipientDisplay}
-              walletName={walletName || "your shared wallet"}
+              walletName={walletDisplay || "your shared wallet"}
               onDone={() =>
                 router.push(
                   walletName
@@ -666,6 +671,7 @@ function ComposeStage({
   onQuickFill,
   reduce,
 }: ComposeStageProps) {
+  const walletDisplay = toDisplayName(walletName);
   const motionProps = reduce
     ? { initial: false as const, animate: { opacity: 1 } }
     : {
@@ -686,7 +692,7 @@ function ComposeStage({
       className="flex flex-col"
     >
       <p className="text-center text-[11px] font-medium uppercase tracking-[0.18em] text-text-soft">
-        Sending from {walletName}
+        Sending from {walletDisplay}
       </p>
 
       {/* Quick-send shortcut — type a sentence, the form fills.
@@ -856,7 +862,7 @@ function ComposeStage({
       </Button>
 
       <p className="mt-4 text-center text-xs text-text-soft">
-        Your friends in {walletName} will be asked to approve before it
+        Your friends in {walletDisplay} will be asked to approve before it
         sends.
       </p>
 
@@ -1174,6 +1180,7 @@ function SentStage({
   onDone,
   reduce,
 }: SentStageProps) {
+  const walletDisplay = toDisplayName(walletName);
   const motionProps = reduce
     ? { initial: false as const, animate: { opacity: 1 } }
     : {
@@ -1209,12 +1216,12 @@ function SentStage({
           {recipientDisplay}
         </span>{" "}
         is waiting on your friends in{" "}
-        <span className="font-medium text-text-strong">{walletName}</span>.
+        <span className="font-medium text-text-strong">{walletDisplay}</span>.
       </p>
 
       <div className="mt-8 w-full">
         <NextStepCard
-          title={`Anything else from ${walletName}?`}
+          title={`Anything else from ${walletDisplay}?`}
           options={[
             {
               label: "Send another request",
@@ -1272,6 +1279,7 @@ function BudgetHint({
   pendingUsd: number;
   walletName: string;
 }) {
+  const walletDisplay = toDisplayName(walletName);
   const cap = budgetUsage.budget?.weeklyUsd ?? null;
   if (cap === null || cap === undefined) return null;
   if (pendingUsd <= 0) return null;
@@ -1281,7 +1289,7 @@ function BudgetHint({
   if (!wouldExceed) {
     return (
       <p className="mt-4 text-center text-xs text-text-soft">
-        ✓ Fits within {formatUsd(remaining)} left in {walletName}&rsquo;s
+        ✓ Fits within {formatUsd(remaining)} left in {walletDisplay}&rsquo;s
         weekly cap.
       </p>
     );
@@ -1290,7 +1298,7 @@ function BudgetHint({
   return (
     <div className="mt-4 rounded-card border border-warning/30 bg-warning/5 p-3 text-left text-xs text-text-soft">
       <p className="font-medium text-text-strong">
-        Heads up: this send would push {walletName} {formatUsd(overage)}{" "}
+        Heads up: this send would push {walletDisplay} {formatUsd(overage)}{" "}
         over its weekly cap.
       </p>
       <p className="mt-1 leading-snug">
@@ -1300,7 +1308,7 @@ function BudgetHint({
           href={`/app/wallet/${encodeURIComponent(walletName)}/budget`}
           className="text-accent underline-offset-2 hover:underline"
         >
-          {walletName}&rsquo;s budget page
+          {walletDisplay}&rsquo;s budget page
         </Link>
         .
       </p>

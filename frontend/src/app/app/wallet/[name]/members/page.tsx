@@ -125,7 +125,7 @@ export default function MembersPage() {
           Members
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          Who&rsquo;s in {name}
+          Who&rsquo;s in {toDisplayName(name)}
         </h1>
         <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
           {members.length === 1
@@ -249,6 +249,7 @@ function MemberRow({
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 6 }, animate: { opacity: 1, y: 0 } };
+  const walletDisplay = toDisplayName(walletName);
   const initials = avatarInitials(address);
   const displayName = isYou ? "You" : `Member ${initials}`;
   const subtitle =
@@ -302,7 +303,7 @@ function MemberRow({
       toast.success(
         role === "watcher"
           ? "Watcher removed"
-          : `${displayName} removed from ${walletName}`,
+          : `${displayName} removed from ${walletDisplay}`,
       );
       setConfirmingRemove(false);
     } catch (err) {
@@ -419,7 +420,7 @@ function MemberRow({
           <span className="text-text-strong">
             {role === "watcher"
               ? `Stop watching with ${displayName}?`
-              : `Remove ${displayName} from ${walletName}? You'll sign 2 wallet popups.`}
+              : `Remove ${displayName} from ${walletDisplay}? You'll sign 2 wallet popups.`}
           </span>
           <div className="flex shrink-0 items-center gap-2">
             <button
