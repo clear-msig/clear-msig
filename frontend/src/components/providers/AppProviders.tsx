@@ -21,6 +21,7 @@ import {
   type DynamicContextProps,
 } from "@dynamic-labs/sdk-react-core";
 import { TurnkeySolanaWalletConnectors } from "@dynamic-labs/embedded-wallet-solana";
+import { DynamicWaasSVMConnectors } from "@dynamic-labs/waas-svm";
 import { DynamicWaasEVMConnectors } from "@dynamic-labs/waas-evm";
 import { DynamicWaasSuiConnectors } from "@dynamic-labs/waas-sui";
 import { SolanaWalletConnectors } from "@dynamic-labs/solana";
@@ -64,34 +65,30 @@ export function AppProviders({ children }: Props) {
     }
   }
 
-  // Solana embedded wallets route exclusively through Turnkey here.
-  // The DynamicWaasSVMConnectors path is intentionally omitted: its
-  // signer (DynamicWaasSVMSigner.signMessage) calls
-  // `Buffer.from(bytes).toString()` which UTF-8 decodes the input
-  // before passing to the TSS backend. Our offchain-wrapped messages
-  // start with `\xff` — an invalid UTF-8 byte that gets replaced with
-  // U+FFFD, so the wallet ends up signing different bytes than we
-  // asked. The CLI's PreSignedMessageSigner then fails verification
-  // and the backend returns 502. Turnkey's signMessage takes a
-  // Uint8Array and forwards it intact, so it is the safe path until
-  // Dynamic ships a bytes-safe WaaS signer.
+  // Two embedded-Solana paths are registered. Dynamic picks one
+  // based on the project's Embedded Wallets settings:
+  //   - DynamicWaasSVMConnectors (TSS-MPC, the new default)
+  //   - TurnkeySolanaWalletConnectors (HSM-backed, legacy)
   //
-  // EVM + Sui WaaS connectors are still listed because Dynamic mints
-  // embedded wallets for every chain enabled in the project's
-  // Embedded Wallets settings, and throws on init when a chain is
-  // turned on but its connector isn't registered. BTC's WaaS
-  // connector isn't on npm yet; disable BTC in the dashboard if
-  // init errors mention it.
+  // Known bug, current workaround: DynamicWaasSVMSigner.signMessage
+  // calls `Buffer.from(bytes).toString()` which UTF-8-decodes the
+  // input before signing. Our offchain envelope starts with `\xff`,
+  // an invalid UTF-8 byte that gets replaced with U+FFFD, so the
+  // wallet signs different bytes than we asked. We catch this in
+  // useSignWithWallet via local ed25519 verify and tell the user
+  // to use an external wallet (Phantom / Solflare / Backpack) or a
+  // Ledger. Turnkey doesn't have this bug; if your Dynamic project
+  // exposes Turnkey as the embedded provider, prefer it.
+  //
+  // EVM + Sui WaaS connectors are listed so Dynamic doesn't crash
+  // at init when those chains are enabled in the dashboard. They
+  // aren't used for Solana signing.
   const settings: DynamicContextProps["settings"] = {
     environmentId: environmentId ?? "",
     walletConnectors: [
-      // External Solana wallets (Phantom / Solflare / Backpack /
-      // Coinbase Wallet) — wallet-standard auto-discovery.
       SolanaWalletConnectors,
-      // Embedded Solana wallets via Turnkey (bytes-safe signMessage).
+      DynamicWaasSVMConnectors,
       TurnkeySolanaWalletConnectors,
-      // EVM + Sui WaaS — needed to satisfy Dynamic's per-chain
-      // connector requirement; not used for Solana signing.
       DynamicWaasEVMConnectors,
       DynamicWaasSuiConnectors,
     ],

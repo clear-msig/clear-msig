@@ -144,10 +144,14 @@ export function friendlyError(
   // wallet's signature is over different bytes than we asked for.
   if (bag.walletErrorCode === "wallet_signed_wrong_bytes") {
     return {
-      title: "Your wallet signed the wrong bytes",
-      body: "This is a known issue with some embedded-wallet providers. " +
-        "For now, sign in with Phantom, Solflare, Backpack, or a Ledger; " +
-        "everything else works through those.",
+      title: "Email sign-in can't sign on Solana right now",
+      body:
+        "Dynamic's TSS embedded Solana wallet has a known UTF-8 bug that " +
+        "corrupts the message bytes before signing. To create wallets and " +
+        "send: sign out, then sign in with Phantom, Solflare, Backpack, or " +
+        "Coinbase Wallet (same wallet picker, scroll past email). For " +
+        "hardware-tier security, plug in a Ledger from /security. Your " +
+        "embedded wallet still receives funds and shows balance fine.",
     };
   }
 
