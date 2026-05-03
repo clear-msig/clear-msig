@@ -74,6 +74,26 @@ Proposal (PDA: ["proposal", intent, index])
   └── params_data, approval/cancellation bitmaps
 ```
 
+### Wallet name namespacing — honest accounting
+
+The on-chain wallet PDA derives from `sha256(name)` only. That means
+the name space is **global**: if Sarah creates a wallet called `Family`,
+no one else can ever create a `Family` on this program. Pre-alpha,
+that breaks retail UX hard.
+
+The frontend works around it by appending the first 6 base58 chars of
+the creator's pubkey to every typed name before submission. So Sarah's
+`Family` lands on chain as `Family#9Da5az` and Micah's lands as
+`Family#3kQpRX`. The display layer strips the suffix everywhere it
+shows a wallet name, so users see what they typed. URLs and API calls
+keep the suffixed form because the program's PDA derivation needs it.
+
+The proper fix is creator-scoped seeds in the program itself
+(`["clear_wallet", creator_pubkey, sha256(name)]`); a WIP branch
+(`feat/creator-scoped-wallet-pda`) exists with the program change,
+build verified, but on-chain tests regress while we sort out a
+Quasar account-layout subtlety. See `MIGRATION.md` on that branch.
+
 ## Encrypt — confidential policies (pre-alpha)
 
 A multisig is only as private as its on-chain footprint. The **proposers list, approvers list, threshold, allowances, recipient allowlists** sit in plaintext today, which means a Solana explorer can read your wallet's full org chart and spending rules. clear-msig integrates [Encrypt](https://encrypt.xyz) ([dwallet-labs/encrypt-pre-alpha](https://github.com/dwallet-labs/encrypt-pre-alpha)) to fix that: every policy field becomes an FHE ciphertext on chain, the program runs threshold checks and allowance arithmetic *directly on the encrypted bytes* via `#[encrypt_fn]` handlers, and only the wallet members ever see plaintext.
