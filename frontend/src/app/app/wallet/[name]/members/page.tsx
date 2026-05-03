@@ -27,7 +27,7 @@ import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { avatarInitials } from "@/lib/retail/avatar";
-import { toDisplayName } from "@/lib/retail/walletNames";
+import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
 import { useRemoveMember } from "@/lib/hooks/useRemoveMember";
 import { useUpdateMemberRole } from "@/lib/hooks/useUpdateMemberRole";
 import { useToast } from "@/components/ui/Toast";
@@ -125,7 +125,7 @@ export default function MembersPage() {
           Members
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          Who&rsquo;s in {toDisplayName(name)}
+          Who&rsquo;s in <span className="text-accent">{toHeadingName(name)}</span>
         </h1>
         <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
           {members.length === 1

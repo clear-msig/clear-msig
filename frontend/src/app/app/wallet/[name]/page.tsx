@@ -40,7 +40,7 @@ import { relativeTime } from "@/lib/util/relativeTime";
 import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
 import { formatBalance } from "@/lib/retail/format";
 import { avatarGradient } from "@/lib/retail/avatar";
-import { toDisplayName } from "@/lib/retail/walletNames";
+import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
 import {
   getWalletAppearance,
   gradientFor,
@@ -277,14 +277,15 @@ function Hero({
         {shapeLabel ? `${shapeLabel} wallet` : "Shared wallet"}
       </p>
       <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-        {toDisplayName(name)}
+        {toHeadingName(name)}
       </h1>
       {/* Sub-line: shape preset + member count. Carries the create-
           time choice through to the hub so the user feels the wallet
           remembers what they set it up for. */}
       {shapeLabel && memberCount !== null && (
         <p className="mt-1 text-xs text-text-soft">
-          For {shapeLabel.toLowerCase()} · {memberCount}{" "}
+          For {shapeLabel.toLowerCase()} ·{" "}
+          <span className="font-medium text-text-strong">{memberCount}</span>{" "}
           {memberCount === 1 ? "member" : "members"}
         </p>
       )}
@@ -301,7 +302,7 @@ function Hero({
         ) : (
           <p className="mt-1 font-display text-display-xs text-text-strong">
             {balance ? balance.amount : "0"}{" "}
-            <span className="text-text-soft">
+            <span className="text-text-strong/70">
               {balance?.ticker ?? "SOL"}
             </span>
           </p>

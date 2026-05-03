@@ -29,7 +29,7 @@ import { useConnection } from "@/lib/wallet";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { IntentType } from "@/lib/msig";
-import { toDisplayName } from "@/lib/retail/walletNames";
+import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
 
@@ -148,7 +148,7 @@ export default function WalletSettingsPage() {
           <WalletIcon className="h-5 w-5" strokeWidth={1.75} />
         </div>
         <h1 className="mt-4 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          {display} settings
+          <span className="text-accent">{toHeadingName(name)}</span> settings
         </h1>
         <p className="mt-2 max-w-md text-base text-text-soft">
           Everything per-wallet lives here: rules, limits, allowlists,

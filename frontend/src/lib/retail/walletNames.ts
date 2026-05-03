@@ -41,6 +41,21 @@ export function toDisplayName(onChain: string): string {
   return cleaned.slice(0, idx);
 }
 
+/// Display name with the first letter capitalised. Handy in headlines
+/// like "Add someone to Family" so the wallet name doesn't render as
+/// a sentence ending in a person's lowercase name. We capitalise here
+/// (display-only) rather than at create-time so the on-chain bytes
+/// stay exactly what the user typed.
+export function toHeadingName(onChain: string): string {
+  const display = toDisplayName(onChain);
+  if (!display) return display;
+  // Use codePointAt to handle the rare emoji-led wallet name; we only
+  // upper-case the first ASCII letter, so emoji and CJK pass through.
+  const first = display[0];
+  if (!first || !/[a-z]/.test(first)) return display;
+  return first.toUpperCase() + display.slice(1);
+}
+
 /// True when the name carries our suffix shape. Used both internally
 /// and by the create-wallet form to avoid double-appending when a
 /// power user pastes an already-suffixed name.

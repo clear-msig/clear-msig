@@ -367,7 +367,7 @@ function WalletCard({
             ) : (
               <p className="mt-1 font-display text-base text-text-strong">
                 {balance ? balance.amount : "0"}{" "}
-                <span className="text-text-soft">
+                <span className="text-text-strong/70">
                   {balance?.ticker ?? "SOL"}
                 </span>
               </p>

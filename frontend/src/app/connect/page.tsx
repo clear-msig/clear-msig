@@ -324,10 +324,12 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
 
 // ─── Ledger row ───────────────────────────────────────────────────
 //
-// Sits below the Dynamic widget as a subdued power-user option.
-// Retail users ignore it; users who care about hardware-device clear
-// signing see it and pick it. On success the wallet gate redirects;
-// no extra navigation here.
+// Demoted to a small inline link below the email CTA. Old version
+// rendered as a 52px button equal in weight to the primary CTA;
+// users had to decide between two hero-level affordances at first
+// paint. Squads moved off this exact pattern for the same reason.
+// Hardware-wallet users still find it; retail users skip past.
+// On success the wallet gate redirects; no extra navigation here.
 
 function LedgerConnectRow() {
   const ledger = useLedger();
@@ -346,6 +348,8 @@ function LedgerConnectRow() {
     }
   };
 
+  // Already connected — keep the prominent success card; the user
+  // needs to know their device is in the loop and how to back out.
   if (ledger.session) {
     return (
       <div className="mt-5 flex items-center justify-between gap-3 rounded-card border border-accent/30 bg-accent/5 p-3 text-xs text-text-strong">
@@ -365,40 +369,37 @@ function LedgerConnectRow() {
     );
   }
 
+  // Browser without WebHID — silent. Retail users get nothing, power
+  // users who do `navigator.hid` know what's missing. The previous
+  // "Hardware wallets need WebHID" message was a teaching moment we
+  // didn't need to surface at this height.
+  if (!supportsHid) return null;
+
   return (
-    <div className="mt-6 border-t border-border-soft pt-6">
-      <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-text-soft">
-        Or use hardware
-      </p>
+    <div className="mt-4">
       <button
         type="button"
         onClick={handleClick}
-        disabled={!supportsHid || ledger.connecting}
+        disabled={ledger.connecting}
         className={
-          "flex min-h-[52px] w-full items-center justify-center gap-2 rounded-card border-2 border-border-strong bg-canvas px-4 py-3 text-base font-semibold text-text-strong " +
-          "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
-          "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-rest " +
+          "inline-flex w-full items-center justify-center gap-1.5 rounded-soft px-2 py-1 text-xs text-text-soft " +
+          "transition-colors duration-base ease-out-soft hover:text-text-strong " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
-          "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:border-border-strong disabled:hover:shadow-none"
+          "disabled:cursor-not-allowed disabled:opacity-60"
         }
       >
         {ledger.connecting ? (
           <>
-            <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
             Waiting for your Ledger
           </>
         ) : (
           <>
-            <Usb className="h-5 w-5" aria-hidden="true" />
-            Connect Ledger
+            <Usb className="h-3.5 w-3.5" aria-hidden="true" />
+            Use a hardware wallet instead
           </>
         )}
       </button>
-      <p className="mt-2 text-xs leading-snug text-text-soft">
-        {supportsHid
-          ? "Plug it in, unlock it, open the Solana app. The device displays the full message before you approve."
-          : "Hardware wallets need WebHID. Open this page in Chrome, Edge, or Brave."}
-      </p>
     </div>
   );
 }

@@ -16,7 +16,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Check, Loader2, Pencil, UserPlus, Users } from "lucide-react";
+import { ArrowRight, Check, Loader2, Pencil, UserPlus, Users } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
@@ -39,7 +39,7 @@ import {
   type Role,
 } from "@/lib/retail/roles";
 import { sendOrganizationInvite } from "@/lib/organizations/client";
-import { toDisplayName } from "@/lib/retail/walletNames";
+import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Button } from "@/components/retail/Button";
@@ -376,16 +376,12 @@ export default function AddFriendPage() {
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
         className="flex flex-col items-center text-center"
       >
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">
-          <UserPlus className="h-5 w-5" strokeWidth={1.75} />
-        </div>
-        <h1 className="mt-4 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          Add someone to {toDisplayName(name)}
+        <h1 className="font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+          Add someone to{" "}
+          <span className="text-accent">{toHeadingName(name)}</span>
         </h1>
-        <p className="mt-2 max-w-md text-base text-text-soft">
-          A friend, teammate, or board member who&rsquo;ll help approve
-          requests. You&rsquo;ll need their Solana wallet address; ask
-          them before you get started.
+        <p className="mt-1.5 text-sm text-text-soft">
+          You&rsquo;ll need their Solana wallet address.
         </p>
       </motion.section>
 
@@ -519,25 +515,51 @@ export default function AddFriendPage() {
             can sign in.
           </p>
         )}
+
+        {/* Role lives inline at the bottom of the form. Used to be a
+            separate "What can they do?" card with three tile buttons —
+            same choice, twice the surface area. Compact chip row keeps
+            the decision on the page without competing with the inputs. */}
+        <div className="h-px bg-border-soft" />
+        <div className="flex items-center gap-3 pt-1">
+          <span className="w-16 shrink-0 text-xs font-medium uppercase tracking-wide text-text-soft">
+            Role
+          </span>
+          <div className="flex flex-1 flex-wrap gap-1.5">
+            {(["full", "approver", "watcher"] as Role[]).map((r) => {
+              const selected = role === r;
+              return (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setRole(r)}
+                  aria-pressed={selected}
+                  title={ROLE_HINT[r]}
+                  className={
+                    "rounded-full border px-3 py-1.5 text-xs font-medium " +
+                    "transition-[border-color,background-color,color] duration-base ease-out-soft " +
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
+                    (selected
+                      ? "border-accent bg-accent/10 text-accent"
+                      : "border-border-soft bg-canvas text-text-soft hover:border-accent/40 hover:text-text-strong")
+                  }
+                >
+                  {ROLE_LABEL[r]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <p className="ml-[4.5rem] text-[11px] leading-snug text-text-soft">
+          {ROLE_HINT[role]}
+        </p>
       </form>
 
-      <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
-          What can they do?
-        </p>
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-          {(["full", "approver", "watcher"] as Role[]).map((r) => (
-            <RoleTile
-              key={r}
-              role={r}
-              selected={role === r}
-              onSelect={() => setRole(r)}
-            />
-          ))}
-        </div>
-      </div>
-
-      {addressValid && nameValid && (role === "watcher" || !alreadyMember) && (
+      {/* Confirm + sign-preview reveal progressively, only after both
+          fields are valid. Used to render with empty addresses + a
+          "(paste above)" placeholder, which read as broken and added
+          three early-paint blocks for no decision-making value. */}
+      {nameValid && addressValid && (role === "watcher" || !alreadyMember) && (
         <ConfirmCard
           name={trimmedName}
           address={trimmedAddress}
@@ -547,10 +569,10 @@ export default function AddFriendPage() {
         />
       )}
 
-      {role !== "watcher" && (
+      {role !== "watcher" && nameValid && addressValid && (
         <div className="flex flex-col gap-3">
           <SignPayloadPreview
-            action={`Add ${trimmedName || "this friend"} to ${name}`}
+            action={`Add ${trimmedName} to ${name}`}
             details={[
               { label: "Wallet", value: name },
               {
@@ -559,9 +581,7 @@ export default function AddFriendPage() {
               },
               {
                 label: "Address",
-                value: trimmedAddress
-                  ? shortAddress(trimmedAddress)
-                  : "(paste above)",
+                value: shortAddress(trimmedAddress),
                 emphasis: "mono",
               },
               ...(trimmedEmail
@@ -570,7 +590,7 @@ export default function AddFriendPage() {
             ]}
           />
           <WalletPopupNarration
-            action={`add ${trimmedName || "this friend"}`}
+            action={`add ${trimmedName}`}
             popups={2}
           />
         </div>
@@ -704,37 +724,3 @@ function ConfirmCard({
   );
 }
 
-// ─── Role tile ─────────────────────────────────────────────────────
-
-function RoleTile({
-  role,
-  selected,
-  onSelect,
-}: {
-  role: Role;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      className={
-        "flex flex-col items-start gap-1 rounded-card border p-3 text-left " +
-        "transition-[border-color,background-color,box-shadow] duration-base ease-out-soft " +
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
-        (selected
-          ? "border-accent bg-accent/5 shadow-card-rest"
-          : "border-border-soft bg-canvas hover:border-accent/40")
-      }
-    >
-      <p className="text-sm font-medium text-text-strong">
-        {ROLE_LABEL[role]}
-      </p>
-      <p className="text-[11px] leading-snug text-text-soft">
-        {ROLE_HINT[role]}
-      </p>
-    </button>
-  );
-}

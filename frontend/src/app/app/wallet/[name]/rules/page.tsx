@@ -34,7 +34,7 @@ import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Button } from "@/components/retail/Button";
 import { friendlyIntentLabel } from "@/lib/retail/labels";
-import { toDisplayName } from "@/lib/retail/walletNames";
+import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
 import { encryptStatus } from "@/lib/encrypt/client";
 
 export default function RulesPage() {
@@ -120,7 +120,7 @@ export default function RulesPage() {
           Spending rules
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          How {toDisplayName(name)} spends
+          How <span className="text-accent">{toHeadingName(name)}</span> spends
         </h1>
         <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
           Each rule is one way money can leave this wallet. They
