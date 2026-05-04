@@ -30,8 +30,10 @@ import {
 } from "lucide-react";
 import { useDynamicContext, DynamicWidget } from "@dynamic-labs/sdk-react-core";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
+import { useWallet } from "@/lib/wallet";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Button } from "@/components/retail/Button";
+import { BrandLoader } from "@/components/retail/BrandLoader";
 import { useLedger } from "@/lib/wallet/LedgerProvider";
 import { useToast } from "@/components/ui/Toast";
 
@@ -49,7 +51,18 @@ function ConnectPage() {
   // The gate handles the post-connect redirect (?next or /app/wallet).
   // We just render the connect UI; the gate fires once `connected` flips.
   useWalletGate();
+  const wallet = useWallet();
   const reduce = useReducedMotion();
+
+  // Bridge state: Dynamic auth is done, wallet.connected is true, but
+  // useWalletGate is still waiting for the memberships RPC to settle
+  // before redirecting. Without an explicit "signed in, loading"
+  // surface here, the user stares at the unchanged sign-in card for
+  // 5-10s and assumes the click did nothing. Swap to a confident
+  // success state.
+  if (wallet.connected) {
+    return <SignedInWaiting reduce={!!reduce} />;
+  }
 
   const fadeIn = (delay = 0, y = 12) =>
     reduce
@@ -230,6 +243,41 @@ function ConnectCta() {
       Log in or sign up
       <ArrowRight className="h-4 w-4" aria-hidden="true" />
     </Button>
+  );
+}
+
+// ─── Signed-in bridge state ────────────────────────────────────────
+//
+// Dynamic auth completed, wallet.connected is true, but the wallet
+// gate is still fetching memberships before deciding whether to send
+// the user to /app/wallet (returning) or /welcome (first-timer).
+// That fetch can take 5-10s on devnet. Render a dedicated "we got
+// you" state so the user knows the click worked.
+
+function SignedInWaiting({ reduce }: { reduce: boolean }) {
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center bg-canvas px-gutter">
+      <motion.div
+        initial={reduce ? false : { opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] as const }}
+        className="flex w-full max-w-sm flex-col items-center text-center"
+      >
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent/10 text-accent">
+          <Check className="h-7 w-7" strokeWidth={2.25} aria-hidden="true" />
+        </div>
+        <h1 className="mt-5 font-display text-display-sm leading-[1.05] text-text-strong">
+          You&rsquo;re in
+        </h1>
+        <p className="mt-2 text-base text-text-soft">
+          Loading your shared wallets. This usually takes a few
+          seconds on devnet.
+        </p>
+        <div className="mt-6">
+          <BrandLoader size={28} label="Loading wallets" />
+        </div>
+      </motion.div>
+    </main>
   );
 }
 

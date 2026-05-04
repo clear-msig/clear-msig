@@ -35,18 +35,22 @@ export function StickyTopBar({
   offset = "top",
   innerClassName,
 }: StickyTopBarProps) {
-  // Mobile (< md): sticky bar with canvas bg, full-width edge-to-edge.
-  // Desktop (md+): inline static, transparent, no extra padding. The
-  // breadcrumb just floats above the hero with normal flow.
+  // No visible band, anywhere. The user kept calling out the
+  // amber-tinted strip that sat above content; on 2026-05-04 they
+  // asked for it gone on mobile too. Sticky position stays on
+  // mobile so the breadcrumb doesn't scroll out of view, but the
+  // bg overlay drops everywhere — the sticky element is now an
+  // invisible container that re-pins the breadcrumb without painting
+  // anything behind it.
   const positioning =
     offset === "header"
-      ? "sticky top-20 -mx-3 px-3 sm:top-24 sm:-mx-4 sm:px-4 lg:-mx-6 lg:px-6 md:static md:top-auto md:mx-0 md:px-0"
+      ? "sticky top-20 sm:top-24 md:static md:top-auto"
       : "sticky top-0 px-gutter md:static md:top-auto md:px-0";
   return (
     <div
       className={
         positioning +
-        " z-30 bg-canvas/95 py-2 md:bg-transparent md:py-0"
+        " z-30 py-2 md:py-0"
       }
     >
       <div

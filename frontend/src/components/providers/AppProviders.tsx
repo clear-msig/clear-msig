@@ -43,9 +43,21 @@ export function AppProviders({ children }: Props) {
       new QueryClient({
         defaultOptions: {
           queries: {
+            // Tight retry so failures surface fast instead of slow
+            // stalls on a flaky RPC.
             retry: 1,
-            staleTime: 10_000,
+            // Wider staleTime + gcTime: the same wallet, memberships,
+            // and intent data are read across half the pages. Without
+            // a longer cache window, every nav triggered a round-trip
+            // and made the app feel laggy. 60s stale + 5min gc keeps
+            // it snappy without showing badly stale balances.
+            staleTime: 60_000,
+            gcTime: 5 * 60_000,
             refetchOnWindowFocus: false,
+            // Reuse last-known data while the next fetch runs so
+            // navigation between cached pages doesn't flash skeletons.
+            refetchOnMount: false,
+            refetchOnReconnect: false,
           },
         },
       }),
