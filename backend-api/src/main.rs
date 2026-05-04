@@ -797,6 +797,15 @@ async fn membership_lookup(
             if !acc.has_proposer && !acc.has_approver {
                 return None;
             }
+            // Skip orphans from the pre creator-scoped PDA upgrade.
+            // Their intents still flag the user as a member, but the
+            // upgraded program can't read the wallet account itself
+            // (different layout, parse_wallet_name errors). Surfacing
+            // them rendered as unnamed "Wallet · 0 SOL" rows that
+            // nothing could operate on.
+            if acc.wallet_name.is_none() {
+                return None;
+            }
 
             let mut roles = Vec::new();
             if acc.has_proposer {

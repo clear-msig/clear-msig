@@ -88,6 +88,16 @@ export async function listMemberships(
     const isApprover = intent.approvers.includes(address);
     if (!isProposer && !isApprover) continue;
 
+    // Skip intents whose wallet account couldn't be parsed. Post the
+    // creator-scoped PDA upgrade (2026-05-04), wallets created against
+    // the previous layout error in parseWallet (the `creator` field
+    // doesn't exist on them, so the read overruns the buffer). Their
+    // intents still list the user as proposer/approver, so the old
+    // membership scan kept surfacing them on the dashboard as
+    // unnamed "Wallet · 0 SOL" rows that nothing on the upgraded
+    // program could read or operate on.
+    if (!walletNames.has(intent.wallet)) continue;
+
     const acc =
       byWallet.get(intent.wallet) ??
       {

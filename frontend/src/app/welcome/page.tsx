@@ -38,7 +38,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useConnection } from "@/lib/wallet";
+import { useConnection, useWallet } from "@/lib/wallet";
 import {
   ArrowLeft,
   ArrowRight,
@@ -125,6 +125,15 @@ const TRANSITION = { duration: 0.25, ease: [0.22, 1, 0.36, 1] as const };
 
 export default function WelcomePage() {
   const gate = useWalletGate();
+  // isLossySigner = true when the connected wallet is Dynamic's WaaS-SVM
+  // embedded provider. That signer UTF-8-decodes our offchain envelope
+  // before signing and produces a signature over the wrong bytes; the
+  // sign-then-verify guard in useSignWithWallet refuses to submit. Block
+  // the Create CTA up front so users on email/Google sign-in don't
+  // burn devnet SOL on createWallet (sponsored, but still leaves a
+  // dead account on chain) before hitting the doomed second popup.
+  const wallet = useWallet();
+  const isBrokenSigner = wallet.isLossySigner === true;
   const router = useRouter();
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -456,7 +465,7 @@ export default function WelcomePage() {
                   fullWidth
                   className="mt-6"
                   onClick={() => setupAll.mutate()}
-                  disabled={!nameValid || setupAll.isPending}
+                  disabled={!nameValid || setupAll.isPending || isBrokenSigner}
                 >
                   {setupAll.isPending ? (
                     <>
@@ -466,6 +475,8 @@ export default function WelcomePage() {
                       />
                       Setting up
                     </>
+                  ) : isBrokenSigner ? (
+                    <>Sign in with a different wallet to create</>
                   ) : (
                     <>
                       Create {cleanName || currentShape.defaultName}
@@ -473,6 +484,14 @@ export default function WelcomePage() {
                     </>
                   )}
                 </Button>
+                {isBrokenSigner && (
+                  <p className="mt-2 text-center text-xs text-text-soft">
+                    Email/Google sign-in can&rsquo;t sign Solana yet.
+                    Sign out and reconnect with{" "}
+                    <span className="font-medium text-text-strong">Solflare</span>,
+                    Phantom, or a Ledger.
+                  </p>
+                )}
               </motion.section>
             )}
 
