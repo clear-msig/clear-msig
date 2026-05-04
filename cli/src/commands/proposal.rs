@@ -114,13 +114,11 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             let program_id = crate::instructions::program_id();
             let pid = solana_address::Address::new_from_array(program_id.to_bytes());
 
-            let (wallet_addr, _) =
-                clear_wallet_client::pda::find_wallet_address(&wallet_name, &pid);
-            let wallet_pubkey = Pubkey::new_from_array(wallet_addr.to_bytes());
-
+            // Resolve wallet by name. Creator-scoped PDA upgrade —
+            // see comment in intent.rs:120 for context.
             let client = rpc::client(config);
-            let wallet_data = rpc::fetch_account(&client, &wallet_pubkey)?;
-            let wallet_account = accounts::parse_wallet(&wallet_data)?;
+            let (wallet_pubkey, wallet_account) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
+            let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
 
             let (intent_addr, _) = clear_wallet_client::pda::find_intent_address(
                 &wallet_addr,
@@ -247,9 +245,11 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             let program_id = crate::instructions::program_id();
             let pid = solana_address::Address::new_from_array(program_id.to_bytes());
 
-            let (wallet_addr, _) =
-                clear_wallet_client::pda::find_wallet_address(&wallet_name, &pid);
-            let wallet_pubkey = Pubkey::new_from_array(wallet_addr.to_bytes());
+            // Resolve wallet by name. Creator-scoped PDA — see
+            // intent.rs:120 for context.
+            let client = rpc::client(config);
+            let (wallet_pubkey, _) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
+            let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
 
             let (vault_addr, _) =
                 clear_wallet_client::pda::find_vault_address(&wallet_addr, &pid);
@@ -347,13 +347,11 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             let program_id = crate::instructions::program_id();
             let pid = solana_address::Address::new_from_array(program_id.to_bytes());
 
-            let (wallet_addr, _) =
-                clear_wallet_client::pda::find_wallet_address(&wallet_name, &pid);
-            let wallet_pubkey = Pubkey::new_from_array(wallet_addr.to_bytes());
-
+            // Resolve wallet by name. Creator-scoped PDA upgrade —
+            // see comment in intent.rs:120 for context.
             let client = rpc::client(config);
-            let wallet_data = rpc::fetch_account(&client, &wallet_pubkey)?;
-            let wallet_account = accounts::parse_wallet(&wallet_data)?;
+            let (wallet_pubkey, wallet_account) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
+            let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
 
             // Iterate all intents, then all proposals for each
             let mut proposals = Vec::new();
@@ -853,12 +851,11 @@ fn approve_or_cancel(
     let program_id = crate::instructions::program_id();
     let pid = solana_address::Address::new_from_array(program_id.to_bytes());
 
-    let (wallet_addr, _) = clear_wallet_client::pda::find_wallet_address(wallet_name, &pid);
-    let wallet_pubkey = Pubkey::new_from_array(wallet_addr.to_bytes());
-
+    // Resolve wallet by name. Creator-scoped PDA upgrade — see
+    // intent.rs:120 for context.
     let client = rpc::client(config);
-    let wallet_data = rpc::fetch_account(&client, &wallet_pubkey)?;
-    let wallet_account = accounts::parse_wallet(&wallet_data)?;
+    let (wallet_pubkey, wallet_account) = rpc::resolve_wallet_by_name(&client, wallet_name)?;
+    let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
 
     let proposal_pubkey: Pubkey = proposal_addr_str
         .parse()

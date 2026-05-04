@@ -42,6 +42,12 @@ export interface WalletAccount {
   bump: number;
   proposalIndex: bigint;
   intentIndex: number;
+  /// Pubkey of the address that paid for + signed the create_wallet
+  /// instruction. Stored on chain so the UI can identify the wallet's
+  /// owner without re-fetching the create transaction. Used to gate
+  /// destructive actions (you can't kick the creator) and to render
+  /// the Crown badge on the members list.
+  creator: string;
   name: string;
 }
 
@@ -50,9 +56,10 @@ export function parseWallet(data: Uint8Array): WalletAccount {
   const bump = r.u8();
   const proposalIndex = r.u64();
   const intentIndex = r.u8();
+  const creator = r.address();
   const nameLen = Number(r.u32());
   const name = r.utf8(nameLen);
-  return { bump, proposalIndex, intentIndex, name };
+  return { bump, proposalIndex, intentIndex, creator, name };
 }
 
 // ── IntentAccount ────────────────────────────────────────────────────

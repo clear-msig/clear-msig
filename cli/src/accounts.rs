@@ -11,6 +11,10 @@ pub struct WalletAccount {
     pub bump: u8,
     pub proposal_index: u64,
     pub intent_index: u8,
+    /// Pubkey (base58) of the address that paid for + signed the
+    /// create_wallet instruction. Stored on chain post creator-scoped
+    /// PDA upgrade so reads can identify the wallet's owner.
+    pub creator: String,
     pub name: String,
 }
 
@@ -139,13 +143,23 @@ pub fn parse_wallet(data: &[u8]) -> Result<WalletAccount> {
     let bump = read_u8(data, &mut offset)?;
     let proposal_index = read_u64_le(data, &mut offset)?;
     let intent_index = read_u8(data, &mut offset)?;
+    // Creator pubkey, 32 raw bytes — added 2026-05-03 with the
+    // creator-scoped PDA upgrade. Layout drift here is the most
+    // likely source of "name decodes as junk" if you forget to
+    // mirror this in the frontend's parseWallet too.
+    let creator_bytes = data.get(offset..offset + 32)
+        .ok_or(anyhow!("unexpected end of data reading creator"))?;
+    let creator = solana_pubkey::Pubkey::new_from_array(
+        creator_bytes.try_into().expect("32 bytes"),
+    ).to_string();
+    offset += 32;
     // name is a dynamic String with u32 LE prefix
     let name_len = read_u32_le(data, &mut offset)? as usize;
     let name_bytes = data.get(offset..offset + name_len)
         .ok_or(anyhow!("unexpected end of data reading name"))?;
     let name = String::from_utf8_lossy(name_bytes).to_string();
 
-    Ok(WalletAccount { bump, proposal_index, intent_index, name })
+    Ok(WalletAccount { bump, proposal_index, intent_index, creator, name })
 }
 
 pub fn parse_intent(data: &[u8]) -> Result<IntentAccount> {

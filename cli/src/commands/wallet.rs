@@ -161,7 +161,12 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
             let program_id = crate::instructions::program_id();
             let pid = solana_address::Address::new_from_array(program_id.to_bytes());
 
-            let (wallet_addr, _) = clear_wallet_client::pda::find_wallet_address(&name, &pid);
+            // Creator-scoped PDA: the payer is the wallet's namespace
+            // owner. Two payers can both create a wallet named "Family"
+            // and end up at distinct PDAs.
+            let payer_pubkey = solana_sdk::signer::Signer::pubkey(&config.payer);
+            let creator_addr = solana_address::Address::new_from_array(payer_pubkey.to_bytes());
+            let (wallet_addr, _) = clear_wallet_client::pda::find_wallet_address(&name, &creator_addr, &pid);
             let wallet = Pubkey::new_from_array(wallet_addr.to_bytes());
 
             let (vault_addr, _) = clear_wallet_client::pda::find_vault_address(&wallet_addr, &pid);
@@ -187,7 +192,6 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
                 .map(|s| s.parse().with_context(|| format!("invalid approver address: {s}")))
                 .collect::<Result<_>>()?;
 
-            let payer_pubkey = solana_sdk::signer::Signer::pubkey(&config.payer);
             let ix = crate::instructions::create_wallet(crate::instructions::CreateWalletArgs {
                 payer: payer_pubkey,
                 name_hash: name_hash_pubkey,
@@ -227,13 +231,14 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
 
             let program_id = crate::instructions::program_id();
             let pid = solana_address::Address::new_from_array(program_id.to_bytes());
-            let (wallet_addr, _) = clear_wallet_client::pda::find_wallet_address(&wallet_name, &pid);
-            let wallet_pubkey = Pubkey::new_from_array(wallet_addr.to_bytes());
 
-            // Verify the wallet exists before doing anything Ika-side.
+            // Creator-scoped PDA: we don't know the creator from the
+            // command line, so scan to resolve. The scan also returns
+            // the parsed account so we don't need a second roundtrip
+            // for verification.
             let client = rpc::client(config);
-            let _wallet_data = rpc::fetch_account(&client, &wallet_pubkey)
-                .with_context(|| format!("wallet `{wallet_name}` not found on-chain"))?;
+            let (wallet_pubkey, _wallet_account) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
+            let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
 
             // Wait for the dWallet program's coordinator (mock auto-init).
             ika::wait_for_coordinator(&client, &dwallet_program_pk, Duration::from_secs(30))
@@ -425,14 +430,13 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
             dwallet_program: _,
         } => {
             let program_id = crate::instructions::program_id();
-            let pid = solana_address::Address::new_from_array(program_id.to_bytes());
-            let (wallet_addr, _) = clear_wallet_client::pda::find_wallet_address(&wallet_name, &pid);
-            let wallet_pubkey = Pubkey::new_from_array(wallet_addr.to_bytes());
+            let _pid = solana_address::Address::new_from_array(program_id.to_bytes());
 
+            // Resolve the wallet by name. PDA derivation now needs
+            // the creator pubkey, which we don't have on this command
+            // line — scan to find it.
             let client = rpc::client(config);
-            // Verify the wallet exists.
-            let _wallet_data = rpc::fetch_account(&client, &wallet_pubkey)
-                .with_context(|| format!("wallet `{wallet_name}` not found"))?;
+            let (wallet_pubkey, _wallet_account) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
 
             // Probe each known chain_kind for an IkaConfig PDA.
             let mut chains = Vec::new();
@@ -541,12 +545,13 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
         WalletAction::Show { name } => {
             let program_id = crate::instructions::program_id();
             let pid = solana_address::Address::new_from_array(program_id.to_bytes());
-            let (wallet_addr, _) = clear_wallet_client::pda::find_wallet_address(&name, &pid);
-            let wallet = Pubkey::new_from_array(wallet_addr.to_bytes());
 
+            // Resolve by name (post creator-scoped PDA upgrade we can't
+            // derive without the creator). resolve_wallet_by_name does
+            // the discriminator-filtered scan + the parse for us.
             let client = rpc::client(config);
-            let data = rpc::fetch_account(&client, &wallet)?;
-            let account = crate::accounts::parse_wallet(&data)?;
+            let (wallet, account) = rpc::resolve_wallet_by_name(&client, &name)?;
+            let wallet_addr = solana_address::Address::new_from_array(wallet.to_bytes());
 
             let (vault_addr, _) = clear_wallet_client::pda::find_vault_address(&wallet_addr, &pid);
 

@@ -19,14 +19,19 @@ const SEED_IKA_CONFIG = new TextEncoder().encode("ika_config");
 const SEED_DWALLET_OWNERSHIP = new TextEncoder().encode("dwallet_owner");
 const SEED_CPI_AUTHORITY = new TextEncoder().encode("__ika_cpi_authority");
 
-/// `["clear_wallet", sha256(name)]`. `name` is the UTF-8 wallet name.
+/// `["clear_wallet", creator, sha256(name)]`. As of the creator-scoped
+/// PDA upgrade, the wallet's namespace is owned by the creator (the
+/// payer at create time), so two creators can both pick the same name
+/// without collision. Callers MUST pass the creator who originally
+/// signed the create_wallet instruction.
 export function findWalletAddress(
   name: string,
+  creator: PublicKey,
   programId: PublicKey
 ): [PublicKey, number] {
   const nameHash = sha256(new TextEncoder().encode(name));
   return PublicKey.findProgramAddressSync(
-    [SEED_CLEAR_WALLET, nameHash],
+    [SEED_CLEAR_WALLET, creator.toBytes(), nameHash],
     programId
   );
 }
@@ -125,8 +130,12 @@ export interface WalletPdas {
   updateIntent: PublicKey;
 }
 
-export function deriveWalletPdas(name: string, programId: PublicKey): WalletPdas {
-  const [wallet, walletBump] = findWalletAddress(name, programId);
+export function deriveWalletPdas(
+  name: string,
+  creator: PublicKey,
+  programId: PublicKey,
+): WalletPdas {
+  const [wallet, walletBump] = findWalletAddress(name, creator, programId);
   const [vault, vaultBump] = findVaultAddress(wallet, programId);
   const [addIntent] = findIntentAddress(wallet, 0, programId);
   const [removeIntent] = findIntentAddress(wallet, 1, programId);

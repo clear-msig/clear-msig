@@ -120,13 +120,14 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
             let program_id = crate::instructions::program_id();
             let pid = solana_address::Address::new_from_array(program_id.to_bytes());
 
-            let (wallet_addr, _) =
-                clear_wallet_client::pda::find_wallet_address(&wallet_name, &pid);
-            let wallet_pubkey = Pubkey::new_from_array(wallet_addr.to_bytes());
-
+            // Resolve wallet by name. Creator-scoped PDA: the seeds
+            // include the creator pubkey, which we don't know from the
+            // command line, so scan instead. resolve_wallet_by_name
+            // returns the parsed account so we don't need the
+            // separate fetch + parse the old PDA-derive path used.
             let client = rpc::client(config);
-            let wallet_data = rpc::fetch_account(&client, &wallet_pubkey)?;
-            let wallet_account = accounts::parse_wallet(&wallet_data)?;
+            let (wallet_pubkey, wallet_account) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
+            let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
 
             // params_data for AddIntent = the serialized intent body. In
             // pre-signed mode the browser built and signed over a specific
@@ -243,13 +244,14 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
             let program_id = crate::instructions::program_id();
             let pid = solana_address::Address::new_from_array(program_id.to_bytes());
 
-            let (wallet_addr, _) =
-                clear_wallet_client::pda::find_wallet_address(&wallet_name, &pid);
-            let wallet_pubkey = Pubkey::new_from_array(wallet_addr.to_bytes());
-
+            // Resolve wallet by name. Creator-scoped PDA: the seeds
+            // include the creator pubkey, which we don't know from the
+            // command line, so scan instead. resolve_wallet_by_name
+            // returns the parsed account so we don't need the
+            // separate fetch + parse the old PDA-derive path used.
             let client = rpc::client(config);
-            let wallet_data = rpc::fetch_account(&client, &wallet_pubkey)?;
-            let wallet_account = accounts::parse_wallet(&wallet_data)?;
+            let (wallet_pubkey, wallet_account) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
+            let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
 
             // RemoveIntent params_data = [target_index]. Pre-signed mode
             // can override the whole byte buffer for symmetry with the
@@ -350,13 +352,14 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
             let program_id = crate::instructions::program_id();
             let pid = solana_address::Address::new_from_array(program_id.to_bytes());
 
-            let (wallet_addr, _) =
-                clear_wallet_client::pda::find_wallet_address(&wallet_name, &pid);
-            let wallet_pubkey = Pubkey::new_from_array(wallet_addr.to_bytes());
-
+            // Resolve wallet by name. Creator-scoped PDA: the seeds
+            // include the creator pubkey, which we don't know from the
+            // command line, so scan instead. resolve_wallet_by_name
+            // returns the parsed account so we don't need the
+            // separate fetch + parse the old PDA-derive path used.
             let client = rpc::client(config);
-            let wallet_data = rpc::fetch_account(&client, &wallet_pubkey)?;
-            let wallet_account = accounts::parse_wallet(&wallet_data)?;
+            let (wallet_pubkey, wallet_account) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
+            let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
 
             // UpdateIntent params_data = [target_index, ...new_intent_body].
             // Pre-signed: override supplies the full buffer — caller is
@@ -482,13 +485,14 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
             let program_id = crate::instructions::program_id();
             let pid = solana_address::Address::new_from_array(program_id.to_bytes());
 
-            let (wallet_addr, _) =
-                clear_wallet_client::pda::find_wallet_address(&wallet_name, &pid);
-            let wallet_pubkey = Pubkey::new_from_array(wallet_addr.to_bytes());
-
+            // Resolve wallet by name. Creator-scoped PDA: the seeds
+            // include the creator pubkey, which we don't know from the
+            // command line, so scan instead. resolve_wallet_by_name
+            // returns the parsed account so we don't need the
+            // separate fetch + parse the old PDA-derive path used.
             let client = rpc::client(config);
-            let wallet_data = rpc::fetch_account(&client, &wallet_pubkey)?;
-            let wallet_account = accounts::parse_wallet(&wallet_data)?;
+            let (wallet_pubkey, wallet_account) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
+            let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
 
             let mut intents = Vec::new();
             for i in 0..=wallet_account.intent_index {

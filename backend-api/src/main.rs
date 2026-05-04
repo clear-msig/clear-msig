@@ -490,6 +490,10 @@ struct MembershipResponse {
 struct OrganizationMembership {
     wallet: String,
     wallet_name: Option<String>,
+    /// Pubkey (base58) of the address that created this wallet. Added
+    /// 2026-05-03 with the creator-scoped PDA upgrade so the frontend
+    /// can use the fast PDA-derivation path on subsequent reads.
+    wallet_creator: Option<String>,
     roles: Vec<String>,
     intent_indexes: Vec<u8>,
 }
@@ -519,6 +523,7 @@ struct RpcProgramAccountData {
 #[derive(Default)]
 struct MembershipAccumulator {
     wallet_name: Option<String>,
+    wallet_creator: Option<String>,
     has_proposer: bool,
     has_approver: bool,
     intent_indexes: HashSet<u8>,
@@ -597,7 +602,16 @@ fn skip_u8_vec(data: &[u8], offset: &mut usize) -> Result<(), ApiError> {
     Ok(())
 }
 
-fn parse_wallet_name(data: &[u8]) -> Result<Option<String>, ApiError> {
+/// Parse just the wallet name (and creator) from a serialized
+/// ClearWallet account. Layout post creator-scoped PDA upgrade:
+///
+///   disc(1) + bump(1) + proposal_index(8) + intent_index(1)
+///   + creator(32) + name_len(4) + name(...)
+///
+/// The creator field was added 2026-05-03; the offset shift is the
+/// most likely source of "wallet name decodes as junk" if the
+/// program is upgraded but this parser isn't.
+fn parse_wallet_name(data: &[u8]) -> Result<Option<(String, String)>, ApiError> {
     if data.first().copied() != Some(1) {
         return Ok(None);
     }
@@ -606,12 +620,13 @@ fn parse_wallet_name(data: &[u8]) -> Result<Option<String>, ApiError> {
     let _bump = read_u8(data, &mut offset)?;
     offset += 8; // proposal_index
     let _intent_index = read_u8(data, &mut offset)?;
+    let creator = read_address_bs58(data, &mut offset)?;
     let name_len = read_u32_le(data, &mut offset)? as usize;
     let name_bytes = data
         .get(offset..offset + name_len)
         .ok_or_else(|| ApiError::InvalidOutput("unexpected EOF reading wallet name".into()))?;
     let name = String::from_utf8_lossy(name_bytes).to_string();
-    Ok(Some(name))
+    Ok(Some((name, creator)))
 }
 
 fn parse_intent_membership(data: &[u8]) -> Result<Option<(String, u8, Vec<String>, Vec<String>)>, ApiError> {
@@ -750,11 +765,10 @@ async fn membership_lookup(
 
     for account in wallet_accounts {
         let data = decode_base64_data(&account.account.data.0)?;
-        if let Some(name) = parse_wallet_name(&data)? {
-            wallets
-                .entry(account.pubkey)
-                .or_default()
-                .wallet_name = Some(name);
+        if let Some((name, creator)) = parse_wallet_name(&data)? {
+            let entry = wallets.entry(account.pubkey).or_default();
+            entry.wallet_name = Some(name);
+            entry.wallet_creator = Some(creator);
         }
     }
 
@@ -798,6 +812,7 @@ async fn membership_lookup(
             Some(OrganizationMembership {
                 wallet,
                 wallet_name: acc.wallet_name,
+                wallet_creator: acc.wallet_creator,
                 roles,
                 intent_indexes,
             })

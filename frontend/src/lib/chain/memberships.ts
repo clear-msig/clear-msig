@@ -27,6 +27,10 @@ import { CLEAR_WALLET_PROGRAM_ID, DEFAULT_COMMITMENT } from "@/lib/chain/client"
 export interface OnchainMembership {
   wallet: string;
   wallet_name?: string;
+  /// Pubkey of the wallet's creator (post creator-scoped PDA upgrade).
+  /// Optional in the type because legacy backend responses may not
+  /// include it; new RPC scans always do.
+  wallet_creator?: string;
   roles: string[]; // subset of ["proposer", "approver"]
   intent_indexes: number[]; // sorted ascending
 }
@@ -43,8 +47,12 @@ export async function listMemberships(
     fetchByDiscriminator(connection, DISC_INTENT),
   ]);
 
-  // Parse wallets first so we can label each entry with its human name.
+  // Parse wallets first so we can label each entry with its human
+  // name and creator pubkey. The creator is now a real on-chain
+  // field (post creator-scoped PDA upgrade); we forward it so the UI
+  // can use the fast PDA-derivation path on subsequent reads.
   const walletNames = new Map<string, string>();
+  const walletCreators = new Map<string, string>();
   for (const entry of walletInfos) {
     let parsed: WalletAccount;
     try {
@@ -53,6 +61,7 @@ export async function listMemberships(
       continue;
     }
     walletNames.set(entry.pubkey, parsed.name);
+    walletCreators.set(entry.pubkey, parsed.creator);
   }
 
   // Accumulator keyed on the intent's `wallet` field (which points back
@@ -61,6 +70,7 @@ export async function listMemberships(
     string,
     {
       walletName?: string;
+      walletCreator?: string;
       hasProposer: boolean;
       hasApprover: boolean;
       intentIndexes: Set<number>;
@@ -82,6 +92,7 @@ export async function listMemberships(
       byWallet.get(intent.wallet) ??
       {
         walletName: walletNames.get(intent.wallet),
+        walletCreator: walletCreators.get(intent.wallet),
         hasProposer: false,
         hasApprover: false,
         intentIndexes: new Set<number>(),
@@ -101,6 +112,7 @@ export async function listMemberships(
     out.push({
       wallet,
       wallet_name: acc.walletName,
+      wallet_creator: acc.walletCreator,
       roles,
       intent_indexes: intentIndexes,
     });
