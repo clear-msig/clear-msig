@@ -3,31 +3,23 @@
 // StickyTopBar. The page-level back-and-context strip that stays in
 // view as the user scrolls.
 //
-// Spectre's 2026-05-01 review flagged that back affordances scrolling
-// out of view felt broken across pages. This wrapper standardises the
-// fix: position sticky at the top of the visible content area, solid
-// canvas background so content underneath is occluded, faint bottom
-// border so the bar reads as separated from the body.
+// History:
+//   - 2026-05-01: introduced. Sticky bar with bordered band so back
+//     affordances stayed in view while scrolling on mobile.
+//   - 2026-05-03: dropped the bottom border (read as a horizontal
+//     scar on wide screens with short breadcrumbs).
+//   - 2026-05-04: dropped the bg-canvas overlay + sticky behaviour
+//     on desktop entirely. The "band" reading was the bg + the
+//     pinned position; on md+ the sidebar is the constant nav so
+//     pinning isn't load-bearing. On mobile we keep sticky.
 //
 // Pages drop their existing header content (back link, breadcrumb,
-// or any combination) inside this wrapper.
-//
-//   <StickyTopBar>
-//     <Breadcrumb segments={[...]} />
-//   </StickyTopBar>
-//
-//   <StickyTopBar offset="header">
-//     <Breadcrumb segments={[...]} />
-//   </StickyTopBar>
+// or any combination) inside this wrapper. Same API both sides.
 //
 // Use `offset="header"` on pages rendered inside the workspace
 // `(app)` layout, where the floating HeaderBar already occupies the
-// top of the viewport. On standalone pages (welcome, connect, send,
+// top of the viewport. On standalone pages (welcome, connect,
 // privacy, contacts, proposals) the default `offset="top"` is right.
-//
-// Performance: no backdrop-blur (per the perf budget). Solid bg with
-// a subtle alpha so content scrolling under reads as ghosted, not
-// hard-cut. No layout-property animations.
 
 interface StickyTopBarProps {
   children: React.ReactNode;
@@ -43,20 +35,18 @@ export function StickyTopBar({
   offset = "top",
   innerClassName,
 }: StickyTopBarProps) {
-  const stickClass =
+  // Mobile (< md): sticky bar with canvas bg, full-width edge-to-edge.
+  // Desktop (md+): inline static, transparent, no extra padding. The
+  // breadcrumb just floats above the hero with normal flow.
+  const positioning =
     offset === "header"
-      ? "sticky top-20 -mx-3 px-3 sm:top-24 sm:-mx-4 sm:px-4 lg:-mx-6 lg:px-6"
-      : "sticky top-0 px-gutter";
-  // No bottom border, lighter padding. The previous bordered band read
-  // as a horizontal "scar" between header and content, especially on
-  // wide screens where the breadcrumb is short and most of the band
-  // is empty. The 95%-canvas background is enough to occlude content
-  // scrolling under without needing a divider line.
+      ? "sticky top-20 -mx-3 px-3 sm:top-24 sm:-mx-4 sm:px-4 lg:-mx-6 lg:px-6 md:static md:top-auto md:mx-0 md:px-0"
+      : "sticky top-0 px-gutter md:static md:top-auto md:px-0";
   return (
     <div
       className={
-        stickClass +
-        " z-30 bg-canvas/95 py-2"
+        positioning +
+        " z-30 bg-canvas/95 py-2 md:bg-transparent md:py-0"
       }
     >
       <div
