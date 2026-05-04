@@ -81,18 +81,23 @@ the name space is **global**: if Sarah creates a wallet called `Family`,
 no one else can ever create a `Family` on this program. Pre-alpha,
 that breaks retail UX hard.
 
-The frontend works around it by appending the first 6 base58 chars of
-the creator's pubkey to every typed name before submission. So Sarah's
-`Family` lands on chain as `Family#9Da5az` and Micah's lands as
-`Family#3kQpRX`. The display layer strips the suffix everywhere it
-shows a wallet name, so users see what they typed. URLs and API calls
-keep the suffixed form because the program's PDA derivation needs it.
+**Resolved 2026-05-04.** The program now derives wallet PDAs from
+`["clear_wallet", creator_pubkey, sha256(name)]` and stores `creator`
+on the wallet account. Two creators can both pick the same name and
+land at distinct PDAs without any client-side trick. The legacy
+`#XXXXXX` suffix (described below) is harmless but no longer
+load-bearing; new wallets created against the upgraded program use
+the typed name as-is on chain.
 
-The proper fix is creator-scoped seeds in the program itself
-(`["clear_wallet", creator_pubkey, sha256(name)]`); a WIP branch
-(`feat/creator-scoped-wallet-pda`) exists with the program change,
-build verified, but on-chain tests regress while we sort out a
-Quasar account-layout subtlety. See `MIGRATION.md` on that branch.
+Historical workaround, kept here for context: before the upgrade,
+the frontend appended the first 6 base58 chars of the creator's
+pubkey to every typed name before submission. So Sarah's `Family`
+landed on chain as `Family#9Da5az` and Micah's as `Family#3kQpRX`.
+The display layer stripped the suffix everywhere it showed a wallet
+name. Old wallets created during this window still carry the suffix
+and are unreachable by the upgraded program (different PDA layout) —
+acceptable on devnet pre-alpha; users create fresh wallets to get the
+new protections.
 
 ## Encrypt — confidential policies (pre-alpha)
 
