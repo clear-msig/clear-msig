@@ -65,6 +65,20 @@ const nextConfig = {
       }
     ]
   },
+  // WalletConnect (transitive via Dynamic) pulls in pino, which tries
+  // to resolve pino-pretty + a few other optional logger backends that
+  // aren't installed. Marking them external stops webpack from logging
+  // a "Module not found" warning on every dev rebuild. Runtime is
+  // unaffected — they were never used.
+  webpack: (config: { externals?: unknown[] }) => {
+    config.externals = [
+      ...(config.externals ?? []),
+      "pino-pretty",
+      "lokijs",
+      "encoding",
+    ];
+    return config;
+  },
   async headers() {
     return [
       {

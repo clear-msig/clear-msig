@@ -51,18 +51,17 @@ export interface ConfigGap {
 /// In dev (NODE_ENV !== "production") this returns an empty list
 /// regardless — local defaults are fine for hacking on the app.
 export function validateConfig(): ConfigGap[] {
-  if (!IS_PRODUCTION) return [];
   const gaps: ConfigGap[] = [];
-  if (!process.env.NEXT_PUBLIC_BACKEND_API_URL) {
-    gaps.push({
-      envVar: "NEXT_PUBLIC_BACKEND_API_URL",
-      why: "Without this, every signed-write call goes to localhost and silently fails.",
-    });
-  }
   if (!process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID) {
     gaps.push({
       envVar: "NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID",
-      why: "Without this, the Dynamic auth widget refuses to mount and users can't sign in.",
+      why: "Without this, the Dynamic auth widget refuses to mount and users can't sign in. Get one at https://app.dynamic.xyz and add it to .env.local.",
+    });
+  }
+  if (IS_PRODUCTION && !process.env.NEXT_PUBLIC_BACKEND_API_URL) {
+    gaps.push({
+      envVar: "NEXT_PUBLIC_BACKEND_API_URL",
+      why: "Without this, every signed-write call goes to localhost and silently fails.",
     });
   }
   return gaps;
