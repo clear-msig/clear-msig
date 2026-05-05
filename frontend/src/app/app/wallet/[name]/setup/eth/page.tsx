@@ -232,7 +232,7 @@ export default function SetupEthPage() {
         <div className="absolute -left-32 -top-16 h-[55vh] w-[80vw] max-w-[640px] rounded-full bg-accent/[0.06] blur-3xl" />
       </div>
 
-      <StickyTopBar>
+      <StickyTopBar offset="header">
         <Breadcrumb
           segments={[
             { label: "Wallets", href: "/app/wallet" },

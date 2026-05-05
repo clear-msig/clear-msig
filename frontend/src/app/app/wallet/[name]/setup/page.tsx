@@ -224,7 +224,7 @@ export default function SetupSpendingPage() {
 
   return (
     <main className="relative flex min-h-screen flex-col bg-canvas">
-      <StickyTopBar>
+      <StickyTopBar offset="header">
         <Breadcrumb
           segments={[
             { label: "Wallets", href: "/app/wallet" },
