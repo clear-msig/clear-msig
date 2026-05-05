@@ -21,7 +21,6 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowLeft,
   ArrowRight,
   Check,
   Loader2,
@@ -45,6 +44,7 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { Breadcrumb } from "@/components/retail/Breadcrumb";
 
 // Hard cap on rows per batch — high enough for real payroll, low
 // enough to prevent runaway sign-prompt loops.
@@ -209,21 +209,18 @@ function BatchSendPage() {
   return (
     <div className="flex flex-col">
       <StickyTopBar offset="header">
-        <Link
-          href={
-            walletName
-              ? `/app/wallet/${encodeURIComponent(walletName)}`
-              : "/app/wallet"
-          }
-          className={
-            "-ml-2 inline-flex items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-          }
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          {walletName || "Wallets"}
-        </Link>
+        <Breadcrumb
+          segments={[
+            { label: "Wallets", href: "/app/wallet" },
+            {
+              label: walletDisplay || "Wallet",
+              href: walletName
+                ? `/app/wallet/${encodeURIComponent(walletName)}`
+                : "/app/wallet",
+            },
+            { label: "Batch send" },
+          ]}
+        />
       </StickyTopBar>
 
       <div className="flex flex-1 justify-center pt-6">

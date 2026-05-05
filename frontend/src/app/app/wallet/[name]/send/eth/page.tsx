@@ -36,7 +36,6 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft,
   ArrowRight,
   Check,
   Loader2,
@@ -63,6 +62,7 @@ import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import {
   SignPayloadPreview,
@@ -312,32 +312,19 @@ function SendEthPage() {
 
   return (
     <div className="flex flex-col">
-      <StickyTopBar offset="header" innerClassName="justify-between gap-3">
-        <button
-          type="button"
-          onClick={() => {
-            if (stage === "sent") {
-              router.push(
-                walletName
-                  ? `/app/wallet/${encodeURIComponent(walletName)}`
-                  : "/app/wallet",
-              );
-            } else {
-              router.back();
-            }
-          }}
-          className={
-            "-ml-2 inline-flex items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-          }
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          {stage === "sent" ? "Done" : "Back"}
-        </button>
-        <span className="rounded-full border border-border-soft bg-surface-raised px-3 py-1 text-xs font-medium text-text-strong">
-          {walletName || "your shared wallet"} · ETH (Sepolia)
-        </span>
+      <StickyTopBar offset="header">
+        <Breadcrumb
+          segments={[
+            { label: "Wallets", href: "/app/wallet" },
+            {
+              label: walletDisplay || "Wallet",
+              href: walletName
+                ? `/app/wallet/${encodeURIComponent(walletName)}`
+                : "/app/wallet",
+            },
+            { label: "Send ETH" },
+          ]}
+        />
       </StickyTopBar>
 
       <div className="flex flex-1 justify-center pt-6">
@@ -648,21 +635,18 @@ function PreFlightCard({
   return (
     <div className="flex flex-col">
       <StickyTopBar offset="header">
-        <Link
-          href={
-            walletName
-              ? `/app/wallet/${encodeURIComponent(walletName)}`
-              : "/app/wallet"
-          }
-          className={
-            "-ml-2 inline-flex items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-          }
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          {walletName || "Wallets"}
-        </Link>
+        <Breadcrumb
+          segments={[
+            { label: "Wallets", href: "/app/wallet" },
+            {
+              label: toDisplayName(walletName) || "Wallet",
+              href: walletName
+                ? `/app/wallet/${encodeURIComponent(walletName)}`
+                : "/app/wallet",
+            },
+            { label: "Send ETH" },
+          ]}
+        />
       </StickyTopBar>
       <div className="flex flex-1 items-center justify-center pt-6">
         <div className="w-full max-w-md text-center">

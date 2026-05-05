@@ -29,7 +29,6 @@ import { IntentType } from "@/lib/msig";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
 import {
-  ArrowLeft,
   ArrowRight,
   Check,
   Loader2,
@@ -237,7 +236,7 @@ export default function SetupEthPage() {
         <Breadcrumb
           segments={[
             { label: "Wallets", href: "/app/wallet" },
-            { label: name, href: `/app/wallet/${encodeURIComponent(name)}` },
+            { label: toDisplayName(name), href: `/app/wallet/${encodeURIComponent(name)}` },
             { label: "Enable Ethereum" },
           ]}
         />
@@ -282,8 +281,8 @@ export default function SetupEthPage() {
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-warning/5"
                   }
                 >
-                  <ArrowLeft className="h-3 w-3" aria-hidden="true" />
                   Add Ethereum
+                  <ArrowRight className="h-3 w-3" aria-hidden="true" />
                 </Link>
               </div>
             )}

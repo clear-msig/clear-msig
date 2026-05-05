@@ -20,7 +20,6 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft,
   ArrowRight,
   Check,
   Copy,
@@ -61,6 +60,7 @@ import {
 import { NextStepCard } from "@/components/retail/NextStepCard";
 import { QuickSendInput } from "@/components/retail/QuickSendInput";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
@@ -505,32 +505,19 @@ function SendPage() {
     // Workspace shell (HeaderBar + sidebar + canvas blobs) is supplied
     // by /app/layout.tsx; this page just renders the column.
     <div className="flex flex-col">
-      <StickyTopBar offset="header" innerClassName="justify-between gap-3">
-        <button
-          type="button"
-          onClick={() => {
-            if (stage === "sent") {
-              router.push(
-                walletName
-                  ? `/app/wallet/${encodeURIComponent(walletName)}`
-                  : "/app/wallet",
-              );
-            } else {
-              router.back();
-            }
-          }}
-          className={
-            "-ml-2 inline-flex items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-          }
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          {stage === "sent" ? "Done" : "Back"}
-        </button>
-        <span className="rounded-full border border-border-soft bg-surface-raised px-3 py-1 text-xs font-medium text-text-strong">
-          {walletDisplay || "your shared wallet"}
-        </span>
+      <StickyTopBar offset="header">
+        <Breadcrumb
+          segments={[
+            { label: "Wallets", href: "/app/wallet" },
+            {
+              label: walletDisplay || "Wallet",
+              href: walletName
+                ? `/app/wallet/${encodeURIComponent(walletName)}`
+                : "/app/wallet",
+            },
+            { label: "Send" },
+          ]}
+        />
       </StickyTopBar>
 
       <div className="relative z-10 flex flex-1 items-center justify-center px-gutter py-10">
