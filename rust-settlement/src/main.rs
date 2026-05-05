@@ -1,0 +1,130 @@
+use axum::{extract::Request, middleware::Next, response::Response};
+use rust_settlement::{
+    app_state::AppState,
+    config::AppConfig,
+    db,
+    http::handlers::build_router,
+    paystack::client::PaystackClient,
+    providers::build_payment_provider,
+    signer::engine::SignerEngine,
+    workers::{chain_confirmation, disbursement, payout_dispatch, webhook_processing},
+};
+use std::net::SocketAddr;
+use std::time::Duration;
+use tower_http::cors::{Any, CorsLayer};
+use tracing::{error, info};
+
+async fn log_requests(request: Request, next: Next) -> Response {
+    let method = request.method().clone();
+    let path = request.uri().path().to_string();
+    let started = std::time::Instant::now();
+
+    let response = next.run(request).await;
+
+    info!(
+        method = %method,
+        path = %path,
+        status = response.status().as_u16(),
+        latency_ms = started.elapsed().as_millis(),
+        "HTTP request"
+    );
+
+    response
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    // Load .env file if present (no-op in production where vars are injected directly)
+    dotenvy::dotenv().ok();
+
+    let config = AppConfig::from_env()?;
+
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            std::env::var("RUST_LOG")
+                .unwrap_or_else(|_| "rust_settlement=info,axum=info".to_string()),
+        )
+        .init();
+
+    let pool = db::create_pool(&config.database_url)?;
+    let paystack_client = PaystackClient::new(
+        config.paystack_base_url.clone(),
+        config.paystack_secret_key.clone(),
+    );
+    let payment_provider = build_payment_provider(&config)?;
+    let signer_engine = SignerEngine::new(&config);
+
+    let state = AppState {
+        pool: pool.clone(),
+        config: config.clone(),
+        paystack_client: paystack_client.clone(),
+        payment_provider: payment_provider.clone(),
+        signer_engine: signer_engine.clone(),
+    };
+
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
+    let app = build_router(state)
+        .layer(cors)
+        .layer(axum::middleware::from_fn(log_requests));
+
+    let chain_pool = pool.clone();
+    let payout_pool = pool.clone();
+    let webhook_pool = pool.clone();
+    let disbursement_pool = pool.clone();
+    let payout_provider = payment_provider.clone();
+    let disbursement_signer = signer_engine.clone();
+    let poll_interval = config.worker_poll_interval_ms;
+
+    tokio::spawn(async move {
+        let mut ticker = tokio::time::interval(Duration::from_millis(poll_interval));
+        loop {
+            ticker.tick().await;
+            if let Err(err) = chain_confirmation::run_chain_confirmation_pass(&chain_pool).await {
+                error!(error = %err, "Chain confirmation worker pass failed");
+            }
+        }
+    });
+
+    tokio::spawn(async move {
+        let mut ticker = tokio::time::interval(Duration::from_millis(poll_interval));
+        loop {
+            ticker.tick().await;
+            if let Err(err) = disbursement::run_disbursement_pass(&disbursement_pool, &disbursement_signer).await {
+                error!(error = %err, "Disbursement worker pass failed");
+            }
+        }
+    });
+
+    tokio::spawn(async move {
+        let mut ticker = tokio::time::interval(Duration::from_millis(poll_interval));
+        loop {
+            ticker.tick().await;
+            if let Err(err) = payout_dispatch::run_payout_dispatch_pass(&payout_pool, payout_provider.as_ref()).await {
+                error!(error = %err, "Payout dispatch worker pass failed");
+            }
+        }
+    });
+
+    tokio::spawn(async move {
+        let mut ticker = tokio::time::interval(Duration::from_millis(poll_interval));
+        loop {
+            ticker.tick().await;
+            if let Err(err) = webhook_processing::run_webhook_processing_pass(&webhook_pool).await {
+                error!(error = %err, "Webhook processing worker pass failed");
+            }
+        }
+    });
+
+    let address: SocketAddr = config.bind_addr.parse()?;
+
+    info!(%address, "Starting rust-settlement");
+
+    let listener = tokio::net::TcpListener::bind(address).await?;
+    axum::serve(listener, app).await?;
+
+    Ok(())
+}

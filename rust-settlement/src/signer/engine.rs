@@ -1,0 +1,70 @@
+use async_trait::async_trait;
+
+use crate::{config::AppConfig, domain::types::ChainFamily};
+
+use super::{evm::EvmSigner, sui::SuiSigner};
+
+#[derive(Debug, Clone)]
+pub struct AssetTransferRequest {
+    pub chain_family: ChainFamily,
+    pub chain_id: String,
+    pub asset_symbol: String,
+    pub amount_minor: i64,
+    pub recipient_wallet: String,
+    pub token_address: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AssetTransferResult {
+    pub tx_hash: String,
+    pub finalized: bool,
+}
+
+#[async_trait]
+pub trait ChainSigner: Send + Sync {
+    async fn transfer(&self, request: &AssetTransferRequest) -> anyhow::Result<AssetTransferResult>;
+}
+
+#[derive(Clone)]
+pub struct SignerEngine {
+    evm: EvmSigner,
+    sui: SuiSigner,
+}
+
+impl SignerEngine {
+    pub fn new(config: &AppConfig) -> Self {
+        Self {
+            evm: EvmSigner::new(config.clone()),
+            sui: SuiSigner::new(config.clone()),
+        }
+    }
+
+    pub async fn transfer(&self, request: &AssetTransferRequest) -> anyhow::Result<AssetTransferResult> {
+        match request.chain_family {
+            ChainFamily::Evm => self.evm.transfer(request).await,
+            ChainFamily::Sui => self.sui.transfer(request).await,
+        }
+    }
+
+    pub async fn has_sufficient_balance(
+        &self,
+        chain_family: ChainFamily,
+        chain_id: &str,
+        asset_symbol: &str,
+        amount_minor: i64,
+        token_address: Option<&str>,
+    ) -> anyhow::Result<bool> {
+        match chain_family {
+            ChainFamily::Evm => {
+                self.evm
+                    .has_sufficient_balance(chain_id, amount_minor, token_address)
+                    .await
+            }
+            ChainFamily::Sui => {
+                self.sui
+                    .has_sufficient_balance(asset_symbol, amount_minor)
+                    .await
+            }
+        }
+    }
+}

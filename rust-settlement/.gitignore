@@ -1,0 +1,40 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+
+# Secrets and local environment files
+.env
+.env.*
+!.env.example
+
+# Logs and runtime dumps
+*.log
+logs/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage / profiling
+coverage/
+*.profraw
+*.profdata
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Local docs not for commit
+IMPLEMENTATION_REPORT.md
+korapaydocs.md
