@@ -5,13 +5,19 @@
 // The wallet-select button has moved to its own page (/connect). This
 // header now does two things:
 //   - Brand-only on landing + the connect page (clean public surface).
-//   - On /app/* mobile, a menu button that opens the workspace drawer
-//     so users can reach search / wallet list / disconnect without a
-//     persistent sidebar (which is desktop-only).
+//   - On /app/* mobile, a menu button that opens the workspace
+//     sidebar drawer (sliding in from the left) so users can reach
+//     search / wallet list / disconnect without a persistent
+//     sidebar (which is desktop-only).
+//
+// Menu button sits on the LEFT of the header next to the brand pill.
+// Drawer slides from the LEFT to match the menu button's side and
+// match the desktop sidebar's anchor — no left/right whiplash between
+// the trigger and the surface it opens.
 //
 // All animations are transform/opacity only.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -21,21 +27,55 @@ import { useWallet } from "@/lib/wallet";
 import { useOnboarding } from "@/lib/hooks/useOnboarding";
 import { WorkspaceSidebar } from "@/components/layout/WorkspaceSidebar";
 import { BrandMark } from "@/components/retail/BrandMark";
+import { useSidebar } from "@/components/providers/SidebarProvider";
 
 export function HeaderBar() {
-  const [menuOpen, setMenuOpen] = useState(false);
   const { hydrated } = useOnboarding();
   const { connected } = useWallet();
   const pathname = usePathname() ?? "";
+  // Null on the landing page (no SidebarProvider). HeaderBar is
+  // rendered there too, but the menu button is gated on `inApp` so we
+  // never read `sidebar` if it's null.
+  const sidebar = useSidebar();
 
   const inApp = pathname.startsWith("/app");
+  const showMenuButton = hydrated && connected && inApp && sidebar !== null;
 
   return (
     <>
       <header
-        className="fixed inset-x-3 top-3 z-[100] flex items-center justify-between sm:inset-x-4 sm:top-4"
+        className="fixed inset-x-3 top-3 z-[100] flex items-center justify-start gap-2 sm:inset-x-4 sm:top-4"
         role="banner"
       >
+        {/* Mobile menu button — only on /app/* once a wallet is
+            connected. Sits left of the brand so the trigger is on the
+            same side as the drawer it opens. Desktop has the
+            persistent sidebar in the workspace layout, so this trigger
+            would be redundant there. */}
+        <AnimatePresence>
+          {showMenuButton && (
+            <motion.button
+              type="button"
+              onClick={() => sidebar.openMobile()}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -8 }}
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+              className={
+                "flex h-10 w-10 items-center justify-center rounded-full border border-border-soft bg-surface-raised " +
+                "text-text-strong shadow-card-rest " +
+                "transition-transform duration-base ease-out-soft hover:-translate-y-0.5 active:scale-95 " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
+                "md:hidden"
+              }
+              aria-label="Open menu"
+              aria-expanded={sidebar.mobileOpen}
+            >
+              <Menu size={18} />
+            </motion.button>
+          )}
+        </AnimatePresence>
+
         {/* Brand — links home. Always rendered. */}
         <Link
           href="/"
@@ -53,37 +93,11 @@ export function HeaderBar() {
           </span>
           Clear
         </Link>
-
-        {/* Mobile menu button — only on /app/* once a wallet is
-            connected. Desktop has the persistent sidebar in the
-            workspace layout, so this drawer trigger would be redundant
-            there. */}
-        <AnimatePresence>
-          {hydrated && connected && inApp && (
-            <motion.button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              initial={{ opacity: 0, x: 8 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 8 }}
-              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-              className={
-                "flex h-10 w-10 items-center justify-center rounded-full border border-border-soft bg-surface-raised " +
-                "text-text-strong shadow-card-rest " +
-                "transition-transform duration-base ease-out-soft hover:-translate-y-0.5 active:scale-95 " +
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
-                "md:hidden"
-              }
-              aria-label="Open menu"
-              aria-expanded={menuOpen}
-            >
-              <Menu size={18} />
-            </motion.button>
-          )}
-        </AnimatePresence>
       </header>
 
-      <MenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
+      {sidebar && (
+        <MenuDrawer open={sidebar.mobileOpen} onClose={sidebar.closeMobile} />
+      )}
     </>
   );
 }
@@ -117,7 +131,7 @@ function MenuDrawer({ open, onClose }: MenuDrawerProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
-            className="fixed inset-0 z-[150] bg-surface-card/40 backdrop-blur-sm"
+            className="fixed inset-0 z-[150] bg-text-strong/30 backdrop-blur-sm md:hidden"
             onClick={onClose}
             aria-hidden="true"
           />
@@ -127,21 +141,21 @@ function MenuDrawer({ open, onClose }: MenuDrawerProps) {
             aria-modal="true"
             aria-label="Site navigation"
             tabIndex={-1}
-            initial={{ x: "100%" }}
+            initial={{ x: "-100%" }}
             animate={{ x: 0 }}
-            exit={{ x: "100%" }}
+            exit={{ x: "-100%" }}
             transition={{ type: "spring", damping: 28, stiffness: 260, mass: 0.7 }}
-            className="fixed right-0 top-0 z-[151] flex h-full w-[88%] max-w-[340px] flex-col bg-surface-card-strong shadow-2xl"
+            className="fixed left-0 top-0 z-[151] flex h-full w-[88%] max-w-[320px] flex-col border-r border-border-soft bg-surface-raised shadow-card-raised md:hidden"
           >
             <button
               type="button"
               onClick={onClose}
-              className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+              className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full text-text-soft transition-colors hover:bg-canvas hover:text-text-strong"
               aria-label="Close menu"
             >
               <X size={16} />
             </button>
-            <WorkspaceSidebar onNavigate={onClose} />
+            <WorkspaceSidebar onNavigate={onClose} forceExpanded />
           </motion.aside>
         </>
       )}
