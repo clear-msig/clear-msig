@@ -323,6 +323,21 @@ function SendPage() {
         throw new Error("Connect your wallet first");
       if (!firstIntent || !firstIntent.account)
         throw new Error("Spending isn't set up for this wallet");
+      // Resolve which of our pubkeys the wallet's approvers list
+      // expects. With both Ledger and a Dynamic embedded wallet
+      // available, the default Ledger-preferred pubkey may not be in
+      // approvers — signing with it lands a signature the on-chain
+      // verifier rejects. pickSigner picks the matching pubkey, or
+      // null when neither is acceptable.
+      const signerPk = wallet.pickSigner(
+        firstIntent.account.approvers,
+      );
+      if (!signerPk) {
+        throw new Error(
+          "None of your connected wallets is in this wallet's approver list. " +
+            "Disconnect the Ledger or sign in with the wallet that originally created this multisig.",
+        );
+      }
       const destination =
         resolved.kind === "contact"
           ? resolved.contact.address
@@ -372,13 +387,16 @@ function SendPage() {
         ],
         // Tells the CLI which identity to validate against during
         // dry-run; without this it uses its filesystem keypair which
-        // isn't in any user's proposers list.
-        actor_pubkey: wallet.publicKey.toBase58(),
+        // isn't in any user's proposers list. Use the resolved
+        // signer pubkey so the CLI checks the right identity (the
+        // default `wallet.publicKey` may not be the one we'll sign
+        // with, see pickSigner above).
+        actor_pubkey: signerPk.toBase58(),
       });
 
       // 2. Sign with the user's wallet.
       setPhase("signing");
-      const signed = await signDescriptor(dry);
+      const signed = await signDescriptor(dry, { preferSigner: signerPk });
 
       // 3. Submit propose: lands the proposal on chain in Active
       //    state with empty bitmap. Propose does not auto-flip the
@@ -414,8 +432,8 @@ function SendPage() {
       }
 
       const proposal = (submitted as Record<string, unknown>)?.proposal;
-      const me = wallet.publicKey?.toBase58();
-      if (typeof proposal !== "string" || proposal.length === 0 || !me) {
+      const me = signerPk.toBase58();
+      if (typeof proposal !== "string" || proposal.length === 0) {
         return submitted;
       }
 
@@ -433,7 +451,9 @@ function SendPage() {
             proposal,
             { actor_pubkey: me },
           );
-          const approveSigned = await signDescriptor(approveDry);
+          const approveSigned = await signDescriptor(approveDry, {
+            preferSigner: signerPk,
+          });
           await backendApi.submit.approveProposal(walletName, proposal, {
             ...approveSigned,
             expiry: approveDry.expiry,

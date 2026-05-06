@@ -115,29 +115,84 @@ export function useWallet() {
   const publicKey = ledgerPublicKey ?? dynamicPublicKey;
   const connected = !!publicKey && (!!ledger.session || !!solanaWallet);
 
+  // Choose the right signer for a wallet whose approver list we know.
+  //
+  // The bug this solves: a user creates a multisig with their Dynamic
+  // embedded pubkey D in the approvers list, then later connects a
+  // Ledger with pubkey L. `useWallet().publicKey` then defaults to L
+  // (Ledger preferred), so every signed action signs with L — but L
+  // isn't in the wallet's approver list, so the on-chain ed25519
+  // verify fails with a confusing error and the user can't sign at
+  // all. Symmetric problem the other way (wallet with L approvers,
+  // user accidentally has Dynamic active too). `pickSigner` resolves
+  // to whichever pubkey we hold that's actually in the approver
+  // list, prefering Ledger when both match. Returns null when
+  // neither pubkey is in approvers — the caller should surface a
+  // clear "this wallet isn't signable from your current connection"
+  // error rather than letting the on-chain verify fail.
+  const pickSigner = useCallback(
+    (approvers: readonly string[]): PublicKey | null => {
+      const ledgerB58 = ledgerPublicKey?.toBase58();
+      const dynamicB58 = dynamicPublicKey?.toBase58();
+      if (ledgerB58 && approvers.includes(ledgerB58)) return ledgerPublicKey;
+      if (dynamicB58 && approvers.includes(dynamicB58)) return dynamicPublicKey;
+      return null;
+    },
+    [ledgerPublicKey, dynamicPublicKey],
+  );
+
   const signMessage = useCallback(
-    async (bytes: Uint8Array): Promise<Uint8Array> => {
-      if (ledger.session) {
+    async (
+      bytes: Uint8Array,
+      preferSigner?: PublicKey | null,
+    ): Promise<Uint8Array> => {
+      // When the caller has resolved a specific signer pubkey via
+      // pickSigner, dispatch to that signer regardless of the
+      // ledger-preferred default. Falls back to default when no
+      // preference is provided or the preference matches no signer
+      // we have available.
+      const ledgerMatches =
+        preferSigner && ledgerPublicKey
+          ? preferSigner.equals(ledgerPublicKey)
+          : null;
+      const dynamicMatches =
+        preferSigner && dynamicPublicKey
+          ? preferSigner.equals(dynamicPublicKey)
+          : null;
+
+      const useLedger =
+        ledgerMatches === true ||
+        (ledgerMatches === null && dynamicMatches !== true && !!ledger.session);
+      const useDynamic =
+        dynamicMatches === true ||
+        (dynamicMatches === null && !useLedger);
+
+      if (useLedger && ledger.session) {
         // Ledger expects the offchain-wrapped buffer verbatim. The
         // caller passes exactly that (via `wrapOffchain`); the device
         // recognises the magic prefix and renders the body as text.
         return ledger.session.signOffchainMessage(bytes);
       }
-      if (!solanaWallet) {
-        throw new Error("Connect a wallet before signing");
+      if (useDynamic) {
+        if (!solanaWallet) {
+          throw new Error("Connect a wallet before signing");
+        }
+        const signer = await solanaWallet.getSigner();
+        const result = await signer.signMessage(bytes);
+        // Dynamic returns either Uint8Array directly or {signature: ...}
+        // depending on connector version; normalise.
+        if (result instanceof Uint8Array) return result;
+        const sig = (result as { signature?: Uint8Array })?.signature;
+        if (!(sig instanceof Uint8Array)) {
+          throw new Error("Wallet returned an unexpected signMessage shape");
+        }
+        return sig;
       }
-      const signer = await solanaWallet.getSigner();
-      const result = await signer.signMessage(bytes);
-      // Dynamic returns either Uint8Array directly or {signature: ...}
-      // depending on connector version; normalise.
-      if (result instanceof Uint8Array) return result;
-      const sig = (result as { signature?: Uint8Array })?.signature;
-      if (!(sig instanceof Uint8Array)) {
-        throw new Error("Wallet returned an unexpected signMessage shape");
-      }
-      return sig;
+      throw new Error(
+        "No signer available. Connect a Ledger or sign in to a wallet.",
+      );
     },
-    [solanaWallet, ledger.session],
+    [solanaWallet, ledger.session, ledgerPublicKey, dynamicPublicKey],
   );
 
   const disconnect = useCallback(async () => {
@@ -183,6 +238,22 @@ export function useWallet() {
     /// (Phantom's tx heuristic vs WaaS's UTF-8 corruption are different
     /// causes and deserve different explanations).
     signerIssue,
+    /// The user's Dynamic embedded-wallet pubkey when one is minted,
+    /// independent of which signer is active. Used by `pickSigner` to
+    /// select the right pubkey when the on-chain approver list
+    /// dictates one over the other (e.g. wallet was created with
+    /// embedded pubkey but user later connected a Ledger).
+    dynamicPublicKey,
+    /// The connected Ledger's pubkey, independent of which signer
+    /// is active. Same role as `dynamicPublicKey`.
+    ledgerPublicKey,
+    /// Resolve the right signer pubkey for a wallet with the given
+    /// approver list. Returns null when neither pubkey we hold is in
+    /// `approvers` — caller should surface a clear error instead of
+    /// letting the on-chain ed25519 verify fail. Pass the chosen
+    /// pubkey into signMessage / signDescriptor as `preferSigner` to
+    /// route the sign through the matching signer.
+    pickSigner,
   };
 }
 

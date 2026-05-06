@@ -201,6 +201,16 @@ function SendEthPage() {
         throw new Error("Wallet's Ethereum address isn't ready yet");
       if (!recipientValid) throw new Error("Recipient must be a valid 0x address");
 
+      // Resolve which signer pubkey the wallet's approver list
+      // expects (Ledger vs Dynamic embedded). See useWallet.pickSigner.
+      const signerPk = wallet.pickSigner(ethIntent.account.approvers);
+      if (!signerPk) {
+        throw new Error(
+          "None of your connected wallets is in this wallet's approver list. " +
+            "Disconnect the Ledger or sign in with the wallet that originally created this multisig.",
+        );
+      }
+
       // 1. Pull the live nonce. Without this the EVM tx the dWallet
       //    signs gets rejected as a duplicate.
       const { nonce } = await fetchEvmNonce(walletEthAddress);
@@ -215,12 +225,12 @@ function SendEthPage() {
           `value_wei=${amountWei.toString()}`,
           `data=`,
         ],
-        actor_pubkey: wallet.publicKey.toBase58(),
+        actor_pubkey: signerPk.toBase58(),
       });
 
       // 3. Sign on Solana. Proves to the program that this user is
       //    a proposer + counts as their approval.
-      const signed = await signDescriptor(dry);
+      const signed = await signDescriptor(dry, { preferSigner: signerPk });
 
       // 4. Submit. Lands the proposal Approved on chain (program's
       //    auto-approve when proposer-in-approvers).
@@ -242,9 +252,11 @@ function SendEthPage() {
         const approveDry = await backendApi.prepare.approveProposal(
           walletName,
           proposal,
-          { actor_pubkey: wallet.publicKey.toBase58() },
+          { actor_pubkey: signerPk.toBase58() },
         );
-        const approveSigned = await signDescriptor(approveDry);
+        const approveSigned = await signDescriptor(approveDry, {
+          preferSigner: signerPk,
+        });
         await backendApi.submit.approveProposal(walletName, proposal, {
           ...approveSigned,
           expiry: approveDry.expiry,

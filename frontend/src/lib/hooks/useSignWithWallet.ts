@@ -13,6 +13,7 @@
 import { useWallet, useConnection } from "@/lib/wallet";
 import { useCallback } from "react";
 import nacl from "tweetnacl";
+import { PublicKey } from "@solana/web3.js";
 import {
   toHex,
   rebuildAndVerifyMessage,
@@ -20,6 +21,15 @@ import {
 } from "@/lib/msig";
 import { LedgerError } from "@/lib/wallet/ledger";
 import type { DryRunDescriptor } from "@/lib/api/types";
+
+export interface SignOptions {
+  /// When provided, route the sign through the signer whose pubkey
+  /// matches. Used when the wallet's on-chain approver list dictates
+  /// a specific signer (e.g. wallet was created with the embedded
+  /// pubkey but the user has since connected a Ledger). Resolve via
+  /// `useWallet().pickSigner(approvers)`.
+  preferSigner?: PublicKey | null;
+}
 
 export interface SignedPayload {
   /// Base58 pubkey of the wallet that signed, ready to drop into the
@@ -74,7 +84,10 @@ export function useSignWithWallet() {
   const { connection } = useConnection();
 
   const signBytes = useCallback(
-    async (messageBytes: Uint8Array): Promise<SignedPayload> => {
+    async (
+      messageBytes: Uint8Array,
+      options?: SignOptions,
+    ): Promise<SignedPayload> => {
       if (!connected || !publicKey) {
         throw new WalletSignError(
           "not_connected",
@@ -87,9 +100,15 @@ export function useSignWithWallet() {
           "This wallet does not support signMessage. Try Solflare, Backpack, or a Ledger."
         );
       }
+      // Effective signer pubkey: caller's preference if set, else
+      // the default. The signature has to verify against THIS pubkey,
+      // and `signer_pubkey` we return MUST match — otherwise the
+      // backend's submit hands the on-chain program a sig + pubkey
+      // pair that fails verify.
+      const effectiveSigner = options?.preferSigner ?? publicKey;
       let sig: Uint8Array;
       try {
-        sig = await signMessage(messageBytes);
+        sig = await signMessage(messageBytes, options?.preferSigner);
       } catch (err) {
         // Distinguish real user rejections from device/transport
         // errors. Treating everything as "rejected" was telling
@@ -104,7 +123,11 @@ export function useSignWithWallet() {
       // that here means the user gets a clean error in the browser
       // instead of a 502 from the CLI's verifier.
       if (
-        !nacl.sign.detached.verify(messageBytes, sig, publicKey.toBytes())
+        !nacl.sign.detached.verify(
+          messageBytes,
+          sig,
+          effectiveSigner.toBytes(),
+        )
       ) {
         throw new WalletSignError(
           "wallet_signed_wrong_bytes",
@@ -120,7 +143,7 @@ export function useSignWithWallet() {
         );
       }
       return {
-        signer_pubkey: publicKey.toBase58(),
+        signer_pubkey: effectiveSigner.toBase58(),
         signature: toHex(sig),
       };
     },
@@ -131,8 +154,16 @@ export function useSignWithWallet() {
   /// the backend-supplied `message_hex`, then ask the wallet to sign
   /// the locally-rebuilt bytes. Throws `WalletSignError` with code
   /// `"message_mismatch"` if the backend tried to swap them.
+  ///
+  /// Pass `options.preferSigner` (resolved via
+  /// `useWallet().pickSigner(approvers)`) when the wallet's on-chain
+  /// approver list dictates which of the user's available pubkeys
+  /// must produce the signature.
   const signDescriptor = useCallback(
-    async (descriptor: DryRunDescriptor): Promise<SignedPayload> => {
+    async (
+      descriptor: DryRunDescriptor,
+      options?: SignOptions,
+    ): Promise<SignedPayload> => {
       let bytes: Uint8Array;
       try {
         bytes = await rebuildAndVerifyMessage(descriptor, connection);
@@ -146,7 +177,7 @@ export function useSignWithWallet() {
         }
         throw err;
       }
-      return signBytes(bytes);
+      return signBytes(bytes, options);
     },
     [connection, signBytes],
   );
