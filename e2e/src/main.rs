@@ -548,7 +548,11 @@ async fn main() {
     let wallet_name = format!("e2e-{}", &hex_lower(&rand::random::<[u8; 4]>()));
     let name_hash = compute_name_hash(&wallet_name);
     let name_hash_pk = Pubkey::new_from_array(name_hash);
-    let (wallet_pk_addr, _) = find_wallet_address(&wallet_name, &pk_to_addr(clear_wallet_program_id));
+    let (wallet_pk_addr, _) = find_wallet_address(
+        &wallet_name,
+        &pk_to_addr(payer.pubkey()),
+        &pk_to_addr(clear_wallet_program_id),
+    );
     let wallet_pk = addr_to_pk(wallet_pk_addr);
     let (vault_addr, _) = find_vault_address(&wallet_pk_addr, &pk_to_addr(clear_wallet_program_id));
     let vault_pk = addr_to_pk(vault_addr);
