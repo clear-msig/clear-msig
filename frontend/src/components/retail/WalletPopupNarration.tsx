@@ -16,9 +16,10 @@
 // popup mid-flow.
 //
 // Two narration modes, picked from `useWallet().isLedger`:
-//   - Software wallet (Phantom / Solflare / embedded): the popup
+//   - Software wallet (Solflare / Backpack / embedded): the popup
 //     renders technical-looking bytes. Disclaimer says "that's
-//     normal" so users don't bail.
+//     normal" so users don't bail. (Phantom is gated upstream by
+//     UnsupportedSignerBanner — it rejects our offchain envelope.)
 //   - Ledger device: the device renders the full message text on its
 //     screen (`signOffchainMessage` + format-byte 0). Copy flips to
 //     "your Ledger will show the full message — read it before

@@ -39,7 +39,8 @@ export class WalletSignError extends Error {
     | "ledger_unsupported"
     | "unknown"
     | "message_mismatch"
-    | "wallet_signed_wrong_bytes";
+    | "wallet_signed_wrong_bytes"
+    | "phantom_unsupported";
   /// Set when `code === "message_mismatch"` — the bytes the backend
   /// asked us to sign did not match the bytes the frontend rebuilt
   /// from chain state. Includes both for debugging.
@@ -83,7 +84,7 @@ export function useSignWithWallet() {
       if (!signMessage) {
         throw new WalletSignError(
           "no_sign_message",
-          "This wallet does not support signMessage. Try Phantom, Solflare, or Backpack."
+          "This wallet does not support signMessage. Try Solflare, Backpack, or a Ledger."
         );
       }
       let sig: Uint8Array;
@@ -109,8 +110,7 @@ export function useSignWithWallet() {
           "wallet_signed_wrong_bytes",
           "Your wallet signed something different from what we asked. " +
             "This is a known issue with some embedded-wallet providers. " +
-            "Sign in with an external wallet (Phantom, Solflare, Backpack) " +
-            "or a Ledger to work around it.",
+            "Sign in with Solflare, Backpack, or a Ledger to work around it.",
         );
       }
       if (sig.length !== 64) {
@@ -191,6 +191,13 @@ function classifySignError(err: unknown): WalletSignError {
       m.includes("approval denied")
     ) {
       return new WalletSignError("rejected", err.message);
+    }
+    // Phantom's tx-detection heuristic refuses our offchain envelope
+    // (the spec'd `\xff` magic byte trips it as a versioned-tx prefix).
+    // Surface a typed code so the UI can show "swap to Solflare/Ledger"
+    // copy instead of the raw Phantom error.
+    if (m.includes("cannot sign solana transactions using sign message")) {
+      return new WalletSignError("phantom_unsupported", err.message);
     }
     return new WalletSignError("unknown", err.message);
   }

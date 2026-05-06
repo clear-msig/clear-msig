@@ -64,23 +64,42 @@ export function useWallet() {
     }
   }, [solanaWallet]);
 
-  // Detect Dynamic's WaaS-SVM connector. Its signMessage decodes the
-  // input bytes as UTF-8 before signing (Buffer.from(bytes).toString())
-  // which corrupts our offchain envelope's leading `\xff` byte. Until
-  // Dynamic ships a bytes-safe signer or your project enables Turnkey,
-  // this signer can't sign clear-msig messages. Consumers gate banners
-  // on this flag so users hit the explanation before the failed sign.
-  const isLossySigner = useMemo(() => {
-    if (ledger.session) return false; // Ledger always wins; never lossy.
-    if (!solanaWallet) return false;
-    // Duck-type the connector identifier; the SDK's WalletConnector
-    // type doesn't expose `overrideKey` in its public types but the
-    // value is set on the WaaS connector at runtime ('dynamicwaas').
+  // Detect signers that cannot sign clear-msig's offchain-wrapped
+  // messages. Two known cases:
+  //
+  //   "waas"    — Dynamic's WaaS-SVM connector. Its signMessage decodes
+  //               the input bytes as UTF-8 (Buffer.from(bytes).toString())
+  //               before signing, which corrupts our envelope's leading
+  //               `\xff` byte. Caught by the local ed25519 verify in
+  //               useSignWithWallet (the signature is over different
+  //               bytes than we asked for).
+  //
+  //   "phantom" — Phantom. Per docs.phantom.com/solana/signing-a-message,
+  //               signMessage only accepts UTF-8 or hex-encoded strings.
+  //               Phantom's transaction-detection heuristic refuses bytes
+  //               starting with `\xff` (interprets it as `0x80 | version`
+  //               versioned-tx prefix) and throws "You cannot sign solana
+  //               transactions using sign message". The offchain-message
+  //               magic prefix the Solana spec mandates IS that `\xff`,
+  //               so Phantom currently rejects every clear-msig payload.
+  //
+  // Consumers gate banners and CTAs on `signerIssue` so users see the
+  // explanation before the failed sign.
+  const signerIssue = useMemo<"waas" | "phantom" | null>(() => {
+    if (ledger.session) return null; // Ledger always wins.
+    if (!solanaWallet) return null;
+    // Duck-type the connector identifier; the SDK's WalletConnector type
+    // doesn't expose `overrideKey` in its public types but the value is
+    // set at runtime (e.g. 'dynamicwaas' on the WaaS connector).
     const c = (solanaWallet as unknown as { connector?: { key?: string; name?: string; overrideKey?: string } }).connector;
-    if (!c) return false;
-    const id = c.key ?? c.overrideKey ?? c.name ?? "";
-    return /dynamicwaas/i.test(id);
+    if (!c) return null;
+    const id = (c.key ?? c.overrideKey ?? c.name ?? "").toLowerCase();
+    if (/dynamicwaas/.test(id)) return "waas";
+    if (/phantom/.test(id)) return "phantom";
+    return null;
   }, [solanaWallet, ledger.session]);
+
+  const isUnsupportedSigner = signerIssue !== null;
 
   const ledgerPublicKey = useMemo(() => {
     if (!ledger.session) return null;
@@ -151,12 +170,19 @@ export function useWallet() {
     /// "your wallet shows hex" copy for "your Ledger shows the full
     /// message". See `<WalletPopupNarration>`.
     isLedger: !!ledger.session,
-    /// True when the active signer corrupts message bytes and can't
-    /// produce a verifiable signature for clear-msig (currently:
-    /// Dynamic's WaaS-SVM connector). Use this to render an upfront
-    /// "use a different wallet" banner instead of letting the user
-    /// hit a doomed signing flow. See `<WaasLimitationBanner>`.
-    isLossySigner,
+    /// True when the active signer cannot sign clear-msig's offchain-
+    /// wrapped messages. Render an upfront "use a different wallet"
+    /// banner so users don't hit a doomed signing flow. See
+    /// `<UnsupportedSignerBanner>`.
+    isUnsupportedSigner,
+    /// Backward-compat alias for `isUnsupportedSigner`. New code should
+    /// use `signerIssue` for richer copy.
+    isLossySigner: isUnsupportedSigner,
+    /// Discriminator for which incompatibility we hit. `null` means the
+    /// signer works. `<UnsupportedSignerBanner>` switches copy on this
+    /// (Phantom's tx heuristic vs WaaS's UTF-8 corruption are different
+    /// causes and deserve different explanations).
+    signerIssue,
   };
 }
 

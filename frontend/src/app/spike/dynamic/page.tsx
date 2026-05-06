@@ -163,9 +163,9 @@ function SpikeBody() {
             Step 1 · Connect
           </p>
           <p className="mt-1 text-sm text-text-soft">
-            Email login mints an embedded Solana wallet on the fly. External
-            wallets (Phantom / Solflare / Backpack) work too — both paths
-            should produce the same compatible sig.
+            Email login mints an embedded Solana wallet on the fly.
+            External wallets (Solflare / Backpack) work too. Phantom is
+            currently incompatible — it rejects our offchain envelope.
           </p>
           <div className="mt-4">
             <DynamicWidget />

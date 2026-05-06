@@ -60,7 +60,7 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
-import { WaasLimitationBanner } from "@/components/retail/WaasLimitationBanner";
+import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
 import { saveWalletAppearance } from "@/lib/retail/walletAppearance";
 
 // Welcome was a 3-stage wizard (shape_name → pace → confirm). Honest
@@ -125,15 +125,15 @@ const TRANSITION = { duration: 0.25, ease: [0.22, 1, 0.36, 1] as const };
 
 export default function WelcomePage() {
   const gate = useWalletGate();
-  // isLossySigner = true when the connected wallet is Dynamic's WaaS-SVM
-  // embedded provider. That signer UTF-8-decodes our offchain envelope
-  // before signing and produces a signature over the wrong bytes; the
-  // sign-then-verify guard in useSignWithWallet refuses to submit. Block
-  // the Create CTA up front so users on email/Google sign-in don't
-  // burn devnet SOL on createWallet (sponsored, but still leaves a
-  // dead account on chain) before hitting the doomed second popup.
+  // signerIssue is set when the connected wallet cannot sign clear-msig's
+  // offchain-wrapped messages — Dynamic's WaaS-SVM embedded provider
+  // (UTF-8-decodes the bytes before signing) or Phantom (rejects the
+  // `\xff` magic prefix as a suspected versioned-tx). Either way, block
+  // the Create CTA up front so users don't burn devnet SOL on a
+  // createWallet that the second popup will reject.
   const wallet = useWallet();
-  const isBrokenSigner = wallet.isLossySigner === true;
+  const isBrokenSigner = wallet.signerIssue !== null;
+  const signerIssue = wallet.signerIssue;
   const router = useRouter();
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -346,7 +346,7 @@ export default function WelcomePage() {
 
       <div className="relative z-10 flex flex-1 items-center justify-center px-gutter pb-16 pt-8">
         <div className="flex w-full max-w-md flex-col gap-4">
-          <WaasLimitationBanner
+          <UnsupportedSignerBanner
             title="You won't be able to finish creating a wallet with this sign-in"
           />
           <AnimatePresence mode="wait" initial={false}>
@@ -486,10 +486,12 @@ export default function WelcomePage() {
                 </Button>
                 {isBrokenSigner && (
                   <p className="mt-2 text-center text-xs text-text-soft">
-                    Email/Google sign-in can&rsquo;t sign Solana yet.
+                    {signerIssue === "phantom"
+                      ? "Phantom can't sign clear-msig messages yet."
+                      : "Email/Google sign-in can’t sign Solana yet."}{" "}
                     Sign out and reconnect with{" "}
                     <span className="font-medium text-text-strong">Solflare</span>,
-                    Phantom, or a Ledger.
+                    Backpack, or a Ledger.
                   </p>
                 )}
               </motion.section>
