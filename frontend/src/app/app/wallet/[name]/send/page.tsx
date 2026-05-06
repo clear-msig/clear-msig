@@ -61,6 +61,7 @@ import { NextStepCard } from "@/components/retail/NextStepCard";
 import { QuickSendInput } from "@/components/retail/QuickSendInput";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
+import { txUrl as solanaTxUrl } from "@/lib/explorer";
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
@@ -269,6 +270,11 @@ function SendPage() {
     firstIntent === null;
 
   const [stage, setStage] = useState<Stage>("compose");
+  // Solana tx signature from a successful execute. Set when the
+  // proposal threshold is met inline (auto-approve or sole approver),
+  // null when the proposal is created but waits on others. Drives
+  // the SentStage copy + explorer link.
+  const [executedTxid, setExecutedTxid] = useState<string | null>(null);
   // Substep state inside the "sending" stage. Tells the user which
   // step is in flight so a slow Solana RPC doesn't read as a frozen
   // app. Each step in the mutation pushes to this ref via setPhase.
@@ -449,7 +455,20 @@ function SendPage() {
       if (approvalsAfterUs >= intent.approvalThreshold) {
         setPhase("executing");
         try {
-          await backendApi.executeProposal(walletName, proposal, {});
+          const executed = await backendApi.executeProposal(
+            walletName,
+            proposal,
+            {},
+          );
+          // Solana sends route through the program's `execute_custom`
+          // (chain_kind=0 stays on the local path), so the response
+          // shape is { txid, path, status } — not the broadcast
+          // wrapper EVM uses. Pull txid out so SentStage can link
+          // the user to the actual on-chain transfer.
+          const tid = (executed as { txid?: unknown })?.txid;
+          if (typeof tid === "string" && tid.length > 0) {
+            return { ...submitted, executedTxid: tid };
+          }
         } catch (err) {
           // Same as above — execute is best-effort. The proposal
           // is approved on chain; an explicit retry from the
@@ -459,9 +478,12 @@ function SendPage() {
       }
       return submitted;
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
       queryClient.invalidateQueries({ queryKey: ["my-organizations"] });
+      const tid =
+        (result as { executedTxid?: unknown } | undefined)?.executedTxid;
+      setExecutedTxid(typeof tid === "string" ? tid : null);
       setStage("sent");
     },
     onError: (err) => {
@@ -592,6 +614,7 @@ function SendPage() {
               amountDisplay={sentAmountDisplay}
               recipientDisplay={sentRecipientDisplay}
               walletName={walletDisplay || "your shared wallet"}
+              executedTxid={executedTxid}
               onDone={() =>
                 router.push(
                   walletName
@@ -1163,6 +1186,12 @@ interface SentStageProps {
   amountDisplay: string;
   recipientDisplay: string;
   walletName: string;
+  /// Solana tx signature when the proposal was executed inline
+  /// (auto-approve or sole-approver path). When null, the proposal
+  /// is on chain awaiting other signers — the copy reflects that
+  /// distinction so users don't think their friends already moved
+  /// money when they didn't.
+  executedTxid: string | null;
   onDone: () => void;
   reduce: boolean;
 }
@@ -1171,6 +1200,7 @@ function SentStage({
   amountDisplay,
   recipientDisplay,
   walletName,
+  executedTxid,
   onDone,
   reduce,
 }: SentStageProps) {
@@ -1202,16 +1232,43 @@ function SentStage({
       </motion.div>
 
       <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
-        Request created
+        {executedTxid ? "Sent" : "Request created"}
       </h1>
       <p className="mt-3 max-w-sm text-base text-text-soft">
-        {amountDisplay} SOL to{" "}
-        <span className="font-medium text-text-strong">
-          {recipientDisplay}
-        </span>{" "}
-        is waiting on your friends in{" "}
-        <span className="font-medium text-text-strong">{walletDisplay}</span>.
+        {executedTxid ? (
+          <>
+            {amountDisplay} SOL on the way to{" "}
+            <span className="font-medium text-text-strong">
+              {recipientDisplay}
+            </span>
+            . Confirmed on Solana.
+          </>
+        ) : (
+          <>
+            {amountDisplay} SOL to{" "}
+            <span className="font-medium text-text-strong">
+              {recipientDisplay}
+            </span>{" "}
+            is waiting on your friends in{" "}
+            <span className="font-medium text-text-strong">
+              {walletDisplay}
+            </span>
+            .
+          </>
+        )}
       </p>
+
+      {executedTxid && (
+        <a
+          href={solanaTxUrl(executedTxid)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-4 inline-flex items-center gap-1.5 rounded-pill border border-border-soft bg-surface-raised px-4 py-2 text-xs font-medium text-text-strong transition hover:border-accent/50 hover:text-accent"
+        >
+          View on Solana Explorer
+          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </a>
+      )}
 
       <div className="mt-8 w-full">
         <NextStepCard
