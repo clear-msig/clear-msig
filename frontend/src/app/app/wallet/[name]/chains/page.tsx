@@ -19,10 +19,12 @@ import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
+import { Connection, PublicKey } from "@solana/web3.js";
 import { ArrowLeft, Check, Copy, Plus } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { findVaultAddress } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
+import { appConfig } from "@/lib/config";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { ChainBadge } from "@/components/retail/ChainBadge";
@@ -37,6 +39,7 @@ import {
   useWalletChains,
 } from "@/lib/hooks/useWalletChains";
 import type { ChainBindingResponse } from "@/lib/api/types";
+import { fetchChainBalance, formatChainBalance } from "@/lib/balances";
 
 export default function ChainsPage() {
   const params = useParams<{ name: string }>();
@@ -150,6 +153,7 @@ export default function ChainsPage() {
                 <ActiveChainRow
                   key={chain.kind}
                   chain={chain}
+                  binding={binding ?? null}
                   address={address}
                   delay={i * 0.04}
                   reduce={!!reduce}
@@ -188,6 +192,7 @@ export default function ChainsPage() {
 
 interface ActiveChainRowProps {
   chain: ChainMeta;
+  binding: ChainBindingResponse | null;
   address: string | null;
   delay: number;
   reduce: boolean;
@@ -196,6 +201,7 @@ interface ActiveChainRowProps {
 
 function ActiveChainRow({
   chain,
+  binding,
   address,
   delay,
   reduce,
@@ -210,6 +216,32 @@ function ActiveChainRow({
     const t = setTimeout(() => setCopied(false), 1800);
     return () => clearTimeout(t);
   }, [copied]);
+
+  const { connection } = useConnection();
+
+  // Live balance at the address shown above. Solana = vault PDA
+  // balance (where SOL transfers come out of, see execute_custom in
+  // the program). Other chains = balance at the dWallet's chain-
+  // native address. Refetched every 30 s; errors render as a quiet
+  // "—" rather than a toast (balance is informational, not blocking).
+  const balanceQuery = useQuery({
+    queryKey: ["chain-balance", chain.kind, address ?? "no-addr"],
+    queryFn: () => loadBalance(chain.kind, address!, binding, connection),
+    enabled: !!address,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    retry: 1,
+  });
+  const balanceLabel =
+    balanceQuery.data === undefined
+      ? null
+      : balanceQuery.data === null
+        ? null
+        : formatChainBalance(
+            balanceQuery.data,
+            chain.smallestPerWhole,
+            chain.displayDecimals,
+          );
 
   const handleCopy = async () => {
     if (!address) return;
@@ -241,13 +273,35 @@ function ActiveChainRow({
             {chain.description}
           </p>
         </div>
-        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[11px] font-medium text-accent">
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent/70 opacity-75" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[11px] font-medium text-accent">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent/70 opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
+            </span>
+            {isImplicit ? "Built in" : "Active"}
           </span>
-          {isImplicit ? "Built in" : "Active"}
-        </span>
+          {address && (
+            <span className="text-xs tabular-nums text-text-soft">
+              {balanceQuery.isLoading ? (
+                <span aria-label="Loading balance">…</span>
+              ) : balanceLabel !== null ? (
+                <>
+                  <span className="font-medium text-text-strong">
+                    {balanceLabel}
+                  </span>{" "}
+                  {chain.ticker}
+                </>
+              ) : balanceQuery.isError ? (
+                <span title="Couldn’t fetch balance from the chain RPC">—</span>
+              ) : (
+                <span title="No public balance source for this chain yet">
+                  —
+                </span>
+              )}
+            </span>
+          )}
+        </div>
       </div>
       {address ? (
         <button
@@ -355,4 +409,31 @@ function ChainRowSkeleton() {
       </div>
     </div>
   );
+}
+
+/// Pick the right balance source for the row.
+///
+/// Solana (kind 0) shows the **vault PDA** balance — that's where
+/// SOL transfers come out of (the program's `execute_custom`
+/// handler operates on the vault). Other chains show the balance at
+/// the dWallet's chain-native address, fetched via lib/balances.
+async function loadBalance(
+  chainKind: number,
+  address: string,
+  binding: ChainBindingResponse | null,
+  connection: Connection,
+): Promise<bigint | null> {
+  if (chainKind === 0) {
+    const lamports = await connection.getBalance(
+      new PublicKey(address),
+      "confirmed",
+    );
+    return BigInt(lamports);
+  }
+  if (!binding) return null;
+  const result = await fetchChainBalance(binding, {
+    solanaConnection: connection,
+    evmRpcUrl: appConfig.preAlpha.destinationRpcUrl,
+  });
+  return result?.raw ?? null;
 }
