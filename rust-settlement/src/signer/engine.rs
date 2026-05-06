@@ -2,7 +2,9 @@ use async_trait::async_trait;
 
 use crate::{config::AppConfig, domain::types::ChainFamily};
 
-use super::{evm::EvmSigner, sui::SuiSigner};
+use super::{
+    bitcoin::BitcoinSigner, evm::EvmSigner, solana::SolanaSigner, zcash::ZcashSigner,
+};
 
 #[derive(Debug, Clone)]
 pub struct AssetTransferRequest {
@@ -11,6 +13,7 @@ pub struct AssetTransferRequest {
     pub asset_symbol: String,
     pub amount_minor: i64,
     pub recipient_wallet: String,
+    /// For ERC-20 / SPL token transfers. None for native asset moves.
     pub token_address: Option<String>,
 }
 
@@ -27,22 +30,28 @@ pub trait ChainSigner: Send + Sync {
 
 #[derive(Clone)]
 pub struct SignerEngine {
+    solana: SolanaSigner,
     evm: EvmSigner,
-    sui: SuiSigner,
+    bitcoin: BitcoinSigner,
+    zcash: ZcashSigner,
 }
 
 impl SignerEngine {
     pub fn new(config: &AppConfig) -> Self {
         Self {
+            solana: SolanaSigner::new(config.clone()),
             evm: EvmSigner::new(config.clone()),
-            sui: SuiSigner::new(config.clone()),
+            bitcoin: BitcoinSigner::new(config.clone()),
+            zcash: ZcashSigner::new(config.clone()),
         }
     }
 
     pub async fn transfer(&self, request: &AssetTransferRequest) -> anyhow::Result<AssetTransferResult> {
         match request.chain_family {
+            ChainFamily::Solana => self.solana.transfer(request).await,
             ChainFamily::Evm => self.evm.transfer(request).await,
-            ChainFamily::Sui => self.sui.transfer(request).await,
+            ChainFamily::Bitcoin => self.bitcoin.transfer(request).await,
+            ChainFamily::Zcash => self.zcash.transfer(request).await,
         }
     }
 
@@ -55,14 +64,24 @@ impl SignerEngine {
         token_address: Option<&str>,
     ) -> anyhow::Result<bool> {
         match chain_family {
+            ChainFamily::Solana => {
+                self.solana
+                    .has_sufficient_balance(asset_symbol, amount_minor, token_address)
+                    .await
+            }
             ChainFamily::Evm => {
                 self.evm
                     .has_sufficient_balance(chain_id, amount_minor, token_address)
                     .await
             }
-            ChainFamily::Sui => {
-                self.sui
-                    .has_sufficient_balance(asset_symbol, amount_minor)
+            ChainFamily::Bitcoin => {
+                self.bitcoin
+                    .has_sufficient_balance(amount_minor)
+                    .await
+            }
+            ChainFamily::Zcash => {
+                self.zcash
+                    .has_sufficient_balance(amount_minor)
                     .await
             }
         }

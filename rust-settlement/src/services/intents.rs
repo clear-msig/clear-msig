@@ -21,8 +21,10 @@ fn intent_type_db(value: IntentType) -> &'static str {
 
 fn chain_family_db(value: ChainFamily) -> &'static str {
     match value {
+        ChainFamily::Solana => "solana",
         ChainFamily::Evm => "evm",
-        ChainFamily::Sui => "sui",
+        ChainFamily::Bitcoin => "bitcoin",
+        ChainFamily::Zcash => "zcash",
     }
 }
 
@@ -75,8 +77,10 @@ fn parse_intent_type(value: &str) -> anyhow::Result<IntentType> {
 
 fn parse_chain_family(value: &str) -> anyhow::Result<ChainFamily> {
     match value {
+        "solana" => Ok(ChainFamily::Solana),
         "evm" => Ok(ChainFamily::Evm),
-        "sui" => Ok(ChainFamily::Sui),
+        "bitcoin" => Ok(ChainFamily::Bitcoin),
+        "zcash" => Ok(ChainFamily::Zcash),
         _ => anyhow::bail!("unknown chain_family: {value}"),
     }
 }
@@ -396,12 +400,24 @@ pub async fn get_quote(pool: &PgPool, intent_id: Uuid) -> anyhow::Result<Option<
     }))
 }
 
+/// Per-chain fallback treasury addresses. Used only when no
+/// `ramp_treasury_mappings` row exists for the (chain_family, chain_id,
+/// asset_symbol) tuple — production deployments are expected to seed
+/// the mapping table; the fallbacks are an MVP convenience that lets
+/// operators bring up a chain with one env var.
+#[derive(Debug, Clone, Default)]
+pub struct TreasuryFallbacks<'a> {
+    pub solana: &'a str,
+    pub evm: &'a str,
+    pub bitcoin: &'a str,
+    pub zcash: &'a str,
+}
+
 pub async fn prepare_signature(
     pool: &PgPool,
     intent_id: Uuid,
     user_id: Uuid,
-    fallback_treasury_evm_address: &str,
-    fallback_treasury_sui_address: &str,
+    fallbacks: TreasuryFallbacks<'_>,
 ) -> anyhow::Result<PrepareSignatureResponse> {
     let mut tx = pool.begin().await?;
 
@@ -448,14 +464,19 @@ pub async fn prepare_signature(
     let treasury_address: String = if let Some(mapping_row) = mapping {
         mapping_row.get("treasury_address")
     } else {
-        let fallback = if chain_family == "evm" {
-            fallback_treasury_evm_address
-        } else {
-            fallback_treasury_sui_address
+        let fallback = match chain_family.as_str() {
+            "solana" => fallbacks.solana,
+            "evm" => fallbacks.evm,
+            "bitcoin" => fallbacks.bitcoin,
+            "zcash" => fallbacks.zcash,
+            other => anyhow::bail!("Unsupported chain_family for treasury lookup: {other}"),
         };
 
         if fallback.trim().is_empty() {
-            anyhow::bail!("Treasury mapping not configured and fallback treasury address is empty")
+            anyhow::bail!(
+                "Treasury mapping not configured for {chain_family}/{chain_id}/{asset_symbol} \
+                 and no fallback TREASURY_*_ADDRESS env var is set"
+            )
         }
 
         tracing::warn!(

@@ -4,6 +4,12 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.76"
 
+# rust-settlement is a sidecar service with its own dependency graph
+# (different solana-sdk / ethers minor versions than the workspace
+# CLI uses). Keep it as a standalone workspace so cargo doesn't try
+# to unify versions across the two trees.
+[workspace]
+
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
@@ -20,16 +26,27 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"
 sqlx = { version = "0.8", default-features = false, features = ["postgres", "runtime-tokio-rustls", "uuid", "chrono", "json"] }
-sui-crypto = { version = "0.2.0", features = ["ed25519"] }
-sui-rpc = "0.2.2"
-sui-sdk-types = "0.2.2"
-sui-transaction-builder = { version = "0.2.2", default-features = false }
 thiserror = "2.0"
 tokio = { version = "1.38", features = ["macros", "rt-multi-thread", "signal"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 tower-http = { version = "0.5", features = ["cors"] }
-uuid = { version = "1.10", features = ["serde", "v4"] }
+uuid = { version = "1.10", features = ["serde", "v4", "v5"] }
+
+# ── Solana treasury signer ─────────────────────────────────────────────
+# Versions match the workspace CLI in `cli/Cargo.toml` so we share the
+# same precompiled artefacts in cargo's build cache when both are
+# resident in the workspace.
+solana-sdk = "2"
+solana-client = "2"
+bs58 = "0.5"
+
+# ── Bitcoin treasury signer ────────────────────────────────────────────
+# Local signing model: we hold a P2WPKH key, fetch UTXOs and broadcast
+# via Esplora HTTP (no full node required). Single-input → single-output
+# spend matches what the operator-side hot wallet needs for onramp
+# disbursements.
+bitcoin = { version = "0.32", features = ["std"] }
 
 [dev-dependencies]
 pretty_assertions = "1.4"

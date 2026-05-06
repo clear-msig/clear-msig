@@ -19,7 +19,7 @@ use crate::{
     },
     kora::{events::KoraWebhookEvent, signature::verify_kora_signature},
     paystack::{events::PaystackWebhookEnvelope, signature::verify_paystack_signature},
-    services::{idempotency, intents, webhook_inbox},
+    services::{idempotency, intents, intents::TreasuryFallbacks, webhook_inbox},
 };
 
 #[derive(Debug, Serialize)]
@@ -237,8 +237,12 @@ pub async fn prepare_signature(
         &state.pool,
         intent_id,
         user_id,
-        &state.config.treasury_evm_address,
-        &state.config.treasury_sui_address,
+        TreasuryFallbacks {
+            solana: &state.config.treasury_sol_address,
+            evm: &state.config.treasury_evm_address,
+            bitcoin: &state.config.treasury_btc_address,
+            zcash: &state.config.treasury_zec_address,
+        },
     )
     .await
     {
@@ -279,16 +283,11 @@ pub async fn initialize_payment(
         }
     };
 
-    // Look up the user's email from the shared `users` table so Paystack can
-    // send a receipt.  Falls back to a placeholder if the row is missing.
-    let user_email: String = sqlx::query_scalar(
-        "SELECT COALESCE(email, '') FROM users WHERE id = $1",
-    )
-    .bind(user_id)
-    .fetch_optional(&state.pool)
-    .await
-    .unwrap_or(None)
-    .unwrap_or_else(|| format!("{user_id}@deta.app"));
+    // clear-msig has no `users` table — Paystack just needs *an* email
+    // for the receipt, so we synthesise a deterministic placeholder
+    // from the user identifier. Operators can override per-deploy by
+    // exposing a richer auth layer later.
+    let user_email: String = format!("{user_id}@clear-msig.app");
 
     let callback_url = state.config.ramp_frontend_callback_url.as_deref();
 

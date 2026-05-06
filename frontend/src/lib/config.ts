@@ -19,6 +19,8 @@ const IS_PRODUCTION =
 export const appConfig = {
   backendApiUrl:
     process.env.NEXT_PUBLIC_BACKEND_API_URL ?? "http://127.0.0.1:8080",
+  rampApiUrl:
+    process.env.NEXT_PUBLIC_RAMP_API_URL ?? "http://127.0.0.1:8088",
   defaultWalletName: "",
   preAlpha: {
     chain: process.env.NEXT_PUBLIC_IKA_CHAIN ?? "evm_1559",

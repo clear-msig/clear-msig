@@ -23,7 +23,7 @@ import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Bell, Download, Send, ShieldCheck, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, Banknote, Bell, Download, Send, ShieldCheck, TrendingDown, Users } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { findVaultAddress } from "@/lib/msig";
@@ -424,6 +424,22 @@ function Actions({
         <Button size="lg" variant="secondary" fullWidth>
           <Download className="h-4 w-4" aria-hidden="true" />
           Receive money
+        </Button>
+      </Link>
+
+      {/* Fiat ramping (NGN ↔ crypto) — second-tier actions, sit
+          beneath the primary Send/Receive row so they're discoverable
+          without competing with the everyday flow. */}
+      <Link href={`/app/wallet/${encoded}/buy`} className="block">
+        <Button size="lg" variant="secondary" fullWidth>
+          <Banknote className="h-4 w-4" aria-hidden="true" />
+          Buy with naira
+        </Button>
+      </Link>
+      <Link href={`/app/wallet/${encoded}/sell`} className="block">
+        <Button size="lg" variant="secondary" fullWidth>
+          <TrendingDown className="h-4 w-4" aria-hidden="true" />
+          Sell to bank
         </Button>
       </Link>
     </motion.div>

@@ -9,8 +9,10 @@ use crate::{
 
 fn parse_chain_family(value: &str) -> anyhow::Result<ChainFamily> {
     match value {
+        "solana" => Ok(ChainFamily::Solana),
         "evm" => Ok(ChainFamily::Evm),
-        "sui" => Ok(ChainFamily::Sui),
+        "bitcoin" => Ok(ChainFamily::Bitcoin),
+        "zcash" => Ok(ChainFamily::Zcash),
         _ => anyhow::bail!("unsupported chain family: {value}"),
     }
 }
