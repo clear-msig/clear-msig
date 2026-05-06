@@ -1571,8 +1571,9 @@ async fn execute_proposal(
         args.push(rpc_url);
     }
     if body.broadcast.unwrap_or(false) {
+        // CLI's --broadcast is a SetTrue flag (no value). Appending "true"
+        // as a separate arg makes clap reject it as an unexpected positional.
         args.push("--broadcast".to_string());
-        args.push("true".to_string());
     }
 
     Ok(Json(state.runner.run_json(args).await?))
@@ -1636,8 +1637,9 @@ async fn stream_execute_proposal(
         args.push(v);
     }
     if body.broadcast.unwrap_or(false) {
+        // CLI's --broadcast is a SetTrue flag (no value). Appending "true"
+        // as a separate arg makes clap reject it as an unexpected positional.
         args.push("--broadcast".into());
-        args.push("true".into());
     }
 
     let (tx, rx) = tokio::sync::mpsc::channel::<Event>(32);
