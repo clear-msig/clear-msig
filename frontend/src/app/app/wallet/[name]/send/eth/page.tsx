@@ -44,6 +44,11 @@ import {
 } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
+import {
+  broadcastExplorerUrl,
+  explorerLabelForChainKind,
+  type BroadcastResultLike,
+} from "@/lib/explorer";
 import { IntentType } from "@/lib/msig";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -164,6 +169,8 @@ function SendEthPage() {
   const [sentLabel, setSentLabel] = useState<{
     amount: string;
     to: string;
+    explorerUrl: string | null;
+    explorerLabel: string;
   } | null>(null);
 
   const trimmedRecipient = recipient.trim();
@@ -247,18 +254,29 @@ function SendEthPage() {
       // 5. Execute with broadcast=true and Ika dWallet params. The
       //    backend tells Ika to sign + broadcast the EVM tx; the
       //    dWallet's secp256k1 signature lands the real Sepolia tx.
-      await backendApi.executeProposal(walletName, proposal, {
+      const executed = await backendApi.executeProposal(walletName, proposal, {
         broadcast: true,
         dwallet_program: appConfig.preAlpha.dwalletProgramId,
         grpc_url: appConfig.preAlpha.grpcUrl,
         rpc_url: appConfig.preAlpha.destinationRpcUrl,
       });
-      return proposal;
+      const broadcast = (executed as { broadcast?: BroadcastResultLike })
+        ?.broadcast;
+      return { proposal, broadcast };
     },
-    onSuccess: () => {
+    onSuccess: ({ broadcast }) => {
+      const explorerUrl = broadcastExplorerUrl(
+        broadcast,
+        appConfig.preAlpha.destinationRpcUrl,
+      );
       setSentLabel({
         amount: amount.trim(),
         to: shortEvmAddress(trimmedRecipient),
+        explorerUrl,
+        explorerLabel: explorerLabelForChainKind(
+          broadcast?.chain_kind,
+          appConfig.preAlpha.destinationRpcUrl,
+        ),
       });
       queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
       setStage("sent");
@@ -358,6 +376,8 @@ function SendEthPage() {
             <SentStage
               amount={sentLabel.amount}
               to={sentLabel.to}
+              explorerUrl={sentLabel.explorerUrl}
+              explorerLabel={sentLabel.explorerLabel}
               walletName={walletName}
               onDone={() =>
                 router.push(
@@ -589,12 +609,22 @@ function SendingStage({ reduce }: { reduce: boolean }) {
 interface SentStageProps {
   amount: string;
   to: string;
+  explorerUrl: string | null;
+  explorerLabel: string;
   walletName: string;
   onDone: () => void;
   reduce: boolean;
 }
 
-function SentStage({ amount, to, walletName, onDone, reduce }: SentStageProps) {
+function SentStage({
+  amount,
+  to,
+  explorerUrl,
+  explorerLabel,
+  walletName,
+  onDone,
+  reduce,
+}: SentStageProps) {
   const walletDisplay = toDisplayName(walletName);
   return (
     <div className="flex flex-col items-center text-center">
@@ -612,6 +642,17 @@ function SentStage({ amount, to, walletName, onDone, reduce }: SentStageProps) {
       <p className="mt-2 text-sm text-text-soft">
         Approved + broadcast through Ika. Watch for it on Sepolia.
       </p>
+      {explorerUrl && (
+        <a
+          href={explorerUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-4 inline-flex items-center gap-1.5 rounded-pill border border-border-soft bg-surface-raised px-4 py-2 text-xs font-medium text-text-strong transition hover:border-accent/50 hover:text-accent"
+        >
+          View on {explorerLabel}
+          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </a>
+      )}
       <Button size="lg" fullWidth className="mt-8 max-w-xs" onClick={onDone}>
         Back to {walletDisplay}
       </Button>
