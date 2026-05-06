@@ -567,53 +567,72 @@ fn execute_via_ika(
     eprintln!("✓ ika_sign tx: {quorum_tx_sig}");
 
     // 6. Wait for the MessageApproval PDA to materialize on-chain.
-    ika::poll_until(
+    let ma_data = ika::poll_until(
         client,
         &message_approval_pk,
         |d| d.len() > ika::MA_STATUS && d[0] == ika::DISC_MESSAGE_APPROVAL,
         Duration::from_secs(15),
     )
     .with_context(|| "MessageApproval PDA never appeared after ika_sign")?;
-    eprintln!("✓ MessageApproval pending: {message_approval_pk}");
+    eprintln!("✓ MessageApproval present: {message_approval_pk}");
 
-    // 7. gRPC: presign then sign.
-    // Load the DKG attestation saved during `wallet add-chain` and use its
-    // session_identifier as the dwallet_addr — this must match the value
-    // the mock stored the key under during DKG.
-    let dwallet_attestation = ika::load_attestation(_wallet_name)
-        .with_context(|| "failed to load dWallet attestation")?;
-    let dwallet_addr_bytes = {
-        let versioned: VersionedDWalletDataAttestation =
-            bcs::from_bytes(&dwallet_attestation.attestation_data)
-                .with_context(|| "failed to decode dWallet attestation for session_identifier")?;
-        let VersionedDWalletDataAttestation::V1(data) = versioned;
-        data.session_identifier
-    };
-
-    let presign_id = ika::presign(config, grpc_url, dwallet_addr_bytes, curve, algo)?;
-    eprintln!("✓ Presign allocated ({} bytes)", presign_id.len());
-
-    // Build the chain-specific message for the Sign request.
-    // For Solana: full tx message with durable nonce (what Ed25519 signs).
-    // For Zcash: full ZIP-243 preimage + BLAKE2b metadata.
-    // For EVM/BTC: the preimage itself.
-    let (sign_message, message_metadata) = match chain_kind {
+    // Build sign_message_for_broadcast unconditionally — needed for the
+    // chain-native broadcast in step 9 regardless of whether we have to
+    // run the gRPC sign roundtrip.
+    let sign_message_for_broadcast: Vec<u8> = match chain_kind {
         0 => {
-            // Solana: build the actual transaction message.
+            // Solana: full transaction message with durable nonce.
             let destination = ika::read_param_bytes32(intent_account, &proposal_account.params_data, 0)?;
             let amount = ika::read_param_u64(intent_account, &proposal_account.params_data, 1)?;
             let nonce_value = ika::read_param_bytes32(intent_account, &proposal_account.params_data, 2)?;
             let off = intent_account.tx_template_offset as usize;
             let nonce_account: [u8; 32] = intent_account.byte_pool[off..off + 32]
                 .try_into().map_err(|_| anyhow!("nonce_account read failed"))?;
-            let tx_msg = ika::build_solana_tx_message(
+            ika::build_solana_tx_message(
                 &dwallet_account.public_key[..32].try_into().unwrap(),
                 &destination, amount, &nonce_account, &nonce_value,
-            );
-            (tx_msg, vec![])
+            )
         }
-        3 => {
-            let zip243 = ika::build_zcash_zip243_preimage(intent_account, &proposal_account.params_data)?;
+        3 => ika::build_zcash_zip243_preimage(intent_account, &proposal_account.params_data)?,
+        _ => preimage.clone(),
+    };
+
+    // 7. gRPC presign+sign — but only when MessageApproval is still
+    // pending. After the on-chain ika_sign instruction was made
+    // idempotent (skips the Ika CPI when the PDA already exists),
+    // retrying a send with identical destination-chain params (same
+    // recipient, amount, nonce) lands on a MessageApproval that's
+    // already in `signed` state from the prior successful execute.
+    // Re-running gRPC presign+sign would either duplicate work or
+    // get rejected by Ika; we just reuse the on-chain signature.
+    let already_signed = ma_data.len() > ika::MA_STATUS
+        && ma_data[ika::MA_STATUS] == ika::MA_STATUS_SIGNED;
+    let ma_signed: Vec<u8> = if already_signed {
+        eprintln!("✓ MessageApproval already signed — reusing on-chain signature");
+        ma_data
+    } else {
+        // Load the DKG attestation saved during `wallet add-chain` and use its
+        // session_identifier as the dwallet_addr — this must match the value
+        // the mock stored the key under during DKG.
+        let dwallet_attestation = ika::load_attestation(_wallet_name)
+            .with_context(|| "failed to load dWallet attestation")?;
+        let dwallet_addr_bytes = {
+            let versioned: VersionedDWalletDataAttestation =
+                bcs::from_bytes(&dwallet_attestation.attestation_data)
+                    .with_context(|| "failed to decode dWallet attestation for session_identifier")?;
+            let VersionedDWalletDataAttestation::V1(data) = versioned;
+            data.session_identifier
+        };
+
+        let presign_id = ika::presign(config, grpc_url, dwallet_addr_bytes, curve, algo)?;
+        eprintln!("✓ Presign allocated ({} bytes)", presign_id.len());
+
+        // Build the chain-specific (sign_message, message_metadata) pair
+        // for the gRPC sign request. sign_message is the same bytes as
+        // sign_message_for_broadcast above; message_metadata is empty
+        // for non-Zcash, BCS-encoded BLAKE2b personalization for Zcash.
+        let sign_message = sign_message_for_broadcast.clone();
+        let message_metadata: Vec<u8> = if chain_kind == 3 {
             let off = intent_account.tx_template_offset as usize;
             let branch_id = u32::from_le_bytes(
                 intent_account.byte_pool[off + 16..off + 20].try_into().unwrap()
@@ -623,32 +642,32 @@ fn execute_via_ika(
                 personal,
                 salt: vec![],
             };
-            (zip243, bcs::to_bytes(&metadata).unwrap_or_default())
-        }
-        _ => (preimage.clone(), vec![]),
+            bcs::to_bytes(&metadata).unwrap_or_default()
+        } else {
+            vec![]
+        };
+
+        let signature = ika::sign(
+            config,
+            grpc_url,
+            dwallet_addr_bytes,
+            dwallet_attestation,
+            presign_id,
+            sign_message,
+            message_metadata,
+            quorum_tx_sig.as_ref().to_vec(),
+        )?;
+        eprintln!("✓ Signature received from Ika ({} bytes)", signature.len());
+
+        // 8. Poll MessageApproval until the network commits the signature.
+        ika::poll_until(
+            client,
+            &message_approval_pk,
+            |d| d.len() > ika::MA_STATUS && d[ika::MA_STATUS] == ika::MA_STATUS_SIGNED,
+            Duration::from_secs(15),
+        )
+        .with_context(|| "MessageApproval signature not committed on-chain")?
     };
-    let sign_message_for_broadcast = sign_message.clone();
-
-    let signature = ika::sign(
-        config,
-        grpc_url,
-        dwallet_addr_bytes,
-        dwallet_attestation,
-        presign_id,
-        sign_message,
-        message_metadata,
-        quorum_tx_sig.as_ref().to_vec(),
-    )?;
-    eprintln!("✓ Signature received from Ika ({} bytes)", signature.len());
-
-    // 8. Poll MessageApproval until the network commits the signature.
-    let ma_signed = ika::poll_until(
-        client,
-        &message_approval_pk,
-        |d| d.len() > ika::MA_STATUS && d[ika::MA_STATUS] == ika::MA_STATUS_SIGNED,
-        Duration::from_secs(15),
-    )
-    .with_context(|| "MessageApproval signature not committed on-chain")?;
     let onchain_sig_len = u16::from_le_bytes(
         ma_signed[ika::MA_SIGNATURE_LEN..ika::MA_SIGNATURE_LEN + 2]
             .try_into()
@@ -674,9 +693,13 @@ fn execute_via_ika(
         if chain_kind == 0 {
             // Solana: assemble wire tx from sign_message + signature directly.
             // Wire format: [1 (num_sigs compact-u16)] [64-byte sig] [message_bytes]
+            // Use `onchain_sig` (read from the MessageApproval account)
+            // rather than the gRPC return value — they're the same 64
+            // bytes, and onchain_sig is in scope on both the
+            // fresh-sign and reuse-existing-sign branches.
             let mut wire_tx = Vec::with_capacity(1 + 64 + sign_message_for_broadcast.len());
             wire_tx.push(1); // 1 signature (compact-u16)
-            wire_tx.extend_from_slice(&signature);
+            wire_tx.extend_from_slice(onchain_sig);
             wire_tx.extend_from_slice(&sign_message_for_broadcast);
 
             let sol_client = solana_client::rpc_client::RpcClient::new(rpc_url.to_string());

@@ -220,30 +220,52 @@ impl<'info> IkaSign<'info> {
         require_keys_eq!(ownership.wallet, wallet_addr, ProgramError::InvalidArgument);
         require_keys_eq!(ownership.dwallet, dwallet_addr, ProgramError::InvalidArgument);
 
-        let ctx = DWalletContext {
-            dwallet_program: self.dwallet_program.to_account_view(),
-            cpi_authority: self.cpi_authority.to_account_view(),
-            caller_program: self.caller_program.to_account_view(),
-            cpi_authority_bump: args.cpi_authority_bump,
-        };
+        // Idempotency: when a previous successful `ika_sign` already
+        // populated this MessageApproval PDA (typically a different
+        // proposal whose destination-chain params hash to the same
+        // PDA — Ika's MessageApproval seeds don't include the
+        // proposal index, so two proposals with identical params
+        // collide), skip the Ika CPI. Re-invoking the CPI would fail
+        // with "instruction requires an uninitialized account"
+        // because Ika's `approve_message` `init`s the PDA. Verify
+        // the account is genuinely owned by the Ika dWallet program
+        // so a malicious caller can't pass an unrelated initialized
+        // account to bypass the approve step. The CLI is responsible
+        // for noticing the signed status and skipping the gRPC
+        // presign+sign roundtrip; here we just keep the on-chain
+        // path unwedged and mark this proposal Executed below.
+        let ma_view = self.message_approval.to_account_view();
+        if ma_view.data_len() == 0 {
+            let ctx = DWalletContext {
+                dwallet_program: self.dwallet_program.to_account_view(),
+                cpi_authority: self.cpi_authority.to_account_view(),
+                caller_program: self.caller_program.to_account_view(),
+                cpi_authority_bump: args.cpi_authority_bump,
+            };
 
-        let user_pubkey: [u8; 32] = ika_config.user_pubkey.to_bytes();
-        let message_metadata_digest = crate::chains::dispatch_metadata_digest(
-            self.intent.chain_kind,
-            tx_template,
-        );
-        ctx.approve_message(
-            self.coordinator.to_account_view(),
-            self.message_approval.to_account_view(),
-            self.dwallet.to_account_view(),
-            self.payer.to_account_view(),
-            self.system_program.to_account_view(),
-            message_hash,
-            message_metadata_digest,
-            user_pubkey,
-            ika_config.signature_scheme,
-            args.message_approval_bump,
-        )?;
+            let user_pubkey: [u8; 32] = ika_config.user_pubkey.to_bytes();
+            let message_metadata_digest = crate::chains::dispatch_metadata_digest(
+                self.intent.chain_kind,
+                tx_template,
+            );
+            ctx.approve_message(
+                self.coordinator.to_account_view(),
+                self.message_approval.to_account_view(),
+                self.dwallet.to_account_view(),
+                self.payer.to_account_view(),
+                self.system_program.to_account_view(),
+                message_hash,
+                message_metadata_digest,
+                user_pubkey,
+                ika_config.signature_scheme,
+                args.message_approval_bump,
+            )?;
+        } else {
+            require!(
+                ma_view.owned_by(self.dwallet_program.address()),
+                ProgramError::InvalidArgument
+            );
+        }
 
         // Mark the proposal Executed and decrement the intent's open count.
         self.proposal.status = ProposalStatus::Executed;
