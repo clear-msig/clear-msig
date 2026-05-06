@@ -27,7 +27,7 @@ import { useCallback, useMemo } from "react";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { useDynamicContext, useUserWallets } from "@dynamic-labs/sdk-react-core";
 import { isSolanaWallet } from "@dynamic-labs/solana-core";
-import { solanaClusterRpc } from "@/lib/solana/cluster";
+import { createSolanaConnection } from "@/lib/solana/cluster";
 import { useLedger } from "@/lib/wallet/LedgerProvider";
 
 /// Drop-in replacement for `useWallet()` from @solana/wallet-adapter-react.
@@ -190,7 +190,7 @@ export function useWallet() {
 // would have given each component an instance via context; we cache one
 // at module scope since the RPC URL is static. Memoise per-component to
 // keep the same referential identity react-query expects.
-const sharedConnection = new Connection(solanaClusterRpc, "confirmed");
+const sharedConnection = createSolanaConnection("confirmed");
 
 /// Drop-in replacement for `useConnection()` from
 /// @solana/wallet-adapter-react. Returns the same `{connection}` shape.

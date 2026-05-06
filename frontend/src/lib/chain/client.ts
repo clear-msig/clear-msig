@@ -13,7 +13,7 @@
 // per-env program IDs, swap to `process.env.NEXT_PUBLIC_CLEAR_WALLET_PROGRAM_ID`.
 
 import { Commitment, Connection, PublicKey } from "@solana/web3.js";
-import { solanaClusterRpc } from "@/lib/solana/cluster";
+import { createSolanaConnection } from "@/lib/solana/cluster";
 
 /// The clear-wallet on-chain program ID. Matches `crate::ID` in
 /// programs/clear-wallet/src/lib.rs.
@@ -39,7 +39,7 @@ export function setConnection(conn: Connection): void {
 /// should use `useConnection()` from @/lib/wallet.
 export function getConnection(): Connection {
   if (!singleton) {
-    singleton = new Connection(solanaClusterRpc, DEFAULT_COMMITMENT);
+    singleton = createSolanaConnection(DEFAULT_COMMITMENT);
   }
   return singleton;
 }
