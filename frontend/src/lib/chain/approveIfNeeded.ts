@@ -21,6 +21,16 @@
 // cheap relative to the wallet-popup eliminated when the program
 // is updated. Calls that don't carry a proposal address (legacy
 // shapes) fall through to the always-explicit path.
+//
+// Polling: Solana RPCs replicate state across slots; the backend
+// can return success on its own RPC node before the frontend's RPC
+// node has caught up. Reading a fresh proposal account may briefly
+// return null. Retry with a short backoff so we don't fire a
+// spurious second popup just because the read replica was a slot
+// behind. After exhausting retries with `null`, we trust the
+// program's auto-approve and skip the second sign — the alternative
+// (default-to-needs-approve) was producing a duplicate wallet popup
+// in production.
 
 import { Connection, PublicKey } from "@solana/web3.js";
 import { fetchProposal } from "@/lib/chain/proposals";
@@ -31,10 +41,12 @@ export interface ApproveDecision {
   /// submit-approve dance. When false, the proposal is already in
   /// Approved state and the caller goes straight to execute.
   needsApproveSignature: boolean;
-  /// Status as observed on chain. `null` when we couldn't read
-  /// (treat as needs-approve to be safe).
+  /// Status as observed on chain. `null` when we couldn't read.
   status: ProposalStatus | null;
 }
+
+const POLL_ATTEMPTS = 4;
+const POLL_DELAY_MS = 300;
 
 export async function approveIfNeeded(
   connection: Connection,
@@ -43,22 +55,49 @@ export async function approveIfNeeded(
   if (!proposalPda) {
     return { needsApproveSignature: true, status: null };
   }
-  try {
-    const account = await fetchProposal(
-      connection,
-      new PublicKey(proposalPda),
-    );
-    if (!account) {
-      return { needsApproveSignature: true, status: null };
+
+  let lastReadError: unknown = null;
+  for (let i = 0; i < POLL_ATTEMPTS; i++) {
+    try {
+      const account = await fetchProposal(
+        connection,
+        new PublicKey(proposalPda),
+      );
+      if (account) {
+        return {
+          needsApproveSignature: account.status !== ProposalStatus.Approved,
+          status: account.status,
+        };
+      }
+      // Account not visible yet (read replica lag). Backoff and retry.
+    } catch (err) {
+      lastReadError = err;
+      // Read errored (network, RPC). Same retry path.
     }
-    return {
-      needsApproveSignature: account.status !== ProposalStatus.Approved,
-      status: account.status,
-    };
-  } catch {
-    // Conservatively keep the legacy approve path on read failures —
-    // a missed read shouldn't block the user from completing the
-    // mutation.
-    return { needsApproveSignature: true, status: null };
+    if (i < POLL_ATTEMPTS - 1) {
+      await sleep(POLL_DELAY_MS * (i + 1));
+    }
   }
+
+  // Exhausted retries.
+  //
+  // If we hit a read error every time, conservatively keep the
+  // legacy approve path — the chain might genuinely be unreachable
+  // and a missed read shouldn't cause us to skip a real approval
+  // step.
+  //
+  // If reads succeeded but the account was null every time, the
+  // submit returned 200 (so propose committed) but we can't see
+  // the account. This is a frontend-RPC consistency lag, not a
+  // status issue. Trust the program's auto-approve — the
+  // alternative was firing a duplicate wallet popup for every
+  // submit when the user's RPC was a slot behind the backend's.
+  return {
+    needsApproveSignature: lastReadError !== null,
+    status: null,
+  };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

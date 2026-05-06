@@ -832,7 +832,7 @@ function ComposeStage({
             budgetUsage,
           })}
         />
-        <WalletPopupNarration action="send this request" popups={2} />
+        <WalletPopupNarration action="send this request" />
       </div>
 
       <Button

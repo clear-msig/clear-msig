@@ -591,7 +591,6 @@ export default function AddFriendPage() {
           />
           <WalletPopupNarration
             action={`add ${trimmedName}`}
-            popups={2}
           />
         </div>
       )}

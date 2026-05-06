@@ -353,7 +353,6 @@ export default function SetupEthPage() {
                   />
                   <WalletPopupNarration
                     action="enable Ethereum sending"
-                    popups={2}
                   />
                 </div>
 

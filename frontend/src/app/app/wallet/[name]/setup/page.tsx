@@ -357,7 +357,7 @@ export default function SetupSpendingPage() {
                   },
                 ]}
               />
-              <WalletPopupNarration action="enable sending" popups={2} />
+              <WalletPopupNarration action="enable sending" />
             </div>
 
             <Button
