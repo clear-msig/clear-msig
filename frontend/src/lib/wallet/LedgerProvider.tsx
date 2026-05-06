@@ -50,6 +50,11 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
   const [connecting, setConnecting] = useState(false);
   const [lastError, setLastError] = useState<LedgerError | null>(null);
   const sessionRef = useRef<LedgerSession | null>(null);
+  // Reuse the in-flight promise when callers race connect() — without
+  // this, a double-click fires two TransportWebHID.create()s and only
+  // the first wins; the second corrupts state. All callers in a race
+  // resolve from the same underlying connect attempt.
+  const inflightConnectRef = useRef<Promise<LedgerSession> | null>(null);
 
   // Keep a ref synced with state so the cleanup effect can disconnect
   // even after unmount without dragging stale state into the closure.
@@ -65,33 +70,67 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Watch for USB unplug. WebHID fires `disconnect` on `navigator.hid`
+  // when any HID device the page has access to drops. We don't get
+  // told which one, so the safest move is: if we have a session and
+  // ANY device disconnect fires, eagerly clear our state. Future
+  // signs would have failed anyway with transport_lost; clearing
+  // upfront means the UI flips back to "Connect Ledger" immediately
+  // instead of waiting for the next signing attempt.
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("hid" in navigator)) return;
+    const hid = (navigator as Navigator & { hid?: EventTarget }).hid;
+    if (!hid) return;
+    const onDisconnect = () => {
+      const current = sessionRef.current;
+      if (!current) return;
+      sessionRef.current = null;
+      setSession(null);
+      // No toast — the user yanking the cable is intentional. The
+      // "Connect Ledger" CTA reappearing is signal enough.
+      void current.disconnect().catch(() => undefined);
+    };
+    hid.addEventListener("disconnect", onDisconnect);
+    return () => hid.removeEventListener("disconnect", onDisconnect);
+  }, []);
+
   const connect = useCallback(async () => {
+    // Coalesce concurrent calls. Without this, racing connect()
+    // attempts each call TransportWebHID.create() and only one
+    // succeeds — the rest leak transport state and confuse the UI.
+    if (inflightConnectRef.current) return inflightConnectRef.current;
+
     setConnecting(true);
     setLastError(null);
-    try {
-      const next = await connectLedger();
-      // If a previous session was open, close it before adopting the
-      // new one. Common when the user re-clicks Connect after a
-      // device hot-swap.
-      if (sessionRef.current) {
-        await sessionRef.current.disconnect().catch(() => undefined);
+    const attempt = (async () => {
+      try {
+        const next = await connectLedger();
+        // If a previous session was open, close it before adopting
+        // the new one. Common when the user re-clicks Connect after
+        // a device hot-swap.
+        if (sessionRef.current) {
+          await sessionRef.current.disconnect().catch(() => undefined);
+        }
+        setSession(next);
+        sessionRef.current = next;
+        return next;
+      } catch (err) {
+        const ledgerErr =
+          err instanceof LedgerError
+            ? err
+            : new LedgerError(
+                "unknown",
+                err instanceof Error ? err.message : "Could not connect Ledger",
+              );
+        setLastError(ledgerErr);
+        throw ledgerErr;
+      } finally {
+        setConnecting(false);
+        inflightConnectRef.current = null;
       }
-      setSession(next);
-      sessionRef.current = next;
-      return next;
-    } catch (err) {
-      const ledgerErr =
-        err instanceof LedgerError
-          ? err
-          : new LedgerError(
-              "unknown",
-              err instanceof Error ? err.message : "Could not connect Ledger",
-            );
-      setLastError(ledgerErr);
-      throw ledgerErr;
-    } finally {
-      setConnecting(false);
-    }
+    })();
+    inflightConnectRef.current = attempt;
+    return attempt;
   }, []);
 
   const disconnect = useCallback(async () => {
