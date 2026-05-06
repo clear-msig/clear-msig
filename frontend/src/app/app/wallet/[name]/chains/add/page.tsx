@@ -99,7 +99,16 @@ function AddChainPage() {
       });
     },
     onSuccess: () => {
+      // Two query keys, two prefixes — useWalletWorkflow uses
+      // ["wallet-chains", name] (read-only chain list from chain),
+      // useWalletChains uses ["wallet-chains-api", name] (the
+      // backend's address-enriched list that the /chains page
+      // renders). Without the second invalidation the chains
+      // page keeps showing stale data for up to its 30s
+      // staleTime, which manifests as "I added the chain but it
+      // didn't reflect."
       queryClient.invalidateQueries({ queryKey: ["wallet-chains"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet-chains-api"] });
       queryClient.invalidateQueries({ queryKey: ["wallet", walletName] });
       setStage("done");
     },
@@ -294,15 +303,24 @@ function BindingStage({
     [chain],
   );
   const [activeStep, setActiveStep] = useState(0);
+  const [elapsedSecs, setElapsedSecs] = useState(0);
 
   // Cycle through the steps every ~10s while we wait so it doesn't
   // look frozen. Real progress events from the backend would
-  // replace this placeholder.
+  // replace this placeholder. Also tick a separate elapsed counter
+  // so if the DKG runs past 30s the user sees the page hasn't
+  // stalled — just a visible "still working, 47s elapsed".
   useEffect(() => {
-    const t = setInterval(() => {
+    const stepTimer = setInterval(() => {
       setActiveStep((s) => Math.min(steps.length - 1, s + 1));
     }, 10_000);
-    return () => clearInterval(t);
+    const tickTimer = setInterval(() => {
+      setElapsedSecs((s) => s + 1);
+    }, 1_000);
+    return () => {
+      clearInterval(stepTimer);
+      clearInterval(tickTimer);
+    };
   }, [steps.length]);
 
   return (
@@ -327,7 +345,18 @@ function BindingStage({
         </h1>
         <p className="mt-2 max-w-md text-base text-text-soft">
           This usually takes about 30 seconds. Hang tight; you don&rsquo;t
-          need to do anything.
+          need to do anything. Don&rsquo;t close the tab.
+        </p>
+        <p className="mt-2 text-xs text-text-soft tabular-nums">
+          {elapsedSecs}s elapsed
+          {elapsedSecs > 45 && (
+            <>
+              {" · "}
+              <span className="text-text-strong">
+                Devnet is slower than usual today; still working.
+              </span>
+            </>
+          )}
         </p>
       </div>
 
