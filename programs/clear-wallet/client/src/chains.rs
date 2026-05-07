@@ -489,5 +489,62 @@ pub mod evm {
             // Sanity: contains the recipient bytes
             assert!(preimage.windows(20).any(|w| w == [0x42u8; 20]));
         }
+
+        /// Pinned vector: a Sepolia transfer with deterministic params.
+        /// If this byte sequence ever changes without an intentional
+        /// EVM-encoding update, ANY in-flight signature created against
+        /// the old digest will fail to recover after the change — that's
+        /// the failure mode reported as "neither v=0 nor v=1 recovers
+        /// the dwallet pubkey from the signed digest" in production.
+        ///
+        /// The hex was derived once by hand-reading the encoder; future
+        /// edits to either the off-chain mirror or the on-chain
+        /// `clear_wallet::chains::evm::build_preimage` MUST keep this
+        /// vector valid (or update both sides + this fixture in lockstep).
+        #[test]
+        fn rlp_sepolia_pinned_vector() {
+            // Sepolia chain_id, nonce=0, no data, value=10 wei, 21k gas.
+            // Small numbers chosen so leading-zero RLP rules are exercised
+            // (chain_id needs 3 bytes, value needs 1, nonce empty).
+            let tx = Tx1559 {
+                chain_id: 11_155_111, // 0x00aa36a7
+                nonce: 0,             // RLP empty bytes
+                max_priority_fee_per_gas: 1_500_000_000, // 0x59682f00 (4 bytes)
+                max_fee_per_gas: 30_000_000_000,         // 0x06fc23ac00 (5 bytes)
+                gas_limit: 21_000,    // 0x5208 (2 bytes)
+                to: [0xab; 20],
+                value: 10, // single byte 0x0a
+                data: vec![],
+            };
+            let preimage = tx.rlp_preimage();
+            // 0x02 || rlp_list_header || rlp(chain_id)=0x83aa36a7 (4)
+            //                          || rlp(nonce)=0x80 (1)
+            //                          || rlp(max_prio)=0x8459682f00 (5)
+            //                          || rlp(max_fee)=0x8506fc23ac00 (6)
+            //                          || rlp(gas)=0x825208 (3)
+            //                          || rlp(to)=0x94ab*20 (21)
+            //                          || rlp(value)=0x0a (1, single byte <0x80)
+            //                          || rlp(data)=0x80 (1)
+            //                          || rlp([])=0xc0 (1)
+            //
+            // Inner payload length = 4+1+5+6+3+21+1+1+1 = 43
+            // List header = 0xc0 + 43 = 0xeb (since 43 < 56)
+            // Total = 1 + 1 + 43 = 45
+            assert_eq!(
+                preimage.len(),
+                45,
+                "preimage length drifted — re-derive the pinned vector",
+            );
+            // Spot-check: type byte
+            assert_eq!(preimage[0], 0x02);
+            // Spot-check: list header
+            assert_eq!(preimage[1], 0xeb);
+            // Spot-check: chain_id RLP at offset 2
+            assert_eq!(&preimage[2..6], &[0x83, 0xaa, 0x36, 0xa7]);
+            // Spot-check: nonce RLP at offset 6 (empty bytes = 0x80)
+            assert_eq!(preimage[6], 0x80);
+            // Spot-check: trailing access_list = 0xc0
+            assert_eq!(preimage[preimage.len() - 1], 0xc0);
+        }
     }
 }

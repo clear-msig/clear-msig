@@ -60,6 +60,14 @@ pub fn assemble_and_broadcast(
 /// signature. Returns an error if neither parity works (which would mean
 /// the signature was made over a different digest, or with a different
 /// key — both are bugs in the upstream signing path).
+///
+/// On failure, the error includes the actual recovered pubkeys for v=0
+/// and v=1 alongside the expected pubkey so the next debug round can
+/// pinpoint the divergence (off-by-one byte order, wrong dwallet,
+/// non-canonical signature, etc.) instead of just saying "recovery
+/// failed". An additional probe also tries r,s reversed in case Ika
+/// is emitting little-endian scalars on some backend; if that path
+/// recovers, the error explicitly calls out the byte-order bug.
 pub fn recover_v(
     message_hash: &[u8; 32],
     r: &[u8; 32],
@@ -67,24 +75,83 @@ pub fn recover_v(
     expected_pubkey_compressed: &[u8],
 ) -> Result<u8> {
     use k256::ecdsa::RecoveryId;
-    let sig = K256Signature::from_scalars(*r, *s)
-        .map_err(|e| anyhow!("invalid (r,s): {e}"))?;
-    for v in [0u8, 1u8] {
-        let rec_id = RecoveryId::from_byte(v).expect("0/1 are valid recovery ids");
-        let Ok(recovered) = K256VerifyingKey::recover_from_prehash(message_hash, &sig, rec_id)
-        else {
-            continue;
+    let try_recover = |r: &[u8; 32], s: &[u8; 32]| -> [Option<Vec<u8>>; 2] {
+        let Ok(sig) = K256Signature::from_scalars(*r, *s) else {
+            return [None, None];
         };
-        let recovered_compressed = recovered.to_encoded_point(true);
-        if recovered_compressed.as_bytes() == expected_pubkey_compressed {
-            return Ok(v);
+        let mut out = [None, None];
+        for v in [0u8, 1u8] {
+            let rec_id = RecoveryId::from_byte(v).expect("0/1 are valid recovery ids");
+            if let Ok(recovered) =
+                K256VerifyingKey::recover_from_prehash(message_hash, &sig, rec_id)
+            {
+                out[v as usize] =
+                    Some(recovered.to_encoded_point(true).as_bytes().to_vec());
+            }
+        }
+        out
+    };
+
+    let canonical = try_recover(r, s);
+    for v in [0u8, 1u8] {
+        if let Some(pk) = &canonical[v as usize] {
+            if pk.as_slice() == expected_pubkey_compressed {
+                return Ok(v);
+            }
         }
     }
-    Err(anyhow!(
-        "neither v=0 nor v=1 recovers the dwallet pubkey from the signed digest \
+
+    // Diagnostic probe: try with each scalar byte-reversed. Fires only on
+    // failure so the happy path stays cheap. If reversed scalars recover,
+    // the upstream signer is emitting little-endian; the fix is a single
+    // bytes.reverse() at the producer, but we want the error to call that
+    // out specifically rather than generic "recovery failed".
+    let mut r_rev = *r;
+    let mut s_rev = *s;
+    r_rev.reverse();
+    s_rev.reverse();
+    let reversed = try_recover(&r_rev, &s_rev);
+    let reversed_match = reversed.iter().enumerate().find_map(|(v, pk)| {
+        pk.as_ref()
+            .filter(|p| p.as_slice() == expected_pubkey_compressed)
+            .map(|_| v as u8)
+    });
+
+    let pretty = |o: &Option<Vec<u8>>| match o {
+        Some(b) => hex_lower(b),
+        None => String::from("<recovery_failed>"),
+    };
+    let mut msg = format!(
+        "neither v=0 nor v=1 recovers the dwallet pubkey from the signed digest\n\
          — the signature is not over keccak256(preimage), or it was produced \
-         by a different key"
-    ))
+         by a different key.\n\n\
+         digest:           0x{}\n\
+         r:                0x{}\n\
+         s:                0x{}\n\
+         expected_pubkey:  0x{}\n\
+         recovered_v0:     0x{}\n\
+         recovered_v1:     0x{}",
+        hex_lower(message_hash),
+        hex_lower(r),
+        hex_lower(s),
+        hex_lower(expected_pubkey_compressed),
+        pretty(&canonical[0]),
+        pretty(&canonical[1]),
+    );
+    if let Some(v) = reversed_match {
+        msg.push_str(&format!(
+            "\n\n→ NOTE: scalars in REVERSED byte order DO recover the expected pubkey \
+             (v={v}). Upstream signer is likely returning little-endian r,s; the fix is \
+             to reverse each 32-byte half at the producer."
+        ));
+    } else {
+        msg.push_str("\n\nReversed-scalar probe also failed.");
+    }
+    Err(anyhow!("{msg}"))
+}
+
+fn hex_lower(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 // ────────────────────────────────────────────────────────────────────────────
