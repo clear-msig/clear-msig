@@ -170,8 +170,17 @@ export default function WalletDetailPage() {
         loadingMembers={intentsQuery.isLoading}
         balanceLamports={balanceQuery.data ?? null}
         loadingBalance={balanceQuery.isLoading}
+        pendingApprovalCount={walletAction.length}
         reduce={!!reduce}
       />
+      {/* Pending approvals come right after the hero — they're the
+          single highest-priority action a wallet member can take.
+          Burying them below NextStepsStripe + Budget + Actions
+          meant a member with a pile of waiting proposals might
+          miss them entirely on a small viewport. */}
+      {walletAction.length > 0 && (
+        <ActionNeededSection rows={walletAction} reduce={!!reduce} />
+      )}
       <NextStepsStripe
         name={name}
         hasIntents={hasIntents}
@@ -186,9 +195,6 @@ export default function WalletDetailPage() {
         hasIntents={hasIntents}
         reduce={!!reduce}
       />
-      {walletAction.length > 0 && (
-        <ActionNeededSection rows={walletAction} reduce={!!reduce} />
-      )}
       {walletActivity.length > 0 ? (
         <ActivitySection rows={walletActivity} reduce={!!reduce} />
       ) : (
@@ -227,6 +233,7 @@ interface HeroProps {
   loadingMembers: boolean;
   balanceLamports: number | null;
   loadingBalance: boolean;
+  pendingApprovalCount: number;
   reduce: boolean;
 }
 
@@ -238,6 +245,7 @@ function Hero({
   loadingMembers,
   balanceLamports,
   loadingBalance,
+  pendingApprovalCount,
   reduce,
 }: HeroProps) {
   const motionProps = reduce
@@ -287,6 +295,18 @@ function Hero({
       <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
         {toHeadingName(name)}
       </h1>
+      {/* Quiet pending-approvals pill. Anchors to the
+          ActionNeededSection below for keyboard users; visible only
+          when there's at least one approval waiting on this user. */}
+      {pendingApprovalCount > 0 && (
+        <a
+          href="#action-needed"
+          className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/[0.07] px-3 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent/[0.12]"
+        >
+          <Bell className="h-3 w-3" strokeWidth={2.5} />
+          {pendingApprovalCount} waiting on you
+        </a>
+      )}
       {/* Sub-line: shape preset + member count. Carries the create-
           time choice through to the hub so the user feels the wallet
           remembers what they set it up for. */}
@@ -476,9 +496,10 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
 
   return (
     <motion.section
+      id="action-needed"
       {...motionProps}
       transition={{ duration: 0.2 }}
-      className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
+      className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest scroll-mt-24"
     >
       <header className="flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-sm font-medium text-text-strong">
