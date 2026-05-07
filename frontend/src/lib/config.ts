@@ -16,6 +16,33 @@
 const IS_PRODUCTION =
   typeof process !== "undefined" && process.env.NODE_ENV === "production";
 
+/// Per-device localStorage key for the user-set EVM destination
+/// RPC override. Symmetric with the Solana override in
+/// lib/solana/cluster.ts — power users running real volume can
+/// point at their own paid RPC (Alchemy, Infura, QuickNode) when
+/// the public Sepolia endpoint is rate-limited or down.
+export const EVM_RPC_OVERRIDE_STORAGE_KEY = "clear.evm-rpc-override.v1";
+
+function readEvmRpcOverride(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const v = window.localStorage.getItem(EVM_RPC_OVERRIDE_STORAGE_KEY);
+    if (typeof v === "string" && /^https?:\/\/[^\s]+$/i.test(v.trim())) {
+      return v.trim();
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/// Env-default EVM RPC URL — doesn't see the override. Exposed so
+/// the Settings row can tell the user whether the active value is
+/// theirs or the env default.
+export const destinationRpcDefault =
+  process.env.NEXT_PUBLIC_DESTINATION_RPC_URL ??
+  "https://ethereum-sepolia-rpc.publicnode.com";
+
 export const appConfig = {
   backendApiUrl:
     process.env.NEXT_PUBLIC_BACKEND_API_URL ?? "http://127.0.0.1:8080",
@@ -33,9 +60,12 @@ export const appConfig = {
     solanaRpcUrl:
       process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
       "https://api.devnet.solana.com",
-    destinationRpcUrl:
-      process.env.NEXT_PUBLIC_DESTINATION_RPC_URL ??
-      "https://ethereum-sepolia-rpc.publicnode.com",
+    // Effective EVM RPC: localStorage override (if present) wins,
+    // otherwise the env default. Evaluated at module load — the
+    // singleton callers see this. Saving a new override after first
+    // load requires a page reload to take effect; the Settings UI
+    // handles that.
+    destinationRpcUrl: readEvmRpcOverride() ?? destinationRpcDefault,
   },
   dynamicEnvironmentId: process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID ?? "",
 };

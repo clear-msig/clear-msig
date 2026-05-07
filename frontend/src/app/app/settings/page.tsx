@@ -40,6 +40,11 @@ import {
   solanaClusterDefaultRpc,
   solanaClusterRpc,
 } from "@/lib/solana/cluster";
+import {
+  EVM_RPC_OVERRIDE_STORAGE_KEY,
+  appConfig,
+  destinationRpcDefault,
+} from "@/lib/config";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -260,6 +265,9 @@ export default function SettingsPage() {
           localStorage and takes effect on next reload. */}
       <SolanaRpcSettingRow />
 
+      {/* Power-user: override the EVM destination RPC URL. */}
+      <EvmRpcSettingRow />
+
       {/* Network indicator */}
       <section className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
@@ -442,6 +450,125 @@ function SolanaRpcSettingRow() {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="https://your-rpc.example.com"
+          spellCheck={false}
+          className={
+            "min-w-0 flex-1 rounded-soft border border-border-soft bg-canvas px-3 py-2 font-mono text-xs text-text-strong outline-none " +
+            "transition-[border-color,box-shadow] duration-base ease-out-soft " +
+            "focus:border-accent focus:shadow-accent-rest"
+          }
+        />
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!hasOverride || busy}
+            className={
+              "rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white " +
+              "transition-[background-color,transform] duration-base ease-out-soft " +
+              "hover:bg-accent-hover active:scale-[0.98] " +
+              "disabled:cursor-not-allowed disabled:opacity-50 " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+            }
+          >
+            Save & reload
+          </button>
+          {isUsingOverride && (
+            <button
+              type="button"
+              onClick={handleReset}
+              disabled={busy}
+              className={
+                "rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft " +
+                "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
+                "disabled:cursor-not-allowed disabled:opacity-50"
+              }
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
+      {trimmed.length > 0 && !hasOverride && (
+        <p className="mt-2 text-xs text-warning">
+          Must be a valid http(s) URL.
+        </p>
+      )}
+    </section>
+  );
+}
+
+// ─── EVM destination RPC override ────────────────────────────────
+
+function EvmRpcSettingRow() {
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const v =
+        window.localStorage.getItem(EVM_RPC_OVERRIDE_STORAGE_KEY) ?? "";
+      setDraft(v);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const trimmed = draft.trim();
+  const looksValid = /^https?:\/\/[^\s]+$/i.test(trimmed);
+  const hasOverride = trimmed.length > 0 && looksValid;
+  const effectiveUrl = appConfig.preAlpha.destinationRpcUrl;
+  const isUsingOverride = effectiveUrl !== destinationRpcDefault;
+
+  const handleSave = () => {
+    if (!hasOverride) return;
+    setBusy(true);
+    try {
+      window.localStorage.setItem(EVM_RPC_OVERRIDE_STORAGE_KEY, trimmed);
+    } catch {
+      setBusy(false);
+      return;
+    }
+    window.location.reload();
+  };
+  const handleReset = () => {
+    setBusy(true);
+    try {
+      window.localStorage.removeItem(EVM_RPC_OVERRIDE_STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+    window.location.reload();
+  };
+
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+          <Wifi className="h-5 w-5" strokeWidth={1.75} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-text-strong">
+            EVM destination RPC URL
+          </p>
+          <p className="mt-0.5 text-xs text-text-soft">
+            Used for ETH/ERC-20 reads (balance, gas, holdings) and the
+            Ika broadcast leg. Override when the public Sepolia RPC is
+            rate-limited.
+          </p>
+        </div>
+      </div>
+      <p className="mt-3 text-[11px] uppercase tracking-[0.18em] text-text-soft">
+        Currently using {isUsingOverride ? "override" : "default"}
+      </p>
+      <p className="mt-1 break-all font-mono text-[11px] text-text-strong">
+        {effectiveUrl}
+      </p>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <input
+          type="url"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="https://your-evm-rpc.example.com"
           spellCheck={false}
           className={
             "min-w-0 flex-1 rounded-soft border border-border-soft bg-canvas px-3 py-2 font-mono text-xs text-text-strong outline-none " +
