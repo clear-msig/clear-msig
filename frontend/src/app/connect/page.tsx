@@ -35,6 +35,7 @@ import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { useLedger } from "@/lib/wallet/LedgerProvider";
+import { useLedgerPresence } from "@/lib/hooks/useLedgerPresence";
 import { useToast } from "@/components/ui/Toast";
 
 export default function ConnectPageWrapper() {
@@ -372,8 +373,8 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
 function LedgerConnectRow() {
   const ledger = useLedger();
   const toast = useToast();
-  const supportsHid =
-    typeof window !== "undefined" && typeof navigator !== "undefined" && "hid" in navigator;
+  const presence = useLedgerPresence();
+  const supportsHid = presence.supported;
 
   const handleClick = async () => {
     try {
@@ -412,6 +413,47 @@ function LedgerConnectRow() {
   // "Hardware wallets need WebHID" message was a teaching moment we
   // didn't need to surface at this height.
   if (!supportsHid) return null;
+
+  // Auto-detected a previously-paired Ledger via WebHID. Promote
+  // the CTA from a footer link to a prominent banner — most users
+  // who plug in their hardware wallet expect the app to notice.
+  // Tier-4 hardware-wallet auto-detect.
+  if (presence.detected) {
+    return (
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={ledger.connecting}
+        className={
+          "mt-5 flex w-full items-center justify-between gap-3 rounded-card border border-accent/40 bg-accent/[0.06] p-3 text-left text-xs text-text-strong " +
+          "transition-[border-color,background-color,transform] duration-base ease-out-soft " +
+          "hover:-translate-y-0.5 hover:border-accent hover:bg-accent/[0.10] " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
+          "disabled:cursor-not-allowed disabled:opacity-60"
+        }
+      >
+        <span className="inline-flex items-center gap-2">
+          <Usb className="h-4 w-4 text-accent" strokeWidth={2.25} aria-hidden="true" />
+          <span className="flex flex-col">
+            <span className="font-medium">Ledger detected</span>
+            <span className="text-[11px] text-text-soft">
+              Sign with your hardware wallet
+            </span>
+          </span>
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-[11px] font-medium text-white">
+          {ledger.connecting ? (
+            <>
+              <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+              Connecting…
+            </>
+          ) : (
+            "Connect"
+          )}
+        </span>
+      </button>
+    );
+  }
 
   return (
     <div className="mt-4">
