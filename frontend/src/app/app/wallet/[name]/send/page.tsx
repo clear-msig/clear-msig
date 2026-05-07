@@ -33,7 +33,12 @@ import {
 } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
-import { IntentType, toHex, findProposalAddress } from "@/lib/msig";
+import {
+  IntentType,
+  toHex,
+  findProposalAddress,
+  findVaultAddress,
+} from "@/lib/msig";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
 import { PublicKey } from "@solana/web3.js";
@@ -81,6 +86,21 @@ function formatAmount(raw: string): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 4,
   });
+}
+
+// Lamports (bigint) → SOL string, byte-accurate. Used for wallet
+// balance display and for the Max button (which needs to round-trip
+// through the amount input). 1 SOL = 1e9 lamports.
+function formatLamports(lamports: bigint, displayDecimals = 4): string {
+  if (lamports === 0n) return "0";
+  const negative = lamports < 0n;
+  const abs = negative ? -lamports : lamports;
+  const whole = abs / 1_000_000_000n;
+  const frac = abs % 1_000_000_000n;
+  if (frac === 0n) return `${negative ? "-" : ""}${whole}`;
+  let fracStr = frac.toString().padStart(9, "0");
+  fracStr = fracStr.replace(/0+$/, "").slice(0, displayDecimals);
+  return `${negative ? "-" : ""}${whole}${fracStr ? "." + fracStr : ""}`;
 }
 
 // 32 random bytes as a 0x-prefixed hex string. Each proposal needs a
@@ -308,10 +328,50 @@ function SendPage() {
 
   const numericAmount = parseFloat(amount);
   const amountValid = !isNaN(numericAmount) && numericAmount > 0;
+  const amountLamports = amountValid
+    ? BigInt(Math.round(numericAmount * 1_000_000_000))
+    : 0n;
+
+  // Live SOL balance of the wallet's vault PDA — that's the account
+  // SOL transfers actually come out of (programs/clear-wallet/src/
+  // instructions/execute.rs::execute_custom). Vault PDA is
+  // findVaultAddress(walletPda).
+  const vaultBalanceQuery = useQuery({
+    queryKey: ["wallet-balance", walletQuery.data?.pda.toBase58() ?? ""],
+    queryFn: async () => {
+      if (!walletQuery.data) return 0n;
+      const [vault] = findVaultAddress(
+        walletQuery.data.pda,
+        CLEAR_WALLET_PROGRAM_ID,
+      );
+      const lamports = await connection.getBalance(vault, "confirmed");
+      return BigInt(lamports);
+    },
+    enabled: !!walletQuery.data,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    retry: 1,
+  });
+
+  // Reserve for the on-chain Solana fee + minimum rent-exempt balance
+  // the vault must keep. ~5000 lamports per signature + buffer for any
+  // CPI fees during execute_custom; 10_000 lamports = 0.00001 SOL is a
+  // generous floor without making sub-cent sends impossible.
+  const SOL_FEE_RESERVE_LAMPORTS = 10_000n;
+
+  const vaultBalance = vaultBalanceQuery.data ?? null;
+  const balanceLoaded = vaultBalanceQuery.isFetched && vaultBalance !== null;
+  const requiredLamports = amountValid
+    ? amountLamports + SOL_FEE_RESERVE_LAMPORTS
+    : 0n;
+  const insufficientBalance =
+    balanceLoaded && amountValid && vaultBalance! < requiredLamports;
+
   const canSubmit =
     amountValid &&
     (resolved.kind === "contact" || resolved.kind === "address") &&
-    !!firstIntent;
+    !!firstIntent &&
+    !insufficientBalance;
 
   // Cross-chain budget tracker — used to render the "this send fits
   // your $X cap" / "would push you over" hint above the CTA.
@@ -501,6 +561,9 @@ function SendPage() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
       queryClient.invalidateQueries({ queryKey: ["my-organizations"] });
+      // Refresh the vault balance so the post-send compose stage
+      // shows the new number, not the cached pre-send one.
+      queryClient.invalidateQueries({ queryKey: ["wallet-balance"] });
       const tid =
         (result as { executedTxid?: unknown } | undefined)?.executedTxid;
       setExecutedTxid(typeof tid === "string" ? tid : null);
@@ -623,6 +686,10 @@ function SendPage() {
                 if (parsed.note !== undefined) setNote(parsed.note);
               }}
               pendingUsd={amountValid ? numericAmount * (quotePerWhole("SOL")?.usdPerWhole ?? 0) : 0}
+              vaultBalanceLamports={vaultBalance}
+              balanceLoading={vaultBalanceQuery.isLoading}
+              insufficientBalance={insufficientBalance}
+              feeReserveLamports={SOL_FEE_RESERVE_LAMPORTS}
               reduce={!!reduce}
             />
           )}
@@ -678,6 +745,10 @@ interface ComposeStageProps {
   budgetUsage: ReturnType<typeof useWalletBudgetUsage>;
   pendingUsd: number;
   contactNames: string[];
+  vaultBalanceLamports: bigint | null;
+  balanceLoading: boolean;
+  insufficientBalance: boolean;
+  feeReserveLamports: bigint;
   onQuickFill: (parsed: {
     recipientText?: string;
     amountSol?: number;
@@ -705,6 +776,10 @@ function ComposeStage({
   budgetUsage,
   pendingUsd,
   contactNames,
+  vaultBalanceLamports,
+  balanceLoading,
+  insufficientBalance,
+  feeReserveLamports,
   onQuickFill,
   reduce,
 }: ComposeStageProps) {
@@ -787,6 +862,50 @@ function ComposeStage({
         <p className="mt-2 text-xs text-text-soft">
           {amount ? `${display} SOL` : "Type an amount in SOL"}
         </p>
+        {/* Live wallet balance + Max button. Vault PDA is the
+            account SOL transfers come out of, so we surface its
+            balance — typed amounts above this number can't fly. */}
+        <div className="mt-2 flex items-center justify-between text-xs">
+          <span className="text-text-soft">
+            {balanceLoading ? (
+              "Loading wallet balance…"
+            ) : vaultBalanceLamports !== null ? (
+              <>
+                Wallet has{" "}
+                <span className="font-medium text-text-strong tabular-nums">
+                  {formatLamports(vaultBalanceLamports)}
+                </span>{" "}
+                SOL
+              </>
+            ) : (
+              "Couldn’t fetch balance"
+            )}
+          </span>
+          {vaultBalanceLamports !== null && vaultBalanceLamports > 0n && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                const max =
+                  vaultBalanceLamports > feeReserveLamports
+                    ? vaultBalanceLamports - feeReserveLamports
+                    : 0n;
+                setAmount(formatLamports(max, 4));
+              }}
+              className="font-medium text-accent transition-colors hover:text-accent/80"
+            >
+              Max
+            </button>
+          )}
+        </div>
+        {insufficientBalance && vaultBalanceLamports !== null && (
+          <p className="mt-2 rounded-soft border border-warning/40 bg-warning/[0.07] px-3 py-2 text-xs text-text-strong">
+            <span className="font-medium">Insufficient balance.</span>{" "}
+            {walletDisplay} has {formatLamports(vaultBalanceLamports)} SOL —
+            need at least the amount plus a small reserve for the
+            on-chain fee. Top up the wallet from /receive or a faucet.
+          </p>
+        )}
       </label>
 
       {/* Recents row — only shows if the user has any saved contacts. */}
