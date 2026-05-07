@@ -175,6 +175,83 @@ function hexToUtf8(hex: string): string {
   }
 }
 
+/// One ERC-20 the wallet currently holds. Decimals comes back as a
+/// string from Blockscout — parse to number for downstream math.
+export interface Erc20Holding {
+  contractAddress: string;
+  symbol: string;
+  name: string;
+  decimals: number;
+  /// Raw on-chain balance in the token's smallest unit.
+  rawBalance: bigint;
+}
+
+/// Fetch every ERC-20 the wallet's EVM address holds. Uses
+/// Blockscout's v2 token-balances endpoint (free, key-less). Sorted
+/// most-recent-activity first by the API; we additionally drop any
+/// rows whose token type isn't "ERC-20" (Blockscout also returns
+/// ERC-721 + ERC-1155 from the same endpoint when those slots have
+/// activity, and our send page is ERC-20 only).
+export async function fetchErc20Holdings(
+  walletEvmAddress: string,
+  rpcUrl?: string,
+): Promise<Erc20Holding[]> {
+  const url = rpcUrl ?? process.env.NEXT_PUBLIC_DESTINATION_RPC_URL ?? "";
+  // Lazy import the RPC->Blockscout-base mapper from eth.ts so this
+  // file stays self-contained (no fetch-time circular import; the
+  // module is on the same render path anyway).
+  const { blockscoutBaseFromRpc } = await import("@/lib/chain/eth");
+  const base = blockscoutBaseFromRpc(url);
+  const apiUrl = `${base}/api/v2/addresses/${encodeURIComponent(
+    walletEvmAddress,
+  )}/token-balances`;
+  const res = await fetch(apiUrl, {
+    method: "GET",
+    headers: { accept: "application/json" },
+  });
+  if (!res.ok) {
+    // Address never seen on chain → 404, treat as empty holdings.
+    if (res.status === 404) return [];
+    throw new Error(`Blockscout returned HTTP ${res.status}`);
+  }
+  const json = (await res.json()) as Array<{
+    value?: string;
+    token?: {
+      address?: string;
+      symbol?: string;
+      name?: string;
+      decimals?: string;
+      type?: string;
+    };
+  }>;
+  if (!Array.isArray(json)) return [];
+  const out: Erc20Holding[] = [];
+  for (const row of json) {
+    const t = row.token;
+    if (!t) continue;
+    if (t.type && t.type !== "ERC-20") continue;
+    const contractAddress = (t.address ?? "").toLowerCase();
+    if (!HEX_RE.test(contractAddress)) continue;
+    const decimals = parseInt(t.decimals ?? "0", 10);
+    if (!Number.isFinite(decimals) || decimals < 0 || decimals > 36) continue;
+    let raw: bigint;
+    try {
+      raw = BigInt(row.value ?? "0");
+    } catch {
+      continue;
+    }
+    if (raw <= 0n) continue;
+    out.push({
+      contractAddress,
+      symbol: t.symbol ?? "TOKEN",
+      name: t.name ?? "Unknown token",
+      decimals,
+      rawBalance: raw,
+    });
+  }
+  return out;
+}
+
 /// Convert a user-typed amount string ("1.5") to the token's
 /// smallest unit as a bigint, given the token's decimals. Mirrors
 /// `ethToWei` in lib/chain/eth.ts but parameterised on decimals.

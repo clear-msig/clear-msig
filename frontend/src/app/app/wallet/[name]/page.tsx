@@ -47,6 +47,11 @@ import {
   broadcastExplorerUrl,
 } from "@/lib/explorer";
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
+import {
+  fetchErc20Holdings,
+  tokenAmountToString,
+  type Erc20Holding,
+} from "@/lib/chain/erc20";
 
 
 import { useBatchApprove } from "@/lib/hooks/useBatchApprove";
@@ -185,6 +190,19 @@ export default function WalletDetailPage() {
   const evmTxHistoryQuery = useEvmTxHistory(evmAddress, 8);
   const btcTxHistoryQuery = useBitcoinTxHistory(btcAddress, 8);
 
+  // ERC-20 holdings — every token the wallet's Sepolia address holds,
+  // pulled from Blockscout. Drives the new Tokens-held panel below
+  // so users can find a Send link without knowing the contract
+  // address by heart.
+  const erc20HoldingsQuery = useQuery({
+    queryKey: ["erc20-holdings", evmAddress ?? ""],
+    queryFn: () => fetchErc20Holdings(evmAddress!),
+    enabled: !!evmAddress,
+    staleTime: 60_000,
+    refetchInterval: 90_000,
+    retry: 1,
+  });
+
   // Visible top-5 + the full filtered list for CSV export. Same
   // filter, two slice depths.
   const walletActivityAll = useMemo(
@@ -241,6 +259,17 @@ export default function WalletDetailPage() {
           happened — failed sends used to vanish with the toast. */}
       {sendAttempts.length > 0 && (
         <TxAttemptsSection rows={sendAttempts} reduce={!!reduce} />
+      )}
+      {/* ERC-20 holdings — every token the wallet's Sepolia address
+          owns. Each row links straight to /send/erc20 with the
+          contract pre-filled, so users don't have to know the
+          address by heart. Hidden when the address holds nothing. */}
+      {(erc20HoldingsQuery.data?.length ?? 0) > 0 && (
+        <Erc20HoldingsSection
+          walletName={name}
+          rows={erc20HoldingsQuery.data ?? []}
+          reduce={!!reduce}
+        />
       )}
       {/* On-chain tx history for each bound chain. Shows actual
           chain-level activity (incoming + outgoing) — the attempts
@@ -711,6 +740,79 @@ function TxAttemptsSection({
 // incoming deposits + every spend, regardless of whether it came
 // from this app. Complements the localStorage `TxAttemptsSection`
 // (which only knows about sends initiated from this browser).
+
+// ERC-20 holdings panel. Lists every token the wallet's Sepolia
+// address owns; each row deep-links to /send/erc20?token=… so the
+// user can act on the holding without finding the contract address.
+// Hidden upstream when the array is empty.
+function Erc20HoldingsSection({
+  walletName,
+  rows,
+  reduce,
+}: {
+  walletName: string;
+  rows: Erc20Holding[];
+  reduce: boolean;
+}) {
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  return (
+    <motion.section
+      {...motionProps}
+      transition={{ duration: 0.2 }}
+      className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
+    >
+      <header className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-medium text-text-strong">
+          Tokens held (Sepolia)
+        </h2>
+        <span className="text-xs text-text-soft">{rows.length}</span>
+      </header>
+      <ul className="mt-3 flex flex-col divide-y divide-border-soft">
+        {rows.map((h) => {
+          const display = tokenAmountToString(h.rawBalance, h.decimals, 6);
+          const sendHref =
+            `/app/wallet/${encodeURIComponent(walletName)}/send/erc20` +
+            `?token=${encodeURIComponent(h.contractAddress)}`;
+          return (
+            <li
+              key={h.contractAddress}
+              className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"
+            >
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-[11px] font-semibold uppercase text-accent">
+                {h.symbol.slice(0, 3)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-text-strong">
+                  {h.name}
+                  <span className="ml-1.5 text-xs font-normal text-text-soft">
+                    ({h.symbol})
+                  </span>
+                </p>
+                <p className="mt-0.5 truncate text-xs tabular-nums text-text-soft">
+                  {display} {h.symbol}
+                </p>
+              </div>
+              <Link
+                href={sendHref}
+                className={
+                  "shrink-0 inline-flex items-center gap-1 rounded-full border border-border-soft bg-canvas px-3 py-1 text-[11px] font-medium text-text-soft " +
+                  "transition-[border-color,color,transform] duration-base ease-out-soft " +
+                  "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+                }
+              >
+                Send
+                <ArrowRight className="h-3 w-3" aria-hidden="true" />
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </motion.section>
+  );
+}
 
 function ChainTxHistorySection({
   rows,

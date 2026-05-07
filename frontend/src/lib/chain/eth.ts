@@ -194,7 +194,7 @@ export async function fetchEvmTxHistory(
     .filter((row) => row.hash !== "");
 }
 
-function blockscoutBaseFromRpc(rpcUrl: string): string {
+export function blockscoutBaseFromRpc(rpcUrl: string): string {
   const u = rpcUrl.toLowerCase();
   if (u.includes("sepolia")) return "https://eth-sepolia.blockscout.com";
   if (u.includes("holesky")) return "https://eth-holesky.blockscout.com";
