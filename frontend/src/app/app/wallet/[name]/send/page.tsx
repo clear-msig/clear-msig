@@ -336,8 +336,19 @@ function SendPage() {
   // SOL transfers actually come out of (programs/clear-wallet/src/
   // instructions/execute.rs::execute_custom). Vault PDA is
   // findVaultAddress(walletPda).
+  //
+  // Distinct query key from the dashboard's `["wallet-balance", …]`
+  // (which returns `number`); this hook returns `bigint` for byte-
+  // accurate amount/reserve comparisons. Sharing the key under
+  // react-query would let one consumer's cached number leak into
+  // the other's bigint math and crash with "Cannot mix BigInt and
+  // other types". One-off duplication of the read is cheaper than
+  // the cross-consumer coupling.
   const vaultBalanceQuery = useQuery({
-    queryKey: ["wallet-balance", walletQuery.data?.pda.toBase58() ?? ""],
+    queryKey: [
+      "wallet-vault-balance-lamports",
+      walletQuery.data?.pda.toBase58() ?? "",
+    ],
     queryFn: async () => {
       if (!walletQuery.data) return 0n;
       const [vault] = findVaultAddress(
@@ -564,6 +575,9 @@ function SendPage() {
       // Refresh the vault balance so the post-send compose stage
       // shows the new number, not the cached pre-send one.
       queryClient.invalidateQueries({ queryKey: ["wallet-balance"] });
+      queryClient.invalidateQueries({
+        queryKey: ["wallet-vault-balance-lamports"],
+      });
       const tid =
         (result as { executedTxid?: unknown } | undefined)?.executedTxid;
       setExecutedTxid(typeof tid === "string" ? tid : null);
