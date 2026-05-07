@@ -18,6 +18,8 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useWallet } from "@/lib/wallet";
 import {
   ArrowRight,
+  Bell,
+  BellOff,
   Check,
   Contact,
   Copy,
@@ -29,11 +31,13 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
+import { useActionNotifications } from "@/lib/hooks/useActionNotifications";
 
 export default function SettingsPage() {
   const router = useRouter();
   const wallet = useWallet();
   const reduce = useReducedMotion();
+  const notif = useActionNotifications();
 
   const address = wallet.publicKey?.toBase58() ?? "";
   const short = useMemo(
@@ -231,6 +235,12 @@ export default function SettingsPage() {
         />
       </Link>
 
+      {/* Notifications — discoverable place to enable/diagnose the
+          browser-Notification ping for new pending approvals. The
+          in-page prompt on the dashboard handles first-run; this is
+          the always-available switch. */}
+      <NotificationsSettingRow notif={notif} />
+
       {/* Network indicator */}
       <section className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
@@ -262,6 +272,8 @@ export default function SettingsPage() {
       </section>
 
       {/* About row */}
+      {/* Note: NotificationsSettingRow defined at the bottom of this
+          file to keep the JSX above readable. */}
       <Link
         href="/"
         className={
@@ -278,5 +290,58 @@ export default function SettingsPage() {
         />
       </Link>
     </motion.div>
+  );
+}
+
+// ─── Notifications row ────────────────────────────────────────────
+
+function NotificationsSettingRow({
+  notif,
+}: {
+  notif: ReturnType<typeof useActionNotifications>;
+}) {
+  const Icon = notif.permission === "granted" ? Bell : BellOff;
+  const title =
+    notif.permission === "granted"
+      ? "Notifications on"
+      : notif.permission === "denied"
+        ? "Notifications blocked"
+        : !notif.supported
+          ? "Notifications unsupported"
+          : "Get notified for pending approvals";
+  const body =
+    notif.permission === "granted"
+      ? "You'll get a browser ping when a new request needs your approval and this tab is in the background."
+      : notif.permission === "denied"
+        ? "Permission was blocked. Re-enable it in your browser settings, then come back here."
+        : !notif.supported
+          ? "This browser doesn't support browser notifications. The in-app badge still shows pending requests."
+          : "A browser ping when a new request needs your approval. Only fires when this tab is in the background.";
+  const showEnableButton = notif.supported && notif.permission === "default";
+
+  return (
+    <section className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
+        <Icon className="h-5 w-5" strokeWidth={1.75} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-text-strong">{title}</p>
+        <p className="mt-0.5 text-xs text-text-soft">{body}</p>
+      </div>
+      {showEnableButton && (
+        <button
+          type="button"
+          onClick={() => void notif.request()}
+          className={
+            "shrink-0 rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white " +
+            "transition-[background-color,transform] duration-base ease-out-soft " +
+            "hover:bg-accent-hover active:scale-[0.98] " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+          }
+        >
+          Enable
+        </button>
+      )}
+    </section>
   );
 }
