@@ -33,6 +33,10 @@ import { useActionNeeded, type ActionNeededRow } from "@/lib/hooks/useActionNeed
 import { useTxAttempts } from "@/lib/hooks/useTxAttempts";
 import type { TxAttempt } from "@/lib/retail/txLog";
 import {
+  buildActivityCsv,
+  downloadActivityCsv,
+} from "@/lib/retail/exportActivity";
+import {
   useSolanaTxHistory,
   useEvmTxHistory,
   useBitcoinTxHistory,
@@ -181,12 +185,15 @@ export default function WalletDetailPage() {
   const evmTxHistoryQuery = useEvmTxHistory(evmAddress, 8);
   const btcTxHistoryQuery = useBitcoinTxHistory(btcAddress, 8);
 
+  // Visible top-5 + the full filtered list for CSV export. Same
+  // filter, two slice depths.
+  const walletActivityAll = useMemo(
+    () => allActivity.allRows.filter((r) => r.walletName === name),
+    [allActivity.allRows, name],
+  );
   const walletActivity = useMemo(
-    () =>
-      allActivity.rows
-        .filter((r) => r.walletName === name)
-        .slice(0, 5),
-    [allActivity.rows, name],
+    () => walletActivityAll.slice(0, 5),
+    [walletActivityAll],
   );
   const walletAction = useMemo(
     () => allAction.rows.filter((r) => r.walletName === name),
@@ -278,7 +285,13 @@ export default function WalletDetailPage() {
         reduce={!!reduce}
       />
       {walletActivity.length > 0 ? (
-        <ActivitySection rows={walletActivity} reduce={!!reduce} />
+        <ActivitySection
+          rows={walletActivity}
+          allRows={walletActivityAll}
+          walletName={name}
+          attempts={sendAttempts}
+          reduce={!!reduce}
+        />
       ) : (
         <ActivityEmptyState reduce={!!reduce} />
       )}
@@ -1010,21 +1023,61 @@ function BatchProgressRow({
 
 interface ActivityProps {
   rows: RecentActivityRow[];
+  /// Full unsliced list for this wallet — used by the CSV export
+  /// so accountants get the complete history, not just the visible
+  /// top-5 the dashboard renders.
+  allRows: RecentActivityRow[];
+  walletName: string;
+  attempts: TxAttempt[];
   reduce: boolean;
 }
 
-function ActivitySection({ rows, reduce }: ActivityProps) {
+function ActivitySection({
+  rows,
+  allRows,
+  walletName,
+  attempts,
+  reduce,
+}: ActivityProps) {
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  const handleExport = () => {
+    const csv = buildActivityCsv({
+      walletName,
+      rows: allRows,
+      attempts,
+    });
+    const slug = walletName.replace(/[^a-z0-9-]+/gi, "-").toLowerCase();
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadActivityCsv(`clear-msig-${slug || "wallet"}-${stamp}.csv`, csv);
+  };
   return (
     <motion.section
       {...motionProps}
       transition={{ duration: 0.2 }}
     >
-      <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
-        Recent activity
-      </h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+          Recent activity
+        </h2>
+        {allRows.length > 0 && (
+          <button
+            type="button"
+            onClick={handleExport}
+            className={
+              "inline-flex items-center gap-1 rounded-full border border-border-soft bg-surface-raised px-2.5 py-1 text-[11px] font-medium text-text-soft " +
+              "transition-[border-color,color,transform] duration-base ease-out-soft " +
+              "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+            }
+            title="Download every proposal on this wallet as CSV"
+          >
+            <Download className="h-3 w-3" aria-hidden="true" />
+            Export CSV
+          </button>
+        )}
+      </div>
       <ul className="mt-3 flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
         {rows.map((row) => (
           <li key={row.proposalPda}>
