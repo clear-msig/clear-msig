@@ -659,6 +659,17 @@ function ComposeStage({
           On Sepolia, the Ethereum testnet. Don&rsquo;t send mainnet ETH
           here.
         </p>
+        <Link
+          href={`/app/wallet/${encodeURIComponent(walletName)}/send/erc20`}
+          className={
+            "mt-3 inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1 text-xs font-medium text-text-soft " +
+            "transition-[border-color,color,transform] duration-base ease-out-soft " +
+            "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          }
+        >
+          Send a token instead (USDC, DAI, …)
+        </Link>
       </div>
 
       <div className="mt-6 flex flex-col gap-3">
