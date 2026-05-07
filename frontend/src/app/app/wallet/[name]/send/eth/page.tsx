@@ -63,6 +63,7 @@ import {
   shortEvmAddress,
   weiToEth,
 } from "@/lib/chain/eth";
+import { looksLikeEnsName, resolveEnsName } from "@/lib/chain/ens";
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
@@ -178,7 +179,37 @@ function SendEthPage() {
   } | null>(null);
 
   const trimmedRecipient = recipient.trim();
-  const recipientValid = isValidEvmAddress(trimmedRecipient);
+  const directlyValid = isValidEvmAddress(trimmedRecipient);
+
+  // ENS resolution — fired when the typed text doesn't already
+  // look like a 0x address but does look like an ENS name. The
+  // resolved 0x address is what we sign / broadcast against; the
+  // user-typed name is preserved for display only.
+  const shouldTryEns =
+    !directlyValid && looksLikeEnsName(trimmedRecipient);
+  const ensQuery = useQuery({
+    queryKey: ["ens-resolve", trimmedRecipient.toLowerCase()],
+    queryFn: () => resolveEnsName(trimmedRecipient),
+    enabled: shouldTryEns,
+    staleTime: 5 * 60 * 1000,
+    retry: 0,
+  });
+  const ensAddress =
+    shouldTryEns && ensQuery.data ? ensQuery.data : null;
+  const ensResolving =
+    shouldTryEns && (ensQuery.isLoading || ensQuery.isFetching);
+  const ensFailed =
+    shouldTryEns &&
+    !ensResolving &&
+    ensQuery.isFetched &&
+    !ensQuery.data;
+
+  // The address we'll actually sign + broadcast to. Either the
+  // pasted 0x address or the ENS-resolved address.
+  const effectiveRecipient = directlyValid
+    ? trimmedRecipient
+    : ensAddress;
+  const recipientValid = !!effectiveRecipient;
   let amountValid = false;
   let amountWei = 0n;
   try {
@@ -261,7 +292,8 @@ function SendEthPage() {
         throw new Error("Ethereum sending isn't set up for this wallet");
       if (!walletEthAddress)
         throw new Error("Wallet's Ethereum address isn't ready yet");
-      if (!recipientValid) throw new Error("Recipient must be a valid 0x address");
+      if (!recipientValid || !effectiveRecipient)
+        throw new Error("Recipient must be a valid 0x address or .eth name");
 
       // Resolve which signer pubkey the wallet's approver list
       // expects (Ledger vs Dynamic embedded). See useWallet.pickSigner.
@@ -283,7 +315,7 @@ function SendEthPage() {
         intent_index: ethIntent.account.intentIndex,
         params: [
           `nonce=${nonce}`,
-          `to=${trimmedRecipient}`,
+          `to=${effectiveRecipient}`,
           `value_wei=${amountWei.toString()}`,
           `data=`,
         ],
@@ -347,9 +379,15 @@ function SendEthPage() {
         broadcast?.chain_kind,
         appConfig.preAlpha.destinationRpcUrl,
       );
+      // Prefer the typed ENS name in the success label so the user
+      // sees what they wrote ("vitalik.eth") rather than the
+      // resolved 0x address.
+      const sentTo = ensAddress
+        ? trimmedRecipient
+        : shortEvmAddress(effectiveRecipient ?? trimmedRecipient);
       setSentLabel({
         amount: amount.trim(),
-        to: shortEvmAddress(trimmedRecipient),
+        to: sentTo,
         explorerUrl,
         explorerLabel,
       });
@@ -362,7 +400,7 @@ function SendEthPage() {
         status: "success",
         amountDisplay: amount.trim(),
         ticker: "ETH",
-        recipientShort: shortEvmAddress(trimmedRecipient),
+        recipientShort: sentTo,
         txId: broadcast?.tx_id,
         explorerUrl: explorerUrl ?? undefined,
       });
@@ -393,9 +431,11 @@ function SendEthPage() {
         status: "failed",
         amountDisplay: amount.trim(),
         ticker: "ETH",
-        recipientShort: trimmedRecipient
-          ? shortEvmAddress(trimmedRecipient)
-          : undefined,
+        recipientShort: effectiveRecipient
+          ? ensAddress
+            ? trimmedRecipient
+            : shortEvmAddress(effectiveRecipient)
+          : trimmedRecipient || undefined,
         errorBrief: fe.title,
         errorStderr: stderr ? stderr.slice(0, 800) : undefined,
       });
@@ -478,6 +518,10 @@ function SendEthPage() {
               recipient={recipient}
               setRecipient={setRecipient}
               recipientValid={recipientValid}
+              effectiveRecipient={effectiveRecipient}
+              ensName={ensAddress ? trimmedRecipient : null}
+              ensResolving={ensResolving}
+              ensFailed={ensFailed}
               note={note}
               setNote={setNote}
               amountValid={amountValid}
@@ -525,6 +569,18 @@ interface ComposeStageProps {
   recipient: string;
   setRecipient: (s: string) => void;
   recipientValid: boolean;
+  /// The 0x address we'll actually sign + broadcast against —
+  /// either the typed 0x or the ENS-resolved one. Null while
+  /// the user is typing.
+  effectiveRecipient: string | null;
+  /// The .eth name the user typed, when we successfully
+  /// resolved it. Null when the user pasted a raw 0x address.
+  ensName: string | null;
+  /// True while the ENS proxy is in flight.
+  ensResolving: boolean;
+  /// True when the typed text looked like an ENS name but the
+  /// proxy returned no record.
+  ensFailed: boolean;
   note: string;
   setNote: (s: string) => void;
   amountValid: boolean;
@@ -546,6 +602,10 @@ function ComposeStage({
   recipient,
   setRecipient,
   recipientValid,
+  effectiveRecipient,
+  ensName,
+  ensResolving,
+  ensFailed,
   note,
   setNote,
   amountValid,
@@ -570,12 +630,15 @@ function ComposeStage({
         }
       : { label: "From address", value: "spinning up" },
   ];
-  if (recipientValid) {
+  if (recipientValid && effectiveRecipient) {
     previewDetails.push({
       label: "Recipient",
-      value: shortEvmAddress(recipient),
+      value: shortEvmAddress(effectiveRecipient),
       emphasis: "mono",
     });
+    if (ensName) {
+      previewDetails.push({ label: "ENS name", value: ensName });
+    }
   }
   if (amountValid) {
     previewDetails.push({
@@ -678,22 +741,39 @@ function ComposeStage({
         <Field
           label="Recipient"
           hint={
-            recipient.trim() && !recipientValid
-              ? "Must be a 0x… 42-character Ethereum address."
-              : undefined
+            recipient.trim() && !recipientValid && !ensResolving && ensFailed
+              ? "Couldn’t resolve that ENS name. Paste a 0x address instead."
+              : recipient.trim() && !recipientValid && !ensResolving
+                ? "Must be a 0x… 42-character Ethereum address or a .eth name."
+                : undefined
           }
         >
           <input
             type="text"
             value={recipient}
             onChange={(e) => setRecipient(e.target.value)}
-            placeholder="0x…"
+            placeholder="0x… or vitalik.eth"
             className={
               "w-full rounded-card border border-border-soft bg-surface-raised px-4 py-3 font-mono text-sm text-text-strong outline-none " +
               "transition-[border-color,box-shadow] duration-base ease-out-soft " +
               "focus:border-accent focus:shadow-accent-rest"
             }
           />
+          {ensResolving && (
+            <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-text-soft">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              Resolving {recipient.trim()}…
+            </p>
+          )}
+          {ensName && effectiveRecipient && !ensResolving && (
+            <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-accent">
+              <Check className="h-3.5 w-3.5" strokeWidth={3} />
+              Resolved {ensName} ·{" "}
+              <span className="font-mono text-text-soft">
+                {shortEvmAddress(effectiveRecipient)}
+              </span>
+            </p>
+          )}
         </Field>
 
         <Field label="Note (optional)">
@@ -714,8 +794,10 @@ function ComposeStage({
       <div className="mt-6 flex flex-col gap-3">
         <SignPayloadPreview
           action={
-            amountValid && recipientValid
-              ? `Send ${amount.trim()} ETH to ${shortEvmAddress(recipient)}`
+            amountValid && recipientValid && effectiveRecipient
+              ? `Send ${amount.trim()} ETH to ${
+                  ensName ?? shortEvmAddress(effectiveRecipient)
+                }`
               : "Fill in the amount and recipient above"
           }
           details={previewDetails}
