@@ -55,9 +55,11 @@ import { listIntents } from "@/lib/chain/intents";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import {
   ethToWei,
+  fetchEvmBalance,
   fetchEvmNonce,
   isValidEvmAddress,
   shortEvmAddress,
+  weiToEth,
 } from "@/lib/chain/eth";
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
@@ -185,12 +187,47 @@ function SendEthPage() {
   } catch {
     amountValid = false;
   }
+
+  // Live wallet ETH balance for the dWallet's Sepolia address. Fetched
+  // every 15s; refreshed after a successful send so the post-send
+  // balance is fresh. Drives the "Wallet has X.XXXX ETH" display + the
+  // pre-flight insufficient-balance check below.
+  const ethBalanceQuery = useQuery({
+    queryKey: ["wallet-eth-balance", walletEthAddress ?? ""],
+    queryFn: () => fetchEvmBalance(walletEthAddress!),
+    enabled: !!walletEthAddress,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    retry: 1,
+  });
+
+  // Gas reserve for a value transfer on Sepolia. 21000 gas at a
+  // generous 50 gwei is ~1.05e15 wei = 0.00105 ETH; round to 0.0015
+  // ETH for headroom (Sepolia base fee occasionally spikes). Keeping
+  // this independent of the intent's tx_template gas params is
+  // intentional — the template's value is conservative bytecode for
+  // the on-chain preimage builder; live Sepolia price is what gets
+  // billed at broadcast time, and we'd rather over-reserve here than
+  // let the user run a doomed send. ~ $0.001 worth of testnet ETH.
+  const ETH_GAS_RESERVE_WEI = 1_500_000_000_000_000n; // 0.0015 ETH
+
+  const balance = ethBalanceQuery.data ?? null;
+  const balanceLoaded = ethBalanceQuery.isFetched && balance !== null;
+  const requiredWei = amountValid ? amountWei + ETH_GAS_RESERVE_WEI : 0n;
+  // Block submit when we know the balance is too low. While the
+  // balance is still loading, don't block — the propose step is
+  // safe; the broadcast itself will short-circuit if the balance
+  // really is empty.
+  const insufficientBalance =
+    balanceLoaded && amountValid && balance! < requiredWei;
+
   const canSubmit =
     amountValid &&
     recipientValid &&
     !!ethIntent &&
     !!walletEthAddress &&
-    !!wallet.publicKey;
+    !!wallet.publicKey &&
+    !insufficientBalance;
 
   const submit = useMutation({
     mutationFn: async () => {
@@ -291,6 +328,9 @@ function SendEthPage() {
         ),
       });
       queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
+      // Refresh the wallet's Sepolia balance so the next compose
+      // sees the post-send number, not the cached pre-send one.
+      queryClient.invalidateQueries({ queryKey: ["wallet-eth-balance"] });
       setStage("sent");
     },
     onError: (err) => {
@@ -372,6 +412,7 @@ function SendEthPage() {
               walletEthAddress={walletEthAddress}
               amount={amount}
               setAmount={setAmount}
+              amountWei={amountWei}
               recipient={recipient}
               setRecipient={setRecipient}
               recipientValid={recipientValid}
@@ -379,6 +420,10 @@ function SendEthPage() {
               setNote={setNote}
               amountValid={amountValid}
               canSubmit={canSubmit}
+              walletBalanceWei={balance}
+              balanceLoading={ethBalanceQuery.isLoading}
+              insufficientBalance={insufficientBalance}
+              gasReserveWei={ETH_GAS_RESERVE_WEI}
               onSubmit={handleSubmit}
               reduce={!!reduce}
             />
@@ -414,6 +459,7 @@ interface ComposeStageProps {
   walletEthAddress: string | null;
   amount: string;
   setAmount: (s: string) => void;
+  amountWei: bigint;
   recipient: string;
   setRecipient: (s: string) => void;
   recipientValid: boolean;
@@ -421,6 +467,10 @@ interface ComposeStageProps {
   setNote: (s: string) => void;
   amountValid: boolean;
   canSubmit: boolean;
+  walletBalanceWei: bigint | null;
+  balanceLoading: boolean;
+  insufficientBalance: boolean;
+  gasReserveWei: bigint;
   onSubmit: () => void;
   reduce: boolean;
 }
@@ -430,6 +480,7 @@ function ComposeStage({
   walletEthAddress,
   amount,
   setAmount,
+  amountWei,
   recipient,
   setRecipient,
   recipientValid,
@@ -437,6 +488,10 @@ function ComposeStage({
   setNote,
   amountValid,
   canSubmit,
+  walletBalanceWei,
+  balanceLoading,
+  insufficientBalance,
+  gasReserveWei,
   onSubmit,
 }: ComposeStageProps) {
   const walletDisplay = toDisplayName(walletName);
@@ -509,6 +564,53 @@ function ComposeStage({
             />
             <span className="text-sm font-medium text-text-soft">ETH</span>
           </div>
+          {/* Live wallet balance + insufficient-balance gate. Shown
+              right under the amount input so the user sees the
+              ceiling while typing. */}
+          <div className="mt-2 flex items-center justify-between text-xs">
+            <span className="text-text-soft">
+              {balanceLoading ? (
+                "Loading wallet balance…"
+              ) : walletBalanceWei !== null ? (
+                <>
+                  Wallet has{" "}
+                  <span className="font-medium text-text-strong tabular-nums">
+                    {weiToEth(walletBalanceWei)}
+                  </span>{" "}
+                  ETH
+                </>
+              ) : (
+                "Couldn’t fetch balance"
+              )}
+            </span>
+            {walletBalanceWei !== null && walletBalanceWei > 0n && (
+              <button
+                type="button"
+                onClick={() => {
+                  // Max = balance - gas reserve (clamped to 0).
+                  const max =
+                    walletBalanceWei > gasReserveWei
+                      ? walletBalanceWei - gasReserveWei
+                      : 0n;
+                  setAmount(weiToEth(max, 12));
+                }}
+                className="font-medium text-accent transition-colors hover:text-accent/80"
+              >
+                Max
+              </button>
+            )}
+          </div>
+          {insufficientBalance && walletBalanceWei !== null && (
+            <p className="mt-2 rounded-soft border border-warning/40 bg-warning/[0.07] px-3 py-2 text-xs text-text-strong">
+              <span className="font-medium">Insufficient balance.</span>{" "}
+              You have {weiToEth(walletBalanceWei)} ETH — need at least{" "}
+              {weiToEth(amountWei + gasReserveWei)} ETH including ~
+              {weiToEth(gasReserveWei)} for gas. Top up the wallet&rsquo;s
+              Sepolia address from a faucet
+              {walletEthAddress ? ` (${shortEvmAddress(walletEthAddress)})` : ""}
+              .
+            </p>
+          )}
         </Field>
 
         <Field

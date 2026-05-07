@@ -119,3 +119,46 @@ export async function fetchEvmNonce(
   // result is "0x<hex>". Convert to int.
   return { nonce: parseInt(json.result, 16) };
 }
+
+/// Fetch the wallet's EVM balance in wei from the destination RPC.
+/// Returns a bigint for byte-accurate comparisons (don't lose
+/// precision through Number for sub-wei display logic).
+///
+/// Used by the send-ETH compose stage to surface "you have X ETH"
+/// inline and to gate the submit button on
+/// `balance >= amount + gas_reserve` before we ever fire a sign
+/// popup. The previous flow let users propose + sign + execute and
+/// then fail at the broadcast step with an opaque error; checking
+/// up-front turns "ika_sign failed" toasts into "you don't have
+/// enough Sepolia ETH" copy.
+export async function fetchEvmBalance(
+  walletEvmAddress: string,
+  rpcUrl?: string,
+): Promise<bigint> {
+  const url = rpcUrl ?? process.env.NEXT_PUBLIC_DESTINATION_RPC_URL;
+  if (!url) {
+    throw new Error("EVM RPC URL not configured (NEXT_PUBLIC_DESTINATION_RPC_URL).");
+  }
+  const body = {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "eth_getBalance",
+    params: [walletEvmAddress, "latest"],
+  };
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    throw new Error(`EVM RPC returned HTTP ${res.status}`);
+  }
+  const json = (await res.json()) as { result?: string; error?: { message?: string } };
+  if (json.error) {
+    throw new Error(`EVM RPC error: ${json.error.message ?? "unknown"}`);
+  }
+  if (typeof json.result !== "string") {
+    throw new Error("EVM RPC returned no result");
+  }
+  return BigInt(json.result);
+}
