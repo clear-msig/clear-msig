@@ -120,6 +120,46 @@ export async function fetchEvmNonce(
   return { nonce: parseInt(json.result, 16) };
 }
 
+/// Fetch the destination chain's current gas price in wei. Falls
+/// back to a generous default if the RPC errors out or returns
+/// nonsense — the worst case here is over-reserving for gas, not
+/// under-reserving (which would let a doomed send through).
+///
+/// Used to size the "gas reserve" subtracted from the wallet
+/// balance in the send-eth pre-flight check + Max button. EIP-1559
+/// chains have eth_gasPrice as a single "expected total" estimate
+/// (priority fee + base fee), which is good enough for a UI
+/// reserve — the actual broadcast can spend up to its own
+/// max_fee_per_gas anyway.
+export async function fetchEvmGasPrice(rpcUrl?: string): Promise<bigint> {
+  const url = rpcUrl ?? process.env.NEXT_PUBLIC_DESTINATION_RPC_URL;
+  if (!url) {
+    throw new Error("EVM RPC URL not configured (NEXT_PUBLIC_DESTINATION_RPC_URL).");
+  }
+  const body = {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "eth_gasPrice",
+    params: [],
+  };
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    throw new Error(`EVM RPC returned HTTP ${res.status}`);
+  }
+  const json = (await res.json()) as { result?: string; error?: { message?: string } };
+  if (json.error) {
+    throw new Error(`EVM RPC error: ${json.error.message ?? "unknown"}`);
+  }
+  if (typeof json.result !== "string") {
+    throw new Error("EVM RPC returned no result");
+  }
+  return BigInt(json.result);
+}
+
 /// Fetch the wallet's EVM balance in wei from the destination RPC.
 /// Returns a bigint for byte-accurate comparisons (don't lose
 /// precision through Number for sub-wei display logic).

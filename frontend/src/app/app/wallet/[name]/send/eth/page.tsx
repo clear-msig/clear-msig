@@ -56,6 +56,7 @@ import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import {
   ethToWei,
   fetchEvmBalance,
+  fetchEvmGasPrice,
   fetchEvmNonce,
   isValidEvmAddress,
   shortEvmAddress,
@@ -201,15 +202,38 @@ function SendEthPage() {
     retry: 1,
   });
 
-  // Gas reserve for a value transfer on Sepolia. 21000 gas at a
-  // generous 50 gwei is ~1.05e15 wei = 0.00105 ETH; round to 0.0015
-  // ETH for headroom (Sepolia base fee occasionally spikes). Keeping
-  // this independent of the intent's tx_template gas params is
-  // intentional — the template's value is conservative bytecode for
-  // the on-chain preimage builder; live Sepolia price is what gets
-  // billed at broadcast time, and we'd rather over-reserve here than
-  // let the user run a doomed send. ~ $0.001 worth of testnet ETH.
-  const ETH_GAS_RESERVE_WEI = 1_500_000_000_000_000n; // 0.0015 ETH
+  // Live gas price from the destination RPC. Refetched every 30s so
+  // a Sepolia base-fee spike doesn't leave the user stuck with an
+  // off-by-2x reserve. Falls back to a 50-gwei default below if the
+  // query is still loading or errored — over-reserving is the safe
+  // direction (lets a real send through later; doesn't push a
+  // doomed one through now).
+  const gasPriceQuery = useQuery({
+    queryKey: ["evm-gas-price", appConfig.preAlpha.destinationRpcUrl],
+    queryFn: () => fetchEvmGasPrice(),
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    retry: 1,
+  });
+
+  // 21000 gas for a value transfer (no calldata). Solidity calls
+  // would need more, but the EVM intent template only does ETH
+  // transfers; if that changes, read gas_limit from the intent's
+  // tx_template (8 bytes at offset 8) instead.
+  const VALUE_TRANSFER_GAS = 21_000n;
+  // Headroom multiplier — 50% over the live estimate so a spike
+  // mid-broadcast doesn't trip the wallet's effective balance.
+  const GAS_RESERVE_HEADROOM_NUMER = 3n;
+  const GAS_RESERVE_HEADROOM_DENOM = 2n;
+  // Floor: 50 gwei × 21000 = 0.00105 ETH. Used when the live price
+  // hasn't loaded yet so the Max button + insufficient-balance
+  // check stay populated and the UX doesn't flicker.
+  const FALLBACK_GAS_PRICE_WEI = 50_000_000_000n; // 50 gwei
+
+  const liveGasPriceWei = gasPriceQuery.data ?? FALLBACK_GAS_PRICE_WEI;
+  const ETH_GAS_RESERVE_WEI =
+    (liveGasPriceWei * VALUE_TRANSFER_GAS * GAS_RESERVE_HEADROOM_NUMER) /
+    GAS_RESERVE_HEADROOM_DENOM;
 
   const balance = ethBalanceQuery.data ?? null;
   const balanceLoaded = ethBalanceQuery.isFetched && balance !== null;
