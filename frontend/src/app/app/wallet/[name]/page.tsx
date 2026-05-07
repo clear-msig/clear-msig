@@ -32,6 +32,13 @@ import { useRecentActivity, type RecentActivityRow } from "@/lib/hooks/useRecent
 import { useActionNeeded, type ActionNeededRow } from "@/lib/hooks/useActionNeeded";
 import { useTxAttempts } from "@/lib/hooks/useTxAttempts";
 import type { TxAttempt } from "@/lib/retail/txLog";
+import {
+  useSolanaTxHistory,
+  type ChainTxRow,
+} from "@/lib/hooks/useChainTxHistory";
+import { txUrl as solanaExplorerTxUrl } from "@/lib/explorer";
+
+
 import { useBatchApprove } from "@/lib/hooks/useBatchApprove";
 import { ProposalStatus } from "@/lib/msig";
 import { Button } from "@/components/retail/Button";
@@ -138,6 +145,19 @@ export default function WalletDetailPage() {
   const allAction = useActionNeeded();
   const sendAttempts = useTxAttempts(name, 5);
 
+  // Vault address — used for the Solana on-chain tx history query
+  // below. Same derivation the receive page does. Memoised so the
+  // history query key only changes when the wallet changes.
+  const solanaVaultAddress = useMemo(() => {
+    if (!walletQuery.data) return null;
+    const [vault] = findVaultAddress(
+      walletQuery.data.pda,
+      CLEAR_WALLET_PROGRAM_ID,
+    );
+    return vault.toBase58();
+  }, [walletQuery.data]);
+  const solanaTxHistoryQuery = useSolanaTxHistory(solanaVaultAddress, 8);
+
   const walletActivity = useMemo(
     () =>
       allActivity.rows
@@ -191,6 +211,18 @@ export default function WalletDetailPage() {
           happened — failed sends used to vanish with the toast. */}
       {sendAttempts.length > 0 && (
         <TxAttemptsSection rows={sendAttempts} reduce={!!reduce} />
+      )}
+      {/* On-chain tx history for the wallet's Solana vault. Shows
+          actual chain-level activity (incoming + outgoing) — the
+          attempts log above only shows sends from this app, this
+          shows everything that hit the address including incoming
+          deposits. EVM/BTC follow when those APIs land. */}
+      {(solanaTxHistoryQuery.data?.length ?? 0) > 0 && (
+        <ChainTxHistorySection
+          rows={solanaTxHistoryQuery.data ?? []}
+          chainTicker="SOL"
+          reduce={!!reduce}
+        />
       )}
       <NextStepsStripe
         name={name}
@@ -613,6 +645,82 @@ function TxAttemptsSection({
                   {row.errorStderr}
                 </pre>
               )}
+            </li>
+          );
+        })}
+      </ul>
+    </motion.section>
+  );
+}
+
+// ─── On-chain tx history (per-chain) ───────────────────────────────
+//
+// Fetches actual chain-native activity for the wallet's address —
+// incoming deposits + every spend, regardless of whether it came
+// from this app. Complements the localStorage `TxAttemptsSection`
+// (which only knows about sends initiated from this browser).
+
+function ChainTxHistorySection({
+  rows,
+  chainTicker,
+  reduce,
+}: {
+  rows: ChainTxRow[];
+  chainTicker: string;
+  reduce: boolean;
+}) {
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  return (
+    <motion.section
+      {...motionProps}
+      transition={{ duration: 0.2 }}
+      className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
+    >
+      <header className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-medium text-text-strong">
+          On-chain activity ({chainTicker})
+        </h2>
+        <span className="text-xs text-text-soft">{rows.length}</span>
+      </header>
+      <ul className="mt-3 flex flex-col divide-y divide-border-soft">
+        {rows.map((row) => {
+          const stamp =
+            row.ts !== null
+              ? relativeTime(row.ts * 1000)
+              : `slot ${row.slot}`;
+          const shortSig = `${row.txId.slice(0, 6)}…${row.txId.slice(-6)}`;
+          const failed = row.status === "failed";
+          return (
+            <li key={row.txId} className="py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-text-strong">
+                    {failed ? (
+                      <span className="text-warning">! </span>
+                    ) : (
+                      <span className="text-accent">✓ </span>
+                    )}
+                    <span className="font-mono text-xs">{shortSig}</span>
+                  </p>
+                  <p className="mt-0.5 truncate text-xs text-text-soft">
+                    {stamp}
+                    {failed && row.errorBrief ? ` · ${row.errorBrief}` : ""}
+                    {!failed && row.status === "confirmed"
+                      ? " · confirmed"
+                      : ""}
+                  </p>
+                </div>
+                <a
+                  href={solanaExplorerTxUrl(row.txId)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 rounded-pill border border-border-soft bg-canvas px-3 py-1 text-[11px] font-medium text-text-strong transition hover:border-accent/50 hover:text-accent"
+                >
+                  View ↗
+                </a>
+              </div>
             </li>
           );
         })}
