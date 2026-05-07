@@ -243,6 +243,16 @@ export function findByName(query: string): Contact | undefined {
   return loadContacts().find((c) => c.name.toLowerCase() === q);
 }
 
+/// Lookup a contact by its on-chain address. Used by the members
+/// page to render a saved nickname instead of "Member ABCD" once a
+/// user has named one of their multisig collaborators. Returns
+/// undefined when no contact exists, leaving callers to fall back
+/// to the address-derived label.
+export function findByAddress(address: string): Contact | undefined {
+  if (!address) return undefined;
+  return loadContacts().find((c) => c.address === address);
+}
+
 export function recentContacts(limit = 4): Contact[] {
   return [...loadContacts()]
     .sort((a, b) => b.createdAt - a.createdAt)

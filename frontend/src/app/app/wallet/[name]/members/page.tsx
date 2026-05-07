@@ -18,10 +18,11 @@ import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Crown, Loader2, Lock, Pencil, Trash2, UserPlus } from "lucide-react";
+import { ArrowLeft, ArrowRight, Crown, Loader2, Lock, Pencil, Tag, Trash2, UserPlus } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { deriveRole, listWatchers, ROLE_HINT, ROLE_LABEL, type Role } from "@/lib/retail/roles";
+import { useContacts } from "@/lib/hooks/useContacts";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Button } from "@/components/retail/Button";
@@ -65,6 +66,19 @@ export default function MembersPage() {
     enabled: !!walletQuery.data,
     staleTime: 30_000,
   });
+
+  // Local-first nickname lookup. Members come back as raw base58
+  // pubkeys; if the user has saved a contact for that address (via
+  // /send paste-and-save or the inline rename action below), show
+  // the friendly name instead. Multisig-specific UX win — without
+  // this every approver row reads "Member ABCD" and groups can't
+  // tell each other apart.
+  const { contacts, save: saveContact } = useContacts();
+  const contactByAddress = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of contacts) map.set(c.address, c.name);
+    return map;
+  }, [contacts]);
 
   const members = useMemo(() => {
     if (!intentsQuery.data) return [];
@@ -189,6 +203,10 @@ export default function MembersPage() {
                 address={m.address}
                 role={m.role}
                 isYou={m.isYou}
+                contactName={contactByAddress.get(m.address) ?? null}
+                onRename={(nextName) =>
+                  saveContact({ name: nextName, address: m.address })
+                }
                 delay={i * 0.04}
                 reduce={!!reduce}
               />
@@ -234,6 +252,11 @@ interface MemberRowProps {
   address: string;
   role: Role | "unknown";
   isYou: boolean;
+  /// Saved local nickname for this member's address, if any.
+  /// `null` means there's no contact yet — fall back to the
+  /// "Member ABCD" label and offer the inline rename action.
+  contactName: string | null;
+  onRename: (name: string) => void;
   delay: number;
   reduce: boolean;
 }
@@ -243,6 +266,8 @@ function MemberRow({
   address,
   role,
   isYou,
+  contactName,
+  onRename,
   delay,
   reduce,
 }: MemberRowProps) {
@@ -256,7 +281,14 @@ function MemberRow({
   // 2026-05-03 that creator and signer looked identical and that
   // someone could remove the creator from the UI; both fixed here.
   const isCreator = isCreatorAddress(walletName, address);
-  const displayName = isYou ? "You" : `Member ${initials}`;
+  // Display priority: "You" for self, the saved nickname if one
+  // exists, otherwise the avatar-initial fallback. Showing "You ·
+  // Sarah" as a hybrid would just add clutter — self always reads
+  // as "You".
+  const displayName = isYou
+    ? "You"
+    : contactName ?? `Member ${initials}`;
+  const hasNickname = !isYou && !!contactName;
   const subtitle = isCreator
     ? role === "full"
       ? "Created this wallet · spends and approves"
@@ -274,6 +306,8 @@ function MemberRow({
   const toast = useToast();
   const [confirmingRemove, setConfirmingRemove] = useState(false);
   const [editingRole, setEditingRole] = useState(false);
+  const [editingNickname, setEditingNickname] = useState(false);
+  const [nicknameDraft, setNicknameDraft] = useState(contactName ?? "");
 
   // Creator is permanent. Removing them would brick the wallet — every
   // future approval needs an authorised signer, and the creator's
@@ -281,7 +315,26 @@ function MemberRow({
   // logic for role: creator stays as proposer + approver, no edits.
   const canRemove = !isYou && !isCreator && role !== "unknown";
   const canEditRole = !isYou && !isCreator && role !== "unknown";
+  const canRename = !isYou;
   const busy = remove.isPending || updateRole.isPending;
+
+  const handleSaveNickname = () => {
+    const trimmed = nicknameDraft.trim();
+    if (!trimmed) {
+      setEditingNickname(false);
+      setNicknameDraft(contactName ?? "");
+      return;
+    }
+    try {
+      onRename(trimmed);
+      toast.success(`Saved “${trimmed}” for this member`);
+      setEditingNickname(false);
+    } catch (err) {
+      console.error("[rename-member]", err);
+      const fe = friendlyError(err, "add-friend");
+      toast.error(fe.title, { details: fe.body });
+    }
+  };
 
   const handleChangeRole = async (next: Role) => {
     if (next === role) {
@@ -349,7 +402,31 @@ function MemberRow({
           <p className="mt-0.5 text-xs text-text-soft">{subtitle}</p>
         </div>
         <RoleChip role={role} />
-        {canEditRole && !editingRole && !confirmingRemove && (
+        {canRename && !editingNickname && !editingRole && !confirmingRemove && (
+          <button
+            type="button"
+            onClick={() => {
+              setNicknameDraft(contactName ?? "");
+              setEditingNickname(true);
+            }}
+            disabled={busy}
+            aria-label={
+              hasNickname
+                ? `Rename ${displayName}`
+                : `Give a nickname to ${displayName}`
+            }
+            title={hasNickname ? "Rename" : "Give a nickname"}
+            className={
+              "rounded-soft p-1.5 text-text-soft transition-colors duration-base ease-out-soft " +
+              "hover:bg-canvas hover:text-text-strong " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
+              "disabled:cursor-not-allowed disabled:opacity-40"
+            }
+          >
+            <Tag className="h-4 w-4" aria-hidden="true" />
+          </button>
+        )}
+        {canEditRole && !editingRole && !confirmingRemove && !editingNickname && (
           <button
             type="button"
             onClick={() => setEditingRole(true)}
@@ -365,7 +442,7 @@ function MemberRow({
             <Pencil className="h-4 w-4" aria-hidden="true" />
           </button>
         )}
-        {canRemove && !confirmingRemove && !editingRole && (
+        {canRemove && !confirmingRemove && !editingRole && !editingNickname && (
           <button
             type="button"
             onClick={() => setConfirmingRemove(true)}
@@ -382,6 +459,54 @@ function MemberRow({
           </button>
         )}
       </div>
+      {editingNickname && (
+        <div className="mt-3 rounded-soft border border-border-soft bg-canvas p-3">
+          <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-text-soft">
+            {hasNickname ? "Rename" : "Give a nickname"}
+          </p>
+          <p className="mt-1 text-[11px] text-text-soft">
+            Saved on this device only — your friend never sees it.
+          </p>
+          <div className="mt-2 flex items-center gap-2">
+            <input
+              type="text"
+              autoFocus
+              value={nicknameDraft}
+              onChange={(e) => setNicknameDraft(e.target.value.slice(0, 40))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSaveNickname();
+                if (e.key === "Escape") setEditingNickname(false);
+              }}
+              placeholder="e.g. Sarah"
+              className={
+                "flex-1 rounded-soft border border-border-soft bg-surface-raised px-2.5 py-1.5 text-sm text-text-strong outline-none " +
+                "transition-[border-color,box-shadow] duration-base ease-out-soft " +
+                "focus:border-accent focus:shadow-accent-rest"
+              }
+            />
+            <button
+              type="button"
+              onClick={handleSaveNickname}
+              disabled={!nicknameDraft.trim()}
+              className={
+                "rounded-full bg-accent px-3 py-1.5 text-[11px] font-medium text-white " +
+                "transition-[background-color,transform] duration-base ease-out-soft " +
+                "hover:bg-accent-hover active:scale-[0.98] " +
+                "disabled:cursor-not-allowed disabled:opacity-50"
+              }
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditingNickname(false)}
+              className="text-[11px] text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       {editingRole && (
         <div className="mt-3 rounded-soft border border-border-soft bg-canvas p-3">
           <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-text-soft">
