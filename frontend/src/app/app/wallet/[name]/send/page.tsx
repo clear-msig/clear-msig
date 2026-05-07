@@ -662,7 +662,13 @@ function SendPage() {
         tagExecuteFailure(err, proposal);
         throw err;
       }
-      return submitted;
+      // Threshold not met inline (multi-member wallet, threshold > 1).
+      // Proposal is on chain Active; other approvers need to act
+      // before SOL moves. Mark the result so onSuccess shows
+      // "Proposal created" instead of "Sent" — without this, a
+      // multi-member proposer would see Sent UX with no balance
+      // change because the inline execute step never fires.
+      return { ...submitted, executedTxid: null, awaitingApprovers: true };
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
@@ -682,24 +688,61 @@ function SendPage() {
       queryClient.invalidateQueries({
         queryKey: ["wallet-other-chain-balances"],
       });
-      const tid =
-        (result as { executedTxid?: unknown } | undefined)?.executedTxid;
+      const r = result as
+        | {
+            executedTxid?: unknown;
+            awaitingApprovers?: boolean;
+            proposal?: unknown;
+          }
+        | undefined;
+      const tid = r?.executedTxid;
       const txid = typeof tid === "string" ? tid : null;
+      const proposalPda =
+        typeof r?.proposal === "string" ? r.proposal : null;
+      const awaitingApprovers = r?.awaitingApprovers === true;
       setExecutedTxid(txid);
-      // Persist the attempt — success when the proposal executed
-      // inline, "pending" when it landed but is still waiting on
-      // others (we record success either way; the proposal-state
-      // is separate from the broadcast-state).
-      recordAttempt({
-        walletName,
-        chainKind: 0,
-        status: "success",
-        amountDisplay: sentAmountDisplay,
-        ticker: "SOL",
-        recipientShort: sentRecipientDisplay,
-        txId: txid ?? undefined,
-        explorerUrl: txid ? solanaTxUrl(txid) : undefined,
-      });
+      // Only record the attempt as "success" when SOL actually
+      // moved (we have a chain-level txid). For multi-member
+      // wallets where the proposal is sitting in Active state
+      // waiting on approvers, the SOL has NOT moved — recording
+      // it as a successful send was lying about a state we hadn't
+      // reached yet.
+      if (txid) {
+        const recipientFull =
+          resolved.kind === "contact"
+            ? resolved.contact.address
+            : resolved.kind === "address"
+              ? resolved.address
+              : resolved.kind === "sns"
+                ? resolved.address
+                : undefined;
+        recordAttempt({
+          walletName,
+          chainKind: 0,
+          status: "success",
+          amountDisplay: sentAmountDisplay,
+          ticker: "SOL",
+          recipientShort: sentRecipientDisplay,
+          recipientFull,
+          txId: txid,
+          explorerUrl: solanaTxUrl(txid),
+        });
+      }
+      if (awaitingApprovers && proposalPda) {
+        // Land in compose with a clear toast pointing at the
+        // proposal so the user knows their SOL hasn't moved and
+        // why. Showing the SentStage here would be the same lie
+        // we just stopped recording.
+        toast.success(
+          "Proposal created — waiting on approvers to finish the send",
+          {
+            details:
+              "Your SOL hasn't moved yet. Open the proposal from the dashboard once enough friends have approved.",
+          },
+        );
+        setStage("compose");
+        return;
+      }
       setStage("sent");
     },
     onError: (err) => {
