@@ -23,8 +23,16 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import { PublicKey } from "@solana/web3.js";
-import { ArrowRight, Bell, BellRing, Contact, Lock, Settings as SettingsIcon, Users, X } from "lucide-react";
+import { ArrowRight, Bell, BellRing, Contact, Eye, Lock, Settings as SettingsIcon, Users, X } from "lucide-react";
 import { fetchOnchainMemberships, type OnchainMembership } from "@/lib/memberships/client";
+import {
+  useWatchedWallets,
+  type WatchedMembership,
+} from "@/lib/hooks/useWatchedWallets";
+import {
+  addWatchedWallet,
+  removeWatchedWallet,
+} from "@/lib/retail/watchedWallets";
 import { useRecentActivity, type RecentActivityRow } from "@/lib/hooks/useRecentActivity";
 import { useActionNeeded, type ActionNeededRow } from "@/lib/hooks/useActionNeeded";
 import { useActionNotifications } from "@/lib/hooks/useActionNotifications";
@@ -54,6 +62,7 @@ export default function WalletDashboard() {
 
   const recent = useRecentActivity(5);
   const action = useActionNeeded();
+  const watched = useWatchedWallets();
 
   const wallets = memberships.data ?? [];
   const stillLoading = memberships.isLoading;
@@ -102,7 +111,7 @@ export default function WalletDashboard() {
 
       {hasError ? (
         <MembershipsErrorCard onRetry={() => memberships.refetch()} />
-      ) : isFirstVisit ? (
+      ) : isFirstVisit && watched.rows.length === 0 ? (
         <FirstVisitCard />
       ) : (
         <WalletsGrid
@@ -111,6 +120,15 @@ export default function WalletDashboard() {
           balances={balancesQuery.data}
           loadingBalances={balancesQuery.isLoading}
           loading={stillLoading}
+          reduce={!!reduce}
+        />
+      )}
+
+      {!hasError && (
+        <WatchedWalletsSection
+          rows={watched.rows}
+          loading={watched.loading}
+          pendingByWallet={recent.pendingByWallet}
           reduce={!!reduce}
         />
       )}
@@ -825,6 +843,199 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
     <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
       {children}
     </h2>
+  );
+}
+
+// ─── Watching (Tier-4 view-only) ────────────────────────────────
+//
+// Local-first watch list. Adds a wallet by its on-chain name (with
+// the `#XXXXXX` creator suffix) to localStorage; on mount, every
+// watched wallet is re-fetched on chain so balances stay current.
+// Watching surfaces the same WalletCard the membership grid uses,
+// flagged with a 👁 badge so users see at a glance which entries
+// they can act on (their memberships) vs read-only (watched).
+//
+// Sign-action enforcement is implicit: the existing pickSigner()
+// check on every send/approve/setup flow returns null when the
+// connected wallet isn't in the intent's approver list, and the
+// flows surface that as a "your wallet isn't an approver" banner.
+// Watching adds rendering rights, not sign rights.
+
+interface WatchedWalletsSectionProps {
+  rows: WatchedMembership[];
+  loading: boolean;
+  pendingByWallet: Map<string, number>;
+  reduce: boolean;
+}
+
+function WatchedWalletsSection({
+  rows,
+  loading,
+  pendingByWallet,
+}: WatchedWalletsSectionProps) {
+  const [draft, setDraft] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const handleAdd = async () => {
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const added = addWatchedWallet(trimmed);
+      if (!added) {
+        setErr("Already watching that wallet.");
+        return;
+      }
+      setDraft("");
+      setShowForm(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (rows.length === 0 && !showForm) {
+    // Surface a single discovery affordance even when the watch
+    // list is empty, so users know the feature exists without
+    // having to dig into Settings.
+    return (
+      <section>
+        <SectionLabel>Watching</SectionLabel>
+        <button
+          type="button"
+          onClick={() => setShowForm(true)}
+          className={
+            "mt-3 inline-flex items-center gap-1.5 rounded-full border border-dashed border-border-soft bg-canvas px-3.5 py-1.5 text-xs font-medium text-text-soft " +
+            "transition-[border-color,color,transform] duration-base ease-out-soft " +
+            "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          }
+        >
+          <Eye className="h-3 w-3" aria-hidden="true" />
+          Watch a wallet
+        </button>
+      </section>
+    );
+  }
+
+  return (
+    <section>
+      <div className="flex items-center justify-between gap-2">
+        <SectionLabel>Watching</SectionLabel>
+        <button
+          type="button"
+          onClick={() => setShowForm((v) => !v)}
+          className="text-[11px] font-medium text-text-soft hover:text-accent"
+        >
+          {showForm ? "Cancel" : "+ Watch another"}
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="mt-2 flex flex-col gap-2 rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest">
+          <p className="text-[11px] text-text-soft">
+            Paste a wallet name (with the <code>#XXXXXX</code> suffix it
+            shows in the URL). Watch lets you see balances + activity
+            without sign rights.
+          </p>
+          <form
+            className="flex items-center gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleAdd();
+            }}
+          >
+            <input
+              type="text"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="treasury#A1B2C3"
+              autoFocus
+              spellCheck={false}
+              className={
+                "min-w-0 flex-1 rounded-soft border border-border-soft bg-canvas px-2.5 py-1.5 font-mono text-xs text-text-strong outline-none " +
+                "transition-[border-color,box-shadow] duration-base ease-out-soft " +
+                "focus:border-accent focus:shadow-accent-rest"
+              }
+            />
+            <button
+              type="submit"
+              disabled={busy || !draft.trim()}
+              className={
+                "rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white " +
+                "transition-[background-color,transform] duration-base ease-out-soft " +
+                "hover:bg-accent-hover active:scale-[0.98] " +
+                "disabled:cursor-not-allowed disabled:opacity-50"
+              }
+            >
+              {busy ? "Adding…" : "Watch"}
+            </button>
+          </form>
+          {err && (
+            <p className="text-[11px] text-warning" role="alert">
+              {err}
+            </p>
+          )}
+        </div>
+      )}
+
+      {(rows.length > 0 || loading) && (
+        <ul className="mt-3 flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
+          {loading && rows.length === 0 ? (
+            <li className="px-5 py-3 text-xs text-text-soft">
+              Loading watched wallets…
+            </li>
+          ) : (
+            rows.map((m) => {
+              const display = toDisplayName(m.wallet_name ?? "");
+              const pending = pendingByWallet.get(m.wallet) ?? 0;
+              return (
+                <li key={m.wallet}>
+                  <div className="group flex items-center justify-between gap-3 px-5 py-3">
+                    <Link
+                      href={`/app/wallet/${encodeURIComponent(
+                        m.wallet_name ?? "",
+                      )}`}
+                      className="flex min-w-0 flex-1 items-center gap-3"
+                    >
+                      <Eye
+                        className="h-4 w-4 shrink-0 text-text-soft"
+                        strokeWidth={2}
+                        aria-hidden="true"
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-text-strong">
+                          {display || "Wallet"}
+                          <span className="ml-1.5 text-[10px] font-normal uppercase tracking-wide text-text-soft">
+                            View only
+                          </span>
+                        </p>
+                        {pending > 0 && (
+                          <p className="mt-0.5 text-[11px] text-warning">
+                            {pending} active proposal
+                            {pending === 1 ? "" : "s"}
+                          </p>
+                        )}
+                      </div>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => removeWatchedWallet(m.wallet_name ?? "")}
+                      className="shrink-0 rounded-soft px-2 py-1 text-[11px] text-text-soft transition-colors hover:text-warning"
+                      aria-label={`Stop watching ${display}`}
+                    >
+                      Stop
+                    </button>
+                  </div>
+                </li>
+              );
+            })
+          )}
+        </ul>
+      )}
+
+    </section>
   );
 }
 
