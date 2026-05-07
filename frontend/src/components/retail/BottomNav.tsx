@@ -14,6 +14,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Plus, UserCircle2, type LucideIcon } from "lucide-react";
 import clsx from "clsx";
+import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
 
 type NavItem = {
   href: string;
@@ -23,21 +24,25 @@ type NavItem = {
   /// Used so "Home" stays highlighted while drilled into a wallet or
   /// a request detail page.
   matchPrefixes?: string[];
+  /// Identifier so consumers can attach things like a pending-approvals
+  /// badge only to specific tabs (here: Home).
+  id?: "home" | "new" | "account";
 };
 
 const items: NavItem[] = [
   {
+    id: "home",
     href: "/app/wallet",
     label: "Home",
     Icon: Home,
     matchPrefixes: ["/app/wallet", "/app/proposals"],
   },
-  { href: "/welcome", label: "New", Icon: Plus },
+  { id: "new", href: "/welcome", label: "New", Icon: Plus },
   // "Account" instead of "Settings" so it doesn't read as the same
   // affordance as the wallet hub's per-wallet Settings link. /app/settings
   // is identity + network + sign-out; the wallet's Settings is rules,
   // limits, allowlist, chains.
-  { href: "/app/settings", label: "Account", Icon: UserCircle2 },
+  { id: "account", href: "/app/settings", label: "Account", Icon: UserCircle2 },
 ];
 
 function isActive(pathname: string | null, item: NavItem): boolean {
@@ -51,6 +56,12 @@ function isActive(pathname: string | null, item: NavItem): boolean {
 
 export function BottomNav() {
   const pathname = usePathname();
+  // Multisig-specific signal: how many proposals across all my
+  // wallets need MY approval right now? The badge sits on the Home
+  // tab because the dashboard is where the full ActionNeeded list
+  // already renders. Capped at 9+ for layout stability.
+  const { rows: actionRows } = useActionNeeded();
+  const pendingCount = actionRows.length;
 
   return (
     <nav
@@ -65,11 +76,19 @@ export function BottomNav() {
       <ul className="flex items-stretch">
         {items.map((item) => {
           const active = isActive(pathname, item);
+          const showBadge = item.id === "home" && pendingCount > 0;
           return (
             <li key={item.href} className="flex-1">
               <Link
                 href={item.href}
                 aria-current={active ? "page" : undefined}
+                aria-label={
+                  showBadge
+                    ? `${item.label} — ${pendingCount} ${
+                        pendingCount === 1 ? "request needs" : "requests need"
+                      } your approval`
+                    : item.label
+                }
                 className={clsx(
                   "flex min-h-tap-lg flex-col items-center justify-center gap-1 px-2 py-2",
                   "transition-colors duration-base ease-out-soft",
@@ -79,11 +98,25 @@ export function BottomNav() {
                     : "text-text-soft hover:text-text-strong",
                 )}
               >
-                <item.Icon
-                  className="h-5 w-5"
-                  aria-hidden="true"
-                  strokeWidth={2}
-                />
+                <span className="relative inline-flex">
+                  <item.Icon
+                    className="h-5 w-5"
+                    aria-hidden="true"
+                    strokeWidth={2}
+                  />
+                  {showBadge && (
+                    <span
+                      aria-hidden="true"
+                      className={clsx(
+                        "absolute -right-1.5 -top-1 inline-flex h-4 min-w-[1rem] items-center justify-center",
+                        "rounded-full bg-warning px-1 text-[10px] font-semibold leading-none text-white",
+                        "ring-2 ring-canvas",
+                      )}
+                    >
+                      {pendingCount > 9 ? "9+" : pendingCount}
+                    </span>
+                  )}
+                </span>
                 <span className="text-[11px] font-medium leading-none">
                   {item.label}
                 </span>
