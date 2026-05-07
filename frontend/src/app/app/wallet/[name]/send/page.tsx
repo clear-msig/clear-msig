@@ -107,6 +107,24 @@ function formatLamports(lamports: bigint, displayDecimals = 4): string {
 
 // 32 random bytes as a 0x-prefixed hex string. Each proposal needs a
 // fresh nonce so the message hash never repeats.
+// Tag/read helpers for the "execute failed after propose succeeded"
+// case. We mark the thrown error with the proposal address so the
+// onError handler can render a "retry from the proposal page" CTA
+// without inspecting opaque error strings.
+const EXECUTE_FAIL_KEY = "__clearMsigExecuteFailedProposal";
+
+function tagExecuteFailure(err: unknown, proposalPda: string): void {
+  if (err && typeof err === "object") {
+    (err as Record<string, unknown>)[EXECUTE_FAIL_KEY] = proposalPda;
+  }
+}
+
+function readExecuteFailureProposal(err: unknown): string | null {
+  if (!err || typeof err !== "object") return null;
+  const v = (err as Record<string, unknown>)[EXECUTE_FAIL_KEY];
+  return typeof v === "string" && v.length > 0 ? v : null;
+}
+
 function generateNonceHex(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
@@ -600,27 +618,36 @@ function SendPage() {
         (userIsApprover ? 1 : 0) /* propose either auto-set or we just set it */;
       if (approvalsAfterUs >= intent.approvalThreshold) {
         setPhase("executing");
+        let executed: unknown;
         try {
-          const executed = await backendApi.executeProposal(
-            walletName,
-            proposal,
-            {},
-          );
-          // Solana sends route through the program's `execute_custom`
-          // (chain_kind=0 stays on the local path), so the response
-          // shape is { txid, path, status } — not the broadcast
-          // wrapper EVM uses. Pull txid out so SentStage can link
-          // the user to the actual on-chain transfer.
-          const tid = (executed as { txid?: unknown })?.txid;
-          if (typeof tid === "string" && tid.length > 0) {
-            return { ...submitted, executedTxid: tid };
-          }
+          executed = await backendApi.executeProposal(walletName, proposal, {});
         } catch (err) {
-          // Same as above — execute is best-effort. The proposal
-          // is approved on chain; an explicit retry from the
-          // proposal-detail page will land it.
-          console.warn("[send] approve ok but execute failed", err);
+          // Don't swallow — without this the user sees a "Sent" UX
+          // even though the SOL never moved (balance stays the same
+          // and they think the dashboard is broken). Re-throw with
+          // the proposal address attached so onError can offer a
+          // direct "retry from the proposal page" link.
+          tagExecuteFailure(err, proposal);
+          throw err;
         }
+        // Solana sends route through the program's `execute_custom`
+        // (chain_kind=0 stays on the local path), so the response
+        // shape is { txid, path, status } — not the broadcast
+        // wrapper EVM uses. Pull txid out so SentStage can link
+        // the user to the actual on-chain transfer.
+        const tid = (executed as { txid?: unknown })?.txid;
+        if (typeof tid === "string" && tid.length > 0) {
+          return { ...submitted, executedTxid: tid };
+        }
+        // execute returned without a txid — backend reached a code
+        // path that didn't broadcast. Same UX risk as the throw
+        // above (user sees "Sent" with no on-chain effect), so
+        // surface it as a failure with the proposal link.
+        const err = new Error(
+          "The execute step finished but didn't return a transaction id. The proposal is on chain — open it from the dashboard to retry.",
+        );
+        tagExecuteFailure(err, proposal);
+        throw err;
       }
       return submitted;
     },
@@ -664,8 +691,24 @@ function SendPage() {
     },
     onError: (err) => {
       console.error("[send]", err);
+      const executeFailedProposal = readExecuteFailureProposal(err);
       const fe = friendlyError(err, "send");
-      toast.error(fe.title, { details: fe.body });
+      // When the proposal reached chain but the execute step blew
+      // up, surface a specific call-to-action: the proposal already
+      // exists, so the user can open it and retry without
+      // re-signing propose+approve.
+      if (executeFailedProposal) {
+        toast.error(
+          "Send didn't go through — proposal created but didn't execute",
+          {
+            details:
+              fe.body +
+              ` Open this proposal in the dashboard to retry executing it.`,
+          },
+        );
+      } else {
+        toast.error(fe.title, { details: fe.body });
+      }
       const stderr =
         (err as { payload?: { stderr?: string } })?.payload?.stderr ?? undefined;
       recordAttempt({
@@ -675,9 +718,15 @@ function SendPage() {
         amountDisplay: sentAmountDisplay,
         ticker: "SOL",
         recipientShort: sentRecipientDisplay,
-        errorBrief: fe.title,
+        errorBrief: executeFailedProposal
+          ? "Proposal created but execute failed"
+          : fe.title,
         errorStderr: stderr ? stderr.slice(0, 800) : undefined,
       });
+      // Even on failure, the propose step may have succeeded — the
+      // proposal account is on chain. Refresh the proposals list so
+      // the user can find and retry it from the dashboard.
+      queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
       setStage("compose");
     },
   });
