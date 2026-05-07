@@ -23,21 +23,25 @@ import {
   Check,
   Contact,
   Copy,
+  Download,
   ExternalLink,
   Lock,
   LogOut,
+  Share2,
   ShieldCheck,
   Wifi,
 } from "lucide-react";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { useActionNotifications } from "@/lib/hooks/useActionNotifications";
+import { useInstallPrompt } from "@/lib/hooks/useInstallPrompt";
 
 export default function SettingsPage() {
   const router = useRouter();
   const wallet = useWallet();
   const reduce = useReducedMotion();
   const notif = useActionNotifications();
+  const install = useInstallPrompt();
 
   const address = wallet.publicKey?.toBase58() ?? "";
   const short = useMemo(
@@ -241,6 +245,12 @@ export default function SettingsPage() {
           the always-available switch. */}
       <NotificationsSettingRow notif={notif} />
 
+      {/* Install — surfaces the manifest-level PWA install on
+          browsers that support it; renders Add-to-Home-Screen
+          instructions on iOS Safari. Important on iOS specifically
+          because notifications only fire once installed-as-PWA. */}
+      <InstallSettingRow install={install} />
+
       {/* Network indicator */}
       <section className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
@@ -342,6 +352,76 @@ function NotificationsSettingRow({
           Enable
         </button>
       )}
+    </section>
+  );
+}
+
+// ─── Install row ─────────────────────────────────────────────────
+
+function InstallSettingRow({
+  install,
+}: {
+  install: ReturnType<typeof useInstallPrompt>;
+}) {
+  // Hide entirely when there's no install path (already installed,
+  // or unsupported browser/context). No row beats a row that says
+  // "you can't install" — saves vertical space.
+  if (install.status === "installed" || install.status === "unsupported") {
+    return null;
+  }
+  if (install.status === "manual") {
+    // iOS Safari path. There's no API to fire the share sheet
+    // programmatically, so we render the standard instruction
+    // pattern with the right icon to match what's on the user's
+    // toolbar.
+    return (
+      <section className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
+          <Download className="h-5 w-5" strokeWidth={1.75} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-text-strong">
+            Install Clear on this device
+          </p>
+          <p className="mt-0.5 text-xs text-text-soft">
+            Tap the{" "}
+            <Share2 className="-mt-0.5 inline h-3.5 w-3.5" aria-hidden="true" />{" "}
+            Share button in Safari, then{" "}
+            <span className="font-medium text-text-strong">
+              Add to Home Screen
+            </span>
+            . Notifications work once installed.
+          </p>
+        </div>
+      </section>
+    );
+  }
+  return (
+    <section className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
+        <Download className="h-5 w-5" strokeWidth={1.75} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-text-strong">
+          Install Clear on this device
+        </p>
+        <p className="mt-0.5 text-xs text-text-soft">
+          Adds a launcher icon and runs in its own window — quicker than
+          finding the tab.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={() => void install.prompt()}
+        className={
+          "shrink-0 rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white " +
+          "transition-[background-color,transform] duration-base ease-out-soft " +
+          "hover:bg-accent-hover active:scale-[0.98] " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+        }
+      >
+        Install
+      </button>
     </section>
   );
 }
