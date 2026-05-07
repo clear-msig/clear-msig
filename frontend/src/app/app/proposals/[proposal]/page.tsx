@@ -17,7 +17,7 @@
 // Power-user surfaces (raw bitmaps, signable preview hex, PDA
 // inspection) are intentionally not rendered here.
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
@@ -30,6 +30,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Check,
+  Link2,
   Loader2,
   X,
 } from "lucide-react";
@@ -160,7 +161,16 @@ function Loaded({
   const walletDisplay = toDisplayName(walletName);
 
   const approverCount = intent.approvers.length;
+  // The number that actually matters: how many approvals does the
+  // program need to flip the proposal to Approved? Without this we
+  // were rendering "1 of 3" when threshold = 2, making people think
+  // they were 2 approvals away when they were really only 1 away.
+  const approvalThreshold = intent.approvalThreshold;
   const approvalsCollected = countBits(proposal.approvalBitmap);
+  const approvalsRemaining = Math.max(
+    0,
+    approvalThreshold - approvalsCollected,
+  );
   const isActive = proposal.status === ProposalStatus.Active;
 
   const myAddress = wallet.publicKey?.toBase58() ?? "";
@@ -267,12 +277,21 @@ function Loaded({
 
         <div className="mt-5 flex items-center justify-center gap-3">
           <ApprovalProgress
-            collected={approvalsCollected}
-            total={approverCount}
+            collected={Math.min(approvalsCollected, approvalThreshold)}
+            total={approvalThreshold}
           />
           <p className="text-sm font-medium text-text-strong">
-            {approvalsCollected} of {approverCount} approved
+            {approvalsCollected} of {approvalThreshold} approved
           </p>
+        </div>
+        {approverCount > approvalThreshold && (
+          <p className="mt-1 text-xs text-text-soft">
+            {approverCount} approvers eligible · {approvalThreshold}{" "}
+            approval{approvalThreshold === 1 ? "" : "s"} required
+          </p>
+        )}
+        <div className="mt-5">
+          <ShareProposalButton />
         </div>
       </section>
 
@@ -292,7 +311,7 @@ function Loaded({
               { label: "In wallet", value: walletDisplay },
               {
                 label: "Approvals so far",
-                value: `${approvalsCollected} of ${approverCount}`,
+                value: `${approvalsCollected} of ${approvalThreshold}`,
               },
               {
                 label: "Created",
@@ -350,9 +369,13 @@ function Loaded({
       {isActive && isApprover && alreadyApproved && (
         <InfoCard
           title="You've approved this"
-          body={`Waiting on ${approverCount - approvalsCollected} more friend${
-            approverCount - approvalsCollected === 1 ? "" : "s"
-          } to approve.`}
+          body={
+            approvalsRemaining === 0
+              ? "Threshold reached — about to send."
+              : `Waiting on ${approvalsRemaining} more approval${
+                  approvalsRemaining === 1 ? "" : "s"
+                }.`
+          }
         />
       )}
 
@@ -407,6 +430,63 @@ function ApprovalProgress({
         />
       ))}
     </div>
+  );
+}
+
+// Copy-link affordance. The proposal PDA is the slug, so the URL
+// is stable and shareable — paste it in the wallet's group chat
+// and members land on this page logged in to their own wallet.
+// Shows a transient "Copied" state on success and falls back to
+// the document.execCommand path for browsers (or contexts like
+// HTTP localhost) where the Clipboard API is unavailable.
+function ShareProposalButton() {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    const url =
+      typeof window !== "undefined" ? window.location.href : "";
+    if (!url) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = url;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* swallow — surfaced as no-state-change to the user */
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className={
+        "inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3.5 py-1.5 text-xs font-medium text-text-soft " +
+        "transition-[border-color,color,transform] duration-base ease-out-soft " +
+        "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+      }
+    >
+      {copied ? (
+        <>
+          <Check className="h-3.5 w-3.5" strokeWidth={3} aria-hidden="true" />
+          Link copied
+        </>
+      ) : (
+        <>
+          <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
+          Copy link to share
+        </>
+      )}
+    </button>
   );
 }
 
