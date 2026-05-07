@@ -92,6 +92,46 @@ Subsequent updates: just `fly deploy`.
 
 Note the keypair lives in a Fly secret (encrypted at rest, never logged). It's still a payer keypair on a remote host though — only use a devnet keypair you don't mind exposing if Fly itself is compromised.
 
+### Or: GitHub Actions
+
+`.github/workflows/deploy-fly.yml` is wired so anyone with repo access can trigger a deploy without flyctl on their laptop. Set `FLY_API_TOKEN` once in repo Secrets, then `gh workflow run "Deploy backend to Fly"` (or click Run from the Actions tab).
+
+## Backend → Railway (alternative to Fly)
+
+Same Dockerfile, same entrypoint, same env vars. Railway gives a similar shape (Docker-based, persistent volumes, push-to-deploy). Useful as a second region or if Fly's pricing/quota stops fitting.
+
+```bash
+# 1. railway.app → New Project → Deploy from GitHub → pick this repo.
+#    Railway auto-detects railway.json + Dockerfile.
+
+# 2. Service Settings → Variables → set:
+#      CLEAR_MSIG_KEYPAIR_BASE64   (base64 of payer.json)
+#      CLEAR_MSIG_SIGNER_BASE64    (base64 of signer.json)
+#      CLEAR_MSIG_ATTESTATION_DIR  /data/attestations
+#      CLEAR_MSIG_URL              https://api.devnet.solana.com
+#      RUST_LOG                    info
+
+# 3. Service Settings → Volumes → New Volume → mount path /data
+#    Without this, every redeploy wipes DKG attestations and the
+#    same wallet-bricking failure mode that hit us on Fly.
+
+# 4. Service Settings → Networking → Generate Domain (or attach a custom one).
+
+# 5. Vercel: NEXT_PUBLIC_BACKEND_API_URL → that domain.
+```
+
+Subsequent updates: push to main (Railway auto-deploys), or `gh workflow run "Deploy backend to Railway"` (set `RAILWAY_TOKEN` repo secret first; see `.github/workflows/deploy-railway.yml`).
+
+## Public RPC fallbacks
+
+The frontend's EVM read paths fail over across multiple providers when one's slow / rate-limited / down. Wired in `frontend/src/lib/chain/evmRpcFallback.ts`:
+
+  - PublicNode (current default) → BlastAPI → 1RPC → Tenderly → Ankr
+
+Order is "first one to answer wins"; logical errors (revert, bad params) propagate without retry. Only EVM **read** calls (balance / gas / nonce / eth_call) failover; broadcast (`eth_sendRawTransaction`) stays single-URL by design — re-sending a signed tx to multiple providers risks a half-landed broadcast.
+
+The Solana side has its own failover wrapper in `frontend/src/lib/solana/cluster.ts` (primary → public devnet) and a power-user override in Settings.
+
 ## Frontend → Vercel
 
 Two ways: dashboard import, or CLI.

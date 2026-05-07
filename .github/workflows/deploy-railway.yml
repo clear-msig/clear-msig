@@ -1,0 +1,49 @@
+name: Deploy backend to Railway
+
+# Manual deploy of the backend-api + bundled clear-msig CLI to
+# Railway. Railway auto-deploys on push to main once a GitHub
+# integration is connected, so the most common path is "merge → wait".
+# This workflow exists for the cases where you want to FORCE a redeploy
+# (e.g. an env var changed but no source did) or trigger from a branch.
+#
+# Setup:
+#   1. railway.app → New Project → Deploy from GitHub → pick this repo
+#   2. Service Settings → Tokens → Create a project token
+#   3. Add `RAILWAY_TOKEN` as a repository secret here on GitHub
+#
+# Trigger from the Actions tab or `gh workflow run deploy-railway`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Railway service name (defaults to the project's only service)"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: railway up
+    runs-on: ubuntu-latest
+    concurrency: deploy-railway
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: |
+          curl -fsSL https://railway.com/install.sh | sh
+          echo "$HOME/.railway/bin" >> "$GITHUB_PATH"
+
+      - name: railway up
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          if [ -n "${{ inputs.service }}" ]; then
+            railway up --service "${{ inputs.service }}" --ci
+          else
+            railway up --ci
+          fi
