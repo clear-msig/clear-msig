@@ -573,11 +573,20 @@ function SendPage() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
       queryClient.invalidateQueries({ queryKey: ["my-organizations"] });
-      // Refresh the vault balance so the post-send compose stage
-      // shows the new number, not the cached pre-send one.
+      // Refresh every place the SOL balance is shown so the
+      // post-send compose stage, hero, /chains row, and portfolio
+      // panel all reflect the new number. Three distinct query
+      // keys live in the codebase for the same vault balance —
+      // each consumer that decided it wanted a different return
+      // type added its own. Invalidate all of them on success;
+      // the staleTime / refetchInterval will hydrate them again.
       queryClient.invalidateQueries({ queryKey: ["wallet-balance"] });
       queryClient.invalidateQueries({
         queryKey: ["wallet-vault-balance-lamports"],
+      });
+      queryClient.invalidateQueries({ queryKey: ["chain-balance"] });
+      queryClient.invalidateQueries({
+        queryKey: ["wallet-other-chain-balances"],
       });
       const tid =
         (result as { executedTxid?: unknown } | undefined)?.executedTxid;

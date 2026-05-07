@@ -15,7 +15,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
@@ -104,7 +104,19 @@ export default function ReceivePage() {
     return out;
   }, [solanaAddress, chainsQuery.data]);
 
-  const [selectedKind, setSelectedKind] = useState<number>(0);
+  // Initial chain selection — honour ?chain=<apiName> deep link so
+  // the chains-list "QR" button can jump straight to the right
+  // address on /receive without an extra tap.
+  const search = useSearchParams();
+  const initialKind = useMemo(() => {
+    const want = search?.get("chain");
+    if (!want) return 0;
+    const meta = CHAIN_CATALOG.find(
+      (c) => c.apiName.toLowerCase() === want.toLowerCase(),
+    );
+    return meta?.kind ?? 0;
+  }, [search]);
+  const [selectedKind, setSelectedKind] = useState<number>(initialKind);
 
   // If the only bound chain is Solana, no need for the picker — but
   // we still render the option so the page works for the common case.

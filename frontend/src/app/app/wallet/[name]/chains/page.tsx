@@ -20,7 +20,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import { Connection, PublicKey } from "@solana/web3.js";
-import { ArrowLeft, Check, Copy, Plus } from "lucide-react";
+import { ArrowLeft, Check, Copy, Plus, QrCode } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { findVaultAddress } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
@@ -155,6 +155,7 @@ export default function ChainsPage() {
                   chain={chain}
                   binding={binding ?? null}
                   address={address}
+                  walletName={name}
                   delay={i * 0.04}
                   reduce={!!reduce}
                   isImplicit={chain.kind === 0}
@@ -194,6 +195,7 @@ interface ActiveChainRowProps {
   chain: ChainMeta;
   binding: ChainBindingResponse | null;
   address: string | null;
+  walletName: string;
   delay: number;
   reduce: boolean;
   isImplicit: boolean;
@@ -203,6 +205,7 @@ function ActiveChainRow({
   chain,
   binding,
   address,
+  walletName,
   delay,
   reduce,
   isImplicit,
@@ -340,43 +343,61 @@ function ActiveChainRow({
         </div>
       </div>
       {address ? (
-        <button
-          type="button"
-          onClick={handleCopy}
-          aria-label={
-            copied
-              ? `${chain.name} address copied`
-              : `Copy ${chain.name} address`
-          }
-          className={
-            "group flex w-full items-center justify-between gap-3 rounded-soft border border-border-soft bg-canvas px-3 py-2 " +
-            "transition-[border-color,transform,box-shadow] duration-base ease-out-soft " +
-            "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-rest active:scale-[0.98] " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-          }
-        >
-          <span className="truncate text-left font-mono text-xs text-text-strong">
-            {shortAddr}
-          </span>
-          <span
+        <div className="flex items-stretch gap-2">
+          <button
+            type="button"
+            onClick={handleCopy}
+            aria-label={
+              copied
+                ? `${chain.name} address copied`
+                : `Copy ${chain.name} address`
+            }
             className={
-              "flex shrink-0 items-center gap-1 text-[11px] font-semibold uppercase tracking-wide transition-colors duration-base ease-out-soft " +
-              (copied ? "text-accent" : "text-text-soft group-hover:text-accent")
+              "group flex flex-1 items-center justify-between gap-3 rounded-soft border border-border-soft bg-canvas px-3 py-2 " +
+              "transition-[border-color,transform,box-shadow] duration-base ease-out-soft " +
+              "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-rest active:scale-[0.98] " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
             }
           >
-            {copied ? (
-              <>
-                <Check className="h-3 w-3" strokeWidth={3} />
-                Copied
-              </>
-            ) : (
-              <>
-                <Copy className="h-3 w-3" />
-                Copy
-              </>
-            )}
-          </span>
-        </button>
+            <span className="truncate text-left font-mono text-xs text-text-strong">
+              {shortAddr}
+            </span>
+            <span
+              className={
+                "flex shrink-0 items-center gap-1 text-[11px] font-semibold uppercase tracking-wide transition-colors duration-base ease-out-soft " +
+                (copied ? "text-accent" : "text-text-soft group-hover:text-accent")
+              }
+            >
+              {copied ? (
+                <>
+                  <Check className="h-3 w-3" strokeWidth={3} />
+                  Copied
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3 w-3" />
+                  Copy
+                </>
+              )}
+            </span>
+          </button>
+          {/* Quick "show QR" — links to the per-chain receive view.
+              Useful for sharing the address with a sender's mobile
+              wallet without a copy-paste dance. */}
+          <Link
+            href={`/app/wallet/${encodeURIComponent(walletName)}/receive?chain=${chain.apiName}`}
+            aria-label={`Show ${chain.name} address as QR code`}
+            className={
+              "flex shrink-0 items-center gap-1 rounded-soft border border-border-soft bg-canvas px-3 text-[11px] font-semibold uppercase tracking-wide text-text-soft " +
+              "transition-[border-color,transform,box-shadow,color] duration-base ease-out-soft " +
+              "hover:-translate-y-0.5 hover:border-accent hover:text-accent hover:shadow-card-rest active:scale-[0.98] " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+            }
+          >
+            <QrCode className="h-3 w-3" />
+            QR
+          </Link>
+        </div>
       ) : (
         <p className="text-xs text-text-soft">
           Address pending. Refresh once the dWallet finishes spinning up.

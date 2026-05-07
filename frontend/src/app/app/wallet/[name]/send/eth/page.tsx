@@ -367,9 +367,15 @@ function SendEthPage() {
         explorerUrl: explorerUrl ?? undefined,
       });
       queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
-      // Refresh the wallet's Sepolia balance so the next compose
-      // sees the post-send number, not the cached pre-send one.
+      // Refresh every place ETH balance is shown so the post-send
+      // compose, /chains row, and portfolio panel all reflect the
+      // new number. Multiple keys for the same data — each consumer
+      // picked its own type/shape; invalidate them all.
       queryClient.invalidateQueries({ queryKey: ["wallet-eth-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["chain-balance"] });
+      queryClient.invalidateQueries({
+        queryKey: ["wallet-other-chain-balances"],
+      });
       setStage("sent");
     },
     onError: (err) => {
