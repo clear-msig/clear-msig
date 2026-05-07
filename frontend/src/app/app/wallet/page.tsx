@@ -17,16 +17,17 @@
 // The legacy wizard (CreateWalletCard, WalletPanel) and WorkflowTips
 // are intentionally NOT rendered here — they're being retired.
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import { PublicKey } from "@solana/web3.js";
-import { ArrowRight, Bell, Contact, Lock, Settings as SettingsIcon, Users } from "lucide-react";
+import { ArrowRight, Bell, BellRing, Contact, Lock, Settings as SettingsIcon, Users, X } from "lucide-react";
 import { fetchOnchainMemberships, type OnchainMembership } from "@/lib/memberships/client";
 import { useRecentActivity, type RecentActivityRow } from "@/lib/hooks/useRecentActivity";
 import { useActionNeeded, type ActionNeededRow } from "@/lib/hooks/useActionNeeded";
+import { useActionNotifications } from "@/lib/hooks/useActionNotifications";
 import { useBatchApprove } from "@/lib/hooks/useBatchApprove";
 import { listBatches } from "@/lib/hooks/useBatchSend";
 import { findVaultAddress, ProposalStatus } from "@/lib/msig";
@@ -413,6 +414,29 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
   const batch = useBatchApprove();
+  // Per-tab dismissal so we don't nag a user who's already declined.
+  // Persisted in sessionStorage so a navigate-away-and-back keeps it
+  // hidden, but a fresh tab gets the prompt again — they may have
+  // changed their mind, or be on a different device.
+  const notif = useActionNotifications();
+  const [dismissedNotifPrompt, setDismissedNotifPrompt] = useState<boolean>(
+    () => {
+      if (typeof window === "undefined") return false;
+      try {
+        return (
+          window.sessionStorage.getItem("clear.notif-prompt.dismissed") ===
+          "1"
+        );
+      } catch {
+        return false;
+      }
+    },
+  );
+  const showNotifPrompt =
+    notif.supported &&
+    notif.permission === "default" &&
+    rows.length > 0 &&
+    !dismissedNotifPrompt;
   const running = batch.progress !== null && batch.progress.completed < batch.progress.total && !batch.progress.error;
   const showApproveAll = rows.length >= 2;
 
@@ -474,6 +498,52 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
         <p className="mt-2 text-[11px] text-text-soft">
           Approving fires one wallet popup per request. Tap Approve in each.
         </p>
+      )}
+
+      {showNotifPrompt && (
+        <div className="mt-3 flex items-center gap-3 rounded-soft border border-accent/30 bg-accent/[0.04] px-3 py-2">
+          <BellRing
+            className="h-4 w-4 shrink-0 text-accent"
+            strokeWidth={2}
+            aria-hidden="true"
+          />
+          <p className="min-w-0 flex-1 text-[11px] text-text-strong">
+            Want a browser ping when something else needs you?{" "}
+            <span className="text-text-soft">
+              Only fires when this tab is in the background.
+            </span>
+          </p>
+          <button
+            type="button"
+            onClick={() => void notif.request()}
+            className={
+              "shrink-0 rounded-full bg-accent px-2.5 py-1 text-[11px] font-medium text-white " +
+              "transition-[background-color,transform] duration-base ease-out-soft " +
+              "hover:bg-accent-hover active:scale-[0.98] " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+            }
+          >
+            Enable
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setDismissedNotifPrompt(true);
+              try {
+                window.sessionStorage.setItem(
+                  "clear.notif-prompt.dismissed",
+                  "1",
+                );
+              } catch {
+                /* storage blocked — keep state local to this view */
+              }
+            }}
+            aria-label="Dismiss notifications prompt"
+            className="shrink-0 rounded-soft p-1 text-text-soft transition-colors hover:bg-canvas hover:text-text-strong"
+          >
+            <X className="h-3 w-3" aria-hidden="true" />
+          </button>
+        </div>
       )}
 
       <ul className="mt-3 flex flex-col divide-y divide-border-soft">

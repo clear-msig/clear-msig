@@ -11,6 +11,7 @@
 // instead inside HeaderBar's left-sliding drawer.
 
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
+import { useActionNotifications } from "@/lib/hooks/useActionNotifications";
 import { HeaderBar } from "@/components/layout/HeaderBar";
 import { PreAlphaBanner } from "@/components/layout/PreAlphaBanner";
 import { WorkspaceSidebar } from "@/components/layout/WorkspaceSidebar";
@@ -35,6 +36,12 @@ export default function WorkspaceLayout({
 function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
   const sidebar = useSidebar();
   const expanded = sidebar?.expanded ?? true;
+  // Multisig collab signal: when something lands in the user's
+  // pending-approvals list and the tab is hidden, fire a browser
+  // Notification. Hook is rendered here so it runs across every
+  // /app/* page and survives the route changes that destroy lower
+  // components.
+  useActionNotifications();
   return (
     <main className="relative min-h-screen overflow-x-hidden bg-background px-3 pb-32 pt-20 font-sans sm:px-4 sm:pb-16 sm:pt-20 lg:px-6 lg:pt-16">
       <HeaderBar />
