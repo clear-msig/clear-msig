@@ -21,7 +21,12 @@ import type { TxAttempt } from "@/lib/retail/txLog";
 import { friendlyStatus, friendlyIntentLabel } from "@/lib/retail/labels";
 
 export interface ActivityCsvOptions {
-  walletName: string;
+  /// Optional global wallet name. When set, every output row uses
+  /// this name in the Wallet column AND the attempt-join filters
+  /// to attempts on this wallet. When omitted, each row uses its
+  /// own r.walletName — required for the cross-wallet export
+  /// (rows can come from any wallet the user belongs to).
+  walletName?: string;
   rows: RecentActivityRow[];
   /// Optional per-attempt log (localStorage). When the proposalPda
   /// can be inferred from a recorded send, the matching tx id +
@@ -61,9 +66,19 @@ const ATTEMPT_JOIN_WINDOW_MS = 30 * 60 * 1000;
 export function buildActivityCsv(opts: ActivityCsvOptions): string {
   const { walletName, rows, attempts = [], approvalsByProposal } = opts;
 
-  const successAttempts = attempts
-    .filter((a) => a.walletName === walletName && a.status === "success")
-    .sort((a, b) => a.ts - b.ts);
+  // Per-wallet attempt index. Used for the time-proximity join
+  // below — bucketing by wallet up-front saves filtering for
+  // every row in the cross-wallet path.
+  const attemptsByWallet = new Map<string, TxAttempt[]>();
+  for (const a of attempts) {
+    if (a.status !== "success") continue;
+    const list = attemptsByWallet.get(a.walletName) ?? [];
+    list.push(a);
+    attemptsByWallet.set(a.walletName, list);
+  }
+  for (const list of attemptsByWallet.values()) {
+    list.sort((a, b) => a.ts - b.ts);
+  }
 
   const lines: string[] = [HEADER.join(",")];
   for (const r of rows) {
@@ -76,11 +91,14 @@ export function buildActivityCsv(opts: ActivityCsvOptions): string {
     const type = friendlyIntentLabel(r.intentTemplate);
 
     // Time-proximity attempt match. proposedAt is on-chain seconds;
-    // attempt ts is browser ms. Convert + check window.
+    // attempt ts is browser ms. Convert + check window. Use the
+    // per-row wallet to scope attempts so a cross-wallet export
+    // doesn't pull a Wallet-A attempt against a Wallet-B proposal.
     const proposedMs = Number(r.proposedAt) * 1000;
     let bestMatch: TxAttempt | undefined;
     let bestDelta = Number.POSITIVE_INFINITY;
-    for (const a of successAttempts) {
+    const candidates = attemptsByWallet.get(r.walletName) ?? [];
+    for (const a of candidates) {
       const delta = Math.abs(a.ts - proposedMs);
       if (delta < bestDelta && delta <= ATTEMPT_JOIN_WINDOW_MS) {
         bestDelta = delta;
@@ -93,10 +111,15 @@ export function buildActivityCsv(opts: ActivityCsvOptions): string {
     const ticker = bestMatch?.ticker ?? "";
     const txHash = bestMatch?.txId ?? "";
 
+    // Per-row wallet name when no global one was passed (the
+    // cross-wallet export path); otherwise the legacy single-wallet
+    // value. Same column position either way.
+    const walletForRow = walletName ?? r.walletName;
+
     lines.push(
       [
         dateUtc,
-        walletName,
+        walletForRow,
         type,
         status,
         approvalsStr,

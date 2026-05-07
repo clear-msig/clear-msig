@@ -792,7 +792,22 @@ function RecentActivitySection({ rows, reduce }: RecentActivityProps) {
       {...motionProps}
       transition={{ duration: 0.2 }}
     >
-      <SectionLabel>Recent activity</SectionLabel>
+      <div className="flex items-center justify-between gap-2">
+        <SectionLabel>Recent activity</SectionLabel>
+        <Link
+          href="/app/activity"
+          className={
+            "inline-flex items-center gap-1 rounded-full border border-border-soft bg-surface-raised px-2.5 py-1 text-[11px] font-medium text-text-soft " +
+            "transition-[border-color,color,transform] duration-base ease-out-soft " +
+            "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          }
+          title="See every proposal across all wallets, with filters + CSV export"
+        >
+          See all
+          <ArrowRight className="h-3 w-3" aria-hidden="true" />
+        </Link>
+      </div>
       <ul className="mt-3 flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
         {rows.map((row) => (
           <ActivityRow key={row.proposalPda} row={row} />
