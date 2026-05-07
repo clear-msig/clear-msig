@@ -64,6 +64,7 @@ import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
+import { RecentRecipientsChips } from "@/components/retail/RecentRecipientsChips";
 import {
   SignPayloadPreview,
   type SignPayloadDetail,
@@ -331,6 +332,7 @@ function SendErc20Page() {
         amountDisplay: amount.trim(),
         ticker: tickerSafe,
         recipientShort: shortEvmAddress(trimmedRecipient),
+        recipientFull: trimmedRecipient,
         txId: broadcast?.tx_id,
         explorerUrl: explorerUrl ?? undefined,
       });
@@ -704,6 +706,12 @@ function ComposeStage({
             </p>
           )}
         </Field>
+
+        <RecentRecipientsChips
+          walletName={walletName}
+          chainKind={ERC20_CHAIN_KIND}
+          onPick={(addr) => setRecipient(addr)}
+        />
 
         <Field
           label="Recipient"

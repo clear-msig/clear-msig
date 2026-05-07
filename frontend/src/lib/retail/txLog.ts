@@ -41,6 +41,10 @@ export interface TxAttempt {
   amountDisplay?: string;
   ticker?: string;
   recipientShort?: string;
+  /// Full recipient address. Optional only because pre-v1.1 entries
+  /// don't have it; new entries should always set it so the recents
+  /// chip strip on the send pages can pre-fill the input.
+  recipientFull?: string;
   txId?: string;
   explorerUrl?: string;
   errorBrief?: string;
@@ -112,6 +116,41 @@ export function listAttempts(walletName: string, limit?: number): TxAttempt[] {
   const filtered = all.filter((a) => a.walletName === walletName);
   filtered.sort((a, b) => b.ts - a.ts);
   return typeof limit === "number" ? filtered.slice(0, limit) : filtered;
+}
+
+/// Distinct most-recent recipients for a wallet+chain. Drives the
+/// quick-pick chip strip above the recipient input on the EVM send
+/// pages. We dedupe by full address (case-insensitive for EVM) so
+/// repeated sends to the same place don't waste chip slots, and
+/// only return entries that recorded the full address — pre-v1.1
+/// rows lack `recipientFull` and we can't pre-fill the input from
+/// a truncated display. Caller decides the limit.
+export function recentRecipients(
+  walletName: string,
+  chainKind: number,
+  limit: number = 4,
+): { address: string; ticker: string; ts: number }[] {
+  const all = readAll()
+    .filter(
+      (a) =>
+        a.walletName === walletName &&
+        a.chainKind === chainKind &&
+        a.status === "success" &&
+        typeof a.recipientFull === "string" &&
+        a.recipientFull.length > 0,
+    )
+    .sort((x, y) => y.ts - x.ts);
+  const seen = new Set<string>();
+  const out: { address: string; ticker: string; ts: number }[] = [];
+  for (const a of all) {
+    const addr = a.recipientFull!;
+    const key = addr.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ address: addr, ticker: a.ticker ?? "", ts: a.ts });
+    if (out.length >= limit) break;
+  }
+  return out;
 }
 
 /// Clear every attempt for a single wallet. Used when the user

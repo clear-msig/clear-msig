@@ -65,6 +65,7 @@ import {
 } from "@/lib/chain/eth";
 import { looksLikeEnsName, resolveEnsName } from "@/lib/chain/ens";
 import { QrScanButton } from "@/components/retail/QrScanButton";
+import { RecentRecipientsChips } from "@/components/retail/RecentRecipientsChips";
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
@@ -418,6 +419,7 @@ function SendEthPage() {
         amountDisplay: amount.trim(),
         ticker: "ETH",
         recipientShort: sentTo,
+        recipientFull: effectiveRecipient ?? undefined,
         txId: broadcast?.tx_id,
         explorerUrl: explorerUrl ?? undefined,
       });
@@ -765,6 +767,12 @@ function ComposeStage({
             </p>
           )}
         </Field>
+
+        <RecentRecipientsChips
+          walletName={walletName}
+          chainKind={ETH_CHAIN_KIND}
+          onPick={(addr) => setRecipient(addr)}
+        />
 
         <Field
           label="Recipient"
