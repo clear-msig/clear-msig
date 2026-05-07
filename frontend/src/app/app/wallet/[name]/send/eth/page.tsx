@@ -49,6 +49,7 @@ import {
   explorerLabelForChainKind,
   type BroadcastResultLike,
 } from "@/lib/explorer";
+import { recordAttempt } from "@/lib/retail/txLog";
 import { IntentType } from "@/lib/msig";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -342,14 +343,28 @@ function SendEthPage() {
         broadcast,
         appConfig.preAlpha.destinationRpcUrl,
       );
+      const explorerLabel = explorerLabelForChainKind(
+        broadcast?.chain_kind,
+        appConfig.preAlpha.destinationRpcUrl,
+      );
       setSentLabel({
         amount: amount.trim(),
         to: shortEvmAddress(trimmedRecipient),
         explorerUrl,
-        explorerLabel: explorerLabelForChainKind(
-          broadcast?.chain_kind,
-          appConfig.preAlpha.destinationRpcUrl,
-        ),
+        explorerLabel,
+      });
+      // Persist the success in the per-wallet tx log for the
+      // "Recent send attempts" widget — gives the user durable
+      // proof of the send instead of a transient toast.
+      recordAttempt({
+        walletName,
+        chainKind: ETH_CHAIN_KIND,
+        status: "success",
+        amountDisplay: amount.trim(),
+        ticker: "ETH",
+        recipientShort: shortEvmAddress(trimmedRecipient),
+        txId: broadcast?.tx_id,
+        explorerUrl: explorerUrl ?? undefined,
       });
       queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
       // Refresh the wallet's Sepolia balance so the next compose
@@ -361,6 +376,23 @@ function SendEthPage() {
       console.error("[send-eth]", err);
       const fe = friendlyError(err, "send");
       toast.error(fe.title, { details: fe.body });
+      // Persist the failure so the user can find the error after
+      // the toast disappears. Keep stderr (when available from a
+      // BackendApiError payload) for the "Show details" expander.
+      const stderr =
+        (err as { payload?: { stderr?: string } })?.payload?.stderr ?? undefined;
+      recordAttempt({
+        walletName,
+        chainKind: ETH_CHAIN_KIND,
+        status: "failed",
+        amountDisplay: amount.trim(),
+        ticker: "ETH",
+        recipientShort: trimmedRecipient
+          ? shortEvmAddress(trimmedRecipient)
+          : undefined,
+        errorBrief: fe.title,
+        errorStderr: stderr ? stderr.slice(0, 800) : undefined,
+      });
       setStage("compose");
     },
   });

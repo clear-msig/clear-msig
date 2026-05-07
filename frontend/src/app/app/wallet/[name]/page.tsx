@@ -17,7 +17,7 @@
 // in the codebase and will be cleaned up after the retail surface
 // covers create / send / approve / member management.
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
@@ -30,6 +30,8 @@ import { findVaultAddress } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
 import { useRecentActivity, type RecentActivityRow } from "@/lib/hooks/useRecentActivity";
 import { useActionNeeded, type ActionNeededRow } from "@/lib/hooks/useActionNeeded";
+import { useTxAttempts } from "@/lib/hooks/useTxAttempts";
+import type { TxAttempt } from "@/lib/retail/txLog";
 import { useBatchApprove } from "@/lib/hooks/useBatchApprove";
 import { ProposalStatus } from "@/lib/msig";
 import { Button } from "@/components/retail/Button";
@@ -134,6 +136,7 @@ export default function WalletDetailPage() {
 
   const allActivity = useRecentActivity(50);
   const allAction = useActionNeeded();
+  const sendAttempts = useTxAttempts(name, 5);
 
   const walletActivity = useMemo(
     () =>
@@ -182,6 +185,12 @@ export default function WalletDetailPage() {
           miss them entirely on a small viewport. */}
       {walletAction.length > 0 && (
         <ActionNeededSection rows={walletAction} reduce={!!reduce} />
+      )}
+      {/* Recent send attempts (success + failure). Persisted in
+          localStorage so the user has a durable record of what
+          happened — failed sends used to vanish with the toast. */}
+      {sendAttempts.length > 0 && (
+        <TxAttemptsSection rows={sendAttempts} reduce={!!reduce} />
       )}
       <NextStepsStripe
         name={name}
@@ -509,6 +518,92 @@ function formatChainAmount(
   const truncated = fracStr.slice(0, displayDecimals).replace(/0+$/, "");
   if (truncated.length === 0) return `${negative ? "-" : ""}${whole}`;
   return `${negative ? "-" : ""}${whole}.${truncated}`;
+}
+
+// ─── Recent send attempts (success + failure log) ─────────────────
+//
+// Backed by localStorage via lib/retail/txLog. Surfaces what just
+// happened so the user has durable proof of a successful send and
+// a forensic trail for failures (raw stderr behind a "Show
+// details" expander).
+
+function TxAttemptsSection({
+  rows,
+  reduce,
+}: {
+  rows: TxAttempt[];
+  reduce: boolean;
+}) {
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  const [expanded, setExpanded] = useState<string | null>(null);
+  return (
+    <motion.section
+      {...motionProps}
+      transition={{ duration: 0.2 }}
+      className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
+    >
+      <header className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-medium text-text-strong">
+          Recent send attempts
+        </h2>
+        <span className="text-xs text-text-soft">{rows.length}</span>
+      </header>
+      <ul className="mt-3 flex flex-col divide-y divide-border-soft">
+        {rows.map((row) => {
+          const isOpen = expanded === row.id;
+          const stamp = relativeTime(row.ts);
+          return (
+            <li key={row.id} className="py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-text-strong">
+                    {row.status === "success" ? (
+                      <span className="text-accent">✓ </span>
+                    ) : (
+                      <span className="text-warning">! </span>
+                    )}
+                    {row.amountDisplay ?? "—"} {row.ticker ?? ""}
+                    {row.recipientShort ? ` → ${row.recipientShort}` : ""}
+                  </p>
+                  <p className="mt-0.5 truncate text-xs text-text-soft">
+                    {stamp}
+                    {row.status === "failed" && row.errorBrief
+                      ? ` · ${row.errorBrief}`
+                      : ""}
+                  </p>
+                </div>
+                {row.status === "success" && row.explorerUrl ? (
+                  <a
+                    href={row.explorerUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 rounded-pill border border-border-soft bg-canvas px-3 py-1 text-[11px] font-medium text-text-strong transition hover:border-accent/50 hover:text-accent"
+                  >
+                    View tx ↗
+                  </a>
+                ) : row.status === "failed" && row.errorStderr ? (
+                  <button
+                    type="button"
+                    onClick={() => setExpanded(isOpen ? null : row.id)}
+                    className="shrink-0 rounded-pill border border-border-soft bg-canvas px-3 py-1 text-[11px] font-medium text-text-strong transition hover:border-warning/50 hover:text-warning"
+                  >
+                    {isOpen ? "Hide details" : "Show details"}
+                  </button>
+                ) : null}
+              </div>
+              {row.status === "failed" && isOpen && row.errorStderr && (
+                <pre className="mt-2 overflow-x-auto rounded-soft border border-border-soft bg-canvas px-3 py-2 text-[11px] leading-relaxed text-text-soft">
+                  {row.errorStderr}
+                </pre>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </motion.section>
+  );
 }
 
 // ─── Quick actions row ─────────────────────────────────────────────

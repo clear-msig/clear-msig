@@ -67,6 +67,7 @@ import { QuickSendInput } from "@/components/retail/QuickSendInput";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { txUrl as solanaTxUrl } from "@/lib/explorer";
+import { recordAttempt } from "@/lib/retail/txLog";
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
@@ -580,13 +581,40 @@ function SendPage() {
       });
       const tid =
         (result as { executedTxid?: unknown } | undefined)?.executedTxid;
-      setExecutedTxid(typeof tid === "string" ? tid : null);
+      const txid = typeof tid === "string" ? tid : null;
+      setExecutedTxid(txid);
+      // Persist the attempt — success when the proposal executed
+      // inline, "pending" when it landed but is still waiting on
+      // others (we record success either way; the proposal-state
+      // is separate from the broadcast-state).
+      recordAttempt({
+        walletName,
+        chainKind: 0,
+        status: "success",
+        amountDisplay: sentAmountDisplay,
+        ticker: "SOL",
+        recipientShort: sentRecipientDisplay,
+        txId: txid ?? undefined,
+        explorerUrl: txid ? solanaTxUrl(txid) : undefined,
+      });
       setStage("sent");
     },
     onError: (err) => {
       console.error("[send]", err);
       const fe = friendlyError(err, "send");
       toast.error(fe.title, { details: fe.body });
+      const stderr =
+        (err as { payload?: { stderr?: string } })?.payload?.stderr ?? undefined;
+      recordAttempt({
+        walletName,
+        chainKind: 0,
+        status: "failed",
+        amountDisplay: sentAmountDisplay,
+        ticker: "SOL",
+        recipientShort: sentRecipientDisplay,
+        errorBrief: fe.title,
+        errorStderr: stderr ? stderr.slice(0, 800) : undefined,
+      });
       setStage("compose");
     },
   });
