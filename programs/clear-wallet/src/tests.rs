@@ -1249,3 +1249,211 @@ fn test_execute_spl_token_transfer() {
 
     println!("  TOKEN_TRANSFER: {transfer_amount} tokens transferred successfully!");
 }
+
+/// End-to-end SOL transfer through execute_custom — the path two
+/// recent regressions silently broke in production:
+///
+///   1. solana_transfer.json shipped without an `accounts` /
+///      `instructions` block (442a4af). The on-chain handler
+///      iterated an empty instructions array, returned success,
+///      and no SOL moved. Confirmed live on devnet
+///      (2c71B…rA8 — only the payer's gas fee budged).
+///
+///   2. Once the JSON was fixed, the CLI's resolve_remaining_accounts
+///      passed ALL three accounts (system / vault / destination)
+///      while execute_custom auto-injects vault + system_program.
+///      Position [2] received system_program, validate_remaining_accounts
+///      hit AccountAddressMismatch (0x1785). Fixed in 296696d by
+///      filtering auto-injected entries out of remaining_accounts.
+///
+/// This test exercises the same shape end-to-end inside quasar-svm
+/// — a future regression in either layer fails here before it can
+/// hit production.
+#[test]
+fn test_execute_sol_transfer() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let approver = new_keypair();
+    let wallet_name = "sol-transfer";
+    let transfer_amount = 100_000_000u64; // 0.1 SOL — same shape as the live test we just ran
+
+    // 1. Create the wallet.
+    let (instruction, accounts) = create_wallet_ix(
+        payer, wallet_name, &[pubkey_of(&proposer)], &[pubkey_of(&approver)], 1,
+    );
+    svm.process_instruction(&instruction, &accounts).unwrap();
+
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let (vault, _) = find_vault_address(&wallet, &crate::ID);
+
+    // 2. Add the SOL transfer intent at slot 3 via the AddIntent
+    //    meta path. Same intent shape as
+    //    examples/intents/solana_transfer.json: 2 params + 3
+    //    accounts (system / vault / param-0) + 1 System Transfer
+    //    instruction.
+    let built_intent = intents::transfer_sol::build(&intents::transfer_sol::IntentConfig {
+        proposers: &[pubkey_of(&proposer)],
+        approvers: &[pubkey_of(&approver)],
+        approval_threshold: 1,
+        cancellation_threshold: 1,
+        timelock_seconds: 0,
+    });
+    let intent_body = built_intent.serialize_body(&wallet, 0, 3, 3);
+    let (new_intent_address, _) = find_intent_address(&wallet, 3, &crate::ID);
+
+    propose_approve_execute(ProposeApproveExecuteArgs {
+        svm: &mut svm,
+        payer,
+        wallet,
+        wallet_name,
+        intent: add_intent,
+        proposal_index: 0,
+        proposer: &proposer,
+        approver: &approver,
+        params_data: intent_body,
+        msg_fn: &add_intent_msg,
+        execute_remaining: vec![
+            AccountMeta::new(payer, true),
+            AccountMeta::new(new_intent_address, false),
+        ],
+        execute_extra_accounts: vec![funded_account(payer), empty_account(new_intent_address)],
+    });
+    assert_eq!(svm.get_account(&new_intent_address).unwrap().data[0], 2, "intent created");
+
+    // 3. Fund the vault with enough SOL to cover the transfer +
+    //    rent-exempt minimum. System Transfer between System-owned
+    //    accounts works as long as the source has the balance.
+    let fund_amount = transfer_amount + 5_000_000; // 0.1 + 0.005 SOL
+    let fund_vault_ix = solana_instruction::Instruction {
+        program_id: quasar_svm::system_program::ID,
+        accounts: vec![
+            AccountMeta::new(payer, true),
+            AccountMeta::new(vault, false),
+        ],
+        data: {
+            let mut d = vec![2, 0, 0, 0]; // System Transfer discriminator
+            d.extend_from_slice(&fund_amount.to_le_bytes());
+            d
+        },
+    };
+    svm.process_instruction(
+        &fund_vault_ix,
+        &[funded_account(payer), empty_account(vault)],
+    )
+    .unwrap();
+    let vault_pre = svm.get_account(&vault).map(|a| a.lamports).unwrap_or(0);
+    assert!(
+        vault_pre >= fund_amount,
+        "vault should be funded; got {vault_pre}",
+    );
+
+    // 4. Build params_data for the SOL transfer proposal.
+    //    Params per transfer_sol.rs: [destination(address), amount(u64)].
+    let destination = Pubkey::new_unique();
+    let mut params_data = Vec::new();
+    params_data.extend_from_slice(destination.as_ref());      // 32 bytes
+    params_data.extend_from_slice(&transfer_amount.to_le_bytes()); // 8 bytes
+
+    // 5. Render the human-readable message the on-chain builder
+    //    will reproduce exactly. Template is
+    //    "transfer {1} lamports to {0}". Param[0] is base58'd
+    //    address, param[1] is decimal lamports.
+    let rendered_template = format!(
+        "transfer {transfer_amount} lamports to {}",
+        bs58::encode(destination.as_ref()).into_string(),
+    );
+    let propose_msg = wrap_offchain(
+        format!(
+            "expires {}: propose {rendered_template}{}",
+            format_timestamp(DEFAULT_EXPIRY),
+            message_suffix(wallet_name, 1),
+        )
+        .as_bytes(),
+    );
+    let approve_msg = wrap_offchain(
+        format!(
+            "expires {}: approve {rendered_template}{}",
+            format_timestamp(DEFAULT_EXPIRY),
+            message_suffix(wallet_name, 1),
+        )
+        .as_bytes(),
+    );
+
+    let proposal_address = get_proposal_address(new_intent_address, 1);
+
+    // 6. Propose the SOL transfer.
+    let instruction = build_propose_ix(ProposeArgs {
+        payer,
+        wallet,
+        intent: new_intent_address,
+        proposal_index: 1,
+        expiry: DEFAULT_EXPIRY,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_message(&proposer, &propose_msg),
+        params_data: params_data.clone(),
+    });
+    let result = svm.process_instruction(
+        &instruction,
+        &[funded_account(payer), empty_account(proposal_address)],
+    );
+    assert!(result.is_ok(), "propose SOL transfer failed: {:?}", result.raw_result);
+
+    // 7. Approve.
+    let instruction = build_approve_ix(
+        wallet,
+        new_intent_address,
+        proposal_address,
+        DEFAULT_EXPIRY,
+        0,
+        sign_message(&approver, &approve_msg),
+    );
+    let result = svm.process_instruction(&instruction, &[]);
+    assert!(result.is_ok(), "approve SOL transfer failed: {:?}", result.raw_result);
+
+    // 8. Execute. CRITICAL: only the destination is passed in
+    //    remaining_accounts. The on-chain handler auto-injects
+    //    system_program (Static matching declared) + vault (Vault
+    //    source). Passing them in remaining_accounts here would
+    //    misalign positions and trigger AccountAddressMismatch
+    //    (0x1785) — that's exactly the regression this test
+    //    guards.
+    let (execute_instruction, _) = build_execute_ix(
+        wallet,
+        new_intent_address,
+        proposal_address,
+        vec![
+            // ONLY the destination — vault and system_program are
+            // auto-injected by execute_custom from `declared`.
+            AccountMeta::new(destination, false),
+        ],
+    );
+    let result = svm.process_instruction(
+        &execute_instruction,
+        &[empty_account(destination)],
+    );
+    assert!(
+        result.is_ok(),
+        "execute SOL transfer failed: {:?}",
+        result.raw_result,
+    );
+
+    // 9. Verify lamports actually moved. This is the assertion
+    //    that would have caught the silent no-op outright.
+    let dest_lamports = svm.get_account(&destination).map(|a| a.lamports).unwrap_or(0);
+    assert_eq!(
+        dest_lamports, transfer_amount,
+        "destination should have received exactly {transfer_amount} lamports",
+    );
+    let vault_post = svm.get_account(&vault).map(|a| a.lamports).unwrap_or(0);
+    assert_eq!(
+        vault_post,
+        vault_pre - transfer_amount,
+        "vault should have been debited by exactly {transfer_amount} lamports",
+    );
+}
