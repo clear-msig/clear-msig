@@ -69,6 +69,7 @@ import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { txUrl as solanaTxUrl } from "@/lib/explorer";
 import { recordAttempt } from "@/lib/retail/txLog";
 import { resolveSnsName, looksLikeSnsName } from "@/lib/chain/sns";
+import { QrScanButton } from "@/components/retail/QrScanButton";
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
@@ -123,6 +124,18 @@ function readExecuteFailureProposal(err: unknown): string | null {
   if (!err || typeof err !== "object") return null;
   const v = (err as Record<string, unknown>)[EXECUTE_FAIL_KEY];
   return typeof v === "string" && v.length > 0 ? v : null;
+}
+
+// Strip a Solana wallet-scheme prefix from a scanned QR. Phantom +
+// most Solana QR sources emit `solana:<address>?amount=…&memo=…`;
+// we keep just the address. Anything we can't parse passes through
+// unchanged so users can also scan plain base58.
+function parseSolanaRecipientFromQr(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  const m = trimmed.match(/^solana:([1-9A-HJ-NP-Za-km-z]{32,44})/);
+  if (m) return m[1];
+  return trimmed;
 }
 
 function generateNonceHex(): string {
@@ -1097,14 +1110,23 @@ function ComposeStage({
       )}
 
       <div className="mt-6 flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
-        <Field
-          label="To"
-          value={recipientText}
-          onChange={setRecipientText}
-          placeholder="Sarah, or paste a wallet address"
-          autoFocus
-          maxLength={64}
-        />
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <Field
+              label="To"
+              value={recipientText}
+              onChange={setRecipientText}
+              placeholder="Sarah, or paste a wallet address"
+              autoFocus
+              maxLength={64}
+            />
+          </div>
+          <QrScanButton
+            ariaLabel="Scan recipient QR"
+            title="Scan a recipient QR"
+            onResult={(v) => setRecipientText(parseSolanaRecipientFromQr(v))}
+          />
+        </div>
         <RecipientStatus
           resolved={resolved}
           savedNewContact={savedNewContact}

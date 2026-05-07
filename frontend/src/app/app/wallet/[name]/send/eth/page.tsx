@@ -64,6 +64,7 @@ import {
   weiToEth,
 } from "@/lib/chain/eth";
 import { looksLikeEnsName, resolveEnsName } from "@/lib/chain/ens";
+import { QrScanButton } from "@/components/retail/QrScanButton";
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
@@ -85,6 +86,22 @@ import { appConfig } from "@/lib/config";
 const ETH_CHAIN_KIND = 1;
 
 type Stage = "compose" | "sending" | "sent";
+
+// Strip an EIP-681 / wallet-scheme prefix from a scanned QR. We
+// don't fully parse the URI (chain id + value query params); the
+// recipient field cares about the address. Anything we can't
+// recognise passes through unchanged so the user can paste raw
+// content too.
+function parseEvmRecipientFromQr(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  // ethereum:0x… or pay-ethereum:0x… (EIP-681).
+  const m = trimmed.match(/^(?:pay-)?ethereum:(0x[0-9a-fA-F]{40})/);
+  if (m) return m[1];
+  // Otherwise let the input field's existing validation surface
+  // any issues — better to pass through than silently swallow.
+  return trimmed;
+}
 
 export default function SendEthPageWrapper() {
   return (
@@ -759,17 +776,30 @@ function ComposeStage({
                 : undefined
           }
         >
-          <input
-            type="text"
-            value={recipient}
-            onChange={(e) => setRecipient(e.target.value)}
-            placeholder="0x… or vitalik.eth"
-            className={
-              "w-full rounded-card border border-border-soft bg-surface-raised px-4 py-3 font-mono text-sm text-text-strong outline-none " +
-              "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-              "focus:border-accent focus:shadow-accent-rest"
-            }
-          />
+          <div className="flex items-stretch gap-2">
+            <input
+              type="text"
+              value={recipient}
+              onChange={(e) => setRecipient(e.target.value)}
+              placeholder="0x… or vitalik.eth"
+              className={
+                "flex-1 rounded-card border border-border-soft bg-surface-raised px-4 py-3 font-mono text-sm text-text-strong outline-none " +
+                "transition-[border-color,box-shadow] duration-base ease-out-soft " +
+                "focus:border-accent focus:shadow-accent-rest"
+              }
+            />
+            <QrScanButton
+              ariaLabel="Scan recipient QR"
+              title="Scan a recipient QR"
+              onResult={(v) => setRecipient(parseEvmRecipientFromQr(v))}
+              className={
+                "shrink-0 inline-flex h-auto items-center justify-center rounded-card border border-border-soft bg-surface-raised px-3 text-text-soft " +
+                "transition-[border-color,color,transform] duration-base ease-out-soft " +
+                "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+              }
+            />
+          </div>
           {ensResolving && (
             <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-text-soft">
               <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
