@@ -243,6 +243,27 @@ function ActiveChainRow({
             chain.displayDecimals,
           );
 
+  // Low-balance threshold per chain (smallest units). Below this we
+  // flag the row with a subtle "Low" pill so the user can fund
+  // before they hit insufficient-balance during a send. Tuned to
+  // cover roughly one transfer at peak network conditions:
+  //   Solana   : 1_000_000   lamports = 0.001 SOL
+  //   EVM      : 2e15        wei      = 0.002 ETH
+  //   Bitcoin  : 10_000      sats     ≈ one peak-fee P2WPKH
+  // Zcash skipped — we don't fetch balance for it today.
+  const LOW_BALANCE_THRESHOLDS: Record<number, bigint> = {
+    0: 1_000_000n,
+    1: 2_000_000_000_000_000n,
+    2: 10_000n,
+    4: 2_000_000_000_000_000n, // ERC-20 path uses ETH for gas
+  };
+  const lowBalanceThreshold = LOW_BALANCE_THRESHOLDS[chain.kind];
+  const isLowBalance =
+    balanceQuery.data !== undefined &&
+    balanceQuery.data !== null &&
+    lowBalanceThreshold !== undefined &&
+    balanceQuery.data < lowBalanceThreshold;
+
   const handleCopy = async () => {
     if (!address) return;
     try {
@@ -282,21 +303,36 @@ function ActiveChainRow({
             {isImplicit ? "Built in" : "Active"}
           </span>
           {address && (
-            <span className="text-xs tabular-nums text-text-soft">
-              {balanceQuery.isLoading ? (
-                <span aria-label="Loading balance">…</span>
-              ) : balanceLabel !== null ? (
-                <>
-                  <span className="font-medium text-text-strong">
-                    {balanceLabel}
-                  </span>{" "}
-                  {chain.ticker}
-                </>
-              ) : balanceQuery.isError ? (
-                <span title="Couldn’t fetch balance from the chain RPC">—</span>
-              ) : (
-                <span title="No public balance source for this chain yet">
-                  —
+            <span className="flex flex-col items-end gap-0.5 text-xs tabular-nums text-text-soft">
+              <span>
+                {balanceQuery.isLoading ? (
+                  <span aria-label="Loading balance">…</span>
+                ) : balanceLabel !== null ? (
+                  <>
+                    <span
+                      className={
+                        "font-medium " +
+                        (isLowBalance ? "text-warning" : "text-text-strong")
+                      }
+                    >
+                      {balanceLabel}
+                    </span>{" "}
+                    {chain.ticker}
+                  </>
+                ) : balanceQuery.isError ? (
+                  <span title="Couldn’t fetch balance from the chain RPC">—</span>
+                ) : (
+                  <span title="No public balance source for this chain yet">
+                    —
+                  </span>
+                )}
+              </span>
+              {isLowBalance && (
+                <span
+                  className="inline-flex items-center gap-0.5 text-[10px] font-semibold uppercase tracking-wide text-warning"
+                  title="Top up this chain to enable sends"
+                >
+                  ↓ Low
                 </span>
               )}
             </span>
