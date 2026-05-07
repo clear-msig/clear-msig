@@ -47,7 +47,9 @@ import {
   SHAPE_LABEL,
 } from "@/lib/retail/walletAppearance";
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
+import { useWalletPortfolio } from "@/lib/hooks/useWalletPortfolio";
 import { formatUsd } from "@/lib/retail/priceConversion";
+import { CHAIN_CATALOG as CHAIN_CATALOG_REF } from "@/lib/retail/chains";
 
 export default function WalletDetailPage() {
   const params = useParams<{ name: string }>();
@@ -318,24 +320,13 @@ function Hero({
         </p>
       )}
 
-      {/* Balance — biggest visual hierarchy after the name. SOL is
-          the primary currency; secondary chains pick up balances in
-          their own ticker once those queries land. */}
-      <div className="mt-5">
-        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-soft">
-          Balance
-        </p>
-        {loadingBalance ? (
-          <div className="mx-auto mt-1 h-9 w-40 animate-pulse rounded bg-border-soft" />
-        ) : (
-          <p className="mt-1 font-display text-display-xs text-text-strong">
-            {balance ? balance.amount : "0"}{" "}
-            <span className="text-text-strong/70">
-              {balance?.ticker ?? "SOL"}
-            </span>
-          </p>
-        )}
-      </div>
+      {/* Wallet value — total USD across every bound chain plus the
+          per-chain breakdown. SOL stays as the primary tile so
+          single-chain wallets feel the same; multi-chain wallets get
+          the aggregate as the headline.
+          Demo prices today (priceConversion.ts is a stub); the
+          "demo prices" disclaimer keeps the UI honest. */}
+      <PortfolioPanel walletName={name} fallbackBalance={balance} loadingFallback={loadingBalance} />
 
       {/* Hero footer: just members + settings. The pre-trim version
           had five competing pills (Spending rules / Weekly limit /
@@ -396,6 +387,128 @@ function Hero({
       </div>
     </motion.section>
   );
+}
+
+// ─── Portfolio (total USD + per-chain breakdown) ───────────────────
+//
+// Sums every bound chain's balance × demo USD price. SOL is always
+// present; ETH/BTC/Zcash join when bound. Renders in the Hero in
+// place of the SOL-only number, so single-chain wallets see no
+// regression and multi-chain wallets get the aggregate they expect.
+function PortfolioPanel({
+  walletName,
+  fallbackBalance,
+  loadingFallback,
+}: {
+  walletName: string;
+  fallbackBalance: { amount: string; ticker: string } | null;
+  loadingFallback: boolean;
+}) {
+  const portfolio = useWalletPortfolio(walletName);
+
+  // Multi-chain check — only when a non-Solana chain has loaded.
+  const hasMultipleChains =
+    portfolio.breakdown.filter((c) => c.raw !== null && c.raw > 0n).length >
+    1 || portfolio.breakdown.length > 1;
+
+  if (!hasMultipleChains) {
+    // Single-chain fallback: keep the existing SOL-only display so
+    // wallets that haven't bound other chains feel identical to
+    // before this change. Less noise, no demo-price disclaimer.
+    return (
+      <div className="mt-5">
+        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-soft">
+          Balance
+        </p>
+        {loadingFallback ? (
+          <div className="mx-auto mt-1 h-9 w-40 animate-pulse rounded bg-border-soft" />
+        ) : (
+          <p className="mt-1 font-display text-display-xs text-text-strong">
+            {fallbackBalance ? fallbackBalance.amount : "0"}{" "}
+            <span className="text-text-strong/70">
+              {fallbackBalance?.ticker ?? "SOL"}
+            </span>
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  const breakdownText = portfolio.breakdown
+    .filter((c) => c.raw !== null)
+    .map((c) => {
+      const meta = chainByKindOnce(c.kind);
+      if (!meta) return null;
+      const amount = formatChainAmount(c.raw!, meta.smallestPerWhole, meta.displayDecimals);
+      return `${amount} ${c.ticker}`;
+    })
+    .filter((s): s is string => s !== null)
+    .join(" · ");
+
+  return (
+    <div className="mt-5">
+      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-soft">
+        Wallet value
+      </p>
+      {portfolio.isLoading && portfolio.totalUsd === 0 ? (
+        <div className="mx-auto mt-1 h-9 w-40 animate-pulse rounded bg-border-soft" />
+      ) : (
+        <>
+          <p className="mt-1 font-display text-display-xs text-text-strong">
+            {formatUsd(portfolio.totalUsd)}
+          </p>
+          {breakdownText && (
+            <p className="mt-1 text-xs text-text-soft">{breakdownText}</p>
+          )}
+          <p
+            className="mt-1 text-[10px] text-text-soft/70"
+            title="Prices are demo values today (priceConversion.ts is a stub). Treat as a sketch, not a quote."
+          >
+            demo prices
+            {portfolio.unknownPriceChains.length > 0
+              ? ` · no quote for ${portfolio.unknownPriceChains.join(", ")}`
+              : ""}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Lookup the catalog row for a chain_kind. CHAIN_CATALOG itself is
+// imported at the top of the file (alongside the other chain
+// imports) — keep it that way; mid-file imports are not valid ES
+// module syntax.
+function chainByKindOnce(
+  kind: number,
+): { ticker: string; smallestPerWhole: bigint; displayDecimals: number } | null {
+  const found = CHAIN_CATALOG_REF.find((c) => c.kind === kind);
+  if (!found) return null;
+  return {
+    ticker: found.ticker,
+    smallestPerWhole: found.smallestPerWhole,
+    displayDecimals: found.displayDecimals,
+  };
+}
+
+function formatChainAmount(
+  raw: bigint,
+  smallestPerWhole: bigint,
+  displayDecimals: number,
+): string {
+  if (raw === 0n) return "0";
+  const negative = raw < 0n;
+  const abs = negative ? -raw : raw;
+  const whole = abs / smallestPerWhole;
+  const fraction = abs - whole * smallestPerWhole;
+  if (displayDecimals === 0 || fraction === 0n) {
+    return `${negative ? "-" : ""}${whole}`;
+  }
+  const wholeDigits = smallestPerWhole.toString().length - 1;
+  const fracStr = fraction.toString().padStart(wholeDigits, "0");
+  const truncated = fracStr.slice(0, displayDecimals).replace(/0+$/, "");
+  if (truncated.length === 0) return `${negative ? "-" : ""}${whole}`;
+  return `${negative ? "-" : ""}${whole}.${truncated}`;
 }
 
 // ─── Quick actions row ─────────────────────────────────────────────
