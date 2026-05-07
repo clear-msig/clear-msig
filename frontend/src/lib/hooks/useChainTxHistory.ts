@@ -19,6 +19,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { useConnection } from "@/lib/wallet";
+import { fetchEvmTxHistory } from "@/lib/chain/eth";
+import { fetchBitcoinTxHistory } from "@/lib/chain/btc";
 
 export interface ChainTxRow {
   /// Chain-native tx identifier (Solana signature, EVM tx hash,
@@ -85,4 +87,56 @@ async function fetchSolanaSignatures(
           : JSON.stringify(sig.err).slice(0, 120)
         : null,
   }));
+}
+
+// ── EVM (Blockscout) ─────────────────────────────────────────────
+
+export function useEvmTxHistory(
+  address: string | null,
+  limit: number = 10,
+) {
+  return useQuery({
+    queryKey: ["chain-tx-history-evm", address ?? "", limit],
+    queryFn: async (): Promise<ChainTxRow[]> => {
+      if (!address) return [];
+      const rows = await fetchEvmTxHistory(address, limit);
+      return rows.map((r) => ({
+        txId: r.hash,
+        ts: r.timestamp || null,
+        slot: r.blockNumber,
+        status: r.status === "failed" ? "failed" : "confirmed",
+        errorBrief: r.errorBrief,
+      }));
+    },
+    enabled: !!address,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    retry: 1,
+  });
+}
+
+// ── Bitcoin (mempool.space) ──────────────────────────────────────
+
+export function useBitcoinTxHistory(
+  address: string | null,
+  limit: number = 10,
+) {
+  return useQuery({
+    queryKey: ["chain-tx-history-btc", address ?? "", limit],
+    queryFn: async (): Promise<ChainTxRow[]> => {
+      if (!address) return [];
+      const rows = await fetchBitcoinTxHistory(address, limit);
+      return rows.map((r) => ({
+        txId: r.txId,
+        ts: r.blockTime,
+        slot: r.blockHeight ?? 0,
+        status: r.confirmed ? "confirmed" : "confirmed", // BTC pending is still "confirmed" enough for our UI
+        errorBrief: null,
+      }));
+    },
+    enabled: !!address,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    retry: 1,
+  });
 }

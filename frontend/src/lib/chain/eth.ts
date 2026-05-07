@@ -120,6 +120,97 @@ export async function fetchEvmNonce(
   return { nonce: parseInt(json.result, 16) };
 }
 
+/// One row from the EVM tx history result. Mirrors the Blockscout
+/// API surface; matches the `ChainTxRow` shape consumed by the
+/// dashboard `<ChainTxHistorySection>`.
+export interface EvmTxRow {
+  hash: string;
+  /// Unix seconds. Pending txs in the mempool can have ts === 0;
+  /// callers should treat that as "right now".
+  timestamp: number;
+  blockNumber: number;
+  from: string;
+  to: string;
+  /// Wei as a bigint string. Blockscout returns base-10 strings;
+  /// we keep them as strings to avoid Number precision loss.
+  valueWei: string;
+  status: "success" | "failed";
+  errorBrief: string | null;
+}
+
+/// Fetch recent EVM tx history for an address from Blockscout.
+/// Picks the Blockscout instance from the destination RPC URL —
+/// Sepolia hits eth-sepolia.blockscout.com, mainnet hits
+/// eth.blockscout.com, and so on. Returns up to `limit` rows,
+/// newest first. Blockscout is open-source + key-less; if it ever
+/// stops being reliable, swap for Etherscan with an API key
+/// (one-line change here, no callsite churn).
+export async function fetchEvmTxHistory(
+  walletEvmAddress: string,
+  limit: number = 10,
+  rpcUrl?: string,
+): Promise<EvmTxRow[]> {
+  const url = rpcUrl ?? process.env.NEXT_PUBLIC_DESTINATION_RPC_URL ?? "";
+  const explorerBase = blockscoutBaseFromRpc(url);
+  const apiUrl = `${explorerBase}/api?module=account&action=txlist&address=${encodeURIComponent(walletEvmAddress)}&page=1&offset=${limit}&sort=desc`;
+  const res = await fetch(apiUrl, { method: "GET" });
+  if (!res.ok) {
+    throw new Error(`Blockscout returned HTTP ${res.status}`);
+  }
+  const json = (await res.json()) as {
+    status: string;
+    message: string;
+    result: unknown;
+  };
+  // Blockscout returns status="0" with message="No transactions found"
+  // for empty histories — treat as success with empty list.
+  if (json.status === "0" && json.message === "No transactions found") {
+    return [];
+  }
+  if (!Array.isArray(json.result)) {
+    throw new Error(`Blockscout: ${json.message || "unexpected response"}`);
+  }
+  return (json.result as Array<Record<string, unknown>>)
+    .map((r) => {
+      const isError = r.isError === "1" || r.txreceipt_status === "0";
+      return {
+        hash: typeof r.hash === "string" ? r.hash : "",
+        timestamp:
+          typeof r.timeStamp === "string" ? parseInt(r.timeStamp, 10) : 0,
+        blockNumber:
+          typeof r.blockNumber === "string"
+            ? parseInt(r.blockNumber, 10)
+            : 0,
+        from: typeof r.from === "string" ? r.from : "",
+        to: typeof r.to === "string" ? r.to : "",
+        valueWei: typeof r.value === "string" ? r.value : "0",
+        status: isError ? ("failed" as const) : ("success" as const),
+        errorBrief:
+          isError && typeof r.txreceipt_status === "string"
+            ? `tx receipt status ${r.txreceipt_status}`
+            : null,
+      };
+    })
+    .filter((row) => row.hash !== "");
+}
+
+function blockscoutBaseFromRpc(rpcUrl: string): string {
+  const u = rpcUrl.toLowerCase();
+  if (u.includes("sepolia")) return "https://eth-sepolia.blockscout.com";
+  if (u.includes("holesky")) return "https://eth-holesky.blockscout.com";
+  if (u.includes("base-sepolia")) return "https://base-sepolia.blockscout.com";
+  if (u.includes("base.org")) return "https://base.blockscout.com";
+  if (u.includes("optimism-sepolia") || u.includes("op-sepolia")) {
+    return "https://optimism-sepolia.blockscout.com";
+  }
+  if (u.includes("optimism")) return "https://optimism.blockscout.com";
+  if (u.includes("polygon-amoy") || u.includes("amoy")) {
+    return "https://polygon-amoy.blockscout.com";
+  }
+  if (u.includes("polygon")) return "https://polygon.blockscout.com";
+  return "https://eth.blockscout.com";
+}
+
 /// Fetch the destination chain's current gas price in wei. Falls
 /// back to a generous default if the RPC errors out or returns
 /// nonsense — the worst case here is over-reserving for gas, not

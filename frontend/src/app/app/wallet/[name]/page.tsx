@@ -34,9 +34,15 @@ import { useTxAttempts } from "@/lib/hooks/useTxAttempts";
 import type { TxAttempt } from "@/lib/retail/txLog";
 import {
   useSolanaTxHistory,
+  useEvmTxHistory,
+  useBitcoinTxHistory,
   type ChainTxRow,
 } from "@/lib/hooks/useChainTxHistory";
-import { txUrl as solanaExplorerTxUrl } from "@/lib/explorer";
+import {
+  txUrl as solanaExplorerTxUrl,
+  broadcastExplorerUrl,
+} from "@/lib/explorer";
+import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 
 
 import { useBatchApprove } from "@/lib/hooks/useBatchApprove";
@@ -145,9 +151,11 @@ export default function WalletDetailPage() {
   const allAction = useActionNeeded();
   const sendAttempts = useTxAttempts(name, 5);
 
-  // Vault address — used for the Solana on-chain tx history query
-  // below. Same derivation the receive page does. Memoised so the
-  // history query key only changes when the wallet changes.
+  // Per-chain addresses for the tx-history sections below. Solana =
+  // vault PDA (where execute_custom moves SOL from). EVM/BTC =
+  // dWallet's chain-native address from the binding response.
+  // Memoised so each history-query key only churns on wallet
+  // change, not on every render.
   const solanaVaultAddress = useMemo(() => {
     if (!walletQuery.data) return null;
     const [vault] = findVaultAddress(
@@ -156,7 +164,22 @@ export default function WalletDetailPage() {
     );
     return vault.toBase58();
   }, [walletQuery.data]);
+  const chainsQueryForHistory = useWalletChains(name);
+  const evmAddress = useMemo(() => {
+    const b = (chainsQueryForHistory.data?.chains ?? []).find(
+      (c) => c.chain_kind === 1 || c.chain_kind === 4,
+    );
+    return b ? chainAddress(b) : null;
+  }, [chainsQueryForHistory.data]);
+  const btcAddress = useMemo(() => {
+    const b = (chainsQueryForHistory.data?.chains ?? []).find(
+      (c) => c.chain_kind === 2,
+    );
+    return b ? chainAddress(b) : null;
+  }, [chainsQueryForHistory.data]);
   const solanaTxHistoryQuery = useSolanaTxHistory(solanaVaultAddress, 8);
+  const evmTxHistoryQuery = useEvmTxHistory(evmAddress, 8);
+  const btcTxHistoryQuery = useBitcoinTxHistory(btcAddress, 8);
 
   const walletActivity = useMemo(
     () =>
@@ -212,15 +235,31 @@ export default function WalletDetailPage() {
       {sendAttempts.length > 0 && (
         <TxAttemptsSection rows={sendAttempts} reduce={!!reduce} />
       )}
-      {/* On-chain tx history for the wallet's Solana vault. Shows
-          actual chain-level activity (incoming + outgoing) — the
-          attempts log above only shows sends from this app, this
-          shows everything that hit the address including incoming
-          deposits. EVM/BTC follow when those APIs land. */}
+      {/* On-chain tx history for each bound chain. Shows actual
+          chain-level activity (incoming + outgoing) — the attempts
+          log above only knows about sends initiated from this
+          browser; this shows everything that hit the address. */}
       {(solanaTxHistoryQuery.data?.length ?? 0) > 0 && (
         <ChainTxHistorySection
           rows={solanaTxHistoryQuery.data ?? []}
           chainTicker="SOL"
+          chainKind={0}
+          reduce={!!reduce}
+        />
+      )}
+      {(evmTxHistoryQuery.data?.length ?? 0) > 0 && (
+        <ChainTxHistorySection
+          rows={evmTxHistoryQuery.data ?? []}
+          chainTicker="ETH"
+          chainKind={1}
+          reduce={!!reduce}
+        />
+      )}
+      {(btcTxHistoryQuery.data?.length ?? 0) > 0 && (
+        <ChainTxHistorySection
+          rows={btcTxHistoryQuery.data ?? []}
+          chainTicker="BTC"
+          chainKind={2}
           reduce={!!reduce}
         />
       )}
@@ -663,10 +702,12 @@ function TxAttemptsSection({
 function ChainTxHistorySection({
   rows,
   chainTicker,
+  chainKind,
   reduce,
 }: {
   rows: ChainTxRow[];
   chainTicker: string;
+  chainKind: number;
   reduce: boolean;
 }) {
   const motionProps = reduce
@@ -713,7 +754,14 @@ function ChainTxHistorySection({
                   </p>
                 </div>
                 <a
-                  href={solanaExplorerTxUrl(row.txId)}
+                  href={
+                    chainKind === 0
+                      ? solanaExplorerTxUrl(row.txId)
+                      : broadcastExplorerUrl({
+                          chain_kind: chainKind,
+                          tx_id: row.txId,
+                        }) ?? "#"
+                  }
                   target="_blank"
                   rel="noopener noreferrer"
                   className="shrink-0 rounded-pill border border-border-soft bg-canvas px-3 py-1 text-[11px] font-medium text-text-strong transition hover:border-accent/50 hover:text-accent"
