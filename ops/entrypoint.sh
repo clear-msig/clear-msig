@@ -35,10 +35,22 @@ if [[ ! -f "${CLEAR_MSIG_SIGNER:-}" ]]; then
   exit 1
 fi
 
+# Persist DKG attestations across redeploys. The CLI saves them to
+# `CLEAR_MSIG_ATTESTATION_DIR` (set in fly.toml to a path on the
+# mounted volume) and re-reads them on every `proposal execute`.
+# Without persistence each redeploy bricks every wallet whose chain
+# bindings depend on the attestation files. Create the directory if
+# the volume is freshly mounted.
+if [[ -n "${CLEAR_MSIG_ATTESTATION_DIR:-}" ]]; then
+  mkdir -p "$CLEAR_MSIG_ATTESTATION_DIR"
+  chmod 700 "$CLEAR_MSIG_ATTESTATION_DIR"
+fi
+
 echo "starting backend-api"
-echo "  payer:  $CLEAR_MSIG_KEYPAIR"
-echo "  signer: $CLEAR_MSIG_SIGNER"
-echo "  rpc:    ${CLEAR_MSIG_URL:-https://api.devnet.solana.com}"
-echo "  bind:   ${BACKEND_API_BIND:-0.0.0.0:8080}"
+echo "  payer:        $CLEAR_MSIG_KEYPAIR"
+echo "  signer:       $CLEAR_MSIG_SIGNER"
+echo "  rpc:          ${CLEAR_MSIG_URL:-https://api.devnet.solana.com}"
+echo "  bind:         ${BACKEND_API_BIND:-0.0.0.0:8080}"
+echo "  attestations: ${CLEAR_MSIG_ATTESTATION_DIR:-<host default>}"
 
 exec /usr/local/bin/clear-msig-backend-api

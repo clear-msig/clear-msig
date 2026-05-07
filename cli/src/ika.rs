@@ -142,7 +142,20 @@ pub fn ika_config_pda(
 // ── Attestation persistence ──
 
 /// Directory for storing DKG attestations.
+///
+/// On Fly the container fs is ephemeral — without an explicit
+/// override every redeploy wipes the attestations and any wallet
+/// whose chain bindings rely on them is bricked off-chain. Set
+/// `CLEAR_MSIG_ATTESTATION_DIR` (e.g. to `/data/attestations` over
+/// a mounted volume) to persist across deploys. Local dev keeps
+/// the original `~/.config/clear-msig/attestations` default.
 fn attestation_dir() -> std::path::PathBuf {
+    if let Ok(dir) = std::env::var("CLEAR_MSIG_ATTESTATION_DIR") {
+        let trimmed = dir.trim();
+        if !trimmed.is_empty() {
+            return std::path::PathBuf::from(trimmed);
+        }
+    }
     let home = dirs::home_dir().unwrap_or_default();
     home.join(".config/clear-msig/attestations")
 }

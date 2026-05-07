@@ -21,6 +21,19 @@ primary_region = "iad"
   CLEAR_MSIG_URL = "https://api.devnet.solana.com"
   BACKEND_API_BIND = "0.0.0.0:8080"
   RUST_LOG = "info"
+  # DKG attestations persist on the mounted volume below. Without
+  # this every redeploy wipes the container fs and bricks every
+  # wallet whose Ika chain bindings depend on these files.
+  CLEAR_MSIG_ATTESTATION_DIR = "/data/attestations"
+
+# Persistent volume — backs CLEAR_MSIG_ATTESTATION_DIR. One-time:
+#   fly volume create clear_msig_data --region iad --size 1 --app clear-msig-backend
+# Multiple machines need multiple volumes (Fly volumes are not
+# shared). With min_machines_running=1 + auto_start, ensure a
+# volume exists per machine slot.
+[mounts]
+  source = "clear_msig_data"
+  destination = "/data"
 
 [http_service]
   internal_port = 8080
