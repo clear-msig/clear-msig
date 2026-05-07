@@ -13,6 +13,7 @@
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { useActionNotifications } from "@/lib/hooks/useActionNotifications";
 import { AppLockOverlay } from "@/components/security/AppLockOverlay";
+import { PhishingWarningBanner } from "@/components/security/PhishingWarningBanner";
 import { HeaderBar } from "@/components/layout/HeaderBar";
 import { PreAlphaBanner } from "@/components/layout/PreAlphaBanner";
 import { WorkspaceSidebar } from "@/components/layout/WorkspaceSidebar";
@@ -82,6 +83,7 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
             md:gap-0 grid removed, so the sidebar's right border has a
             clear margin to the page content. */}
         <div className="flex min-w-0 flex-col gap-4 md:pl-6">
+          <PhishingWarningBanner />
           <PreAlphaBanner />
           <section className="relative z-20 min-w-0">{children}</section>
         </div>
