@@ -68,6 +68,7 @@ import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { txUrl as solanaTxUrl } from "@/lib/explorer";
 import { recordAttempt } from "@/lib/retail/txLog";
+import { resolveSnsName, looksLikeSnsName } from "@/lib/chain/sns";
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
@@ -136,7 +137,11 @@ function buildSendPreviewDetails(args: SendPreviewArgs): SignPayloadDetail[] {
   // trick the user into signing "Send 5 SOL to Sarah" while the bytes
   // route to attacker. Showing the abbreviated address gives the user
   // a chance to spot the mismatch before signing.
-  if (resolved.kind === "address" || resolved.kind === "contact") {
+  if (
+    resolved.kind === "address" ||
+    resolved.kind === "contact" ||
+    resolved.kind === "sns"
+  ) {
     const addr =
       resolved.kind === "contact"
         ? resolved.contact.address
@@ -146,6 +151,9 @@ function buildSendPreviewDetails(args: SendPreviewArgs): SignPayloadDetail[] {
       value: shortAddress(addr),
       emphasis: "mono",
     });
+    if (resolved.kind === "sns") {
+      details.push({ label: "SNS name", value: resolved.name });
+    }
   }
   if (amountValid) {
     details.push({
@@ -311,21 +319,63 @@ function SendPage() {
   const [note, setNote] = useState(initialNote);
   const [savedNewContact, setSavedNewContact] = useState(false);
 
+  // SNS resolution — when the typed text looks like a `.sol` name
+  // (or bare label) AND doesn't match a local contact / valid
+  // address, query Bonfida's proxy for the on-chain owner. Cached
+  // by react-query so re-typing the same name doesn't refetch.
+  const trimmedRecipientText = recipientText.trim();
+  const localContactMatch = useMemo(
+    () =>
+      contacts.contacts.find(
+        (c) => c.name.toLowerCase() === trimmedRecipientText.toLowerCase(),
+      ) ?? null,
+    [contacts.contacts, trimmedRecipientText],
+  );
+  const isAlreadyValidAddress = isValidSolanaAddress(trimmedRecipientText);
+  const shouldTrySns =
+    !!trimmedRecipientText &&
+    !localContactMatch &&
+    !isAlreadyValidAddress &&
+    looksLikeSnsName(trimmedRecipientText);
+  const snsQuery = useQuery({
+    queryKey: ["sns-resolve", trimmedRecipientText.toLowerCase()],
+    queryFn: () => resolveSnsName(trimmedRecipientText),
+    enabled: shouldTrySns,
+    staleTime: 60_000,
+    retry: 0,
+  });
+
   // Resolve the typed recipient: contact-by-name first, raw address
-  // as a fallback. Resolution drives both the display state below the
-  // input and the address that goes on chain.
+  // second, SNS lookup last. Resolution drives both the display
+  // state below the input and the address that goes on chain.
   const resolved: ResolvedRecipient = useMemo(() => {
-    const trimmed = recipientText.trim();
-    if (!trimmed) return { kind: "empty" };
-    const byName = contacts.contacts.find(
-      (c) => c.name.toLowerCase() === trimmed.toLowerCase(),
-    );
-    if (byName) return { kind: "contact", contact: byName };
-    if (isValidSolanaAddress(trimmed)) {
-      return { kind: "address", address: trimmed };
+    if (!trimmedRecipientText) return { kind: "empty" };
+    if (localContactMatch) return { kind: "contact", contact: localContactMatch };
+    if (isAlreadyValidAddress) {
+      return { kind: "address", address: trimmedRecipientText };
+    }
+    if (shouldTrySns) {
+      if (snsQuery.isLoading || snsQuery.isFetching) {
+        return { kind: "resolving", name: trimmedRecipientText };
+      }
+      if (snsQuery.data) {
+        return {
+          kind: "sns",
+          name: trimmedRecipientText,
+          address: snsQuery.data,
+        };
+      }
     }
     return { kind: "unknown" };
-  }, [recipientText, contacts.contacts]);
+  }, [
+    trimmedRecipientText,
+    localContactMatch,
+    isAlreadyValidAddress,
+    shouldTrySns,
+    snsQuery.isLoading,
+    snsQuery.isFetching,
+    snsQuery.data,
+  ]);
 
   const numericAmount = parseFloat(amount);
   const amountValid = !isNaN(numericAmount) && numericAmount > 0;
@@ -381,7 +431,9 @@ function SendPage() {
 
   const canSubmit =
     amountValid &&
-    (resolved.kind === "contact" || resolved.kind === "address") &&
+    (resolved.kind === "contact" ||
+      resolved.kind === "address" ||
+      resolved.kind === "sns") &&
     !!firstIntent &&
     !insufficientBalance;
 
@@ -415,7 +467,9 @@ function SendPage() {
           ? resolved.contact.address
           : resolved.kind === "address"
             ? resolved.address
-            : null;
+            : resolved.kind === "sns"
+              ? resolved.address
+              : null;
       if (!destination)
         throw new Error("Pick a contact or paste an address");
 
@@ -655,7 +709,9 @@ function SendPage() {
       ? resolved.contact.name
       : resolved.kind === "address"
         ? shortAddress(resolved.address)
-        : "";
+        : resolved.kind === "sns"
+          ? resolved.name
+          : "";
 
   return (
     // Workspace shell (HeaderBar + sidebar + canvas blobs) is supplied
@@ -775,6 +831,8 @@ type ResolvedRecipient =
   | { kind: "empty" }
   | { kind: "contact"; contact: Contact }
   | { kind: "address"; address: string }
+  | { kind: "sns"; name: string; address: string }
+  | { kind: "resolving"; name: string }
   | { kind: "unknown" };
 
 interface ComposeStageProps {
@@ -1023,11 +1081,16 @@ function ComposeStage({
       <div className="mt-6 flex flex-col gap-3">
         <SignPayloadPreview
           action={
-            amountValid && (resolved.kind === "contact" || resolved.kind === "address")
+            amountValid &&
+            (resolved.kind === "contact" ||
+              resolved.kind === "address" ||
+              resolved.kind === "sns")
               ? `Send ${formatAmount(amount)} SOL to ${
                   resolved.kind === "contact"
                     ? resolved.contact.name
-                    : shortAddress(resolved.address)
+                    : resolved.kind === "sns"
+                      ? resolved.name
+                      : shortAddress(resolved.address)
                 }`
               : "Fill in the amount and recipient above"
           }
@@ -1108,15 +1171,23 @@ function RecipientStatus({
   if (resolved.kind === "empty") {
     return (
       <p className="-mt-1 text-xs text-text-soft">
-        Type a contact name or paste a Solana wallet address.
+        Type a contact name, a .sol domain, or paste a Solana wallet
+        address.
+      </p>
+    );
+  }
+  if (resolved.kind === "resolving") {
+    return (
+      <p className="-mt-1 inline-flex items-center gap-1.5 text-xs text-text-soft">
+        Resolving {resolved.name}…
       </p>
     );
   }
   if (resolved.kind === "unknown") {
     return (
       <p className="-mt-1 text-xs text-warning">
-        That doesn&rsquo;t look like a contact name or a valid wallet
-        address.
+        That doesn&rsquo;t look like a contact name, a .sol domain,
+        or a valid wallet address.
       </p>
     );
   }
@@ -1127,6 +1198,17 @@ function RecipientStatus({
         Sending to {resolved.contact.name} ·{" "}
         <span className="font-mono text-text-soft">
           {shortAddress(resolved.contact.address)}
+        </span>
+      </p>
+    );
+  }
+  if (resolved.kind === "sns") {
+    return (
+      <p className="-mt-1 inline-flex items-center gap-1.5 text-xs text-accent">
+        <Check className="h-3.5 w-3.5" strokeWidth={3} />
+        Resolved {resolved.name} ·{" "}
+        <span className="font-mono text-text-soft">
+          {shortAddress(resolved.address)}
         </span>
       </p>
     );
