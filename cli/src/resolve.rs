@@ -6,6 +6,10 @@ use solana_client::rpc_client::RpcClient;
 use solana_instruction::AccountMeta;
 use solana_pubkey::Pubkey;
 
+/// System Program — special-cased on chain via `declared` in
+/// `execute_custom` and not consumed from remaining_accounts.
+const SYSTEM_PROGRAM_ID: Pubkey = Pubkey::new_from_array([0u8; 32]);
+
 /// Resolve all remaining accounts needed for `execute` based on intent type.
 ///
 /// For meta-intents (AddIntent, RemoveIntent, UpdateIntent), the remaining
@@ -69,7 +73,7 @@ pub fn resolve_remaining_accounts(
             ])
         }
         // Custom: resolve each AccountEntry
-        3 => resolve_custom_accounts(rpc, intent, vault, params_data),
+        3 => resolve_custom_accounts(rpc, intent, wallet, vault, params_data),
         _ => Err(anyhow!("unknown intent type {}", intent.intent_type)),
     }
 }
@@ -77,11 +81,16 @@ pub fn resolve_remaining_accounts(
 fn resolve_custom_accounts(
     rpc: &RpcClient,
     intent: &IntentAccount,
+    wallet: &Pubkey,
     vault: &Pubkey,
     params_data: &[u8],
 ) -> Result<Vec<AccountMeta>> {
     let mut resolved: Vec<Pubkey> = Vec::new();
 
+    // Resolve EVERY entry — even ones the program will auto-inject.
+    // PdaDerived / HasOne entries can reference earlier slots by
+    // index, so the resolution table needs all addresses regardless
+    // of whether each one ends up in remaining_accounts.
     for entry in &intent.accounts {
         let address = resolve_account_source(
             rpc, entry, intent, params_data, vault, &resolved,
@@ -89,12 +98,23 @@ fn resolve_custom_accounts(
         resolved.push(address);
     }
 
-    // All remaining accounts are passed as non-signers from the client.
-    // The program handles CPI signing via invoke_signed with vault PDA seeds.
+    // Filter out the entries the program auto-injects from its
+    // execute_custom handler (mirror of the `declared` table on
+    // chain — vault, system program, wallet — plus all Vault-typed
+    // entries unconditionally). Without this filter the CLI passes
+    // 3 accounts but the program only consumes 1 from
+    // remaining_accounts, leaving the indices misaligned and the
+    // address-match check firing AccountAddressMismatch (0x1785).
+    let declared_static: [Pubkey; 3] = [*vault, SYSTEM_PROGRAM_ID, *wallet];
     Ok(intent
         .accounts
         .iter()
         .zip(resolved.iter())
+        .filter(|(entry, addr)| match entry.source_type {
+            AccountSourceType::Vault => false,
+            AccountSourceType::Static => !declared_static.contains(addr),
+            _ => true,
+        })
         .map(|(entry, addr)| {
             if entry.is_writable {
                 AccountMeta::new(*addr, false)
