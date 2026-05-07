@@ -41,8 +41,19 @@ pub fn assemble_and_broadcast(
     hasher.update(preimage);
     hasher.finalize(&mut digest);
 
-    let v = recover_v(&digest, r, s, dwallet_pubkey_compressed)?;
-    let raw_tx_hex = build_signed_eip1559(preimage, r, s, v)?;
+    // Recover normalised (r, s, v). If Ika upstream emits LE scalars
+    // (we've seen this on at least one mock backend), the canonical
+    // recovery fails and the function falls back to byte-reversed
+    // scalars + logs a warning. The caller-facing (r, s) we use to
+    // build the signed envelope MUST be the canonical ones — ETH's
+    // own recovery on the receiving end uses canonical bytes.
+    let recovered = recover_v(&digest, r, s, dwallet_pubkey_compressed)?;
+    let raw_tx_hex = build_signed_eip1559(
+        preimage,
+        &recovered.r,
+        &recovered.s,
+        recovered.v,
+    )?;
     let tx_id = broadcast_eip1559(rpc_url, &raw_tx_hex)?;
 
     Ok(BroadcastResult {
@@ -50,30 +61,54 @@ pub fn assemble_and_broadcast(
         chain_kind: 1,
         tx_id,
         raw_tx_hex,
-        recovery_v: Some(v),
+        recovery_v: Some(recovered.v),
         explorer_url: None,
     })
 }
 
+/// Result of a successful signature recovery. Carries the normalised
+/// `(r, s)` that should be embedded in the on-chain transaction —
+/// these may differ from the input scalars when the upstream signer
+/// emitted little-endian bytes (we reverse them here so the resulting
+/// broadcast tx is recoverable by ETH's own verifier).
+#[derive(Debug, Clone)]
+pub struct RecoveredSignature {
+    pub r: [u8; 32],
+    pub s: [u8; 32],
+    pub v: u8,
+}
+
 /// Try recovery `v ∈ {0, 1}` and return whichever value reconstructs
 /// `expected_pubkey_compressed` (33 bytes, SEC1) from the message digest +
-/// signature. Returns an error if neither parity works (which would mean
-/// the signature was made over a different digest, or with a different
-/// key — both are bugs in the upstream signing path).
+/// signature. Returns an error if neither parity works AND the
+/// reversed-byte fallback also fails.
 ///
-/// On failure, the error includes the actual recovered pubkeys for v=0
-/// and v=1 alongside the expected pubkey so the next debug round can
-/// pinpoint the divergence (off-by-one byte order, wrong dwallet,
-/// non-canonical signature, etc.) instead of just saying "recovery
-/// failed". An additional probe also tries r,s reversed in case Ika
-/// is emitting little-endian scalars on some backend; if that path
-/// recovers, the error explicitly calls out the byte-order bug.
+/// Two-pass recovery:
+///   1. Canonical: `(r, s)` as given. ECDSA convention is big-endian,
+///      so this is what well-behaved signers emit.
+///   2. Reversed: each 32-byte scalar byte-reversed (LE → BE). At
+///      least one Ika dWallet backend has been seen emitting LE
+///      scalars in the wild; auto-detecting + correcting beats
+///      asking the user to manually rerun.
+///
+/// The returned `RecoveredSignature` carries the (r, s) that should be
+/// embedded in the on-chain transaction. ETH's own recovery on the
+/// receiving end requires canonical big-endian, so when we fall back
+/// to the reversed path we MUST also reverse before signing the
+/// envelope. Logs a warning on the reversed path so the operator sees
+/// the upstream encoding bug.
+///
+/// On total failure (neither pass recovers), the error message
+/// includes the digest, r, s, expected pubkey, and the actual
+/// recovered pubkeys for v=0 and v=1 from BOTH passes — gives the
+/// operator everything they'd need to bisect by hand without
+/// re-running.
 pub fn recover_v(
     message_hash: &[u8; 32],
     r: &[u8; 32],
     s: &[u8; 32],
     expected_pubkey_compressed: &[u8],
-) -> Result<u8> {
+) -> Result<RecoveredSignature> {
     use k256::ecdsa::RecoveryId;
     let try_recover = |r: &[u8; 32], s: &[u8; 32]| -> [Option<Vec<u8>>; 2] {
         let Ok(sig) = K256Signature::from_scalars(*r, *s) else {
@@ -96,58 +131,63 @@ pub fn recover_v(
     for v in [0u8, 1u8] {
         if let Some(pk) = &canonical[v as usize] {
             if pk.as_slice() == expected_pubkey_compressed {
-                return Ok(v);
+                return Ok(RecoveredSignature { r: *r, s: *s, v });
             }
         }
     }
 
-    // Diagnostic probe: try with each scalar byte-reversed. Fires only on
-    // failure so the happy path stays cheap. If reversed scalars recover,
-    // the upstream signer is emitting little-endian; the fix is a single
-    // bytes.reverse() at the producer, but we want the error to call that
-    // out specifically rather than generic "recovery failed".
+    // Fallback: try with each scalar byte-reversed. If THAT recovers,
+    // the upstream signer is emitting little-endian — auto-correct
+    // by returning the reversed bytes, which is what ETH's verifier
+    // will read. Logs loudly so operators see this is happening.
     let mut r_rev = *r;
     let mut s_rev = *s;
     r_rev.reverse();
     s_rev.reverse();
     let reversed = try_recover(&r_rev, &s_rev);
-    let reversed_match = reversed.iter().enumerate().find_map(|(v, pk)| {
-        pk.as_ref()
-            .filter(|p| p.as_slice() == expected_pubkey_compressed)
-            .map(|_| v as u8)
-    });
+    for v in [0u8, 1u8] {
+        if let Some(pk) = &reversed[v as usize] {
+            if pk.as_slice() == expected_pubkey_compressed {
+                eprintln!(
+                    "⚠ [evm-recover] canonical recovery failed; reversed-byte \
+                     scalars recovered (v={v}). Upstream signer is emitting \
+                     little-endian r,s — auto-correcting for this broadcast. \
+                     File against the producer."
+                );
+                return Ok(RecoveredSignature {
+                    r: r_rev,
+                    s: s_rev,
+                    v,
+                });
+            }
+        }
+    }
 
     let pretty = |o: &Option<Vec<u8>>| match o {
         Some(b) => hex_lower(b),
         None => String::from("<recovery_failed>"),
     };
-    let mut msg = format!(
+    Err(anyhow!(
         "neither v=0 nor v=1 recovers the dwallet pubkey from the signed digest\n\
          — the signature is not over keccak256(preimage), or it was produced \
          by a different key.\n\n\
-         digest:           0x{}\n\
-         r:                0x{}\n\
-         s:                0x{}\n\
-         expected_pubkey:  0x{}\n\
-         recovered_v0:     0x{}\n\
-         recovered_v1:     0x{}",
+         digest:                 0x{}\n\
+         r (as given):           0x{}\n\
+         s (as given):           0x{}\n\
+         expected_pubkey:        0x{}\n\
+         canonical_recovered_v0: 0x{}\n\
+         canonical_recovered_v1: 0x{}\n\
+         reversed_recovered_v0:  0x{}\n\
+         reversed_recovered_v1:  0x{}",
         hex_lower(message_hash),
         hex_lower(r),
         hex_lower(s),
         hex_lower(expected_pubkey_compressed),
         pretty(&canonical[0]),
         pretty(&canonical[1]),
-    );
-    if let Some(v) = reversed_match {
-        msg.push_str(&format!(
-            "\n\n→ NOTE: scalars in REVERSED byte order DO recover the expected pubkey \
-             (v={v}). Upstream signer is likely returning little-endian r,s; the fix is \
-             to reverse each 32-byte half at the producer."
-        ));
-    } else {
-        msg.push_str("\n\nReversed-scalar probe also failed.");
-    }
-    Err(anyhow!("{msg}"))
+        pretty(&reversed[0]),
+        pretty(&reversed[1]),
+    ))
 }
 
 fn hex_lower(bytes: &[u8]) -> String {
