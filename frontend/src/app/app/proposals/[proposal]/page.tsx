@@ -26,7 +26,7 @@ import {
   useWallet,
 } from "@/lib/wallet";
 import { PublicKey } from "@solana/web3.js";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Check,
@@ -55,6 +55,7 @@ import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { relativeTime } from "@/lib/util/relativeTime";
 import { useContacts } from "@/lib/hooks/useContacts";
+import { appConfig } from "@/lib/config";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { avatarInitials } from "@/lib/retail/avatar";
 
@@ -157,6 +158,7 @@ function Loaded({
 }: LoadedProps) {
   const wallet = useWallet();
   const toast = useToast();
+  const queryClient = useQueryClient();
   const workflow = useProposalWorkflow(walletName, proposalPda);
   const walletDisplay = toDisplayName(walletName);
 
@@ -220,6 +222,50 @@ function Loaded({
       onChanged();
     } catch (err) {
       surfaceWriteError(err, toast, "decline");
+    }
+  };
+
+  // Execute-now retry. The send pages call execute inline on the
+  // happy path, but if their execute step blew up (or the user
+  // closed the tab between Approved and Executed) the proposal
+  // sits in Approved state with no money having actually moved.
+  // chain_kind=0 routes through the program's `execute_custom`
+  // CPI (no extra options); kinds 1–4 are Ika-driven and need the
+  // dWallet/gRPC/RPC config so the backend can sign+broadcast.
+  const isIkaChain = intent.chainKind !== 0;
+  const handleExecute = async () => {
+    try {
+      await workflow.executeMutation.mutateAsync(
+        isIkaChain
+          ? {
+              broadcast: true,
+              dwallet_program: appConfig.preAlpha.dwalletProgramId,
+              grpc_url: appConfig.preAlpha.grpcUrl,
+              rpc_url: appConfig.preAlpha.destinationRpcUrl,
+            }
+          : {},
+      );
+      toast.success("Sent");
+      // Refresh wallet balances so the dashboard reflects the
+      // post-execute state on next mount. Multiple keys for the
+      // same vault balance — invalidate all of them.
+      queryClient.invalidateQueries({ queryKey: ["wallet-balance"] });
+      queryClient.invalidateQueries({
+        queryKey: ["wallet-vault-balance-lamports"],
+      });
+      queryClient.invalidateQueries({ queryKey: ["chain-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet-eth-balance"] });
+      queryClient.invalidateQueries({
+        queryKey: ["wallet-erc20-balance"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["wallet-other-chain-balances"],
+      });
+      onChanged();
+    } catch (err) {
+      console.error("[request-execute]", err);
+      const fe = friendlyError(err, "send");
+      toast.error(fe.title, { details: fe.body });
     }
   };
 
@@ -386,17 +432,58 @@ function Loaded({
         />
       )}
 
-      {!isActive && (
+      {!isActive && proposal.status !== ProposalStatus.Approved && (
         <InfoCard
           title={`This request is ${statusLabel.toLowerCase()}`}
           body={
             proposal.status === ProposalStatus.Executed
               ? "The money has been sent."
-              : proposal.status === ProposalStatus.Approved
-                ? "Enough friends have approved. It's about to send."
-                : "No further action is needed."
+              : "No further action is needed."
           }
         />
+      )}
+
+      {/* Approved but not yet Executed — typical when the inline
+          execute step on the send page failed (or the user closed
+          the tab between approve and execute). Any approver can
+          push the button to retry the broadcast. */}
+      {proposal.status === ProposalStatus.Approved && (
+        <div className="flex flex-col gap-3">
+          <InfoCard
+            title="Ready to send"
+            body={
+              isApprover
+                ? "Threshold reached. Tap below to broadcast the request and finish the send."
+                : "Threshold reached. Any approver on this wallet can finish the send."
+            }
+          />
+          {isApprover && (
+            <Button
+              size="lg"
+              fullWidth
+              onClick={handleExecute}
+              disabled={workflow.executeMutation.isPending}
+            >
+              {workflow.executeMutation.isPending ? (
+                <>
+                  <Loader2
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                  Sending…
+                </>
+              ) : (
+                <>
+                  Send now
+                  <ArrowLeft
+                    className="h-4 w-4 rotate-180"
+                    aria-hidden="true"
+                  />
+                </>
+              )}
+            </Button>
+          )}
+        </div>
       )}
     </motion.div>
   );
