@@ -29,10 +29,37 @@ import { Commitment, Connection } from "@solana/web3.js";
 
 const PUBLIC_DEVNET_RPC = "https://api.devnet.solana.com";
 
-/// Primary Solana RPC URL. Set via `NEXT_PUBLIC_SOLANA_RPC_URL` on
-/// Vercel; defaults to the public devnet RPC for local dev.
-export const solanaClusterRpc =
+/// Per-device localStorage key for the user-set RPC override.
+/// Power-user setting — lets a treasury manager point the app at
+/// their own paid RPC (Helius, QuickNode, Triton, …) without
+/// touching env vars. Only honoured when it's a syntactically
+/// valid http(s) URL.
+export const RPC_OVERRIDE_STORAGE_KEY = "clear.rpc-override.v1";
+
+function readOverrideFromStorage(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const v = window.localStorage.getItem(RPC_OVERRIDE_STORAGE_KEY);
+    if (typeof v === "string" && /^https?:\/\/[^\s]+$/i.test(v.trim())) {
+      return v.trim();
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/// Default URL — env-driven. Doesn't see the override.
+export const solanaClusterDefaultRpc =
   process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? PUBLIC_DEVNET_RPC;
+
+/// Effective primary URL: localStorage override (if any) wins,
+/// otherwise the env default. Evaluated at module load — the
+/// connection singleton built later sees this. Saving a new
+/// override after first load requires a page reload to take
+/// effect; the Settings UI handles that.
+export const solanaClusterRpc =
+  readOverrideFromStorage() ?? solanaClusterDefaultRpc;
 
 /// Fallback RPC. The public devnet endpoint is always reachable, no
 /// API key, no quota. Used when the primary errors out at the network

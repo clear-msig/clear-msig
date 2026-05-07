@@ -35,6 +35,11 @@ import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { useActionNotifications } from "@/lib/hooks/useActionNotifications";
 import { useInstallPrompt } from "@/lib/hooks/useInstallPrompt";
+import {
+  RPC_OVERRIDE_STORAGE_KEY,
+  solanaClusterDefaultRpc,
+  solanaClusterRpc,
+} from "@/lib/solana/cluster";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -251,6 +256,10 @@ export default function SettingsPage() {
           because notifications only fire once installed-as-PWA. */}
       <InstallSettingRow install={install} />
 
+      {/* Power-user: override the Solana RPC URL. Persists in
+          localStorage and takes effect on next reload. */}
+      <SolanaRpcSettingRow />
+
       {/* Network indicator */}
       <section className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
@@ -351,6 +360,130 @@ function NotificationsSettingRow({
         >
           Enable
         </button>
+      )}
+    </section>
+  );
+}
+
+// ─── Solana RPC override ─────────────────────────────────────────
+
+function SolanaRpcSettingRow() {
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  // Read the currently-active value from localStorage on mount so a
+  // user who saved an override sees their URL pre-filled. (We can't
+  // just import `solanaClusterRpc` here — that const is captured at
+  // module init, before localStorage was readable on first SSR-ish
+  // pass, so it may not reflect what's actually stored.)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const v = window.localStorage.getItem(RPC_OVERRIDE_STORAGE_KEY) ?? "";
+      setDraft(v);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const trimmed = draft.trim();
+  const looksValid = /^https?:\/\/[^\s]+$/i.test(trimmed);
+  const hasOverride = trimmed.length > 0 && looksValid;
+  const effectiveUrl = solanaClusterRpc;
+  const isUsingOverride = effectiveUrl !== solanaClusterDefaultRpc;
+
+  const handleSave = () => {
+    if (!hasOverride) return;
+    setBusy(true);
+    try {
+      window.localStorage.setItem(RPC_OVERRIDE_STORAGE_KEY, trimmed);
+    } catch {
+      setBusy(false);
+      return;
+    }
+    // Hard reload so the module-init RPC singleton picks up the new
+    // URL. The override is read at module load, not per-call.
+    window.location.reload();
+  };
+  const handleReset = () => {
+    setBusy(true);
+    try {
+      window.localStorage.removeItem(RPC_OVERRIDE_STORAGE_KEY);
+    } catch {
+      /* fall through to reload */
+    }
+    window.location.reload();
+  };
+
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+          <Wifi className="h-5 w-5" strokeWidth={1.75} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-text-strong">
+            Solana RPC URL
+          </p>
+          <p className="mt-0.5 text-xs text-text-soft">
+            Override the default with your own RPC (Helius, QuickNode,
+            Triton). Saved on this device only.
+          </p>
+        </div>
+      </div>
+      <p className="mt-3 text-[11px] uppercase tracking-[0.18em] text-text-soft">
+        Currently using {isUsingOverride ? "override" : "default"}
+      </p>
+      <p className="mt-1 break-all font-mono text-[11px] text-text-strong">
+        {effectiveUrl}
+      </p>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <input
+          type="url"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="https://your-rpc.example.com"
+          spellCheck={false}
+          className={
+            "min-w-0 flex-1 rounded-soft border border-border-soft bg-canvas px-3 py-2 font-mono text-xs text-text-strong outline-none " +
+            "transition-[border-color,box-shadow] duration-base ease-out-soft " +
+            "focus:border-accent focus:shadow-accent-rest"
+          }
+        />
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!hasOverride || busy}
+            className={
+              "rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white " +
+              "transition-[background-color,transform] duration-base ease-out-soft " +
+              "hover:bg-accent-hover active:scale-[0.98] " +
+              "disabled:cursor-not-allowed disabled:opacity-50 " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+            }
+          >
+            Save & reload
+          </button>
+          {isUsingOverride && (
+            <button
+              type="button"
+              onClick={handleReset}
+              disabled={busy}
+              className={
+                "rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft " +
+                "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
+                "disabled:cursor-not-allowed disabled:opacity-50"
+              }
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
+      {trimmed.length > 0 && !hasOverride && (
+        <p className="mt-2 text-xs text-warning">
+          Must be a valid http(s) URL.
+        </p>
       )}
     </section>
   );
