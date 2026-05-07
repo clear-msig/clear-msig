@@ -18,9 +18,53 @@ import TransportWebHID from "@ledgerhq/hw-transport-webhid";
 import bs58 from "bs58";
 
 /// BIP44 path for the first Solana account on a Ledger. Matches the
-/// upstream CLI's default (`--ledger-account 0`). Future work: let
-/// users pick account index from settings.
+/// upstream CLI's default (`--ledger-account 0`). Power users with
+/// multiple accounts on the same device can override the index via
+/// the Settings page; see getLedgerAccountIndex() below.
 const DEFAULT_DERIVATION_PATH = "44'/501'/0'";
+
+/// localStorage key for the saved Ledger account index. Read at
+/// connect time so the next session uses the user's selection
+/// without restart.
+export const LEDGER_ACCOUNT_STORAGE_KEY = "clear.ledger-account.v1";
+
+/// Read the saved Ledger account index (0..9). Defaults to 0 when
+/// missing, malformed, or out of range. Bounded so a corrupted
+/// localStorage entry can't drive `derivationPath` somewhere weird.
+export function getLedgerAccountIndex(): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    const raw = window.localStorage.getItem(LEDGER_ACCOUNT_STORAGE_KEY);
+    if (!raw) return 0;
+    const n = parseInt(raw, 10);
+    if (!Number.isFinite(n) || n < 0 || n > 9) return 0;
+    return n;
+  } catch {
+    return 0;
+  }
+}
+
+/// Persist a Ledger account index. Caller is responsible for
+/// re-connecting (or telling the user to) so the new derivation
+/// path is used.
+export function setLedgerAccountIndex(index: number): void {
+  if (typeof window === "undefined") return;
+  if (!Number.isFinite(index) || index < 0 || index > 9) return;
+  try {
+    window.localStorage.setItem(
+      LEDGER_ACCOUNT_STORAGE_KEY,
+      String(Math.floor(index)),
+    );
+  } catch {
+    /* localStorage full or blocked — silently noop */
+  }
+}
+
+/// Build the BIP44 path for a given account index. Useful for
+/// showing the user which path their current session is using.
+export function ledgerDerivationPath(accountIndex: number): string {
+  return `44'/501'/${Math.floor(accountIndex)}'`;
+}
 
 export type LedgerErrorCode =
   | "unsupported"
@@ -67,8 +111,13 @@ interface RawHidError {
 /// like a software wallet. Throws a `LedgerError` with a friendly
 /// `code` so the UI can render the right next-step copy.
 export async function connectLedger(
-  derivationPath: string = DEFAULT_DERIVATION_PATH,
+  derivationPath?: string,
 ): Promise<LedgerSession> {
+  const path =
+    derivationPath ??
+    (typeof window === "undefined"
+      ? DEFAULT_DERIVATION_PATH
+      : ledgerDerivationPath(getLedgerAccountIndex()));
   if (typeof navigator === "undefined" || !("hid" in navigator)) {
     throw new LedgerError(
       "unsupported",
@@ -87,7 +136,7 @@ export async function connectLedger(
 
   let pubkey: Uint8Array;
   try {
-    const result = await solana.getAddress(derivationPath);
+    const result = await solana.getAddress(path);
     pubkey = new Uint8Array(result.address);
     if (pubkey.length !== 32) {
       throw new LedgerError(
@@ -104,11 +153,11 @@ export async function connectLedger(
   return {
     pubkey,
     pubkeyBase58: bs58.encode(pubkey),
-    derivationPath,
+    derivationPath: path,
     async signOffchainMessage(bytes: Uint8Array) {
       try {
         const result = await solana.signOffchainMessage(
-          derivationPath,
+          path,
           // Buffer.from copies; we don't want to alias the caller's
           // memory and risk it being mutated mid-roundtrip.
           Buffer.from(bytes),

@@ -45,6 +45,12 @@ import {
   appConfig,
   destinationRpcDefault,
 } from "@/lib/config";
+import {
+  getLedgerAccountIndex,
+  setLedgerAccountIndex,
+  ledgerDerivationPath,
+} from "@/lib/wallet/ledger";
+import { useLedger } from "@/lib/wallet/LedgerProvider";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -267,6 +273,11 @@ export default function SettingsPage() {
 
       {/* Power-user: override the EVM destination RPC URL. */}
       <EvmRpcSettingRow />
+
+      {/* Hardware-wallet power-user: pick a different Ledger
+          account index when one device hosts multiple Solana
+          addresses. Hidden when WebHID isn't available. */}
+      <LedgerAccountSettingRow />
 
       {/* Network indicator */}
       <section className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
@@ -495,6 +506,129 @@ function SolanaRpcSettingRow() {
       )}
     </section>
   );
+}
+
+// ─── Ledger account index ────────────────────────────────────────
+
+function LedgerAccountSettingRow() {
+  const ledger = useLedger();
+  const [index, setIndex] = useState<number>(0);
+  const [savedIndex, setSavedIndex] = useState<number>(0);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const v = getLedgerAccountIndex();
+    setIndex(v);
+    setSavedIndex(v);
+  }, []);
+
+  // Hide the row entirely on browsers without WebHID. The user
+  // can't connect a Ledger here, so the picker would just be
+  // confusing chrome.
+  if (typeof navigator !== "undefined" && !("hid" in navigator)) {
+    return null;
+  }
+
+  const dirty = index !== savedIndex;
+  const sessionActive = !!ledger.session;
+  const sessionIndex = ledger.session
+    ? parseLedgerAccountFromPath(ledger.session.derivationPath)
+    : null;
+
+  const handleSave = async () => {
+    if (!dirty) return;
+    setBusy(true);
+    try {
+      setLedgerAccountIndex(index);
+      setSavedIndex(index);
+      // If a session is active, reconnect so the new derivation
+      // path takes effect immediately. Without this, the saved
+      // index applies only to subsequent fresh connects.
+      if (sessionActive) {
+        try {
+          await ledger.disconnect();
+        } catch {
+          /* swallow — connect below will surface a real error */
+        }
+        try {
+          await ledger.connect();
+        } catch {
+          /* user can re-trigger from /connect; we already saved */
+        }
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+          <ShieldCheck className="h-5 w-5" strokeWidth={1.75} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-text-strong">
+            Ledger account index
+          </p>
+          <p className="mt-0.5 text-xs text-text-soft">
+            Pick a different Solana account on your Ledger when one device
+            hosts more than one. Saving while connected will reconnect.
+          </p>
+        </div>
+      </div>
+      <p className="mt-3 text-[11px] uppercase tracking-[0.18em] text-text-soft">
+        {sessionActive
+          ? `Active session: account ${sessionIndex ?? savedIndex}`
+          : `Will use account ${savedIndex}`}
+      </p>
+      <p className="mt-1 break-all font-mono text-[11px] text-text-strong">
+        {ledgerDerivationPath(sessionIndex ?? savedIndex)}
+      </p>
+      <div className="mt-3 flex items-center gap-2">
+        <label className="inline-flex items-center gap-1.5 text-[11px] text-text-soft">
+          <span className="uppercase tracking-[0.18em]">Account</span>
+          <select
+            value={index}
+            onChange={(e) => setIndex(parseInt(e.target.value, 10))}
+            className={
+              "rounded-soft border border-border-soft bg-canvas px-2 py-1 text-xs font-medium text-text-strong outline-none " +
+              "transition-[border-color,box-shadow] duration-base ease-out-soft " +
+              "focus:border-accent focus:shadow-accent-rest"
+            }
+          >
+            {Array.from({ length: 10 }, (_, i) => (
+              <option key={i} value={i}>
+                Account {i}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={!dirty || busy}
+          className={
+            "ml-auto rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white " +
+            "transition-[background-color,transform] duration-base ease-out-soft " +
+            "hover:bg-accent-hover active:scale-[0.98] " +
+            "disabled:cursor-not-allowed disabled:opacity-50 " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+          }
+        >
+          {sessionActive ? "Save & reconnect" : "Save"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function parseLedgerAccountFromPath(path: string): number | null {
+  // path looks like "44'/501'/<n>'" — pull <n>.
+  const m = path.match(/^44'\/501'\/(\d+)'$/);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  return Number.isFinite(n) ? n : null;
 }
 
 // ─── EVM destination RPC override ────────────────────────────────
