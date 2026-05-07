@@ -145,7 +145,21 @@ export default function SetupEthPage() {
     mutationFn: async () => {
       if (!wallet.publicKey) throw new Error("Connect your wallet first");
       if (!ethBinding) throw new Error("Bind Ethereum to this wallet first");
-      const me = wallet.publicKey.toBase58();
+      // Resolve which signer pubkey the wallet's AddIntent meta-
+      // intent expects (Ledger vs Dynamic embedded). See setup/page.tsx.
+      const addIntent = (intentsQuery.data ?? []).find(
+        (it) => it.account?.intentType === IntentType.AddIntent,
+      );
+      const signerPk = addIntent?.account
+        ? wallet.pickSigner(addIntent.account.approvers)
+        : wallet.publicKey;
+      if (!signerPk) {
+        throw new Error(
+          "None of your connected wallets is in this wallet's approver list. " +
+            "Disconnect the Ledger or sign in with the wallet that originally created this multisig.",
+        );
+      }
+      const me = signerPk.toBase58();
       const proposers = [me];
       const approvers = [me];
       const threshold = 1;
@@ -171,7 +185,7 @@ export default function SetupEthPage() {
         timelock: delaySeconds,
         policy_ciphertexts,
       });
-      const signed = await signDescriptor(dry);
+      const signed = await signDescriptor(dry, { preferSigner: signerPk });
       const submitted = await backendApi.submit.addIntent(name, {
         ...signed,
         params_data_hex: dry.params_data_hex,
@@ -192,7 +206,9 @@ export default function SetupEthPage() {
           proposal,
           { actor_pubkey: me },
         );
-        const approveSigned = await signDescriptor(approveDry);
+        const approveSigned = await signDescriptor(approveDry, {
+          preferSigner: signerPk,
+        });
         await backendApi.submit.approveProposal(name, proposal, {
           ...approveSigned,
           expiry: approveDry.expiry,

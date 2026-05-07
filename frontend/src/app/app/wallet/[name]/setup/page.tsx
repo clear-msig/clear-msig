@@ -119,7 +119,25 @@ export default function SetupSpendingPage() {
       if (!wallet.publicKey) {
         throw new Error("Connect your wallet first");
       }
-      const me = wallet.publicKey.toBase58();
+      // Setup signs against the AddIntent meta-intent (slot 0),
+      // whose approvers were set at wallet-create time. Resolve
+      // which of our pubkeys (Ledger vs Dynamic embedded) is in
+      // that approver list — without this, a user with both
+      // signers connected can pick the wrong one and have the
+      // on-chain verify reject. Mirror of the send pages' fix.
+      const addIntent = (intentsQuery.data ?? []).find(
+        (it) => it.account?.intentType === IntentType.AddIntent,
+      );
+      const signerPk = addIntent?.account
+        ? wallet.pickSigner(addIntent.account.approvers)
+        : wallet.publicKey;
+      if (!signerPk) {
+        throw new Error(
+          "None of your connected wallets is in this wallet's approver list. " +
+            "Disconnect the Ledger or sign in with the wallet that originally created this multisig.",
+        );
+      }
+      const me = signerPk.toBase58();
       const proposers = [me];
       const approvers = [me];
       const threshold = 1;
@@ -152,7 +170,9 @@ export default function SetupSpendingPage() {
       });
 
       // 2. Sign: user's wallet pops up its sign-message UI.
-      const signed = await signDescriptor(dry);
+      //    preferSigner routes through the matching Ledger/Dynamic
+      //    pubkey resolved above.
+      const signed = await signDescriptor(dry, { preferSigner: signerPk });
 
       // 3. Submit propose: lands the AddIntent proposal on chain in
       //    `Active` status with empty approval bitmap. The proposer's
@@ -184,7 +204,9 @@ export default function SetupSpendingPage() {
           proposal,
           { actor_pubkey: me },
         );
-        const approveSigned = await signDescriptor(approveDry);
+        const approveSigned = await signDescriptor(approveDry, {
+          preferSigner: signerPk,
+        });
         await backendApi.submit.approveProposal(name, proposal, {
           ...approveSigned,
           expiry: approveDry.expiry,

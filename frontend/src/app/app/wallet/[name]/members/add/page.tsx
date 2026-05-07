@@ -162,6 +162,27 @@ export default function AddFriendPage() {
       const intent = firstIntent?.account;
       if (!intent) throw new Error("No spending rule on this wallet");
 
+      // Resolve which signer pubkey the wallet's UpdateIntent
+      // meta-intent (slot 2) expects. Adding a member calls
+      // UpdateIntent on the spending rule, so the proposal/approval
+      // signs against UpdateIntent's approver list — NOT the target
+      // intent's. See setup/page.tsx for the full reasoning. The
+      // watcher branch below skips the chain entirely so we only
+      // need to gate when role !== "watcher".
+      const updateIntent = (intentsQuery.data ?? []).find(
+        (it) => it.account?.intentType === IntentType.UpdateIntent,
+      );
+      const signerPk =
+        role !== "watcher" && updateIntent?.account
+          ? wallet.pickSigner(updateIntent.account.approvers)
+          : wallet.publicKey;
+      if (role !== "watcher" && !signerPk) {
+        throw new Error(
+          "None of your connected wallets is in this wallet's approver list. " +
+            "Disconnect the Ledger or sign in with the wallet that originally created this multisig.",
+        );
+      }
+
       // Recovery sweep: UpdateIntent on chain refuses if the target
       // intent has any active proposals (program error
       // `IntentHasActiveProposals` = 0x1780). A previous failed
@@ -246,8 +267,9 @@ export default function AddFriendPage() {
         policy_ciphertexts,
       });
 
-      // 2. Sign
-      const signed = await signDescriptor(dry);
+      // 2. Sign — preferSigner routes through the matching
+      //    Ledger/Dynamic pubkey resolved above.
+      const signed = await signDescriptor(dry, { preferSigner: signerPk! });
 
       // 3. Submit propose: lands the UpdateIntent proposal in Active
       //    state. The propose call does NOT count as an approval —
@@ -275,9 +297,11 @@ export default function AddFriendPage() {
         const approveDry = await backendApi.prepare.approveProposal(
           name,
           proposal,
-          { actor_pubkey: wallet.publicKey.toBase58() },
+          { actor_pubkey: signerPk!.toBase58() },
         );
-        const approveSigned = await signDescriptor(approveDry);
+        const approveSigned = await signDescriptor(approveDry, {
+          preferSigner: signerPk!,
+        });
         await backendApi.submit.approveProposal(name, proposal, {
           ...approveSigned,
           expiry: approveDry.expiry,
