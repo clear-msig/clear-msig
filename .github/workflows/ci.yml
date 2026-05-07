@@ -52,20 +52,58 @@ jobs:
         run: cargo test -p clear-msig-cli
 
   # ------------------------------------------------------------------
-  # SBF build (deferred):
-  # cargo-build-sbf needs Solana platform-tools (~400 MB tarball on first run,
-  # cacheable but slow). Wire this up once we have a release/tag pipeline that
-  # tolerates a 5–10 min job. Sketch:
+  # SBF build — produces target/deploy/clear_wallet.so for devnet
+  # `solana program deploy`. Uploaded as an artifact named `clear_wallet-so`
+  # on every push so we don't have to run `cargo-build-sbf` locally (the
+  # platform-tools tarball is ~250 MB, painful on slow networks). Cached
+  # so subsequent runs skip the tarball + dep recompile.
   #
-  #   sbf-build:
-  #     runs-on: ubuntu-latest
-  #     steps:
-  #       - uses: actions/checkout@v4
-  #       - run: sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
-  #       - run: cargo install --git https://github.com/blueshift-gg/quasar quasar-cli
-  #       - run: quasar build
-  #       - uses: actions/upload-artifact@v4
-  #         with:
-  #           name: clear_wallet.so
-  #           path: target/deploy/clear_wallet.so
-  # ------------------------------------------------------------------
+  # Quasar pinned to the same rev cli/Cargo.toml depends on (the
+  # `fix/signer-check-and-wincode-versions` branch was deleted upstream;
+  # only the rev hash resolves).
+  sbf-build:
+    name: clear-wallet (SBF .so)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler libssl-dev pkg-config libudev-dev
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry + workspace target
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: sbf
+
+      - name: Cache Solana platform-tools
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/solana
+          key: solana-platform-tools-v1.52-${{ runner.os }}
+
+      - name: Install Solana CLI (Agave 3.1)
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v3.1.14/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+
+      - name: Install Quasar CLI
+        run: |
+          cargo install --git https://github.com/blueshift-gg/quasar \
+            --rev 2d5f2d84ff3c13794958f64c22721388280f4ae3 \
+            --bin quasar quasar-cli
+
+      - name: quasar build (clear-wallet)
+        run: quasar build
+
+      - name: Upload clear_wallet.so artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: clear_wallet-so
+          path: target/deploy/clear_wallet.so
+          if-no-files-found: error
+          retention-days: 30
