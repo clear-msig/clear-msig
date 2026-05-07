@@ -20,6 +20,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Check, Copy, Wallet } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { findVaultAddress } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
@@ -223,8 +224,28 @@ export default function ReceivePage() {
                       {selected.chain.name} address
                     </p>
                   </div>
+                  {/* QR code so the user can scan from a sender's
+                      mobile wallet instead of copy-pasting the
+                      address. Pure SVG render, no external service
+                      (so the address never leaves this page). The
+                      key forces a remount when the chain changes —
+                      otherwise React preserves the SVG and the
+                      payload-to-DOM diff produces a momentary
+                      malformed code on switch. */}
+                  <div className="mt-3 flex justify-center">
+                    <div className="rounded-soft bg-white p-3 shadow-card-rest">
+                      <QRCodeSVG
+                        key={selected.chain.kind}
+                        value={selected.address}
+                        size={176}
+                        level="M"
+                        marginSize={0}
+                        aria-label={`QR code for ${selected.chain.name} address`}
+                      />
+                    </div>
+                  </div>
                   <p
-                    className="mt-2 break-all font-mono text-sm leading-relaxed text-text-strong"
+                    className="mt-3 break-all font-mono text-sm leading-relaxed text-text-strong"
                     aria-label={`${selected.chain.name} address: ${selected.address}`}
                   >
                     {selected.address}
