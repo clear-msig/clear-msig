@@ -20,7 +20,8 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import { Connection, PublicKey } from "@solana/web3.js";
-import { ArrowLeft, Check, Copy, Plus, QrCode } from "lucide-react";
+import { ArrowLeft, Check, Copy, ExternalLink, Plus, QrCode } from "lucide-react";
+import { addressUrlForChainKind } from "@/lib/explorer";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { findVaultAddress } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
@@ -397,6 +398,30 @@ function ActiveChainRow({
             <QrCode className="h-3 w-3" />
             QR
           </Link>
+          {/* Audit / verify affordance: open this address on the
+              right block explorer. Hidden when we don't have a URL
+              (chain we don't know how to deep-link). */}
+          {(() => {
+            const explorerHref = addressUrlForChainKind(chain.kind, address);
+            if (!explorerHref) return null;
+            return (
+              <a
+                href={explorerHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Open ${chain.name} address on the block explorer`}
+                title="View on block explorer"
+                className={
+                  "flex shrink-0 items-center gap-1 rounded-soft border border-border-soft bg-canvas px-3 text-[11px] font-semibold uppercase tracking-wide text-text-soft " +
+                  "transition-[border-color,transform,box-shadow,color] duration-base ease-out-soft " +
+                  "hover:-translate-y-0.5 hover:border-accent hover:text-accent hover:shadow-card-rest active:scale-[0.98] " +
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+                }
+              >
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            );
+          })()}
         </div>
       ) : (
         <p className="text-xs text-text-soft">

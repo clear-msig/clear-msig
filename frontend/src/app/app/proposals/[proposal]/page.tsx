@@ -30,10 +30,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Check,
+  ExternalLink,
   Link2,
   Loader2,
   X,
 } from "lucide-react";
+import { addressUrl } from "@/lib/explorer";
 import { fetchProposal } from "@/lib/chain/proposals";
 import { fetchWalletByPda } from "@/lib/chain/wallets";
 import {
@@ -336,8 +338,23 @@ function Loaded({
             approval{approvalThreshold === 1 ? "" : "s"} required
           </p>
         )}
-        <div className="mt-5">
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
           <ShareProposalButton />
+          <a
+            href={addressUrl(proposalPda)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={
+              "inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3.5 py-1.5 text-xs font-medium text-text-soft " +
+              "transition-[border-color,color,transform] duration-base ease-out-soft " +
+              "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+            }
+            title="Open this proposal account on Solscan"
+          >
+            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+            View on Solana Explorer
+          </a>
         </div>
       </section>
 

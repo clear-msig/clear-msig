@@ -71,6 +71,33 @@ export function explorerLabelForChainKind(
   }
 }
 
+/// Per-chain address page on the right explorer. Audit affordance
+/// for the wallet hero ("show me this wallet PDA on Solscan") and
+/// the per-chain rows ("show me my Sepolia address on Etherscan").
+/// Returns null for unknown chains so callers can hide the link
+/// rather than render a dead one.
+export function addressUrlForChainKind(
+  chainKind: number,
+  address: string,
+  destinationRpcUrl?: string,
+): string | null {
+  if (!address) return null;
+  const rpc = destinationRpcUrl ?? appConfig.preAlpha.destinationRpcUrl;
+  switch (chainKind) {
+    case 0:
+      return addressUrl(address);
+    case 1:
+    case 4:
+      return `${etherscanFromRpc(rpc).base}/address/${address}`;
+    case 2:
+      return `${mempoolFromRpc(rpc).base}/address/${address}`;
+    case 3:
+      return `https://zcashblockexplorer.com/address/${address}`;
+    default:
+      return null;
+  }
+}
+
 /// Compute the explorer URL for a successful broadcast. Trusts the
 /// CLI's `explorer_url` when present; otherwise derives one from
 /// chain_kind + tx_id. Returns `null` when no usable URL can be
