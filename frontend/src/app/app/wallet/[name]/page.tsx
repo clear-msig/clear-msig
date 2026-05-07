@@ -23,7 +23,7 @@ import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Banknote, Bell, Download, Send, ShieldCheck, TrendingDown, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, Banknote, Bell, ChevronDown, Download, Send, ShieldCheck, TrendingDown, Users } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { findVaultAddress } from "@/lib/msig";
@@ -492,6 +492,17 @@ function Hero({
           )}
         </Link>
         <Link
+          href={`/app/wallet/${encodeURIComponent(name)}/send`}
+          className={
+            "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
+            "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+          }
+        >
+          <Send className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
+          Send
+        </Link>
+        <Link
           href={`/app/wallet/${encodeURIComponent(name)}/receive`}
           className={
             "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
@@ -519,7 +530,7 @@ function Hero({
             aria-hidden="true"
             strokeWidth={2}
           />
-          Settings
+          Add policies
         </Link>
       </div>
     </motion.section>
@@ -1144,6 +1155,27 @@ function ActivitySection({
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  // Per-wallet collapsed flag in localStorage so the user's choice
+  // sticks across page nav. Default expanded — recent activity is
+  // the most-glanced-at section after Pending approvals.
+  const collapsedKey = `clear.activity-collapsed.${walletName}`;
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem(collapsedKey) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleCollapsed = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    try {
+      window.localStorage.setItem(collapsedKey, next ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  };
   const handleExport = () => {
     const csv = buildActivityCsv({
       walletName,
@@ -1160,11 +1192,34 @@ function ActivitySection({
       transition={{ duration: 0.2 }}
     >
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
-          Recent activity
-        </h2>
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          aria-expanded={!collapsed}
+          aria-controls="recent-activity-list"
+          className={
+            "group inline-flex items-center gap-1.5 rounded-soft px-1 py-0.5 -mx-1 " +
+            "transition-colors duration-base ease-out-soft hover:text-text-strong " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          }
+        >
+          <ChevronDown
+            className={
+              "h-3.5 w-3.5 text-text-soft transition-transform duration-base " +
+              (collapsed ? "-rotate-90" : "rotate-0")
+            }
+            strokeWidth={2.5}
+            aria-hidden="true"
+          />
+          <span className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+            Recent activity
+          </span>
+          <span className="text-[10px] tabular-nums text-text-soft/70">
+            {allRows.length}
+          </span>
+        </button>
         <div className="flex items-center gap-1.5">
-          {allRows.length > rows.length && (
+          {!collapsed && allRows.length > rows.length && (
             <Link
               href={`/app/wallet/${encodeURIComponent(walletName)}/activity`}
               className={
@@ -1179,7 +1234,7 @@ function ActivitySection({
               <ArrowRight className="h-3 w-3" aria-hidden="true" />
             </Link>
           )}
-          {allRows.length > 0 && (
+          {!collapsed && allRows.length > 0 && (
             <button
               type="button"
               onClick={handleExport}
@@ -1197,33 +1252,38 @@ function ActivitySection({
           )}
         </div>
       </div>
-      <ul className="mt-3 flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
-        {rows.map((row) => (
-          <li key={row.proposalPda}>
-            <Link
-              href={`/app/proposals/${row.proposalPda}`}
-              className={
-                "group flex items-center justify-between gap-3 px-5 py-3 " +
-                "transition-colors duration-base ease-out-soft hover:bg-canvas/40 " +
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
-              }
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-text-strong">
-                  {friendlyStatus(row.status)}
-                </p>
-                <p className="mt-0.5 text-xs text-text-soft">
-                  {relativeTime(row.proposedAt)}
-                </p>
-              </div>
-              <ArrowRight
-                className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
-                aria-hidden="true"
-              />
-            </Link>
-          </li>
-        ))}
-      </ul>
+      {!collapsed && (
+        <ul
+          id="recent-activity-list"
+          className="mt-3 flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest"
+        >
+          {rows.map((row) => (
+            <li key={row.proposalPda}>
+              <Link
+                href={`/app/proposals/${row.proposalPda}`}
+                className={
+                  "group flex items-center justify-between gap-3 px-5 py-3 " +
+                  "transition-colors duration-base ease-out-soft hover:bg-canvas/40 " +
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
+                }
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-text-strong">
+                    {friendlyStatus(row.status)}
+                  </p>
+                  <p className="mt-0.5 text-xs text-text-soft">
+                    {relativeTime(row.proposedAt)}
+                  </p>
+                </div>
+                <ArrowRight
+                  className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
+                  aria-hidden="true"
+                />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </motion.section>
   );
 }
