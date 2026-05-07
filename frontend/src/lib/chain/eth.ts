@@ -1,5 +1,7 @@
 "use client";
 
+import { withEvmFallback } from "@/lib/chain/evmRpcFallback";
+
 // Ethereum (Sepolia) helpers for cross-chain send.
 //
 // Clear's signed-write path lives on Solana — the user signs an
@@ -91,33 +93,33 @@ export async function fetchEvmNonce(
   walletEvmAddress: string,
   rpcUrl?: string,
 ): Promise<NonceResult> {
-  const url = rpcUrl ?? process.env.NEXT_PUBLIC_DESTINATION_RPC_URL;
-  if (!url) {
-    throw new Error("EVM RPC URL not configured (NEXT_PUBLIC_DESTINATION_RPC_URL).");
-  }
-  const body = {
-    jsonrpc: "2.0",
-    id: 1,
-    method: "eth_getTransactionCount",
-    params: [walletEvmAddress, "pending"],
-  };
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    throw new Error(`EVM RPC returned HTTP ${res.status}`);
-  }
-  const json = (await res.json()) as { result?: string; error?: { message?: string } };
-  if (json.error) {
-    throw new Error(`EVM RPC error: ${json.error.message ?? "unknown"}`);
-  }
-  if (typeof json.result !== "string") {
-    throw new Error("EVM RPC returned no result");
-  }
-  // result is "0x<hex>". Convert to int.
-  return { nonce: parseInt(json.result, 16) };
+  return withEvmFallback(async (url) => {
+    const body = {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "eth_getTransactionCount",
+      params: [walletEvmAddress, "pending"],
+    };
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      throw new Error(`EVM RPC returned HTTP ${res.status}`);
+    }
+    const json = (await res.json()) as {
+      result?: string;
+      error?: { message?: string };
+    };
+    if (json.error) {
+      throw new Error(`EVM RPC error: ${json.error.message ?? "unknown"}`);
+    }
+    if (typeof json.result !== "string") {
+      throw new Error("EVM RPC returned no result");
+    }
+    return { nonce: parseInt(json.result, 16) };
+  }, rpcUrl);
 }
 
 /// One row from the EVM tx history result. Mirrors the Blockscout
@@ -223,32 +225,33 @@ export function blockscoutBaseFromRpc(rpcUrl: string): string {
 /// reserve — the actual broadcast can spend up to its own
 /// max_fee_per_gas anyway.
 export async function fetchEvmGasPrice(rpcUrl?: string): Promise<bigint> {
-  const url = rpcUrl ?? process.env.NEXT_PUBLIC_DESTINATION_RPC_URL;
-  if (!url) {
-    throw new Error("EVM RPC URL not configured (NEXT_PUBLIC_DESTINATION_RPC_URL).");
-  }
-  const body = {
-    jsonrpc: "2.0",
-    id: 1,
-    method: "eth_gasPrice",
-    params: [],
-  };
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    throw new Error(`EVM RPC returned HTTP ${res.status}`);
-  }
-  const json = (await res.json()) as { result?: string; error?: { message?: string } };
-  if (json.error) {
-    throw new Error(`EVM RPC error: ${json.error.message ?? "unknown"}`);
-  }
-  if (typeof json.result !== "string") {
-    throw new Error("EVM RPC returned no result");
-  }
-  return BigInt(json.result);
+  return withEvmFallback(async (url) => {
+    const body = {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "eth_gasPrice",
+      params: [],
+    };
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      throw new Error(`EVM RPC returned HTTP ${res.status}`);
+    }
+    const json = (await res.json()) as {
+      result?: string;
+      error?: { message?: string };
+    };
+    if (json.error) {
+      throw new Error(`EVM RPC error: ${json.error.message ?? "unknown"}`);
+    }
+    if (typeof json.result !== "string") {
+      throw new Error("EVM RPC returned no result");
+    }
+    return BigInt(json.result);
+  }, rpcUrl);
 }
 
 /// Fetch the wallet's EVM balance in wei from the destination RPC.
@@ -266,30 +269,31 @@ export async function fetchEvmBalance(
   walletEvmAddress: string,
   rpcUrl?: string,
 ): Promise<bigint> {
-  const url = rpcUrl ?? process.env.NEXT_PUBLIC_DESTINATION_RPC_URL;
-  if (!url) {
-    throw new Error("EVM RPC URL not configured (NEXT_PUBLIC_DESTINATION_RPC_URL).");
-  }
-  const body = {
-    jsonrpc: "2.0",
-    id: 1,
-    method: "eth_getBalance",
-    params: [walletEvmAddress, "latest"],
-  };
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    throw new Error(`EVM RPC returned HTTP ${res.status}`);
-  }
-  const json = (await res.json()) as { result?: string; error?: { message?: string } };
-  if (json.error) {
-    throw new Error(`EVM RPC error: ${json.error.message ?? "unknown"}`);
-  }
-  if (typeof json.result !== "string") {
-    throw new Error("EVM RPC returned no result");
-  }
-  return BigInt(json.result);
+  return withEvmFallback(async (url) => {
+    const body = {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "eth_getBalance",
+      params: [walletEvmAddress, "latest"],
+    };
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      throw new Error(`EVM RPC returned HTTP ${res.status}`);
+    }
+    const json = (await res.json()) as {
+      result?: string;
+      error?: { message?: string };
+    };
+    if (json.error) {
+      throw new Error(`EVM RPC error: ${json.error.message ?? "unknown"}`);
+    }
+    if (typeof json.result !== "string") {
+      throw new Error("EVM RPC returned no result");
+    }
+    return BigInt(json.result);
+  }, rpcUrl);
 }

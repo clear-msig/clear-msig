@@ -1,5 +1,7 @@
 "use client";
 
+import { withEvmFallback } from "@/lib/chain/evmRpcFallback";
+
 // ERC-20 read helpers via eth_call.
 //
 // Tokens on EVM chains are addressable contracts that implement the
@@ -101,28 +103,32 @@ async function ethCall(
   to: string,
   data: string,
 ): Promise<string> {
-  const res = await fetch(rpcUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "eth_call",
-      params: [{ to, data }, "latest"],
-    }),
-  });
-  if (!res.ok) throw new Error(`eth_call HTTP ${res.status}`);
-  const json = (await res.json()) as {
-    result?: string;
-    error?: { message?: string };
-  };
-  if (json.error) {
-    throw new Error(`eth_call: ${json.error.message ?? "unknown rpc error"}`);
-  }
-  if (typeof json.result !== "string") {
-    throw new Error("eth_call: missing result");
-  }
-  return json.result;
+  return withEvmFallback(async (url) => {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "eth_call",
+        params: [{ to, data }, "latest"],
+      }),
+    });
+    if (!res.ok) throw new Error(`eth_call HTTP ${res.status}`);
+    const json = (await res.json()) as {
+      result?: string;
+      error?: { message?: string };
+    };
+    if (json.error) {
+      throw new Error(
+        `eth_call: ${json.error.message ?? "unknown rpc error"}`,
+      );
+    }
+    if (typeof json.result !== "string") {
+      throw new Error("eth_call: missing result");
+    }
+    return json.result;
+  }, rpcUrl);
 }
 
 // ── ABI decoders ────────────────────────────────────────────────
