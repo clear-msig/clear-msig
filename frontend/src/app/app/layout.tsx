@@ -12,6 +12,7 @@
 
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { useActionNotifications } from "@/lib/hooks/useActionNotifications";
+import { AppLockOverlay } from "@/components/security/AppLockOverlay";
 import { HeaderBar } from "@/components/layout/HeaderBar";
 import { PreAlphaBanner } from "@/components/layout/PreAlphaBanner";
 import { WorkspaceSidebar } from "@/components/layout/WorkspaceSidebar";
@@ -26,10 +27,17 @@ export default function WorkspaceLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   useWalletGate();
+  // App-lock overlay sits OUTSIDE the SidebarProvider/WorkspaceShell
+  // so the protected tree (which mounts hooks like useActionNeeded
+  // and the notification ping) doesn't render at all while locked.
+  // Drilling the lock down to mid-tree would still leak the
+  // "something needs you" Notification through the gate.
   return (
-    <SidebarProvider>
-      <WorkspaceShell>{children}</WorkspaceShell>
-    </SidebarProvider>
+    <AppLockOverlay>
+      <SidebarProvider>
+        <WorkspaceShell>{children}</WorkspaceShell>
+      </SidebarProvider>
+    </AppLockOverlay>
   );
 }
 

@@ -41,6 +41,13 @@ import {
   solanaClusterRpc,
 } from "@/lib/solana/cluster";
 import {
+  clearPin,
+  getAppLockState,
+  lockNow,
+  setPin as setAppLockPin,
+  verifyPin,
+} from "@/lib/security/appLock";
+import {
   EVM_RPC_OVERRIDE_STORAGE_KEY,
   appConfig,
   destinationRpcDefault,
@@ -255,6 +262,12 @@ export default function SettingsPage() {
         />
       </Link>
 
+      {/* App lock — per-device PIN that gates /app/* on every fresh
+          tab. Stored locally only; we never see the PIN. Useful on
+          shared / unlocked devices where Dynamic's session token
+          would otherwise let anyone open balances + sign flows. */}
+      <AppLockSettingRow />
+
       {/* Notifications — discoverable place to enable/diagnose the
           browser-Notification ping for new pending approvals. The
           in-page prompt on the dashboard handles first-run; this is
@@ -381,6 +394,269 @@ function NotificationsSettingRow({
         </button>
       )}
     </section>
+  );
+}
+
+// ─── App lock (PIN) ──────────────────────────────────────────────
+
+function AppLockSettingRow() {
+  // Re-read on every mount + after each save/clear so the row
+  // reflects the actual stored state. AppLockOverlay also reads
+  // from the same source of truth — no shared state needed.
+  const [hasPin, setHasPin] = useState(false);
+  const [editing, setEditing] = useState<
+    "set" | "change" | "disable" | null
+  >(null);
+  const refresh = () => setHasPin(getAppLockState().hasPin);
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+          <ShieldCheck className="h-5 w-5" strokeWidth={1.75} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-text-strong">
+            App lock {hasPin ? "(on)" : "(off)"}
+          </p>
+          <p className="mt-0.5 text-xs text-text-soft">
+            Ask for a PIN before showing wallets on this device. Stored
+            on this device only — we never see your PIN.
+          </p>
+        </div>
+        {hasPin ? (
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={() => setEditing(editing === "change" ? null : "change")}
+              className={
+                "rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft " +
+                "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent"
+              }
+            >
+              Change
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditing(editing === "disable" ? null : "disable")}
+              className={
+                "rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft " +
+                "transition-colors duration-base ease-out-soft hover:border-rose-500 hover:text-rose-600"
+              }
+            >
+              Disable
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                lockNow();
+                window.location.reload();
+              }}
+              title="Lock this tab now and require the PIN to continue"
+              className={
+                "rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white " +
+                "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98]"
+              }
+            >
+              Lock now
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setEditing(editing === "set" ? null : "set")}
+            className={
+              "shrink-0 rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white " +
+              "transition-[background-color,transform] duration-base ease-out-soft " +
+              "hover:bg-accent-hover active:scale-[0.98] " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+            }
+          >
+            Set PIN
+          </button>
+        )}
+      </div>
+      {editing === "set" && (
+        <PinForm
+          mode="set"
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            refresh();
+            setEditing(null);
+          }}
+        />
+      )}
+      {editing === "change" && (
+        <PinForm
+          mode="change"
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            refresh();
+            setEditing(null);
+          }}
+        />
+      )}
+      {editing === "disable" && (
+        <PinForm
+          mode="disable"
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            refresh();
+            setEditing(null);
+          }}
+        />
+      )}
+    </section>
+  );
+}
+
+function PinForm({
+  mode,
+  onClose,
+  onSaved,
+}: {
+  mode: "set" | "change" | "disable";
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const submit = async () => {
+    setErr(null);
+    setBusy(true);
+    try {
+      if (mode === "change" || mode === "disable") {
+        const ok = await verifyPin(current);
+        if (!ok) {
+          setErr("Current PIN is wrong");
+          return;
+        }
+      }
+      if (mode === "disable") {
+        clearPin();
+        onSaved();
+        return;
+      }
+      if (next.length < 4 || next.length > 8 || !/^\d+$/.test(next)) {
+        setErr("New PIN must be 4–8 digits");
+        return;
+      }
+      if (next !== confirm) {
+        setErr("New PIN doesn't match the confirmation");
+        return;
+      }
+      await setAppLockPin(next);
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Couldn't save PIN");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void submit();
+      }}
+      className="mt-4 flex flex-col gap-2 rounded-soft border border-border-soft bg-canvas p-3"
+    >
+      {(mode === "change" || mode === "disable") && (
+        <PinInput
+          label="Current PIN"
+          value={current}
+          onChange={setCurrent}
+          autoFocus
+        />
+      )}
+      {mode !== "disable" && (
+        <>
+          <PinInput
+            label={mode === "change" ? "New PIN" : "New PIN (4–8 digits)"}
+            value={next}
+            onChange={setNext}
+            autoFocus={mode === "set"}
+          />
+          <PinInput
+            label="Confirm new PIN"
+            value={confirm}
+            onChange={setConfirm}
+          />
+        </>
+      )}
+      {err && (
+        <p className="text-[11px] text-warning" role="alert">
+          {err}
+        </p>
+      )}
+      <div className="mt-1 flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-[11px] text-text-soft hover:text-text-strong"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={busy}
+          className={
+            "rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white " +
+            "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] " +
+            "disabled:cursor-not-allowed disabled:opacity-50"
+          }
+        >
+          {busy
+            ? "Saving…"
+            : mode === "set"
+              ? "Set PIN"
+              : mode === "change"
+                ? "Change PIN"
+                : "Disable PIN"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function PinInput({
+  label,
+  value,
+  onChange,
+  autoFocus,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  autoFocus?: boolean;
+}) {
+  return (
+    <label className="flex items-center gap-3">
+      <span className="min-w-[110px] shrink-0 text-[11px] uppercase tracking-[0.18em] text-text-soft">
+        {label}
+      </span>
+      <input
+        type="password"
+        inputMode="numeric"
+        autoComplete="off"
+        value={value}
+        onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 8))}
+        autoFocus={autoFocus}
+        className={
+          "min-w-0 flex-1 rounded-soft border border-border-soft bg-surface-raised px-2.5 py-1.5 text-sm tracking-[0.4em] text-text-strong outline-none " +
+          "transition-[border-color,box-shadow] duration-base ease-out-soft " +
+          "focus:border-accent focus:shadow-accent-rest"
+        }
+      />
+    </label>
   );
 }
 
