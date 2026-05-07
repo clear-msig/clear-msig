@@ -53,6 +53,9 @@ import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { relativeTime } from "@/lib/util/relativeTime";
+import { useContacts } from "@/lib/hooks/useContacts";
+import { MemberAvatar } from "@/components/retail/MemberAvatar";
+import { avatarInitials } from "@/lib/retail/avatar";
 
 export default function RequestDetailPage() {
   const params = useParams<{ proposal: string }>();
@@ -169,7 +172,23 @@ function Loaded({
     myApproverIndex >= 0 &&
     (proposal.approvalBitmap & (1 << myApproverIndex)) !== 0;
 
-  const proposerLabel = proposerName(proposal.proposer, myAddress);
+  // Local-first nickname lookup. When a viewer has saved a contact
+  // for a member, prefer that name in the proposer line + the
+  // approvers breakdown below. Without this, every multi-member
+  // proposal reads as "by another member" and the breakdown is just
+  // a wall of base58 prefixes.
+  const { contacts } = useContacts();
+  const contactByAddress = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of contacts) map.set(c.address, c.name);
+    return map;
+  }, [contacts]);
+
+  const proposerLabel = proposerName(
+    proposal.proposer,
+    myAddress,
+    contactByAddress,
+  );
   const intentLabel = friendlyIntentLabel(intent.template);
   const statusLabel = friendlyStatus(proposal.status);
   const createdAgo = relativeTime(proposal.proposedAt);
@@ -256,6 +275,13 @@ function Loaded({
           </p>
         </div>
       </section>
+
+      <ApproversBreakdown
+        approvers={intent.approvers}
+        approvalBitmap={proposal.approvalBitmap}
+        myAddress={myAddress}
+        contactByAddress={contactByAddress}
+      />
 
       {/* Actions: only while Active */}
       {isActive && isApprover && !alreadyApproved && (
@@ -384,6 +410,69 @@ function ApprovalProgress({
   );
 }
 
+// Per-approver status row. Multisig collaboration UX — when a
+// member shares a proposal link in a group chat, the recipient
+// can see at a glance who's already approved and who's blocking.
+// Each row shows avatar + name + an Approved / Waiting pill.
+function ApproversBreakdown({
+  approvers,
+  approvalBitmap,
+  myAddress,
+  contactByAddress,
+}: {
+  approvers: string[];
+  approvalBitmap: number;
+  myAddress: string;
+  contactByAddress: Map<string, string>;
+}) {
+  if (approvers.length === 0) return null;
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+      <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+        Approvers
+      </h2>
+      <ul className="mt-3 flex flex-col gap-2">
+        {approvers.map((address, i) => {
+          const approved = (approvalBitmap & (1 << i)) !== 0;
+          const isYou = !!myAddress && address === myAddress;
+          const nickname = contactByAddress.get(address);
+          const displayName = isYou
+            ? "You"
+            : nickname ?? `Member ${avatarInitials(address)}`;
+          return (
+            <li
+              key={address}
+              className="flex items-center gap-3 rounded-soft border border-border-soft bg-canvas px-3 py-2.5"
+            >
+              <MemberAvatar address={address} size="sm" />
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-text-strong">
+                {displayName}
+              </span>
+              <span
+                className={
+                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium " +
+                  (approved
+                    ? "border-accent/30 bg-accent/10 text-accent"
+                    : "border-border-soft bg-surface-raised text-text-soft")
+                }
+              >
+                {approved ? (
+                  <>
+                    <Check className="h-3 w-3" strokeWidth={3} aria-hidden="true" />
+                    Approved
+                  </>
+                ) : (
+                  "Waiting"
+                )}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 function InfoCard({ title, body }: { title: string; body: string }) {
   return (
     <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
@@ -468,11 +557,18 @@ function countBits(n: number): number {
   return count;
 }
 
-// "by you" if connected user is the proposer; otherwise "by another
-// member" — until a contacts/names layer exists, we don't render
-// addresses on screen per the retail rules.
-function proposerName(proposer: string, me: string): string {
+// "by you" if connected user is the proposer, "by Sarah" when the
+// viewer has saved a contact for the proposer's address, otherwise
+// "by another member". Per the retail rules we never render raw
+// base58 addresses inline.
+function proposerName(
+  proposer: string,
+  me: string,
+  contactByAddress: Map<string, string>,
+): string {
   if (!proposer) return "";
   if (me && proposer === me) return "by you";
+  const named = contactByAddress.get(proposer);
+  if (named) return `by ${named}`;
   return "by another member";
 }
