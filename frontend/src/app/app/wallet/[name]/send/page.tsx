@@ -75,6 +75,8 @@ import { resolveSnsName, looksLikeSnsName } from "@/lib/chain/sns";
 import { QrScanButton } from "@/components/retail/QrScanButton";
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
+import { ChainBadge } from "@/components/retail/ChainBadge";
+import { chainByKind } from "@/lib/retail/chains";
 import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
 
 type Stage = "compose" | "sending" | "sent";
@@ -1064,10 +1066,28 @@ function ComposeStage({
       transition={STAGE_TRANSITION}
       className="flex flex-col"
     >
-      <div className="flex flex-col items-center">
-        <span aria-hidden="true" className="block h-px w-10 bg-accent" />
+      {/* Centered chain Hero — same shape as /send/eth and
+          /send/erc20 so the three send pages read as one family.
+          ChainBadge → accent rule → "Send · Solana" eyebrow →
+          "Send SOL from {wallet}" headline. The Hero is the only
+          centered block; everything below (Quick-send strip,
+          Recents, To/Note card) is left-aligned full-width so the
+          form reads top-to-bottom in one column. */}
+      <div className="flex flex-col items-center text-center">
+        {(() => {
+          const solMeta = chainByKind(0);
+          return solMeta ? <ChainBadge chain={solMeta} size="lg" /> : null;
+        })()}
+        <span aria-hidden="true" className="mt-4 block h-px w-10 bg-accent" />
         <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-          Sending from {walletDisplay}
+          Send · Solana
+        </p>
+        <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+          Send SOL from {walletDisplay}
+        </h1>
+        <p className="mt-2 text-base text-text-soft">
+          On Solana devnet. The wallet&rsquo;s spending rule applies before
+          anything ships.
         </p>
       </div>
 
@@ -1075,7 +1095,7 @@ function ComposeStage({
           Sits above the canonical step-by-step inputs so users who
           want it find it; users who don't can ignore the strip and
           fill the form normally. The user reviews + signs as usual. */}
-      <div className="mt-5">
+      <div className="mt-6">
         <QuickSendInput
           contactNames={contactNames}
           onParsed={onQuickFill}
@@ -1283,17 +1303,43 @@ function ComposeStage({
         <WalletPopupNarration action="send this request" />
       </div>
 
-      {/* Sticky-bottom action block on mobile so the CTA stays
-          visible after typing amount + recipient. Without this the
-          user scrolls past their own values to find the button —
-          the most-flagged abandonment risk on a phone. md+ keeps
-          the CTA in flow because the form column is short there.
+      {/* Sticky-bottom CTA on mobile — JUST the button. The
+          previous version stuffed Send + caption + batch-link into
+          the sticky block, producing a ~200px tall bar that covered
+          SignPayloadPreview / WalletPopupNarration when scrolled.
+          The non-essential bits (approval caption, batch entry
+          point) sit in normal flow above the sticky so they show
+          up only when the user reaches the bottom of the form.
           pb uses safe-area-inset-bottom so it clears the home
-          indicator on iOS, and bottom-0 anchors above the
-          BottomNav which already pb-safe-bottoms itself. */}
+          indicator on iOS, and bottom anchor lifts the bar above
+          the BottomNav which already pb-safe-bottoms itself. */}
+      <p className="mt-4 text-center text-xs text-text-soft">
+        Your friends in {walletDisplay} will be asked to approve before it
+        sends.
+      </p>
+
+      {/* Batch entry point — same template, N rows. Sits in flow
+          above the sticky bar so it doesn't add height when the
+          CTA pins to the bottom. */}
+      <div className="mt-3 flex justify-center">
+        <Link
+          href={`/app/wallet/${encodeURIComponent(walletName)}/send/batch`}
+          className={
+            "inline-flex min-h-tap items-center justify-center gap-2 rounded-full border border-border-soft " +
+            "bg-surface-raised px-4 py-2 text-xs font-medium text-text-soft " +
+            "transition-[border-color,color,transform] duration-base ease-out-soft " +
+            "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          }
+        >
+          <Users className="h-3.5 w-3.5" aria-hidden="true" />
+          Send to many at once
+        </Link>
+      </div>
+
       <div
         className={
-          "mt-3 -mx-3 sm:mx-0 px-3 sm:px-0 " +
+          "mt-4 -mx-3 sm:mx-0 px-3 sm:px-0 " +
           "sticky bottom-[calc(env(safe-area-inset-bottom,0px)+4rem)] z-20 sm:static sm:bottom-auto " +
           "border-t border-border-soft bg-canvas pt-3 sm:border-0 sm:bg-transparent sm:pt-0"
         }
@@ -1316,30 +1362,6 @@ function ComposeStage({
             </>
           )}
         </Button>
-
-        <p className="mt-4 text-center text-xs text-text-soft">
-          Your friends in {walletDisplay} will be asked to approve before it
-          sends.
-        </p>
-
-        {/* Batch entry point — same template, N rows. Surfaced here
-            so it doesn't compete with the primary single-send CTA
-            but is one tap away when a payroll-style send is needed. */}
-        <div className="flex justify-center">
-          <Link
-            href={`/app/wallet/${encodeURIComponent(walletName)}/send/batch`}
-            className={
-              "mt-4 inline-flex min-h-tap items-center justify-center gap-2 rounded-full border border-border-soft " +
-              "bg-surface-raised px-4 py-2 text-xs font-medium text-text-soft " +
-              "transition-[border-color,color,transform] duration-base ease-out-soft " +
-              "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-            }
-          >
-            <Users className="h-3.5 w-3.5" aria-hidden="true" />
-            Send to many at once
-          </Link>
-        </div>
       </div>
     </motion.section>
   );
