@@ -747,9 +747,11 @@ function Hero({
           three sub-tap-target pills (Send / Receive / Add policies)
           that read as decoration on the most-visited surface in
           the app. Tiles meet the 44px Apple HIG minimum and read
-          as primary CTAs. */}
+          as primary CTAs. mx-auto so the grid centers within the
+          flex-col-items-center hero (text-center on a parent does
+          not propagate to block-level grid children). */}
       <div
-        className="mt-4 grid w-full max-w-md grid-cols-3 gap-2"
+        className="mx-auto mt-4 grid w-full max-w-md grid-cols-3 gap-2"
         role="group"
         aria-label="Wallet actions"
       >
@@ -1626,8 +1628,8 @@ function DetailSkeleton() {
           </div>
           <div className="h-4 w-20 animate-pulse rounded bg-border-soft/60" />
         </div>
-        {/* 3-up Hero action tiles. */}
-        <div className="mt-4 grid w-full max-w-md grid-cols-3 gap-2">
+        {/* 3-up Hero action tiles — mx-auto matches the live Hero. */}
+        <div className="mx-auto mt-4 grid w-full max-w-md grid-cols-3 gap-2">
           <div className="h-[56px] animate-pulse rounded-card border border-border-soft bg-canvas" />
           <div className="h-[56px] animate-pulse rounded-card border border-border-soft bg-canvas" />
           <div className="h-[56px] animate-pulse rounded-card border border-border-soft bg-canvas" />
