@@ -424,7 +424,7 @@ function MemberRow({
             }
             title={hasNickname ? "Rename" : "Give a nickname"}
             className={
-              "rounded-soft p-1.5 text-text-soft transition-colors duration-base ease-out-soft " +
+              "inline-flex h-tap w-tap items-center justify-center rounded-soft text-text-soft transition-colors duration-base ease-out-soft " +
               "hover:bg-canvas hover:text-text-strong " +
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
               "disabled:cursor-not-allowed disabled:opacity-40"
@@ -440,7 +440,7 @@ function MemberRow({
             disabled={busy}
             aria-label={`Change role for ${displayName}`}
             className={
-              "rounded-soft p-1.5 text-text-soft transition-colors duration-base ease-out-soft " +
+              "inline-flex h-tap w-tap items-center justify-center rounded-soft text-text-soft transition-colors duration-base ease-out-soft " +
               "hover:bg-canvas hover:text-text-strong " +
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
               "disabled:cursor-not-allowed disabled:opacity-40"
@@ -456,7 +456,7 @@ function MemberRow({
             disabled={busy}
             aria-label={`Remove ${displayName}`}
             className={
-              "rounded-soft p-1.5 text-text-soft transition-colors duration-base ease-out-soft " +
+              "inline-flex h-tap w-tap items-center justify-center rounded-soft text-text-soft transition-colors duration-base ease-out-soft " +
               "hover:bg-canvas hover:text-danger " +
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
               "disabled:cursor-not-allowed disabled:opacity-40"
@@ -583,7 +583,7 @@ function MemberRow({
               onClick={handleConfirmRemove}
               disabled={remove.isPending}
               className={
-                "inline-flex items-center gap-1 rounded-full bg-danger px-3 py-1 text-[11px] font-medium text-white " +
+                "inline-flex min-h-tap items-center justify-center gap-1 rounded-full bg-danger px-4 py-2 text-[11px] font-medium text-white " +
                 "transition-[background-color,transform] duration-base ease-out-soft " +
                 "hover:bg-danger/90 active:scale-[0.98] " +
                 "disabled:cursor-not-allowed disabled:opacity-60"

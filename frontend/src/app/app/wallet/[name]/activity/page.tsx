@@ -213,7 +213,7 @@ export default function WalletActivityPage() {
               onClick={handleExport}
               disabled={filtered.length === 0}
               className={
-                "ml-auto inline-flex items-center gap-1 rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft " +
+                "ml-auto inline-flex min-h-tap items-center justify-center gap-1 rounded-full border border-border-soft bg-canvas px-3 py-2 text-[11px] font-medium text-text-soft " +
                 "transition-[border-color,color,transform] duration-base ease-out-soft " +
                 "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
                 "disabled:cursor-not-allowed disabled:opacity-50 " +
@@ -250,7 +250,7 @@ export default function WalletActivityPage() {
                     setSearch("");
                   }}
                   className={
-                    "mt-3 inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft " +
+                    "mt-3 inline-flex min-h-tap items-center justify-center gap-1.5 rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft " +
                     "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
                   }

@@ -229,7 +229,7 @@ function PolicyCard({
           <Link
             href={`/app/wallet/${encodeURIComponent(walletName)}/policies/${rule.id}`}
             className={
-              "inline-flex items-center gap-1 rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft " +
+              "inline-flex min-h-tap items-center justify-center gap-1 rounded-full border border-border-soft bg-canvas px-3 py-2 text-[11px] font-medium text-text-soft " +
               "transition-[border-color,color,transform] duration-base ease-out-soft " +
               "hover:-translate-y-0.5 hover:border-accent hover:text-accent"
             }
@@ -245,7 +245,7 @@ function PolicyCard({
               }
             }}
             aria-label={`Delete ${rule.name}`}
-            className="rounded-soft p-1.5 text-text-soft transition-colors hover:bg-canvas hover:text-rose-600"
+            className="inline-flex h-tap w-tap items-center justify-center rounded-soft text-text-soft transition-colors hover:bg-canvas hover:text-rose-600"
           >
             <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
           </button>

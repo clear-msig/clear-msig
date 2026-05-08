@@ -122,11 +122,12 @@ export default function ChainsPage() {
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
         className="flex flex-col items-center text-center"
       >
-        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        <span aria-hidden="true" className="block h-px w-10 bg-accent" />
+        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Chains
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          {name} can send on
+          <span className="text-accent">{name}</span> can send on
         </h1>
         <p className="mt-2 max-w-md text-base text-text-soft">
           Add support for more chains so this wallet can move money on
