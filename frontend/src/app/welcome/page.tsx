@@ -59,9 +59,10 @@ import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { BrandMark } from "@/components/retail/BrandMark";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
 import { saveWalletAppearance } from "@/lib/retail/walletAppearance";
+import { toDisplayName } from "@/lib/retail/walletNames";
 
 // Welcome was a 3-stage wizard (shape_name → pace → confirm). Honest
 // review (2026-05-03): the pace choice never moved a user; the
@@ -357,30 +358,81 @@ export default function WelcomePage() {
       };
 
   // Single-screen create flow — no in-page back affordance needed.
-  // The StickyTopBar always renders the home link.
+  // The brand-mark home link in the top-left always returns to /.
 
   return (
     <main className="relative flex min-h-screen flex-col bg-canvas">
 
-      <StickyTopBar>
-        <Link
-          href="/"
-          className={
-            "-ml-2 inline-flex items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-          }
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Clear
-        </Link>
-      </StickyTopBar>
+      {/* Brand-mark home link, pinned in the top-left corner. The
+          StickyTopBar wrapper used to bake in 5rem of flow spacing
+          before this — the user's eye landed on a small "← Clear"
+          floating in a vast empty header band. Absolute-positioning
+          here drops the link right against the viewport corner so
+          the welcome content (centered Create form) sits near the
+          natural reading position rather than scrolled-down. */}
+      <Link
+        href="/"
+        aria-label="Back to home"
+        className={
+          "absolute left-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-soft px-2 py-1 text-text-soft sm:left-4 sm:top-4 " +
+          "transition-colors duration-base ease-out-soft hover:text-text-strong " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+        }
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        <span className="flex h-5 w-5 items-center justify-center text-accent">
+          <BrandMark size={18} />
+        </span>
+      </Link>
 
       <div className="relative z-10 flex flex-1 items-center justify-center px-gutter pb-16 pt-8">
         <div className="flex w-full max-w-md flex-col gap-4">
           <UnsupportedSignerBanner
             title="You won't be able to finish creating a wallet with this sign-in"
           />
+          {/* Returning users: surface a way back to existing wallets.
+              The page intentionally renders the create flow even for
+              users with memberships (they may want a second wallet),
+              but without this banner there's no obvious way back to
+              the one they already have. */}
+          {!memberships.isLoading &&
+            (memberships.data?.length ?? 0) > 0 && (
+              <Link
+                href={
+                  memberships.data && memberships.data.length === 1
+                    ? `/app/wallet/${encodeURIComponent(
+                        memberships.data[0].wallet_name ?? "",
+                      )}`
+                    : "/app/wallet"
+                }
+                className={
+                  "group flex items-center gap-3 rounded-card border border-accent/40 bg-accent/[0.10] p-4 text-left shadow-card-rest " +
+                  "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
+                  "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+                }
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/20 text-accent">
+                  <Users className="h-5 w-5" strokeWidth={1.75} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-accent">
+                    {memberships.data!.length === 1
+                      ? "You already have a wallet"
+                      : `You're in ${memberships.data!.length} wallets`}
+                  </p>
+                  <p className="mt-0.5 truncate text-sm font-medium text-text-strong">
+                    {memberships.data!.length === 1
+                      ? `Continue with ${toDisplayName(memberships.data![0].wallet_name ?? "Wallet")}`
+                      : "Open the wallet hub"}
+                  </p>
+                </div>
+                <ArrowRight
+                  className="h-4 w-4 shrink-0 text-accent transition-transform duration-base group-hover:translate-x-0.5"
+                  aria-hidden="true"
+                />
+              </Link>
+            )}
           <AnimatePresence mode="wait" initial={false}>
             {stage === "intro" && (
               <motion.section
@@ -569,11 +621,10 @@ export default function WelcomePage() {
                     What happens next
                   </p>
                   <p className="mt-2 text-text-strong">
-                    Two wallet popups: one to{" "}
-                    <span className="font-medium">create the wallet</span>,
-                    one to <span className="font-medium">enable sending</span>.
-                    Each shows technical-looking signing text — that's
-                    normal. Nothing leaves your account.
+                    Your wallet will pop up to{" "}
+                    <span className="font-medium">create the wallet</span> and
+                    set up sending in the same step. The signing text looks
+                    technical — that's normal. Nothing leaves your account.
                   </p>
                 </div>
 
