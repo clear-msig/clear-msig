@@ -129,12 +129,19 @@ function Gate({ onUnlock }: { onUnlock: () => void }) {
           }}
           className="mt-6 flex flex-col gap-3"
         >
+          {/* type="text" instead of "password" because iOS Safari
+              ignores inputMode="numeric" on password fields and
+              presents a QWERTY keyboard. Masking is preserved via
+              `-webkit-text-security: disc` (the inline style),
+              supported on Safari + Chromium. one-time-code as a
+              hint disables password-manager autofill while still
+              giving iOS the numeric keypad. */}
           <input
             ref={inputRef}
-            type="password"
+            type="text"
             inputMode="numeric"
             pattern="[0-9]*"
-            autoComplete="off"
+            autoComplete="one-time-code"
             value={pin}
             onChange={(e) =>
               setPin(e.target.value.replace(/\D/g, "").slice(0, 8))
@@ -142,6 +149,16 @@ function Gate({ onUnlock }: { onUnlock: () => void }) {
             placeholder="• • • •"
             maxLength={8}
             aria-label="PIN"
+            // Use both webkit-text-security and text-security so
+            // browsers that recognise the standard form get it; the
+            // -webkit prefix is the one Safari + Chrome actually
+            // honour today.
+            style={
+              {
+                WebkitTextSecurity: "disc",
+                textSecurity: "disc",
+              } as React.CSSProperties
+            }
             className={
               "rounded-card border border-border-soft bg-canvas px-4 py-3 text-center font-display text-2xl tracking-[0.5em] text-text-strong outline-none " +
               "transition-[border-color,box-shadow] duration-base ease-out-soft " +
