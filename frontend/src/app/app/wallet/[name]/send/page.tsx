@@ -1266,47 +1266,64 @@ function ComposeStage({
         <WalletPopupNarration action="send this request" />
       </div>
 
-      <Button
-        size="lg"
-        fullWidth
-        className="mt-3"
-        disabled={!canSubmit || waitingForRule}
-        onClick={onSubmit}
-      >
-        {waitingForRule ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Loading wallet…
-          </>
-        ) : (
-          <>
-            Send request
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </>
-        )}
-      </Button>
-
-      <p className="mt-4 text-center text-xs text-text-soft">
-        Your friends in {walletDisplay} will be asked to approve before it
-        sends.
-      </p>
-
-      {/* Batch entry point — same template, N rows. Surfaced here so
-          it doesn't compete with the primary single-send CTA but is
-          one tap away when a payroll-style send is needed. */}
-      <Link
-        href={`/app/wallet/${encodeURIComponent(walletName)}/send/batch`}
+      {/* Sticky-bottom action block on mobile so the CTA stays
+          visible after typing amount + recipient. Without this the
+          user scrolls past their own values to find the button —
+          the most-flagged abandonment risk on a phone. md+ keeps
+          the CTA in flow because the form column is short there.
+          pb uses safe-area-inset-bottom so it clears the home
+          indicator on iOS, and bottom-0 anchors above the
+          BottomNav which already pb-safe-bottoms itself. */}
+      <div
         className={
-          "mt-4 inline-flex items-center justify-center gap-2 self-center rounded-full border border-border-soft " +
-          "bg-surface-raised px-3.5 py-1.5 text-xs font-medium text-text-soft " +
-          "transition-[border-color,color,transform] duration-base ease-out-soft " +
-          "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          "mt-3 -mx-3 sm:mx-0 px-3 sm:px-0 " +
+          "sticky bottom-[calc(env(safe-area-inset-bottom,0px)+4rem)] z-20 sm:static sm:bottom-auto " +
+          "border-t border-border-soft bg-canvas pt-3 sm:border-0 sm:bg-transparent sm:pt-0"
         }
       >
-        <Users className="h-3.5 w-3.5" aria-hidden="true" />
-        Send to many at once
-      </Link>
+        <Button
+          size="lg"
+          fullWidth
+          disabled={!canSubmit || waitingForRule}
+          onClick={onSubmit}
+        >
+          {waitingForRule ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              Loading wallet…
+            </>
+          ) : (
+            <>
+              Send request
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </>
+          )}
+        </Button>
+
+        <p className="mt-4 text-center text-xs text-text-soft">
+          Your friends in {walletDisplay} will be asked to approve before it
+          sends.
+        </p>
+
+        {/* Batch entry point — same template, N rows. Surfaced here
+            so it doesn't compete with the primary single-send CTA
+            but is one tap away when a payroll-style send is needed. */}
+        <div className="flex justify-center">
+          <Link
+            href={`/app/wallet/${encodeURIComponent(walletName)}/send/batch`}
+            className={
+              "mt-4 inline-flex min-h-tap items-center justify-center gap-2 rounded-full border border-border-soft " +
+              "bg-surface-raised px-4 py-2 text-xs font-medium text-text-soft " +
+              "transition-[border-color,color,transform] duration-base ease-out-soft " +
+              "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+            }
+          >
+            <Users className="h-3.5 w-3.5" aria-hidden="true" />
+            Send to many at once
+          </Link>
+        </div>
+      </div>
     </motion.section>
   );
 }

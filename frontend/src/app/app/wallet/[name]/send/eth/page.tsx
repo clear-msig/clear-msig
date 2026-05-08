@@ -881,16 +881,26 @@ function ComposeStage({
         <WalletPopupNarration action="send this Ethereum request" popups={1} />
       </div>
 
-      <Button
-        size="lg"
-        fullWidth
-        className="mt-3"
-        disabled={!canSubmit}
-        onClick={onSubmit}
+      {/* Sticky-bottom CTA on mobile — see SOL send for full
+          rationale. Form is long; without sticky the user scrolls
+          past their typed values to find the button. */}
+      <div
+        className={
+          "mt-3 -mx-3 sm:mx-0 px-3 sm:px-0 " +
+          "sticky bottom-[calc(env(safe-area-inset-bottom,0px)+4rem)] z-20 sm:static sm:bottom-auto " +
+          "border-t border-border-soft bg-canvas pt-3 sm:border-0 sm:bg-transparent sm:pt-0"
+        }
       >
-        Send request
-        <ArrowRight className="h-4 w-4" aria-hidden="true" />
-      </Button>
+        <Button
+          size="lg"
+          fullWidth
+          disabled={!canSubmit}
+          onClick={onSubmit}
+        >
+          Send request
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Button>
+      </div>
     </div>
   );
 }
