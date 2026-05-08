@@ -69,7 +69,33 @@ import { saveWalletAppearance } from "@/lib/retail/walletAppearance";
 // Collapsed to a single create screen + a success payoff. Cooling-off
 // and color customization moved to the wallet's spending rules where
 // they're load-bearing rather than ceremonial.
-type Stage = "create" | "success";
+//
+// 2026-05-08: added a brief two-card "intro" stage in front of the
+// create screen. Phantom / Rainbow always begin with a brand moment
+// + a "what this is" before asking the user to commit. Skip-able so
+// power-users (and return visits) bypass it; persisted via
+// sessionStorage so the tour shows once per tab.
+type Stage = "intro" | "create" | "success";
+
+const INTRO_SEEN_KEY = "clear.welcome-intro-seen.v1";
+
+function loadIntroSeen(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.sessionStorage.getItem(INTRO_SEEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markIntroSeen(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(INTRO_SEEN_KEY, "1");
+  } catch {
+    /* private mode / quota — silently noop */
+  }
+}
 
 const SOL_TRANSFER_TEMPLATE = "examples/intents/solana_transfer.json";
 
@@ -141,7 +167,13 @@ export default function WelcomePage() {
   const { signDescriptor } = useSignWithWallet();
   const { connection } = useConnection();
 
-  const [stage, setStage] = useState<Stage>("create");
+  // First-tab visitors see the intro; return visits in the same
+  // tab skip straight to create. Lazy initializer reads
+  // sessionStorage once on mount so the SSR pass keeps the
+  // deterministic "intro" default.
+  const [stage, setStage] = useState<Stage>(() =>
+    typeof window !== "undefined" && loadIntroSeen() ? "create" : "intro",
+  );
   const [shape, setShape] = useState<ShapeId>("just_me");
   const [name, setName] = useState("");
   /// Cooling-off lives on the wallet's spending rule, not the create
@@ -350,6 +382,91 @@ export default function WelcomePage() {
             title="You won't be able to finish creating a wallet with this sign-in"
           />
           <AnimatePresence mode="wait" initial={false}>
+            {stage === "intro" && (
+              <motion.section
+                key="intro"
+                {...pageMotion}
+                transition={TRANSITION}
+                className="flex flex-col"
+              >
+                <div className="text-center">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+                    Welcome to Clear
+                  </p>
+                  <h2 className="mt-2 font-display text-display-sm text-text-strong text-balance">
+                    A shared wallet for people you trust
+                  </h2>
+                  <p className="mt-2 text-base text-text-soft">
+                    Two things to know before you build one.
+                  </p>
+                </div>
+
+                {/* Two value-prop cards. Each is a static block —
+                    no nav, no progress dots — so the user feels
+                    the brand moment without being walked through
+                    a tour. */}
+                <div className="mt-6 flex flex-col gap-3">
+                  <article className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+                        <Users className="h-5 w-5" strokeWidth={1.75} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-text-strong">
+                          Approve from anywhere
+                        </p>
+                        <p className="mt-1 text-sm text-text-soft">
+                          Anyone you add can read every request and tap
+                          Approve from their phone or browser. Your
+                          phone is the second factor. No keys to lose.
+                        </p>
+                      </div>
+                    </div>
+                  </article>
+                  <article className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+                        <Send className="h-5 w-5" strokeWidth={1.75} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-text-strong">
+                          One wallet, every chain
+                        </p>
+                        <p className="mt-1 text-sm text-text-soft">
+                          The same shared wallet sends Solana, Ethereum,
+                          Bitcoin, and Zcash. One signature ceremony,
+                          one source of truth, no bridges.
+                        </p>
+                      </div>
+                    </div>
+                  </article>
+                </div>
+
+                <div className="mt-7 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      markIntroSeen();
+                      setStage("create");
+                    }}
+                    className="text-sm text-text-soft hover:text-text-strong"
+                  >
+                    Skip intro
+                  </button>
+                  <Button
+                    onClick={() => {
+                      markIntroSeen();
+                      setStage("create");
+                    }}
+                    className="min-w-[10rem]"
+                  >
+                    Continue
+                    <ArrowRight className="ml-1 h-4 w-4" aria-hidden="true" />
+                  </Button>
+                </div>
+              </motion.section>
+            )}
+
             {stage === "create" && (
               <motion.section
                 key="create"
