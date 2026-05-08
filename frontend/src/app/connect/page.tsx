@@ -25,7 +25,6 @@ import {
   Loader2,
   Lock,
   ShieldCheck,
-  Sparkles,
   Usb,
 } from "lucide-react";
 import { useDynamicContext, DynamicWidget } from "@dynamic-labs/sdk-react-core";
@@ -119,11 +118,15 @@ function ConnectPage() {
               communicates what's behind the wall. On mobile it stacks
               above the connect card. */}
           <motion.section {...fadeIn(0)} className="flex flex-col">
-            <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
-              <Sparkles className="h-3 w-3" strokeWidth={2.25} aria-hidden="true" />
+            {/* Canonical Hero pattern: thin accent rule + small caps
+                eyebrow + headline. Was a bordered green pill which
+                read as a one-off marketing flourish — every other
+                Hero in the app uses the rule + caps treatment. */}
+            <span aria-hidden="true" className="block h-px w-10 bg-accent" />
+            <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
               Shared wallets, signed by you
-            </span>
-            <h1 className="mt-5 font-display text-display-md leading-[0.95] text-text-strong text-balance lg:text-display-lg">
+            </p>
+            <h1 className="mt-3 font-display text-display-md leading-[0.95] text-text-strong text-balance lg:text-display-lg">
               Money you decide on,{" "}
               <span className="text-accent">together</span>.
             </h1>

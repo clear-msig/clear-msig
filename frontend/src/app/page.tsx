@@ -19,7 +19,17 @@
 
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, Lock, Send, UserPlus, Users } from "lucide-react";
+import {
+  ArrowRight,
+  EyeOff,
+  Github,
+  Globe,
+  Lock,
+  Send,
+  ShieldCheck,
+  UserPlus,
+  Users,
+} from "lucide-react";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { HeaderBar } from "@/components/layout/HeaderBar";
 import { Button } from "@/components/retail/Button";
@@ -146,6 +156,76 @@ export default function HomePage() {
         </motion.div>
       </section>
 
+      {/* Built on — what powers Clear under the hood. Three pieces:
+          the Solana program (the rules that gate every send), the
+          Ika dWallet network (one Solana key signs across SOL, ETH,
+          BTC, and Zcash with no bridges), and Encrypt FHE (spending
+          policies live on chain as ciphertext, verifiable but
+          unreadable). One paragraph each — enough to ground a
+          technical reader without scaring off the casual one. */}
+      <section className="relative z-10 mx-auto w-full max-w-5xl px-gutter pt-24 sm:pt-32">
+        <motion.div
+          {...fadeIn(0)}
+          className="flex flex-col items-center text-center"
+        >
+          <span aria-hidden="true" className="block h-px w-10 bg-accent" />
+          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+            Built on
+          </p>
+          <h2 className="mt-3 font-display text-display-xs leading-tight text-text-strong text-balance sm:text-display-sm">
+            Open-source rails, end to end
+          </h2>
+          <p className="mt-3 max-w-2xl text-base text-text-soft text-pretty">
+            One Solana key, one set of rules, every chain. Built from three
+            pieces, all open source. Every signature is auditable.
+          </p>
+        </motion.div>
+
+        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <StackCard
+            Icon={ShieldCheck}
+            kicker="Solana program"
+            title="The rules layer"
+            body="A Rust contract on Solana enforces threshold approvals, spending limits, and timelocks before any transaction signs. Open source; same byte-exact preimage on chain and in the client."
+            reduce={!!reduce}
+            delay={0.04}
+          />
+          <StackCard
+            Icon={Globe}
+            kicker="Ika dWallet network"
+            title="One key, every chain"
+            body="The dWallet's pubkey IS your address on each destination chain. ETH, BTC, and Zcash transfers are signed by your Solana key through Ika's 2PC-MPC network. No bridges, no wrapped assets."
+            reduce={!!reduce}
+            delay={0.10}
+            href="https://ika.xyz"
+          />
+          <StackCard
+            Icon={EyeOff}
+            kicker="Encrypt · FHE"
+            title="Policies stay private"
+            body="Member lists, approval thresholds, and spending caps live on chain as fully-homomorphic ciphertext. Verifiable but unreadable — by us, by validators, by anyone."
+            reduce={!!reduce}
+            delay={0.16}
+            href="https://encrypt.xyz"
+          />
+        </div>
+
+        <motion.div
+          {...fadeIn(0.22)}
+          className="mt-6 flex items-center justify-center gap-3 text-xs text-text-soft"
+        >
+          <Github className="h-3.5 w-3.5" aria-hidden="true" />
+          <a
+            href="https://github.com/clear-msig/clear-msig"
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-soft px-1.5 py-0.5 transition-colors duration-base ease-out-soft hover:text-text-strong"
+          >
+            github.com/clear-msig/clear-msig
+          </a>
+        </motion.div>
+      </section>
+
       {/* Final CTA */}
       <section className="relative z-10 mx-auto w-full max-w-3xl px-gutter py-24 text-center sm:py-32">
         <motion.h2
@@ -201,6 +281,85 @@ function Step({ index, Icon, title, body, reduce, delay }: StepProps) {
       </div>
       <h3 className="mt-4 font-display text-xl text-text-strong">{title}</h3>
       <p className="mt-2 text-sm text-text-soft">{body}</p>
+    </motion.article>
+  );
+}
+
+// One stack card. Same shape as <Step> above — accent-tinted icon,
+// caps kicker, headline, body. Optional `href` turns it into a Link
+// so the Ika and Encrypt cards point at the upstream project pages
+// without a separate "learn more" row.
+interface StackCardProps {
+  Icon: typeof Users;
+  kicker: string;
+  title: string;
+  body: string;
+  reduce: boolean;
+  delay: number;
+  href?: string;
+}
+
+function StackCard({
+  Icon,
+  kicker,
+  title,
+  body,
+  reduce,
+  delay,
+  href,
+}: StackCardProps) {
+  const motionProps = reduce
+    ? {}
+    : {
+        initial: { opacity: 0, y: 12 },
+        animate: { opacity: 1, y: 0 },
+        transition: { duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] as const },
+      };
+  const inner = (
+    <>
+      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
+        <Icon className="h-5 w-5" strokeWidth={1.75} />
+      </span>
+      <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        {kicker}
+      </p>
+      <h3 className="mt-1.5 font-display text-xl text-text-strong">
+        {title}
+      </h3>
+      <p className="mt-2 text-sm text-text-soft text-pretty">{body}</p>
+      {href && (
+        <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-accent">
+          Learn more
+          <ArrowRight className="h-3 w-3" aria-hidden="true" />
+        </span>
+      )}
+    </>
+  );
+
+  const className =
+    "group flex h-full flex-col rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest " +
+    "transition-[border-color,transform,box-shadow] duration-base ease-out-soft " +
+    (href
+      ? "hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-card-raised "
+      : "");
+
+  if (href) {
+    return (
+      <motion.a
+        {...motionProps}
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className={className}
+      >
+        {inner}
+      </motion.a>
+    );
+  }
+
+  return (
+    <motion.article {...motionProps} className={className}>
+      {inner}
     </motion.article>
   );
 }
