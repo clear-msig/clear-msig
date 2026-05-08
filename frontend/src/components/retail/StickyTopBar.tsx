@@ -56,30 +56,32 @@ export function StickyTopBar({
   // gutter drops at md+.
   const innerHorizontal = offset === "top" ? "px-gutter md:px-0 " : "";
   // Pin offset.
-  //   - offset="header": workspace pages — top-14 on mobile (sits
-  //     just below the 56px header backdrop strip), md:top-2 on
-  //     desktop where the brand pill is hidden.
-  //   - offset="top": standalone pages — top-14 lg:top-10 to clear
-  //     the floating pill that renders everywhere.
+  //   - offset="header": workspace pages — md:top-2 on desktop. On
+  //     MOBILE, the bar is hidden entirely (`hidden md:block`). The
+  //     bottom nav handles primary navigation on phones, the page
+  //     Hero tells the user where they are, and the breadcrumb /
+  //     back-link strip read as redundant chrome that ate ~56px of
+  //     valuable above-fold space. Pages that need an explicit
+  //     mobile back affordance render it inside their Hero card,
+  //     not via this component.
+  //   - offset="top": standalone pages (welcome, connect, privacy,
+  //     security) — top-14 lg:top-10. These pages don't have a
+  //     bottom nav, so the bar still earns its keep on mobile.
   //
   // Background is SOLID bg-canvas (not bg-canvas/85 + backdrop-blur)
-  // so:
-  //   1. Scrolled content under the bar is fully hidden — no Hero
-  //      card bleeding through to read as "back link inside Hero".
-  //   2. backdrop-blur is one of the most paint-expensive ops on
-  //      mobile. Dropping it lifts scroll fps from ~50 to 70+ on
-  //      mid-tier Android. The bottom-nav comment had the same
-  //      reasoning; bringing the StickyTopBar in line.
+  // so scrolled content fully hides under the bar, and we save the
+  // mobile-paint-expensive blur.
   const pinClasses =
     offset === "header"
-      ? "sticky top-14 md:top-2 z-30 bg-canvas"
+      ? "hidden md:block md:sticky md:top-2 md:z-30 md:bg-canvas"
       : "sticky top-14 lg:top-10 z-30 bg-canvas";
   return (
     <div className={flowSpacing + pinClasses}>
       <div
         className={
-          // Tighter vertical padding on mobile (py-2 vs py-3) shaves
-          // 8px off the band the user lands on at scroll-0.
+          // Tighter vertical padding on mobile (py-2 vs py-3) for
+          // the standalone-page variant; workspace variant is
+          // hidden on mobile entirely so the difference is moot.
           "flex w-full items-center py-2 sm:py-3 " +
           innerHorizontal +
           (innerClassName ?? "")
