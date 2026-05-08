@@ -1070,13 +1070,24 @@ function ComposeStage({
         />
       </div>
 
-      {/* The big number IS the input — typing updates the value
-          users see. Type SOL directly; ticker rendered as a quiet
-          suffix so the editing area is unambiguous. */}
-      <label className="mt-6 flex cursor-text flex-col items-center">
-        <span className="sr-only">Amount in SOL</span>
+      {/* Amount block. The big number IS the input — typing updates
+          the value users see. Restructured: a self-sized centered
+          row holds the input + SOL ticker; the meta line below
+          (helper text + balance + Max) is a separate centered
+          block that doesn't justify-between with the parent's full
+          width. Previous layout had the "Wallet has..." text on
+          the far left and "Max" on the far right of the column,
+          visually disconnected from the centered amount above. */}
+      <div className="mt-6 flex flex-col items-center">
+        <label
+          htmlFor="send-amount-input"
+          className="sr-only"
+        >
+          Amount in SOL
+        </label>
         <div className="flex items-baseline justify-center gap-2">
           <input
+            id="send-amount-input"
             type="text"
             inputMode="decimal"
             value={amount}
@@ -1099,28 +1110,35 @@ function ComposeStage({
             maxLength={20}
             aria-label="Amount in SOL"
             className={
-              // Placeholder needs to register on the light canvas;
-              // text-text-soft/30 reads as "shedded by white" on a
-              // pale bg. /60 is a quiet but visible grey.
-              "bg-transparent font-display text-5xl font-medium text-text-strong " +
+              // text-text-strong on the canvas; placeholder /60 so
+              // the empty-state "0" is visibly faint, not invisible.
+              // No dynamic ch width — that was reflowing the parent
+              // every keystroke (audit flag) AND showing a 1-char
+              // box at scroll-0. Fixed text-right with a width that
+              // fits up to ~6 chars (1234.56) and lets the SOL
+              // suffix sit beside it without wandering.
+              "w-[5.5ch] bg-transparent font-display text-5xl font-medium text-text-strong " +
               "text-right caret-accent outline-none placeholder:text-text-soft/60"
             }
-            style={{ width: `${Math.max(1, amount.length || 1)}ch` }}
           />
           <span
             aria-hidden="true"
-            className="font-display text-5xl font-medium text-text-soft/60"
+            // Bumped from /60 to full text-text-soft for legibility.
+            // The /60 was the same "shedded by white" issue the
+            // earlier audit flagged on the placeholder.
+            className="font-display text-5xl font-medium text-text-soft"
           >
             SOL
           </span>
         </div>
         <p className="mt-2 text-xs text-text-soft">
-          {amount ? `${display} SOL` : "Type an amount in SOL"}
+          {amount ? `${display} SOL` : "Type an amount"}
         </p>
-        {/* Live wallet balance + Max button. Vault PDA is the
-            account SOL transfers come out of, so we surface its
-            balance — typed amounts above this number can't fly. */}
-        <div className="mt-2 flex items-center justify-between text-xs">
+
+        {/* Balance + Max — centered, not justify-between. The two
+            pieces stay close together as a group instead of being
+            pushed to opposite edges of the column. */}
+        <div className="mt-2 inline-flex items-center gap-2 text-xs">
           <span className="text-text-soft">
             {balanceLoading ? (
               "Loading wallet balance…"
@@ -1133,7 +1151,7 @@ function ComposeStage({
                 SOL
               </>
             ) : (
-              "Couldn’t fetch balance"
+              "Couldn't fetch balance"
             )}
           </span>
           {vaultBalanceLamports !== null && vaultBalanceLamports > 0n && (
@@ -1147,21 +1165,21 @@ function ComposeStage({
                     : 0n;
                 setAmount(formatLamports(max, 4));
               }}
-              className="font-medium text-accent transition-colors hover:text-accent/80"
+              className="rounded-full border border-accent/40 bg-accent/[0.10] px-2 py-0.5 text-[11px] font-semibold text-accent transition-colors hover:border-accent hover:bg-accent/[0.15]"
             >
               Max
             </button>
           )}
         </div>
         {insufficientBalance && vaultBalanceLamports !== null && (
-          <p className="mt-2 rounded-soft border border-warning/40 bg-warning/[0.07] px-3 py-2 text-xs text-text-strong">
+          <p className="mt-2 w-full rounded-soft border border-warning/40 bg-warning/[0.10] px-3 py-2 text-xs text-text-strong">
             <span className="font-medium">Insufficient balance.</span>{" "}
             {walletDisplay} has {formatLamports(vaultBalanceLamports)} SOL —
             need at least the amount plus a small reserve for the
             on-chain fee. Top up the wallet from /receive or a faucet.
           </p>
         )}
-      </label>
+      </div>
 
       {/* Recents row — only shows if the user has any saved contacts. */}
       {hydratedContacts && recents.length > 0 && (
