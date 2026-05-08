@@ -47,6 +47,7 @@ import { listBatches } from "@/lib/hooks/useBatchSend";
 import { findVaultAddress, ProposalStatus } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
 import { Button } from "@/components/retail/Button";
+import { BadgePill } from "@/components/retail/BadgePill";
 import { relativeTime } from "@/lib/util/relativeTime";
 import {
   friendlyIntentLabel,
@@ -574,20 +575,9 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
         <div className="flex items-center gap-2">
           <span className="text-xs text-text-soft">{rows.length}</span>
           {showApproveAll && (
-            <button
-              type="button"
-              onClick={handleApproveAll}
-              disabled={running}
-              className={
-                "inline-flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-[11px] font-medium text-white shadow-accent-rest " +
-                "transition-[background-color,box-shadow,transform] duration-base ease-out-soft " +
-                "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98] " +
-                "disabled:cursor-not-allowed disabled:opacity-60 " +
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-              }
-            >
+            <BadgePill onClick={handleApproveAll} disabled={running}>
               {running ? "Approving…" : "Approve all"}
-            </button>
+            </BadgePill>
           )}
         </div>
       </header>
@@ -810,20 +800,13 @@ function BatchActionRow({
             See first request
           </Link>
         </div>
-        <button
-          type="button"
+        <BadgePill
           onClick={onApprove}
           disabled={disabled}
-          className={
-            "shrink-0 rounded-full bg-accent px-3 py-1 text-[11px] font-medium text-white shadow-accent-rest " +
-            "transition-[background-color,box-shadow,transform] duration-base ease-out-soft " +
-            "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98] " +
-            "disabled:cursor-not-allowed disabled:opacity-60 " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-          }
+          className="shrink-0"
         >
           Approve batch ({rows.length})
-        </button>
+        </BadgePill>
       </div>
     </li>
   );

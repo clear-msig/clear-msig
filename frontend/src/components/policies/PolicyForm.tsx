@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { BadgePill } from "@/components/retail/BadgePill";
 import { Button } from "@/components/retail/Button";
 import { useToast } from "@/components/ui/Toast";
 import { encryptStatus } from "@/lib/encrypt/client";
@@ -401,17 +402,10 @@ function ConditionMenu({ onAdd }: { onAdd: (k: ConditionKind) => void }) {
   ];
   return (
     <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className={
-          "inline-flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-[11px] font-medium text-white " +
-          "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98]"
-        }
-      >
+      <BadgePill onClick={() => setOpen(!open)}>
         <Plus className="h-3 w-3" aria-hidden="true" />
         Add condition
-      </button>
+      </BadgePill>
       {open && (
         <div className="absolute right-0 top-full z-10 mt-1 w-48 overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-raised">
           {opts.map((o) => (

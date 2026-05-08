@@ -58,6 +58,7 @@ import {
 import { useBatchApprove } from "@/lib/hooks/useBatchApprove";
 import { ProposalStatus } from "@/lib/msig";
 import { Button } from "@/components/retail/Button";
+import { BadgePill } from "@/components/retail/BadgePill";
 import { MemberAvatarStack } from "@/components/retail/MemberAvatar";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { QuickActionInput } from "@/components/retail/QuickActionInput";
@@ -1310,20 +1311,9 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
         <div className="flex items-center gap-2">
           <span className="text-xs text-text-soft">{rows.length}</span>
           {showApproveAll && (
-            <button
-              type="button"
-              onClick={handleApproveAll}
-              disabled={running}
-              className={
-                "inline-flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-[11px] font-medium text-white shadow-accent-rest " +
-                "transition-[background-color,box-shadow,transform] duration-base ease-out-soft " +
-                "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98] " +
-                "disabled:cursor-not-allowed disabled:opacity-60 " +
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-              }
-            >
+            <BadgePill onClick={handleApproveAll} disabled={running}>
               {running ? "Approving…" : "Approve all"}
-            </button>
+            </BadgePill>
           )}
         </div>
       </header>
@@ -1761,7 +1751,7 @@ function NextStepsStripe({
   return (
     <section
       aria-label="Next step"
-      className="rounded-card border border-accent/30 bg-accent/[0.05] p-4 shadow-card-rest sm:p-5"
+      className="rounded-card border border-accent/40 bg-accent/[0.10] p-4 shadow-card-rest sm:p-5"
     >
       <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1">

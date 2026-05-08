@@ -51,7 +51,12 @@ export function SignPayloadPreview({
   return (
     <section
       aria-label="What you are about to sign"
-      className="rounded-card border border-accent/40 bg-accent/[0.05] p-4 text-left"
+      // bg-accent/[0.05] reads as nearly white on a light canvas,
+      // which made text-text-strong copy look "shedded" — text and
+      // panel were too close in lightness. /[0.10] is still a quiet
+      // tint but gives the dark/light text inside a real surface to
+      // sit on. Border bumped to /50 for the same reason.
+      className="rounded-card border border-accent/50 bg-accent/[0.10] p-4 text-left"
     >
       <header className="flex items-start gap-2.5">
         <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">

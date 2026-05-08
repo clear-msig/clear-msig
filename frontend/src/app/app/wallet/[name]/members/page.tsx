@@ -25,6 +25,7 @@ import { deriveRole, listWatchers, ROLE_HINT, ROLE_LABEL, type Role } from "@/li
 import { useContacts } from "@/lib/hooks/useContacts";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { BadgePill } from "@/components/retail/BadgePill";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { avatarInitials } from "@/lib/retail/avatar";
@@ -484,19 +485,13 @@ function MemberRow({
                 "focus:border-accent focus:shadow-accent-rest"
               }
             />
-            <button
-              type="button"
+            <BadgePill
+              size="md"
               onClick={handleSaveNickname}
               disabled={!nicknameDraft.trim()}
-              className={
-                "rounded-full bg-accent px-3 py-1.5 text-[11px] font-medium text-white " +
-                "transition-[background-color,transform] duration-base ease-out-soft " +
-                "hover:bg-accent-hover active:scale-[0.98] " +
-                "disabled:cursor-not-allowed disabled:opacity-50"
-              }
             >
               Save
-            </button>
+            </BadgePill>
             <button
               type="button"
               onClick={() => setEditingNickname(false)}

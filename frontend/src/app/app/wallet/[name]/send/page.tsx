@@ -1099,8 +1099,11 @@ function ComposeStage({
             maxLength={20}
             aria-label="Amount in SOL"
             className={
+              // Placeholder needs to register on the light canvas;
+              // text-text-soft/30 reads as "shedded by white" on a
+              // pale bg. /60 is a quiet but visible grey.
               "bg-transparent font-display text-5xl font-medium text-text-strong " +
-              "text-right caret-accent outline-none placeholder:text-text-soft/30"
+              "text-right caret-accent outline-none placeholder:text-text-soft/60"
             }
             style={{ width: `${Math.max(1, amount.length || 1)}ch` }}
           />

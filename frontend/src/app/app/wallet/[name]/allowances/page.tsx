@@ -27,6 +27,7 @@ import {
 import { useContacts } from "@/lib/hooks/useContacts";
 import { shortAddress } from "@/lib/retail/contacts";
 import { toDisplayName } from "@/lib/retail/walletNames";
+import { BadgePill } from "@/components/retail/BadgePill";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
@@ -287,19 +288,12 @@ export default function AllowancesPage() {
                       Clear
                     </button>
                   )}
-                  <button
-                    type="button"
+                  <BadgePill
                     onClick={() => handleSave(m.address)}
                     disabled={!dirty}
-                    className={
-                      "rounded-full bg-accent px-3 py-1 text-[11px] font-medium text-white shadow-accent-rest " +
-                      "transition-[background-color,transform] duration-base ease-out-soft " +
-                      "hover:bg-accent-hover active:scale-[0.98] " +
-                      "disabled:cursor-not-allowed disabled:opacity-40"
-                    }
                   >
                     Save limit
-                  </button>
+                  </BadgePill>
                 </div>
               </div>
             </li>
