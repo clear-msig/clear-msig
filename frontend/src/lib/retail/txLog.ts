@@ -153,11 +153,27 @@ export function listAttempts(walletName: string, limit?: number): TxAttempt[] {
 /// only return entries that recorded the full address — pre-v1.1
 /// rows lack `recipientFull` and we can't pre-fill the input from
 /// a truncated display. Caller decides the limit.
+/// Each row carries the most recent successful send to that
+/// recipient. Used by the Cash-App-style recents list — avatar +
+/// name (looked up via contacts in the consumer) + "Sent X SOL"
+/// subtitle. `amountDisplay` is the same string the user saw on
+/// the Sent screen, kept verbatim so the recents row reads as a
+/// receipt.
+export interface RecentRecipient {
+  address: string;
+  ticker: string;
+  ts: number;
+  amountDisplay?: string;
+  /// Total successful sends to this recipient in the log. Lets the
+  /// UI surface a "sent N times" affordance for repeat targets.
+  count: number;
+}
+
 export function recentRecipients(
   walletName: string,
   chainKind: number,
   limit: number = 4,
-): { address: string; ticker: string; ts: number }[] {
+): RecentRecipient[] {
   const all = readAll()
     .filter(
       (a) =>
@@ -168,17 +184,28 @@ export function recentRecipients(
         a.recipientFull.length > 0,
     )
     .sort((x, y) => y.ts - x.ts);
-  const seen = new Set<string>();
-  const out: { address: string; ticker: string; ts: number }[] = [];
+  // Walk every entry so per-address counts are correct, then slice
+  // to limit afterwards. Insertion order in the Map is newest-first
+  // because `all` is already sorted that way and Map preserves
+  // insertion order.
+  const byAddr = new Map<string, RecentRecipient>();
   for (const a of all) {
     const addr = a.recipientFull!;
     const key = addr.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({ address: addr, ticker: a.ticker ?? "", ts: a.ts });
-    if (out.length >= limit) break;
+    const existing = byAddr.get(key);
+    if (existing) {
+      existing.count += 1;
+      continue;
+    }
+    byAddr.set(key, {
+      address: addr,
+      ticker: a.ticker ?? "",
+      ts: a.ts,
+      amountDisplay: a.amountDisplay,
+      count: 1,
+    });
   }
-  return out;
+  return Array.from(byAddr.values()).slice(0, limit);
 }
 
 /// Clear every attempt for a single wallet. Used when the user

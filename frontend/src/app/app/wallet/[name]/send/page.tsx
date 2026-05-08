@@ -27,7 +27,6 @@ import {
   List as ListIcon,
   Loader2,
   ShieldAlert,
-  Star,
   UserPlus,
   Users,
 } from "lucide-react";
@@ -47,7 +46,6 @@ import { listIntents } from "@/lib/chain/intents";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import {
   isValidSolanaAddress,
-  recentContacts,
   shortAddress,
   type Contact,
 } from "@/lib/retail/contacts";
@@ -73,6 +71,7 @@ import { txUrl as solanaTxUrl } from "@/lib/explorer";
 import { recordAttempt } from "@/lib/retail/txLog";
 import { resolveSnsName, looksLikeSnsName } from "@/lib/chain/sns";
 import { QrScanButton } from "@/components/retail/QrScanButton";
+import { RecentRecipientsChips } from "@/components/retail/RecentRecipientsChips";
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import { ChainBadge } from "@/components/retail/ChainBadge";
@@ -931,8 +930,6 @@ function SendPage() {
               note={note}
               setNote={setNote}
               resolved={resolved}
-              recents={recentContacts(4)}
-              hydratedContacts={contacts.hydrated}
               savedNewContact={savedNewContact}
               onSaveNewContact={handleSaveNewContact}
               canSubmit={canSubmit}
@@ -998,8 +995,6 @@ interface ComposeStageProps {
   note: string;
   setNote: (s: string) => void;
   resolved: ResolvedRecipient;
-  recents: Contact[];
-  hydratedContacts: boolean;
   savedNewContact: boolean;
   onSaveNewContact: (name: string, address: string) => void;
   canSubmit: boolean;
@@ -1029,8 +1024,6 @@ function ComposeStage({
   note,
   setNote,
   resolved,
-  recents,
-  hydratedContacts,
   savedNewContact,
   onSaveNewContact,
   canSubmit,
@@ -1207,35 +1200,17 @@ function ComposeStage({
           )}
       </div>
 
-      {/* Recents row — only shows if the user has any saved contacts. */}
-      {hydratedContacts && recents.length > 0 && (
-        <div className="mt-7">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            Recent
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {recents.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setRecipientText(c.name)}
-                className={
-                  "inline-flex items-center gap-1.5 rounded-full border bg-surface-raised px-3 py-1.5 text-sm " +
-                  "transition-[border-color,transform,box-shadow] duration-base ease-out-soft " +
-                  "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-rest " +
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
-                  (recipientText.trim().toLowerCase() === c.name.toLowerCase()
-                    ? "border-accent text-accent"
-                    : "border-border-soft text-text-strong")
-                }
-              >
-                <Star className="h-3 w-3" aria-hidden="true" />
-                {c.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Recents — Cash-App-style list with avatar, name, last
+          amount, time. Sourced from the per-wallet txLog so the
+          row reads as a receipt. Same component the EVM send
+          pages use; one canonical pattern across all three. */}
+      <div className="mt-7">
+        <RecentRecipientsChips
+          walletName={walletName}
+          chainKind={0}
+          onPick={(addr) => setRecipientText(addr)}
+        />
+      </div>
 
       <div className="mt-6 flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
         <div className="flex items-center gap-2">
