@@ -53,6 +53,30 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig = {
+  // optimizePackageImports rewrites named imports from these
+  // packages into deep imports at build time. Without it, every
+  // `import { X } from "lucide-react"` pulls the barrel and the
+  // bundler can't always recover the dead siblings. Ranked by
+  // wins-for-this-app: lucide-react (imported in 60+ files),
+  // framer-motion (heavy + scattered), Dynamic SDK (large connector
+  // surface), date-fns (a handful of formatters).
+  experimental: {
+    optimizePackageImports: [
+      "lucide-react",
+      "framer-motion",
+      "@dynamic-labs/sdk-react-core",
+      "date-fns",
+    ],
+  },
+  // Strip console.log in prod but keep .error/.warn — production
+  // diagnostics (chain adapters, useProposalSubscription) still need
+  // to surface in the browser console.
+  compiler: {
+    removeConsole:
+      process.env.NODE_ENV === "production"
+        ? { exclude: ["error", "warn"] }
+        : false,
+  },
   images: {
     remotePatterns: [
       {
