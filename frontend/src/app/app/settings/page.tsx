@@ -27,6 +27,7 @@ import {
   ExternalLink,
   Lock,
   LogOut,
+  Mail,
   Share2,
   ShieldCheck,
   Wifi,
@@ -69,6 +70,12 @@ import {
   ledgerDerivationPath,
 } from "@/lib/wallet/ledger";
 import { useLedger } from "@/lib/wallet/LedgerProvider";
+import {
+  isValidEmailAddress,
+  loadEmailPrefs,
+  saveEmailPrefs,
+  type EmailNotificationPrefs,
+} from "@/lib/security/emailNotifications";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -302,6 +309,12 @@ export default function SettingsPage() {
           the always-available switch. */}
       <NotificationsSettingRow notif={notif} />
 
+      {/* Email-on-pending — opt-in email when a new approval lands
+          and the tab is in the background. Fires from the browser
+          (no server-side cron yet), so it only sends while the app
+          is loaded somewhere. */}
+      <EmailNotificationsSettingRow />
+
       {/* Install — surfaces the manifest-level PWA install on
           browsers that support it; renders Add-to-Home-Screen
           instructions on iOS Safari. Important on iOS specifically
@@ -439,6 +452,184 @@ function NotificationsSettingRow({
         >
           Enable
         </button>
+      )}
+    </section>
+  );
+}
+
+// ─── Email notifications row ────────────────────────────────────
+
+function EmailNotificationsSettingRow() {
+  // localStorage-backed prefs. Mount-only read — saves are pushed
+  // through saveEmailPrefs immediately so cross-tab pickup works on
+  // next render of the consumer (useActionNotifications re-reads on
+  // each fire).
+  const [prefs, setPrefs] = useState<EmailNotificationPrefs | null>(null);
+  const [draft, setDraft] = useState("");
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    const p = loadEmailPrefs();
+    setPrefs(p);
+    setDraft(p.email);
+  }, []);
+
+  if (!prefs) {
+    // Pre-hydration on the server / first paint. Render the same
+    // shell so the layout doesn't flicker.
+    return (
+      <section className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
+          <Mail className="h-5 w-5" strokeWidth={1.75} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-text-strong">
+            Email me about pending approvals
+          </p>
+          <p className="mt-0.5 text-xs text-text-soft">Loading…</p>
+        </div>
+      </section>
+    );
+  }
+
+  const trimmed = draft.trim();
+  const valid = isValidEmailAddress(trimmed);
+  const hasEmail = prefs.email.trim().length > 0;
+
+  const setEnabled = (enabled: boolean) => {
+    const next: EmailNotificationPrefs = { ...prefs, enabled };
+    setPrefs(next);
+    saveEmailPrefs(next);
+  };
+  const saveEmail = () => {
+    if (!valid) return;
+    const next: EmailNotificationPrefs = {
+      ...prefs,
+      email: trimmed,
+      // Auto-enable on first save — there's no point asking the user
+      // to type their email then flip a separate toggle.
+      enabled: true,
+    };
+    setPrefs(next);
+    saveEmailPrefs(next);
+    setEditing(false);
+  };
+  const removeEmail = () => {
+    const next: EmailNotificationPrefs = {
+      ...prefs,
+      email: "",
+      enabled: false,
+    };
+    setPrefs(next);
+    saveEmailPrefs(next);
+    setDraft("");
+    setEditing(false);
+  };
+
+  const title = hasEmail
+    ? prefs.enabled
+      ? "Emails on"
+      : "Emails paused"
+    : "Email me about pending approvals";
+  const body = hasEmail
+    ? prefs.enabled
+      ? `Sending to ${prefs.email}. One per minute, only when this tab is in the background.`
+      : `Saved as ${prefs.email}. Toggle back on to resume.`
+    : "Get an email when a new approval lands and you're not on the page. Only fires while Clear is loaded somewhere.";
+
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+          <Mail className="h-5 w-5" strokeWidth={1.75} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-text-strong">{title}</p>
+          <p className="mt-0.5 text-xs text-text-soft">{body}</p>
+        </div>
+        {hasEmail && (
+          <button
+            type="button"
+            onClick={() => setEnabled(!prefs.enabled)}
+            aria-pressed={prefs.enabled}
+            className={
+              "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-[background-color,transform] duration-base ease-out-soft active:scale-[0.98] " +
+              (prefs.enabled
+                ? "border border-border-soft bg-canvas text-text-soft hover:border-rose-500 hover:text-rose-600"
+                : "bg-accent text-white hover:bg-accent-hover")
+            }
+          >
+            {prefs.enabled ? "Pause" : "Resume"}
+          </button>
+        )}
+      </div>
+
+      {(editing || !hasEmail) ? (
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <input
+            type="email"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="you@example.com"
+            spellCheck={false}
+            autoComplete="email"
+            className={
+              "min-w-0 flex-1 rounded-soft border border-border-soft bg-canvas px-3 py-2 font-mono text-xs text-text-strong outline-none " +
+              "transition-[border-color,box-shadow] duration-base ease-out-soft " +
+              "focus:border-accent focus:shadow-accent-rest"
+            }
+          />
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={saveEmail}
+              disabled={!valid}
+              className={
+                "rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white " +
+                "transition-[background-color,transform] duration-base ease-out-soft " +
+                "hover:bg-accent-hover active:scale-[0.98] " +
+                "disabled:cursor-not-allowed disabled:opacity-50 " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+              }
+            >
+              Save
+            </button>
+            {hasEmail && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditing(false);
+                  setDraft(prefs.email);
+                }}
+                className="rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft hover:border-accent hover:text-accent"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft hover:border-accent hover:text-accent"
+          >
+            Change email
+          </button>
+          <button
+            type="button"
+            onClick={removeEmail}
+            className="rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft hover:border-rose-500 hover:text-rose-600"
+          >
+            Remove
+          </button>
+        </div>
+      )}
+      {trimmed.length > 0 && !valid && (
+        <p className="mt-2 text-xs text-warning">
+          That doesn&rsquo;t look like a valid email address.
+        </p>
       )}
     </section>
   );

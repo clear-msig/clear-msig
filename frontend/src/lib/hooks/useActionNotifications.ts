@@ -21,6 +21,12 @@ import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
 import { useWallet } from "@/lib/wallet";
 import { friendlyIntentLabel } from "@/lib/retail/labels";
 import { toDisplayName } from "@/lib/retail/walletNames";
+import {
+  EMAIL_THROTTLE_MS,
+  fireNotificationEmail,
+  loadEmailPrefs,
+  saveEmailPrefs,
+} from "@/lib/security/emailNotifications";
 
 type PermissionState = "default" | "granted" | "denied" | "unsupported";
 
@@ -146,7 +152,8 @@ export function useActionNotifications(): UseActionNotificationsResult {
     // once shouldn't spam — show the first 3 and let the badge
     // handle the rest.
     const FIRE_CAP = 3;
-    for (const r of fresh.slice(0, FIRE_CAP)) {
+    const fired = fresh.slice(0, FIRE_CAP);
+    for (const r of fired) {
       try {
         const wallet = toDisplayName(r.walletName) || r.walletName;
         const action = friendlyIntentLabel(r.intentTemplate);
@@ -173,6 +180,12 @@ export function useActionNotifications(): UseActionNotificationsResult {
       }
     }
     setLastFiredAt(Date.now());
+
+    // Also fire an email for the first new pending row when the
+    // user has opted in. Throttled so a burst of N proposals doesn't
+    // produce N inbox pings — first one wins, the badge handles the
+    // rest.
+    void maybeFireEmail(fired[0]);
   }, [rows, userAddress]);
 
   const request = useCallback(async (): Promise<PermissionState> => {
@@ -197,4 +210,56 @@ export function useActionNotifications(): UseActionNotificationsResult {
     request,
     lastFiredAt,
   };
+}
+
+// Best-effort email send for the first row in a fresh pending
+// batch. Re-reads the prefs at fire time (not at hook mount) so a
+// user who toggles the setting in another tab gets the new
+// behavior without a reload. Throttle is applied here, not in the
+// hook body, so a re-render that happens to re-evaluate the effect
+// can't sneak past the cap.
+async function maybeFireEmail(
+  row:
+    | {
+        walletName: string;
+        intentTemplate: string;
+        approvalsCollected: number;
+        approverCount: number;
+        proposalPda: string;
+      }
+    | undefined,
+): Promise<void> {
+  if (!row) return;
+  const prefs = loadEmailPrefs();
+  if (!prefs.enabled) return;
+  if (!prefs.email) return;
+  if (
+    prefs.walletScope.length > 0 &&
+    !prefs.walletScope.includes(row.walletName)
+  ) {
+    return;
+  }
+  const now = Date.now();
+  if (
+    typeof prefs.lastSentAt === "number" &&
+    now - prefs.lastSentAt < EMAIL_THROTTLE_MS
+  ) {
+    return;
+  }
+
+  const proposalUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/app/proposals/${encodeURIComponent(row.proposalPda)}`
+      : `/app/proposals/${encodeURIComponent(row.proposalPda)}`;
+  const result = await fireNotificationEmail({
+    email: prefs.email,
+    walletName: toDisplayName(row.walletName) || row.walletName,
+    intentLabel: friendlyIntentLabel(row.intentTemplate),
+    approvalsCollected: row.approvalsCollected,
+    approverCount: row.approverCount,
+    proposalUrl,
+  });
+  if (result !== null) {
+    saveEmailPrefs({ ...prefs, lastSentAt: result });
+  }
 }
