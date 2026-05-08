@@ -128,7 +128,12 @@ export function QuickSendInput({ contactNames, onParsed }: QuickSendInputProps) 
           onClick={handleSubmit}
           disabled={loading || !text.trim()}
           className={
-            "rounded-soft bg-accent px-3 py-1.5 text-xs font-medium text-white shadow-accent-rest " +
+            // min-h-tap (44px) so the Fill-in button hits Apple HIG
+            // tap-target minimum on mobile. Was py-1.5 (24px) which
+            // the parity audit flagged as too small to land reliably
+            // with a thumb. Visual size barely changes — the label
+            // already wants vertical breathing room.
+            "inline-flex min-h-tap items-center justify-center rounded-soft bg-accent px-4 py-2 text-xs font-medium text-white shadow-accent-rest " +
             "transition-[background-color,transform] duration-base ease-out-soft " +
             "hover:bg-accent-hover active:scale-[0.98] " +
             "disabled:cursor-not-allowed disabled:opacity-50"

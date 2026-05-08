@@ -702,7 +702,7 @@ function ComposeStage({
           {/* Balance chip — single pill consolidates the
               "Wallet has X TOKEN" + Max button. Tabular-numeric
               digits keep the value column aligned. */}
-          <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-xs">
+          <div className="mt-2 inline-flex min-h-tap items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-2 text-xs">
             <span className="text-text-soft">Wallet has</span>
             <span className="font-numerals font-semibold text-text-strong tabular-nums">
               {balanceLoading
@@ -728,7 +728,7 @@ function ComposeStage({
                         ),
                       );
                     }}
-                    className="-mr-1 rounded-full px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-accent transition-colors hover:bg-accent/10"
+                    className="-mr-2 inline-flex min-h-tap min-w-tap items-center justify-center rounded-full px-3 text-[11px] font-semibold uppercase tracking-wider text-accent transition-colors hover:bg-accent/10"
                   >
                     Max
                   </button>

@@ -1163,7 +1163,7 @@ function ComposeStage({
             weight; together they read as "ceiling + shortcut"
             rather than the old left/right split that disconnected
             them. typeof-bigint guard catches loading + error. */}
-        <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-xs">
+        <div className="mt-4 inline-flex min-h-tap items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-2 text-xs">
           <span className="text-text-soft">Wallet has</span>
           <span className="font-numerals font-semibold text-text-strong tabular-nums">
             {balanceLoading
@@ -1187,7 +1187,10 @@ function ComposeStage({
                         : 0n;
                     setAmount(formatLamports(max, 4));
                   }}
-                  className="-mr-1 rounded-full px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-accent transition-colors hover:bg-accent/10"
+                  // Visible label stays small but the hit area
+                  // grows to 44px via min-h/min-w-tap so a thumb
+                  // can land on it without missing.
+                  className="-mr-2 inline-flex min-h-tap min-w-tap items-center justify-center rounded-full px-3 text-[11px] font-semibold uppercase tracking-wider text-accent transition-colors hover:bg-accent/10"
                 >
                   Max
                 </button>

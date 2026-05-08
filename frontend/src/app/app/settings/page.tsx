@@ -38,6 +38,7 @@ import {
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { PageEyebrow } from "@/components/retail/PageEyebrow";
+import { BackToWallets } from "@/components/retail/BackToWallets";
 import { useActionNotifications } from "@/lib/hooks/useActionNotifications";
 import { useInstallPrompt } from "@/lib/hooks/useInstallPrompt";
 import {
@@ -151,6 +152,14 @@ export default function SettingsPage() {
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       className="flex flex-col gap-8"
     >
+      {/* Mobile-only back chip — Settings sits at the top level
+          of the workspace nav but mobile has no StickyTopBar to
+          show breadcrumbs. Without this, the only way back is the
+          BottomNav Home tab, which the user flagged. Mirrors the
+          BackToWallets pattern used on every wallet subpage. */}
+      <div className="px-gutter md:hidden">
+        <BackToWallets label="Wallets" />
+      </div>
       <PageEyebrow label="Settings" align="center">
         <h1 className="font-display text-display-xs leading-tight text-text-strong">
           Your account
