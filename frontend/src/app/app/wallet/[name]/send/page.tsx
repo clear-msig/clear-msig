@@ -1083,12 +1083,8 @@ function ComposeStage({
           Send · Solana
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          Send SOL from {walletDisplay}
+          Send SOL from <span className="text-accent">{walletDisplay}</span>
         </h1>
-        <p className="mt-2 text-base text-text-soft">
-          On Solana devnet. The wallet&rsquo;s spending rule applies before
-          anything ships.
-        </p>
       </div>
 
       {/* Quick-send shortcut — type a sentence, the form fills.
@@ -1116,7 +1112,13 @@ function ComposeStage({
         <label htmlFor="send-amount-input" className="sr-only">
           Amount in SOL
         </label>
-        <div className="mt-4 flex items-baseline justify-center gap-3">
+        {/* Input width tracks the typed length so the row reads as
+            one tight number + ticker instead of "tiny zero floating
+            in a wide column". Falls back to 1ch when empty so the
+            "0" placeholder hugs the SOL ticker. Caps at 12ch so a
+            very long amount can't push the ticker off-screen on
+            narrow phones. */}
+        <div className="mt-4 flex items-baseline justify-center gap-2">
           <input
             id="send-amount-input"
             type="text"
@@ -1134,23 +1136,20 @@ function ComposeStage({
             autoFocus
             maxLength={20}
             aria-label="Amount in SOL"
+            style={{ width: `${Math.min(12, Math.max(1, amount.length))}ch` }}
             className={
-              // JetBrains Mono with tabular-nums — financial
-              // precision the proportional Geist couldn't carry.
-              // Width fits "1234.56" comfortably; SOL ticker sits
-              // beside without wandering.
-              "w-[5.5ch] bg-transparent font-numerals text-[2.75rem] font-semibold tracking-tight text-text-strong tabular-nums " +
+              "bg-transparent font-numerals text-[2.75rem] font-semibold tracking-tight text-text-strong tabular-nums " +
               // text-right when typing keeps digits decimal-aligned next
               // to the SOL ticker. placeholder:text-center centers the
               // "0" so the empty state doesn't read as a tiny digit
               // floating in a wide right-aligned column. caret colors
               // match the accent so the cursor reads as on-brand.
-              "text-right placeholder:text-center caret-accent outline-none placeholder:text-text-soft sm:text-[3.25rem]"
+              "text-center caret-accent outline-none placeholder:text-text-soft sm:text-[3.25rem]"
             }
           />
           <span
             aria-hidden="true"
-            className="font-display text-2xl font-semibold uppercase tracking-[0.24em] text-text-soft sm:text-3xl"
+            className="font-display text-lg font-semibold uppercase tracking-[0.18em] text-text-soft sm:text-xl"
           >
             SOL
           </span>

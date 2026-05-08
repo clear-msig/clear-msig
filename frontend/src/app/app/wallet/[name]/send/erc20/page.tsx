@@ -616,12 +616,8 @@ function ComposeStage({
           Send · ERC-20 token
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          Send a token from {walletDisplay}
+          Send a token from <span className="text-accent">{walletDisplay}</span>
         </h1>
-        <p className="mt-2 text-base text-text-soft">
-          On Sepolia, the Ethereum testnet. Paste any ERC-20 contract
-          (USDC, DAI, …).
-        </p>
       </div>
 
       <div className="mt-6 flex flex-col gap-3">

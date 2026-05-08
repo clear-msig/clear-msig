@@ -707,16 +707,12 @@ function ComposeStage({
           Send · Ethereum
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          Send ETH from {walletDisplay}
+          Send ETH from <span className="text-accent">{walletDisplay}</span>
         </h1>
-        <p className="mt-2 text-base text-text-soft">
-          On Sepolia, the Ethereum testnet. Don&rsquo;t send mainnet ETH
-          here.
-        </p>
         <Link
           href={`/app/wallet/${encodeURIComponent(walletName)}/send/erc20`}
           className={
-            "mt-3 inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1 text-xs font-medium text-text-soft " +
+            "mt-3 inline-flex min-h-tap items-center justify-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-4 py-2 text-xs font-medium text-text-soft " +
             "transition-[border-color,color,transform] duration-base ease-out-soft " +
             "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"

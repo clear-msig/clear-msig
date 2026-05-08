@@ -35,7 +35,7 @@ import {
   chainByKind,
   type ChainMeta,
 } from "@/lib/retail/chains";
-import { toDisplayName } from "@/lib/retail/walletNames";
+import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
 import {
   chainAddress,
   useWalletChains,
@@ -127,12 +127,10 @@ export default function ChainsPage() {
           Chains
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          <span className="text-accent">{name}</span> can send on
+          <span className="text-accent">{toHeadingName(name)}</span> can send on
         </h1>
         <p className="mt-2 max-w-md text-base text-text-soft">
-          Add support for more chains so this wallet can move money on
-          each. Adding a chain takes about 30 seconds and only happens
-          once per chain.
+          Adding a chain takes about 30 seconds.
         </p>
       </motion.section>
 
