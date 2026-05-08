@@ -109,3 +109,45 @@ function sentenceCase(s: string): string {
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/^./, (c) => c.toUpperCase());
 }
+
+// Status → tailwind class helpers. Two flavors of the same color
+// mapping live next to friendlyStatus so a future status (e.g.
+// Failed) only needs to be added in one place. Extracted from two
+// near-duplicate copies that lived in app/wallet/page.tsx and
+// app/proposals/[proposal]/page.tsx.
+
+/// Inline text color for a status label rendered next to other
+/// content (e.g. "Sent · Sarah · 2h ago"). Returns just the
+/// `text-*` class.
+export function statusTextColor(s: ProposalStatusLike): string {
+  switch (s) {
+    case ProposalStatus.Active:
+      return "text-warning";
+    case ProposalStatus.Approved:
+      return "text-accent";
+    case ProposalStatus.Executed:
+      return "text-success";
+    case ProposalStatus.Cancelled:
+      return "text-text-soft";
+    default:
+      return "text-text-soft";
+  }
+}
+
+/// Full chip styling — border + tinted bg + text — for the rounded
+/// pill variant on proposal hero / list items where the status
+/// reads as a primary signal rather than inline metadata.
+export function statusChipClasses(s: ProposalStatusLike): string {
+  switch (s) {
+    case ProposalStatus.Active:
+      return "border-warning/30 bg-warning/10 text-warning";
+    case ProposalStatus.Approved:
+      return "border-accent/30 bg-accent/10 text-accent";
+    case ProposalStatus.Executed:
+      return "border-success/30 bg-success/10 text-success";
+    case ProposalStatus.Cancelled:
+      return "border-border-soft bg-canvas text-text-soft";
+    default:
+      return "border-border-soft bg-canvas text-text-soft";
+  }
+}

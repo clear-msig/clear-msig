@@ -54,7 +54,11 @@ import { Button } from "@/components/retail/Button";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import { SignPayloadPreview } from "@/components/retail/SignPayloadPreview";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
-import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
+import {
+  friendlyIntentLabel,
+  friendlyStatus,
+  statusChipClasses,
+} from "@/lib/retail/labels";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { relativeTime } from "@/lib/util/relativeTime";
 import { useContacts } from "@/lib/hooks/useContacts";
@@ -755,21 +759,6 @@ function surfaceWriteError(
   console.error(`[request-${action}]`, err);
   const fe = friendlyError(err, action);
   toast.error(fe.title, { details: fe.body });
-}
-
-function statusChipClasses(s: ProposalStatus): string {
-  switch (s) {
-    case ProposalStatus.Active:
-      return "border-warning/30 bg-warning/10 text-warning";
-    case ProposalStatus.Approved:
-      return "border-accent/30 bg-accent/10 text-accent";
-    case ProposalStatus.Executed:
-      return "border-success/30 bg-success/10 text-success";
-    case ProposalStatus.Cancelled:
-      return "border-border-soft bg-canvas text-text-soft";
-    default:
-      return "border-border-soft bg-canvas text-text-soft";
-  }
 }
 
 function countBits(n: number): number {

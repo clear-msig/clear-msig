@@ -48,7 +48,11 @@ import { findVaultAddress, ProposalStatus } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
 import { Button } from "@/components/retail/Button";
 import { relativeTime } from "@/lib/util/relativeTime";
-import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
+import {
+  friendlyIntentLabel,
+  friendlyStatus,
+  statusTextColor,
+} from "@/lib/retail/labels";
 import { formatBalance } from "@/lib/retail/format";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
@@ -916,7 +920,7 @@ function ActivityRow({ row }: { row: RecentActivityRow }) {
             {toDisplayName(row.walletName)}
           </p>
           <p className="mt-0.5 text-xs text-text-soft">
-            <span className={statusColor(row.status)}>{friendlyStatus(row.status, row.intentTemplate)}</span>
+            <span className={statusTextColor(row.status)}>{friendlyStatus(row.status, row.intentTemplate)}</span>
             <span className="mx-1.5 text-text-soft/40">·</span>
             <span>{time}</span>
           </p>
@@ -1133,18 +1137,4 @@ function WatchedWalletsSection({
   );
 }
 
-function statusColor(s: RecentActivityRow["status"]): string {
-  switch (s) {
-    case ProposalStatus.Active:
-      return "text-warning";
-    case ProposalStatus.Approved:
-      return "text-accent";
-    case ProposalStatus.Executed:
-      return "text-success";
-    case ProposalStatus.Cancelled:
-      return "text-text-soft";
-    default:
-      return "text-text-soft";
-  }
-}
 
