@@ -57,13 +57,14 @@ export function StickyTopBar({
   const innerHorizontal = offset === "top" ? "px-gutter md:px-0 " : "";
   // Pin offset.
   //   - offset="header": workspace pages — top-20 on mobile (clears
-  //     the floating pill), md:top-4 (no pill on desktop, just clears
-  //     the workspace md:pt-4 spacer).
+  //     the floating pill), md:top-2 (sits 8px above the workspace's
+  //     md:pt-6 baseline so there's a soft visible gap rather than
+  //     hugging the viewport edge as content scrolls under).
   //   - offset="top": standalone pages — top-20 lg:top-16 across all
   //     breakpoints since the floating pill renders everywhere.
   const pinClasses =
     offset === "header"
-      ? "sticky top-20 md:top-4 z-30 bg-canvas/85 backdrop-blur-md"
+      ? "sticky top-20 md:top-2 z-30 bg-canvas/85 backdrop-blur-md"
       : "sticky top-20 lg:top-16 z-30 bg-canvas/85 backdrop-blur-md";
   return (
     <div className={flowSpacing + pinClasses}>

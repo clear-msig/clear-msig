@@ -57,11 +57,13 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
         // Mobile keeps the floating brand pill (header) so it needs
         // pt-20 to clear it. Desktop hides the brand pill on /app/*
         // (the sidebar carries the brand) so we drop top padding to
-        // pt-4 — kills the "long band" empty header strip that was
-        // the most-flagged visual issue. Wider max via the inner
-        // shell below.
+        // pt-6 — kills the "long band" empty header strip that was
+        // the most-flagged visual issue while leaving 16px of
+        // clearance above the StickyTopBar pin (md:top-2). pt-4 +
+        // top-4 was 0px buffer, so the bar read as flush with the
+        // viewport edge.
         "relative min-h-screen overflow-x-hidden bg-background px-3 pb-32 pt-20 font-sans " +
-        "sm:px-4 sm:pb-16 md:pt-4 lg:px-6 lg:pt-4"
+        "sm:px-4 sm:pb-16 md:pt-6 lg:px-6 lg:pt-6"
       }
     >
       <HeaderBar />
@@ -85,10 +87,9 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
             the page column, not a floating card. */}
         <aside
           className={
-            // top-4 matches the workspace's md:pt-4 — sidebar pins
-            // right at the top of the content area so its brand row
+            // top-6 matches md:pt-6 above so the sidebar's brand row
             // sits flush with where the floating pill used to live.
-            "sticky top-4 hidden h-[calc(100vh-2rem)] overflow-x-hidden overflow-y-auto " +
+            "sticky top-6 hidden h-[calc(100vh-3rem)] overflow-x-hidden overflow-y-auto " +
             "border-r border-border-soft bg-surface-raised " +
             "transition-[width] duration-base ease-out-soft " +
             "md:block"
