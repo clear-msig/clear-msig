@@ -40,6 +40,14 @@ export function HeaderBar() {
 
   const inApp = pathname.startsWith("/app");
   const showMenuButton = hydrated && connected && inApp && sidebar !== null;
+  // The desktop sidebar (md+) carries its own brand row already.
+  // Rendering the floating brand pill in the corner on top of that
+  // duplicates the wordmark and reserves a wide empty band across
+  // the top of every /app/* page. Hide it on md+ when in /app/*; keep
+  // it on mobile (where the sidebar lives behind a drawer) and on
+  // public surfaces (/, /privacy, /security, /connect, /welcome) where
+  // there is no sidebar at all.
+  const showBrandPill = !inApp || !connected;
 
   return (
     <>
@@ -76,23 +84,30 @@ export function HeaderBar() {
           )}
         </AnimatePresence>
 
-        {/* Brand — links home. Always rendered. */}
-        <Link
-          href="/"
-          aria-label="Clear home"
-          className={
-            "inline-flex items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 " +
-            "text-sm font-semibold text-text-strong shadow-card-rest " +
-            "transition-[transform,box-shadow,border-color] duration-base ease-out-soft " +
-            "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-          }
-        >
-          <span className="flex h-5 w-5 items-center justify-center text-accent">
-            <BrandMark size={18} />
-          </span>
-          Clear
-        </Link>
+        {/* Brand pill. Visible on public surfaces and on /app/* mobile;
+            hidden on /app/* desktop where the sidebar carries the brand
+            and a duplicate would create a wide empty header band. */}
+        {showBrandPill && (
+          <Link
+            href="/"
+            aria-label="Clear home"
+            className={
+              "inline-flex items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 " +
+              "text-sm font-semibold text-text-strong shadow-card-rest " +
+              "transition-[transform,box-shadow,border-color] duration-base ease-out-soft " +
+              "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
+              // Mobile keeps the pill (the sidebar is a drawer there).
+              // md+ on /app/* hides it via the showBrandPill check above.
+              (inApp && connected ? "md:hidden" : "")
+            }
+          >
+            <span className="flex h-5 w-5 items-center justify-center text-accent">
+              <BrandMark size={18} />
+            </span>
+            Clear
+          </Link>
+        )}
       </header>
 
       {sidebar && (

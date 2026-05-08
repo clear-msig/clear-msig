@@ -52,13 +52,28 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
   // components.
   useActionNotifications();
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-background px-3 pb-32 pt-20 font-sans sm:px-4 sm:pb-16 sm:pt-20 lg:px-6 lg:pt-16">
+    <main
+      className={
+        // Mobile keeps the floating brand pill (header) so it needs
+        // pt-20 to clear it. Desktop hides the brand pill on /app/*
+        // (the sidebar carries the brand) so we drop top padding to
+        // pt-4 — kills the "long band" empty header strip that was
+        // the most-flagged visual issue. Wider max via the inner
+        // shell below.
+        "relative min-h-screen overflow-x-hidden bg-background px-3 pb-32 pt-20 font-sans " +
+        "sm:px-4 sm:pb-16 md:pt-4 lg:px-6 lg:pt-4"
+      }
+    >
       <HeaderBar />
       <CommandPalette />
 
       <div
         className={
-          "relative z-10 mx-auto grid w-full max-w-[78rem] grid-cols-1 items-start gap-6 md:gap-0 " +
+          // Bumped from max-w-[78rem] to max-w-[96rem] (1536px). On a
+          // 1920+ monitor the previous cap left ~336px empty on each
+          // side; the new cap halves that to ~192px while keeping
+          // text-line widths reasonable on the page column.
+          "relative z-10 mx-auto grid w-full max-w-[96rem] grid-cols-1 items-start gap-6 md:gap-0 " +
           "transition-[grid-template-columns] duration-base ease-out-soft " +
           (expanded ? "md:grid-cols-[16rem_1fr]" : "md:grid-cols-[4rem_1fr]")
         }
@@ -70,10 +85,13 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
             the page column, not a floating card. */}
         <aside
           className={
-            "sticky top-20 hidden h-[calc(100vh-6rem)] overflow-x-hidden overflow-y-auto " +
+            // top-4 matches the workspace's md:pt-4 — sidebar pins
+            // right at the top of the content area so its brand row
+            // sits flush with where the floating pill used to live.
+            "sticky top-4 hidden h-[calc(100vh-2rem)] overflow-x-hidden overflow-y-auto " +
             "border-r border-border-soft bg-surface-raised " +
             "transition-[width] duration-base ease-out-soft " +
-            "md:block lg:top-16 lg:h-[calc(100vh-5rem)]"
+            "md:block"
           }
         >
           <WorkspaceSidebar />

@@ -18,26 +18,21 @@
 //     glass backdrop returns so content scrolling under the bar
 //     stays legible without a hard border.
 //
-// Pin offset (`top-20 lg:top-16`) matches the workspace shell's
-// `pt-20 lg:pt-16` and the persistent sidebar's `top-20 lg:top-16`,
-// so on desktop the bar's top edge aligns with the sidebar's top
-// edge, and on every viewport it clears the floating HeaderBar pill
-// (`top-3 sm:top-4`, ~40px tall).
+// Pin offset varies by parent layout:
+//   - workspace `(app)` pages on md+ have no floating brand pill (the
+//     sidebar carries the brand), so the bar pins at top-4. On mobile
+//     the pill returns, so we clear top-20 like before.
+//   - standalone pages (welcome, connect, privacy, security, ...)
+//     keep the floating pill at every breakpoint, so the bar always
+//     clears top-20 lg:top-16.
 //
-// The `offset` prop reflects how the parent layout reserves top
-// space, not where the bar pins:
+// The `offset` prop selects between these:
 //
-//   "header" — pages inside the workspace `(app)` layout, whose
-//              parent <main> already has `pt-20 lg:pt-16`. The bar
-//              inherits that flow position; no extra margin needed.
-//   "top"    — standalone pages (welcome, connect, privacy,
-//              security, full-bleed receive/setup/setup-eth) whose
-//              <main> has no top padding. The bar adds its own
-//              margin so its flow position matches the sticky pin
-//              and content right below it isn't visually covered
-//              at scroll-0.
-//
-// Both modes pin at the same viewport offset.
+//   "header" — workspace pages. parent <main> has pt-20 (mobile) /
+//              md:pt-4 (desktop). Bar inherits flow + pin matches.
+//   "top"    — standalone pages. <main> has no top padding. The bar
+//              bakes the spacing in so its flow position matches the
+//              sticky pin and content below isn't covered at scroll-0.
 
 interface StickyTopBarProps {
   children: React.ReactNode;
@@ -53,20 +48,25 @@ export function StickyTopBar({
 }: StickyTopBarProps) {
   // Standalone pages bake the spacing in so flow position matches the
   // sticky pin. Workspace pages already have it from the shell's
-  // `pt-20 lg:pt-16`.
+  // pt-20 (mobile) / md:pt-4 (desktop).
   const flowSpacing = offset === "top" ? "mt-20 lg:mt-16 " : "";
   // Standalone pages also need horizontal padding so back content
   // isn't flush with the viewport edge on mobile. Desktop standalone
   // pages constrain content via their own max-width wrappers, so the
   // gutter drops at md+.
   const innerHorizontal = offset === "top" ? "px-gutter md:px-0 " : "";
+  // Pin offset.
+  //   - offset="header": workspace pages — top-20 on mobile (clears
+  //     the floating pill), md:top-4 (no pill on desktop, just clears
+  //     the workspace md:pt-4 spacer).
+  //   - offset="top": standalone pages — top-20 lg:top-16 across all
+  //     breakpoints since the floating pill renders everywhere.
+  const pinClasses =
+    offset === "header"
+      ? "sticky top-20 md:top-4 z-30 bg-canvas/85 backdrop-blur-md"
+      : "sticky top-20 lg:top-16 z-30 bg-canvas/85 backdrop-blur-md";
   return (
-    <div
-      className={
-        flowSpacing +
-        "sticky top-20 lg:top-16 z-30 bg-canvas/85 backdrop-blur-md"
-      }
-    >
+    <div className={flowSpacing + pinClasses}>
       <div
         className={
           "flex w-full items-center py-3 " +
