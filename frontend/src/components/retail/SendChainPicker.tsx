@@ -27,11 +27,23 @@ export function SendChainPicker({
   const visible = options.filter(
     (o) => o.status !== "needs_binding" || o.chain.kind === 0,
   );
+  // "Coming soon" chains take valuable space on mobile without
+  // earning their slot — the user can't tap them. Hide on mobile,
+  // keep on desktop where horizontal space is cheap and the
+  // "what's coming next" signal is useful for product discovery.
+  const mobileVisible = visible.filter((o) => o.status !== "coming_soon");
   if (visible.length <= 1) return null;
+  // If after filtering "coming soon" out we'd have ≤1 left on
+  // mobile, hide the whole row on mobile too — single chain = no
+  // pick to make.
+  const showMobile = mobileVisible.length > 1;
   return (
     <nav
       aria-label="Send chain"
-      className="mb-5 flex flex-wrap items-center gap-2"
+      className={
+        "mb-5 flex flex-wrap items-center gap-2 " +
+        (showMobile ? "" : "hidden md:flex")
+      }
     >
       {visible.map((opt) => {
         const isActive = opt.chain.kind === activeKind;
@@ -61,7 +73,15 @@ export function SendChainPicker({
         );
         if (disabled || !href) {
           return (
-            <span key={opt.chain.kind} aria-disabled>
+            <span
+              key={opt.chain.kind}
+              aria-disabled
+              // Coming-soon tiles hidden on mobile — they're a
+              // discovery affordance for desktop, not a tappable
+              // option. Keeping them on mobile ate ~2/3 of the
+              // 375px row.
+              className={disabled ? "hidden md:inline-flex" : ""}
+            >
               {tile}
             </span>
           );

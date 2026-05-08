@@ -1146,12 +1146,18 @@ function ComposeStage({
 
         {/* Balance + Max — centered, not justify-between. The two
             pieces stay close together as a group instead of being
-            pushed to opposite edges of the column. */}
+            pushed to opposite edges of the column.
+            The previous null check was `!== null` — but the query
+            yields `undefined` while still loading, which slipped
+            past and rendered `formatLamports(undefined)` →
+            "Wallet has  SOL" with an empty gap. Switch to a
+            typeof-bigint guard so any non-bigint value (null,
+            undefined, error) routes to the loading / error copy. */}
         <div className="mt-2 inline-flex items-center gap-2 text-xs">
           <span className="text-text-soft">
             {balanceLoading ? (
               "Loading wallet balance…"
-            ) : vaultBalanceLamports !== null ? (
+            ) : typeof vaultBalanceLamports === "bigint" ? (
               <>
                 Wallet has{" "}
                 <span className="font-medium text-text-strong tabular-nums">
@@ -1163,7 +1169,7 @@ function ComposeStage({
               "Couldn't fetch balance"
             )}
           </span>
-          {vaultBalanceLamports !== null && vaultBalanceLamports > 0n && (
+          {typeof vaultBalanceLamports === "bigint" && vaultBalanceLamports > 0n && (
             <button
               type="button"
               onClick={(e) => {

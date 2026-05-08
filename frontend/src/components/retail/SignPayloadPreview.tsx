@@ -51,12 +51,19 @@ export function SignPayloadPreview({
   return (
     <section
       aria-label="What you are about to sign"
-      // bg-accent/[0.05] reads as nearly white on a light canvas,
-      // which made text-text-strong copy look "shedded" — text and
-      // panel were too close in lightness. /[0.10] is still a quiet
-      // tint but gives the dark/light text inside a real surface to
-      // sit on. Border bumped to /50 for the same reason.
-      className="rounded-card border border-accent/50 bg-accent/[0.10] p-4 text-left"
+      // Switched from bg-accent/[0.10] to a SOLID surface
+      // (bg-surface-raised: theme-aware white / dark) plus a thick
+      // left accent stripe. The opacity-layered green tint kept
+      // bleeding into the page bg unpredictably — depending on the
+      // OS theme + user pref combo, text-text-strong on the
+      // tinted panel rendered as anything from "barely readable"
+      // to "fully legible" without a single deterministic answer.
+      // bg-surface-raised + text-text-strong is the same contrast
+      // pair the wallet hub uses for every card and it always
+      // works. The accent stripe + accent kicker text below carry
+      // the "this is the signing surface" signal that the green
+      // tint used to.
+      className="rounded-card border border-border-soft bg-surface-raised p-4 text-left shadow-card-rest border-l-4 border-l-accent"
     >
       <header className="flex items-start gap-2.5">
         <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
@@ -79,9 +86,12 @@ export function SignPayloadPreview({
               key={d.label}
               // Stacked label-over-value so long values ("Just you
               // for now", "Ships immediately") aren't truncated by
-              // the narrow right-aligned column. Each cell breaks
-              // its own value across lines if needed.
-              className="flex flex-col gap-0.5 rounded-soft bg-canvas/60 px-2.5 py-1.5"
+              // the narrow right-aligned column. bg-canvas/60 was
+              // the same opacity-layering trap the parent had —
+              // switched to solid bg-canvas so the values never
+              // render with semi-transparent surfaces over an
+              // unpredictable parent.
+              className="flex flex-col gap-0.5 rounded-soft bg-canvas px-2.5 py-1.5"
             >
               <dt className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-soft">
                 {d.label}
