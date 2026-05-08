@@ -289,10 +289,37 @@ export default function CrossWalletActivityPage() {
             Loading activity…
           </div>
         ) : filtered.length === 0 ? (
-          <div className="rounded-card border border-border-soft bg-surface-raised p-8 text-center text-sm text-text-soft shadow-card-rest">
-            {recent.allRows.length === 0
-              ? "No activity yet on any of your wallets."
-              : "No proposals match these filters."}
+          <div className="rounded-card border border-border-soft bg-surface-raised p-8 text-center shadow-card-rest">
+            {recent.allRows.length === 0 ? (
+              <p className="text-sm text-text-soft">
+                No activity yet on any of your wallets.
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-text-soft">
+                  No proposals match these filters.
+                </p>
+                {/* Filter dead-end recovery — single click resets
+                    every filter (and the search box) so the user
+                    isn't left guessing which dropdown to flip. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter("all");
+                    setChainFilter("all");
+                    setWalletFilter("all");
+                    setSearch("");
+                  }}
+                  className={
+                    "mt-3 inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft " +
+                    "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+                  }
+                >
+                  Clear filters
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <ul className="flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
