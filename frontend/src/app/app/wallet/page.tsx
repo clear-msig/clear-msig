@@ -17,13 +17,19 @@
 // The legacy wizard (CreateWalletCard, WalletPanel) and WorkflowTips
 // are intentionally NOT rendered here — they're being retired.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import { PublicKey } from "@solana/web3.js";
-import { ArrowRight, Bell, BellRing, Contact, Eye, Lock, Settings as SettingsIcon, Users, X } from "lucide-react";
+import { ArrowRight, Bell, BellRing, Contact, Eye, Lock, Pin, PinOff, Settings as SettingsIcon, Users, X } from "lucide-react";
+import {
+  isWalletPinned,
+  sortPinnedFirst,
+  subscribePinnedWallets,
+  togglePinnedWallet,
+} from "@/lib/security/pinnedWallets";
 import { fetchOnchainMemberships, type OnchainMembership } from "@/lib/memberships/client";
 import {
   useWatchedWallets,
@@ -307,6 +313,16 @@ function WalletsGrid({
   loading,
   reduce,
 }: WalletsGridProps) {
+  // Re-sort whenever the user pins/unpins. The hook subscribes to
+  // both the same-tab event and cross-tab storage events so a pin
+  // change in another tab also bubbles up here.
+  const [pinTick, setPinTick] = useState(0);
+  useEffect(() => subscribePinnedWallets(() => setPinTick((n) => n + 1)), []);
+  const ordered = useMemo(
+    () => sortPinnedFirst(wallets, (m) => m.wallet_name ?? ""),
+    [wallets, pinTick],
+  );
+
   return (
     <section>
       <SectionLabel>Your wallets</SectionLabel>
@@ -317,7 +333,7 @@ function WalletsGrid({
             <CardSkeleton />
           </>
         ) : (
-          wallets.map((m, i) => (
+          ordered.map((m, i) => (
             <WalletCard
               key={m.wallet}
               membership={m}
@@ -361,25 +377,47 @@ function WalletCard({
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
   const balance =
     balanceLamports !== null ? formatBalance(balanceLamports) : null;
+  const [pinned, setPinned] = useState(false);
+  useEffect(() => {
+    setPinned(isWalletPinned(onChainName));
+    return subscribePinnedWallets(() => setPinned(isWalletPinned(onChainName)));
+  }, [onChainName]);
+  const handlePinClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    // Card body is a <Link>; the pin button is nested. Stop
+    // propagation so a click on the pin doesn't navigate to the
+    // wallet detail.
+    e.preventDefault();
+    e.stopPropagation();
+    setPinned(togglePinnedWallet(onChainName));
+  };
 
   return (
     <motion.div
       {...motionProps}
       transition={{ duration: 0.35, delay, ease: [0.22, 1, 0.36, 1] }}
+      className="relative"
     >
       <Link
         href={`/app/wallet/${encodeURIComponent(onChainName)}`}
         className={
-          "group relative flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest " +
+          "group relative flex flex-col gap-3 rounded-card border bg-surface-raised p-5 shadow-card-rest " +
           "transition-[transform,box-shadow,border-color] duration-base ease-out-soft " +
           "hover:-translate-y-0.5 hover:border-accent/60 hover:shadow-card-raised " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
+          (pinned ? "border-accent/40" : "border-border-soft")
         }
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate font-display text-xl text-text-strong">
-              {name}
+            <p className="flex items-center gap-1.5 font-display text-xl text-text-strong">
+              {pinned && (
+                <Pin
+                  className="h-3.5 w-3.5 shrink-0 text-accent"
+                  strokeWidth={2.5}
+                  aria-label="Pinned"
+                />
+              )}
+              <span className="truncate">{name}</span>
             </p>
             {loadingBalance && balance === null ? (
               <div className="mt-1 h-5 w-20 animate-pulse rounded bg-border-soft" />
@@ -407,6 +445,26 @@ function WalletCard({
           </div>
         )}
       </Link>
+      <button
+        type="button"
+        onClick={handlePinClick}
+        aria-label={pinned ? `Unpin ${name}` : `Pin ${name} to the top`}
+        title={pinned ? "Unpin" : "Pin to top"}
+        className={
+          "absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full border bg-surface-raised " +
+          "transition-[color,border-color,transform] duration-base ease-out-soft " +
+          (pinned
+            ? "border-accent/40 text-accent hover:border-accent"
+            : "border-border-soft text-text-soft/60 hover:border-accent hover:text-accent") +
+          " focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+        }
+      >
+        {pinned ? (
+          <Pin className="h-3.5 w-3.5" strokeWidth={2} />
+        ) : (
+          <PinOff className="h-3.5 w-3.5" strokeWidth={2} />
+        )}
+      </button>
     </motion.div>
   );
 }
