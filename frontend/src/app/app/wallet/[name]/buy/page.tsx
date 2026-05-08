@@ -316,8 +316,12 @@ function BuyPage() {
         transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
         className="flex flex-col gap-6"
       >
-        <header className="text-center">
-          <h1 className="font-display text-display-xs leading-tight text-text-strong">
+        <header className="flex flex-col items-center text-center">
+          <span aria-hidden="true" className="block h-px w-10 bg-accent" />
+          <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+            Top up
+          </p>
+          <h1 className="mt-2 font-display text-display-xs leading-tight text-text-strong">
             Buy crypto with naira
           </h1>
           <p className="mt-1 text-sm text-text-soft">

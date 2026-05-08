@@ -271,7 +271,11 @@ export default function SetupErc20Page() {
                 <ChainBadge chain={ethMeta} size="lg" />
               </div>
             )}
-            <h1 className="font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+            <span aria-hidden="true" className="block h-px w-10 bg-accent" />
+            <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              ERC-20 setup
+            </p>
+            <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
               Enable ERC-20 sending in{" "}
               <span className="text-accent">{toHeadingName(name)}</span>
             </h1>

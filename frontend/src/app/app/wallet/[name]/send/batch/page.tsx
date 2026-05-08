@@ -390,15 +390,19 @@ function ComposeStage({
 
       <div className="mt-6 w-full rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
         <div className="flex items-baseline justify-between">
-          <span className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
             Batch total
           </span>
-          <span className="font-display text-display-xs text-text-strong">
-            {formatSol(totalSol)}{" "}
-            <span className="text-text-soft">SOL</span>
+          <span className="flex items-baseline gap-1.5">
+            <span className="font-numerals text-display-xs font-semibold text-text-strong tabular-nums">
+              {formatSol(totalSol)}
+            </span>
+            <span className="font-display text-xs font-semibold uppercase tracking-[0.18em] text-text-soft">
+              SOL
+            </span>
           </span>
         </div>
-        <p className="mt-1 text-right text-xs text-text-soft">
+        <p className="mt-1 text-right font-numerals text-xs text-text-soft tabular-nums">
           {validRows(resolved)} of {drafts.length} rows ready
         </p>
       </div>
@@ -556,21 +560,29 @@ function ReviewStage({
                 {shortAddress(r.destination)}
               </p>
             </div>
-            <span className="shrink-0 font-display text-base text-text-strong">
-              {formatSol(Number(r.lamports) / 1_000_000_000)}{" "}
-              <span className="text-text-soft">SOL</span>
+            <span className="shrink-0 inline-flex items-baseline gap-1">
+              <span className="font-numerals text-base font-semibold text-text-strong tabular-nums">
+                {formatSol(Number(r.lamports) / 1_000_000_000)}
+              </span>
+              <span className="font-display text-[11px] font-semibold uppercase tracking-[0.16em] text-text-soft">
+                SOL
+              </span>
             </span>
           </li>
         ))}
       </ul>
 
       <div className="mt-4 flex w-full items-baseline justify-between rounded-card border border-accent/30 bg-accent/5 px-4 py-3">
-        <span className="text-xs font-medium uppercase tracking-[0.18em] text-accent">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-accent">
           Total
         </span>
-        <span className="font-display text-display-xs text-text-strong">
-          {formatSol(totalSol)}{" "}
-          <span className="text-text-soft">SOL</span>
+        <span className="inline-flex items-baseline gap-1.5">
+          <span className="font-numerals text-display-xs font-semibold text-text-strong tabular-nums">
+            {formatSol(totalSol)}
+          </span>
+          <span className="font-display text-xs font-semibold uppercase tracking-[0.18em] text-text-soft">
+            SOL
+          </span>
         </span>
       </div>
 

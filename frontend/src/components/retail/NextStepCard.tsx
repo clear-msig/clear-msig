@@ -58,10 +58,11 @@ export function NextStepCard({
       aria-label="What's next"
       className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
     >
-      <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+      <span aria-hidden="true" className="block h-px w-10 bg-accent" />
+      <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
         What&rsquo;s next
       </p>
-      <h3 className="mt-1.5 font-display text-base text-text-strong">
+      <h3 className="mt-2 font-display text-base font-semibold text-text-strong">
         {title}
       </h3>
       {subtitle && (

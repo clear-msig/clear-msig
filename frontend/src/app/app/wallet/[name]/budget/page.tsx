@@ -422,7 +422,9 @@ function ChainCapRow({
         </div>
       </div>
       <div className="mt-3 flex items-baseline gap-2">
-        <span className="font-display text-base text-text-strong">$</span>
+        <span className="font-numerals text-base font-semibold text-text-strong">
+          $
+        </span>
         <input
           type="text"
           inputMode="decimal"
@@ -436,7 +438,7 @@ function ChainCapRow({
           placeholder="No cap"
           maxLength={20}
           className={
-            "flex-1 rounded-soft border border-border-soft bg-surface-raised px-3 py-1.5 text-base text-text-strong outline-none " +
+            "flex-1 rounded-soft border border-border-soft bg-surface-raised px-3 py-1.5 font-numerals text-base text-text-strong tabular-nums outline-none " +
             "transition-[border-color,box-shadow] duration-base ease-out-soft " +
             "focus:border-accent focus:shadow-accent-rest"
           }
@@ -526,14 +528,15 @@ function CurrentUsageCard({
 
   return (
     <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-      <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+      <span aria-hidden="true" className="block h-px w-10 bg-accent" />
+      <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
         This week
       </p>
       <div className="mt-2 flex items-baseline justify-between gap-3">
-        <span className="font-display text-display-xs text-text-strong">
+        <span className="font-numerals text-display-xs font-semibold text-text-strong tabular-nums">
           {formatUsd(spentUsd)}
         </span>
-        <span className="text-xs text-text-soft">
+        <span className="font-numerals text-xs text-text-soft tabular-nums">
           {proposalCount} {proposalCount === 1 ? "send" : "sends"}{" "}
           {budget?.velocityPerDay
             ? `· ${sendsLast24h} of ${budget.velocityPerDay} today`

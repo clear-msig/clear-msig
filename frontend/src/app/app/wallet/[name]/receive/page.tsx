@@ -186,7 +186,8 @@ export default function ReceivePage() {
             <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-accent/10 text-accent">
               <Wallet className="h-7 w-7" strokeWidth={1.75} />
             </div>
-            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-soft">
+            <span aria-hidden="true" className="block h-px w-10 bg-accent" />
+            <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
               Receive money
             </p>
             <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">

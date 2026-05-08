@@ -193,8 +193,12 @@ export default function CrossWalletActivityPage() {
         className="flex flex-col gap-3"
       >
         <header className="flex items-baseline justify-between gap-3">
-          <div>
-            <h1 className="font-display text-display-xs leading-tight text-text-strong">
+          <div className="flex flex-col">
+            <span aria-hidden="true" className="block h-px w-10 bg-accent" />
+            <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              Activity
+            </p>
+            <h1 className="mt-2 font-display text-display-xs leading-tight text-text-strong">
               All activity
             </h1>
             <p className="mt-1 text-xs text-text-soft">

@@ -310,7 +310,11 @@ export default function SetupSpendingPage() {
             <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-accent/10 text-accent">
               <Send className="h-7 w-7" strokeWidth={1.75} />
             </div>
-            <h1 className="font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+            <span aria-hidden="true" className="block h-px w-10 bg-accent" />
+            <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              First-time setup
+            </p>
+            <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
               Set up sending in <span className="text-accent">{toHeadingName(name)}</span>
             </h1>
             <p className="mt-3 max-w-sm text-base text-text-soft">

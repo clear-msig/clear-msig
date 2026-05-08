@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
+import { PageEyebrow } from "@/components/retail/PageEyebrow";
 import { useActionNotifications } from "@/lib/hooks/useActionNotifications";
 import { useInstallPrompt } from "@/lib/hooks/useInstallPrompt";
 import {
@@ -150,14 +151,14 @@ export default function SettingsPage() {
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       className="flex flex-col gap-8"
     >
-      <header className="text-center">
+      <PageEyebrow label="Settings" align="center">
         <h1 className="font-display text-display-xs leading-tight text-text-strong">
-          Settings
+          Your account
         </h1>
         <p className="mt-1 text-base text-text-soft">
-          Your account and connection.
+          Identity, connection, and notifications.
         </p>
-      </header>
+      </PageEyebrow>
 
       {/* ── Identity ─────────────────────────────────────────── */}
       <Group label="Identity">

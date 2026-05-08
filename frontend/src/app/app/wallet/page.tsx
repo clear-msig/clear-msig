@@ -167,9 +167,13 @@ function Greeting({ reduce }: { reduce: boolean }) {
     <motion.div
       {...motionProps}
       transition={{ duration: 0.2 }}
-      className="text-center"
+      className="flex flex-col items-center text-center"
     >
-      <h1 className="font-display text-display-xs leading-tight text-text-strong">
+      <span aria-hidden="true" className="block h-px w-10 bg-accent" />
+      <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        Home
+      </p>
+      <h1 className="mt-2 font-display text-display-xs leading-tight text-text-strong">
         Welcome back
       </h1>
       <p className="mt-1 text-base text-text-soft">
@@ -430,9 +434,15 @@ function WalletCard({
             {loadingBalance && balance === null ? (
               <div className="mt-1 h-5 w-20 animate-pulse rounded bg-border-soft" />
             ) : (
-              <p className="mt-1 font-display text-base text-text-strong">
-                {balance ? balance.amount : "0"}{" "}
-                <span className="text-text-strong/70">
+              // Editorial-sans: JetBrains Mono numerals for the
+              // balance value, Manrope display caps for the ticker.
+              // Same currency-code treatment as /send/* and Hero
+              // single-chain balance — one shared pattern app-wide.
+              <p className="mt-1 flex items-baseline gap-1.5">
+                <span className="font-numerals text-base font-semibold text-text-strong tabular-nums">
+                  {balance ? balance.amount : "0"}
+                </span>
+                <span className="font-display text-[11px] font-semibold uppercase tracking-[0.16em] text-text-soft">
                   {balance?.ticker ?? "SOL"}
                 </span>
               </p>

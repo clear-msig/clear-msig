@@ -325,7 +325,11 @@ export default function SetupEthPage() {
                 <ChainBadge chain={ethMeta} size="lg" />
               </div>
             )}
-            <h1 className="font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+            <span aria-hidden="true" className="block h-px w-10 bg-accent" />
+            <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              Ethereum setup
+            </p>
+            <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
               Enable Ethereum sending in <span className="text-accent">{toHeadingName(name)}</span>
             </h1>
             <p className="mt-3 max-w-sm text-base text-text-soft">

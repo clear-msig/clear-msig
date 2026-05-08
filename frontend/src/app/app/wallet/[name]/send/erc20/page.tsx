@@ -611,7 +611,11 @@ function ComposeStage({
     <div className="flex flex-col">
       <div className="flex flex-col items-center text-center">
         {ethMeta && <ChainBadge chain={ethMeta} size="lg" />}
-        <h1 className="mt-4 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+        <span aria-hidden="true" className="mt-4 block h-px w-10 bg-accent" />
+        <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          Send · ERC-20 token
+        </p>
+        <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
           Send a token from {walletDisplay}
         </h1>
         <p className="mt-2 text-base text-text-soft">
@@ -682,50 +686,54 @@ function ComposeStage({
               }}
               placeholder="0.0"
               disabled={!metadata}
+              // font-numerals tabular-nums — same financial typography
+              // as SOL / ETH amount inputs.
               className={
-                "flex-1 rounded-card border border-border-soft bg-surface-raised px-4 py-3 font-display text-2xl text-text-strong outline-none " +
+                "flex-1 rounded-card border border-border-soft bg-surface-raised px-4 py-3 font-numerals text-2xl font-semibold text-text-strong tabular-nums outline-none " +
                 "transition-[border-color,box-shadow] duration-base ease-out-soft " +
                 "focus:border-accent focus:shadow-accent-rest " +
                 "disabled:cursor-not-allowed disabled:opacity-60"
               }
             />
-            <span className="text-sm font-medium text-text-soft">{symbol}</span>
-          </div>
-          <div className="mt-2 flex items-center justify-between text-xs">
-            <span className="text-text-soft">
-              {balanceLoading ? (
-                "Loading wallet balance…"
-              ) : walletBalance !== null && metadata ? (
-                <>
-                  Wallet has{" "}
-                  <span className="font-medium text-text-strong tabular-nums">
-                    {tokenAmountToString(walletBalance, metadata.decimals, 6)}
-                  </span>{" "}
-                  {metadata.symbol}
-                </>
-              ) : tokenContractValid ? (
-                "Couldn’t fetch balance"
-              ) : (
-                "Paste a token contract above to see balance"
-              )}
+            <span className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-text-soft">
+              {symbol}
             </span>
-            {walletBalance !== null && walletBalance > 0n && metadata && (
-              <button
-                type="button"
-                onClick={() => {
-                  setAmount(
-                    tokenAmountToString(
-                      walletBalance,
-                      metadata.decimals,
-                      metadata.decimals,
-                    ),
-                  );
-                }}
-                className="font-medium text-accent transition-colors hover:text-accent/80"
-              >
-                Max
-              </button>
-            )}
+          </div>
+          {/* Balance chip — single pill consolidates the
+              "Wallet has X TOKEN" + Max button. Tabular-numeric
+              digits keep the value column aligned. */}
+          <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-xs">
+            <span className="text-text-soft">Wallet has</span>
+            <span className="font-numerals font-semibold text-text-strong tabular-nums">
+              {balanceLoading
+                ? "…"
+                : typeof walletBalance === "bigint" && metadata
+                  ? tokenAmountToString(walletBalance, metadata.decimals, 6)
+                  : "—"}
+            </span>
+            <span className="text-text-soft">{metadata?.symbol ?? symbol}</span>
+            {typeof walletBalance === "bigint" &&
+              walletBalance > 0n &&
+              metadata && (
+                <>
+                  <span aria-hidden="true" className="h-3 w-px bg-border-soft" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAmount(
+                        tokenAmountToString(
+                          walletBalance,
+                          metadata.decimals,
+                          metadata.decimals,
+                        ),
+                      );
+                    }}
+                    className="-mr-1 rounded-full px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-accent transition-colors hover:bg-accent/10"
+                  >
+                    Max
+                  </button>
+                </>
+              )}
           </div>
           {insufficientBalance && walletBalance !== null && metadata && (
             <p className="mt-2 rounded-soft border border-warning/40 bg-warning/[0.07] px-3 py-2 text-xs text-text-strong">

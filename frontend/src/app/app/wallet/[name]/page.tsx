@@ -689,7 +689,8 @@ function Hero({
           {name.trim().charAt(0).toUpperCase() || "?"}
         </span>
       </div>
-      <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+      <span aria-hidden="true" className="mx-auto block h-px w-10 bg-accent" />
+      <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
         {shapeLabel ? `${shapeLabel} wallet` : "Shared wallet"}
       </p>
       <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
@@ -861,17 +862,27 @@ function PortfolioPanel({
     // Single-chain fallback: keep the existing SOL-only display so
     // wallets that haven't bound other chains feel identical to
     // before this change. Less noise, no demo-price disclaimer.
+    //
+    // Editorial-sans treatment: thin accent rule above the eyebrow
+    // (hairline rhythm carried from the send pages), JetBrains Mono
+    // tabular-nums on the value column for column-aligned digits,
+    // ticker rendered as Manrope display caps (matches the SOL
+    // suffix on /send/* — single shared treatment for currency
+    // codes everywhere).
     return (
-      <div className="mt-5">
-        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-soft">
+      <div className="mt-5 flex flex-col items-center">
+        <span aria-hidden="true" className="block h-px w-10 bg-accent" />
+        <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Balance
         </p>
         {loadingFallback ? (
-          <div className="mx-auto mt-1 h-9 w-40 animate-pulse rounded bg-border-soft" />
+          <div className="mx-auto mt-2 h-9 w-40 animate-pulse rounded bg-border-soft" />
         ) : (
-          <p className="mt-1 font-display text-display-xs text-text-strong">
-            {fallbackBalance ? fallbackBalance.amount : "0"}{" "}
-            <span className="text-text-strong/70">
+          <p className="mt-2 flex items-baseline justify-center gap-2">
+            <span className="font-numerals text-display-xs font-semibold text-text-strong tabular-nums">
+              {fallbackBalance ? fallbackBalance.amount : "0"}
+            </span>
+            <span className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-text-soft">
               {fallbackBalance?.ticker ?? "SOL"}
             </span>
           </p>
@@ -892,19 +903,22 @@ function PortfolioPanel({
     .join(" · ");
 
   return (
-    <div className="mt-5">
-      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-soft">
+    <div className="mt-5 flex flex-col items-center">
+      <span aria-hidden="true" className="block h-px w-10 bg-accent" />
+      <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
         Wallet value
       </p>
       {portfolio.isLoading && portfolio.totalUsd === 0 ? (
-        <div className="mx-auto mt-1 h-9 w-40 animate-pulse rounded bg-border-soft" />
+        <div className="mx-auto mt-2 h-9 w-40 animate-pulse rounded bg-border-soft" />
       ) : (
         <>
-          <p className="mt-1 font-display text-display-xs text-text-strong">
+          <p className="mt-2 font-numerals text-display-xs font-semibold text-text-strong tabular-nums">
             {fiat.format(portfolio.totalUsd)}
           </p>
           {breakdownText && (
-            <p className="mt-1 text-xs text-text-soft">{breakdownText}</p>
+            <p className="mt-1 font-numerals text-xs text-text-soft tabular-nums">
+              {breakdownText}
+            </p>
           )}
           <p
             className="mt-1 text-[10px] text-text-soft/70"
@@ -1860,11 +1874,15 @@ function BudgetStripe({ name }: { name: string }) {
       {hasWalletCap && (
         <>
       <div className="mt-2 flex items-baseline justify-between gap-3">
-        <p className="font-display text-base text-text-strong">
-          {formatUsd(usage.spentUsd)}{" "}
-          <span className="text-text-soft">of {formatUsd(cap)}</span>
+        <p className="flex items-baseline gap-1.5">
+          <span className="font-numerals text-base font-semibold text-text-strong tabular-nums">
+            {formatUsd(usage.spentUsd)}
+          </span>
+          <span className="font-numerals text-xs text-text-soft tabular-nums">
+            of {formatUsd(cap)}
+          </span>
         </p>
-        <p className={"text-xs " + (over ? "text-danger" : "text-text-soft")}>
+        <p className={"font-numerals text-xs tabular-nums " + (over ? "text-danger" : "text-text-soft")}>
           {usage.remainingUsd !== null && usage.remainingUsd >= 0
             ? `${formatUsd(usage.remainingUsd)} left`
             : `${formatUsd(Math.abs(usage.remainingUsd ?? 0))} over`}

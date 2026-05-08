@@ -114,9 +114,13 @@ export default function InvitationsPage() {
       <motion.section
         {...motionProps}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="text-center"
+        className="flex flex-col items-center text-center"
       >
-        <h1 className="font-display text-display-xs leading-tight text-text-strong">
+        <span aria-hidden="true" className="block h-px w-10 bg-accent" />
+        <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          Invitations
+        </p>
+        <h1 className="mt-2 font-display text-display-xs leading-tight text-text-strong">
           Sent invitations
         </h1>
         <p className="mt-1 text-base text-text-soft">

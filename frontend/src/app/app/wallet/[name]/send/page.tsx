@@ -1064,9 +1064,12 @@ function ComposeStage({
       transition={STAGE_TRANSITION}
       className="flex flex-col"
     >
-      <p className="text-center text-[11px] font-medium uppercase tracking-[0.18em] text-text-soft">
-        Sending from {walletDisplay}
-      </p>
+      <div className="flex flex-col items-center">
+        <span aria-hidden="true" className="block h-px w-10 bg-accent" />
+        <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          Sending from {walletDisplay}
+        </p>
+      </div>
 
       {/* Quick-send shortcut — type a sentence, the form fills.
           Sits above the canonical step-by-step inputs so users who

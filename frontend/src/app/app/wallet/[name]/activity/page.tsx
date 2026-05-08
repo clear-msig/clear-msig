@@ -147,10 +147,16 @@ export default function WalletActivityPage() {
         className="flex flex-col gap-3"
       >
         <header className="flex items-baseline justify-between gap-3">
-          <h1 className="font-display text-display-xs leading-tight text-text-strong">
-            Activity
-          </h1>
-          <p className="text-xs text-text-soft">
+          <div className="flex flex-col">
+            <span aria-hidden="true" className="block h-px w-10 bg-accent" />
+            <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              Wallet activity
+            </p>
+            <h1 className="mt-2 font-display text-display-xs leading-tight text-text-strong">
+              Activity
+            </h1>
+          </div>
+          <p className="font-numerals text-xs text-text-soft tabular-nums">
             {loading
               ? "Loading…"
               : `${filtered.length} of ${allRows.length} request${allRows.length === 1 ? "" : "s"}`}

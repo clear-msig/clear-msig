@@ -702,7 +702,11 @@ function ComposeStage({
     <div className="flex flex-col">
       <div className="flex flex-col items-center text-center">
         {ethMeta && <ChainBadge chain={ethMeta} size="lg" />}
-        <h1 className="mt-4 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+        <span aria-hidden="true" className="mt-4 block h-px w-10 bg-accent" />
+        <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          Send · Ethereum
+        </p>
+        <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
           Send ETH from {walletDisplay}
         </h1>
         <p className="mt-2 text-base text-text-soft">
@@ -742,49 +746,52 @@ function ComposeStage({
                 setAmount(next);
               }}
               placeholder="0.05"
+              // font-numerals tabular-nums for column-aligned digits.
+              // Same treatment as the SOL send page — every financial
+              // amount input shares this typography.
               className={
-                "flex-1 rounded-card border border-border-soft bg-surface-raised px-4 py-3 font-display text-2xl text-text-strong outline-none " +
+                "flex-1 rounded-card border border-border-soft bg-surface-raised px-4 py-3 font-numerals text-2xl font-semibold text-text-strong tabular-nums outline-none " +
                 "transition-[border-color,box-shadow] duration-base ease-out-soft " +
                 "focus:border-accent focus:shadow-accent-rest"
               }
             />
-            <span className="text-sm font-medium text-text-soft">ETH</span>
-          </div>
-          {/* Live wallet balance + insufficient-balance gate. Shown
-              right under the amount input so the user sees the
-              ceiling while typing. */}
-          <div className="mt-2 flex items-center justify-between text-xs">
-            <span className="text-text-soft">
-              {balanceLoading ? (
-                "Loading wallet balance…"
-              ) : walletBalanceWei !== null ? (
-                <>
-                  Wallet has{" "}
-                  <span className="font-medium text-text-strong tabular-nums">
-                    {weiToEth(walletBalanceWei)}
-                  </span>{" "}
-                  ETH
-                </>
-              ) : (
-                "Couldn’t fetch balance"
-              )}
+            <span className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-text-soft">
+              ETH
             </span>
-            {walletBalanceWei !== null && walletBalanceWei > 0n && (
-              <button
-                type="button"
-                onClick={() => {
-                  // Max = balance - gas reserve (clamped to 0).
-                  const max =
-                    walletBalanceWei > gasReserveWei
-                      ? walletBalanceWei - gasReserveWei
-                      : 0n;
-                  setAmount(weiToEth(max, 12));
-                }}
-                className="rounded-full border border-accent/40 bg-accent/[0.10] px-2 py-0.5 text-[11px] font-semibold text-accent transition-colors hover:border-accent hover:bg-accent/[0.15]"
-              >
-                Max
-              </button>
-            )}
+          </div>
+          {/* Live wallet balance + insufficient-balance gate.
+              Same chip-pill treatment as the SOL send page —
+              balance + Max sit as one group, font-numerals on
+              the value for tabular alignment. */}
+          <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-xs">
+            <span className="text-text-soft">Wallet has</span>
+            <span className="font-numerals font-semibold text-text-strong tabular-nums">
+              {balanceLoading
+                ? "…"
+                : typeof walletBalanceWei === "bigint"
+                  ? weiToEth(walletBalanceWei)
+                  : "—"}
+            </span>
+            <span className="text-text-soft">ETH</span>
+            {typeof walletBalanceWei === "bigint" &&
+              walletBalanceWei > 0n && (
+                <>
+                  <span aria-hidden="true" className="h-3 w-px bg-border-soft" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const max =
+                        walletBalanceWei > gasReserveWei
+                          ? walletBalanceWei - gasReserveWei
+                          : 0n;
+                      setAmount(weiToEth(max, 12));
+                    }}
+                    className="-mr-1 rounded-full px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-accent transition-colors hover:bg-accent/10"
+                  >
+                    Max
+                  </button>
+                </>
+              )}
           </div>
           {insufficientBalance && walletBalanceWei !== null && (
             <p className="mt-2 rounded-soft border border-warning/40 bg-warning/[0.10] px-3 py-2 text-xs text-text-strong">
