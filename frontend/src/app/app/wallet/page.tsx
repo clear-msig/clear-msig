@@ -456,13 +456,19 @@ function WalletCard({
         aria-label={pinned ? `Unpin ${name}` : `Pin ${name} to the top`}
         title={pinned ? "Unpin" : "Pin to top"}
         className={
-          "absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full border bg-surface-raised " +
+          // display class moves into the conditional so the unpinned
+          // variant's `hidden md:inline-flex` actually takes effect.
+          // Previously `inline-flex` sat in the always-applied string
+          // and won the cascade against the conditional `hidden`,
+          // leaving the icon visible on mobile contrary to the
+          // intent.
+          "absolute right-2 top-2 h-7 w-7 items-center justify-center rounded-full border bg-surface-raised " +
           "transition-[color,border-color,transform] duration-base ease-out-soft " +
           (pinned
             ? // Pinned cards always show the icon (it carries the
               // pin-status signal). Accent border so it reads as
               // "this is intentionally here", not chrome.
-              "border-accent/40 text-accent hover:border-accent"
+              "inline-flex border-accent/40 text-accent hover:border-accent"
             : // Unpinned: hide on mobile (pin/unpin is rarely a
               // touch-first action and the icon read as clutter on
               // every card). Desktop keeps it for power users.

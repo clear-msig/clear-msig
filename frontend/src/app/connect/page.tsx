@@ -31,9 +31,9 @@ import {
 import { useDynamicContext, DynamicWidget } from "@dynamic-labs/sdk-react-core";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { useWallet } from "@/lib/wallet";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
+import { BrandMark } from "@/components/retail/BrandMark";
 import { useLedger } from "@/lib/wallet/LedgerProvider";
 import { useLedgerPresence } from "@/lib/hooks/useLedgerPresence";
 import { useToast } from "@/components/ui/Toast";
@@ -92,19 +92,25 @@ function ConnectPage() {
           canvas matches Cash App / Apple Wallet / Squads. The card
           itself is the visual interest. */}
 
-      <StickyTopBar>
-        <Link
-          href="/"
-          className={
-            "-ml-2 inline-flex items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-          }
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Clear
-        </Link>
-      </StickyTopBar>
+      {/* Brand-mark home link, pinned in the top-left corner.
+          Matches the /welcome treatment — the StickyTopBar wrapper
+          baked in 5rem of flow spacing before this, leaving "← Clear"
+          floating in a vast empty band. Absolute positioning here
+          drops it right against the viewport corner. */}
+      <Link
+        href="/"
+        aria-label="Back to home"
+        className={
+          "absolute left-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-soft px-2 py-1 text-text-soft sm:left-4 sm:top-4 " +
+          "transition-colors duration-base ease-out-soft hover:text-text-strong " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+        }
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        <span className="flex h-5 w-5 items-center justify-center text-accent">
+          <BrandMark size={18} />
+        </span>
+      </Link>
 
       <div className="relative z-10 flex flex-1 items-center justify-center px-gutter py-10">
         <div className="grid w-full max-w-5xl items-center gap-12 lg:grid-cols-[1.1fr_1fr]">
