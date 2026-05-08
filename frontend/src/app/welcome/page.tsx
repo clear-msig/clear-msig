@@ -175,6 +175,13 @@ export default function WelcomePage() {
   const [stage, setStage] = useState<Stage>(() =>
     typeof window !== "undefined" && loadIntroSeen() ? "create" : "intro",
   );
+  // The on-chain wallet name carries a creator-derived suffix
+  // ("#XXXXXX") so two users picking the same display name don't
+  // collide. The success stage's deep-links MUST use this exact
+  // slug or they 404 — `/app/wallet/Family` doesn't resolve when
+  // the actual PDA is at `Family#A1B2C3`. Captured at mutation
+  // time and used by every CTA in the success stage.
+  const [createdSlug, setCreatedSlug] = useState<string | null>(null);
   const [shape, setShape] = useState<ShapeId>("just_me");
   const [name, setName] = useState("");
   /// Cooling-off lives on the wallet's spending rule, not the create
@@ -308,6 +315,7 @@ export default function WelcomePage() {
       // gets derived from the name hash at render time; the user can
       // pick a real color from the wallet's settings later.
       saveWalletAppearance(cleanName, { shape });
+      setCreatedSlug(walletSlug);
       setStage("success");
     },
     onError: (err) => {
@@ -701,7 +709,7 @@ export default function WelcomePage() {
                     fullWidth
                     onClick={() =>
                       router.push(
-                        `/app/wallet/${encodeURIComponent(slug(cleanName))}/send`,
+                        `/app/wallet/${encodeURIComponent(createdSlug ?? slug(cleanName))}/send`,
                       )
                     }
                   >
@@ -710,7 +718,7 @@ export default function WelcomePage() {
                   </Button>
                   {currentShape.expectedMembers > 1 && (
                     <Link
-                      href={`/app/wallet/${encodeURIComponent(slug(cleanName))}/members/add`}
+                      href={`/app/wallet/${encodeURIComponent(createdSlug ?? slug(cleanName))}/members/add`}
                       className={
                         "inline-flex w-full items-center justify-center gap-1.5 rounded-card border border-border-soft " +
                         "bg-surface-raised px-4 py-2.5 text-sm font-medium text-text-strong shadow-card-rest " +
@@ -723,7 +731,7 @@ export default function WelcomePage() {
                     </Link>
                   )}
                   <Link
-                    href={`/app/wallet/${encodeURIComponent(slug(cleanName))}`}
+                    href={`/app/wallet/${encodeURIComponent(createdSlug ?? slug(cleanName))}`}
                     className={
                       "inline-flex w-full items-center justify-center gap-1.5 rounded-soft px-4 py-2 " +
                       "text-sm font-medium text-text-soft " +
