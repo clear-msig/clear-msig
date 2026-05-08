@@ -148,7 +148,7 @@ export default function SettingsPage() {
     <motion.div
       {...motionProps}
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col gap-6"
+      className="flex flex-col gap-8"
     >
       <header className="text-center">
         <h1 className="font-display text-display-xs leading-tight text-text-strong">
@@ -159,6 +159,8 @@ export default function SettingsPage() {
         </p>
       </header>
 
+      {/* ── Identity ─────────────────────────────────────────── */}
+      <Group label="Identity">
       {/* Connected identity card */}
       <section className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest">
         <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
@@ -248,6 +250,10 @@ export default function SettingsPage() {
         />
       </Link>
 
+      </Group>
+
+      {/* ── Security ─────────────────────────────────────────── */}
+      <Group label="Security">
       {/* Privacy row — links to the explainer. Status flips
           automatically when Encrypt's network goes live. */}
       <Link
@@ -302,6 +308,18 @@ export default function SettingsPage() {
         />
       </Link>
 
+      {/* App lock — per-device PIN that gates /app/* on every fresh
+          tab. Stored locally only; we never see the PIN. */}
+      <AppLockSettingRow />
+
+      {/* Sign-in security — opens Dynamic's user-profile modal so
+          embedded-wallet users can enroll passkeys / change email /
+          revoke devices without us baking that flow ourselves. */}
+      <SignInSecurityRow />
+      </Group>
+
+      {/* ── Display ─────────────────────────────────────────── */}
+      <Group label="Display">
       {/* Theme — light / dark / system. Stored per-device in
           localStorage; an inline script in app/layout.tsx applies
           it before first paint to avoid the light-mode flash. */}
@@ -317,21 +335,11 @@ export default function SettingsPage() {
           where the on-chain rules are denominated. */}
       <DisplayCurrencyRow />
 
-      {/* App lock — per-device PIN that gates /app/* on every fresh
-          tab. Stored locally only; we never see the PIN. Useful on
-          shared / unlocked devices where Dynamic's session token
-          would otherwise let anyone open balances + sign flows. */}
-      <AppLockSettingRow />
+      </Group>
 
-      {/* Sign-in security — opens Dynamic's user-profile modal so
-          embedded-wallet users can enroll passkeys / change email /
-          revoke devices without us baking that flow ourselves.
-          External-wallet users (Phantom, Ledger) skip the modal —
-          their auth is managed by the wallet itself. */}
-      <SignInSecurityRow />
-
-      {/* Notifications — discoverable place to enable/diagnose the
-          browser-Notification ping for new pending approvals. The
+      {/* ── Notifications ────────────────────────────────────── */}
+      <Group label="Notifications">
+      {/* Browser-Notification ping for new pending approvals. The
           in-page prompt on the dashboard handles first-run; this is
           the always-available switch. */}
       <NotificationsSettingRow notif={notif} />
@@ -375,24 +383,30 @@ export default function SettingsPage() {
         />
       </Link>
 
-      {/* Install — surfaces the manifest-level PWA install on
-          browsers that support it; renders Add-to-Home-Screen
-          instructions on iOS Safari. Important on iOS specifically
-          because notifications only fire once installed-as-PWA. */}
+      </Group>
+
+      {/* ── Power user ─────────────────────────────────────── */}
+      <Group label="Power user">
+      {/* PWA install on supported browsers; iOS Safari instructions
+          otherwise. Important on iOS specifically because
+          notifications only fire once installed-as-PWA. */}
       <InstallSettingRow install={install} />
 
-      {/* Power-user: override the Solana RPC URL. Persists in
-          localStorage and takes effect on next reload. */}
+      {/* Override the Solana RPC URL. Persists in localStorage,
+          takes effect on next reload. */}
       <SolanaRpcSettingRow />
 
-      {/* Power-user: override the EVM destination RPC URL. */}
+      {/* Override the EVM destination RPC URL. */}
       <EvmRpcSettingRow />
 
-      {/* Hardware-wallet power-user: pick a different Ledger
-          account index when one device hosts multiple Solana
-          addresses. Hidden when WebHID isn't available. */}
+      {/* Pick a different Ledger account index when one device
+          hosts multiple Solana addresses. Hidden when WebHID
+          isn't available. */}
       <LedgerAccountSettingRow />
+      </Group>
 
+      {/* ── Connection ───────────────────────────────────────── */}
+      <Group label="Connection">
       {/* Network indicator */}
       <section className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
@@ -407,7 +421,10 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      {/* Account actions */}
+      </Group>
+
+      {/* Account actions — sit loose at the bottom; no group label
+          (Sign out is destructive enough to deserve its own block). */}
       <section className="rounded-card border border-border-soft bg-surface-raised p-2 shadow-card-rest">
         <button
           type="button"
@@ -461,6 +478,31 @@ export default function SettingsPage() {
         />
       </Link>
     </motion.div>
+  );
+}
+
+// ─── Group wrapper ─────────────────────────────────────────────
+//
+// Settings used to be 18 identically-styled cards stacked
+// vertically — a wall to scan. Group wraps each thematic cluster
+// with a small uppercase label + a tighter inner gap so the page
+// reads as ~6 short clusters rather than one long list. Same
+// pattern the wallet hub uses (SectionLabel).
+
+function Group({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+        {label}
+      </h2>
+      {children}
+    </section>
   );
 }
 
