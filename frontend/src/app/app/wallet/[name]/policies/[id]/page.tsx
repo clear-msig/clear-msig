@@ -12,7 +12,7 @@ import { Loader2 } from "lucide-react";
 import { decryptConditions } from "@/lib/policies/encryption";
 import { findPolicy } from "@/lib/policies/storage";
 import type { PolicyRule } from "@/lib/policies/types";
-import { PolicyForm } from "@/app/app/wallet/[name]/policies/new/page";
+import { PolicyForm } from "@/components/policies/PolicyForm";
 
 export default function EditPolicyPage() {
   const params = useParams<{ name: string; id: string }>();

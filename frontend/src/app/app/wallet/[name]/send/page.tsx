@@ -56,6 +56,7 @@ import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
 import { evaluatePolicy, PolicyViolationError } from "@/lib/retail/policyEvaluation";
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
+import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
@@ -902,6 +903,12 @@ function SendPage() {
           )}
           {stage === "compose" && (
             <SendChainPicker walletName={walletName} activeKind={0} />
+          )}
+          {stage === "compose" && policyEvaluation?.matched && (
+            <PolicyMatchBanner
+              walletName={walletName}
+              evaluation={policyEvaluation}
+            />
           )}
           {stage === "compose" && (
             <ComposeStage
