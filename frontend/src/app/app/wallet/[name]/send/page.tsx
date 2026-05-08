@@ -1140,7 +1140,12 @@ function ComposeStage({
               // Width fits "1234.56" comfortably; SOL ticker sits
               // beside without wandering.
               "w-[5.5ch] bg-transparent font-numerals text-[2.75rem] font-semibold tracking-tight text-text-strong tabular-nums " +
-              "text-right caret-accent outline-none placeholder:text-text-soft sm:text-[3.25rem]"
+              // text-right when typing keeps digits decimal-aligned next
+              // to the SOL ticker. placeholder:text-center centers the
+              // "0" so the empty state doesn't read as a tiny digit
+              // floating in a wide right-aligned column. caret colors
+              // match the accent so the cursor reads as on-brand.
+              "text-right placeholder:text-center caret-accent outline-none placeholder:text-text-soft sm:text-[3.25rem]"
             }
           />
           <span

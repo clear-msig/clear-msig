@@ -28,6 +28,7 @@ import { useWallet } from "@/lib/wallet";
 import {
   ChevronsLeft,
   ChevronsRight,
+  Layers,
   LogOut,
   Plus,
   Search,
@@ -77,6 +78,22 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
 
   const memberships = myOrganizationsQuery.data ?? [];
   const recent = useRecentActivity(3);
+
+  // Pull the active wallet slug out of the path so wallet-scoped
+  // entries (Chains, …) can link straight back into the right
+  // wallet. Matches /app/wallet/{name}/... and decodes the slug.
+  // null when the user is on a non-wallet route (e.g. /app/settings,
+  // /app/wallet hub) — the entry hides so we never render a broken
+  // /app/wallet//chains link.
+  const activeWalletSlug = (() => {
+    const m = pathname.match(/^\/app\/wallet\/([^/]+)/);
+    if (!m || !m[1]) return null;
+    try {
+      return decodeURIComponent(m[1]);
+    } catch {
+      return m[1];
+    }
+  })();
 
   return (
     <div
@@ -217,6 +234,32 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
               onNavigate?.();
             }}
           />
+        )}
+        {/* Chains — wallet-scoped entry. Only renders when the
+            user is inside a /app/wallet/{name}/... route so the
+            link has a real target. Was the most-flagged "I can't
+            find where to add a chain" surface; lives here next to
+            Settings so it sits in the menu icon row on rail mode
+            too (icon-only sidebar) — discoverable from anywhere
+            inside a wallet without drilling through the Manage
+            tab. */}
+        {activeWalletSlug && (
+          <Link
+            href={`/app/wallet/${encodeURIComponent(activeWalletSlug)}/chains`}
+            onClick={onNavigate}
+            aria-label="Chains for this wallet"
+            title="Chains for this wallet"
+            className={clsx(
+              "inline-flex items-center text-xs font-medium transition-colors duration-base ease-out-soft",
+              expanded ? "gap-3 rounded-xl px-3 py-2" : "h-10 w-10 justify-center rounded-soft",
+              pathname.includes("/chains")
+                ? "bg-accent/10 text-accent"
+                : "text-text-soft hover:bg-canvas hover:text-text-strong",
+            )}
+          >
+            <Layers size={14} className="shrink-0" />
+            {expanded && <span>Chains</span>}
+          </Link>
         )}
         <Link
           href="/app/settings"
