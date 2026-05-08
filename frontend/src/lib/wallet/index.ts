@@ -261,10 +261,24 @@ export function useWallet() {
 // would have given each component an instance via context; we cache one
 // at module scope since the RPC URL is static. Memoise per-component to
 // keep the same referential identity react-query expects.
-const sharedConnection = createSolanaConnection("confirmed");
+//
+// Lazy-init: createSolanaConnection() reads localStorage and wires up
+// websocket plumbing. Doing that at module evaluation means every
+// client component that imports `@/lib/wallet` (most of the app)
+// pays the cost on first JS load — including public surfaces like
+// /privacy that never hit RPC. The getter defers it until something
+// actually calls useConnection() or imports the binding.
+let connectionInstance: ReturnType<typeof createSolanaConnection> | null =
+  null;
+function getSharedConnection() {
+  if (connectionInstance === null) {
+    connectionInstance = createSolanaConnection("confirmed");
+  }
+  return connectionInstance;
+}
 
 /// Drop-in replacement for `useConnection()` from
 /// @solana/wallet-adapter-react. Returns the same `{connection}` shape.
 export function useConnection() {
-  return useMemo(() => ({ connection: sharedConnection }), []);
+  return useMemo(() => ({ connection: getSharedConnection() }), []);
 }
