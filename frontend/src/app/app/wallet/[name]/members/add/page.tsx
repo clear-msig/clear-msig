@@ -39,6 +39,7 @@ import {
   type Role,
 } from "@/lib/retail/roles";
 import { sendOrganizationInvite } from "@/lib/organizations/client";
+import { recordInvite } from "@/lib/security/inviteLog";
 import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
@@ -345,6 +346,23 @@ export default function AddFriendPage() {
             invitee: { address: trimmedAddress, email: trimmedEmail },
           });
           emailDelivered = true;
+          // Audit trail for the inviter — surfaces in /app/invitations
+          // and lets them send a withdrawal email if the invite was a
+          // mistake. Only record when the SMTP send actually
+          // succeeded; failures stay out of the log to avoid a
+          // misleading "sent" entry.
+          try {
+            recordInvite({
+              walletName: name,
+              inviteeName: trimmedName,
+              inviteeAddress: trimmedAddress,
+              inviteeEmail: trimmedEmail,
+              inviterAddress: wallet.publicKey.toBase58(),
+              role,
+            });
+          } catch {
+            /* log persist is best-effort */
+          }
         } catch (emailErr) {
           console.warn("[add-friend] email invite failed", emailErr);
         }

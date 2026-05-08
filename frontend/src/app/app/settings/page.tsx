@@ -28,6 +28,7 @@ import {
   Lock,
   LogOut,
   Mail,
+  MailX,
   Share2,
   ShieldCheck,
   Webhook,
@@ -331,6 +332,34 @@ export default function SettingsPage() {
           teams can pipe Clear into Slack / Discord / PagerDuty /
           Zapier without us shipping per-tool integrations. */}
       <WebhooksSettingRow />
+
+      {/* Sent invitations — audit log of email invites this device
+          dispatched, with a withdrawal email for mistakes. */}
+      <Link
+        href="/app/invitations"
+        className={
+          "group flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest " +
+          "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
+          "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+        }
+      >
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
+          <MailX className="h-5 w-5" strokeWidth={1.75} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-text-strong">
+            Sent invitations
+          </p>
+          <p className="mt-0.5 text-xs text-text-soft">
+            Email invites you&rsquo;ve sent. Withdraw the ones that were a mistake.
+          </p>
+        </div>
+        <ArrowRight
+          className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
+          aria-hidden="true"
+        />
+      </Link>
 
       {/* Install — surfaces the manifest-level PWA install on
           browsers that support it; renders Add-to-Home-Screen

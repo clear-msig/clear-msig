@@ -33,3 +33,22 @@ export async function sendOrganizationInvite(input: InviteInput): Promise<void> 
     throw new Error(errorMessage(payload, "Failed to send invite email"));
   }
 }
+
+type RevokeInput = {
+  walletName: string;
+  invitee: OrganizationMember;
+  inviterAddress: string;
+};
+
+export async function revokeOrganizationInvite(input: RevokeInput): Promise<void> {
+  const response = await fetch("/api/invitations/revoke", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input)
+  });
+
+  if (!response.ok) {
+    const payload = await readJson<{ error?: string }>(response).catch(() => ({}));
+    throw new Error(errorMessage(payload, "Failed to send revocation email"));
+  }
+}
