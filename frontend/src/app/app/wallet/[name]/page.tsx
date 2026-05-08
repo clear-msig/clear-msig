@@ -458,10 +458,7 @@ function Hero({
           "demo prices" disclaimer keeps the UI honest. */}
       <PortfolioPanel walletName={name} fallbackBalance={balance} loadingFallback={loadingBalance} />
 
-      {/* Hero footer: just members + settings. The pre-trim version
-          had five competing pills (Spending rules / Weekly limit /
-          Policy / Chains / Privacy-ready) which read as a settings
-          dump. They live under one Settings page now. */}
+      {/* Hero footer A — meta row: members + settings. */}
       <div className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-text-soft">
         <Link
           href={`/app/wallet/${encodeURIComponent(name)}/members`}
@@ -499,49 +496,67 @@ function Hero({
             </>
           )}
         </Link>
-        <Link
+      </div>
+
+      {/* Hero footer B — primary action tiles. Replaces the
+          three sub-tap-target pills (Send / Receive / Add policies)
+          that read as decoration on the most-visited surface in
+          the app. Tiles meet the 44px Apple HIG minimum and read
+          as primary CTAs. */}
+      <div
+        className="mt-4 grid w-full max-w-md grid-cols-3 gap-2"
+        role="group"
+        aria-label="Wallet actions"
+      >
+        <HeroActionTile
           href={`/app/wallet/${encodeURIComponent(name)}/send`}
-          className={
-            "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-          }
-        >
-          <Send className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-          Send
-        </Link>
-        <Link
+          icon={<Send className="h-5 w-5" strokeWidth={1.75} />}
+          label="Send"
+        />
+        <HeroActionTile
           href={`/app/wallet/${encodeURIComponent(name)}/receive`}
-          className={
-            "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-          }
-        >
-          <Download
-            className="h-3 w-3"
-            aria-hidden="true"
-            strokeWidth={2}
-          />
-          Receive
-        </Link>
-        <Link
+          icon={<Download className="h-5 w-5" strokeWidth={1.75} />}
+          label="Receive"
+        />
+        <HeroActionTile
           href={`/app/wallet/${encodeURIComponent(name)}/policies`}
-          className={
-            "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-          }
-        >
-          <ShieldCheck
-            className="h-3 w-3"
-            aria-hidden="true"
-            strokeWidth={2}
-          />
-          Add policies
-        </Link>
+          icon={<ShieldCheck className="h-5 w-5" strokeWidth={1.75} />}
+          label="Policies"
+        />
       </div>
     </motion.section>
+  );
+}
+
+// Hero primary-action tile. ≥56px tap target, icon + label, accent
+// hover lift. Lives in this file so the wallet hub remains a single
+// vertical scan; the same pattern can be promoted to
+// components/retail later if it shows up on a second surface.
+function HeroActionTile({
+  href,
+  icon,
+  label,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className={
+        "group flex min-h-[56px] flex-col items-center justify-center gap-1 rounded-card border border-border-soft bg-canvas px-3 py-3 " +
+        "text-xs font-medium text-text-strong " +
+        "transition-[transform,border-color,box-shadow,color] duration-base ease-out-soft " +
+        "hover:-translate-y-0.5 hover:border-accent hover:text-accent hover:shadow-card-rest " +
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+      }
+    >
+      <span className="text-text-soft transition-colors duration-base ease-out-soft group-hover:text-accent">
+        {icon}
+      </span>
+      <span>{label}</span>
+    </Link>
   );
 }
 
