@@ -8,10 +8,13 @@
 // "Coming soon" until UTXO management lands.
 //
 // activeKind dims the current chain so the user knows where they
-// are. The picker self-hides when only one chain is available, so
-// Solana-only wallets don't get visual chrome they can't use.
+// are. Always renders — even on a Solana-only wallet — so the
+// "Add chain" tile at the end is reachable from the send page.
+// Was self-hiding when ≤1 chain was bound, which left users with
+// no obvious entry point to add a second chain.
 
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import { useSendChains } from "@/lib/hooks/useSendChains";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 
@@ -23,27 +26,23 @@ export function SendChainPicker({
   activeKind: number;
 }) {
   const { options, loading } = useSendChains(walletName);
-  if (loading || options.length === 0) return null;
-  const visible = options.filter(
-    (o) => o.status !== "needs_binding" || o.chain.kind === 0,
-  );
-  // "Coming soon" chains take valuable space on mobile without
-  // earning their slot — the user can't tap them. Hide on mobile,
-  // keep on desktop where horizontal space is cheap and the
-  // "what's coming next" signal is useful for product discovery.
-  const mobileVisible = visible.filter((o) => o.status !== "coming_soon");
-  if (visible.length <= 1) return null;
-  // If after filtering "coming soon" out we'd have ≤1 left on
-  // mobile, hide the whole row on mobile too — single chain = no
-  // pick to make.
-  const showMobile = mobileVisible.length > 1;
+  if (loading) return null;
+  // Bound + setup-needed chains are tappable. Coming-soon chains
+  // are desktop-only discovery chrome. needs_binding chains are
+  // hidden from the row (the trailing "Add chain" tile is the
+  // right entry point for adding new ones).
+  const visible = options.filter((o) => o.status !== "needs_binding");
+  const boundCount = options.filter(
+    (o) => o.status === "ready" || o.status === "needs_setup",
+  ).length;
+  // Always render the row — even with only Solana bound — because
+  // the trailing "Add chain" tile is now part of the row, not a
+  // hidden affordance.
+  const addChainHref = `/app/wallet/${encodeURIComponent(walletName)}/chains/add`;
   return (
     <nav
       aria-label="Send chain"
-      className={
-        "mb-5 flex flex-wrap items-center gap-2 " +
-        (showMobile ? "" : "hidden md:flex")
-      }
+      className="mb-5 flex flex-wrap items-center gap-2"
     >
       {visible.map((opt) => {
         const isActive = opt.chain.kind === activeKind;
@@ -96,6 +95,37 @@ export function SendChainPicker({
           </Link>
         );
       })}
+
+      {/* Add-chain tile — always rendered as the last item so users
+          can find the chain-management flow without leaving /send.
+          Solana-only wallets see this as the only secondary tile;
+          multi-chain wallets see it after their bound chains.
+          Subtitle adapts so the row reads as a single thought. */}
+      <Link
+        href={addChainHref}
+        aria-label="Add another chain"
+        className={
+          "flex items-center gap-2 rounded-card border border-dashed border-border-soft bg-surface-raised px-3 py-2 text-left " +
+          "transition-[border-color,background-color,transform] duration-base ease-out-soft " +
+          "hover:-translate-y-px hover:border-accent/60 hover:bg-accent/5 " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+        }
+      >
+        <span
+          aria-hidden="true"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent"
+        >
+          <Plus className="h-4 w-4" strokeWidth={2.25} />
+        </span>
+        <span className="flex flex-col">
+          <span className="text-xs font-medium text-text-strong">
+            Add chain
+          </span>
+          <span className="text-[10px] text-text-soft">
+            {boundCount === 1 ? "Send ETH, BTC, ZEC" : "More chains"}
+          </span>
+        </span>
+      </Link>
     </nav>
   );
 }

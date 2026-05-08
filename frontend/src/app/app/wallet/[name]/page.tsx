@@ -23,7 +23,7 @@ import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ArrowLeft, ArrowRight, Banknote, Bell, ChevronDown, Coins, Download, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, Banknote, Bell, ChevronDown, Coins, Download, Layers, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users } from "lucide-react";
 import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -1261,6 +1261,17 @@ function Actions({
         <Button size="lg" variant="secondary" fullWidth>
           <Download className="h-4 w-4" aria-hidden="true" />
           Receive money
+        </Button>
+      </Link>
+
+      {/* Chains — entry point for adding ETH / BTC / ZEC support to
+          the wallet. Sits in the Manage tab so a user with only SOL
+          bound has a clear "make this multi-chain" CTA without
+          having to find the picker on /send. */}
+      <Link href={`/app/wallet/${encoded}/chains`} className="block">
+        <Button size="lg" variant="secondary" fullWidth>
+          <Layers className="h-4 w-4" aria-hidden="true" />
+          Chains
         </Button>
       </Link>
 

@@ -1140,7 +1140,7 @@ function ComposeStage({
               // Width fits "1234.56" comfortably; SOL ticker sits
               // beside without wandering.
               "w-[5.5ch] bg-transparent font-numerals text-[2.75rem] font-semibold tracking-tight text-text-strong tabular-nums " +
-              "text-right caret-accent outline-none placeholder:text-text-soft/40 sm:text-[3.25rem]"
+              "text-right caret-accent outline-none placeholder:text-text-soft sm:text-[3.25rem]"
             }
           />
           <span
