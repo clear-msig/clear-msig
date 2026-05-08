@@ -81,6 +81,17 @@ export default function RootLayout({
         {/* Preconnect to Solana devnet RPC so initial queries shave their DNS+TLS. */}
         <link rel="preconnect" href="https://api.devnet.solana.com" />
         <link rel="dns-prefetch" href="https://api.devnet.solana.com" />
+        {/* Theme bootstrap — runs synchronously BEFORE first paint
+            so a user with the dark preference doesn't see a flash
+            of light page. Reads localStorage["clear.theme.v1"] and
+            sets data-theme on <html>. Inline script (not a
+            <Script> tag) so it runs before React hydrates. */}
+        <script
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('clear.theme.v1');if(t!=='light'&&t!=='dark'&&t!=='system')t='system';document.documentElement.setAttribute('data-theme',t);}catch(_){document.documentElement.setAttribute('data-theme','system');}})();`,
+          }}
+        />
       </head>
       <body className="font-sans antialiased">
         <AppProviders>{children}</AppProviders>

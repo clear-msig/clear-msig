@@ -2,23 +2,70 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+/* ── Theme tokens ─────────────────────────────────────────────────
+ * The 5 highest-traffic semantic colors (canvas / surface-raised /
+ * text-strong / text-soft / border-soft) live here as CSS vars so a
+ * theme switch flips the load-bearing surfaces without per-class
+ * diffs across the codebase. tailwind.config's `colors:` entries
+ * resolve to these vars; the `var(--name, fallback)` form keeps SSR
+ * + first-paint working before JS sets data-theme.
+ *
+ * Light values are byte-identical to the prior fixed palette. Dark
+ * values chosen for WCAG AA contrast.
+ */
+:root,
+:root[data-theme="light"] {
   color-scheme: light;
+  --clear-canvas: #f4f4f5;
+  --clear-surface-raised: #ffffff;
+  --clear-text-strong: #0f172a;
+  --clear-text-soft: #71717a;
+  --clear-border-soft: #e4e4e7;
+  --clear-body-bg-image:
+    radial-gradient(60% 40% at 50% 0%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, #fafafa 0%, #f4f4f5 55%, #ededee 100%);
+  --clear-body-text: #18181b;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --clear-canvas: #18181b;
+  --clear-surface-raised: #27272a;
+  --clear-text-strong: #f4f4f5;
+  --clear-text-soft: #a1a1aa;
+  --clear-border-soft: #3f3f46;
+  --clear-body-bg-image:
+    radial-gradient(60% 40% at 50% 0%, rgba(63, 63, 70, 0.65) 0%, rgba(0, 0, 0, 0) 60%),
+    linear-gradient(180deg, #0f0f10 0%, #18181b 55%, #1f1f22 100%);
+  --clear-body-text: #f4f4f5;
+}
+
+/* `system` follows the user's OS preference. Defaults to light;
+ * the prefers-color-scheme media query below replaces the values
+ * with the dark palette when the OS reports dark.
+ */
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] {
+    color-scheme: dark;
+    --clear-canvas: #18181b;
+    --clear-surface-raised: #27272a;
+    --clear-text-strong: #f4f4f5;
+    --clear-text-soft: #a1a1aa;
+    --clear-border-soft: #3f3f46;
+    --clear-body-bg-image:
+      radial-gradient(60% 40% at 50% 0%, rgba(63, 63, 70, 0.65) 0%, rgba(0, 0, 0, 0) 60%),
+      linear-gradient(180deg, #0f0f10 0%, #18181b 55%, #1f1f22 100%);
+    --clear-body-text: #f4f4f5;
+  }
 }
 
 html,
 body {
   margin: 0;
   min-height: 100vh;
-  /* Subtle vertical gradient on the canvas. Top reads ~3% lighter
-     than the bottom; the eye picks up "the page has depth" without
-     the gradient itself being legible. background-attachment: fixed
-     keeps it stable while content scrolls. */
-  background:
-    radial-gradient(60% 40% at 50% 0%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 60%),
-    linear-gradient(180deg, #fafafa 0%, #f4f4f5 55%, #ededee 100%);
+  background: var(--clear-body-bg-image);
   background-attachment: fixed;
-  color: #18181b;
+  color: var(--clear-body-text);
   /* Base sans-serif stack . overridden per-page by Tailwind font-sans/display/mono. */
   font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system,
     BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;

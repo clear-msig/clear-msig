@@ -49,6 +49,11 @@ import {
 } from "@/lib/security/appLock";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import {
+  getStoredTheme,
+  setStoredTheme,
+  type ThemeMode,
+} from "@/lib/security/theme";
+import {
   EVM_RPC_OVERRIDE_STORAGE_KEY,
   appConfig,
   destinationRpcDefault,
@@ -263,6 +268,11 @@ export default function SettingsPage() {
         />
       </Link>
 
+      {/* Theme — light / dark / system. Stored per-device in
+          localStorage; an inline script in app/layout.tsx applies
+          it before first paint to avoid the light-mode flash. */}
+      <ThemeSettingRow />
+
       {/* App lock — per-device PIN that gates /app/* on every fresh
           tab. Stored locally only; we never see the PIN. Useful on
           shared / unlocked devices where Dynamic's session token
@@ -420,6 +430,58 @@ function NotificationsSettingRow({
           Enable
         </button>
       )}
+    </section>
+  );
+}
+
+// ─── Theme (light / dark / system) ──────────────────────────────
+
+function ThemeSettingRow() {
+  const [mode, setMode] = useState<ThemeMode>("system");
+  useEffect(() => {
+    setMode(getStoredTheme());
+  }, []);
+  const set = (next: ThemeMode) => {
+    setMode(next);
+    setStoredTheme(next);
+  };
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+          <Wifi className="h-5 w-5" strokeWidth={1.75} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-text-strong">Theme</p>
+          <p className="mt-0.5 text-xs text-text-soft">
+            Light, dark, or follow your OS. Saved on this device.
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {(["light", "system", "dark"] as ThemeMode[]).map((opt) => {
+          const active = mode === opt;
+          return (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => set(opt)}
+              className={
+                "rounded-soft border px-3 py-2 text-xs font-medium transition-[border-color,background-color,transform] duration-base ease-out-soft " +
+                (active
+                  ? "border-accent bg-accent/[0.08] text-text-strong"
+                  : "border-border-soft bg-canvas text-text-soft hover:border-accent/40 hover:text-text-strong")
+              }
+            >
+              {opt === "light"
+                ? "Light"
+                : opt === "dark"
+                  ? "Dark"
+                  : "System"}
+            </button>
+          );
+        })}
+      </div>
     </section>
   );
 }

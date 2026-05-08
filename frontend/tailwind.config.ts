@@ -17,11 +17,27 @@ import type { Config } from "tailwindcss";
 
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
+  // Class-based dark mode via the `data-theme="dark"` attribute on
+  // <html>, set by lib/security/theme.ts. Five semantic tokens
+  // (canvas / surface-raised / border-soft / text-strong /
+  // text-soft) resolve to CSS vars, defined in globals.css per
+  // theme — flips the load-bearing surfaces without touching every
+  // call-site's `bg-canvas` / `text-text-strong` class.
+  darkMode: ["class", '[data-theme="dark"]'],
   theme: {
     extend: {
       colors: {
         // ── Semantic ──────────────────────────────────────────────
-        canvas: "#f4f4f5",
+        // The 5 highest-traffic tokens are CSS vars so dark mode
+        // can flip them without per-class diffs. Everything else
+        // stays a fixed value — accent green / feedback / etc.
+        // should look the same in both themes.
+        canvas: "var(--clear-canvas, #f4f4f5)",
+        "surface-raised": "var(--clear-surface-raised, #ffffff)",
+        "text-strong": "var(--clear-text-strong, #0f172a)",
+        "text-soft": "var(--clear-text-soft, #71717a)",
+        "border-soft": "var(--clear-border-soft, #e4e4e7)",
+
         // Dark surfaces sit in the mid-gray family — never pure black.
         // Lifted further on 2026-04-30 to match the rendered gray of the
         // workflow-tips translucent layers (the user's reference). All
@@ -30,20 +46,16 @@ const config: Config = {
         "surface-card": "#3f3f46",
         "surface-card-strong": "#27272a",
         "surface-soft": "#52525b",
-        "surface-raised": "#ffffff",
 
         accent: "#16a34a",
         "accent-hover": "#15803d",
         "accent-bright": "#22c55e",
         "accent-emerald": "#10b981",
 
-        "text-strong": "#0f172a",
         "text-primary": "#18181b",
-        "text-soft": "#71717a",
         "text-on-dark": "#ffffff",
         "text-on-dark-soft": "#a1a1aa",
 
-        "border-soft": "#e4e4e7",
         "border-strong": "#d4d4d8",
 
         success: "#16a34a",
