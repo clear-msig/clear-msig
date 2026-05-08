@@ -66,6 +66,8 @@ import {
 import { looksLikeEnsName, resolveEnsName } from "@/lib/chain/ens";
 import { QrScanButton } from "@/components/retail/QrScanButton";
 import { RecentRecipientsChips } from "@/components/retail/RecentRecipientsChips";
+import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
+import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
@@ -295,13 +297,28 @@ function SendEthPage() {
   const insufficientBalance =
     balanceLoaded && amountValid && balance! < requiredWei;
 
+  // Policy-rule pre-flight tripwire (Tier-5 #33). Same shape as the
+  // SOL send: deny rules block submit, require-* surface friction
+  // banners. ENS-resolved address is already in effectiveRecipient.
+  const policyEvaluation = usePolicyEvaluation({
+    walletName,
+    chainKind: 1,
+    recipient: effectiveRecipient ?? "",
+    ticker: "ETH",
+    amountDisplay: amount,
+    enabled: amountValid && !!effectiveRecipient,
+  });
+  const policyDenied =
+    policyEvaluation?.matched && policyEvaluation.action === "deny";
+
   const canSubmit =
     amountValid &&
     recipientValid &&
     !!ethIntent &&
     !!walletEthAddress &&
     !!wallet.publicKey &&
-    !insufficientBalance;
+    !insufficientBalance &&
+    !policyDenied;
 
   const submit = useMutation({
     mutationFn: async () => {
@@ -526,6 +543,12 @@ function SendEthPage() {
         >
           {stage === "compose" && (
             <SendChainPicker walletName={walletName} activeKind={ETH_CHAIN_KIND} />
+          )}
+          {stage === "compose" && policyEvaluation?.matched && (
+            <PolicyMatchBanner
+              walletName={walletName}
+              evaluation={policyEvaluation}
+            />
           )}
           {stage === "compose" && (
             <ComposeStage

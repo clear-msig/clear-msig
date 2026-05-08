@@ -65,6 +65,8 @@ import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import { RecentRecipientsChips } from "@/components/retail/RecentRecipientsChips";
+import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
+import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
 import {
   SignPayloadPreview,
   type SignPayloadDetail,
@@ -222,6 +224,21 @@ function SendErc20Page() {
   const insufficientBalance =
     balanceLoaded && amountValid && balance! < amountBase;
 
+  // Policy-rule pre-flight tripwire (Tier-5 #33). chain_kind=4 for
+  // ERC-20; passes the token contract through so per-token rules
+  // can scope themselves correctly.
+  const policyEvaluation = usePolicyEvaluation({
+    walletName,
+    chainKind: 4,
+    tokenContract: trimmedToken.toLowerCase(),
+    recipient: trimmedRecipient,
+    ticker: symbol ?? "TOKEN",
+    amountDisplay: amount,
+    enabled: amountValid && recipientValid && tokenContractValid,
+  });
+  const policyDenied =
+    policyEvaluation?.matched && policyEvaluation.action === "deny";
+
   const canSubmit =
     tokenContractValid &&
     !!meta &&
@@ -230,7 +247,8 @@ function SendErc20Page() {
     !!erc20Intent &&
     !!walletEthAddress &&
     !!wallet.publicKey &&
-    !insufficientBalance;
+    !insufficientBalance &&
+    !policyDenied;
 
   const submit = useMutation({
     mutationFn: async () => {
@@ -429,6 +447,12 @@ function SendErc20Page() {
             <SendChainPicker
               walletName={walletName}
               activeKind={ERC20_CHAIN_KIND}
+            />
+          )}
+          {stage === "compose" && policyEvaluation?.matched && (
+            <PolicyMatchBanner
+              walletName={walletName}
+              evaluation={policyEvaluation}
             />
           )}
           {stage === "compose" && (
