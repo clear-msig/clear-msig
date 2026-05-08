@@ -12,19 +12,23 @@
 // this list view. The "Add another rule" CTA sends the user back
 // through the existing /setup flow.
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  Check,
   Clock,
+  Loader2,
   Lock,
+  Pencil,
   Plus,
   ShieldCheck,
   Users,
+  X,
   Zap,
 } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
@@ -36,6 +40,11 @@ import { Button } from "@/components/retail/Button";
 import { friendlyIntentLabel } from "@/lib/retail/labels";
 import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
 import { encryptStatus } from "@/lib/encrypt/client";
+import {
+  templateFileForChainKind,
+  useUpdateTimelock,
+} from "@/lib/hooks/useUpdateTimelock";
+import { useToast } from "@/components/ui/Toast";
 
 export default function RulesPage() {
   const params = useParams<{ name: string }>();
@@ -160,6 +169,7 @@ export default function RulesPage() {
               intent={intent}
               delay={i * 0.04}
               reduce={!!reduce}
+              walletName={name}
             />
           ))}
         </ul>
@@ -200,9 +210,10 @@ interface RuleCardProps {
   intent: IntentAccount;
   delay: number;
   reduce: boolean;
+  walletName: string;
 }
 
-function RuleCard({ intent, delay, reduce }: RuleCardProps) {
+function RuleCard({ intent, delay, reduce, walletName }: RuleCardProps) {
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 6 }, animate: { opacity: 1, y: 0 } };
@@ -213,6 +224,18 @@ function RuleCard({ intent, delay, reduce }: RuleCardProps) {
     ? "Sends right away"
     : `Waits ${formatDuration(intent.timelockSeconds)}`;
   const approverCount = intent.approvers.length;
+
+  // Custom intents (chain_kind on a real spending rule) are
+  // editable; meta-intents (AddIntent / RemoveIntent / UpdateIntent)
+  // run the program's policy itself and shouldn't have their
+  // timelock manipulated. The on-chain UpdateIntent encoder also
+  // expects a valid template file path, which only the chain
+  // templates have.
+  const editable =
+    intent.intentType === IntentType.Custom &&
+    (intent.chainKind === 0 ||
+      intent.chainKind === 1 ||
+      intent.chainKind === 4);
 
   return (
     <motion.li
@@ -230,6 +253,14 @@ function RuleCard({ intent, delay, reduce }: RuleCardProps) {
             Rule #{intent.intentIndex + 1}
           </p>
         </div>
+        {editable && (
+          <TimelockEditTrigger
+            walletName={walletName}
+            intentIndex={intent.intentIndex}
+            currentSeconds={intent.timelockSeconds}
+            chainKind={intent.chainKind}
+          />
+        )}
       </div>
 
       <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -302,4 +333,250 @@ function formatDuration(seconds: number): string {
   if (hours < 24) return `${hours}h`;
   const days = Math.round(seconds / 86400);
   return `${days}d`;
+}
+
+// ─── Timelock edit (Tier-5 #37) ─────────────────────────────────
+
+interface TimelockEditTriggerProps {
+  walletName: string;
+  intentIndex: number;
+  currentSeconds: number;
+  chainKind: number;
+}
+
+const TIMELOCK_PRESETS: ReadonlyArray<{ label: string; seconds: number }> = [
+  { label: "Send right away", seconds: 0 },
+  { label: "1 minute", seconds: 60 },
+  { label: "1 hour", seconds: 60 * 60 },
+  { label: "24 hours", seconds: 24 * 60 * 60 },
+  { label: "7 days", seconds: 7 * 24 * 60 * 60 },
+];
+
+function TimelockEditTrigger({
+  walletName,
+  intentIndex,
+  currentSeconds,
+  chainKind,
+}: TimelockEditTriggerProps) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Change timelock"
+        title="Change timelock"
+        className={
+          "shrink-0 rounded-soft p-1.5 text-text-soft transition-colors duration-base ease-out-soft " +
+          "hover:bg-canvas hover:text-text-strong " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+        }
+      >
+        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <TimelockEditModal
+            walletName={walletName}
+            intentIndex={intentIndex}
+            currentSeconds={currentSeconds}
+            chainKind={chainKind}
+            onClose={() => setOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+    </>
+  );
+}
+
+interface TimelockEditModalProps {
+  walletName: string;
+  intentIndex: number;
+  currentSeconds: number;
+  chainKind: number;
+  onClose: () => void;
+}
+
+function TimelockEditModal({
+  walletName,
+  intentIndex,
+  currentSeconds,
+  chainKind,
+  onClose,
+}: TimelockEditModalProps) {
+  const [next, setNext] = useState<number>(currentSeconds);
+  const [customMode, setCustomMode] = useState(false);
+  const [customText, setCustomText] = useState(String(currentSeconds));
+  const update = useUpdateTimelock();
+  const toast = useToast();
+
+  // Pick a preset if the current value matches one. Otherwise let
+  // the user fall through to custom-seconds input.
+  const presetMatch = TIMELOCK_PRESETS.find((p) => p.seconds === currentSeconds);
+  const showingCustom = customMode || !presetMatch;
+
+  const apply = async () => {
+    const value = customMode
+      ? Math.max(0, parseInt(customText, 10) || 0)
+      : next;
+    if (value === currentSeconds) {
+      onClose();
+      return;
+    }
+    try {
+      const templateFile = templateFileForChainKind(chainKind);
+      await update.mutateAsync({
+        walletName,
+        intentIndex,
+        newTimelockSeconds: value,
+        templateFile,
+      });
+      toast.success(
+        value === 0
+          ? "Timelock removed — sends ship right away after approval"
+          : `Timelock set to ${formatDuration(value)}`,
+      );
+      onClose();
+    } catch (err) {
+      console.error("[update-timelock]", err);
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't update timelock",
+      );
+    }
+  };
+
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.18 }}
+        className="fixed inset-0 z-[200] bg-text-strong/40 backdrop-blur-sm"
+        onClick={() => !update.isPending && onClose()}
+        aria-hidden="true"
+      />
+      <motion.div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Change timelock"
+        initial={{ opacity: 0, scale: 0.96, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 12 }}
+        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+        className="fixed left-1/2 top-1/2 z-[201] w-[min(92vw,440px)] -translate-x-1/2 -translate-y-1/2 rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-raised"
+      >
+        <button
+          type="button"
+          onClick={() => !update.isPending && onClose()}
+          className="absolute right-3 top-3 rounded-soft p-1 text-text-soft transition-colors hover:bg-canvas hover:text-text-strong"
+          aria-label="Close"
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+        </button>
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
+          <Clock className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
+        </div>
+        <h2 className="mt-4 font-display text-display-xs leading-tight text-text-strong">
+          Change timelock
+        </h2>
+        <p className="mt-2 text-xs text-text-soft">
+          Currently waits{" "}
+          <span className="font-medium text-text-strong">
+            {currentSeconds === 0 ? "0s (ships immediately)" : formatDuration(currentSeconds)}
+          </span>{" "}
+          between approval and execute. Updating runs an UpdateIntent
+          on chain — you&rsquo;ll sign 1–2 wallet popups.
+        </p>
+
+        {!showingCustom && (
+          <div className="mt-4 grid grid-cols-1 gap-1.5">
+            {TIMELOCK_PRESETS.map((p) => {
+              const active = next === p.seconds;
+              return (
+                <button
+                  key={p.seconds}
+                  type="button"
+                  onClick={() => setNext(p.seconds)}
+                  disabled={update.isPending}
+                  className={
+                    "rounded-soft border px-3 py-2 text-left text-xs transition-[border-color,background-color] duration-base ease-out-soft " +
+                    (active
+                      ? "border-accent bg-accent/[0.08] text-text-strong"
+                      : "border-border-soft bg-canvas text-text-soft hover:border-accent/40 hover:text-text-strong")
+                  }
+                >
+                  <span className="font-medium">{p.label}</span>
+                  <span className="ml-2 text-[10px] tabular-nums text-text-soft">
+                    {p.seconds}s
+                  </span>
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setCustomMode(true)}
+              disabled={update.isPending}
+              className="rounded-soft border border-dashed border-border-soft px-3 py-2 text-left text-xs text-text-soft transition-colors hover:border-accent hover:text-accent"
+            >
+              Custom number of seconds
+            </button>
+          </div>
+        )}
+
+        {showingCustom && (
+          <div className="mt-4 flex flex-col gap-2">
+            <label className="text-[11px] uppercase tracking-[0.18em] text-text-soft">
+              Seconds
+            </label>
+            <input
+              type="number"
+              min={0}
+              value={customText}
+              onChange={(e) => setCustomText(e.target.value)}
+              disabled={update.isPending}
+              autoFocus
+              className={
+                "rounded-soft border border-border-soft bg-canvas px-3 py-2 text-sm text-text-strong outline-none " +
+                "transition-[border-color,box-shadow] duration-base ease-out-soft focus:border-accent focus:shadow-accent-rest"
+              }
+            />
+            {!presetMatch && !customMode ? null : (
+              <button
+                type="button"
+                onClick={() => setCustomMode(false)}
+                className="self-start text-[11px] text-text-soft hover:text-text-strong"
+              >
+                Use a preset instead
+              </button>
+            )}
+          </div>
+        )}
+
+        <div className="mt-6 flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={update.isPending}
+            className="text-[11px] text-text-soft hover:text-text-strong disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <Button size="md" onClick={() => void apply()} disabled={update.isPending}>
+            {update.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Saving
+              </>
+            ) : (
+              <>
+                <Check className="h-4 w-4" strokeWidth={3} aria-hidden="true" />
+                Save
+              </>
+            )}
+          </Button>
+        </div>
+      </motion.div>
+    </>
+  );
 }
