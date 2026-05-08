@@ -204,3 +204,72 @@ body {
   font-weight: 700;
   letter-spacing: -0.01em;
 }
+
+/* ── @media print ─────────────────────────────────────────────────
+ * Compliance / audit binder hand-off. Designed for the proposal
+ * detail page (/app/proposals/[id]) but applies globally so any
+ * surface a treasury team prints comes out reader-friendly.
+ *
+ * - Force black-on-white: chip backgrounds, borders, and shadows
+ *   eat ink and don't carry meaning on paper.
+ * - Hide app chrome (sticky bars, FAB, bottom nav) via `print:hidden`
+ *   utility class call sites — page.tsx files apply it where
+ *   appropriate. This block sets the global background + colors.
+ * - Drop motion entirely so animated dots / pulses don't render
+ *   as half-frames.
+ */
+@media print {
+  :root {
+    color-scheme: light only;
+  }
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  /* Print resets — strip any layered backgrounds, shadows, and
+   * fancy borders so the page renders as plain text + lines. */
+  *,
+  *::before,
+  *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    background-image: none !important;
+    background-color: transparent !important;
+    color: #000 !important;
+    border-color: #999 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* Halt all CSS animations — most are decorative pings or pulse
+   * skeletons that print as garbled half-frames. */
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  /* Bottom-nav, FAB, and other absolutely-positioned overlays
+   * shouldn't follow the user onto the page. The codebase tags
+   * those with print:hidden where they exist; this is the
+   * belt-and-braces fallback for anything missed. */
+  nav[aria-label="Primary"],
+  [data-print="hide"] {
+    display: none !important;
+  }
+  /* Headline scaling — the in-app display sizes are tuned for
+   * mobile screens. On A4/Letter they read as overlarge. */
+  h1,
+  .font-display.text-display-sm,
+  .font-display.text-display-xs {
+    font-size: 1.5rem !important;
+    line-height: 1.2 !important;
+  }
+  /* Force a sane page break after each top-level section so a
+   * long approver list doesn't get stranded across pages with a
+   * widow. */
+  section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

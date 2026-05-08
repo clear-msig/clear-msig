@@ -33,6 +33,7 @@ import {
   ExternalLink,
   Link2,
   Loader2,
+  Printer,
   X,
 } from "lucide-react";
 import { addressUrl } from "@/lib/explorer";
@@ -284,19 +285,21 @@ function Loaded({
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       className="flex flex-col gap-6"
     >
-      <StickyTopBar offset="header">
-        <Link
-          href={`/app/wallet/${encodeURIComponent(walletName)}`}
-          className={
-            "-ml-2 inline-flex w-fit items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-          }
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          {walletDisplay}
-        </Link>
-      </StickyTopBar>
+      <div className="print:hidden">
+        <StickyTopBar offset="header">
+          <Link
+            href={`/app/wallet/${encodeURIComponent(walletName)}`}
+            className={
+              "-ml-2 inline-flex w-fit items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
+              "transition-colors duration-base ease-out-soft hover:text-text-strong " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+            }
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            {walletDisplay}
+          </Link>
+        </StickyTopBar>
+      </div>
 
       {/* Hero */}
       <section className="flex flex-col items-center rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest sm:p-8">
@@ -338,8 +341,9 @@ function Loaded({
             approval{approvalThreshold === 1 ? "" : "s"} required
           </p>
         )}
-        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-2 print:hidden">
           <ShareProposalButton />
+          <PrintProposalButton />
           <a
             href={addressUrl(proposalPda)}
             target="_blank"
@@ -355,6 +359,16 @@ function Loaded({
             <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
             View on Solana Explorer
           </a>
+        </div>
+        {/* Print-only footer: explorer + proposal PDA so a paper
+            copy is independently verifiable. The hidden classes
+            flip on @media print. */}
+        <div className="hidden print:mt-4 print:block print:text-xs print:text-black">
+          <p className="font-mono break-all">Proposal: {proposalPda}</p>
+          <p className="font-mono break-all">Explorer: {addressUrl(proposalPda)}</p>
+          <p className="mt-1 italic">
+            Printed from Clear · pre-alpha · Solana devnet
+          </p>
         </div>
       </section>
 
@@ -590,6 +604,33 @@ function ShareProposalButton() {
           Copy link to share
         </>
       )}
+    </button>
+  );
+}
+
+// Compliance / audit binder hand-off. Triggers the browser's print
+// dialog; pairs with the @media print rules in globals.css that
+// strip nav, color, motion, and shadow so a treasury team can save
+// a clean black-on-white PDF for the file.
+function PrintProposalButton() {
+  const handlePrint = () => {
+    if (typeof window === "undefined") return;
+    window.print();
+  };
+  return (
+    <button
+      type="button"
+      onClick={handlePrint}
+      title="Print or save as PDF for an audit binder"
+      className={
+        "inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3.5 py-1.5 text-xs font-medium text-text-soft " +
+        "transition-[border-color,color,transform] duration-base ease-out-soft " +
+        "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+      }
+    >
+      <Printer className="h-3.5 w-3.5" aria-hidden="true" />
+      Print / save PDF
     </button>
   );
 }
