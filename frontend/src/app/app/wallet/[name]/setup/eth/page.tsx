@@ -33,7 +33,10 @@ import {
   Check,
   Loader2,
   Send,
+  UserPlus,
+  Wallet,
 } from "lucide-react";
+import { NextStepCard } from "@/components/retail/NextStepCard";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
@@ -140,6 +143,11 @@ export default function SetupEthPage() {
     !chainsQuery.isLoading && !walletQuery.isLoading && !ethBinding;
 
   const [delaySeconds, setDelaySeconds] = useState<number>(0);
+  // showDone gates the inline success card. Mirrors /setup (SOL).
+  // Replaces the old `router.push(.../send/eth)` which threw the
+  // user into the compose form before they could register that the
+  // chain was set up.
+  const [showDone, setShowDone] = useState(false);
 
   const setup = useMutation({
     mutationFn: async () => {
@@ -223,7 +231,10 @@ export default function SetupEthPage() {
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });
       queryClient.invalidateQueries({ queryKey: ["wallet", name] });
       toast.success(`${toHeadingName(name)} can now send Ethereum`);
-      router.push(`/app/wallet/${encodeURIComponent(name)}/send/eth`);
+      // Inline success — parity with /setup (SOL). The previous
+      // router.push to /send/eth threw the user into the compose
+      // form before they could register that the chain was enabled.
+      setShowDone(true);
     },
     onError: (err) => {
       console.error("[setup-eth]", err);
@@ -264,6 +275,45 @@ export default function SetupEthPage() {
           transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
           className="w-full max-w-md"
         >
+          {showDone ? (
+            <div className="flex flex-col items-center text-center">
+              <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-accent text-white shadow-accent-rest">
+                <Check className="h-8 w-8" strokeWidth={2.5} />
+              </div>
+              <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
+                <span className="text-accent">{toHeadingName(name)}</span> can send Ethereum
+              </h1>
+              <p className="mt-3 max-w-sm text-base text-text-soft">
+                Spending rule is on chain. Ethereum sends now route through
+                this wallet. No money has moved yet.
+              </p>
+              <div className="mt-8 w-full">
+                <NextStepCard
+                  title={`What do you want to do in ${toDisplayName(name)}?`}
+                  options={[
+                    {
+                      label: "Send your first ETH request",
+                      hint: "Pick a recipient, enter an amount, sign once.",
+                      href: `/app/wallet/${encodeURIComponent(name)}/send/eth`,
+                      primary: true,
+                      icon: Send,
+                    },
+                    {
+                      label: "Invite someone",
+                      hint: "Friend, teammate, or board member.",
+                      href: `/app/wallet/${encodeURIComponent(name)}/members/add`,
+                      icon: UserPlus,
+                    },
+                    {
+                      label: `Back to ${toDisplayName(name)}`,
+                      href: `/app/wallet/${encodeURIComponent(name)}`,
+                      icon: Wallet,
+                    },
+                  ]}
+                />
+              </div>
+            </div>
+          ) : (
           <div className="flex flex-col items-center text-center">
             {ethMeta && (
               <div className="mb-6">
@@ -394,6 +444,7 @@ export default function SetupEthPage() {
               </>
             )}
           </div>
+          )}
         </motion.section>
       </div>
     </main>
