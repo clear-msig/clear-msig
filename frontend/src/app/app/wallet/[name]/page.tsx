@@ -236,15 +236,13 @@ export default function WalletDetailPage() {
           first in the tree so the overlay snaps in over a stable
           layout. */}
       <WalletTourModal />
-      {/* The "← Wallets" sticky bar floats below the HeaderBar with
-          mostly-empty width on desktop, leaving a wide blank band
-          above the hero. The sidebar already provides cross-wallet
-          navigation on md+, so the back affordance is redundant
-          there. Keep it on mobile where the sidebar lives behind a
-          drawer and the back link is the only way out. */}
-      <div className="md:hidden">
-        <BackLink />
-      </div>
+      {/* "← Wallets" sticky bar — visible on every breakpoint.
+          Originally md:hidden because the sidebar was the assumed
+          desktop nav, but a collapsed sidebar (rail mode) leaves
+          the user with no obvious back path. The bar's compact +
+          the band-killer layout fix means it doesn't read as
+          wasted space anymore. */}
+      <BackLink />
       <Hero
         name={name}
         memberCount={memberCount}

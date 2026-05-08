@@ -414,14 +414,13 @@ function WalletCard({
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="flex items-center gap-1.5 font-display text-xl text-text-strong">
-              {pinned && (
-                <Pin
-                  className="h-3.5 w-3.5 shrink-0 text-accent"
-                  strokeWidth={2.5}
-                  aria-label="Pinned"
-                />
-              )}
+            {/* The pinned-state Pin icon used to also render inline
+                next to the name. With the corner pin button in
+                place (accent border + Pin icon when pinned) the
+                inline copy was duplicate chrome — both icons
+                visible, neither carrying signal the other didn't.
+                Keep only the corner button. */}
+            <p className="font-display text-xl text-text-strong">
               <span className="truncate">{name}</span>
             </p>
             {loadingBalance && balance === null ? (
