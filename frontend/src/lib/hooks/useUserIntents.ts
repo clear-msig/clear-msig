@@ -82,6 +82,14 @@ export function useUserIntents() {
     }),
   });
 
+  // useQueries returns a fresh array each render — keying the memo
+  // off the array ref means it re-runs even when nothing changed.
+  // Fingerprint by per-query dataUpdatedAt so we recompute only on
+  // actual fetch updates. This matters because useActionNeeded ->
+  // BottomNav reads downstream state on every page render.
+  const intentsFingerprint = intentsQueries
+    .map((q) => `${q.dataUpdatedAt}.${q.status}`)
+    .join("|");
   const rows = useMemo<UserIntentRow[]>(() => {
     const flat: UserIntentRow[] = [];
     for (const q of intentsQueries) {
@@ -103,7 +111,8 @@ export function useUserIntents() {
       }
     }
     return flat;
-  }, [intentsQueries]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intentsFingerprint]);
 
   const loading =
     memberships.isLoading ||

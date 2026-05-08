@@ -104,6 +104,16 @@ export function useRecentActivity(limit = 5) {
     }),
   });
 
+  // useQueries returns a fresh array reference every render, so a
+  // memo keyed on `[proposalsQueries]` would re-run every parent
+  // render. Use the per-query dataUpdatedAt fingerprint as the
+  // dep — it changes only when query state actually changes, which
+  // means BottomNav / useActionNotifications / useActionNeeded
+  // upstream don't recompute their derived rows on unrelated
+  // re-renders.
+  const proposalsFingerprint = proposalsQueries
+    .map((q) => `${q.dataUpdatedAt}.${q.status}`)
+    .join("|");
   const allRows = useMemo<RecentActivityRow[]>(() => {
     const flat: RecentActivityRow[] = [];
     for (const q of proposalsQueries) {
@@ -140,7 +150,8 @@ export function useRecentActivity(limit = 5) {
       return a.proposalIndex > b.proposalIndex ? -1 : 1;
     });
     return flat;
-  }, [proposalsQueries]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proposalsFingerprint]);
 
   const rows = useMemo(() => allRows.slice(0, limit), [allRows, limit]);
 
