@@ -116,7 +116,7 @@ export function QuickActionInput({ walletName }: QuickActionInputProps) {
               disabled={loading || !text.trim()}
               aria-label="Route to the right form"
               className={
-                "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-soft bg-accent text-white shadow-accent-rest " +
+                "inline-flex h-tap w-tap shrink-0 items-center justify-center rounded-soft bg-accent text-white shadow-accent-rest " +
                 "transition-[background-color,transform,box-shadow] duration-base ease-out-soft " +
                 "hover:bg-accent-hover active:scale-[0.98] " +
                 "disabled:cursor-not-allowed disabled:opacity-60 " +

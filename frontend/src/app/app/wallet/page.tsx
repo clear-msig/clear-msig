@@ -345,7 +345,11 @@ function WalletsGrid({
               pendingCount={pendingByWallet.get(m.wallet) ?? 0}
               balanceLamports={balances?.get(m.wallet) ?? null}
               loadingBalance={loadingBalances}
-              delay={i * 0.04}
+              // Cap the stagger at 4 so the last card paints in
+              // 80ms regardless of wallet count. Treasury users
+              // with 6+ wallets used to see 240ms+ of cascade,
+              // which read as jank on slow networks.
+              delay={Math.min(i, 4) * 0.02}
               reduce={reduce}
             />
           ))
@@ -457,21 +461,23 @@ function WalletCard({
         className={
           // display class moves into the conditional so the unpinned
           // variant's `hidden md:inline-flex` actually takes effect.
-          // Previously `inline-flex` sat in the always-applied string
-          // and won the cascade against the conditional `hidden`,
-          // leaving the icon visible on mobile contrary to the
-          // intent.
-          "absolute right-2 top-2 h-7 w-7 items-center justify-center rounded-full border bg-surface-raised " +
+          // Tap target is h-tap w-tap (44px) when pinned for mobile
+          // touch; desktop hover state still rendered fine on the
+          // smaller 28px hit-area, but mobile users couldn't reach
+          // it reliably.
+          "absolute right-2 top-2 items-center justify-center rounded-full border bg-surface-raised " +
           "transition-[color,border-color,transform] duration-base ease-out-soft " +
           (pinned
-            ? // Pinned cards always show the icon (it carries the
-              // pin-status signal). Accent border so it reads as
-              // "this is intentionally here", not chrome.
-              "inline-flex border-accent/40 text-accent hover:border-accent"
+            ? // Pinned cards always show the icon (status signal).
+              // Accent border so it reads as "this is intentionally
+              // here", not chrome. Full tap target for mobile.
+              "inline-flex h-tap w-tap border-accent/40 text-accent hover:border-accent"
             : // Unpinned: hide on mobile (pin/unpin is rarely a
               // touch-first action and the icon read as clutter on
-              // every card). Desktop keeps it for power users.
-              "hidden md:inline-flex border-border-soft text-text-soft/60 hover:border-accent hover:text-accent") +
+              // every card). Desktop is hover-driven so a smaller
+              // 28px target is fine — touch never reaches this
+              // branch by design.
+              "hidden md:inline-flex h-7 w-7 border-border-soft text-text-soft/60 hover:border-accent hover:text-accent") +
           " focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
         }
       >

@@ -607,7 +607,7 @@ function BackLink() {
       <Link
         href="/app/wallet"
         className={
-          "-ml-2 inline-flex w-fit items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
+          "-ml-2 inline-flex min-h-tap w-fit items-center gap-1.5 rounded-soft px-2 py-2 text-sm text-text-soft " +
           "transition-colors duration-base ease-out-soft hover:text-text-strong " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
         }
