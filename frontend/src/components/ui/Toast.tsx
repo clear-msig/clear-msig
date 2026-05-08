@@ -178,14 +178,19 @@ function ToastItem({
       transition={{ duration: 0.18, ease: "easeOut" }}
       role="status"
       aria-live={entry.kind === "error" ? "assertive" : "polite"}
+      // Solid-bg variants (no backdrop-blur). Toasts often render
+      // while the user is interacting with the page underneath
+      // (typing, scrolling, signing) — backdrop-blur adds a frame
+      // of paint cost on every scroll while the toast is up,
+      // measurable on mid-tier mobile. Solid bg keeps it cheap.
       className={[
-        "pointer-events-auto w-full max-w-sm rounded-2xl border px-4 py-3 shadow-2xl backdrop-blur",
+        "pointer-events-auto w-full max-w-sm rounded-2xl border px-4 py-3 shadow-2xl",
         "flex flex-col gap-2",
         entry.kind === "success" &&
-          "border-accent/30 bg-surface-card/90 text-white",
+          "border-accent/30 bg-surface-card text-white",
         entry.kind === "error" &&
-          "border-rose-500/40 bg-rose-950/90 text-rose-50",
-        entry.kind === "info" && "border-white/15 bg-surface-card/90 text-white",
+          "border-rose-500/40 bg-rose-950 text-rose-50",
+        entry.kind === "info" && "border-white/15 bg-surface-card text-white",
       ]
         .filter(Boolean)
         .join(" ")}

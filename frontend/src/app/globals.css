@@ -73,8 +73,19 @@ body {
 
 html {
   overflow-x: hidden;
-  scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
+}
+
+/* Smooth scroll only when the user hasn't asked for reduced motion.
+ * Globally-applied smooth scrolling fights iOS Safari momentum
+ * scroll: an anchor jump from a hash change ends up animating into
+ * the user's manual scroll, producing visible jank. Per-call sites
+ * that need smooth still call `scrollIntoView({ behavior: "smooth" })`
+ * explicitly, so they get the right behaviour either way. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 body {
