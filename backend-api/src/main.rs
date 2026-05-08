@@ -870,6 +870,72 @@ fn ensure_non_empty(value: &str, field: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
+/// Intent-template filename validator. The CLI reads this with
+/// `fs::read_to_string`, which means an unsanitized value here is
+/// a file-existence oracle (and worse, a file-read leak via the
+/// CLI's stderr propagation back through `CommandFailed`). We pin
+/// to a basename-only allowlist so callers can only reach
+/// templates the CLI is expected to load.
+///
+/// Rules:
+///   - Must end in `.json`.
+///   - Allowed chars: `[A-Za-z0-9._-]` only (no `/`, no `..`, no
+///     whitespace, no shell metacharacters).
+///   - Length capped at 64 bytes.
+///   - Must not be `.` or `..` or start with a `.` (hidden files).
+fn ensure_intent_filename(value: &str, field: &str) -> Result<(), ApiError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(ApiError::BadRequest(format!("{field} must not be empty")));
+    }
+    if trimmed.len() > 64 {
+        return Err(ApiError::BadRequest(format!("{field} too long")));
+    }
+    if !trimmed.ends_with(".json") {
+        return Err(ApiError::BadRequest(format!(
+            "{field} must end in .json"
+        )));
+    }
+    if trimmed.starts_with('.') || trimmed.contains("..") {
+        return Err(ApiError::BadRequest(format!("{field} not permitted")));
+    }
+    if !trimmed
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-')
+    {
+        return Err(ApiError::BadRequest(format!(
+            "{field} contains disallowed characters"
+        )));
+    }
+    Ok(())
+}
+
+/// Solana pubkey validator — base58 32-44 chars, the canonical
+/// shape of an ed25519 pubkey on Solana. Tightens the existing
+/// `ensure_non_empty` so individual entries in
+/// `--proposers` / `--approvers` lists can't smuggle commas (which
+/// would inject extra members), spaces, or arbitrary bytes.
+fn ensure_base58_pubkey(value: &str, field: &str) -> Result<(), ApiError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(ApiError::BadRequest(format!("{field} must not be empty")));
+    }
+    if trimmed.len() < 32 || trimmed.len() > 44 {
+        return Err(ApiError::BadRequest(format!(
+            "{field} has wrong length for a Solana pubkey"
+        )));
+    }
+    // Bitcoin / IPFS base58 alphabet — same one Solana uses.
+    const ALPHABET: &[u8] =
+        b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+    if !trimmed.bytes().all(|b| ALPHABET.contains(&b)) {
+        return Err(ApiError::BadRequest(format!(
+            "{field} is not valid base58"
+        )));
+    }
+    Ok(())
+}
+
 fn ensure_non_empty_vec(value: &[String], field: &str) -> Result<(), ApiError> {
     if value.is_empty() {
         return Err(ApiError::BadRequest(format!("{field} must not be empty")));
@@ -962,6 +1028,17 @@ async fn create_wallet(
     ensure_non_empty(&body.name, "name")?;
     ensure_non_empty_vec(&body.proposers, "proposers")?;
     ensure_non_empty_vec(&body.approvers, "approvers")?;
+    // Per-entry base58 validation. Without this, an entry could
+    // embed `,` to inject extra members past the join, or be any
+    // arbitrary string at all. Wallet create is unsigned (it's the
+    // bootstrap call) so there's no later signature step to gate
+    // this — the per-entry shape check IS the gate.
+    for p in &body.proposers {
+        ensure_base58_pubkey(p, "proposers entry")?;
+    }
+    for a in &body.approvers {
+        ensure_base58_pubkey(a, "approvers entry")?;
+    }
     if body.threshold == 0 {
         return Err(ApiError::BadRequest("threshold must be >= 1".into()));
     }
@@ -1155,7 +1232,7 @@ async fn add_intent(
     Json(body): Json<SignedIntentAddRequest>,
 ) -> Result<Json<Value>, ApiError> {
     ensure_wallet_name(&name, "name")?;
-    ensure_non_empty(&body.file, "file")?;
+    ensure_intent_filename(&body.file, "file")?;
     body.pre_signed.ensure_valid()?;
     state.rate_limiter.check(&body.pre_signed.signer_pubkey).await?;
 
@@ -1204,7 +1281,7 @@ async fn update_intent(
     Json(body): Json<SignedIntentUpdateRequest>,
 ) -> Result<Json<Value>, ApiError> {
     ensure_wallet_name(&name, "name")?;
-    ensure_non_empty(&body.file, "file")?;
+    ensure_intent_filename(&body.file, "file")?;
     body.pre_signed.ensure_valid()?;
     state.rate_limiter.check(&body.pre_signed.signer_pubkey).await?;
 
@@ -1358,9 +1435,15 @@ async fn prepare_intent_add(
     Json(body): Json<PrepareIntentAddRequest>,
 ) -> Result<Json<Value>, ApiError> {
     ensure_wallet_name(&name, "name")?;
-    ensure_non_empty(&body.file, "file")?;
+    ensure_intent_filename(&body.file, "file")?;
     ensure_non_empty_vec(&body.proposers, "proposers")?;
     ensure_non_empty_vec(&body.approvers, "approvers")?;
+    for p in &body.proposers {
+        ensure_base58_pubkey(p, "proposers entry")?;
+    }
+    for a in &body.approvers {
+        ensure_base58_pubkey(a, "approvers entry")?;
+    }
     if body.threshold == 0 {
         return Err(ApiError::BadRequest("threshold must be >= 1".into()));
     }
@@ -1421,9 +1504,15 @@ async fn prepare_intent_update(
     Json(body): Json<PrepareIntentUpdateRequest>,
 ) -> Result<Json<Value>, ApiError> {
     ensure_wallet_name(&name, "name")?;
-    ensure_non_empty(&body.file, "file")?;
+    ensure_intent_filename(&body.file, "file")?;
     ensure_non_empty_vec(&body.proposers, "proposers")?;
     ensure_non_empty_vec(&body.approvers, "approvers")?;
+    for p in &body.proposers {
+        ensure_base58_pubkey(p, "proposers entry")?;
+    }
+    for a in &body.approvers {
+        ensure_base58_pubkey(a, "approvers entry")?;
+    }
     if body.threshold == 0 {
         return Err(ApiError::BadRequest("threshold must be >= 1".into()));
     }
