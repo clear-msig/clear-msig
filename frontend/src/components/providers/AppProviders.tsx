@@ -16,18 +16,22 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
-import {
-  DynamicContextProvider,
-  type DynamicContextProps,
-} from "@dynamic-labs/sdk-react-core";
-import { TurnkeySolanaWalletConnectors } from "@dynamic-labs/embedded-wallet-solana";
-import { DynamicWaasSVMConnectors } from "@dynamic-labs/waas-svm";
-import { DynamicWaasEVMConnectors } from "@dynamic-labs/waas-evm";
-import { DynamicWaasSuiConnectors } from "@dynamic-labs/waas-sui";
-import { SolanaWalletConnectors } from "@dynamic-labs/solana";
+import dynamic from "next/dynamic";
 import { ToastProvider } from "@/components/ui/Toast";
 import { validateConfig } from "@/lib/config";
-import { LedgerProvider } from "@/lib/wallet/LedgerProvider";
+
+// Dynamic Labs SDK + connectors + LedgerProvider live in their own
+// chunk so the initial layout bundle doesn't ship them. We render a
+// minimal shell while the chunk loads — about one frame on prod —
+// then the auth provider takes over. ssr:false because all the
+// connectors touch browser-only globals.
+const DynamicProviderTree = dynamic(
+  () => import("@/components/providers/DynamicProviderTree"),
+  {
+    ssr: false,
+    loading: () => <ProvidersLoadingShell />,
+  },
+);
 
 type Props = {
   children: React.ReactNode;
@@ -77,55 +81,23 @@ export function AppProviders({ children }: Props) {
     }
   }
 
-  // Two embedded-Solana paths are registered. Dynamic picks one
-  // based on the project's Embedded Wallets settings:
-  //   - DynamicWaasSVMConnectors (TSS-MPC, the new default)
-  //   - TurnkeySolanaWalletConnectors (HSM-backed, legacy)
-  //
-  // Known bug, current workaround: DynamicWaasSVMSigner.signMessage
-  // calls `Buffer.from(bytes).toString()` which UTF-8-decodes the
-  // input before signing. Our offchain envelope starts with `\xff`,
-  // an invalid UTF-8 byte that gets replaced with U+FFFD, so the
-  // wallet signs different bytes than we asked. We catch this in
-  // useSignWithWallet via local ed25519 verify and tell the user
-  // to use an external wallet (Phantom / Solflare / Backpack) or a
-  // Ledger. Turnkey doesn't have this bug; if your Dynamic project
-  // exposes Turnkey as the embedded provider, prefer it.
-  //
-  // EVM + Sui WaaS connectors are listed so Dynamic doesn't crash
-  // at init when those chains are enabled in the dashboard. They
-  // aren't used for Solana signing.
-  const settings: DynamicContextProps["settings"] = {
-    environmentId: environmentId ?? "",
-    walletConnectors: [
-      SolanaWalletConnectors,
-      DynamicWaasSVMConnectors,
-      TurnkeySolanaWalletConnectors,
-      DynamicWaasEVMConnectors,
-      DynamicWaasSuiConnectors,
-    ],
-    // Connect-only mode. We do not run a Dynamic-side user account
-    // for external wallets — Phantom / Solflare / Backpack just
-    // connect and we use their pubkey as the user's identity. Without
-    // this, Dynamic prompts the user to "set up a password" / register
-    // a passkey on first connect, which reads as broken to retail
-    // users who already have a wallet they trust.
-    initialAuthenticationMode: "connect-only",
-    // Suppress the device-registration modal (the "setup password with
-    // some boxes to check" the team flagged). We don't run device-
-    // gated MFA in pre-alpha; if we re-enable it later, this flips on
-    // and the SDK will surface its standard enrollment flow.
-    deviceRegistrationModal: { enabled: false },
-  };
-
   return (
     <QueryClientProvider client={queryClient}>
-      <DynamicContextProvider settings={settings}>
-        <LedgerProvider>
-          <ToastProvider>{children}</ToastProvider>
-        </LedgerProvider>
-      </DynamicContextProvider>
+      <DynamicProviderTree environmentId={environmentId ?? ""}>
+        <ToastProvider>{children}</ToastProvider>
+      </DynamicProviderTree>
     </QueryClientProvider>
+  );
+}
+
+// Mount target while the Dynamic chunk loads. Same canvas color +
+// font as the app proper so the swap to the real tree is invisible.
+// We deliberately don't render an interactive loader here — the
+// chunk lands fast in prod and a spinner just becomes visible
+// noise.
+function ProvidersLoadingShell() {
+  return (
+    <main className="min-h-screen bg-canvas font-sans" aria-hidden="true" />
   );
 }
 
