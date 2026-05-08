@@ -1,6 +1,7 @@
 "use client";
 
 import { withEvmFallback } from "@/lib/chain/evmRpcFallback";
+import { formatEvmAddressForDisplay } from "@/lib/security/addressFormat";
 
 // Ethereum (Sepolia) helpers for cross-chain send.
 //
@@ -38,11 +39,14 @@ export function isValidEvmAddress(s: string): boolean {
 }
 
 /// `0x1234…abcd` style abbreviation for display when we don't have
-/// a contact name to show.
+/// a contact name to show. Respects the user's address-format
+/// preference (abbreviated / full / EIP-55 checksum) — see
+/// lib/security/addressFormat.ts. Default behaviour matches the
+/// pre-preference output (abbreviated, EIP-55 case).
 export function shortEvmAddress(s: string): string {
   const t = s.trim();
   if (!HEX_RE.test(t)) return t;
-  return `${t.slice(0, 6)}…${t.slice(-4)}`;
+  return formatEvmAddressForDisplay(t);
 }
 
 /// Convert a user-typed ether amount ("0.05") to wei as a bigint.

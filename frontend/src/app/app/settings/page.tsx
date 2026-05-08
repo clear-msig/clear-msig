@@ -54,6 +54,11 @@ import {
   type ThemeMode,
 } from "@/lib/security/theme";
 import {
+  getAddressFormat,
+  setAddressFormat,
+  type AddressFormatMode,
+} from "@/lib/security/addressFormat";
+import {
   EVM_RPC_OVERRIDE_STORAGE_KEY,
   appConfig,
   destinationRpcDefault,
@@ -273,6 +278,11 @@ export default function SettingsPage() {
           it before first paint to avoid the light-mode flash. */}
       <ThemeSettingRow />
 
+      {/* Address display — abbreviated / full / EIP-55 checksum.
+          Applied through shortEvmAddress + shortAddress so every
+          existing call site picks it up automatically. */}
+      <AddressFormatRow />
+
       {/* App lock — per-device PIN that gates /app/* on every fresh
           tab. Stored locally only; we never see the PIN. Useful on
           shared / unlocked devices where Dynamic's session token
@@ -430,6 +440,72 @@ function NotificationsSettingRow({
           Enable
         </button>
       )}
+    </section>
+  );
+}
+
+// ─── Address display format ─────────────────────────────────────
+
+function AddressFormatRow() {
+  const [mode, setMode] = useState<AddressFormatMode>("abbreviated");
+  useEffect(() => {
+    setMode(getAddressFormat());
+  }, []);
+  const set = (next: AddressFormatMode) => {
+    setMode(next);
+    setAddressFormat(next);
+    // Force a re-render of the rest of the app so addresses pick
+    // up the new mode without requiring a navigate. The Settings
+    // row itself reflects the change immediately; everything else
+    // sees the new value on its next render. A localStorage event
+    // doesn't fire in the same tab, so dispatch one ourselves so
+    // any code subscribed to address-format changes can react.
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("clear:address-format-changed"));
+    }
+  };
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+          <Contact className="h-5 w-5" strokeWidth={1.75} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-text-strong">
+            Address display
+          </p>
+          <p className="mt-0.5 text-xs text-text-soft">
+            How EVM + Solana addresses look in the UI. EIP-55 mixed-case
+            applies to EVM only (Solana base58 has no case form).
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {(["abbreviated", "checksum", "full"] as AddressFormatMode[]).map(
+          (opt) => {
+            const active = mode === opt;
+            return (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => set(opt)}
+                className={
+                  "rounded-soft border px-3 py-2 text-xs font-medium transition-[border-color,background-color,transform] duration-base ease-out-soft " +
+                  (active
+                    ? "border-accent bg-accent/[0.08] text-text-strong"
+                    : "border-border-soft bg-canvas text-text-soft hover:border-accent/40 hover:text-text-strong")
+                }
+              >
+                {opt === "abbreviated"
+                  ? "Abbreviated"
+                  : opt === "checksum"
+                    ? "EIP-55"
+                    : "Full"}
+              </button>
+            );
+          },
+        )}
+      </div>
     </section>
   );
 }

@@ -25,6 +25,7 @@ import { PublicKey } from "@solana/web3.js";
 import { hmac } from "@noble/hashes/hmac";
 import { sha256 } from "@noble/hashes/sha256";
 import { bytesToHex, hexToBytes, randomBytes, utf8ToBytes } from "@noble/hashes/utils";
+import { formatSolanaAddressForDisplay } from "@/lib/security/addressFormat";
 
 export interface Contact {
   id: string;
@@ -260,9 +261,11 @@ export function recentContacts(limit = 4): Contact[] {
 }
 
 /// Display the address as `4chars…4chars` so it fits in tight UI
-/// without revealing the full thing in passing glances.
+/// without revealing the full thing in passing glances. Respects
+/// the user's address-format preference (abbreviated / full).
+/// Solana base58 doesn't have a checksum-case form, so the
+/// "checksum" preference falls back to "full" for these.
 export function shortAddress(address: string): string {
   if (!address) return "";
-  if (address.length <= 9) return address;
-  return `${address.slice(0, 4)}…${address.slice(-4)}`;
+  return formatSolanaAddressForDisplay(address);
 }
