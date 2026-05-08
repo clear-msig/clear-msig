@@ -55,7 +55,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://clear-msig.xyz"),
+  metadataBase: new URL("https://clearsig.xyz"),
   title: {
     default: "Clear · Send money with people you trust",
     template: "%s · Clear",

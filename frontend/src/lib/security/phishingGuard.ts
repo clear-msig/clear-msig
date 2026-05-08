@@ -24,7 +24,12 @@
 // already in useSignWithWallet.
 
 /// Hard-coded canonical hosts — the prod app + the demo app.
+/// `clearsig.xyz` is the canonical domain (added 2026-05-08).
+/// `clear-msig.vercel.app` stays on the list as the Vercel preview /
+/// fallback URL so old shareable links keep passing the phishing check.
 const CANONICAL_HOSTS: readonly string[] = [
+  "clearsig.xyz",
+  "www.clearsig.xyz",
   "clear-msig.vercel.app",
 ];
 
