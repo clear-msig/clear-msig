@@ -67,6 +67,7 @@ import {
 import { NextStepCard } from "@/components/retail/NextStepCard";
 import { QuickSendInput } from "@/components/retail/QuickSendInput";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { BackToWallets } from "@/components/retail/BackToWallets";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { txUrl as solanaTxUrl } from "@/lib/explorer";
 import { recordAttempt } from "@/lib/retail/txLog";
@@ -868,6 +869,14 @@ function SendPage() {
           ]}
         />
       </StickyTopBar>
+      {/* Mobile-only back chip. The StickyTopBar is hidden on mobile
+          for workspace pages, so this is the only in-page path back
+          to /app/wallet from /send. Sits just above the page column
+          instead of full-width sticky to avoid the "long band" the
+          original breadcrumb wrapper produced. */}
+      <div className="px-gutter pt-2">
+        <BackToWallets />
+      </div>
 
       <div className="relative z-10 flex flex-1 items-center justify-center px-gutter py-10">
         <div className="w-full max-w-lg">

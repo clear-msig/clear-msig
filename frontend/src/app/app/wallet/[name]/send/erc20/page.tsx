@@ -63,6 +63,7 @@ import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { BackToWallets } from "@/components/retail/BackToWallets";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import { RecentRecipientsChips } from "@/components/retail/RecentRecipientsChips";
@@ -437,6 +438,10 @@ function SendErc20Page() {
           ]}
         />
       </StickyTopBar>
+      {/* Mobile-only back chip — see /send for rationale. */}
+      <div className="px-gutter pt-2">
+        <BackToWallets />
+      </div>
 
       <div className="flex flex-1 justify-center pt-6">
         <motion.section

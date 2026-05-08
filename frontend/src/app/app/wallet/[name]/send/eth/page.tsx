@@ -79,6 +79,7 @@ import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { BackToWallets } from "@/components/retail/BackToWallets";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import {
@@ -537,6 +538,10 @@ function SendEthPage() {
           ]}
         />
       </StickyTopBar>
+      {/* Mobile-only back chip — see /send for rationale. */}
+      <div className="px-gutter pt-2">
+        <BackToWallets />
+      </div>
 
       <div className="flex flex-1 justify-center pt-6">
         <motion.section
@@ -775,14 +780,14 @@ function ComposeStage({
                       : 0n;
                   setAmount(weiToEth(max, 12));
                 }}
-                className="font-medium text-accent transition-colors hover:text-accent/80"
+                className="rounded-full border border-accent/40 bg-accent/[0.10] px-2 py-0.5 text-[11px] font-semibold text-accent transition-colors hover:border-accent hover:bg-accent/[0.15]"
               >
                 Max
               </button>
             )}
           </div>
           {insufficientBalance && walletBalanceWei !== null && (
-            <p className="mt-2 rounded-soft border border-warning/40 bg-warning/[0.07] px-3 py-2 text-xs text-text-strong">
+            <p className="mt-2 rounded-soft border border-warning/40 bg-warning/[0.10] px-3 py-2 text-xs text-text-strong">
               <span className="font-medium">Insufficient balance.</span>{" "}
               You have {weiToEth(walletBalanceWei)} ETH — need at least{" "}
               {weiToEth(amountWei + gasReserveWei)} ETH including ~
