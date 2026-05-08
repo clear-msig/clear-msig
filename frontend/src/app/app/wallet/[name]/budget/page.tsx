@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { BackToWallets } from "@/components/retail/BackToWallets";
 import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { useToast } from "@/components/ui/Toast";
@@ -201,6 +202,10 @@ export default function BudgetPage() {
           ]}
         />
       </StickyTopBar>
+      {/* Mobile-only back chip — see /send for rationale. */}
+      <div className="px-gutter pt-2 md:hidden">
+        <BackToWallets />
+      </div>
 
       <motion.section
         {...motionProps}

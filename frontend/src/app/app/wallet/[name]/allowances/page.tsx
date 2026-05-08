@@ -30,6 +30,7 @@ import { toDisplayName } from "@/lib/retail/walletNames";
 import { BadgePill } from "@/components/retail/BadgePill";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { BackToWallets } from "@/components/retail/BackToWallets";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { useToast } from "@/components/ui/Toast";
 
@@ -157,6 +158,10 @@ export default function AllowancesPage() {
           ]}
         />
       </StickyTopBar>
+      {/* Mobile-only back chip — see /send for rationale. */}
+      <div className="px-gutter pt-2 md:hidden">
+        <BackToWallets />
+      </div>
 
       <motion.section
         {...motionProps}

@@ -28,6 +28,7 @@ import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
 import { appConfig } from "@/lib/config";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { BackToWallets } from "@/components/retail/BackToWallets";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import {
   CHAIN_CATALOG,
@@ -111,6 +112,10 @@ export default function ChainsPage() {
           ]}
         />
       </StickyTopBar>
+      {/* Mobile-only back chip — see /send for rationale. */}
+      <div className="px-gutter pt-2 md:hidden">
+        <BackToWallets />
+      </div>
 
       <motion.section
         {...motionProps}

@@ -50,6 +50,7 @@ import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { BackToWallets } from "@/components/retail/BackToWallets";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { useToast } from "@/components/ui/Toast";
 import type {
@@ -428,18 +429,24 @@ function SellTopBar({
   walletDisplay: string;
 }) {
   return (
-    <StickyTopBar offset="header">
-      <Breadcrumb
-        segments={[
-          { label: "Wallets", href: "/app/wallet" },
-          {
-            label: walletDisplay || "Wallet",
-            href: `/app/wallet/${encodeURIComponent(walletName)}`,
-          },
-          { label: "Sell" },
-        ]}
-      />
-    </StickyTopBar>
+    <>
+      <StickyTopBar offset="header">
+        <Breadcrumb
+          segments={[
+            { label: "Wallets", href: "/app/wallet" },
+            {
+              label: walletDisplay || "Wallet",
+              href: `/app/wallet/${encodeURIComponent(walletName)}`,
+            },
+            { label: "Sell" },
+          ]}
+        />
+      </StickyTopBar>
+      {/* Mobile-only back chip — see /send for rationale. */}
+      <div className="px-gutter pt-2 md:hidden">
+        <BackToWallets />
+      </div>
+    </>
   );
 }
 

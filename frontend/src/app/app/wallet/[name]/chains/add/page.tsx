@@ -28,6 +28,7 @@ import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { BackToWallets } from "@/components/retail/BackToWallets";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
@@ -148,6 +149,10 @@ function AddChainPage() {
           ]}
         />
       </StickyTopBar>
+      {/* Mobile-only back chip — see /send for rationale. */}
+      <div className="px-gutter pt-2 md:hidden">
+        <BackToWallets />
+      </div>
 
       {stage === "pick" && (
         <motion.section

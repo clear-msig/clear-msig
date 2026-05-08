@@ -37,6 +37,7 @@ import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useToast } from "@/components/ui/Toast";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { BackToWallets } from "@/components/retail/BackToWallets";
 import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
@@ -253,6 +254,10 @@ export default function SetupErc20Page() {
           ]}
         />
       </StickyTopBar>
+      {/* Mobile-only back chip — see /send for rationale. */}
+      <div className="px-gutter pt-2 md:hidden">
+        <BackToWallets />
+      </div>
 
       <div className="relative z-10 flex flex-1 items-center justify-center px-gutter py-10">
         <motion.section

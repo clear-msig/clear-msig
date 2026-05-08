@@ -32,6 +32,7 @@ import { IntentType } from "@/lib/msig";
 import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { BackToWallets } from "@/components/retail/BackToWallets";
 
 interface SettingItem {
   href: string;
@@ -137,6 +138,10 @@ export default function WalletSettingsPage() {
           ]}
         />
       </StickyTopBar>
+      {/* Mobile-only back chip — see /send for rationale. */}
+      <div className="px-gutter pt-2 md:hidden">
+        <BackToWallets />
+      </div>
 
       <motion.section
         initial={reduce ? false : { opacity: 0, y: 8 }}

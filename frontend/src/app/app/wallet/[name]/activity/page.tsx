@@ -31,6 +31,7 @@ import {
 } from "@/lib/retail/exportActivity";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { BackToWallets } from "@/components/retail/BackToWallets";
 
 type StatusFilter = "all" | "active" | "approved" | "executed" | "cancelled";
 type ChainFilter = "all" | "0" | "1" | "2" | "3" | "4";
@@ -135,6 +136,10 @@ export default function WalletActivityPage() {
           ]}
         />
       </StickyTopBar>
+      {/* Mobile-only back chip — see /send for rationale. */}
+      <div className="px-gutter pt-2 md:hidden">
+        <BackToWallets />
+      </div>
 
       <motion.section
         {...motionProps}

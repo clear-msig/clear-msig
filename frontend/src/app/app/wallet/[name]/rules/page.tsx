@@ -36,6 +36,7 @@ import { listIntents } from "@/lib/chain/intents";
 import { IntentType, type IntentAccount } from "@/lib/msig";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { BackToWallets } from "@/components/retail/BackToWallets";
 import { Button } from "@/components/retail/Button";
 import { friendlyIntentLabel } from "@/lib/retail/labels";
 import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
@@ -120,6 +121,10 @@ export default function RulesPage() {
           ]}
         />
       </StickyTopBar>
+      {/* Mobile-only back chip — see /send for rationale. */}
+      <div className="px-gutter pt-2 md:hidden">
+        <BackToWallets />
+      </div>
 
       <motion.section
         {...motionProps}

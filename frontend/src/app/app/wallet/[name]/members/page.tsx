@@ -25,6 +25,7 @@ import { deriveRole, listWatchers, ROLE_HINT, ROLE_LABEL, type Role } from "@/li
 import { useContacts } from "@/lib/hooks/useContacts";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { BackToWallets } from "@/components/retail/BackToWallets";
 import { BadgePill } from "@/components/retail/BadgePill";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
@@ -130,6 +131,10 @@ export default function MembersPage() {
           ]}
         />
       </StickyTopBar>
+      {/* Mobile-only back chip — see /send for rationale. */}
+      <div className="px-gutter pt-2 md:hidden">
+        <BackToWallets />
+      </div>
 
       <motion.section
         {...motionProps}

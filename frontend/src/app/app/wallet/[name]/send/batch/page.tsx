@@ -44,6 +44,7 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
+import { BackToWallets } from "@/components/retail/BackToWallets";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 
 // Hard cap on rows per batch — high enough for real payroll, low
@@ -222,6 +223,10 @@ function BatchSendPage() {
           ]}
         />
       </StickyTopBar>
+      {/* Mobile-only back chip — see /send for rationale. */}
+      <div className="px-gutter pt-2 md:hidden">
+        <BackToWallets />
+      </div>
 
       <div className="flex flex-1 justify-center pt-6">
         <motion.section
