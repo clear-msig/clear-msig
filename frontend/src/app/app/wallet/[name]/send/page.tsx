@@ -1490,7 +1490,10 @@ function PastedAddressNotice({
                 autoFocus
                 maxLength={40}
                 className={
-                  "flex-1 rounded-soft border border-border-soft bg-surface-raised px-2.5 py-1.5 text-xs text-text-strong " +
+                  // min-h-tap so the input is comfortable to tap on
+                  // mobile. Was py-1.5 (~24px) which the parity audit
+                  // flagged as below HIG.
+                  "flex-1 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs text-text-strong min-h-tap " +
                   "outline-none placeholder:text-text-soft/60 " +
                   "focus:border-accent"
                 }
@@ -1504,7 +1507,7 @@ function PastedAddressNotice({
                   setName("");
                 }}
                 className={
-                  "rounded-soft bg-accent px-3 py-1.5 text-xs font-semibold text-white " +
+                  "inline-flex min-h-tap items-center justify-center rounded-soft bg-accent px-4 py-2 text-xs font-semibold text-white " +
                   "transition-colors duration-base ease-out-soft hover:bg-accent-hover " +
                   "disabled:cursor-not-allowed disabled:opacity-40"
                 }

@@ -555,7 +555,7 @@ function NotificationsSettingRow({
           type="button"
           onClick={() => void notif.request()}
           className={
-            "shrink-0 rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white " +
+            "shrink-0 inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-white " +
             "transition-[background-color,transform] duration-base ease-out-soft " +
             "hover:bg-accent-hover active:scale-[0.98] " +
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
@@ -664,7 +664,7 @@ function EmailNotificationsSettingRow() {
             onClick={() => setEnabled(!prefs.enabled)}
             aria-pressed={prefs.enabled}
             className={
-              "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-[background-color,transform] duration-base ease-out-soft active:scale-[0.98] " +
+              "shrink-0 inline-flex min-h-tap items-center justify-center rounded-full px-4 py-2 text-xs font-medium transition-[background-color,transform] duration-base ease-out-soft active:scale-[0.98] " +
               (prefs.enabled
                 ? "border border-border-soft bg-canvas text-text-soft hover:border-rose-500 hover:text-rose-600"
                 : "bg-accent text-white hover:bg-accent-hover")
@@ -696,7 +696,7 @@ function EmailNotificationsSettingRow() {
               onClick={saveEmail}
               disabled={!valid}
               className={
-                "rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white " +
+                "inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-white " +
                 "transition-[background-color,transform] duration-base ease-out-soft " +
                 "hover:bg-accent-hover active:scale-[0.98] " +
                 "disabled:cursor-not-allowed disabled:opacity-50 " +
@@ -712,7 +712,7 @@ function EmailNotificationsSettingRow() {
                   setEditing(false);
                   setDraft(prefs.email);
                 }}
-                className="rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft hover:border-accent hover:text-accent"
+                className="inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft hover:border-accent hover:text-accent"
               >
                 Cancel
               </button>
@@ -724,14 +724,14 @@ function EmailNotificationsSettingRow() {
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft hover:border-accent hover:text-accent"
+            className="inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft hover:border-accent hover:text-accent"
           >
             Change email
           </button>
           <button
             type="button"
             onClick={removeEmail}
-            className="rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft hover:border-rose-500 hover:text-rose-600"
+            className="inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft hover:border-rose-500 hover:text-rose-600"
           >
             Remove
           </button>
@@ -857,7 +857,7 @@ function WebhooksSettingRow() {
             onClick={() => setEnabled(!prefs.enabled)}
             aria-pressed={prefs.enabled}
             className={
-              "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-[background-color,transform] duration-base ease-out-soft active:scale-[0.98] " +
+              "shrink-0 inline-flex min-h-tap items-center justify-center rounded-full px-4 py-2 text-xs font-medium transition-[background-color,transform] duration-base ease-out-soft active:scale-[0.98] " +
               (prefs.enabled
                 ? "border border-border-soft bg-canvas text-text-soft hover:border-rose-500 hover:text-rose-600"
                 : "bg-accent text-white hover:bg-accent-hover")
@@ -907,7 +907,7 @@ function WebhooksSettingRow() {
               onClick={saveUrl}
               disabled={!validUrl}
               className={
-                "rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white " +
+                "inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-white " +
                 "transition-[background-color,transform] duration-base ease-out-soft " +
                 "hover:bg-accent-hover active:scale-[0.98] " +
                 "disabled:cursor-not-allowed disabled:opacity-50 " +
@@ -924,7 +924,7 @@ function WebhooksSettingRow() {
                   setDraftUrl(prefs.url);
                   setDraftSecret(prefs.secret);
                 }}
-                className="rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft hover:border-accent hover:text-accent"
+                className="inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft hover:border-accent hover:text-accent"
               >
                 Cancel
               </button>
@@ -967,7 +967,7 @@ function WebhooksSettingRow() {
               onClick={() => void runTest()}
               disabled={test.status === "running"}
               className={
-                "rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium transition-colors duration-base ease-out-soft " +
+                "inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium transition-colors duration-base ease-out-soft " +
                 (test.status === "ok"
                   ? "border-accent text-accent"
                   : test.status === "fail"
@@ -987,14 +987,14 @@ function WebhooksSettingRow() {
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft hover:border-accent hover:text-accent"
+              className="inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft hover:border-accent hover:text-accent"
             >
               Change URL
             </button>
             <button
               type="button"
               onClick={removeUrl}
-              className="rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft hover:border-rose-500 hover:text-rose-600"
+              className="inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft hover:border-rose-500 hover:text-rose-600"
             >
               Remove
             </button>
@@ -1241,7 +1241,7 @@ function SignInSecurityRow() {
           type="button"
           onClick={() => setShowDynamicUserProfile(true)}
           className={
-            "shrink-0 rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white " +
+            "shrink-0 inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-white " +
             "transition-[background-color,transform] duration-base ease-out-soft " +
             "hover:bg-accent-hover active:scale-[0.98] " +
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
@@ -1290,7 +1290,7 @@ function AppLockSettingRow() {
               type="button"
               onClick={() => setEditing(editing === "change" ? null : "change")}
               className={
-                "rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft " +
+                "inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft " +
                 "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent"
               }
             >
@@ -1300,7 +1300,7 @@ function AppLockSettingRow() {
               type="button"
               onClick={() => setEditing(editing === "disable" ? null : "disable")}
               className={
-                "rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft " +
+                "inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft " +
                 "transition-colors duration-base ease-out-soft hover:border-rose-500 hover:text-rose-600"
               }
             >
@@ -1314,7 +1314,7 @@ function AppLockSettingRow() {
               }}
               title="Lock this tab now and require the PIN to continue"
               className={
-                "rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white " +
+                "inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-white " +
                 "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98]"
               }
             >
@@ -1326,7 +1326,7 @@ function AppLockSettingRow() {
             type="button"
             onClick={() => setEditing(editing === "set" ? null : "set")}
             className={
-              "shrink-0 rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white " +
+              "shrink-0 inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-white " +
               "transition-[background-color,transform] duration-base ease-out-soft " +
               "hover:bg-accent-hover active:scale-[0.98] " +
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
@@ -1466,7 +1466,7 @@ function PinForm({
           type="submit"
           disabled={busy}
           className={
-            "rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white " +
+            "inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-white " +
             "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] " +
             "disabled:cursor-not-allowed disabled:opacity-50"
           }
@@ -1607,7 +1607,7 @@ function SolanaRpcSettingRow() {
             onClick={handleSave}
             disabled={!hasOverride || busy}
             className={
-              "rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white " +
+              "inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-white " +
               "transition-[background-color,transform] duration-base ease-out-soft " +
               "hover:bg-accent-hover active:scale-[0.98] " +
               "disabled:cursor-not-allowed disabled:opacity-50 " +
@@ -1622,7 +1622,7 @@ function SolanaRpcSettingRow() {
               onClick={handleReset}
               disabled={busy}
               className={
-                "rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft " +
+                "inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft " +
                 "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
                 "disabled:cursor-not-allowed disabled:opacity-50"
               }
@@ -1742,7 +1742,7 @@ function LedgerAccountSettingRow() {
           onClick={handleSave}
           disabled={!dirty || busy}
           className={
-            "ml-auto rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white " +
+            "ml-auto inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-white " +
             "transition-[background-color,transform] duration-base ease-out-soft " +
             "hover:bg-accent-hover active:scale-[0.98] " +
             "disabled:cursor-not-allowed disabled:opacity-50 " +
@@ -1849,7 +1849,7 @@ function EvmRpcSettingRow() {
             onClick={handleSave}
             disabled={!hasOverride || busy}
             className={
-              "rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white " +
+              "inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-white " +
               "transition-[background-color,transform] duration-base ease-out-soft " +
               "hover:bg-accent-hover active:scale-[0.98] " +
               "disabled:cursor-not-allowed disabled:opacity-50 " +
@@ -1864,7 +1864,7 @@ function EvmRpcSettingRow() {
               onClick={handleReset}
               disabled={busy}
               className={
-                "rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft " +
+                "inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft " +
                 "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
                 "disabled:cursor-not-allowed disabled:opacity-50"
               }
@@ -1941,7 +1941,7 @@ function InstallSettingRow({
         type="button"
         onClick={() => void install.prompt()}
         className={
-          "shrink-0 rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white " +
+          "shrink-0 inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-white " +
           "transition-[background-color,transform] duration-base ease-out-soft " +
           "hover:bg-accent-hover active:scale-[0.98] " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
