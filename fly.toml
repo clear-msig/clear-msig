@@ -38,20 +38,34 @@ primary_region = "iad"
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = "stop"
+  # Pre-alpha: machines stay running. The previous combination of
+  # auto_stop_machines = "stop" + min_machines_running = 1 was
+  # racing — Fly's auto-stop would still suspend idle machines and
+  # the cold-start wake on the next request landed in the user's
+  # demo as a 502 / "site is down". Disabling auto_stop and keeping
+  # min_machines_running = 1 means the backend stays warm 24/7.
+  # Trades a few cents/day for the reliability we need while users
+  # are testing the wallet.
+  auto_stop_machines = false
   auto_start_machines = true
-  # Keep one machine warm during the Colosseum judging window so a
-  # cold-start (5-15s) never lands on a judge's first request. Trades
-  # a few cents/day for reliability.
   min_machines_running = 1
 
+  # Tightened health-check window. 30s interval used to mean a
+  # crashing process took up to a full minute to be replaced; on a
+  # 1-machine pool that's a full minute of 502s. 15s halves the
+  # window without spamming the health endpoint.
   [[http_service.checks]]
-    grace_period = "10s"
-    interval = "30s"
+    grace_period = "15s"
+    interval = "15s"
     method = "GET"
     timeout = "5s"
     path = "/health"
 
+# Memory bumped from 512mb → 1024mb. The Rust backend itself fits
+# in 512mb, but each /execute request shells out to the clear-msig
+# CLI (a separate Rust binary that loads its own Solana RPC + Ika
+# gRPC clients), and a couple of concurrent CLI invocations would
+# OOM-kill the parent. 1024mb is safe headroom on shared-cpu-1x.
 [[vm]]
   size = "shared-cpu-1x"
-  memory = "512mb"
+  memory = "1024mb"
