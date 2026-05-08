@@ -921,7 +921,7 @@ function ActivityRow({ row }: { row: RecentActivityRow }) {
         href={`/app/proposals/${row.proposalPda}`}
         className={
           "group flex items-center justify-between gap-3 px-5 py-3 " +
-          "transition-colors duration-base ease-out-soft hover:bg-canvas/40 " +
+          "transition-colors duration-base ease-out-soft hover:bg-canvas " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
         }
       >

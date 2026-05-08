@@ -212,7 +212,7 @@ function AllowlistCard({ walletName }: { walletName: string }) {
       </div>
 
       {hydrated && draft.mode === "on" && draft.addresses.length === 0 ? (
-        <p className="mt-4 rounded-card border border-warning/40 bg-warning/[0.10] p-3 text-xs text-text-strong">
+        <p className="mt-4 rounded-card border border-warning/40 bg-warning/10 p-3 text-xs text-text-strong">
           The allowlist is empty. Until you add a recipient, every send
           will be blocked.
         </p>

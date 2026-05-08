@@ -422,7 +422,7 @@ function SidebarActivityRow({
             <span>{friendlyStatus(row.status, row.intentTemplate)}</span>
             {row.proposedAt > 0n && (
               <>
-                <span className="text-text-soft/60">·</span>
+                <span aria-hidden="true" className="text-text-soft">·</span>
                 <span>{relativeTime(row.proposedAt)}</span>
               </>
             )}

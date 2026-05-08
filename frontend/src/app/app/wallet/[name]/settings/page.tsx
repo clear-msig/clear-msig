@@ -185,7 +185,7 @@ export default function WalletSettingsPage() {
                   {it.status ? (
                     <>
                       <span className="text-text-strong">{it.status}</span>
-                      <span className="mx-1.5 text-text-soft/60">·</span>
+                      <span aria-hidden="true" className="mx-1.5 text-text-soft">·</span>
                       {it.hint}
                     </>
                   ) : (

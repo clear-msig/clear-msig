@@ -433,7 +433,7 @@ function LedgerConnectRow() {
         className={
           "mt-5 flex w-full items-center justify-between gap-3 rounded-card border border-accent/40 bg-accent/[0.06] p-3 text-left text-xs text-text-strong " +
           "transition-[border-color,background-color,transform] duration-base ease-out-soft " +
-          "hover:-translate-y-0.5 hover:border-accent hover:bg-accent/[0.10] " +
+          "hover:-translate-y-0.5 hover:border-accent hover:bg-accent/10 " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
           "disabled:cursor-not-allowed disabled:opacity-60"
         }

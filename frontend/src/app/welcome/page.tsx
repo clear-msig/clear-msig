@@ -414,7 +414,7 @@ export default function WelcomePage() {
                     : "/app/wallet"
                 }
                 className={
-                  "group flex items-center gap-3 rounded-card border border-accent/40 bg-accent/[0.10] p-4 text-left shadow-card-rest " +
+                  "group flex items-center gap-3 rounded-card border border-accent/40 bg-accent/10 p-4 text-left shadow-card-rest " +
                   "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
                   "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"

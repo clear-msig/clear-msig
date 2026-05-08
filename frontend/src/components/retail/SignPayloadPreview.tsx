@@ -51,7 +51,7 @@ export function SignPayloadPreview({
   return (
     <section
       aria-label="What you are about to sign"
-      // Switched from bg-accent/[0.10] to a SOLID surface
+      // Switched from bg-accent/10 to a SOLID surface
       // (bg-surface-raised: theme-aware white / dark) plus a thick
       // left accent stripe. The opacity-layered green tint kept
       // bleeding into the page bg unpredictably — depending on the
@@ -114,7 +114,7 @@ export function SignPayloadPreview({
       )}
 
       {warning && (
-        <p className="mt-3 rounded-soft bg-warning/[0.10] px-2.5 py-1.5 text-[11px] leading-snug text-text-strong">
+        <p className="mt-3 rounded-soft bg-warning/10 px-2.5 py-1.5 text-[11px] leading-snug text-text-strong">
           <span className="font-medium text-warning">Heads up.</span> {warning}
         </p>
       )}

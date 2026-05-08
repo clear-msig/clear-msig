@@ -553,7 +553,7 @@ const TabBar = forwardRef<HTMLDivElement, TabBarProps>(function TabBar(
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
                 (active
                   ? "bg-canvas text-text-strong shadow-card-rest"
-                  : "text-text-soft hover:bg-canvas/50 hover:text-text-strong")
+                  : "text-text-soft hover:bg-canvas hover:text-text-strong")
               }
             >
               <span
@@ -1564,7 +1564,7 @@ function ActivitySection({
                 href={`/app/proposals/${row.proposalPda}`}
                 className={
                   "group flex items-center justify-between gap-3 px-5 py-3 " +
-                  "transition-colors duration-base ease-out-soft hover:bg-canvas/40 " +
+                  "transition-colors duration-base ease-out-soft hover:bg-canvas " +
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
                 }
               >
@@ -1768,7 +1768,7 @@ function NextStepsStripe({
   return (
     <section
       aria-label="Next step"
-      className="rounded-card border border-accent/40 bg-accent/[0.10] p-4 shadow-card-rest sm:p-5"
+      className="rounded-card border border-accent/40 bg-accent/10 p-4 shadow-card-rest sm:p-5"
     >
       <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1">

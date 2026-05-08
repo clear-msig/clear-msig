@@ -794,7 +794,7 @@ function ComposeStage({
               )}
           </div>
           {insufficientBalance && walletBalanceWei !== null && (
-            <p className="mt-2 rounded-soft border border-warning/40 bg-warning/[0.10] px-3 py-2 text-xs text-text-strong">
+            <p className="mt-2 rounded-soft border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-text-strong">
               <span className="font-medium">Insufficient balance.</span>{" "}
               You have {weiToEth(walletBalanceWei)} ETH — need at least{" "}
               {weiToEth(amountWei + gasReserveWei)} ETH including ~

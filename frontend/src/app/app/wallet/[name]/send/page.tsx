@@ -1171,7 +1171,7 @@ function ComposeStage({
         </div>
         {insufficientBalance &&
           typeof vaultBalanceLamports === "bigint" && (
-            <p className="mt-3 w-full rounded-soft border border-warning/40 bg-warning/[0.10] px-3 py-2 text-xs text-text-strong">
+            <p className="mt-3 w-full rounded-soft border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-text-strong">
               <span className="font-medium">Insufficient balance.</span>{" "}
               {walletDisplay} has {formatLamports(vaultBalanceLamports)} SOL —
               need at least the amount plus a small reserve for the
