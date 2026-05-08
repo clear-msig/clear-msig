@@ -17,13 +17,13 @@
 // in the codebase and will be cleaned up after the retail surface
 // covers create / send / approve / member management.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Banknote, Bell, ChevronDown, Download, Send, ShieldCheck, TrendingDown, Users } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, Banknote, Bell, ChevronDown, Coins, Download, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users } from "lucide-react";
 import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -256,83 +256,328 @@ export default function WalletDetailPage() {
       />
       {/* Pending approvals come right after the hero — they're the
           single highest-priority action a wallet member can take.
-          Burying them below NextStepsStripe + Budget + Actions
-          meant a member with a pile of waiting proposals might
-          miss them entirely on a small viewport. */}
+          Always-visible, regardless of which tab is active, so a
+          member with waiting proposals can't miss them by sitting
+          on the Holdings tab. */}
       {walletAction.length > 0 && (
         <ActionNeededSection rows={walletAction} reduce={!!reduce} />
       )}
-      {/* Recent send attempts (success + failure). Persisted in
-          localStorage so the user has a durable record of what
-          happened — failed sends used to vanish with the toast. */}
-      {sendAttempts.length > 0 && (
-        <TxAttemptsSection rows={sendAttempts} reduce={!!reduce} />
-      )}
-      {/* ERC-20 holdings — every token the wallet's Sepolia address
-          owns. Each row links straight to /send/erc20 with the
-          contract pre-filled, so users don't have to know the
-          address by heart. Hidden when the address holds nothing. */}
-      {(erc20HoldingsQuery.data?.length ?? 0) > 0 && (
-        <Erc20HoldingsSection
-          walletName={name}
-          rows={erc20HoldingsQuery.data ?? []}
-          reduce={!!reduce}
-        />
-      )}
-      {/* On-chain tx history for each bound chain. Shows actual
-          chain-level activity (incoming + outgoing) — the attempts
-          log above only knows about sends initiated from this
-          browser; this shows everything that hit the address. */}
-      {(solanaTxHistoryQuery.data?.length ?? 0) > 0 && (
-        <ChainTxHistorySection
-          rows={solanaTxHistoryQuery.data ?? []}
-          chainTicker="SOL"
-          chainKind={0}
-          reduce={!!reduce}
-        />
-      )}
-      {(evmTxHistoryQuery.data?.length ?? 0) > 0 && (
-        <ChainTxHistorySection
-          rows={evmTxHistoryQuery.data ?? []}
-          chainTicker="ETH"
-          chainKind={1}
-          reduce={!!reduce}
-        />
-      )}
-      {(btcTxHistoryQuery.data?.length ?? 0) > 0 && (
-        <ChainTxHistorySection
-          rows={btcTxHistoryQuery.data ?? []}
-          chainTicker="BTC"
-          chainKind={2}
-          reduce={!!reduce}
-        />
-      )}
-      <NextStepsStripe
+      <WalletDetailTabs
+        // Activity tab data
+        activityRows={walletActivity}
+        activityAllRows={walletActivityAll}
+        sendAttempts={sendAttempts}
+        solanaHistory={solanaTxHistoryQuery.data ?? []}
+        evmHistory={evmTxHistoryQuery.data ?? []}
+        btcHistory={btcTxHistoryQuery.data ?? []}
+        // Holdings tab data
+        erc20Holdings={erc20HoldingsQuery.data ?? []}
+        // Manage tab data
         name={name}
         hasIntents={hasIntents}
         memberCount={memberCount}
-        activityCount={walletActivity.length}
-        loading={intentsQuery.isLoading}
-      />
-      <BudgetStripe name={name} />
-      <QuickActionInput walletName={name} />
-      <Actions
-        name={name}
-        hasIntents={hasIntents}
+        loadingIntents={intentsQuery.isLoading}
         reduce={!!reduce}
       />
-      {walletActivity.length > 0 ? (
-        <ActivitySection
-          rows={walletActivity}
-          allRows={walletActivityAll}
-          walletName={name}
-          attempts={sendAttempts}
-          reduce={!!reduce}
-        />
-      ) : (
-        <ActivityEmptyState reduce={!!reduce} />
-      )}
     </div>
+  );
+}
+
+// ─── Tab nav ───────────────────────────────────────────────────────
+//
+// Phantom / Rainbow precedent: a wallet detail screen is a vertical
+// dump in two ways — Hero on top, then a tabbed feed below. We
+// already moved primary actions (Send / Receive / Policies) to the
+// Hero tile row; the tabs here own the long-tail of content that
+// previously stacked into 12 sections.
+//
+// Three tabs:
+//   - Activity: pending approvals already render above; this tab
+//     adds local send attempts, multisig proposal feed, and the
+//     per-chain on-chain history.
+//   - Holdings: the wallet's money. ERC-20 tokens today; future
+//     home for a per-chain balance breakdown.
+//   - Manage: NextSteps onboarding hints, weekly budget usage,
+//     natural-language quick action, and the multi-action grid.
+//
+// Active tab persisted via URL hash (#activity / #holdings /
+// #manage) so a refresh / back-nav lands on the same tab and the
+// URL is shareable. Hash is intentionally cosmetic — the page
+// renders correctly without it.
+
+type WalletTab = "activity" | "holdings" | "manage";
+
+interface WalletDetailTabsProps {
+  activityRows: RecentActivityRow[];
+  activityAllRows: RecentActivityRow[];
+  sendAttempts: TxAttempt[];
+  solanaHistory: ChainTxRow[];
+  evmHistory: ChainTxRow[];
+  btcHistory: ChainTxRow[];
+  erc20Holdings: Erc20Holding[];
+  name: string;
+  /// Tri-state to match the upstream useMemo: null while the
+  /// intents query is in flight, true/false once known. NextStepsStripe
+  /// already handles the null case for its loading skeleton.
+  hasIntents: boolean | null;
+  memberCount: number | null;
+  loadingIntents: boolean;
+  reduce: boolean;
+}
+
+function WalletDetailTabs(props: WalletDetailTabsProps) {
+  const {
+    activityRows,
+    activityAllRows,
+    sendAttempts,
+    solanaHistory,
+    evmHistory,
+    btcHistory,
+    erc20Holdings,
+    name,
+    hasIntents,
+    memberCount,
+    loadingIntents,
+    reduce,
+  } = props;
+
+  // Hash-driven tab selection. Lazy initializer so SSR keeps the
+  // deterministic "activity" default and hydration matches the
+  // first client render before the hashchange listener fires.
+  const [tab, setTab] = useState<WalletTab>(() => {
+    if (typeof window === "undefined") return "activity";
+    const h = window.location.hash.replace(/^#/, "");
+    if (h === "holdings" || h === "manage") return h;
+    return "activity";
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onHash = () => {
+      const h = window.location.hash.replace(/^#/, "");
+      if (h === "holdings" || h === "manage") setTab(h);
+      else setTab("activity");
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  const switchTab = (next: WalletTab) => {
+    setTab(next);
+    if (typeof window !== "undefined") {
+      // Replace, not push — back-button in a wallet should leave
+      // the wallet, not cycle through tabs the user already saw.
+      const url =
+        window.location.pathname +
+        window.location.search +
+        (next === "activity" ? "" : `#${next}`);
+      window.history.replaceState(null, "", url);
+    }
+  };
+
+  // Badge counts so users can see "stuff lives over there" without
+  // clicking. Only render counts that are meaningful and bounded.
+  const activityCount =
+    activityRows.length +
+    sendAttempts.length +
+    solanaHistory.length +
+    evmHistory.length +
+    btcHistory.length;
+  const holdingsCount = erc20Holdings.length;
+
+  return (
+    <>
+      <TabBar
+        tab={tab}
+        onSelect={switchTab}
+        counts={{ activity: activityCount, holdings: holdingsCount }}
+      />
+
+      {tab === "activity" && (
+        <div className="flex flex-col gap-4">
+          {/* Recent send attempts (success + failure). Persisted in
+              localStorage so the user has a durable record of what
+              happened — failed sends used to vanish with the toast. */}
+          {sendAttempts.length > 0 && (
+            <TxAttemptsSection rows={sendAttempts} reduce={reduce} />
+          )}
+          {/* Multisig proposal feed for this wallet. */}
+          {activityRows.length > 0 ? (
+            <ActivitySection
+              rows={activityRows}
+              allRows={activityAllRows}
+              walletName={name}
+              attempts={sendAttempts}
+              reduce={reduce}
+            />
+          ) : (
+            <ActivityEmptyState reduce={reduce} />
+          )}
+          {/* On-chain tx history per bound chain. The attempts log
+              above only sees sends initiated from this browser; this
+              shows everything that hit the address. */}
+          {solanaHistory.length > 0 && (
+            <ChainTxHistorySection
+              rows={solanaHistory}
+              chainTicker="SOL"
+              chainKind={0}
+              reduce={reduce}
+            />
+          )}
+          {evmHistory.length > 0 && (
+            <ChainTxHistorySection
+              rows={evmHistory}
+              chainTicker="ETH"
+              chainKind={1}
+              reduce={reduce}
+            />
+          )}
+          {btcHistory.length > 0 && (
+            <ChainTxHistorySection
+              rows={btcHistory}
+              chainTicker="BTC"
+              chainKind={2}
+              reduce={reduce}
+            />
+          )}
+        </div>
+      )}
+
+      {tab === "holdings" && (
+        <div className="flex flex-col gap-4">
+          {erc20Holdings.length > 0 ? (
+            <Erc20HoldingsSection
+              walletName={name}
+              rows={erc20Holdings}
+              reduce={reduce}
+            />
+          ) : (
+            <HoldingsEmptyState />
+          )}
+        </div>
+      )}
+
+      {tab === "manage" && (
+        <div className="flex flex-col gap-4">
+          <NextStepsStripe
+            name={name}
+            hasIntents={hasIntents}
+            memberCount={memberCount}
+            activityCount={activityRows.length}
+            loading={loadingIntents}
+          />
+          <BudgetStripe name={name} />
+          <QuickActionInput walletName={name} />
+          <Actions name={name} hasIntents={hasIntents} reduce={reduce} />
+        </div>
+      )}
+    </>
+  );
+}
+
+function TabBar({
+  tab,
+  onSelect,
+  counts,
+}: {
+  tab: WalletTab;
+  onSelect: (next: WalletTab) => void;
+  counts: { activity: number; holdings: number };
+}) {
+  const items: {
+    id: WalletTab;
+    label: string;
+    icon: React.ReactNode;
+    count?: number;
+  }[] = [
+    {
+      id: "activity",
+      label: "Activity",
+      icon: <Activity className="h-4 w-4" strokeWidth={2} />,
+      count: counts.activity,
+    },
+    {
+      id: "holdings",
+      label: "Holdings",
+      icon: <Coins className="h-4 w-4" strokeWidth={2} />,
+      count: counts.holdings,
+    },
+    {
+      id: "manage",
+      label: "Manage",
+      icon: <SettingsIcon className="h-4 w-4" strokeWidth={2} />,
+    },
+  ];
+
+  return (
+    <div
+      role="tablist"
+      aria-label="Wallet view"
+      // Static placement — sticky would collide with the mobile-only
+      // BackLink which also pins at top-20. The tabs are short enough
+      // that a quick scroll-to-top via the browser swipe / bottom nav
+      // still gets the user back to them; can revisit if real users
+      // want them pinned.
+      className="mb-1 print:hidden"
+    >
+      <div className="flex items-stretch gap-1 overflow-x-auto rounded-card border border-border-soft bg-surface-raised p-1 shadow-card-rest">
+        {items.map((it) => {
+          const active = tab === it.id;
+          return (
+            <button
+              key={it.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              aria-controls={`wallet-tab-panel-${it.id}`}
+              onClick={() => onSelect(it.id)}
+              className={
+                "group inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft px-3 py-2 text-sm font-medium " +
+                "transition-[background-color,color,transform] duration-base ease-out-soft " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
+                (active
+                  ? "bg-canvas text-text-strong shadow-card-rest"
+                  : "text-text-soft hover:bg-canvas/50 hover:text-text-strong")
+              }
+            >
+              <span
+                className={
+                  active ? "text-accent" : "text-text-soft group-hover:text-text-strong"
+                }
+              >
+                {it.icon}
+              </span>
+              <span>{it.label}</span>
+              {typeof it.count === "number" && it.count > 0 && (
+                <span
+                  className={
+                    "ml-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-semibold " +
+                    (active
+                      ? "bg-accent/15 text-accent"
+                      : "bg-border-soft text-text-soft")
+                  }
+                >
+                  {it.count > 99 ? "99+" : it.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function HoldingsEmptyState() {
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-8 text-center shadow-card-rest">
+      <div className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
+        <Coins className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
+      </div>
+      <p className="mt-3 text-sm font-medium text-text-strong">No tokens yet</p>
+      <p className="mt-1 text-xs text-text-soft">
+        ERC-20 tokens this wallet holds appear here. SOL, ETH, BTC, and ZEC
+        balances live on the wallet hero above.
+      </p>
+    </section>
   );
 }
 
