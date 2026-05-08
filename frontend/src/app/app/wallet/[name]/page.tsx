@@ -17,7 +17,7 @@
 // in the codebase and will be cleaned up after the retail surface
 // covers create / send / approve / member management.
 
-import { useEffect, useMemo, useState } from "react";
+import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
@@ -360,6 +360,11 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
+  // Tab-bar ref so a tab switch scrolls the user back to the bar's
+  // top edge. Without this, switching from a deep-scrolled Activity
+  // tab to the much shorter Holdings tab leaves the user mid-page on
+  // empty content — the tap registers but reads as broken.
+  const tabBarRef = useRef<HTMLDivElement>(null);
   const switchTab = (next: WalletTab) => {
     setTab(next);
     if (typeof window !== "undefined") {
@@ -370,25 +375,32 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
         window.location.search +
         (next === "activity" ? "" : `#${next}`);
       window.history.replaceState(null, "", url);
+      // Defer to next frame so React commits the new tab content
+      // before scroll, otherwise scrollIntoView lands on the old
+      // panel and the user re-scrolls.
+      requestAnimationFrame(() => {
+        tabBarRef.current?.scrollIntoView({
+          block: "start",
+          behavior: "smooth",
+        });
+      });
     }
   };
 
-  // Badge counts so users can see "stuff lives over there" without
-  // clicking. Only render counts that are meaningful and bounded.
-  const activityCount =
-    activityRows.length +
-    sendAttempts.length +
-    solanaHistory.length +
-    evmHistory.length +
-    btcHistory.length;
+  // Holdings count is the only one worth surfacing as a badge.
+  // Activity sums to ~24+ on any wallet with chain history (5 chains
+  // × 5 rows each + send attempts), so a perpetual "99+" badge reads
+  // as decoration. Pending approvals are already pinned above the
+  // tabs in ActionNeededSection — no need to repeat them here.
   const holdingsCount = erc20Holdings.length;
 
   return (
     <>
       <TabBar
+        ref={tabBarRef}
         tab={tab}
         onSelect={switchTab}
-        counts={{ activity: activityCount, holdings: holdingsCount }}
+        counts={{ holdings: holdingsCount }}
       />
 
       {tab === "activity" && (
@@ -473,15 +485,16 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
   );
 }
 
-function TabBar({
-  tab,
-  onSelect,
-  counts,
-}: {
+interface TabBarProps {
   tab: WalletTab;
   onSelect: (next: WalletTab) => void;
-  counts: { activity: number; holdings: number };
-}) {
+  counts: { holdings: number };
+}
+
+const TabBar = forwardRef<HTMLDivElement, TabBarProps>(function TabBar(
+  { tab, onSelect, counts },
+  ref,
+) {
   const items: {
     id: WalletTab;
     label: string;
@@ -492,7 +505,6 @@ function TabBar({
       id: "activity",
       label: "Activity",
       icon: <Activity className="h-4 w-4" strokeWidth={2} />,
-      count: counts.activity,
     },
     {
       id: "holdings",
@@ -509,14 +521,16 @@ function TabBar({
 
   return (
     <div
+      ref={ref}
       role="tablist"
       aria-label="Wallet view"
       // Static placement — sticky would collide with the mobile-only
       // BackLink which also pins at top-20. The tabs are short enough
       // that a quick scroll-to-top via the browser swipe / bottom nav
       // still gets the user back to them; can revisit if real users
-      // want them pinned.
-      className="mb-1 print:hidden"
+      // want them pinned. mt-2 gives it air from the hero card above
+      // (gap-4 alone reads as flush).
+      className="mt-2 mb-1 scroll-mt-24 print:hidden"
     >
       <div className="flex items-stretch gap-1 overflow-x-auto rounded-card border border-border-soft bg-surface-raised p-1 shadow-card-rest">
         {items.map((it) => {
@@ -564,7 +578,7 @@ function TabBar({
       </div>
     </div>
   );
-}
+});
 
 function HoldingsEmptyState() {
   return (
@@ -650,6 +664,11 @@ function Hero({
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       className="rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest sm:p-8"
     >
+      {/* Inner stack capped to 2xl so headline + sub-line don't
+          stretch the full 96rem workspace width on wide monitors.
+          Without this, copy reads as a thin strip floating in a wide
+          empty card on 1920+ displays. */}
+      <div className="mx-auto flex max-w-2xl flex-col">
       {/* Header avatar — picks up the picker color from welcome.
           Gives the hub the same identity hook the sidebar shows so
           the user knows they're in the right wallet at a glance. */}
@@ -672,27 +691,30 @@ function Hero({
       <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
         {toHeadingName(name)}
       </h1>
+      {/* Sub-line: shape preset + member count. Carries the create-
+          time choice through to the hub so the user feels the wallet
+          remembers what they set it up for. Sits right under the
+          headline so identity copy reads as one block; the urgent
+          "X waiting on you" pill lives below it (was wedged in
+          between, breaking the rhythm). */}
+      {shapeLabel && memberCount !== null && (
+        <p className="mt-2 text-xs text-text-soft">
+          For {shapeLabel.toLowerCase()} ·{" "}
+          <span className="font-medium text-text-strong">{memberCount}</span>{" "}
+          {memberCount === 1 ? "member" : "members"}
+        </p>
+      )}
       {/* Quiet pending-approvals pill. Anchors to the
           ActionNeededSection below for keyboard users; visible only
           when there's at least one approval waiting on this user. */}
       {pendingApprovalCount > 0 && (
         <a
           href="#action-needed"
-          className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/[0.07] px-3 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent/[0.12]"
+          className="mx-auto mt-3 inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/[0.07] px-3 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent/[0.12]"
         >
           <Bell className="h-3 w-3" strokeWidth={2.5} />
           {pendingApprovalCount} waiting on you
         </a>
-      )}
-      {/* Sub-line: shape preset + member count. Carries the create-
-          time choice through to the hub so the user feels the wallet
-          remembers what they set it up for. */}
-      {shapeLabel && memberCount !== null && (
-        <p className="mt-1 text-xs text-text-soft">
-          For {shapeLabel.toLowerCase()} ·{" "}
-          <span className="font-medium text-text-strong">{memberCount}</span>{" "}
-          {memberCount === 1 ? "member" : "members"}
-        </p>
       )}
 
       {/* Wallet value — total USD across every bound chain plus the
@@ -771,6 +793,7 @@ function Hero({
           label="Policies"
         />
       </div>
+      </div>{/* end max-w-2xl Hero stack */}
     </motion.section>
   );
 }
