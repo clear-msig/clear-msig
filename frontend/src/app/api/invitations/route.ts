@@ -46,11 +46,19 @@ export async function POST(request: NextRequest) {
   const blocked = assertSameOrigin(request);
   if (blocked) return blocked;
 
-  // Email is paid + reputational. Tight bucket: 5 burst, refill one
-  // every 30 seconds. A real signer never trips this in normal use.
+  // Email is paid + reputational. The body's `invitee.email` is
+  // user-supplied — we cannot pin it without a server-side
+  // verified-pubkey → verified-email mapping, which is on the
+  // hardening backlog. Until then, the rate limit is the only
+  // brake on a same-origin XSS turning this into a branded-spam
+  // relay. Tight bucket: 3 burst, refill one every 60 seconds. A
+  // real signer never trips this — invites land at human pace.
+  // The limiter is in-process by default; ensure the prod env has
+  // UPSTASH_REDIS_REST_URL + _TOKEN set so the budget is shared
+  // across cold-start instances.
   const limited = await checkRateLimit("invitations", clientIp(request), {
-    capacity: 5,
-    refillPerSec: 1 / 30,
+    capacity: 3,
+    refillPerSec: 1 / 60,
   });
   if (limited) return limited;
 
