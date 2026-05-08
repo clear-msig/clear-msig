@@ -469,11 +469,32 @@ function WalletCard({
   );
 }
 
+// Geometry-matched skeleton for WalletCard. The previous version
+// was 110px tall and had two short stripes — real cards land at
+// 140-170px and have title-line + balance-line + optional pending
+// pill, so the swap-in caused a visible layout jump. This shape
+// matches the populated card closely enough that the transition
+// looks like content fading in, not the layout shifting.
 function CardSkeleton() {
   return (
-    <div className="h-[110px] rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-      <div className="h-5 w-1/3 animate-pulse rounded bg-border-soft" />
-      <div className="mt-2 h-5 w-16 animate-pulse rounded bg-border-soft" />
+    <div
+      aria-hidden="true"
+      className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          {/* Title line — same width as font-display text-xl. */}
+          <div className="h-6 w-1/2 animate-pulse rounded bg-border-soft" />
+          {/* Balance line — slightly tighter than the title. */}
+          <div className="mt-2.5 h-5 w-24 animate-pulse rounded bg-border-soft/80" />
+        </div>
+        {/* Pin button placeholder — keeps the right edge stable. */}
+        <div className="h-7 w-7 shrink-0 animate-pulse rounded-full bg-border-soft/60" />
+      </div>
+      {/* Pending-approval pill — most loaded cards have at least
+          one badge slot worth of vertical space. Quieter pulse so
+          it doesn't read as required. */}
+      <div className="mt-4 h-6 w-32 animate-pulse rounded-full bg-border-soft/40" />
     </div>
   );
 }

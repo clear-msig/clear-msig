@@ -1348,15 +1348,48 @@ function ActivityEmptyState({ reduce }: { reduce: boolean }) {
 
 // ─── Loading + not-found ───────────────────────────────────────────
 
+// Geometry-matched detail skeleton — Hero (status chip, headline,
+// sub-line, portfolio tile, member row, 3-up action tile row) +
+// Actions card. The previous version was a generic 3-stripe block
+// that left ~250px of layout shift when the real Hero swapped in.
 function DetailSkeleton() {
   return (
-    <div className="flex flex-col gap-6">
+    <div aria-hidden="true" className="flex flex-col gap-6">
+      {/* Sticky-bar back link placeholder. */}
       <div className="-ml-2 h-7 w-24 animate-pulse rounded bg-border-soft" />
-      <div className="rounded-card border border-border-soft bg-surface-raised p-8 shadow-card-rest">
-        <div className="h-3 w-24 animate-pulse rounded bg-border-soft" />
-        <div className="mt-3 h-9 w-2/3 animate-pulse rounded bg-border-soft" />
-        <div className="mt-4 h-4 w-32 animate-pulse rounded bg-border-soft" />
+
+      {/* Hero card. Centered column to match the real Hero. */}
+      <div className="flex flex-col items-center rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest sm:p-8">
+        {/* Status chip. */}
+        <div className="h-6 w-32 animate-pulse rounded-full bg-border-soft/60" />
+        {/* Headline (font-display text-display-sm). */}
+        <div className="mt-3 h-9 w-3/4 animate-pulse rounded bg-border-soft" />
+        {/* Sub-line. */}
+        <div className="mt-3 h-4 w-1/2 animate-pulse rounded bg-border-soft/70" />
+        {/* Portfolio panel — label + headline + breakdown line. */}
+        <div className="mt-5 flex w-full max-w-xs flex-col items-center gap-2">
+          <div className="h-3 w-20 animate-pulse rounded bg-border-soft/60" />
+          <div className="h-8 w-32 animate-pulse rounded bg-border-soft" />
+          <div className="h-3 w-40 animate-pulse rounded bg-border-soft/50" />
+        </div>
+        {/* Members row. */}
+        <div className="mt-5 flex items-center gap-2">
+          <div className="flex -space-x-2">
+            <div className="h-7 w-7 animate-pulse rounded-full border-2 border-surface-raised bg-border-soft" />
+            <div className="h-7 w-7 animate-pulse rounded-full border-2 border-surface-raised bg-border-soft/80" />
+            <div className="h-7 w-7 animate-pulse rounded-full border-2 border-surface-raised bg-border-soft/60" />
+          </div>
+          <div className="h-4 w-20 animate-pulse rounded bg-border-soft/60" />
+        </div>
+        {/* 3-up Hero action tiles. */}
+        <div className="mt-4 grid w-full max-w-md grid-cols-3 gap-2">
+          <div className="h-[56px] animate-pulse rounded-card border border-border-soft bg-canvas" />
+          <div className="h-[56px] animate-pulse rounded-card border border-border-soft bg-canvas" />
+          <div className="h-[56px] animate-pulse rounded-card border border-border-soft bg-canvas" />
+        </div>
       </div>
+
+      {/* Quick actions card — 2-up grid below the hero. */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="h-tap-lg animate-pulse rounded-soft bg-border-soft" />
         <div className="h-tap-lg animate-pulse rounded-soft bg-border-soft" />
