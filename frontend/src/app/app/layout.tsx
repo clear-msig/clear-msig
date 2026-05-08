@@ -54,18 +54,27 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <main
       className={
-        // Mobile keeps the floating brand pill (header) so it needs
-        // pt-20 to clear it. Desktop hides the brand pill on /app/*
-        // (the sidebar carries the brand) so we drop top padding to
-        // pt-6 — kills the "long band" empty header strip that was
-        // the most-flagged visual issue while leaving 16px of
-        // clearance above the StickyTopBar pin (md:top-2). pt-4 +
-        // top-4 was 0px buffer, so the bar read as flush with the
-        // viewport edge.
-        "relative min-h-screen overflow-x-hidden bg-background px-3 pb-32 pt-20 font-sans " +
+        // Mobile: pt-24 leaves 96px above content. The floating
+        // hamburger sits at top-3 + h-10 = ~52px; pt-24 gives the
+        // first content (e.g. SectionLabel "YOUR WALLETS") a 44px
+        // visual buffer so it doesn't read as overlapping with the
+        // hamburger circle on first paint.
+        // Desktop hides the brand pill on /app/* (the sidebar
+        // carries the brand) so we drop top padding to pt-6.
+        "relative min-h-screen overflow-x-hidden bg-background px-3 pb-32 pt-24 font-sans " +
         "sm:px-4 sm:pb-16 md:pt-6 lg:px-6 lg:pt-6"
       }
     >
+      {/* Mobile-only header backdrop — when content scrolls under
+          the floating hamburger / brand pill, the scrolled text
+          would otherwise peek through the gap between the two
+          buttons. A canvas-coloured strip behind them solves it
+          without a per-button bg bump. Hidden on md+ where there
+          is no floating header. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-x-0 top-0 z-[90] h-20 bg-canvas md:hidden"
+      />
       <HeaderBar />
       <CommandPalette />
 

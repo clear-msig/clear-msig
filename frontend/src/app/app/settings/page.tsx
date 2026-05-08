@@ -423,23 +423,6 @@ export default function SettingsPage() {
 
       </Group>
 
-      {/* Account actions — sit loose at the bottom; no group label
-          (Sign out is destructive enough to deserve its own block). */}
-      <section className="rounded-card border border-border-soft bg-surface-raised p-2 shadow-card-rest">
-        <button
-          type="button"
-          onClick={handleDisconnect}
-          className={
-            "flex w-full items-center gap-3 rounded-card px-4 py-3 text-left text-sm font-medium text-rose-600 " +
-            "transition-colors duration-base ease-out-soft hover:bg-rose-500/5 " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-          }
-        >
-          <LogOut className="h-4 w-4" aria-hidden="true" />
-          Sign out
-        </button>
-      </section>
-
       {/* What's new — in-app changelog. Discoverable from Settings
           so users notice the new affordances they might otherwise
           miss on familiar surfaces. */}
@@ -459,9 +442,7 @@ export default function SettingsPage() {
         />
       </Link>
 
-      {/* About row */}
-      {/* Note: NotificationsSettingRow defined at the bottom of this
-          file to keep the JSX above readable. */}
+      {/* About — links to the marketing landing. */}
       <Link
         href="/"
         className={
@@ -477,6 +458,24 @@ export default function SettingsPage() {
           aria-hidden="true"
         />
       </Link>
+
+      {/* Sign out — destructive action sits absolute last so the
+          Settings page reads as "explore what you can do" → "leave"
+          rather than burying useful nav under the disconnect button. */}
+      <section className="rounded-card border border-border-soft bg-surface-raised p-2 shadow-card-rest">
+        <button
+          type="button"
+          onClick={handleDisconnect}
+          className={
+            "flex w-full items-center gap-3 rounded-card px-4 py-3 text-left text-sm font-medium text-rose-600 " +
+            "transition-colors duration-base ease-out-soft hover:bg-rose-500/5 " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+          }
+        >
+          <LogOut className="h-4 w-4" aria-hidden="true" />
+          Sign out
+        </button>
+      </section>
     </motion.div>
   );
 }

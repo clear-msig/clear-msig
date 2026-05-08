@@ -43,18 +43,18 @@ const STATIC_FX_PER_USD: Readonly<Record<DisplayCurrency, number>> = {
   EUR: 0.92,
   GBP: 0.79,
   JPY: 156,
-  CAD: 1.36,
+  NGN: 1650,
   AUD: 1.5,
 };
 
-export type DisplayCurrency = "USD" | "EUR" | "GBP" | "JPY" | "CAD" | "AUD";
+export type DisplayCurrency = "USD" | "EUR" | "GBP" | "JPY" | "NGN" | "AUD";
 
 export const ALL_DISPLAY_CURRENCIES: DisplayCurrency[] = [
   "USD",
   "EUR",
   "GBP",
   "JPY",
-  "CAD",
+  "NGN",
   "AUD",
 ];
 
@@ -69,7 +69,7 @@ export function getDisplayCurrency(): DisplayCurrency {
       raw === "EUR" ||
       raw === "GBP" ||
       raw === "JPY" ||
-      raw === "CAD" ||
+      raw === "NGN" ||
       raw === "AUD"
     ) {
       return raw;
@@ -202,8 +202,8 @@ export function currencyLabel(currency: DisplayCurrency): string {
       return "British Pound";
     case "JPY":
       return "Japanese Yen";
-    case "CAD":
-      return "Canadian Dollar";
+    case "NGN":
+      return "Nigerian Naira";
     case "AUD":
       return "Australian Dollar";
   }
@@ -212,7 +212,6 @@ export function currencyLabel(currency: DisplayCurrency): string {
 export function currencySymbol(currency: DisplayCurrency): string {
   switch (currency) {
     case "USD":
-    case "CAD":
     case "AUD":
       return "$";
     case "EUR":
@@ -221,13 +220,14 @@ export function currencySymbol(currency: DisplayCurrency): string {
       return "£";
     case "JPY":
       return "¥";
+    case "NGN":
+      return "₦";
   }
 }
 
 function currencyLocale(currency: DisplayCurrency): string {
   switch (currency) {
     case "USD":
-    case "CAD":
     case "AUD":
       return "en-US";
     case "EUR":
@@ -236,5 +236,7 @@ function currencyLocale(currency: DisplayCurrency): string {
       return "en-GB";
     case "JPY":
       return "ja-JP";
+    case "NGN":
+      return "en-NG";
   }
 }

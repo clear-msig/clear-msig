@@ -459,8 +459,14 @@ function WalletCard({
           "absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full border bg-surface-raised " +
           "transition-[color,border-color,transform] duration-base ease-out-soft " +
           (pinned
-            ? "border-accent/40 text-accent hover:border-accent"
-            : "border-border-soft text-text-soft/60 hover:border-accent hover:text-accent") +
+            ? // Pinned cards always show the icon (it carries the
+              // pin-status signal). Accent border so it reads as
+              // "this is intentionally here", not chrome.
+              "border-accent/40 text-accent hover:border-accent"
+            : // Unpinned: hide on mobile (pin/unpin is rarely a
+              // touch-first action and the icon read as clutter on
+              // every card). Desktop keeps it for power users.
+              "hidden md:inline-flex border-border-soft text-text-soft/60 hover:border-accent hover:text-accent") +
           " focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
         }
       >
