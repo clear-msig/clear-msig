@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Check, Sparkles, X } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
 
 const SEEN_KEY = "clear.wallet-tour.seen.v1";
 
@@ -86,6 +87,11 @@ export function WalletTourModal() {
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // Freeze the page underneath. Tour overlays that don't scroll-
+  // lock feel like phantom-touches on iOS where a tap that misses
+  // the modal scrolls the wallet hub behind it.
+  useBodyScrollLock(open);
 
   const advance = () => {
     if (step < STEPS.length - 1) setStep(step + 1);

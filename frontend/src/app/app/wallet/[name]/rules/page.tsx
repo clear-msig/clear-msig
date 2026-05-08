@@ -45,6 +45,7 @@ import {
   useUpdateTimelock,
 } from "@/lib/hooks/useUpdateTimelock";
 import { useToast } from "@/components/ui/Toast";
+import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
 
 export default function RulesPage() {
   const params = useParams<{ name: string }>();
@@ -409,6 +410,10 @@ function TimelockEditModal({
   const [customText, setCustomText] = useState(String(currentSeconds));
   const update = useUpdateTimelock();
   const toast = useToast();
+  // Freeze the page underneath so iOS Safari doesn't scroll the
+  // Rules page behind the dialog while the user is interacting
+  // with timelock presets.
+  useBodyScrollLock(true);
 
   // Pick a preset if the current value matches one. Otherwise let
   // the user fall through to custom-seconds input.

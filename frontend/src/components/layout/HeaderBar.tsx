@@ -22,6 +22,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
+import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
 import { Menu, X } from "lucide-react";
 import { useWallet } from "@/lib/wallet";
 import { useOnboarding } from "@/lib/hooks/useOnboarding";
@@ -133,6 +134,12 @@ function MenuDrawer({ open, onClose }: MenuDrawerProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  // Freeze the page underneath while the drawer is open. iOS Safari
+  // otherwise lets a touch-drag on the scrim leak through into a
+  // page scroll, which feels like the drawer is dismissing the
+  // content the user just navigated past.
+  useBodyScrollLock(open);
+
   // Trap Tab inside the drawer while open and restore focus on close.
   const drawerRef = useRef<HTMLElement>(null);
   useFocusTrap(drawerRef, open);
@@ -165,7 +172,7 @@ function MenuDrawer({ open, onClose }: MenuDrawerProps) {
             <button
               type="button"
               onClick={onClose}
-              className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full text-text-soft transition-colors hover:bg-canvas hover:text-text-strong"
+              className="absolute right-2 top-2 z-10 flex h-tap w-tap items-center justify-center rounded-full text-text-soft transition-colors hover:bg-canvas hover:text-text-strong"
               aria-label="Close menu"
             >
               <X size={16} />

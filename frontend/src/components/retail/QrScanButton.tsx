@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { QrCode, X, Camera, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
 
 interface QrScanButtonProps {
   /// Called once with the decoded QR string. Modal auto-closes.
@@ -72,7 +73,7 @@ export function QrScanButton({
         title={ariaLabel}
         className={
           className ??
-          "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-soft bg-surface-raised text-text-soft " +
+          "inline-flex h-tap w-tap shrink-0 items-center justify-center rounded-full border border-border-soft bg-surface-raised text-text-soft " +
             "transition-[border-color,color,transform] duration-base ease-out-soft " +
             "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
@@ -110,6 +111,12 @@ function ScannerModal({ title, onClose, onResult }: ScannerModalProps) {
     "requesting",
   );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Freeze the page underneath while the camera is up. Without this,
+  // a touch-drag outside the viewfinder scrolls the send page on
+  // iOS Safari while the user is trying to aim — bad enough to lose
+  // the QR code in frame.
+  useBodyScrollLock(true);
 
   // Stop the camera + detection loop. Idempotent.
   const stop = useCallback(() => {
