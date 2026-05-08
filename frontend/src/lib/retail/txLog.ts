@@ -105,7 +105,35 @@ export function recordAttempt(
   const all = readAll();
   all.push(full);
   writeAll(all);
+  // Best-effort webhook fan-out for treasury ops tooling. Imported
+  // lazily to avoid pulling the full webhook module into surfaces
+  // that only read txLog. fireWebhook respects opt-in + scope; this
+  // call site is the unconditional fan-out point.
+  void fireSendWebhook(full);
   return full;
+}
+
+async function fireSendWebhook(attempt: TxAttempt): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const mod = await import("@/lib/security/webhookNotifications");
+    const prefs = mod.loadWebhookPrefs();
+    const event = attempt.status === "success" ? "send_executed" : "send_failed";
+    if (!mod.shouldFireWebhook(prefs, event, attempt.walletName)) return;
+    await mod.fireWebhook({
+      event,
+      timestamp_ms: attempt.ts,
+      wallet_name: attempt.walletName,
+      amount_display: attempt.amountDisplay,
+      ticker: attempt.ticker,
+      recipient: attempt.recipientFull ?? attempt.recipientShort,
+      tx_id: attempt.txId,
+      explorer_url: attempt.explorerUrl,
+      error_brief: attempt.errorBrief,
+    });
+  } catch {
+    /* webhook fire is best-effort — never propagate */
+  }
 }
 
 /// List attempts for a single wallet, newest first. Pass a limit

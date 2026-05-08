@@ -27,6 +27,11 @@ import {
   loadEmailPrefs,
   saveEmailPrefs,
 } from "@/lib/security/emailNotifications";
+import {
+  fireWebhook,
+  loadWebhookPrefs,
+  shouldFireWebhook,
+} from "@/lib/security/webhookNotifications";
 
 type PermissionState = "default" | "granted" | "denied" | "unsupported";
 
@@ -186,6 +191,14 @@ export function useActionNotifications(): UseActionNotificationsResult {
     // produce N inbox pings — first one wins, the badge handles the
     // rest.
     void maybeFireEmail(fired[0]);
+
+    // Webhooks fire one event per fresh row (not throttled to one
+    // like email) — ops tooling wants the full feed, not a sample.
+    // Caller of fireWebhook still respects per-event-type opt-in
+    // and walletScope.
+    for (const r of fired) {
+      void maybeFirePendingWebhook(r);
+    }
   }, [rows, userAddress]);
 
   const request = useCallback(async (): Promise<PermissionState> => {
@@ -262,4 +275,31 @@ async function maybeFireEmail(
   if (result !== null) {
     saveEmailPrefs({ ...prefs, lastSentAt: result });
   }
+}
+
+// Pending-approval webhook fan-out. Returns immediately when the
+// user hasn't opted in to this event type; otherwise posts a JSON
+// payload directly to the configured destination.
+async function maybeFirePendingWebhook(row: {
+  walletName: string;
+  intentTemplate: string;
+  approvalsCollected: number;
+  approverCount: number;
+  proposalPda: string;
+}): Promise<void> {
+  const prefs = loadWebhookPrefs();
+  if (!shouldFireWebhook(prefs, "pending_approval", row.walletName)) return;
+  const proposalUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/app/proposals/${encodeURIComponent(row.proposalPda)}`
+      : `/app/proposals/${encodeURIComponent(row.proposalPda)}`;
+  await fireWebhook({
+    event: "pending_approval",
+    timestamp_ms: Date.now(),
+    wallet_name: toDisplayName(row.walletName) || row.walletName,
+    intent_label: friendlyIntentLabel(row.intentTemplate),
+    approvals_collected: row.approvalsCollected,
+    approver_count: row.approverCount,
+    proposal_url: proposalUrl,
+  });
 }
