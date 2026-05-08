@@ -13,9 +13,33 @@
 // expects, so the bytes we hand over are byte-for-byte identical to
 // what the on-chain program will rebuild during verify.
 
-import Solana from "@ledgerhq/hw-app-solana";
-import TransportWebHID from "@ledgerhq/hw-transport-webhid";
+// Ledger SDK is heavy and only used by the small minority of users
+// who own a hardware wallet. Defer the imports until connectLedger()
+// actually fires so the cold start of every other surface doesn't
+// pay for it. See lib/wallet/LedgerProvider.tsx for the call site;
+// the provider mounts on every /app/* route via AppProviders.
 import bs58 from "bs58";
+
+type SolanaSdk = typeof import("@ledgerhq/hw-app-solana").default;
+type TransportWebHIDSdk =
+  typeof import("@ledgerhq/hw-transport-webhid").default;
+
+let ledgerSdkPromise:
+  | Promise<{ Solana: SolanaSdk; TransportWebHID: TransportWebHIDSdk }>
+  | null = null;
+
+function loadLedgerSdk() {
+  if (!ledgerSdkPromise) {
+    ledgerSdkPromise = Promise.all([
+      import("@ledgerhq/hw-app-solana"),
+      import("@ledgerhq/hw-transport-webhid"),
+    ]).then(([solanaMod, transportMod]) => ({
+      Solana: solanaMod.default,
+      TransportWebHID: transportMod.default,
+    }));
+  }
+  return ledgerSdkPromise;
+}
 
 /// BIP44 path for the first Solana account on a Ledger. Matches the
 /// upstream CLI's default (`--ledger-account 0`). Power users with
@@ -124,6 +148,8 @@ export async function connectLedger(
       "Your browser does not support hardware wallets over WebHID. Try Chrome, Edge, or Brave.",
     );
   }
+
+  const { Solana, TransportWebHID } = await loadLedgerSdk();
 
   let transport: Awaited<ReturnType<typeof TransportWebHID.create>>;
   try {
