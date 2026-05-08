@@ -8,7 +8,7 @@
 // This page is the cross-wallet version — same filter set + an
 // additional wallet-scope dropdown.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Download, Search } from "lucide-react";
@@ -28,6 +28,46 @@ import { StickyTopBar } from "@/components/retail/StickyTopBar";
 
 type StatusFilter = "all" | "active" | "approved" | "executed" | "cancelled";
 type ChainFilter = "all" | "0" | "1" | "2" | "3" | "4";
+
+// localStorage shape — saved on every filter change, hydrated on
+// first mount. The search query is intentionally excluded; persisting
+// "tx hash from yesterday" across sessions would surprise more users
+// than it'd help. Status/chain/wallet are durable preferences ("I
+// always want to see Sepolia executes only").
+const FILTER_STORAGE_KEY = "clear.activity-filters.v1";
+interface PersistedFilters {
+  status: StatusFilter;
+  chain: ChainFilter;
+  wallet: string;
+}
+function loadFilters(): PersistedFilters | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(FILTER_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      typeof parsed.status === "string" &&
+      typeof parsed.chain === "string" &&
+      typeof parsed.wallet === "string"
+    ) {
+      return parsed as PersistedFilters;
+    }
+  } catch {
+    /* fallthrough */
+  }
+  return null;
+}
+function saveFilters(prefs: PersistedFilters): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(prefs));
+  } catch {
+    /* quota / private mode */
+  }
+}
 
 export default function CrossWalletActivityPage() {
   const reduce = useReducedMotion();
@@ -61,6 +101,28 @@ export default function CrossWalletActivityPage() {
   const [chainFilter, setChainFilter] = useState<ChainFilter>("all");
   const [walletFilter, setWalletFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
+
+  // Hydrate persisted filters once on mount. SSR doesn't have
+  // localStorage so the initial state is "all" by design — a
+  // hydration step here flips to the saved values without
+  // triggering a layout-shift flash.
+  useEffect(() => {
+    const saved = loadFilters();
+    if (!saved) return;
+    setStatusFilter(saved.status as StatusFilter);
+    setChainFilter(saved.chain as ChainFilter);
+    setWalletFilter(saved.wallet);
+  }, []);
+
+  // Save on every change. Cheap (one localStorage write per click)
+  // and means a navigate-away-and-back lands in the same view.
+  useEffect(() => {
+    saveFilters({
+      status: statusFilter,
+      chain: chainFilter,
+      wallet: walletFilter,
+    });
+  }, [statusFilter, chainFilter, walletFilter]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
