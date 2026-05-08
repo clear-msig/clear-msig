@@ -22,14 +22,17 @@ type BadgePillProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 export const BadgePill = forwardRef<HTMLButtonElement, BadgePillProps>(
   function BadgePill({ size = "sm", className, children, ...rest }, ref) {
+    // Both variants now hit min-h-tap (44px) per Apple HIG. The
+    // visual difference is the type+padding ladder; the hit area
+    // is the same so a thumb can land on either reliably.
     const sizeClasses =
-      size === "sm" ? "px-3 py-1 text-[11px]" : "px-3 py-1.5 text-[11px]";
+      size === "sm" ? "px-3 py-2 text-[11px]" : "px-4 py-2 text-[11px]";
     return (
       <button
         ref={ref}
         type={rest.type ?? "button"}
         className={
-          "inline-flex items-center gap-1 rounded-full bg-accent font-medium text-white shadow-accent-rest " +
+          "inline-flex min-h-tap items-center justify-center gap-1 rounded-full bg-accent font-medium text-white shadow-accent-rest " +
           sizeClasses +
           " transition-[background-color,box-shadow,transform] duration-base ease-out-soft " +
           "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98] " +

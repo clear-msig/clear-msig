@@ -238,7 +238,7 @@ export default function AllowancesPage() {
                     }))
                   }
                   className={
-                    "rounded-soft border border-border-soft bg-canvas px-3 py-2 text-sm text-text-strong outline-none " +
+                    "rounded-soft border border-border-soft bg-canvas px-3 py-2.5 text-sm text-text-strong min-h-tap outline-none " +
                     "transition-[border-color,box-shadow] duration-base ease-out-soft " +
                     "focus:border-accent focus:shadow-accent-rest sm:w-44"
                   }
@@ -269,7 +269,7 @@ export default function AllowancesPage() {
                     disabled={draft.period === "none"}
                     maxLength={20}
                     className={
-                      "flex-1 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-base text-text-strong outline-none " +
+                      "flex-1 rounded-soft border border-border-soft bg-canvas px-3 py-2.5 text-base text-text-strong min-h-tap outline-none " +
                       "transition-[border-color,box-shadow] duration-base ease-out-soft " +
                       "focus:border-accent focus:shadow-accent-rest " +
                       "disabled:cursor-not-allowed disabled:opacity-50"

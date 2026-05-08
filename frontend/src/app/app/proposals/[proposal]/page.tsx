@@ -353,7 +353,7 @@ function Loaded({
             target="_blank"
             rel="noopener noreferrer"
             className={
-              "inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3.5 py-1.5 text-xs font-medium text-text-soft " +
+              "inline-flex min-h-tap items-center justify-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-4 py-2 text-xs font-medium text-text-soft " +
               "transition-[border-color,color,transform] duration-base ease-out-soft " +
               "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
@@ -591,7 +591,7 @@ function ShareProposalButton() {
       type="button"
       onClick={handleCopy}
       className={
-        "inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3.5 py-1.5 text-xs font-medium text-text-soft " +
+        "inline-flex min-h-tap items-center justify-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-4 py-2 text-xs font-medium text-text-soft " +
         "transition-[border-color,color,transform] duration-base ease-out-soft " +
         "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
@@ -627,7 +627,7 @@ function PrintProposalButton() {
       onClick={handlePrint}
       title="Print or save as PDF for an audit binder"
       className={
-        "inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3.5 py-1.5 text-xs font-medium text-text-soft " +
+        "inline-flex min-h-tap items-center justify-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-4 py-2 text-xs font-medium text-text-soft " +
         "transition-[border-color,color,transform] duration-base ease-out-soft " +
         "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"

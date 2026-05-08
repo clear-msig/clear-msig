@@ -451,11 +451,11 @@ function SpeedOption({
     >
       <div
         className={
-          "flex h-7 w-7 items-center justify-center rounded-full " +
+          "flex h-9 w-9 items-center justify-center rounded-full " +
           (selected ? "bg-accent text-white" : "bg-accent/10 text-accent")
         }
       >
-        <Icon className="h-3.5 w-3.5" strokeWidth={2} />
+        <Icon className="h-4 w-4" strokeWidth={2} />
       </div>
       <p className="mt-1 text-sm font-medium text-text-strong">{title}</p>
       <p className="text-[11px] leading-snug text-text-soft">{body}</p>

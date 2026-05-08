@@ -219,7 +219,7 @@ export function PolicyForm({ mode, initial }: FormProps) {
               type="button"
               onClick={() => setEnabled(!enabled)}
               className={
-                "rounded-card border px-3 py-2 text-xs font-medium transition-[border-color,background-color] duration-base ease-out-soft " +
+                "inline-flex min-h-tap items-center justify-center rounded-card border px-4 py-2 text-xs font-medium transition-[border-color,background-color] duration-base ease-out-soft " +
                 (enabled
                   ? "border-accent bg-accent/[0.08] text-accent"
                   : "border-border-soft bg-canvas text-text-soft")
@@ -264,7 +264,7 @@ export function PolicyForm({ mode, initial }: FormProps) {
                       setConditions(conditions.filter((_, j) => j !== i))
                     }
                     aria-label="Remove condition"
-                    className="rounded-soft p-1 text-text-soft transition-colors hover:bg-surface-raised hover:text-rose-600"
+                    className="inline-flex h-tap w-tap items-center justify-center rounded-soft text-text-soft transition-colors hover:bg-surface-raised hover:text-rose-600"
                   >
                     <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>

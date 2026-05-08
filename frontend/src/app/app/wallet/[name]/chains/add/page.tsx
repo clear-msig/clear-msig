@@ -214,7 +214,11 @@ function AddChainPage() {
         >
           <div className="flex flex-col items-center text-center">
             <ChainBadge chain={selected} size="lg" />
-            <h1 className="mt-5 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+            <span aria-hidden="true" className="mt-4 block h-px w-10 bg-accent" />
+            <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              Add chain · {selected.ticker}
+            </p>
+            <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
               Add {selected.name} to {walletDisplay}
             </h1>
             <p className="mt-2 max-w-md text-base text-text-soft">

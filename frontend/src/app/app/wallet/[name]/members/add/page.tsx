@@ -583,7 +583,7 @@ export default function AddFriendPage() {
                   aria-pressed={selected}
                   title={ROLE_HINT[r]}
                   className={
-                    "rounded-full border px-3 py-1.5 text-xs font-medium " +
+                    "inline-flex min-h-tap items-center justify-center rounded-full border px-4 py-2 text-xs font-medium " +
                     "transition-[border-color,background-color,color] duration-base ease-out-soft " +
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
                     (selected

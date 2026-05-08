@@ -101,7 +101,7 @@ function ConnectPage() {
         href="/"
         aria-label="Back to home"
         className={
-          "absolute left-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-soft px-2 py-1 text-text-soft sm:left-4 sm:top-4 " +
+          "absolute left-3 top-3 z-20 inline-flex h-tap min-w-tap items-center justify-center gap-1.5 rounded-soft px-3 text-text-soft sm:left-4 sm:top-4 " +
           "transition-colors duration-base ease-out-soft hover:text-text-strong " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
         }
