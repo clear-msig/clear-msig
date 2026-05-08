@@ -28,6 +28,7 @@ export function useWalletWorkflow(walletName: string) {
     queryKey: ["health"],
     queryFn: backendApi.health,
     refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
 
   const walletQuery = useQuery<WalletWithPda | null>({

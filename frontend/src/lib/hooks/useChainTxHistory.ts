@@ -60,6 +60,7 @@ export function useSolanaTxHistory(
     enabled: !!address,
     staleTime: 15_000,
     refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
     retry: 1,
   });
 }
@@ -111,6 +112,7 @@ export function useEvmTxHistory(
     enabled: !!address,
     staleTime: 15_000,
     refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
     retry: 1,
   });
 }
@@ -137,6 +139,7 @@ export function useBitcoinTxHistory(
     enabled: !!address,
     staleTime: 15_000,
     refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
     retry: 1,
   });
 }

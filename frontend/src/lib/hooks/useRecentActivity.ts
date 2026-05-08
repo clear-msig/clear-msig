@@ -100,6 +100,11 @@ export function useRecentActivity(limit = 5) {
         // navigate away and back. Polite cadence — proposals land at
         // human pace, not stream-rate.
         refetchInterval: 30_000,
+        // Pause the poll when the tab is hidden. With BottomNav
+        // mounted on every /app/* route, this hook would otherwise
+        // burn O(wallets) RPC per 30s on any tab a user has
+        // backgrounded for hours.
+        refetchIntervalInBackground: false,
       };
     }),
   });

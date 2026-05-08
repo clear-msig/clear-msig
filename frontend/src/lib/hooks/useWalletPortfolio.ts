@@ -100,6 +100,7 @@ export function useWalletPortfolio(walletName: string): WalletPortfolio {
     enabled: !!walletQuery.data,
     staleTime: 15_000,
     refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
     retry: 1,
   });
 
@@ -140,6 +141,7 @@ export function useWalletPortfolio(walletName: string): WalletPortfolio {
     enabled: !!chainsQuery.data,
     staleTime: 15_000,
     refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
     retry: 1,
   });
 
