@@ -330,6 +330,25 @@ export default function SettingsPage() {
         </button>
       </section>
 
+      {/* What's new — in-app changelog. Discoverable from Settings
+          so users notice the new affordances they might otherwise
+          miss on familiar surfaces. */}
+      <Link
+        href="/changelog"
+        className={
+          "group inline-flex items-center justify-between gap-3 rounded-card border border-border-soft bg-surface-raised px-5 py-3 text-sm shadow-card-rest " +
+          "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
+          "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+        }
+      >
+        <span className="text-text-strong">What&rsquo;s new</span>
+        <ArrowRight
+          className="h-4 w-4 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
+          aria-hidden="true"
+        />
+      </Link>
+
       {/* About row */}
       {/* Note: NotificationsSettingRow defined at the bottom of this
           file to keep the JSX above readable. */}
