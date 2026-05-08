@@ -397,6 +397,18 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
 
   return (
     <>
+      {/* Onboarding nudge — sits above the tabs, NOT inside Manage.
+          The component self-hides once the wallet has intents +
+          members + activity, so it's only visible during the
+          first-run window. Was wrongly placed inside the Manage tab
+          (a settings drawer) where users wouldn't see it. */}
+      <NextStepsStripe
+        name={name}
+        hasIntents={hasIntents}
+        memberCount={memberCount}
+        activityCount={activityRows.length}
+        loading={loadingIntents}
+      />
       <TabBar
         ref={tabBarRef}
         tab={tab}
@@ -470,13 +482,6 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
 
       {tab === "manage" && (
         <div className="flex flex-col gap-4">
-          <NextStepsStripe
-            name={name}
-            hasIntents={hasIntents}
-            memberCount={memberCount}
-            activityCount={activityRows.length}
-            loading={loadingIntents}
-          />
           <BudgetStripe name={name} />
           <QuickActionInput walletName={name} />
           <Actions name={name} hasIntents={hasIntents} reduce={reduce} />
