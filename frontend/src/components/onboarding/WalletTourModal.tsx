@@ -74,6 +74,19 @@ export function WalletTourModal() {
     }
   };
 
+  // Standard modal expectation — Escape dismisses. The HeaderBar
+  // drawer + CommandPalette already close on Escape; this was the
+  // odd one out.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") dismiss();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   const advance = () => {
     if (step < STEPS.length - 1) setStep(step + 1);
     else dismiss();
