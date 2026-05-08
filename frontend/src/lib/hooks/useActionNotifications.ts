@@ -260,17 +260,17 @@ async function maybeFireEmail(
     return;
   }
 
-  const proposalUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/app/proposals/${encodeURIComponent(row.proposalPda)}`
-      : `/app/proposals/${encodeURIComponent(row.proposalPda)}`;
+  // Pass the bare proposal PDA — the API rebuilds the URL from
+  // its own origin so an XSS that calls fireNotificationEmail
+  // with an attacker-chosen URL can't turn the SMTP path into a
+  // branded phishing relay.
   const result = await fireNotificationEmail({
     email: prefs.email,
     walletName: toDisplayName(row.walletName) || row.walletName,
     intentLabel: friendlyIntentLabel(row.intentTemplate),
     approvalsCollected: row.approvalsCollected,
     approverCount: row.approverCount,
-    proposalUrl,
+    proposalPda: row.proposalPda,
   });
   if (result !== null) {
     saveEmailPrefs({ ...prefs, lastSentAt: result });

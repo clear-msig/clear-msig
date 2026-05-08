@@ -12,6 +12,13 @@
 //     Pre-alpha tradeoff: per-IP rate limit caps the abuse window
 //     to ~1 email / 30s; production would key opt-in to a
 //     server-stored verified address keyed by signed pubkey.
+//   - The proposal URL is built server-side from the proposal PDA
+//     plus the request's own origin, NOT taken from the body. An
+//     attacker with same-origin XSS could otherwise trick the
+//     endpoint into sending fully-branded "Clear" emails whose
+//     "Open the proposal" link points anywhere — turning the route
+//     into a high-deliverability phishing relay. The origin pin
+//     means every link in every email anchors to this deployment.
 //
 // On the headers we sanitize: nodemailer respects user-supplied
 // CR/LF as separator characters by default; sanitizeHeader strips
@@ -29,10 +36,14 @@ const LIMITS = {
   walletName: 80,
   intentLabel: 200,
   email: 254,
-  url: 500,
+  proposalPda: 64,
 } as const;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Solana addresses are base58 32-44 chars. Pin proposalPda to that
+// shape so a malicious body can't smuggle path traversal or
+// arbitrary characters into the URL we build.
+const BASE58_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
 function sanitize(value: string, max: number): string {
   return value.replace(/[\r\n\t\v\f\x00-\x1f\x7f]/g, " ").trim().slice(0, max);
@@ -74,7 +85,7 @@ export async function POST(request: NextRequest) {
       intentLabel?: string;
       approvalsCollected?: number;
       approverCount?: number;
-      proposalUrl?: string;
+      proposalPda?: string;
     };
 
     const email = requireField("email", body.email, LIMITS.email);
@@ -88,17 +99,25 @@ export async function POST(request: NextRequest) {
       body.intentLabel,
       LIMITS.intentLabel,
     );
-    const proposalUrl = requireField(
-      "proposalUrl",
-      body.proposalUrl,
-      LIMITS.url,
+    const proposalPda = requireField(
+      "proposalPda",
+      body.proposalPda,
+      LIMITS.proposalPda,
     );
     if (!EMAIL_RE.test(email)) {
       throw new BadRequestError("Invalid email address");
     }
-    if (!/^https?:\/\//.test(proposalUrl)) {
-      throw new BadRequestError("Proposal URL must be http(s)");
+    if (!BASE58_RE.test(proposalPda)) {
+      throw new BadRequestError("Invalid proposal id");
     }
+    // Build the URL server-side from the request's own origin so the
+    // CTA in every email always points at this deployment. Drops the
+    // body-supplied URL entirely.
+    const requestHost = request.headers.get("host") ?? "clear-msig.vercel.app";
+    const protocol =
+      request.headers.get("x-forwarded-proto") ??
+      (requestHost.startsWith("localhost") ? "http" : "https");
+    const proposalUrl = `${protocol}://${requestHost}/app/proposals/${encodeURIComponent(proposalPda)}`;
     const collected = clampNumber(body.approvalsCollected ?? 0);
     const total = clampNumber(body.approverCount ?? 0);
 

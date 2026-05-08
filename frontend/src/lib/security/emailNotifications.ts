@@ -93,8 +93,11 @@ interface FirePayload {
   /// Approvals so far / approver count snapshot for context.
   approvalsCollected: number;
   approverCount: number;
-  /// Direct deep-link to the proposal page.
-  proposalUrl: string;
+  /// Base58 proposal PDA. The server builds the user-facing URL
+  /// from this + its own origin — never trusts a body-supplied URL.
+  /// Without that pin the route is a "branded Clear" phishing relay
+  /// (attacker chooses the destination email AND the link).
+  proposalPda: string;
 }
 
 /// Fire one notification email. Called by useActionNotifications
