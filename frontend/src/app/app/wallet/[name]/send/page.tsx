@@ -1079,22 +1079,21 @@ function ComposeStage({
         />
       </div>
 
-      {/* Amount block. The big number IS the input — typing updates
-          the value users see. Restructured: a self-sized centered
-          row holds the input + SOL ticker; the meta line below
-          (helper text + balance + Max) is a separate centered
-          block that doesn't justify-between with the parent's full
-          width. Previous layout had the "Wallet has..." text on
-          the far left and "Max" on the far right of the column,
-          visually disconnected from the centered amount above. */}
-      <div className="mt-6 flex flex-col items-center">
-        <label
-          htmlFor="send-amount-input"
-          className="sr-only"
-        >
+      {/* Amount block — editorial-sans rebuild (2026-05-08).
+          The number is the most important pixel on this page; it
+          earns a JetBrains Mono treatment with tabular figures so
+          digits align column-perfect. Decorative accent rule above
+          + small uppercase eyebrow set up a clear hierarchy. No
+          bordered card around the input — restraint, not chrome. */}
+      <div className="mt-8 flex flex-col items-center">
+        <span aria-hidden="true" className="block h-px w-12 bg-accent" />
+        <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          Amount
+        </p>
+        <label htmlFor="send-amount-input" className="sr-only">
           Amount in SOL
         </label>
-        <div className="flex items-baseline justify-center gap-2">
+        <div className="mt-4 flex items-baseline justify-center gap-3">
           <input
             id="send-amount-input"
             type="text"
@@ -1102,14 +1101,8 @@ function ComposeStage({
             value={amount}
             onChange={(e) => {
               const raw = e.target.value.replace(/[^\d.]/g, "");
-              // Cap whole part at 12 digits so the input can't grow
-              // arbitrarily (and so layout doesn't blow up). 1T SOL
-              // is comfortably above any realistic balance.
               const [wholeRaw = "", frac] = raw.split(".");
               const whole = wholeRaw.slice(0, 12);
-              // Solana goes to 9 decimals; cap the typed string at 4
-              // (catalog's displayDecimals) so users can't type
-              // sub-dust amounts that look like noise.
               const next =
                 frac === undefined ? whole : `${whole}.${frac.slice(0, 4)}`;
               setAmount(next);
@@ -1119,81 +1112,69 @@ function ComposeStage({
             maxLength={20}
             aria-label="Amount in SOL"
             className={
-              // text-text-strong on the canvas; placeholder /60 so
-              // the empty-state "0" is visibly faint, not invisible.
-              // No dynamic ch width — that was reflowing the parent
-              // every keystroke (audit flag) AND showing a 1-char
-              // box at scroll-0. Fixed text-right with a width that
-              // fits up to ~6 chars (1234.56) and lets the SOL
-              // suffix sit beside it without wandering.
-              "w-[5.5ch] bg-transparent font-display text-5xl font-medium text-text-strong " +
-              "text-right caret-accent outline-none placeholder:text-text-soft/60"
+              // JetBrains Mono with tabular-nums — financial
+              // precision the proportional Geist couldn't carry.
+              // Width fits "1234.56" comfortably; SOL ticker sits
+              // beside without wandering.
+              "w-[5.5ch] bg-transparent font-numerals text-[2.75rem] font-semibold tracking-tight text-text-strong tabular-nums " +
+              "text-right caret-accent outline-none placeholder:text-text-soft/40 sm:text-[3.25rem]"
             }
           />
           <span
             aria-hidden="true"
-            // Bumped from /60 to full text-text-soft for legibility.
-            // The /60 was the same "shedded by white" issue the
-            // earlier audit flagged on the placeholder.
-            className="font-display text-5xl font-medium text-text-soft"
+            className="font-display text-2xl font-medium uppercase tracking-[0.18em] text-text-soft sm:text-3xl"
           >
             SOL
           </span>
         </div>
-        <p className="mt-2 text-xs text-text-soft">
-          {amount ? `${display} SOL` : "Type an amount"}
+        <p className="mt-3 text-xs text-text-soft">
+          {amount ? `${display} SOL` : "Type to begin"}
         </p>
 
-        {/* Balance + Max — centered, not justify-between. The two
-            pieces stay close together as a group instead of being
-            pushed to opposite edges of the column.
-            The previous null check was `!== null` — but the query
-            yields `undefined` while still loading, which slipped
-            past and rendered `formatLamports(undefined)` →
-            "Wallet has  SOL" with an empty gap. Switch to a
-            typeof-bigint guard so any non-bigint value (null,
-            undefined, error) routes to the loading / error copy. */}
-        <div className="mt-2 inline-flex items-center gap-2 text-xs">
-          <span className="text-text-soft">
-            {balanceLoading ? (
-              "Loading wallet balance…"
-            ) : typeof vaultBalanceLamports === "bigint" ? (
-              <>
-                Wallet has{" "}
-                <span className="font-medium text-text-strong tabular-nums">
-                  {formatLamports(vaultBalanceLamports)}
-                </span>{" "}
-                SOL
-              </>
-            ) : (
-              "Couldn't fetch balance"
-            )}
+        {/* Balance + Max — single chip. The two pieces share visual
+            weight; together they read as "ceiling + shortcut"
+            rather than the old left/right split that disconnected
+            them. typeof-bigint guard catches loading + error. */}
+        <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-xs">
+          <span className="text-text-soft">Wallet has</span>
+          <span className="font-numerals font-semibold text-text-strong tabular-nums">
+            {balanceLoading
+              ? "…"
+              : typeof vaultBalanceLamports === "bigint"
+                ? formatLamports(vaultBalanceLamports)
+                : "—"}
           </span>
-          {typeof vaultBalanceLamports === "bigint" && vaultBalanceLamports > 0n && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                const max =
-                  vaultBalanceLamports > feeReserveLamports
-                    ? vaultBalanceLamports - feeReserveLamports
-                    : 0n;
-                setAmount(formatLamports(max, 4));
-              }}
-              className="rounded-full border border-accent/40 bg-accent/[0.10] px-2 py-0.5 text-[11px] font-semibold text-accent transition-colors hover:border-accent hover:bg-accent/[0.15]"
-            >
-              Max
-            </button>
-          )}
+          <span className="text-text-soft">SOL</span>
+          {typeof vaultBalanceLamports === "bigint" &&
+            vaultBalanceLamports > 0n && (
+              <>
+                <span aria-hidden="true" className="h-3 w-px bg-border-soft" />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const max =
+                      vaultBalanceLamports > feeReserveLamports
+                        ? vaultBalanceLamports - feeReserveLamports
+                        : 0n;
+                    setAmount(formatLamports(max, 4));
+                  }}
+                  className="-mr-1 rounded-full px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-accent transition-colors hover:bg-accent/10"
+                >
+                  Max
+                </button>
+              </>
+            )}
         </div>
-        {insufficientBalance && vaultBalanceLamports !== null && (
-          <p className="mt-2 w-full rounded-soft border border-warning/40 bg-warning/[0.10] px-3 py-2 text-xs text-text-strong">
-            <span className="font-medium">Insufficient balance.</span>{" "}
-            {walletDisplay} has {formatLamports(vaultBalanceLamports)} SOL —
-            need at least the amount plus a small reserve for the
-            on-chain fee. Top up the wallet from /receive or a faucet.
-          </p>
-        )}
+        {insufficientBalance &&
+          typeof vaultBalanceLamports === "bigint" && (
+            <p className="mt-3 w-full rounded-soft border border-warning/40 bg-warning/[0.10] px-3 py-2 text-xs text-text-strong">
+              <span className="font-medium">Insufficient balance.</span>{" "}
+              {walletDisplay} has {formatLamports(vaultBalanceLamports)} SOL —
+              need at least the amount plus a small reserve for the
+              on-chain fee. Top up the wallet from /receive or a faucet.
+            </p>
+          )}
       </div>
 
       {/* Recents row — only shows if the user has any saved contacts. */}

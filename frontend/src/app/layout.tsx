@@ -1,18 +1,28 @@
 // Root layout . global styles, font tokens, metadata, and providers.
 //
-// Fonts (single-family rebuild 2026-05-03):
-//   --font-sans    → Geist, every text surface in the product
-//   --font-display → also Geist (alias). The class stays for callers,
-//                    but the rendered font is the same; size + weight
-//                    do the hierarchy lifting now.
-//   --font-mono    → Geist Mono, code + raw bytes (Tailwind `font-mono`)
+// Fonts (editorial-sans rebuild 2026-05-08):
+//   --font-sans    → Geist (body). Clean, readable, neutral.
+//   --font-display → Manrope (display). Geometric warmth with
+//                    distinctive cuts — replaces the previous
+//                    Geist alias, which was indistinguishable from
+//                    body and gave headlines no character. Manrope
+//                    keeps the sans-only money-app rule (Cash App /
+//                    Venmo / Apple Wallet are sans-only) while
+//                    actually carrying a point of view at display
+//                    sizes. font-display class survives unchanged.
+//   --font-mono    → Geist Mono (general code + raw bytes).
+//   --font-numerals → JetBrains Mono. Used for the big amount
+//                    input on /send/* pages — financial numerals
+//                    deserve a treatment that reads as precise,
+//                    not as "another text field with bigger digits".
 //
-// We retired Fraunces (display serif) on 2026-05-03 because it was
-// making a money app read as an editorial site. Cash App, Venmo, Apple
-// Wallet, Squads — all sans-only. We follow.
+// 2026-05-03 rebuild dropped Fraunces (display serif) because it
+// was making a money app read as an editorial magazine. This
+// rebuild keeps the sans-only commitment but escapes generic
+// Geist-everywhere by giving display + numerals a real voice.
 
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, JetBrains_Mono, Manrope } from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "@/components/providers/AppProviders";
 
@@ -26,6 +36,22 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-mono",
+});
+
+const manrope = Manrope({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-display",
+  // 700 + 800 cover the display-weight ladder; 500 is the only
+  // body weight any Manrope call site uses (font-display.font-medium).
+  weight: ["500", "700", "800"],
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-numerals",
+  weight: ["500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -74,7 +100,7 @@ export const viewport: Viewport = {
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const fontVars = `${geist.variable} ${geistMono.variable}`;
+  const fontVars = `${geist.variable} ${geistMono.variable} ${manrope.variable} ${jetbrainsMono.variable}`;
   return (
     <html lang="en" className={fontVars}>
       <head>

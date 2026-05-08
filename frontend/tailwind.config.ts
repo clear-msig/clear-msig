@@ -76,14 +76,31 @@ const config: Config = {
       },
 
       fontFamily: {
-        // One sans family, everywhere. `font-display` survives as a
-        // class so existing callers don't need to be touched, but it
-        // resolves to the same Geist family — weight + size do the
-        // hierarchy lifting now.
+        // 2026-05-08: editorial-sans rebuild. `font-display` now
+        // resolves to Manrope (geometric warmth, distinctive cuts);
+        // `font-sans` stays Geist for body. The pair gives
+        // headlines real character without breaking the sans-only
+        // money-app rule. Existing call sites need no change.
+        // `font-numerals` is the new family for the financial
+        // amount input on /send/* — JetBrains Mono with proper
+        // tabular-numeric figures.
         sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
-        display: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+        display: [
+          "var(--font-display)",
+          "var(--font-sans)",
+          "ui-sans-serif",
+          "system-ui",
+          "sans-serif",
+        ],
         mono: [
           "var(--font-mono)",
+          "ui-monospace",
+          "SFMono-Regular",
+          "Menlo",
+          "monospace",
+        ],
+        numerals: [
+          "var(--font-numerals)",
           "ui-monospace",
           "SFMono-Regular",
           "Menlo",
