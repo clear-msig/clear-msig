@@ -441,7 +441,7 @@ function SendErc20Page() {
         <motion.section
           {...motionProps}
           transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          className="w-full max-w-md"
+          className="w-full max-w-lg"
         >
           {stage === "compose" && (
             <SendChainPicker

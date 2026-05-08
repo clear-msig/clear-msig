@@ -870,7 +870,7 @@ function SendPage() {
       </StickyTopBar>
 
       <div className="relative z-10 flex flex-1 items-center justify-center px-gutter py-10">
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-lg">
           {needsSetup && (
             <div className="mb-6 rounded-card border border-warning/30 bg-warning/5 p-5 text-center shadow-card-rest">
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-warning">
