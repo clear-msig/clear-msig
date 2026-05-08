@@ -21,6 +21,8 @@ import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
+  Bell,
+  Check,
   EyeOff,
   Github,
   Globe,
@@ -29,6 +31,7 @@ import {
   ShieldCheck,
   UserPlus,
   Users,
+  X,
 } from "lucide-react";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { HeaderBar } from "@/components/layout/HeaderBar";
@@ -93,6 +96,33 @@ export default function HomePage() {
             </Button>
           </Link>
         </motion.div>
+      </section>
+
+      {/* Product preview strip — three mocked cards showing the
+          three moments that drive the app: a shared wallet, a
+          request waiting on approvals, and the receipt after it
+          ships. Static SVG-ish HTML, not real screenshots, so
+          they always render correctly and stay theme-aware. The
+          row is decorative; no links inside, no role="img" — the
+          surrounding context already carries the meaning. */}
+      <section className="relative z-10 mx-auto w-full max-w-5xl px-gutter pt-16 sm:pt-20">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <PreviewMock
+            kind="wallet"
+            reduce={!!reduce}
+            delay={0.04}
+          />
+          <PreviewMock
+            kind="request"
+            reduce={!!reduce}
+            delay={0.10}
+          />
+          <PreviewMock
+            kind="receipt"
+            reduce={!!reduce}
+            delay={0.16}
+          />
+        </div>
       </section>
 
       {/* How it works */}
@@ -223,6 +253,94 @@ export default function HomePage() {
           >
             github.com/clear-msig/clear-msig
           </a>
+        </motion.div>
+      </section>
+
+      {/* Why not just a regular multisig — direct comparison vs
+          Squads / Safe. Two-column panel: what existing multisigs
+          ask of you on the left, what Clear delivers on the right.
+          Phrased as user-experience differences (signing UX,
+          private rules, multi-chain) not engineering claims. */}
+      <section className="relative z-10 mx-auto w-full max-w-4xl px-gutter pt-24 sm:pt-32">
+        <motion.div
+          {...fadeIn(0)}
+          className="flex flex-col items-center text-center"
+        >
+          <span aria-hidden="true" className="block h-px w-10 bg-accent" />
+          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+            Why Clear
+          </p>
+          <h2 className="mt-3 font-display text-display-xs leading-tight text-text-strong text-balance sm:text-display-sm">
+            Not your usual multisig
+          </h2>
+          <p className="mt-3 max-w-2xl text-base text-text-soft text-pretty">
+            Squads and Safe ship a power tool with a power-tool UX. Clear
+            keeps the same threshold-and-approve model, but rebuilds
+            everything around it for friends and family — not treasury ops.
+          </p>
+        </motion.div>
+
+        <motion.div
+          {...fadeIn(0.05)}
+          className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-2"
+        >
+          {/* Left column — the friction other multisigs ship with. */}
+          <div className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              Regular multisig
+            </p>
+            <ul className="mt-4 flex flex-col gap-3 text-sm text-text-soft">
+              <CompareItem
+                ok={false}
+                strong="Sign a hex blob"
+                detail="Your wallet shows raw bytes. You hope they match the request."
+              />
+              <CompareItem
+                ok={false}
+                strong="Members + thresholds public"
+                detail="Anyone reading on chain can map who's in your wallet."
+              />
+              <CompareItem
+                ok={false}
+                strong="One chain at a time"
+                detail="Need ETH? Stand up a separate multisig over there. Repeat for BTC."
+              />
+              <CompareItem
+                ok={false}
+                strong="Treasury-ops dashboard"
+                detail="A console designed for accountants, not a household."
+              />
+            </ul>
+          </div>
+
+          {/* Right column — what Clear actually does. */}
+          <div className="rounded-card border border-accent/40 bg-accent/[0.04] p-6 shadow-card-rest">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
+              Clear
+            </p>
+            <ul className="mt-4 flex flex-col gap-3 text-sm text-text-soft">
+              <CompareItem
+                ok
+                strong="Sign a sentence"
+                detail="“Send 5 SOL to Sarah, expires Jan 1.” Your wallet (or Ledger) shows that exact line."
+              />
+              <CompareItem
+                ok
+                strong="Members + rules encrypted"
+                detail="Spending caps and approver sets live on chain as FHE ciphertext. Verifiable, not readable."
+              />
+              <CompareItem
+                ok
+                strong="One key, every chain"
+                detail="ETH, BTC, Zcash all sign through Ika dWallets. No bridges, no separate multisigs."
+              />
+              <CompareItem
+                ok
+                strong="Built like Cash App"
+                detail="Avatar, name, amount. The first screen a friend sees feels like a wallet, not a console."
+              />
+            </ul>
+          </div>
         </motion.div>
       </section>
 
@@ -361,6 +479,148 @@ function StackCard({
     <motion.article {...motionProps} className={className}>
       {inner}
     </motion.article>
+  );
+}
+
+// Preview mocks — three little "what this looks like" cards.
+// Static markup, not real screenshots, so they always match the
+// active theme and never go stale when the app moves.
+interface PreviewMockProps {
+  kind: "wallet" | "request" | "receipt";
+  reduce: boolean;
+  delay: number;
+}
+
+function PreviewMock({ kind, reduce, delay }: PreviewMockProps) {
+  const motionProps = reduce
+    ? {}
+    : {
+        initial: { opacity: 0, y: 12 },
+        animate: { opacity: 1, y: 0 },
+        transition: { duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] as const },
+      };
+  return (
+    <motion.div
+      {...motionProps}
+      aria-hidden="true"
+      className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
+    >
+      {kind === "wallet" && (
+        <>
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              Family
+            </p>
+            <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold text-accent">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+              4 members
+            </span>
+          </div>
+          <p className="mt-3 font-numerals text-2xl font-semibold text-text-strong tabular-nums">
+            $4,820.00
+          </p>
+          <p className="mt-1 text-[11px] text-text-soft">
+            Across SOL · ETH · BTC
+          </p>
+          <div className="mt-4 flex -space-x-2">
+            {["from-rose-300 to-orange-300", "from-emerald-300 to-teal-400", "from-violet-300 to-purple-400", "from-sky-300 to-blue-400"].map((bg, i) => (
+              <span
+                key={i}
+                className={
+                  "h-7 w-7 rounded-full bg-gradient-to-br ring-2 ring-surface-raised " +
+                  bg
+                }
+              />
+            ))}
+          </div>
+        </>
+      )}
+      {kind === "request" && (
+        <>
+          <p className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
+            <Bell className="h-3 w-3" strokeWidth={2.5} />
+            Waiting
+          </p>
+          <p className="mt-2 text-sm font-medium text-text-strong">
+            Send <span className="font-numerals">5 SOL</span> to Sarah
+          </p>
+          <p className="mt-1 text-[11px] text-text-soft">
+            for rent · Maya proposed it
+          </p>
+          <div className="mt-4 flex items-center gap-1.5">
+            <span className="h-1.5 flex-1 rounded-full bg-accent" />
+            <span className="h-1.5 flex-1 rounded-full bg-accent" />
+            <span className="h-1.5 flex-1 rounded-full bg-border-soft" />
+            <span className="ml-1 font-numerals text-[10px] font-semibold text-text-strong tabular-nums">
+              2/3
+            </span>
+          </div>
+          <button
+            type="button"
+            tabIndex={-1}
+            className="pointer-events-none mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-semibold text-white"
+          >
+            Approve
+            <ArrowRight className="h-3 w-3" aria-hidden="true" />
+          </button>
+        </>
+      )}
+      {kind === "receipt" && (
+        <>
+          <p className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+            <Check className="h-3 w-3 text-accent" strokeWidth={2.5} />
+            Sent
+          </p>
+          <p className="mt-2 text-sm font-medium text-text-strong">
+            5 SOL to Sarah
+          </p>
+          <p className="mt-1 text-[11px] text-text-soft">2 minutes ago</p>
+          <div className="mt-4 flex items-center justify-between rounded-soft border border-border-soft bg-canvas px-3 py-2">
+            <span className="text-[11px] text-text-soft">Tx</span>
+            <span className="font-mono text-[10px] text-text-strong">
+              5dKp…h8Qz
+            </span>
+          </div>
+        </>
+      )}
+    </motion.div>
+  );
+}
+
+// Comparison row — one bullet on either side of the "Why Clear"
+// panel. `ok` controls icon + tone; the strong/detail split lets
+// the user skim the lefthand strong text alone.
+function CompareItem({
+  ok,
+  strong,
+  detail,
+}: {
+  ok: boolean;
+  strong: string;
+  detail: string;
+}) {
+  return (
+    <li className="flex items-start gap-2.5">
+      <span
+        aria-hidden="true"
+        className={
+          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full " +
+          (ok ? "bg-accent/15 text-accent" : "bg-text-soft/15 text-text-soft")
+        }
+      >
+        {ok ? (
+          <Check className="h-3 w-3" strokeWidth={2.5} />
+        ) : (
+          <X className="h-3 w-3" strokeWidth={2.5} />
+        )}
+      </span>
+      <span className="flex flex-col">
+        <span className="text-sm font-medium text-text-strong">{strong}</span>
+        <span className="mt-0.5 text-[12px] leading-snug text-pretty">
+          {detail}
+        </span>
+      </span>
+    </li>
   );
 }
 
