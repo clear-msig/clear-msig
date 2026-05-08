@@ -24,6 +24,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Banknote, Bell, ChevronDown, Download, Send, ShieldCheck, TrendingDown, Users } from "lucide-react";
+import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { findVaultAddress } from "@/lib/msig";
@@ -227,6 +228,12 @@ export default function WalletDetailPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* One-time onboarding tour. Self-gates on its own
+          localStorage flag so it doesn't fire for users who've
+          already seen it; renders nothing otherwise. Intentionally
+          first in the tree so the overlay snaps in over a stable
+          layout. */}
+      <WalletTourModal />
       {/* The "← Wallets" sticky bar floats below the HeaderBar with
           mostly-empty width on desktop, leaving a wide blank band
           above the hero. The sidebar already provides cross-wallet
