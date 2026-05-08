@@ -74,6 +74,7 @@ import {
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { useWalletPortfolio } from "@/lib/hooks/useWalletPortfolio";
 import { formatUsd } from "@/lib/retail/priceConversion";
+import { useDisplayCurrency } from "@/lib/hooks/useDisplayCurrency";
 import { CHAIN_CATALOG as CHAIN_CATALOG_REF } from "@/lib/retail/chains";
 
 export default function WalletDetailPage() {
@@ -560,6 +561,7 @@ function PortfolioPanel({
   loadingFallback: boolean;
 }) {
   const portfolio = useWalletPortfolio(walletName);
+  const fiat = useDisplayCurrency();
 
   // Multi-chain check — only when a non-Solana chain has loaded.
   const hasMultipleChains =
@@ -610,7 +612,7 @@ function PortfolioPanel({
       ) : (
         <>
           <p className="mt-1 font-display text-display-xs text-text-strong">
-            {formatUsd(portfolio.totalUsd)}
+            {fiat.format(portfolio.totalUsd)}
           </p>
           {breakdownText && (
             <p className="mt-1 text-xs text-text-soft">{breakdownText}</p>

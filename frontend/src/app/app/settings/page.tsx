@@ -21,6 +21,7 @@ import {
   Bell,
   BellOff,
   Check,
+  Coins,
   Contact,
   Copy,
   Download,
@@ -89,6 +90,14 @@ import {
   type WebhookEventType,
   type WebhookPrefs,
 } from "@/lib/security/webhookNotifications";
+import {
+  ALL_DISPLAY_CURRENCIES,
+  currencyLabel,
+  currencySymbol,
+  getDisplayCurrency,
+  setDisplayCurrency,
+  type DisplayCurrency,
+} from "@/lib/retail/priceConversion";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -302,6 +311,11 @@ export default function SettingsPage() {
           Applied through shortEvmAddress + shortAddress so every
           existing call site picks it up automatically. */}
       <AddressFormatRow />
+
+      {/* Display currency — display-only pref. Internal math (budget
+          caps, policy thresholds) stays USD-pinned because that's
+          where the on-chain rules are denominated. */}
+      <DisplayCurrencyRow />
 
       {/* App lock — per-device PIN that gates /app/* on every fresh
           tab. Stored locally only; we never see the PIN. Useful on
@@ -1018,6 +1032,66 @@ function AddressFormatRow() {
           },
         )}
       </div>
+    </section>
+  );
+}
+
+// ─── Display currency ───────────────────────────────────────────
+
+function DisplayCurrencyRow() {
+  const [currency, setCurrency] = useState<DisplayCurrency>("USD");
+  useEffect(() => {
+    setCurrency(getDisplayCurrency());
+  }, []);
+  const set = (next: DisplayCurrency) => {
+    setCurrency(next);
+    setDisplayCurrency(next);
+  };
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+          <Coins className="h-5 w-5" strokeWidth={1.75} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-text-strong">
+            Display currency
+          </p>
+          <p className="mt-0.5 text-xs text-text-soft">
+            Wallet totals render in this fiat. Budget caps and policy
+            thresholds stay set in USD — that&rsquo;s the unit on chain.
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
+        {ALL_DISPLAY_CURRENCIES.map((opt) => {
+          const active = currency === opt;
+          return (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => set(opt)}
+              title={currencyLabel(opt)}
+              className={
+                "rounded-soft border px-3 py-2 text-center text-xs font-medium transition-[border-color,background-color,transform] duration-base ease-out-soft " +
+                (active
+                  ? "border-accent bg-accent/[0.08] text-text-strong"
+                  : "border-border-soft bg-canvas text-text-soft hover:border-accent/40 hover:text-text-strong")
+              }
+            >
+              <span className="text-base font-semibold">
+                {currencySymbol(opt)}
+              </span>{" "}
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-2 text-[11px] text-text-soft">
+        Demo FX rates today. The live oracle that ships with the price
+        feeds workstream replaces both the spot prices and these rates
+        in one swap.
+      </p>
     </section>
   );
 }

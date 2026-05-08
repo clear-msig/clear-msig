@@ -17,6 +17,13 @@
 // Tickers are upper-case three-letter strings matching ChainMeta.ticker
 // (so "SOL", "ETH", "BTC", "ZEC", "USDC"). Unknown tickers return
 // null — callers decide whether to treat that as $0 or skip.
+//
+// Currency display: USD is the canonical reasoning unit (budgets,
+// policy thresholds, internal math). The user can pick a display
+// fiat in Settings — formatFiat / lamportsToFiat read that pref and
+// convert at format time. The internal USD numbers stay USD-pinned
+// so a budget cap of "$1,000" doesn't drift when the user switches
+// display currencies.
 
 const STATIC_PRICES_USD: Readonly<Record<string, number>> = {
   SOL: 200,
@@ -25,6 +32,78 @@ const STATIC_PRICES_USD: Readonly<Record<string, number>> = {
   ZEC: 30,
   USDC: 1,
 };
+
+// Static USD→fiat cross rates. As with the spot prices above,
+// these are demo numbers — wired to the same oracle whenever a
+// real price feed lands. The choice of currencies covers the
+// common ones a treasury team would want; we deliberately don't
+// ship 30 obscure ones because the pref is display-only.
+const STATIC_FX_PER_USD: Readonly<Record<DisplayCurrency, number>> = {
+  USD: 1,
+  EUR: 0.92,
+  GBP: 0.79,
+  JPY: 156,
+  CAD: 1.36,
+  AUD: 1.5,
+};
+
+export type DisplayCurrency = "USD" | "EUR" | "GBP" | "JPY" | "CAD" | "AUD";
+
+export const ALL_DISPLAY_CURRENCIES: DisplayCurrency[] = [
+  "USD",
+  "EUR",
+  "GBP",
+  "JPY",
+  "CAD",
+  "AUD",
+];
+
+const CURRENCY_PREF_KEY = "clear.display-currency.v1";
+
+export function getDisplayCurrency(): DisplayCurrency {
+  if (typeof window === "undefined") return "USD";
+  try {
+    const raw = window.localStorage.getItem(CURRENCY_PREF_KEY);
+    if (
+      raw === "USD" ||
+      raw === "EUR" ||
+      raw === "GBP" ||
+      raw === "JPY" ||
+      raw === "CAD" ||
+      raw === "AUD"
+    ) {
+      return raw;
+    }
+  } catch {
+    /* fallthrough */
+  }
+  return "USD";
+}
+
+export function setDisplayCurrency(currency: DisplayCurrency): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(CURRENCY_PREF_KEY, currency);
+    // Same-tab notification — `storage` only fires on other tabs.
+    window.dispatchEvent(new Event("clear:display-currency-changed"));
+  } catch {
+    /* quota / private mode — silently noop */
+  }
+}
+
+export function subscribeDisplayCurrency(cb: () => void): () => void {
+  if (typeof window === "undefined") return () => undefined;
+  const handler = () => cb();
+  window.addEventListener("clear:display-currency-changed", handler);
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === CURRENCY_PREF_KEY) cb();
+  };
+  window.addEventListener("storage", onStorage);
+  return () => {
+    window.removeEventListener("clear:display-currency-changed", handler);
+    window.removeEventListener("storage", onStorage);
+  };
+}
 
 export interface PriceQuote {
   /// USD per one whole token (1 SOL, 1 ETH, etc).
@@ -74,4 +153,88 @@ export function formatUsd(usd: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+/// Render a USD-denominated value in the user's chosen display
+/// currency. Internal math stays USD-pinned (budgets, policies); use
+/// this only for display surfaces. Currency arg is optional — when
+/// omitted, reads the active pref.
+export function formatFiat(usd: number, currency?: DisplayCurrency): string {
+  const cur = currency ?? getDisplayCurrency();
+  if (cur === "USD") return formatUsd(usd);
+  if (!isFinite(usd)) {
+    return `${currencySymbol(cur)}—`;
+  }
+  const rate = STATIC_FX_PER_USD[cur];
+  const local = usd * rate;
+  // JPY is conventionally rendered without decimals; same trick we
+  // use for "above $100, no cents" — let the locale-aware formatter
+  // pick the right number of digits.
+  const fractionDigits = cur === "JPY" ? 0 : local >= 100 ? 0 : 2;
+  return new Intl.NumberFormat(currencyLocale(cur), {
+    style: "currency",
+    currency: cur,
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(local);
+}
+
+/// Convert a chain-native bigint amount to the user's display
+/// currency in one step. Equivalent to lamportsToUsd → formatFiat
+/// for callers that don't need the intermediate USD number.
+export function lamportsToFiat(
+  amount: bigint,
+  smallestPerWhole: bigint,
+  ticker: string,
+  currency?: DisplayCurrency,
+): string {
+  const usd = lamportsToUsd(amount, smallestPerWhole, ticker);
+  return formatFiat(usd, currency);
+}
+
+export function currencyLabel(currency: DisplayCurrency): string {
+  switch (currency) {
+    case "USD":
+      return "US Dollar";
+    case "EUR":
+      return "Euro";
+    case "GBP":
+      return "British Pound";
+    case "JPY":
+      return "Japanese Yen";
+    case "CAD":
+      return "Canadian Dollar";
+    case "AUD":
+      return "Australian Dollar";
+  }
+}
+
+export function currencySymbol(currency: DisplayCurrency): string {
+  switch (currency) {
+    case "USD":
+    case "CAD":
+    case "AUD":
+      return "$";
+    case "EUR":
+      return "€";
+    case "GBP":
+      return "£";
+    case "JPY":
+      return "¥";
+  }
+}
+
+function currencyLocale(currency: DisplayCurrency): string {
+  switch (currency) {
+    case "USD":
+    case "CAD":
+    case "AUD":
+      return "en-US";
+    case "EUR":
+      return "de-DE";
+    case "GBP":
+      return "en-GB";
+    case "JPY":
+      return "ja-JP";
+  }
 }
