@@ -38,10 +38,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   Check,
+  Home,
+  List as ListIcon,
   Loader2,
   Send,
   ShieldAlert,
 } from "lucide-react";
+import { NextStepCard } from "@/components/retail/NextStepCard";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import {
@@ -983,9 +986,46 @@ function SentStage({
           <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
         </a>
       )}
-      <Button size="lg" fullWidth className="mt-8 max-w-xs" onClick={onDone}>
-        Back to {walletDisplay}
-      </Button>
+
+      {/* Three-option NextStepCard mirrors the SOL send pattern. The
+          previous "Back to {wallet}" sole CTA dropped the explorer
+          link the moment a user tapped it; users would lose the txid
+          and have to dig it out of activity once propagation caught
+          up. NextStepCard keeps them on this success state with
+          better choices. */}
+      <div className="mt-8 w-full">
+        <NextStepCard
+          title={`Anything else from ${walletDisplay}?`}
+          options={[
+            {
+              label: "Send another request",
+              hint: "Same wallet, different recipient.",
+              href: `/app/wallet/${encodeURIComponent(walletName)}/send/eth`,
+              primary: true,
+              icon: ArrowRight,
+            },
+            {
+              label: "View activity",
+              hint: "See approvals coming in.",
+              href: `/app/wallet/${encodeURIComponent(walletName)}`,
+              icon: ListIcon,
+            },
+            {
+              label: "Back to home",
+              href: "/app/wallet",
+              icon: Home,
+            },
+          ]}
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={onDone}
+        className="mt-4 text-xs text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
+      >
+        Or, dismiss this and stay here
+      </button>
     </div>
   );
 }

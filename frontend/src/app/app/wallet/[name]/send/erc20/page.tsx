@@ -30,7 +30,8 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Check, Loader2, ShieldAlert } from "lucide-react";
+import { ArrowRight, Check, Home, List as ListIcon, Loader2, ShieldAlert } from "lucide-react";
+import { NextStepCard } from "@/components/retail/NextStepCard";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import {
@@ -902,10 +903,42 @@ function SentStage({
           View on {explorerLabel}
         </a>
       ) : null}
-      <Button size="md" className="mt-5" onClick={onBack}>
-        Back to {toDisplayName(walletName) || "wallet"}
-        <ArrowRight className="h-4 w-4" aria-hidden="true" />
-      </Button>
+      {/* Three-option NextStepCard mirrors the SOL + ETH send
+          patterns. The previous "Back to {wallet}" sole CTA dropped
+          the explorer link the moment a user tapped it. */}
+      <div className="mt-8 w-full">
+        <NextStepCard
+          title={`Anything else from ${toDisplayName(walletName) || "this wallet"}?`}
+          options={[
+            {
+              label: "Send another token",
+              hint: "Same wallet, pick a different token.",
+              href: `/app/wallet/${encodeURIComponent(walletName)}/send/erc20`,
+              primary: true,
+              icon: ArrowRight,
+            },
+            {
+              label: "View activity",
+              hint: "See approvals coming in.",
+              href: `/app/wallet/${encodeURIComponent(walletName)}`,
+              icon: ListIcon,
+            },
+            {
+              label: "Back to home",
+              href: "/app/wallet",
+              icon: Home,
+            },
+          ]}
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={onBack}
+        className="mt-4 text-xs text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
+      >
+        Or, dismiss this and stay here
+      </button>
     </motion.div>
   );
 }
