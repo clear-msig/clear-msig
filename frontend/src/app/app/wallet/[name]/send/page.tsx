@@ -55,6 +55,7 @@ import { useContacts } from "@/lib/hooks/useContacts";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
 import { evaluatePolicy, PolicyViolationError } from "@/lib/retail/policyEvaluation";
+import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
@@ -460,13 +461,43 @@ function SendPage() {
   const insufficientBalance =
     balanceLoaded && amountValid && vaultBalance! < requiredLamports;
 
+  // ── Policy-rule pre-flight tripwire ──────────────────────────
+  //
+  // Walks the wallet's stored policy rules against this candidate
+  // proposal (recipient, amount, ticker). The first matching rule
+  // wins per Fordefi convention. A "deny" action blocks submit;
+  // "require-*" actions surface a banner above the CTA so the
+  // user knows extra friction is coming.
+  //
+  // Today this is UI-only: a determined member with the CLI can
+  // still propose. The tripwire becomes load-bearing once
+  // Encrypt's #[encrypt_fn] handlers are in the program and the
+  // on-chain code reads policy ciphertexts during ika_sign.
+  const policyRecipient = useMemo(() => {
+    if (resolved.kind === "contact") return resolved.contact.address;
+    if (resolved.kind === "address" || resolved.kind === "sns") {
+      return resolved.address;
+    }
+    return "";
+  }, [resolved]);
+  const policyEvaluation = usePolicyEvaluation({
+    walletName,
+    chainKind: 0,
+    recipient: policyRecipient,
+    ticker: "SOL",
+    amountDisplay: amount,
+    enabled: amountValid && policyRecipient.length > 0,
+  });
+  const denied = policyEvaluation?.matched && policyEvaluation.action === "deny";
+
   const canSubmit =
     amountValid &&
     (resolved.kind === "contact" ||
       resolved.kind === "address" ||
       resolved.kind === "sns") &&
     !!firstIntent &&
-    !insufficientBalance;
+    !insufficientBalance &&
+    !denied;
 
   // Cross-chain budget tracker — used to render the "this send fits
   // your $X cap" / "would push you over" hint above the CTA.

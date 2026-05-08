@@ -525,7 +525,7 @@ function Hero({
           Receive
         </Link>
         <Link
-          href={`/app/wallet/${encodeURIComponent(name)}/settings`}
+          href={`/app/wallet/${encodeURIComponent(name)}/policies`}
           className={
             "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
             "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
