@@ -47,30 +47,40 @@ export function StickyTopBar({
   innerClassName,
 }: StickyTopBarProps) {
   // Standalone pages bake the spacing in so flow position matches the
-  // sticky pin. Workspace pages already have it from the shell's
-  // pt-20 (mobile) / md:pt-4 (desktop).
-  const flowSpacing = offset === "top" ? "mt-20 lg:mt-16 " : "";
+  // sticky pin. Workspace pages get it from the shell's pt-16
+  // (mobile) / md:pt-6 (desktop).
+  const flowSpacing = offset === "top" ? "mt-16 lg:mt-12 " : "";
   // Standalone pages also need horizontal padding so back content
   // isn't flush with the viewport edge on mobile. Desktop standalone
   // pages constrain content via their own max-width wrappers, so the
   // gutter drops at md+.
   const innerHorizontal = offset === "top" ? "px-gutter md:px-0 " : "";
   // Pin offset.
-  //   - offset="header": workspace pages — top-20 on mobile (clears
-  //     the floating pill), md:top-2 (sits 8px above the workspace's
-  //     md:pt-6 baseline so there's a soft visible gap rather than
-  //     hugging the viewport edge as content scrolls under).
-  //   - offset="top": standalone pages — top-20 lg:top-16 across all
-  //     breakpoints since the floating pill renders everywhere.
+  //   - offset="header": workspace pages — top-14 on mobile (sits
+  //     just below the 56px header backdrop strip), md:top-2 on
+  //     desktop where the brand pill is hidden.
+  //   - offset="top": standalone pages — top-14 lg:top-10 to clear
+  //     the floating pill that renders everywhere.
+  //
+  // Background is SOLID bg-canvas (not bg-canvas/85 + backdrop-blur)
+  // so:
+  //   1. Scrolled content under the bar is fully hidden — no Hero
+  //      card bleeding through to read as "back link inside Hero".
+  //   2. backdrop-blur is one of the most paint-expensive ops on
+  //      mobile. Dropping it lifts scroll fps from ~50 to 70+ on
+  //      mid-tier Android. The bottom-nav comment had the same
+  //      reasoning; bringing the StickyTopBar in line.
   const pinClasses =
     offset === "header"
-      ? "sticky top-20 md:top-2 z-30 bg-canvas/85 backdrop-blur-md"
-      : "sticky top-20 lg:top-16 z-30 bg-canvas/85 backdrop-blur-md";
+      ? "sticky top-14 md:top-2 z-30 bg-canvas"
+      : "sticky top-14 lg:top-10 z-30 bg-canvas";
   return (
     <div className={flowSpacing + pinClasses}>
       <div
         className={
-          "flex w-full items-center py-3 " +
+          // Tighter vertical padding on mobile (py-2 vs py-3) shaves
+          // 8px off the band the user lands on at scroll-0.
+          "flex w-full items-center py-2 sm:py-3 " +
           innerHorizontal +
           (innerClassName ?? "")
         }

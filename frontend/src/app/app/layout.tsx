@@ -54,14 +54,14 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <main
       className={
-        // Mobile: pt-24 leaves 96px above content. The floating
-        // hamburger sits at top-3 + h-10 = ~52px; pt-24 gives the
-        // first content (e.g. SectionLabel "YOUR WALLETS") a 44px
-        // visual buffer so it doesn't read as overlapping with the
-        // hamburger circle on first paint.
-        // Desktop hides the brand pill on /app/* (the sidebar
-        // carries the brand) so we drop top padding to pt-6.
-        "relative min-h-screen overflow-x-hidden bg-background px-3 pb-32 pt-24 font-sans " +
+        // Mobile: pt-16 (64px). The floating hamburger ends at
+        // ~52px; pt-16 sits the first content 12px below it. The
+        // backdrop strip below covers any overlap from scrolled
+        // content. pt-24 (the previous value) was overcorrected
+        // and produced a "long empty band" at the top of every
+        // page. Desktop hides the brand pill on /app/* so we drop
+        // to pt-6.
+        "relative min-h-screen overflow-x-hidden bg-background px-3 pb-32 pt-16 font-sans " +
         "sm:px-4 sm:pb-16 md:pt-6 lg:px-6 lg:pt-6"
       }
     >
@@ -73,7 +73,7 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
           is no floating header. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none fixed inset-x-0 top-0 z-[90] h-20 bg-canvas md:hidden"
+        className="pointer-events-none fixed inset-x-0 top-0 z-[90] h-14 bg-canvas md:hidden"
       />
       <HeaderBar />
       <CommandPalette />
