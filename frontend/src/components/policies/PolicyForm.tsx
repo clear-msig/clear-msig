@@ -169,7 +169,7 @@ export function PolicyForm({ mode, initial }: FormProps) {
         className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
       >
         <header>
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
             {mode === "create" ? "New policy rule" : "Edit policy rule"}
           </p>
           <p className="mt-1 inline-flex items-center gap-1.5 text-[11px] text-text-soft">
@@ -238,7 +238,7 @@ export function PolicyForm({ mode, initial }: FormProps) {
         className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
       >
         <header className="flex items-center justify-between gap-2">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
             Conditions
           </p>
           <ConditionMenu onAdd={(k) => setConditions([...conditions, blankCondition(k)])} />
@@ -255,7 +255,7 @@ export function PolicyForm({ mode, initial }: FormProps) {
                 className="rounded-soft border border-border-soft bg-canvas p-3"
               >
                 <div className="mb-2 flex items-center justify-between">
-                  <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-soft">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
                     {labelForKind(c.kind)}
                   </p>
                   <button
@@ -289,7 +289,7 @@ export function PolicyForm({ mode, initial }: FormProps) {
         transition={{ duration: 0.2, delay: 0.1 }}
         className="flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
       >
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Action when conditions match
         </p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -823,7 +823,7 @@ function Field({
 }) {
   return (
     <label className="flex flex-col gap-1 text-xs text-text-soft">
-      <span className="font-medium uppercase tracking-[0.18em]">{label}</span>
+      <span className="font-semibold uppercase tracking-[0.24em]">{label}</span>
       {children}
     </label>
   );

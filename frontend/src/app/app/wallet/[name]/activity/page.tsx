@@ -149,7 +149,7 @@ export default function WalletActivityPage() {
         <header className="flex items-baseline justify-between gap-3">
           <div className="flex flex-col">
             <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-            <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+            <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
               Wallet activity
             </p>
             <h1 className="mt-2 font-display text-display-xs leading-tight text-text-strong">
@@ -351,7 +351,7 @@ function FilterSelect({
 }) {
   return (
     <label className="inline-flex items-center gap-1.5 text-[11px] text-text-soft">
-      <span className="uppercase tracking-[0.18em]">{label}</span>
+      <span className="uppercase tracking-[0.24em]">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}

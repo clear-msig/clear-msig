@@ -236,7 +236,7 @@ function BatchSendPage() {
         >
           {needsSetup && (
             <div className="mb-6 rounded-card border border-warning/30 bg-warning/5 p-5 shadow-card-rest text-center">
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-warning">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
                 Set up sending first
               </p>
               <p className="mt-2 text-sm text-text-strong">
@@ -390,14 +390,14 @@ function ComposeStage({
 
       <div className="mt-6 w-full rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
         <div className="flex items-baseline justify-between">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
             Batch total
           </span>
           <span className="flex items-baseline gap-1.5">
             <span className="font-numerals text-display-xs font-semibold text-text-strong tabular-nums">
               {formatSol(totalSol)}
             </span>
-            <span className="font-display text-xs font-semibold uppercase tracking-[0.18em] text-text-soft">
+            <span className="font-display text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
               SOL
             </span>
           </span>
@@ -573,14 +573,14 @@ function ReviewStage({
       </ul>
 
       <div className="mt-4 flex w-full items-baseline justify-between rounded-card border border-accent/30 bg-accent/5 px-4 py-3">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-accent">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
           Total
         </span>
         <span className="inline-flex items-baseline gap-1.5">
           <span className="font-numerals text-display-xs font-semibold text-text-strong tabular-nums">
             {formatSol(totalSol)}
           </span>
-          <span className="font-display text-xs font-semibold uppercase tracking-[0.18em] text-text-soft">
+          <span className="font-display text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
             SOL
           </span>
         </span>

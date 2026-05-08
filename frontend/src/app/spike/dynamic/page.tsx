@@ -55,7 +55,7 @@ function SpikeHidden() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-canvas px-gutter">
       <div className="max-w-sm text-center">
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           404
         </p>
         <h1 className="mt-2 font-display text-display-xs text-text-strong">
@@ -143,7 +143,7 @@ function SpikeBody() {
     <main className="min-h-screen bg-canvas px-gutter py-12">
       <div className="mx-auto max-w-2xl">
         <header className="mb-8">
-          <span className="inline-flex items-center rounded-full border border-warning/30 bg-warning/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-warning">
+          <span className="inline-flex items-center rounded-full border border-warning/30 bg-warning/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
             Spike — not user-facing
           </span>
           <h1 className="mt-3 font-display text-display-md text-text-strong">
@@ -159,7 +159,7 @@ function SpikeBody() {
         </header>
 
         <section className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
             Step 1 · Connect
           </p>
           <p className="mt-1 text-sm text-text-soft">
@@ -178,7 +178,7 @@ function SpikeBody() {
               - allWallets == 0 → wallet hasn't been minted; usually
                 Embedded Wallets isn't enabled at all. */}
           <ul className="mt-4 flex flex-col gap-1.5 rounded-soft border border-border-soft bg-canvas p-3 text-[11px]">
-            <li className="font-medium uppercase tracking-[0.18em] text-text-soft">
+            <li className="font-semibold uppercase tracking-[0.24em] text-text-soft">
               Wallets Dynamic returned ({allWallets.length})
             </li>
             {allWallets.length === 0 && (
@@ -250,7 +250,7 @@ function SpikeBody() {
         </section>
 
         <section className="mt-4 rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
             Step 2 · Sign + verify
           </p>
           <p className="mt-1 text-sm text-text-soft">
@@ -333,7 +333,7 @@ function SpikeKv({
 }) {
   return (
     <div className="rounded-soft border border-border-soft bg-canvas p-3">
-      <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-text-soft">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
         {label}
       </p>
       <p

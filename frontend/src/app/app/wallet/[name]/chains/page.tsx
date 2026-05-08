@@ -122,7 +122,7 @@ export default function ChainsPage() {
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
         className="flex flex-col items-center text-center"
       >
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Chains
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
@@ -137,7 +137,7 @@ export default function ChainsPage() {
 
       {/* Already bound */}
       <section>
-        <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Active
         </h2>
         {bindingsQuery.isLoading ? (
@@ -175,7 +175,7 @@ export default function ChainsPage() {
       {/* Available to add */}
       {available.length > 0 && (
         <section>
-          <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+          <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
             Add support for
           </h2>
           <ul className="mt-3 flex flex-col gap-2">

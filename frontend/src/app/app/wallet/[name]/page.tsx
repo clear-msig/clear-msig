@@ -690,7 +690,7 @@ function Hero({
         </span>
       </div>
       <span aria-hidden="true" className="mx-auto block h-px w-10 bg-accent" />
-      <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+      <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
         {shapeLabel ? `${shapeLabel} wallet` : "Shared wallet"}
       </p>
       <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
@@ -872,7 +872,7 @@ function PortfolioPanel({
     return (
       <div className="mt-5 flex flex-col items-center">
         <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-        <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Balance
         </p>
         {loadingFallback ? (
@@ -882,7 +882,7 @@ function PortfolioPanel({
             <span className="font-numerals text-display-xs font-semibold text-text-strong tabular-nums">
               {fallbackBalance ? fallbackBalance.amount : "0"}
             </span>
-            <span className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-text-soft">
+            <span className="font-display text-sm font-semibold uppercase tracking-[0.24em] text-text-soft">
               {fallbackBalance?.ticker ?? "SOL"}
             </span>
           </p>
@@ -905,7 +905,7 @@ function PortfolioPanel({
   return (
     <div className="mt-5 flex flex-col items-center">
       <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-      <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+      <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
         Wallet value
       </p>
       {portfolio.isLoading && portfolio.totalUsd === 0 ? (
@@ -921,7 +921,7 @@ function PortfolioPanel({
             </p>
           )}
           <p
-            className="mt-1 text-[10px] text-text-soft/70"
+            className="mt-2 text-[10px] uppercase tracking-[0.24em] text-text-soft"
             title="Prices are demo values today (priceConversion.ts is a stub). Treat as a sketch, not a quote."
           >
             demo prices
@@ -1512,10 +1512,10 @@ function ActivitySection({
             strokeWidth={2.5}
             aria-hidden="true"
           />
-          <span className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
             Recent activity
           </span>
-          <span className="text-[10px] tabular-nums text-text-soft/70">
+          <span className="font-numerals text-[10px] tabular-nums text-text-soft">
             {allRows.length}
           </span>
         </button>
@@ -1599,7 +1599,7 @@ function ActivityEmptyState({ reduce }: { reduce: boolean }) {
       transition={{ duration: 0.2 }}
       className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
     >
-      <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+      <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
         Activity
       </h2>
       {/* Ghost row — same shape as a real activity row, just muted.
@@ -1772,7 +1772,7 @@ function NextStepsStripe({
     >
       <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
             Next step · {display}
           </p>
           <p className="mt-1 font-display text-base text-text-strong">
@@ -1857,7 +1857,7 @@ function BudgetStripe({ name }: { name: string }) {
       }
     >
       <div className="flex items-baseline justify-between gap-3">
-        <p className={"text-xs font-medium uppercase tracking-[0.18em] text-" + tone}>
+        <p className={"text-[11px] font-semibold uppercase tracking-[0.24em] text-" + tone}>
           {over
             ? "Over weekly limit"
             : hasWalletCap

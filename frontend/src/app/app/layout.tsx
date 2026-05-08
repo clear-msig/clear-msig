@@ -61,7 +61,7 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
         // and produced a "long empty band" at the top of every
         // page. Desktop hides the brand pill on /app/* so we drop
         // to pt-6.
-        "relative min-h-screen overflow-x-hidden bg-background px-3 pb-32 pt-16 font-sans " +
+        "relative min-h-screen overflow-x-hidden bg-canvas px-3 pb-32 pt-16 font-sans " +
         "sm:px-4 sm:pb-16 md:pt-6 lg:px-6 lg:pt-6"
       }
     >

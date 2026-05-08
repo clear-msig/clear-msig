@@ -164,7 +164,7 @@ export default function SettingsPage() {
       <Group label="Identity">
       {/* Connected identity card */}
       <section className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest">
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Your wallet
         </p>
 
@@ -498,7 +498,7 @@ function Group({
 }) {
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+      <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
         {label}
       </h2>
       {children}
@@ -1488,7 +1488,7 @@ function PinInput({
 }) {
   return (
     <label className="flex items-center gap-3">
-      <span className="min-w-[110px] shrink-0 text-[11px] uppercase tracking-[0.18em] text-text-soft">
+      <span className="min-w-[110px] shrink-0 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
         {label}
       </span>
       <input
@@ -1573,7 +1573,7 @@ function SolanaRpcSettingRow() {
           </p>
         </div>
       </div>
-      <p className="mt-3 text-[11px] uppercase tracking-[0.18em] text-text-soft">
+      <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
         Currently using {isUsingOverride ? "override" : "default"}
       </p>
       <p className="mt-1 break-all font-mono text-[11px] text-text-strong">
@@ -1701,7 +1701,7 @@ function LedgerAccountSettingRow() {
           </p>
         </div>
       </div>
-      <p className="mt-3 text-[11px] uppercase tracking-[0.18em] text-text-soft">
+      <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
         {sessionActive
           ? `Active session: account ${sessionIndex ?? savedIndex}`
           : `Will use account ${savedIndex}`}
@@ -1711,7 +1711,7 @@ function LedgerAccountSettingRow() {
       </p>
       <div className="mt-3 flex items-center gap-2">
         <label className="inline-flex items-center gap-1.5 text-[11px] text-text-soft">
-          <span className="uppercase tracking-[0.18em]">Account</span>
+          <span className="uppercase tracking-[0.24em]">Account</span>
           <select
             value={index}
             onChange={(e) => setIndex(parseInt(e.target.value, 10))}
@@ -1815,7 +1815,7 @@ function EvmRpcSettingRow() {
           </p>
         </div>
       </div>
-      <p className="mt-3 text-[11px] uppercase tracking-[0.18em] text-text-soft">
+      <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
         Currently using {isUsingOverride ? "override" : "default"}
       </p>
       <p className="mt-1 break-all font-mono text-[11px] text-text-strong">

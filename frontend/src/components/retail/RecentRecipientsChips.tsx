@@ -56,7 +56,7 @@ export function RecentRecipientsChips({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <p className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.18em] text-text-soft">
+      <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
         <History className="h-3 w-3" aria-hidden="true" />
         Recent
       </p>

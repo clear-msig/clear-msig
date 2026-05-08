@@ -117,7 +117,7 @@ export default function InvitationsPage() {
         className="flex flex-col items-center text-center"
       >
         <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-        <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Invitations
         </p>
         <h1 className="mt-2 font-display text-display-xs leading-tight text-text-strong">
@@ -150,7 +150,7 @@ export default function InvitationsPage() {
         <>
           {sent.length > 0 && (
             <section className="flex flex-col gap-2">
-              <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+              <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
                 Active ({sent.length})
               </h2>
               {sent.map((entry) => (
@@ -196,7 +196,7 @@ export default function InvitationsPage() {
 
           {revoked.length > 0 && (
             <section className="flex flex-col gap-2">
-              <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+              <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
                 Withdrawn ({revoked.length})
               </h2>
               {revoked.map((entry) => (

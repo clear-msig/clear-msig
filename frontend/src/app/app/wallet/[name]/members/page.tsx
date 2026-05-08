@@ -142,7 +142,7 @@ export default function MembersPage() {
         className="rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest sm:p-8"
       >
         <span aria-hidden="true" className="mx-auto block h-px w-10 bg-accent" />
-        <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Members
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
@@ -193,7 +193,7 @@ export default function MembersPage() {
 
       {/* Member list */}
       <section>
-        <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Member list
         </h2>
         {intentsQuery.isLoading ? (
@@ -468,7 +468,7 @@ function MemberRow({
       </div>
       {editingNickname && (
         <div className="mt-3 rounded-soft border border-border-soft bg-canvas p-3">
-          <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-text-soft">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
             {hasNickname ? "Rename" : "Give a nickname"}
           </p>
           <p className="mt-1 text-[11px] text-text-soft">
@@ -510,7 +510,7 @@ function MemberRow({
       )}
       {editingRole && (
         <div className="mt-3 rounded-soft border border-border-soft bg-canvas p-3">
-          <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-text-soft">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
             Change role · {displayName}
           </p>
           <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-3">

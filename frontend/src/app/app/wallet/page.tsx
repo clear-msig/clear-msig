@@ -170,7 +170,7 @@ function Greeting({ reduce }: { reduce: boolean }) {
       className="flex flex-col items-center text-center"
     >
       <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-      <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+      <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
         Home
       </p>
       <h1 className="mt-2 font-display text-display-xs leading-tight text-text-strong">
@@ -260,7 +260,7 @@ function ShortcutCard({
 function MembershipsErrorCard({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="rounded-card border border-warning/30 bg-warning/[0.06] p-6 shadow-card-rest">
-      <p className="text-xs font-medium uppercase tracking-[0.18em] text-warning">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
         Couldn&rsquo;t load your wallets
       </p>
       <p className="mt-2 text-sm text-text-strong">
@@ -931,7 +931,7 @@ function ActivityRow({ row }: { row: RecentActivityRow }) {
           </p>
           <p className="mt-0.5 text-xs text-text-soft">
             <span className={statusTextColor(row.status)}>{friendlyStatus(row.status, row.intentTemplate)}</span>
-            <span className="mx-1.5 text-text-soft/40">·</span>
+            <span aria-hidden="true" className="mx-1.5 text-text-soft">·</span>
             <span>{time}</span>
           </p>
         </div>
@@ -948,7 +948,7 @@ function ActivityRow({ row }: { row: RecentActivityRow }) {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+    <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
       {children}
     </h2>
   );

@@ -215,7 +215,7 @@ export default function BudgetPage() {
         <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">
           <WalletIcon className="h-6 w-6" strokeWidth={1.75} />
         </div>
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Spending policy
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
@@ -383,7 +383,7 @@ function PolicyCard({
 }) {
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-      <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
         {title}
       </p>
       <p className="mt-1 text-xs text-text-soft">{hint}</p>
@@ -529,7 +529,7 @@ function CurrentUsageCard({
   return (
     <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
       <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-      <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+      <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
         This week
       </p>
       <div className="mt-2 flex items-baseline justify-between gap-3">

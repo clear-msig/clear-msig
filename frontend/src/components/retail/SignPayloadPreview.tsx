@@ -70,7 +70,7 @@ export function SignPayloadPreview({
           <Eye className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-accent">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
             What you are about to sign
           </p>
           <p className="mt-1 font-display text-base font-semibold leading-snug text-text-strong">

@@ -111,7 +111,7 @@ export function WalletPopupNarration({
           {trailing}
         </p>
         {showFooter && (
-          <p className="mt-2 text-text-soft/90">
+          <p className="mt-2 text-text-soft">
             {isLedger ? (
               <>
                 <span className="font-medium text-text-strong">

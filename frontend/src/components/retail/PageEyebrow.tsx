@@ -44,7 +44,7 @@ export function PageEyebrow({
       <span aria-hidden="true" className="block h-px w-10 bg-accent" />
       <p
         className={
-          "mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft"
+          "mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft"
         }
       >
         {label}

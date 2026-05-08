@@ -187,7 +187,7 @@ export default function ReceivePage() {
               <Wallet className="h-7 w-7" strokeWidth={1.75} />
             </div>
             <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-            <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+            <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
               Receive money
             </p>
             <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
@@ -238,7 +238,7 @@ export default function ReceivePage() {
                 <div className="mt-8 w-full rounded-card border border-border-soft bg-surface-raised p-5 text-left shadow-card-rest">
                   <div className="flex items-center gap-2">
                     <ChainBadge chain={selected.chain} size="sm" />
-                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-soft">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
                       {selected.chain.name} address
                     </p>
                   </div>

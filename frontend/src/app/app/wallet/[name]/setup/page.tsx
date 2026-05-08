@@ -311,7 +311,7 @@ export default function SetupSpendingPage() {
               <Send className="h-7 w-7" strokeWidth={1.75} />
             </div>
             <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-            <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+            <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
               First-time setup
             </p>
             <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
@@ -324,7 +324,7 @@ export default function SetupSpendingPage() {
             </p>
 
             <div className="mt-6 w-full rounded-card border border-border-soft bg-surface-raised p-5 text-left shadow-card-rest">
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
                 What this enables
               </p>
               <ul className="mt-3 flex flex-col gap-2 text-sm text-text-strong">
@@ -349,7 +349,7 @@ export default function SetupSpendingPage() {
                 intent. Defaults to ship-immediately; 24h is the
                 second-thoughts buffer for shared wallets. */}
             <div className="mt-4 w-full rounded-card border border-border-soft bg-surface-raised p-5 text-left shadow-card-rest">
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
                 When approvals are in
               </p>
               <div className="mt-3 grid grid-cols-2 gap-2">

@@ -72,7 +72,7 @@ export default function ContactsPage() {
         className="flex flex-col items-center text-center"
       >
         <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-        <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Address book
         </p>
         <h1 className="mt-2 font-display text-display-xs leading-tight text-text-strong">

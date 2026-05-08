@@ -54,7 +54,7 @@ export default function HomePage() {
       <section className="relative z-10 mx-auto flex w-full max-w-3xl flex-col items-center px-gutter pt-32 text-center sm:pt-40">
         <motion.span
           {...fadeIn(0)}
-          className="rounded-full border border-border-soft bg-surface-raised px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-text-soft"
+          className="rounded-full border border-border-soft bg-surface-raised px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft"
         >
           Shared wallets
         </motion.span>

@@ -91,7 +91,7 @@ export default function ChangelogPage() {
           Settings
         </Link>
         <header>
-          <p className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.18em] text-accent">
+          <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
             <Sparkles className="h-3 w-3" strokeWidth={2.25} aria-hidden="true" />
             What&rsquo;s new
           </p>
@@ -109,7 +109,7 @@ export default function ChangelogPage() {
               key={`${e.date}-${i}`}
               className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
             >
-              <p className="text-[11px] uppercase tracking-[0.18em] text-text-soft">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
                 {e.date}
               </p>
               <h2 className="mt-1 font-display text-base font-medium text-text-strong">

@@ -223,7 +223,7 @@ function AddChainPage() {
           </div>
 
           <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
               What happens next
             </p>
             <ul className="mt-3 flex flex-col gap-2 text-sm text-text-strong">

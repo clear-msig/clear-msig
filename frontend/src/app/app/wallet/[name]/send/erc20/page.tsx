@@ -612,7 +612,7 @@ function ComposeStage({
       <div className="flex flex-col items-center text-center">
         {ethMeta && <ChainBadge chain={ethMeta} size="lg" />}
         <span aria-hidden="true" className="mt-4 block h-px w-10 bg-accent" />
-        <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Send · ERC-20 token
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
@@ -695,7 +695,7 @@ function ComposeStage({
                 "disabled:cursor-not-allowed disabled:opacity-60"
               }
             />
-            <span className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-text-soft">
+            <span className="font-display text-sm font-semibold uppercase tracking-[0.24em] text-text-soft">
               {symbol}
             </span>
           </div>
@@ -835,7 +835,7 @@ function Field({
 }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
         {label}
       </span>
       {children}

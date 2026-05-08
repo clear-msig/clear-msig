@@ -119,7 +119,7 @@ function ConnectPage() {
               communicates what's behind the wall. On mobile it stacks
               above the connect card. */}
           <motion.section {...fadeIn(0)} className="flex flex-col">
-            <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-accent">
+            <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
               <Sparkles className="h-3 w-3" strokeWidth={2.25} aria-hidden="true" />
               Shared wallets, signed by you
             </span>
@@ -303,7 +303,7 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
     if (kind === "wallet") {
       return (
         <>
-          <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-text-soft">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
             Family
           </p>
           <p className="mt-1 font-display text-2xl text-text-strong">
@@ -318,7 +318,7 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
     if (kind === "request") {
       return (
         <>
-          <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-accent">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
             Approved
           </p>
           <p className="mt-1 text-sm font-medium text-text-strong">
@@ -335,7 +335,7 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
     }
     return (
       <>
-        <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-text-soft">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Members
         </p>
         <div className="mt-2 flex -space-x-2">

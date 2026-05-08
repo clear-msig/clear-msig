@@ -424,7 +424,7 @@ export default function WelcomePage() {
                   <Users className="h-5 w-5" strokeWidth={1.75} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-accent">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
                     {memberships.data!.length === 1
                       ? "You already have a wallet"
                       : `You're in ${memberships.data!.length} wallets`}
@@ -450,7 +450,7 @@ export default function WelcomePage() {
                 className="flex flex-col"
               >
                 <div className="text-center">
-                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
                     Welcome to Clear
                   </p>
                   <h2 className="mt-2 font-display text-display-sm text-text-strong text-balance">
@@ -554,7 +554,7 @@ export default function WelcomePage() {
                 <div className="mt-8">
                   <label
                     htmlFor="wallet-name"
-                    className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft"
+                    className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft"
                   >
                     Name it
                   </label>
@@ -587,7 +587,7 @@ export default function WelcomePage() {
                     copy, but visually it stays out of the way of the
                     actual decisions (name + create). */}
                 <div className="mt-6">
-                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
                     Who's it for?
                   </p>
                   <ul className="mt-2 flex flex-wrap gap-1.5">
@@ -625,7 +625,7 @@ export default function WelcomePage() {
                     broken. Compact form (was a full-width card on the
                     old confirm screen). */}
                 <div className="mt-6 rounded-card border border-border-soft bg-surface-raised p-4 text-left text-sm shadow-card-rest">
-                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
                     What happens next
                   </p>
                   <p className="mt-2 text-text-strong">

@@ -882,7 +882,7 @@ function SendPage() {
         <div className="w-full max-w-lg">
           {needsSetup && (
             <div className="mb-6 rounded-card border border-warning/30 bg-warning/5 p-5 text-center shadow-card-rest">
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-warning">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
                 Set up sending first
               </p>
               <p className="mt-2 text-sm text-text-strong">
@@ -1066,7 +1066,7 @@ function ComposeStage({
     >
       <div className="flex flex-col items-center">
         <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-        <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Sending from {walletDisplay}
         </p>
       </div>
@@ -1090,7 +1090,7 @@ function ComposeStage({
           bordered card around the input — restraint, not chrome. */}
       <div className="mt-8 flex flex-col items-center">
         <span aria-hidden="true" className="block h-px w-12 bg-accent" />
-        <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Amount
         </p>
         <label htmlFor="send-amount-input" className="sr-only">
@@ -1125,7 +1125,7 @@ function ComposeStage({
           />
           <span
             aria-hidden="true"
-            className="font-display text-2xl font-medium uppercase tracking-[0.18em] text-text-soft sm:text-3xl"
+            className="font-display text-2xl font-semibold uppercase tracking-[0.24em] text-text-soft sm:text-3xl"
           >
             SOL
           </span>
@@ -1183,7 +1183,7 @@ function ComposeStage({
       {/* Recents row — only shows if the user has any saved contacts. */}
       {hydratedContacts && recents.length > 0 && (
         <div className="mt-7">
-          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-soft">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
             Recent
           </p>
           <div className="mt-2 flex flex-wrap gap-2">

@@ -318,7 +318,7 @@ function BuyPage() {
       >
         <header className="flex flex-col items-center text-center">
           <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-          <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
             Top up
           </p>
           <h1 className="mt-2 font-display text-display-xs leading-tight text-text-strong">
@@ -411,7 +411,7 @@ function ComposeForm({
   return (
     <div className="flex flex-col gap-5 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
       <div className="flex flex-col gap-2">
-        <label className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+        <label className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Chain
         </label>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -448,7 +448,7 @@ function ComposeForm({
       <div className="flex flex-col gap-2">
         <label
           htmlFor="usd-amount"
-          className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft"
+          className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft"
         >
           Amount (USD)
         </label>

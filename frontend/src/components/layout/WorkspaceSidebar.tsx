@@ -285,7 +285,7 @@ function ConnectedAsPill({
           <span className="block h-1.5 w-1.5 rounded-full bg-white/90" />
         </span>
         <span className="flex min-w-0 flex-1 flex-col leading-tight">
-          <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-text-soft">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
             Connected
           </span>
           <span className="truncate font-mono text-[11px] text-text-strong">
@@ -375,7 +375,7 @@ function SidebarSection({
     <section className="flex flex-col gap-2">
       {expanded && (
         <div className="flex items-center justify-between px-2">
-          <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-text-soft">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
             {label}
           </span>
           {!loading && typeof count === "number" && count > 0 && (

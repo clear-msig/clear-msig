@@ -138,7 +138,7 @@ export function WalletTourModal() {
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
               <Sparkles className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
             </div>
-            <p className="mt-4 text-[11px] uppercase tracking-[0.18em] text-text-soft">
+            <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
               Step {step + 1} of {STEPS.length}
             </p>
             <h2

@@ -76,7 +76,7 @@ export default function PrivacyPage() {
             <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-accent/10 text-accent">
               <Lock className="h-7 w-7" strokeWidth={1.75} />
             </div>
-            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-text-soft">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
               How privacy works
             </p>
             <h1 className="mt-2 font-display text-display-md leading-[1.02] text-text-strong text-balance">
@@ -138,7 +138,7 @@ export default function PrivacyPage() {
           >
             <p
               className={
-                "text-[11px] font-medium uppercase tracking-[0.18em] " +
+                "text-[11px] font-semibold uppercase tracking-[0.24em] " +
                 (status.live ? "text-accent" : "text-warning")
               }
             >

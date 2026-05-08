@@ -309,7 +309,7 @@ function Loaded({
       <section className="flex flex-col items-center rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest sm:p-8">
         <span
           className={
-            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em] " +
+            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] " +
             statusChipClasses(proposal.status)
           }
         >
@@ -657,7 +657,7 @@ function ApproversBreakdown({
   if (approvers.length === 0) return null;
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-      <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-text-soft">
+      <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
         Approvers
       </h2>
       <ul className="mt-3 flex flex-col gap-2">

@@ -117,7 +117,7 @@ function ConfigGapBanner({
   return (
     <main className="min-h-screen bg-canvas px-gutter py-12">
       <div className="mx-auto max-w-xl rounded-card border border-danger/40 bg-danger/[0.05] p-6">
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-danger">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-danger">
           This deployment is misconfigured
         </p>
         <h1 className="mt-2 font-display text-display-xs text-text-strong">
