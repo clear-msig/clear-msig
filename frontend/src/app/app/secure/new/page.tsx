@@ -74,7 +74,8 @@ const SHAPES: ThresholdShape[] = [
     label: "2 of 3",
     threshold: 2,
     members: 3,
-    blurb: "You + two devices. Any two sign and you're in. Tolerates losing one.",
+    blurb:
+      "You + two devices. Any two sign and you're in. Build solo first, then add passkeys + lock down — same end state in 4 taps.",
     available: false,
   },
   {
@@ -82,7 +83,8 @@ const SHAPES: ThresholdShape[] = [
     label: "3 of 5",
     threshold: 3,
     members: 5,
-    blurb: "Five devices, three to recover. Tolerates losing two.",
+    blurb:
+      "Five devices, three to recover. Same path as 2 of 3 — build solo, enroll passkeys, bump the threshold.",
     available: false,
   },
 ];
@@ -126,9 +128,13 @@ function SecureBuildPage() {
 
   const handleConfirm = () => {
     if (!shape.available) {
-      toast.info("Coming soon", {
+      // Non-solo presets aren't a one-shot create today — the path
+      // exists, it's just split across enroll + threshold pages. Tell
+      // the user the shortest sequence instead of the dead-end "coming
+      // soon" toast we used to show.
+      toast.info("Build solo first, then lock down", {
         details:
-          "Multi-device vaults land with the device-enrollment flow in v3.",
+          `Pick "Just me" to create the vault. After it's live: enroll ${shape.members - 1} passkey${shape.members - 1 === 1 ? "" : "s"} (one tap each), then bump the threshold to ${shape.threshold}. Same end state, ${shape.members + 1} signed txs total.`,
       });
       return;
     }
