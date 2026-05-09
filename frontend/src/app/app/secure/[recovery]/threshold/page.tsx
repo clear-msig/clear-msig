@@ -53,23 +53,33 @@ const WALLET_RUN_STAGES: {
   detail: string;
 }[] = [
   {
-    id: "build",
-    label: "Building bundle",
-    detail: "Packing stage + propose + approve + execute into one tx.",
+    id: "stage-sign",
+    label: "Sign stage tx",
+    detail: "First wallet popup writes the change to a staging account.",
+  },
+  {
+    id: "stage-confirm",
+    label: "Awaiting stage confirmation",
+    detail: "Solana commits the staging payload.",
   },
   {
     id: "sign",
-    label: "Sign in your wallet",
-    detail: "One signature authorises the threshold change.",
-  },
-  {
-    id: "submit",
-    label: "Submitting on Solana",
-    detail: "Recording the roster change.",
+    label: "Sign propose tx",
+    detail: "Second wallet popup proposes the change.",
   },
   {
     id: "confirm",
-    label: "Waiting for confirmation",
+    label: "Awaiting propose confirmation",
+    detail: "Solana commits the proposal.",
+  },
+  {
+    id: "approve-sign",
+    label: "Sign approve + execute tx",
+    detail: "Third wallet popup approves and applies the change.",
+  },
+  {
+    id: "approve-confirm",
+    label: "Finalising",
     detail: "Solana commits the new threshold.",
   },
 ];
@@ -80,34 +90,39 @@ const PASSKEY_RUN_STAGES: {
   detail: string;
 }[] = [
   {
+    id: "stage-sign",
+    label: "Sign stage tx",
+    detail: "Wallet popup writes the change to a staging account.",
+  },
+  {
+    id: "stage-confirm",
+    label: "Awaiting stage confirmation",
+    detail: "Solana commits the staging payload.",
+  },
+  {
     id: "propose-passkey",
-    label: "Tap your passkey",
+    label: "Tap your passkey · propose",
     detail: "Authorise the propose challenge.",
   },
   {
     id: "sign",
     label: "Sign propose tx",
-    detail: "Confirm the propose tx in your wallet.",
-  },
-  {
-    id: "submit",
-    label: "Submitting propose",
-    detail: "Recording the proposal on Solana.",
+    detail: "Wallet popup confirms the propose tx.",
   },
   {
     id: "confirm",
-    label: "Confirming propose",
+    label: "Awaiting propose confirmation",
     detail: "Solana commits the proposal.",
   },
   {
     id: "approve-passkey",
-    label: "Tap your passkey again",
+    label: "Tap your passkey · approve",
     detail: "Authorise the approve challenge.",
   },
   {
     id: "approve-sign",
     label: "Sign approve + execute tx",
-    detail: "Confirm the approve + execute tx in your wallet.",
+    detail: "Wallet popup confirms approve + execute.",
   },
   {
     id: "approve-confirm",
@@ -252,7 +267,7 @@ function ThresholdPage() {
       });
       return;
     }
-    setRunStage(authMode === "passkey" ? "propose-passkey" : "build");
+    setRunStage("stage-sign");
     setStage("running");
     try {
       const result = await bumpThresholdSimple({
@@ -577,13 +592,13 @@ function IntroStage({
               active={authMode === "wallet"}
               onClick={() => setAuthMode("wallet")}
               label="Wallet"
-              detail="One-tap. Single tx."
+              detail="Three wallet popups."
             />
             <AuthOption
               active={authMode === "passkey"}
               onClick={() => setAuthMode("passkey")}
               label="Existing passkey"
-              detail="Two passkey taps."
+              detail="Three popups + 2 passkey taps."
             />
           </div>
         </section>
@@ -634,8 +649,8 @@ function IntroStage({
         </Button>
         <p className="text-[11px] text-text-soft">
           {authMode === "passkey"
-            ? "Two passkey taps + two wallet popups. Reversible later via another roster change."
-            : "One signature in your wallet. One Solana tx. Reversible later via another roster change."}
+            ? "Three Solana txs (stage, propose, approve+execute) + two passkey taps. Reversible later via another roster change."
+            : "Three wallet popups (stage, propose, approve+execute). Solana's 1232-byte packet limit forces the split. Reversible later via another roster change."}
         </p>
       </div>
     </motion.section>

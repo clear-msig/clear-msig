@@ -26,17 +26,24 @@
 //     SCHEME_SOLANA_ADDRESS is verified via the tx signer list).
 //   - All four ixs fit in one tx, one user popup.
 //
-// Two auth modes, mirroring sweep + enroll:
+// Two auth modes:
 //
-//   "wallet"  — connected Solana wallet IS a roster member. The
-//               credential is SCHEME_SOLANA_ADDRESS (no inline sig)
-//               so all four ixs ride in ONE user-signed tx.
+//   "wallet"  — connected Solana wallet IS a roster member; credential
+//               is SCHEME_SOLANA_ADDRESS (no inline sig).
 //   "passkey" — connected wallet pays fees but isn't a member; an
-//               existing passkey on this device is. Two split txs
-//               with secp256r1 precompiles for the propose and
-//               approve challenges. Two passkey taps + two wallet
-//               popups. This is the "lost wallet, lock down via
-//               passkey" path.
+//               existing passkey on this device is. Two passkey taps
+//               (one per challenge) + secp256r1 precompiles. The
+//               "lost wallet, lock down via passkey" path.
+//
+// Both modes split into THREE user-signed txs because
+// `stage_roster_change_payload` carries 556 bytes of fixed-size
+// padded payload (CREATE_MEMBERS_BYTES × 2 + headers). Even bundled
+// with just `propose`, the combined tx tips over Solana's 1232-byte
+// packet cap, so stage gets its own tx:
+//
+//   tx A: [stage_roster_change_payload]
+//   tx B: [propose]            (passkey adds precompile + passkey tap A)
+//   tx C: [approve, execute]   (passkey adds precompile + passkey tap B)
 
 import {
   Connection,
@@ -69,10 +76,15 @@ export type BumpAuthMode = "wallet" | "passkey";
 
 export type BumpThresholdStage =
   | "build"
+  // Stage tx (no auth, no precompile)
+  | "stage-sign"
+  | "stage-confirm"
+  // Propose tx (passkey mode runs `propose-passkey` first for the assertion)
   | "propose-passkey"
   | "sign"
   | "submit"
   | "confirm"
+  // Approve+execute tx (passkey mode runs `approve-passkey` first)
   | "approve-passkey"
   | "approve-sign"
   | "approve-confirm"
@@ -193,17 +205,30 @@ export async function bumpThresholdSimple(
     newThreshold,
   });
 
+  // --- Tx A: stage (no auth, same shape in both modes) ---
+  await sendBundle(
+    connection,
+    creator,
+    [stageIx],
+    signTransaction,
+    () => progress("stage-sign"),
+    () => progress("stage-confirm"),
+    () => progress("stage-confirm"),
+  );
+
   let rosterChange: PublicKey;
   let txSignature: string;
 
   if (authMode === "wallet") {
     // Wallet mode: SCHEME_SOLANA_ADDRESS for both propose and approve;
-    // matching by tx Signer set means no inline sig needed and we can
-    // bundle stage+propose+approve+execute in ONE user-signed tx.
+    // matching is by Signer-set membership in the same tx, so no
+    // precompile or inline sig is needed.
     const credential: AuthCredential = {
       scheme: SCHEME_SOLANA_ADDRESS,
       pubkey: creator.toBytes(),
     };
+
+    // --- Tx B: propose ---
     const { ix: proposeIx, rosterChange: proposalAccount } =
       buildProposeRosterChangeIx({
         recovery,
@@ -214,6 +239,17 @@ export async function bumpThresholdSimple(
         credential,
       });
     rosterChange = proposalAccount;
+    await sendBundle(
+      connection,
+      creator,
+      [proposeIx],
+      signTransaction,
+      () => progress("sign"),
+      () => progress("submit"),
+      () => progress("confirm"),
+    );
+
+    // --- Tx C: approve + execute ---
     const { ix: approveIx } = buildApproveRosterChangeIx({
       recovery,
       rosterChange,
@@ -226,25 +262,24 @@ export async function bumpThresholdSimple(
       rosterChange,
       payer: creator,
     });
-
     txSignature = await sendBundle(
       connection,
       creator,
-      [stageIx, proposeIx, approveIx, executeIx],
+      [approveIx, executeIx],
       signTransaction,
-      () => progress("sign"),
-      () => progress("submit"),
-      () => progress("confirm"),
+      () => progress("approve-sign"),
+      () => progress("approve-confirm"),
+      () => progress("approve-confirm"),
     );
   } else {
-    // Passkey mode. Two separate user-signed txs because each carries
-    // its own secp256r1 precompile + assertion challenge:
-    //   tx A: [stage_payload, precompile-for-propose, propose]   ← passkey tap A
-    //   tx B: [precompile-for-approve, approve, execute]         ← passkey tap B
-    // Both txs are paid for by the connected wallet (fee payer); the
-    // wallet doesn't need to be a roster member.
+    // Passkey mode. Each user-auth tx carries its own secp256r1
+    // precompile + assertion challenge:
+    //   tx B: [precompile-for-propose, propose]    ← passkey tap A
+    //   tx C: [precompile-for-approve, approve, execute] ← passkey tap B
+    // The connected wallet pays fees on every leg; doesn't need to be
+    // a roster member.
 
-    // --- propose ---
+    // --- Tx B: passkey assertion + propose ---
     progress("propose-passkey");
     const proposeC = rosterChangeProposeChallenge(
       recoveryIdBytes,
@@ -276,14 +311,14 @@ export async function bumpThresholdSimple(
     await sendBundle(
       connection,
       creator,
-      [stageIx, proposePrecompile, proposeIx],
+      [proposePrecompile, proposeIx],
       signTransaction,
       () => progress("sign"),
       () => progress("submit"),
       () => progress("confirm"),
     );
 
-    // --- approve + execute ---
+    // --- Tx C: passkey assertion + approve + execute ---
     progress("approve-passkey");
     const approveC = rosterChangeApproveChallenge(
       recoveryIdBytes,

@@ -64,23 +64,33 @@ const WALLET_ENROLL_STAGES: EnrollStageInfo[] = [
   },
   {
     id: "build",
-    label: "Building transaction",
-    detail: "Packing propose, approve, and execute into one bundle.",
+    label: "Building transactions",
+    detail: "Packing propose, then approve + execute.",
   },
   {
     id: "sign",
-    label: "Waiting for your signature",
-    detail: "Your wallet authorises the new device joining the roster.",
+    label: "Sign propose tx",
+    detail: "First wallet popup authorises the enrollment proposal.",
   },
   {
     id: "submit",
-    label: "Submitting on Solana",
-    detail: "Sending the bundle to the validator pool.",
+    label: "Submitting propose",
+    detail: "Recording the proposal on Solana.",
   },
   {
     id: "confirm",
-    label: "Waiting for confirmation",
-    detail: "Solana confirms the new device is now on the roster.",
+    label: "Awaiting propose confirmation",
+    detail: "Solana commits the proposal.",
+  },
+  {
+    id: "approve-sign",
+    label: "Sign approve + execute tx",
+    detail: "Second wallet popup approves and applies the change.",
+  },
+  {
+    id: "approve-confirm",
+    label: "Finalising enrollment",
+    detail: "Solana confirms the new device is on the roster.",
   },
 ];
 
@@ -512,10 +522,11 @@ function IntroStage({
             {authMode === "wallet" ? (
               <>
                 <span className="font-medium text-text-strong">
-                  One signature.
+                  Two wallet popups.
                 </span>{" "}
-                propose + approve + execute travel in a single transaction —
-                you sign once, and the new device is live.
+                propose first, then approve + execute. Solana&rsquo;s 1232-byte
+                packet limit means we can&rsquo;t fit all three steps into one
+                tx.
               </>
             ) : (
               <>
@@ -545,7 +556,7 @@ function IntroStage({
               active={authMode === "wallet"}
               onClick={() => setAuthMode("wallet")}
               label="Wallet"
-              detail="One-tap. Single tx."
+              detail="Two wallet popups."
             />
             <AuthOption
               active={authMode === "passkey"}

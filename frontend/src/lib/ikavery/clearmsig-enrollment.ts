@@ -166,7 +166,16 @@ export async function enrollPasskeyForVault(
 
   if (authMode === "wallet") {
     // Wallet mode: SCHEME_SOLANA_ADDRESS for both propose + approve.
-    // No precompiles needed → all three ixs in one tx, one popup.
+    // No precompiles needed, but the propose ix carries 429 bytes of
+    // data (`MAX_CLIENT_DATA_JSON_BYTES` is fixed-size on the wire so
+    // even SOLANA_ADDRESS pays the cost) and approve adds another 358.
+    // Bundling propose+approve+execute into one tx tipped over Solana's
+    // 1232-byte packet limit (~1245 bytes raw → 1660 base64), so we
+    // split into two user-signed txs:
+    //   tx A: [propose]
+    //   tx B: [approve, execute]
+    // Two popups instead of one is the trade-off; the propose has to
+    // confirm before approve can write its PDA anyway.
     progress("build");
     const credential: AuthCredential = {
       scheme: SCHEME_SOLANA_ADDRESS,
@@ -184,6 +193,16 @@ export async function enrollPasskeyForVault(
       additionApproverOnly: 0,
       credential,
     });
+    await sendBundle(
+      connection,
+      creator,
+      [proposeIx],
+      signTransaction,
+      () => progress("sign"),
+      () => progress("submit"),
+      () => progress("confirm"),
+    );
+
     const { ix: approveIx } = buildApproveEnrollmentIx({
       recovery,
       enrollment,
@@ -196,15 +215,14 @@ export async function enrollPasskeyForVault(
       enrollment,
       payer: creator,
     });
-
     const sig = await sendBundle(
       connection,
       creator,
-      [proposeIx, approveIx, executeIx],
+      [approveIx, executeIx],
       signTransaction,
-      () => progress("sign"),
-      () => progress("submit"),
-      () => progress("confirm"),
+      () => progress("approve-sign"),
+      () => progress("approve-confirm"),
+      () => progress("approve-confirm"),
     );
     progress("done");
     return { enrollment, txSignature: sig };
