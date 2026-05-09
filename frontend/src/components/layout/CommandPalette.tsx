@@ -231,7 +231,7 @@ export function CommandPalette() {
           >
             <Command.Item
               value="action:new-wallet"
-              onSelect={() => goto("/welcome")}
+              onSelect={() => goto("/app/wallet/new")}
               className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-xs text-white/80 aria-selected:bg-accent/15 aria-selected:text-accent"
             >
               <Plus size={14} />
