@@ -21,7 +21,7 @@ import clsx from "clsx";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronLeft, ScanLine, Settings, ShieldCheck } from "lucide-react";
+import { ChevronLeft, ScanLine, ShieldCheck, UserCircle2 } from "lucide-react";
 import { useWallet } from "@/lib/wallet";
 import { useOnboarding } from "@/lib/hooks/useOnboarding";
 import { BrandMark } from "@/components/retail/BrandMark";
@@ -56,14 +56,18 @@ export function HeaderBar() {
   //   showTitle      - plain centered text on every /app/* mobile page
   //   showBrandPill  - only on public surfaces
   //   showScan       - only when composing a transfer
-  //   showSettings   - only on the Account page (Account is the natural
-  //                    parent of Settings now that they live as separate
-  //                    pages); other pages don't carry the gear at all.
+  //   showAccount    - only on the Settings page (Account is reachable
+  //                    from the Settings header now that Settings lives
+  //                    in the bottom nav).
+  //   showSecure     - only on the Home page (recovery hub shortcut).
   const showBack = inAppConnected && !isHome;
   const showTitle = inAppConnected;
   const showBrandPill = !inApp || !connected;
   const showScan = isSendRoute(pathname);
-  const showSettings = inAppConnected && pathname.startsWith("/app/account");
+  // Account shortcut - lives on the Settings page only. Settings
+  // moved into the bottom nav, so Account becomes the
+  // companion surface reachable from the Settings page header.
+  const showAccount = inAppConnected && pathname.startsWith("/app/settings");
   // Secure shortcut: only on the Home page so the icon doesn't
   // clutter every screen. Tapping deep-links into /app/secure
   // (the recovery hub).
@@ -181,13 +185,13 @@ export function HeaderBar() {
 
       {/* Right-side action cluster. Only renders when there's at
           least one action to show:
-            • Scan      - on send routes
-            • Settings  - on the Account page
-            • Secure    - on the Home page only (recovery hub)
+            • Scan     - on send routes
+            • Account  - on the Settings page
+            • Secure   - on the Home page only (recovery hub)
           ml-auto pushes the cluster to the trailing edge, opposite
           the title / back button on the leading edge. */}
       <AnimatePresence>
-        {inAppConnected && (showScan || showSettings || showSecure) && (
+        {inAppConnected && (showScan || showAccount || showSecure) && (
           <motion.div
             initial={{ opacity: 0, x: 8 }}
             animate={{ opacity: 1, x: 0 }}
@@ -228,20 +232,20 @@ export function HeaderBar() {
                   </Link>
                 </motion.div>
               )}
-              {showSettings && (
+              {showAccount && (
                 <motion.div
-                  key="settings"
+                  key="account"
                   initial={{ opacity: 0, scale: 0.92 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.92 }}
                   transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
                 >
                   <Link
-                    href="/app/settings"
-                    aria-label="Settings"
+                    href="/app/account"
+                    aria-label="Account"
                     className={MOBILE_HEADER_BTN}
                   >
-                    <Settings size={18} />
+                    <UserCircle2 size={18} />
                   </Link>
                 </motion.div>
               )}

@@ -23,6 +23,7 @@ import { Menu, X } from "lucide-react";
 import { BrandMark } from "@/components/retail/BrandMark";
 
 const NAV_ITEMS: { href: string; label: string; external?: boolean }[] = [
+  { href: "/", label: "Home" },
   { href: "/#bento", label: "Product" },
   { href: "/#why", label: "Why Clear" },
   { href: "/#methodology", label: "How it works" },

@@ -20,9 +20,11 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
-import { ChevronLeft, Plus, Search } from "lucide-react";
-import { openCommandPalette } from "@/components/layout/CommandPalette";
+import { ArrowRight, ChevronLeft, LogOut } from "lucide-react";
+import { useWallet } from "@/lib/wallet";
+import { avatarGradient } from "@/lib/retail/avatar";
 import { getSectionLabel } from "@/lib/retail/sectionLabel";
 
 const ROOT_ROUTES = new Set([
@@ -113,40 +115,87 @@ export function DashboardHeader() {
         </h1>
       ) : null}
 
-      {/* Top-right actions - global Search trigger + New shared wallet
-          CTA. ml-auto pushes the cluster against the right edge so it
-          stays anchored regardless of how long the section label runs. */}
+      {/* Top-right - wallet connection state. Search + New moved to
+          the sidebar (BrandRow's WorkspaceActions). The header now
+          owns the connect / disconnect surface so it sits at eye
+          level instead of buried in the sidebar footer. */}
       <div className="ml-auto flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => openCommandPalette()}
-          aria-label="Search (⌘K)"
-          className={clsx(
-            "group inline-flex items-center gap-2 rounded-soft border border-border-soft bg-glass-soft px-2.5 py-1.5 text-xs text-text-soft",
-            "transition-colors duration-base ease-out-soft hover:border-border-strong hover:bg-glass-mid hover:text-text-strong",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <Search size={13} aria-hidden="true" />
-          <span className="hidden lg:inline">Search</span>
-          <kbd className="hidden rounded border border-border-soft bg-glass-soft px-1.5 py-0.5 font-mono text-[10px] text-text-soft lg:inline">
-            ⌘K
-          </kbd>
-        </button>
-        <Link
-          href="/app/wallet/new"
-          aria-label="New shared wallet"
-          className={clsx(
-            "inline-flex items-center gap-1.5 rounded-soft bg-accent px-3 py-1.5 text-xs font-medium text-text-on-accent shadow-accent-rest",
-            "transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
-            "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <Plus size={13} aria-hidden="true" />
-          <span>New</span>
-        </Link>
+        <HeaderWalletPill />
       </div>
     </header>
+  );
+}
+
+// ─── Header wallet pill ───────────────────────────────────────────
+//
+// Compact connect / connected state for the desktop top header.
+// Shows an avatar + short address + disconnect icon when connected;
+// falls back to a "Sign in" link otherwise (defensive - useWalletGate
+// already redirects unauthenticated users out of /app/*, so this
+// branch should only render in the brief mount-before-gate window).
+
+function HeaderWalletPill() {
+  const wallet = useWallet();
+  const queryClient = useQueryClient();
+  const address = wallet.publicKey?.toBase58() ?? "";
+
+  if (!wallet.connected || !address) {
+    return (
+      <Link
+        href="/connect"
+        className={clsx(
+          "inline-flex items-center gap-1.5 rounded-soft border border-border-soft bg-glass-soft px-3 py-1.5 text-xs font-medium text-text-soft",
+          "transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+        )}
+      >
+        Sign in
+        <ArrowRight size={12} aria-hidden="true" />
+      </Link>
+    );
+  }
+
+  const grad = avatarGradient(address);
+  const short = `${address.slice(0, 4)}…${address.slice(-4)}`;
+
+  const handleDisconnect = async () => {
+    try {
+      await wallet.disconnect();
+    } catch {
+      /* swallow - we still want the cache wipe to land */
+    }
+    queryClient.clear();
+    if (typeof window !== "undefined") {
+      window.location.replace("/");
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-1.5 rounded-soft border border-border-soft bg-glass-soft pl-1.5 pr-1 py-1 backdrop-blur-md">
+      <span
+        aria-hidden="true"
+        className={clsx(
+          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br shadow-sm",
+          grad.from,
+          grad.to,
+        )}
+      >
+        <span className="block h-1.5 w-1.5 rounded-full bg-white/90" />
+      </span>
+      <span className="font-mono text-[11px] text-text-strong">{short}</span>
+      <button
+        type="button"
+        onClick={handleDisconnect}
+        aria-label="Disconnect wallet"
+        title="Disconnect wallet"
+        className={clsx(
+          "flex h-6 w-6 shrink-0 items-center justify-center rounded text-text-soft",
+          "transition-colors duration-base ease-out-soft hover:bg-rose-500/10 hover:text-rose-500",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+        )}
+      >
+        <LogOut size={12} aria-hidden="true" />
+      </button>
+    </div>
   );
 }
