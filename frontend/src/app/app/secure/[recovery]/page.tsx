@@ -37,6 +37,7 @@ import { PageEyebrow } from "@/components/retail/PageEyebrow";
 import { BackToWallets } from "@/components/retail/BackToWallets";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { fetchVault } from "@/lib/ikavery/clearmsig-actions";
+import { loadAttestation } from "@/lib/ikavery/clearmsig-attestations";
 import {
   SCHEME_SOLANA_ADDRESS,
   SCHEME_ED25519,
@@ -86,6 +87,32 @@ function SecureRecoveryPage() {
     },
     enabled: !!recoveryPk,
     staleTime: 30_000,
+  });
+
+  // dWallet pubkey lives in the locally-saved DKG attestation. The
+  // balance is what users sweep from; surfacing it inline saves a
+  // hop into Solana Explorer to know "do I actually have anything
+  // to move".
+  const dwalletPubkey = useMemo(() => {
+    if (!recoveryStr) return null;
+    const att = loadAttestation(recoveryStr);
+    if (!att) return null;
+    try {
+      return new PublicKey(att.publicKey);
+    } catch {
+      return null;
+    }
+  }, [recoveryStr]);
+
+  const dwalletBalance = useQuery({
+    queryKey: ["ikavery-dwallet-balance", dwalletPubkey?.toBase58() ?? "none"],
+    queryFn: async () => {
+      if (!dwalletPubkey) return null;
+      return connection.getBalance(dwalletPubkey, "confirmed");
+    },
+    enabled: !!dwalletPubkey,
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
   });
 
   const fadeIn = (delay = 0) =>
@@ -182,6 +209,32 @@ function SecureRecoveryPage() {
 
       {vault && (
         <>
+          {/* Balance card sits above the stat grid because it's the
+              one number a user will check on every visit (do I have
+              anything to sweep?). The stat grid stays the secondary
+              row underneath. */}
+          {dwalletPubkey && (
+            <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-0.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+                    dWallet balance
+                  </p>
+                  <p className="font-mono text-[11px] text-text-soft">
+                    {`${dwalletPubkey.toBase58().slice(0, 4)}…${dwalletPubkey.toBase58().slice(-4)}`}
+                  </p>
+                </div>
+                <p className="font-numerals text-2xl font-semibold tabular-nums text-text-strong">
+                  {dwalletBalance.isLoading
+                    ? "…"
+                    : typeof dwalletBalance.data === "number"
+                      ? `${(dwalletBalance.data / 1e9).toFixed(4)} SOL`
+                      : "—"}
+                </p>
+              </div>
+            </section>
+          )}
+
           <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Stat
               label="Threshold"

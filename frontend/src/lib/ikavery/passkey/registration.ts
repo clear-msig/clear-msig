@@ -23,6 +23,12 @@ const COSE_EC2_Y = -3;
 
 const KTY_EC2 = 2;
 const ALG_ES256 = -7;
+// RS256 (-257) is listed as a fallback in pubKeyCredParams so Chromium
+// stops warning about "missing default algorithm identifiers". The
+// on-chain side only accepts P-256 (secp256r1) credentials, so the
+// extraction path below rejects an RS256 enrollment with a clean error
+// rather than silently storing an unusable member.
+const ALG_RS256 = -257;
 const CRV_P256 = 1;
 
 export interface RegistrationParams {
@@ -87,7 +93,14 @@ export async function registerPasskey(
         name: params.userName,
         displayName: params.userDisplayName ?? params.userName,
       },
-      pubKeyCredParams: [{ type: "public-key", alg: ALG_ES256 }],
+      // ES256 first so authenticators that support both pick it. RS256
+      // is a fallback that exists only to silence Chromium's
+      // "missing default algorithm identifiers" warning — we'll reject
+      // RS256 at extraction time below.
+      pubKeyCredParams: [
+        { type: "public-key", alg: ALG_ES256 },
+        { type: "public-key", alg: ALG_RS256 },
+      ],
       authenticatorSelection: {
         authenticatorAttachment: params.authenticatorAttachment,
         residentKey: "preferred",
@@ -127,7 +140,11 @@ export async function registerPasskey(
     publicKey = compressFromAttestationObject(attestationObject);
   }
   if (!publicKey || publicKey.length !== 33) {
-    throw new Error("Failed to extract compressed P-256 pubkey from passkey.");
+    throw new Error(
+      "This authenticator returned a non-P-256 key (likely RSA). The vault only " +
+        "accepts ES256 / P-256 passkeys today. Try a different authenticator " +
+        "(Touch ID, modern Windows Hello, YubiKey FIDO2).",
+    );
   }
 
   return {

@@ -149,6 +149,22 @@ function SweepPage() {
     }
   }, [attestation]);
 
+  // The dWallet pays the broadcast tx fee (it's the only signer in
+  // the final tx). Show the live balance so the user knows the cap,
+  // and let "Max" set the amount to balance minus a 5000-lamport fee
+  // reserve. 5000 = current Solana single-signature base fee.
+  const FEE_RESERVE_LAMPORTS = 5_000n;
+  const dwalletBalanceQ = useQuery({
+    queryKey: ["ikavery-dwallet-balance", dwalletPubkey?.toBase58() ?? "none"],
+    queryFn: async () => {
+      if (!dwalletPubkey) return null;
+      return connection.getBalance(dwalletPubkey, "confirmed");
+    },
+    enabled: !!dwalletPubkey,
+    staleTime: 10_000,
+    refetchOnWindowFocus: true,
+  });
+
   const [stage, setStage] = useState<Stage>("compose");
   const [destination, setDestination] = useState("");
   const [amountSol, setAmountSol] = useState("");
@@ -344,6 +360,21 @@ function SweepPage() {
           dwalletPubkey={dwalletPubkey?.toBase58() ?? null}
           recoveryShort={`${recoveryStr.slice(0, 4)}…${recoveryStr.slice(-4)}`}
           loading={vaultQuery.isLoading}
+          balanceLamports={
+            typeof dwalletBalanceQ.data === "number"
+              ? BigInt(dwalletBalanceQ.data)
+              : null
+          }
+          onMax={() => {
+            if (typeof dwalletBalanceQ.data !== "number") return;
+            const balance = BigInt(dwalletBalanceQ.data);
+            if (balance <= FEE_RESERVE_LAMPORTS) {
+              setAmountSol("0");
+              return;
+            }
+            const maxLamports = balance - FEE_RESERVE_LAMPORTS;
+            setAmountSol(formatLamportsToSol(maxLamports));
+          }}
           onContinue={handleReview}
           reduce={!!reduce}
         />
@@ -389,6 +420,9 @@ interface ComposeStageProps {
   dwalletPubkey: string | null;
   recoveryShort: string;
   loading: boolean;
+  /** Live dWallet balance in lamports. Used for "Max" + helper text. */
+  balanceLamports: bigint | null;
+  onMax: () => void;
   onContinue: () => void;
   reduce: boolean;
 }
@@ -438,23 +472,46 @@ function ComposeStage(props: ComposeStageProps) {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label
-            htmlFor="sweep-amount"
-            className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft"
-          >
-            Amount (SOL)
-          </label>
-          <input
-            id="sweep-amount"
-            type="text"
-            inputMode="decimal"
-            value={props.amountSol}
-            onChange={(e) => props.setAmountSol(e.target.value)}
-            placeholder="0.0"
-            spellCheck={false}
-            autoComplete="off"
-            className="rounded-soft border border-border-soft bg-canvas px-3 py-2 font-numerals text-base tabular-nums text-text-strong placeholder:text-text-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          />
+          <div className="flex items-end justify-between gap-2">
+            <label
+              htmlFor="sweep-amount"
+              className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft"
+            >
+              Amount (SOL)
+            </label>
+            {props.balanceLamports != null && (
+              <span className="font-numerals text-[10px] tabular-nums text-text-soft">
+                Balance: {formatLamportsToSol(props.balanceLamports)} SOL
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              id="sweep-amount"
+              type="text"
+              inputMode="decimal"
+              value={props.amountSol}
+              onChange={(e) => props.setAmountSol(e.target.value)}
+              placeholder="0.0"
+              spellCheck={false}
+              autoComplete="off"
+              className="flex-1 rounded-soft border border-border-soft bg-canvas px-3 py-2 font-numerals text-base tabular-nums text-text-strong placeholder:text-text-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            />
+            <button
+              type="button"
+              onClick={props.onMax}
+              disabled={props.balanceLamports == null}
+              className={
+                "shrink-0 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft " +
+                "transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent " +
+                "disabled:cursor-not-allowed disabled:opacity-50 " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              }
+              title="Use max (balance minus fee reserve)"
+            >
+              Max
+            </button>
+          </div>
           {props.amountError && (
             <p className="text-[11px] text-warning">{props.amountError}</p>
           )}
@@ -727,4 +784,20 @@ function ExplorerRow({
 function shortPub(p: string): string {
   if (p.length < 10) return p;
   return `${p.slice(0, 4)}…${p.slice(-4)}`;
+}
+
+/**
+ * Format `lamports` as a SOL string, trimming trailing zeros down to
+ * 4 decimal places minimum. Used for the balance helper text and the
+ * "Max" button population — both display contexts, never parsed back.
+ */
+function formatLamportsToSol(lamports: bigint): string {
+  const whole = lamports / LAMPORTS_PER_SOL;
+  const frac = lamports % LAMPORTS_PER_SOL;
+  const fracStr = frac.toString().padStart(9, "0").replace(/0+$/, "");
+  if (fracStr.length === 0) return whole.toString();
+  // 4 decimals min so amounts like 0.05 don't render as "0.05" with a
+  // truncated fractional tail that surprises a "Max"-then-edit user.
+  const padded = fracStr.length >= 4 ? fracStr : fracStr.padEnd(4, "0");
+  return `${whole}.${padded}`;
 }
