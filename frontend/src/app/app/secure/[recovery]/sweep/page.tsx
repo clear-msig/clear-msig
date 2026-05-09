@@ -44,14 +44,22 @@ import { loadAttestation } from "@/lib/ikavery/clearmsig-attestations";
 import { buildSweepMessage, transferSol } from "@/lib/ikavery/sweep/message";
 import {
   runInAppSweep,
+  type SweepAuthMode,
   type SweepStage as ActionStage,
 } from "@/lib/ikavery/clearmsig-sweep";
+import { SCHEME_SOLANA_ADDRESS } from "@/lib/ikavery/constants";
 
 const LAMPORTS_PER_SOL = 1_000_000_000n;
 
 type Stage = "compose" | "review" | "running" | "done";
 
-const RUN_STAGES: { id: ActionStage; label: string; detail: string }[] = [
+interface RunStageInfo {
+  id: ActionStage;
+  label: string;
+  detail: string;
+}
+
+const WALLET_RUN_STAGES: RunStageInfo[] = [
   {
     id: "build",
     label: "Building sweep",
@@ -66,6 +74,69 @@ const RUN_STAGES: { id: ActionStage; label: string; detail: string }[] = [
     id: "propose-approve-confirm",
     label: "Submitting propose + approve",
     detail: "Recording the proposal on Solana.",
+  },
+  {
+    id: "execute-sign",
+    label: "Sign execute",
+    detail: "Authorising the dWallet message approval CPI.",
+  },
+  {
+    id: "execute-confirm",
+    label: "Submitting execute",
+    detail: "Confirming the MessageApproval row on chain.",
+  },
+  {
+    id: "presign-sign",
+    label: "Ika network sign",
+    detail: "Asking the Ika network to sign the sweep with the dWallet key.",
+  },
+  {
+    id: "broadcast",
+    label: "Broadcasting sweep",
+    detail: "Sending the dWallet-signed sweep to a Solana RPC.",
+  },
+  {
+    id: "broadcast-confirm",
+    label: "Waiting for confirmation",
+    detail: "Solana confirms the funds have moved.",
+  },
+];
+
+const PASSKEY_RUN_STAGES: RunStageInfo[] = [
+  {
+    id: "build",
+    label: "Building sweep",
+    detail: "Encoding the SOL transfer + structural intent digest.",
+  },
+  {
+    id: "propose-passkey",
+    label: "Tap your passkey · propose",
+    detail: "Authorising the proposal with a per-op WebAuthn assertion.",
+  },
+  {
+    id: "propose-approve-sign",
+    label: "Sign propose tx",
+    detail: "Confirm in your wallet — pays fees, doesn't authorise.",
+  },
+  {
+    id: "propose-approve-confirm",
+    label: "Submitting propose",
+    detail: "Recording the proposal on Solana.",
+  },
+  {
+    id: "approve-passkey",
+    label: "Tap your passkey · approve",
+    detail: "Same passkey signs the approval challenge.",
+  },
+  {
+    id: "approve-sign",
+    label: "Sign approve tx",
+    detail: "Confirm in your wallet — pays fees again.",
+  },
+  {
+    id: "approve-confirm",
+    label: "Submitting approve",
+    detail: "Threshold reached on chain.",
   },
   {
     id: "execute-sign",
@@ -171,10 +242,45 @@ function SweepPage() {
   const [amountError, setAmountError] = useState<string | null>(null);
   const [previewMessageBytes, setPreviewMessageBytes] =
     useState<Uint8Array | null>(null);
+  const [authMode, setAuthMode] = useState<SweepAuthMode>("wallet");
   const [runStage, setRunStage] = useState<ActionStage | null>(null);
   const [proposeSig, setProposeSig] = useState<string | null>(null);
   const [executeSig, setExecuteSig] = useState<string | null>(null);
   const [broadcastSig, setBroadcastSig] = useState<string | null>(null);
+
+  // Default authMode based on whether the connected wallet is on the
+  // roster. If yes → wallet (one-click). If not (lost-wallet recovery
+  // case) → passkey, since the wallet sign credential wouldn't match
+  // any member.
+  const walletIsMember = useMemo(() => {
+    if (!wallet.publicKey || !vaultQuery.data) return false;
+    const myBytes = wallet.publicKey.toBytes();
+    return vaultQuery.data.account.members.some((slot) => {
+      if (slot[0] !== SCHEME_SOLANA_ADDRESS) return false;
+      if (slot.length < 33) return false;
+      for (let i = 0; i < 32; i++) {
+        if (slot[1 + i] !== myBytes[i]) return false;
+      }
+      return true;
+    });
+  }, [wallet.publicKey, vaultQuery.data]);
+
+  // Vault has at least one passkey member?
+  const vaultHasPasskey = useMemo(() => {
+    if (!vaultQuery.data) return false;
+    return vaultQuery.data.account.members.some((slot) => slot[0] === 3);
+  }, [vaultQuery.data]);
+
+  // Pin authMode once vault loads — passkey if wallet isn't a member
+  // and a passkey exists; otherwise wallet.
+  useEffect(() => {
+    if (!vaultQuery.data) return;
+    if (!walletIsMember && vaultHasPasskey) {
+      setAuthMode("passkey");
+    } else if (walletIsMember) {
+      setAuthMode("wallet");
+    }
+  }, [vaultQuery.data, walletIsMember, vaultHasPasskey]);
 
   const lamports = useMemo<bigint | null>(() => {
     const trimmed = amountSol.trim();
@@ -252,6 +358,7 @@ function SweepPage() {
     setStage("running");
     try {
       const result = await runInAppSweep({
+        authMode,
         connection,
         recovery: recoveryPk,
         recoveryId: vaultQuery.data.account.recoveryId,
@@ -381,6 +488,10 @@ function SweepPage() {
           amountSol={amountSol}
           dwalletPubkey={dwalletPubkey?.toBase58() ?? ""}
           messageBytesLen={previewMessageBytes?.length ?? 0}
+          authMode={authMode}
+          setAuthMode={setAuthMode}
+          walletIsMember={walletIsMember}
+          vaultHasPasskey={vaultHasPasskey}
           onBack={() => setStage("compose")}
           onContinue={handleRun}
           reduce={!!reduce}
@@ -388,7 +499,11 @@ function SweepPage() {
       )}
 
       {!blockedByDisconnect && !blockedByLedger && stage === "running" && (
-        <RunningStage subStage={runStage} reduce={!!reduce} />
+        <RunningStage
+          subStage={runStage}
+          authMode={authMode}
+          reduce={!!reduce}
+        />
       )}
 
       {stage === "done" && (
@@ -537,6 +652,10 @@ interface ReviewStageProps {
   amountSol: string;
   dwalletPubkey: string;
   messageBytesLen: number;
+  authMode: SweepAuthMode;
+  setAuthMode: (m: SweepAuthMode) => void;
+  walletIsMember: boolean;
+  vaultHasPasskey: boolean;
   onBack: () => void;
   onContinue: () => void;
   reduce: boolean;
@@ -546,6 +665,7 @@ function ReviewStage(props: ReviewStageProps) {
   const motionProps = props.reduce
     ? {}
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
+  const showPicker = props.walletIsMember && props.vaultHasPasskey;
   return (
     <motion.section
       {...motionProps}
@@ -574,6 +694,38 @@ function ReviewStage(props: ReviewStageProps) {
         </dl>
       </section>
 
+      {/* Auth picker — only shown when both options are viable. If the
+          connected wallet isn't on the roster (lost-wallet recovery),
+          passkey is the only option and the picker hides. If the vault
+          has no passkey members, wallet is the only option. */}
+      {showPicker && (
+        <section className="mx-auto w-full max-w-md flex flex-col gap-2 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+            Authorise as
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <AuthOption
+              active={props.authMode === "wallet"}
+              onClick={() => props.setAuthMode("wallet")}
+              label="Wallet"
+              detail="One-tap. Bundles propose + approve."
+            />
+            <AuthOption
+              active={props.authMode === "passkey"}
+              onClick={() => props.setAuthMode("passkey")}
+              label="Passkey"
+              detail="Two passkey taps. Lost-wallet recovery."
+            />
+          </div>
+        </section>
+      )}
+      {!showPicker && props.authMode === "passkey" && (
+        <p className="mx-auto max-w-md text-center text-[11px] text-text-soft">
+          Connected wallet isn&rsquo;t on this vault&rsquo;s roster — sweeping
+          via enrolled passkey.
+        </p>
+      )}
+
       <div className="mx-auto flex items-center gap-2">
         <Button variant="ghost" onClick={props.onBack}>
           Back
@@ -584,6 +736,43 @@ function ReviewStage(props: ReviewStageProps) {
         </Button>
       </div>
     </motion.section>
+  );
+}
+
+function AuthOption({
+  active,
+  onClick,
+  label,
+  detail,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  detail: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "flex flex-col items-start gap-1 rounded-soft border bg-canvas px-3 py-3 text-left " +
+        "transition-[border-color,background-color] duration-base ease-out-soft " +
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent " +
+        (active
+          ? "border-accent bg-accent/[0.05]"
+          : "border-border-soft hover:border-accent/40")
+      }
+    >
+      <span
+        className={
+          "text-sm font-semibold " +
+          (active ? "text-accent" : "text-text-strong")
+        }
+      >
+        {label}
+      </span>
+      <span className="text-[11px] text-text-soft">{detail}</span>
+    </button>
   );
 }
 
@@ -618,13 +807,16 @@ function Row({
 
 interface RunningStageProps {
   subStage: ActionStage | null;
+  authMode: SweepAuthMode;
   reduce: boolean;
 }
 
-function RunningStage({ subStage, reduce }: RunningStageProps) {
+function RunningStage({ subStage, authMode, reduce }: RunningStageProps) {
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
+  const RUN_STAGES =
+    authMode === "passkey" ? PASSKEY_RUN_STAGES : WALLET_RUN_STAGES;
   const activeIdx = subStage ? RUN_STAGES.findIndex((s) => s.id === subStage) : 0;
   const active = activeIdx >= 0 ? RUN_STAGES[activeIdx] : RUN_STAGES[0]!;
   return (
