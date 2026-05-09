@@ -10,7 +10,7 @@
 //    outage shouldn't block real users; the in-process limiter still
 //    catches the obvious loop).
 //
-// Caller signature is the same in both modes — just `await` the
+// Caller signature is the same in both modes - just `await` the
 // result. No code change needed at call sites to enable Upstash.
 
 import { NextResponse } from "next/server";

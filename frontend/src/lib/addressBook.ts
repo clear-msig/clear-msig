@@ -11,10 +11,10 @@
 import { useCallback, useEffect, useState } from "react";
 
 export interface AddressBookEntry {
-  /// Friendly label (e.g. "Vendor — payroll", "Dev fund").
+  /// Friendly label (e.g. "Vendor - payroll", "Dev fund").
   label: string;
   /// Solana base58 address. Other-chain addresses (EVM hex, BTC bech32)
-  /// are out of scope for v1 — clear-msig's params are mostly Solana
+  /// are out of scope for v1 - clear-msig's params are mostly Solana
   /// recipients today.
   address: string;
   /// `Date.now()` at insert. Lets us sort by recency without depending
@@ -48,7 +48,7 @@ function saveToStorage(entries: AddressBookEntry[]) {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
   } catch {
-    /* full / blocked — silent noop */
+    /* full / blocked - silent noop */
   }
 }
 
@@ -66,7 +66,7 @@ export function useAddressBook() {
     const trimmedAddress = address.trim();
     if (!trimmedLabel || !trimmedAddress) return;
     setEntries((prev) => {
-      // Dedupe by address — last write wins on label.
+      // Dedupe by address - last write wins on label.
       const filtered = prev.filter((e) => e.address !== trimmedAddress);
       const next = [
         ...filtered,
@@ -89,7 +89,7 @@ export function useAddressBook() {
 }
 
 /// Look up the friendly label for an address, if it exists. Used to
-/// render `you · vendor — payroll` style chips next to addresses
+/// render `you · vendor - payroll` style chips next to addresses
 /// rather than just the truncated base58. Returns the address shortened
 /// when no label is found.
 export function labelForAddress(

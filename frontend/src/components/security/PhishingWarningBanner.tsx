@@ -2,7 +2,7 @@
 
 // Banner shown at the top of every /app/* surface when the host
 // doesn't match the canonical allowlist. Designed to be impossible
-// to miss without being modal — destroys legitimate work if a real
+// to miss without being modal - destroys legitimate work if a real
 // alt-domain user can't dismiss it. So: dismissible per-tab via
 // sessionStorage, but reappears on every fresh tab.
 //
@@ -38,7 +38,7 @@ export function PhishingWarningBanner() {
     try {
       dismissed = window.sessionStorage.getItem(DISMISS_KEY) === "1";
     } catch {
-      /* sessionStorage blocked — show the banner anyway */
+      /* sessionStorage blocked - show the banner anyway */
     }
     setShow(!dismissed);
   }, []);
@@ -60,7 +60,7 @@ export function PhishingWarningBanner() {
           <p className="font-medium text-text-strong">
             You&rsquo;re on{" "}
             <span className="font-mono">{host || "an unknown domain"}</span>{" "}
-            — not Clear&rsquo;s canonical site.
+            - not Clear&rsquo;s canonical site.
           </p>
           <p className="mt-1 text-text-soft">
             The official URL is{" "}
@@ -68,7 +68,7 @@ export function PhishingWarningBanner() {
               {expectedCanonicalHost()}
             </span>
             . If you didn&rsquo;t deliberately deploy on a custom domain,
-            this could be a phishing copy — close the tab and re-open from
+            this could be a phishing copy - close the tab and re-open from
             your bookmark.
           </p>
           <Link

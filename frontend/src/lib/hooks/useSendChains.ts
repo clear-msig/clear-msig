@@ -12,7 +12,7 @@
 // to render tabs and to know whether each tab is "ready to send" or
 // "needs setup."
 //
-// Solana is always available regardless of bindings — the program
+// Solana is always available regardless of bindings - the program
 // runs on Solana and the vault PDA is derivable client-side. For
 // non-Solana chains, both binding + intent must be present.
 //
@@ -94,7 +94,7 @@ export function useSendChains(walletName: string) {
     }
 
     return CHAIN_CATALOG.map((chain): SendChainOption => {
-      // Solana is implicit — the program runs there, no binding row.
+      // Solana is implicit - the program runs there, no binding row.
       const isSolana = chain.kind === 0;
       const binding = bindingByKind.get(chain.kind) ?? null;
       const hasBinding = isSolana || !!binding;

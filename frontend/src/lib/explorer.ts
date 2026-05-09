@@ -130,7 +130,7 @@ export function broadcastExplorerUrl(
 // ── Etherscan family ──────────────────────────────────────────────
 //
 // Pick the right explorer for the EVM destination by sniffing well-
-// known substrings in the configured RPC URL. Conservative — falls
+// known substrings in the configured RPC URL. Conservative - falls
 // through to Etherscan mainnet only when nothing testnet-shaped
 // matches, and returns `null` for chains we don't know.
 

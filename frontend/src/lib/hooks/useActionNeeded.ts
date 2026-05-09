@@ -3,7 +3,7 @@
 // "Action needed" feed: Active proposals where the connected user is
 // in the intent's approvers list and hasn't yet flipped their bit in
 // the approval bitmap. This is the single most actionable signal for
-// a treasury manager — "what do I need to sign right now".
+// a treasury manager - "what do I need to sign right now".
 //
 // Combines useRecentActivity (proposals + bitmap) with useUserIntents
 // (approvers list per intent). Both hooks share queryKey infrastructure
@@ -87,7 +87,7 @@ export function useActionNeeded() {
         approverCount: intent.approvers.length,
       });
     }
-    // Oldest pending first — they've waited longest, sign those first.
+    // Oldest pending first - they've waited longest, sign those first.
     out.sort((a, b) => (a.proposedAt < b.proposedAt ? -1 : 1));
     return out;
   }, [address, proposals.allRows, intents.rows]);

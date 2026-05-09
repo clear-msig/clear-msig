@@ -74,7 +74,7 @@ export default function EditPolicyPage() {
           onClick={() =>
             router.push(`/app/wallet/${encodeURIComponent(name)}/policies`)
           }
-          className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-border-soft px-3 py-1 text-xs text-text-soft hover:border-accent hover:text-accent"
+          className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-border-soft px-3 py-1 text-xs text-text-soft hover:text-accent"
         >
           Back to policies
         </button>

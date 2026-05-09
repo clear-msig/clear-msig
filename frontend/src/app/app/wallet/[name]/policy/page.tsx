@@ -69,7 +69,7 @@ export default function PolicyPage() {
           ]}
         />
       </StickyTopBar>
-      {/* Mobile-only back chip — see /send for rationale. */}
+      {/* Mobile-only back chip - see /send for rationale. */}
       <div className="px-gutter pt-2 md:hidden">
         <BackToWallets />
       </div>
@@ -82,7 +82,7 @@ export default function PolicyPage() {
         <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Spending policy
         </p>
-        <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+        <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
           How {toDisplayName(name)} controls money
         </h1>
         <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
@@ -233,7 +233,7 @@ function AllowlistCard({ walletName }: { walletName: string }) {
                   className={
                     "inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-strong " +
                     "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
-                    "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-rest " +
+                    "hover:-translate-y-0.5 hover:shadow-card-rest " +
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
                   }
                 >
@@ -418,7 +418,7 @@ function TimeWindowCard({ walletName }: { walletName: string }) {
                         "rounded-full border px-3 py-1.5 text-xs font-medium transition-[transform,border-color,background-color,color] duration-base ease-out-soft " +
                         (active
                           ? "border-accent bg-accent/10 text-accent"
-                          : "border-border-soft bg-canvas text-text-soft hover:border-accent hover:text-text-strong") +
+                          : "border-border-soft bg-canvas text-text-soft hover:text-text-strong") +
                         " focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
                       }
                     >
@@ -521,7 +521,7 @@ function NavCard({
       className={
         "group flex items-start gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest " +
         "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
-        "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
+        "hover:-translate-y-0.5 hover:shadow-card-raised " +
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
       }
     >

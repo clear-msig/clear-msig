@@ -1,6 +1,6 @@
 "use client";
 
-// useWalletChains — typed wrapper around `GET /wallets/{name}/chains`.
+// useWalletChains - typed wrapper around `GET /wallets/{name}/chains`.
 //
 // Returns chain bindings WITH their chain-native addresses (already
 // derived by the CLI: Ethereum 0x…, Bitcoin bc1q…, Zcash t1…). Used

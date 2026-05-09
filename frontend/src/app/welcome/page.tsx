@@ -1,14 +1,11 @@
 "use client";
 
-// Welcome flow. Three-stage wizard that takes a connected user from
-// "I clicked Get started" to "my shared wallet is on chain and can
-// send money" with exactly two wallet popups.
+// Welcome flow - Obsidian & Lime rebuild (2026-05-08).
 //
-// Stage map:
-//   1. shape_name : pick the shape preset, name it, optional color
-//   2. pace       : send-immediately or 24-hour cooling-off
-//   3. confirm    : preview card, honest popup narration, Create CTA
-//   success      : Send your first request / Open the wallet
+// Visual layer matches the landing page (.landing-shell, glass cards,
+// lime accents, Space Grotesk + JetBrains Mono typography). All hooks,
+// mutations, and the popup ceremony are unchanged from the prior retail
+// version - only paint-and-shape was refactored. See git for the diff.
 //
 // One ceremony, two popups:
 //   popup 1 : createWallet (initial member is just the connected user)
@@ -17,21 +14,10 @@
 //             single signature; execute is sponsored. Falls back to a
 //             third popup against an old program via approveIfNeeded.
 //
-// Friends are intentionally not in this flow. The success screen
-// routes the user into the dedicated invite flow once their wallet
-// exists. That avoids the "looks done but isn't" trap of inviting by
-// email here, since email-only invites still require a follow-up
-// chain mutation when the friend accepts.
-//
-// Connection gate: this page never renders the create CTA before we
-// have proof that (a) the user is connected and (b) they have no
-// existing wallets. The disconnected and loading paths render neutral
-// holding states; useWalletGate handles the redirect to /connect.
+// Friends are intentionally not in this flow. The success screen routes
+// the user into the dedicated invite flow once their wallet exists.
 //
 // Copy rule: zero em dashes. Periods, semicolons, parens, or rephrase.
-//
-// Performance budget: 70fps+. Compositor-only animations, no
-// backdrop-blur, no per-row framer trees.
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -40,11 +26,11 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useConnection, useWallet } from "@/lib/wallet";
 import {
-  ArrowLeft,
   ArrowRight,
   Check,
   Loader2,
   Send,
+  ShieldCheck,
   Users,
 } from "lucide-react";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
@@ -57,25 +43,15 @@ import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 
 import { useToast } from "@/components/ui/Toast";
-import { Button } from "@/components/retail/Button";
-import { BrandLoader } from "@/components/retail/BrandLoader";
-import { BrandMark } from "@/components/retail/BrandMark";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
 import { saveWalletAppearance } from "@/lib/retail/walletAppearance";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
-// Welcome was a 3-stage wizard (shape_name → pace → confirm). Honest
-// review (2026-05-03): the pace choice never moved a user; the
-// confirm stage was the third instance of the same preview card.
-// Collapsed to a single create screen + a success payoff. Cooling-off
-// and color customization moved to the wallet's spending rules where
-// they're load-bearing rather than ceremonial.
-//
-// 2026-05-08: added a brief two-card "intro" stage in front of the
-// create screen. Phantom / Rainbow always begin with a brand moment
-// + a "what this is" before asking the user to commit. Skip-able so
-// power-users (and return visits) bypass it; persisted via
-// sessionStorage so the tour shows once per tab.
+import { LandingAtmospherics, LandingNav } from "@/components/landing/LandingChrome";
+
+// 2026-05-08: brief two-card "intro" stage in front of the create
+// screen. Skip-able so power-users (and return visits) bypass it;
+// persisted via sessionStorage so the tour shows once per tab.
 type Stage = "intro" | "create" | "success";
 
 const INTRO_SEEN_KEY = "clear.welcome-intro-seen.v1";
@@ -94,7 +70,7 @@ function markIntroSeen(): void {
   try {
     window.sessionStorage.setItem(INTRO_SEEN_KEY, "1");
   } catch {
-    /* private mode / quota — silently noop */
+    /* private mode / quota - silently noop */
   }
 }
 
@@ -153,7 +129,7 @@ const TRANSITION = { duration: 0.25, ease: [0.22, 1, 0.36, 1] as const };
 export default function WelcomePage() {
   const gate = useWalletGate();
   // signerIssue is set when the connected wallet cannot sign clear-msig's
-  // offchain-wrapped messages — Dynamic's WaaS-SVM embedded provider
+  // offchain-wrapped messages - Dynamic's WaaS-SVM embedded provider
   // (UTF-8-decodes the bytes before signing) or Phantom (rejects the
   // `\xff` magic prefix as a suspected versioned-tx). Either way, block
   // the Create CTA up front so users don't burn devnet SOL on a
@@ -168,19 +144,9 @@ export default function WelcomePage() {
   const { signDescriptor } = useSignWithWallet();
   const { connection } = useConnection();
 
-  // First-tab visitors see the intro; return visits in the same
-  // tab skip straight to create. Lazy initializer reads
-  // sessionStorage once on mount so the SSR pass keeps the
-  // deterministic "intro" default.
   const [stage, setStage] = useState<Stage>(() =>
     typeof window !== "undefined" && loadIntroSeen() ? "create" : "intro",
   );
-  // The on-chain wallet name carries a creator-derived suffix
-  // ("#XXXXXX") so two users picking the same display name don't
-  // collide. The success stage's deep-links MUST use this exact
-  // slug or they 404 — `/app/wallet/Family` doesn't resolve when
-  // the actual PDA is at `Family#A1B2C3`. Captured at mutation
-  // time and used by every CTA in the success stage.
   const [createdSlug, setCreatedSlug] = useState<string | null>(null);
   const [shape, setShape] = useState<ShapeId>("just_me");
   const [name, setName] = useState("");
@@ -198,9 +164,7 @@ export default function WelcomePage() {
   // The on-chain wallet name field is `String<64>`. The frontend
   // appends a 7-byte creator suffix ("#XXXXXX") in toOnChainName so
   // PDAs are unique per (typed-name, creator). Cap the typed name at
-  // 57 bytes so the final on-chain name fits the 64-byte limit. JS
-  // `.length` counts UTF-16 code units, not UTF-8 bytes — the byte
-  // count is what the program enforces.
+  // 57 bytes so the final on-chain name fits the 64-byte limit.
   const nameByteLength = useMemo(
     () => new TextEncoder().encode(cleanName).length,
     [cleanName],
@@ -221,12 +185,6 @@ export default function WelcomePage() {
     mutationFn: async () => {
       if (!gate.publicKey) throw new Error("Connect your wallet first.");
       const me = gate.publicKey;
-      // The on-chain program derives the wallet PDA from the name
-      // alone, so two users picking the same display name would
-      // collide. Suffix the slug with the creator's pubkey so the
-      // PDA stays unique per (name, creator). The display layer
-      // strips the suffix in toDisplayName(). The proper fix
-      // (creator-scoped PDA seeds in the program) is in Plan B.
       const walletSlug = toOnChainName(slug(cleanName), me);
       const initialMembers = [me];
       const threshold = 1;
@@ -253,9 +211,6 @@ export default function WelcomePage() {
       });
 
       // ── popup 2: enable sending (propose AddIntent) ──
-      // The program's auto-approve upgrade lands this Approved on the
-      // single propose signature; execute below is sponsored. Old
-      // program falls back through approveIfNeeded to a third popup.
       const enableCt = await encryptPolicyBatch([
         { plaintext: enc.encode(JSON.stringify(initialMembers)), fheType: "ebytes" },
         { plaintext: enc.encode(JSON.stringify(initialMembers)), fheType: "ebytes" },
@@ -311,9 +266,6 @@ export default function WelcomePage() {
       queryClient.invalidateQueries({ queryKey: ["my-organizations"] });
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });
       queryClient.invalidateQueries({ queryKey: ["wallet", walletSlug] });
-      // Color picker moved out of the create flow. Wallet appearance
-      // gets derived from the name hash at render time; the user can
-      // pick a real color from the wallet's settings later.
       saveWalletAppearance(cleanName, { shape });
       setCreatedSlug(walletSlug);
       setStage("success");
@@ -326,36 +278,15 @@ export default function WelcomePage() {
   });
 
   // ── Connection gate ──────────────────────────────────────────────
-  // Three holding states render before the wizard is allowed to
-  // appear. None of them show the create CTA.
-  //   1. Disconnected: useWalletGate is already routing to /connect;
-  //      we render a neutral wait state so nothing flashes.
-  //   2. Connected, memberships loading: brand loader.
-  //   3. Connected, memberships found: redirect to /app/wallet.
   if (!gate.connected) {
-    // Distinguish "not signed in" from "signed in via Dynamic but no
-    // Solana wallet minted yet." Otherwise the user sees "taking you
-    // to connect" while sitting on a connected session.
     if (gate.loggedInWithoutSolana) {
-      return (
-        <NeutralWait
-          label="Setting up your Solana wallet."
-          reduce={!!reduce}
-        />
-      );
+      return <NeutralWait label="Setting up your Solana wallet." reduce={!!reduce} />;
     }
     return <NeutralWait label="Taking you to connect a wallet." reduce={!!reduce} />;
   }
   if (memberships.isLoading) {
     return <NeutralWait label="Checking your wallets." reduce={!!reduce} />;
   }
-  // (Returning users explicitly clicking "+ New shared wallet" land
-  // here on purpose. The auto-redirect that used to fire on any
-  // memberships > 0 was bouncing them back to the dashboard before
-  // they could create a second wallet. /connect's gate already
-  // routes returning users home when they sign in fresh, so the
-  // duplicate guard here was always a safety belt for an edge case
-  // that doesn't justify breaking the second-wallet path.)
 
   const pageMotion = reduce
     ? { initial: false, animate: { opacity: 1 }, exit: { opacity: 1 } }
@@ -365,412 +296,405 @@ export default function WelcomePage() {
         exit: { opacity: 0, y: -12 },
       };
 
-  // Single-screen create flow — no in-page back affordance needed.
-  // The brand-mark home link in the top-left always returns to /.
-
   return (
-    <main className="relative flex min-h-screen flex-col bg-canvas">
+    <div className="landing-shell relative min-h-screen bg-[#0c0c0c] text-[#ebebeb]">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+        <LandingAtmospherics />
+      </div>
+      <LandingNav />
+      <main className="relative mx-auto w-full max-w-[1600px]">
+        <div className="relative z-10 flex min-h-[calc(100vh-9rem)] items-center justify-center px-5 pb-10 pt-3 sm:min-h-[calc(100vh-12rem)] sm:px-10 sm:pb-28 sm:pt-6 lg:pb-32">
+          <div className="flex w-full max-w-lg flex-col gap-3.5 sm:gap-4">
+            <UnsupportedSignerBanner
+              title="You won't be able to finish creating a wallet with this sign-in"
+            />
 
-      {/* Brand-mark home link, pinned in the top-left corner. The
-          StickyTopBar wrapper used to bake in 5rem of flow spacing
-          before this — the user's eye landed on a small "← Clear"
-          floating in a vast empty header band. Absolute-positioning
-          here drops the link right against the viewport corner so
-          the welcome content (centered Create form) sits near the
-          natural reading position rather than scrolled-down. */}
-      <Link
-        href="/"
-        aria-label="Back to home"
-        className={
-          "absolute left-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-soft px-2 py-1 text-text-soft sm:left-4 sm:top-4 " +
-          "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-        }
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        <span className="flex h-5 w-5 items-center justify-center text-accent">
-          <BrandMark size={18} />
-        </span>
-      </Link>
+            {/* Returning users: surface a way back to existing wallets. */}
+            {!memberships.isLoading &&
+              (memberships.data?.length ?? 0) > 0 && (
+                <Link
+                  href={
+                    memberships.data && memberships.data.length === 1
+                      ? `/app/wallet/${encodeURIComponent(
+                          memberships.data[0].wallet_name ?? "",
+                        )}`
+                      : "/app/wallet"
+                  }
+                  className="group flex items-center gap-3 rounded-2xl border border-[#ccff00]/40 bg-[#ccff00]/[0.06] p-3.5 backdrop-blur-md transition-all duration-300 hover:border-[#ccff00] hover:bg-[#ccff00]/10 sm:p-4"
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#ccff00]/15 text-[#ccff00] ring-1 ring-[#ccff00]/40">
+                    <Users className="h-5 w-5" strokeWidth={1.75} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
+                      {memberships.data!.length === 1
+                        ? "You already have a wallet"
+                        : `You're in ${memberships.data!.length} wallets`}
+                    </p>
+                    <p className="mt-1 truncate text-sm font-medium text-white">
+                      {memberships.data!.length === 1
+                        ? `Continue with ${toDisplayName(memberships.data![0].wallet_name ?? "Wallet")}`
+                        : "Open the wallet hub"}
+                    </p>
+                  </div>
+                  <ArrowRight
+                    className="h-4 w-4 shrink-0 text-[#ccff00] transition-transform duration-200 group-hover:translate-x-0.5"
+                    aria-hidden="true"
+                  />
+                </Link>
+              )}
 
-      <div className="relative z-10 flex flex-1 items-center justify-center px-gutter pb-16 pt-8">
-        <div className="flex w-full max-w-md flex-col gap-4">
-          <UnsupportedSignerBanner
-            title="You won't be able to finish creating a wallet with this sign-in"
-          />
-          {/* Returning users: surface a way back to existing wallets.
-              The page intentionally renders the create flow even for
-              users with memberships (they may want a second wallet),
-              but without this banner there's no obvious way back to
-              the one they already have. */}
-          {!memberships.isLoading &&
-            (memberships.data?.length ?? 0) > 0 && (
-              <Link
-                href={
-                  memberships.data && memberships.data.length === 1
-                    ? `/app/wallet/${encodeURIComponent(
-                        memberships.data[0].wallet_name ?? "",
-                      )}`
-                    : "/app/wallet"
-                }
-                className={
-                  "group flex items-center gap-3 rounded-card border border-accent/40 bg-accent/10 p-4 text-left shadow-card-rest " +
-                  "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
-                  "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-                }
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/20 text-accent">
-                  <Users className="h-5 w-5" strokeWidth={1.75} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
-                    {memberships.data!.length === 1
-                      ? "You already have a wallet"
-                      : `You're in ${memberships.data!.length} wallets`}
-                  </p>
-                  <p className="mt-0.5 truncate text-sm font-medium text-text-strong">
-                    {memberships.data!.length === 1
-                      ? `Continue with ${toDisplayName(memberships.data![0].wallet_name ?? "Wallet")}`
-                      : "Open the wallet hub"}
-                  </p>
-                </div>
-                <ArrowRight
-                  className="h-4 w-4 shrink-0 text-accent transition-transform duration-base group-hover:translate-x-0.5"
-                  aria-hidden="true"
-                />
-              </Link>
-            )}
-          <AnimatePresence mode="wait" initial={false}>
-            {stage === "intro" && (
-              <motion.section
-                key="intro"
-                {...pageMotion}
-                transition={TRANSITION}
-                className="flex flex-col"
-              >
-                <div className="text-center">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-                    Welcome to Clear
-                  </p>
-                  <h2 className="mt-2 font-display text-display-sm text-text-strong text-balance">
-                    A shared wallet for people you trust
+            <AnimatePresence mode="wait" initial={false}>
+              {stage === "intro" && (
+                <motion.section
+                  key="intro"
+                  {...pageMotion}
+                  transition={TRANSITION}
+                  className="flex flex-col"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_8px_#ccff00]" />
+                    <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-white/60 sm:tracking-[0.32em]">
+                      Welcome to Clear
+                    </span>
+                  </div>
+
+                  <h2 className="mt-4 text-[clamp(1.75rem,8vw,3rem)] font-light leading-[0.95] tracking-[-0.04em] text-white text-balance sm:mt-5">
+                    A shared wallet for
+                    <br />
+                    people you <span className="italic-skew">trust</span>.
                   </h2>
-                  <p className="mt-2 text-base text-text-soft">
+                  <p className="mt-3 max-w-md text-[15px] leading-relaxed text-white/60 sm:mt-4 sm:text-base">
                     Two things to know before you build one.
                   </p>
-                </div>
 
-                {/* Two value-prop cards. Each is a static block —
-                    no nav, no progress dots — so the user feels
-                    the brand moment without being walked through
-                    a tour. */}
-                <div className="mt-6 flex flex-col gap-3">
-                  <article className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
-                        <Users className="h-5 w-5" strokeWidth={1.75} />
+                  <div className="mt-6 flex flex-col gap-3 sm:mt-8">
+                    <article className="glass rounded-2xl p-4 transition-colors duration-300 hover:border-[#ccff00]/40 sm:p-5">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#ccff00]/10 text-[#ccff00] ring-1 ring-[#ccff00]/30">
+                          <Users className="h-5 w-5" strokeWidth={1.75} />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <p className="text-base font-medium text-white">
+                              Approve from anywhere
+                            </p>
+                            <span className="font-mono-tech text-[9px] uppercase tracking-[0.24em] text-white/40">
+                              /policy
+                            </span>
+                          </div>
+                          <p className="mt-1.5 text-sm leading-relaxed text-white/60">
+                            Anyone you add can read every request and tap
+                            Approve from their phone or browser. Your phone
+                            is the second factor. No keys to lose.
+                          </p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-text-strong">
-                          Approve from anywhere
-                        </p>
-                        <p className="mt-1 text-sm text-text-soft">
-                          Anyone you add can read every request and tap
-                          Approve from their phone or browser. Your
-                          phone is the second factor. No keys to lose.
-                        </p>
+                    </article>
+                    <article className="glass rounded-2xl p-4 transition-colors duration-300 hover:border-[#ccff00]/40 sm:p-5">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#ccff00]/10 text-[#ccff00] ring-1 ring-[#ccff00]/30">
+                          <Send className="h-5 w-5" strokeWidth={1.75} />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <p className="text-base font-medium text-white">
+                              One wallet, every chain
+                            </p>
+                            <span className="font-mono-tech text-[9px] uppercase tracking-[0.24em] text-white/40">
+                              /chains
+                            </span>
+                          </div>
+                          <p className="mt-1.5 text-sm leading-relaxed text-white/60">
+                            The same shared wallet sends Solana, Ethereum,
+                            Bitcoin, and Zcash. One signature ceremony, one
+                            source of truth, no bridges.
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  </article>
-                  <article className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
-                        <Send className="h-5 w-5" strokeWidth={1.75} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-text-strong">
-                          One wallet, every chain
-                        </p>
-                        <p className="mt-1 text-sm text-text-soft">
-                          The same shared wallet sends Solana, Ethereum,
-                          Bitcoin, and Zcash. One signature ceremony,
-                          one source of truth, no bridges.
-                        </p>
-                      </div>
-                    </div>
-                  </article>
-                </div>
-
-                <div className="mt-7 flex items-center justify-between gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      markIntroSeen();
-                      setStage("create");
-                    }}
-                    className="text-sm text-text-soft hover:text-text-strong"
-                  >
-                    Skip intro
-                  </button>
-                  <Button
-                    onClick={() => {
-                      markIntroSeen();
-                      setStage("create");
-                    }}
-                    className="min-w-[10rem]"
-                  >
-                    Continue
-                    <ArrowRight className="ml-1 h-4 w-4" aria-hidden="true" />
-                  </Button>
-                </div>
-              </motion.section>
-            )}
-
-            {stage === "create" && (
-              <motion.section
-                key="create"
-                {...pageMotion}
-                transition={TRANSITION}
-                className="flex flex-col"
-              >
-                <div className="text-center">
-                  <div className="mb-5 inline-flex h-14 w-14 items-center justify-center rounded-full bg-accent/10">
-                    <Users className="h-7 w-7 text-accent" strokeWidth={1.75} />
+                    </article>
                   </div>
-                  <h2 className="font-display text-display-sm text-text-strong text-balance">
-                    Create your shared wallet
+
+                  <div className="mt-6 flex items-center justify-between gap-3 sm:mt-8">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        markIntroSeen();
+                        setStage("create");
+                      }}
+                      className="-mx-2 -my-2 rounded-full px-3 py-2 font-mono-tech text-[11px] uppercase tracking-[0.24em] text-white/50 transition-colors duration-200 hover:text-white"
+                    >
+                      Skip intro
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        markIntroSeen();
+                        setStage("create");
+                      }}
+                      className="neon-cta inline-flex min-w-[8.5rem] items-center justify-center gap-2 rounded-full px-6 py-3.5 text-[14px] font-bold tracking-tight sm:min-w-[10rem] sm:px-7"
+                    >
+                      Continue
+                      <ArrowRight className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
+                    </button>
+                  </div>
+                </motion.section>
+              )}
+
+              {stage === "create" && (
+                <motion.section
+                  key="create"
+                  {...pageMotion}
+                  transition={TRANSITION}
+                  className="flex flex-col"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_8px_#ccff00]" />
+                    <span className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/60 sm:tracking-[0.32em]">
+                      /create · shared wallet
+                    </span>
+                  </div>
+
+                  <h2 className="mt-4 text-[clamp(1.75rem,8vw,3rem)] font-light leading-[0.95] tracking-[-0.04em] text-white text-balance sm:mt-5">
+                    Create your
+                    <br />
+                    shared <span className="italic-skew">wallet</span>.
                   </h2>
-                  <p className="mt-2 text-base text-text-soft">
+                  <p className="mt-3 max-w-md text-[15px] leading-relaxed text-white/60 sm:mt-4 sm:text-base">
                     Name it, pick who it's for. You can invite friends after.
                   </p>
-                </div>
 
-                {/* Name input first — that's the only field with real
-                    free-form work. Avatar derives from the typed name
-                    + selected shape; no color picker. (Color moved to
-                    /app/wallet/[name]/rules where it can live with
-                    the rest of the wallet's settings.) */}
-                <div className="mt-8">
-                  <label
-                    htmlFor="wallet-name"
-                    className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft"
-                  >
-                    Name it
-                  </label>
-                  <div className="mt-2 flex items-stretch gap-3">
-                    <span
-                      aria-hidden="true"
-                      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/15 text-lg font-semibold text-accent shadow-card-rest"
+                  {/* Name input */}
+                  <div className="mt-6 sm:mt-8">
+                    <label
+                      htmlFor="wallet-name"
+                      className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-white/60"
                     >
-                      {cleanName.charAt(0).toUpperCase() || "?"}
-                    </span>
-                    <input
-                      id="wallet-name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder={currentShape.defaultName}
-                      maxLength={57}
-                      autoFocus
-                      className={
-                        "min-w-0 flex-1 rounded-card border border-border-soft bg-surface-raised " +
-                        "px-4 py-3 text-base text-text-strong placeholder:text-text-soft " +
-                        "outline-none transition-[border-color,box-shadow] duration-base ease-out-soft " +
-                        "focus:border-accent focus:shadow-accent-rest"
-                      }
-                    />
-                  </div>
-                </div>
-
-                {/* Shape: tighter chip row instead of the old big-tile
-                    grid. The choice still informs default name + invite
-                    copy, but visually it stays out of the way of the
-                    actual decisions (name + create). */}
-                <div className="mt-6">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-                    Who's it for?
-                  </p>
-                  <ul className="mt-2 flex flex-wrap gap-1.5">
-                    {SHAPES.map((s) => {
-                      const selected = shape === s.id;
-                      return (
-                        <li key={s.id}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShape(s.id);
-                              if (!name.trim()) setName(s.defaultName);
-                            }}
-                            aria-pressed={selected}
-                            className={
-                              "rounded-full border px-3 py-1.5 text-xs font-medium " +
-                              "transition-[border-color,background-color,color] duration-base ease-out-soft " +
-                              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
-                              (selected
-                                ? "border-accent bg-accent/10 text-accent"
-                                : "border-border-soft bg-surface-raised text-text-soft hover:border-accent/40 hover:text-text-strong")
-                            }
-                          >
-                            {s.label}
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-
-                {/* Honest popup narration. Solana signMessage shows
-                    hex bytes, not a friendly summary; we surface that
-                    fact up front so users don't think their wallet is
-                    broken. Compact form (was a full-width card on the
-                    old confirm screen). */}
-                <div className="mt-6 rounded-card border border-border-soft bg-surface-raised p-4 text-left text-sm shadow-card-rest">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-                    What happens next
-                  </p>
-                  <p className="mt-2 text-text-strong">
-                    Your wallet will pop up to{" "}
-                    <span className="font-medium">create the wallet</span> and
-                    set up sending in the same step. The signing text looks
-                    technical — that's normal. Nothing leaves your account.
-                  </p>
-                </div>
-
-                <Button
-                  size="lg"
-                  fullWidth
-                  className="mt-6"
-                  onClick={() => setupAll.mutate()}
-                  disabled={!nameValid || setupAll.isPending || isBrokenSigner}
-                >
-                  {setupAll.isPending ? (
-                    <>
-                      <Loader2
-                        className="h-4 w-4 animate-spin"
+                      Name it
+                    </label>
+                    <div className="mt-3 flex items-stretch gap-3">
+                      <span
                         aria-hidden="true"
+                        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#ccff00]/10 text-lg font-semibold text-[#ccff00] ring-1 ring-[#ccff00]/30"
+                      >
+                        {cleanName.charAt(0).toUpperCase() || "?"}
+                      </span>
+                      <input
+                        id="wallet-name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder={currentShape.defaultName}
+                        maxLength={57}
+                        autoFocus
+                        className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-3 text-base text-white outline-none backdrop-blur-md transition-[border-color,box-shadow] duration-200 placeholder:text-white/30 focus:border-[#ccff00]/60 focus:shadow-[0_0_0_3px_rgba(204,255,0,0.15)] sm:px-4"
                       />
-                      Setting up
-                    </>
-                  ) : isBrokenSigner ? (
-                    <>Sign in with a different wallet to create</>
-                  ) : (
-                    <>
-                      Create {cleanName || currentShape.defaultName}
-                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                    </>
-                  )}
-                </Button>
-                {isBrokenSigner && (
-                  <p className="mt-2 text-center text-xs text-text-soft">
-                    {signerIssue === "phantom"
-                      ? "Phantom can't sign clear-msig messages yet."
-                      : "Email/Google sign-in can’t sign Solana yet."}{" "}
-                    Sign out and reconnect with{" "}
-                    <span className="font-medium text-text-strong">Solflare</span>,
-                    Backpack, or a Ledger.
-                  </p>
-                )}
-              </motion.section>
-            )}
+                    </div>
+                  </div>
 
-            {stage === "success" && (
-              <motion.section
-                key="success"
-                {...pageMotion}
-                transition={{ ...TRANSITION, duration: 0.3 }}
-                className="flex flex-col items-center text-center"
-              >
-                <motion.div
-                  initial={reduce ? false : { scale: 0.4, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{
-                    type: "spring",
-                    damping: 18,
-                    stiffness: 220,
-                    delay: 0.05,
-                  }}
-                  className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-accent text-white shadow-accent-rest"
-                >
-                  <Check className="h-10 w-10" strokeWidth={2.5} />
-                </motion.div>
-                <h2 className="font-display text-display-md leading-[1.0] text-text-strong">
-                  {cleanName} is ready
-                </h2>
-                <p className="mt-3 max-w-sm text-base text-text-soft">
-                  {currentShape.expectedMembers > 1
-                    ? `Send your first request, or invite the other ${
-                        currentShape.expectedMembers - 1
-                      } so they can approve with you.`
-                    : "Pick someone, pick an amount. We will do the rest."}
-                </p>
-                <div className="mt-8 flex w-full max-w-sm flex-col gap-3">
-                  <Button
-                    size="lg"
-                    fullWidth
-                    onClick={() =>
-                      router.push(
-                        `/app/wallet/${encodeURIComponent(createdSlug ?? slug(cleanName))}/send`,
-                      )
-                    }
+                  {/* Shape chips */}
+                  <div className="mt-5 sm:mt-6">
+                    <p className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-white/60">
+                      Who's it for?
+                    </p>
+                    <ul className="mt-3 flex flex-wrap gap-2">
+                      {SHAPES.map((s) => {
+                        const selected = shape === s.id;
+                        return (
+                          <li key={s.id}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShape(s.id);
+                                if (!name.trim()) setName(s.defaultName);
+                              }}
+                              aria-pressed={selected}
+                              className={
+                                "rounded-full border px-3.5 py-2 text-xs font-medium backdrop-blur-md transition-all duration-200 sm:py-1.5 " +
+                                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ccff00]/50 " +
+                                (selected
+                                  ? "border-[#ccff00] bg-[#ccff00]/10 text-[#ccff00] shadow-[0_0_18px_rgba(204,255,0,0.18)]"
+                                  : "border-white/10 bg-white/[0.03] text-white/60 hover:border-white/30 hover:text-white")
+                              }
+                            >
+                              {s.label}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+
+                  {/* What happens next callout */}
+                  <div className="glass mt-5 rounded-2xl p-4 sm:mt-6">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-3.5 w-3.5 text-[#ccff00]" strokeWidth={2} />
+                      <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-white/60">
+                        / what happens next
+                      </span>
+                    </div>
+                    <p className="mt-2.5 text-[13.5px] leading-relaxed text-white/70">
+                      Your wallet will pop up to{" "}
+                      <span className="font-medium text-white">
+                        create the wallet
+                      </span>{" "}
+                      and set up sending in the same step. The signing text
+                      looks technical - that's normal. Nothing leaves your
+                      account.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setupAll.mutate()}
+                    disabled={!nameValid || setupAll.isPending || isBrokenSigner}
+                    className="neon-cta mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-4 text-[14px] font-bold tracking-tight disabled:cursor-not-allowed disabled:opacity-50 sm:mt-7 sm:px-7"
                   >
-                    Send your first request
-                    <Send className="h-4 w-4" aria-hidden="true" />
-                  </Button>
-                  {currentShape.expectedMembers > 1 && (
-                    <Link
-                      href={`/app/wallet/${encodeURIComponent(createdSlug ?? slug(cleanName))}/members/add`}
-                      className={
-                        "inline-flex w-full items-center justify-center gap-1.5 rounded-card border border-border-soft " +
-                        "bg-surface-raised px-4 py-2.5 text-sm font-medium text-text-strong shadow-card-rest " +
-                        "transition-[border-color,transform] duration-base ease-out-soft " +
-                        "hover:-translate-y-0.5 hover:border-accent " +
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-                      }
-                    >
-                      Invite a {inviteNoun(currentShape.id)}
-                    </Link>
+                    {setupAll.isPending ? (
+                      <>
+                        <Loader2
+                          className="h-4 w-4 animate-spin"
+                          aria-hidden="true"
+                        />
+                        Setting up
+                      </>
+                    ) : isBrokenSigner ? (
+                      <span className="truncate">Sign in with a different wallet</span>
+                    ) : (
+                      <>
+                        <span className="truncate">
+                          Create {cleanName || currentShape.defaultName}
+                        </span>
+                        <ArrowRight
+                          className="h-4 w-4 shrink-0"
+                          strokeWidth={2.5}
+                          aria-hidden="true"
+                        />
+                      </>
+                    )}
+                  </button>
+                  {isBrokenSigner && (
+                    <p className="mt-3 text-center font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/50">
+                      {signerIssue === "phantom"
+                        ? "Phantom can't sign clear-msig messages yet."
+                        : "Email/Google sign-in can't sign Solana yet."}{" "}
+                      Use{" "}
+                      <span className="text-[#ccff00]">Solflare</span>,
+                      Backpack, or a Ledger.
+                    </p>
                   )}
-                  <Link
-                    href={`/app/wallet/${encodeURIComponent(createdSlug ?? slug(cleanName))}`}
-                    className={
-                      "inline-flex w-full items-center justify-center gap-1.5 rounded-soft px-4 py-2 " +
-                      "text-sm font-medium text-text-soft " +
-                      "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-                    }
+                </motion.section>
+              )}
+
+              {stage === "success" && (
+                <motion.section
+                  key="success"
+                  {...pageMotion}
+                  transition={{ ...TRANSITION, duration: 0.3 }}
+                  className="flex flex-col items-center text-center"
+                >
+                  <motion.div
+                    initial={reduce ? false : { scale: 0.4, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{
+                      type: "spring",
+                      damping: 18,
+                      stiffness: 220,
+                      delay: 0.05,
+                    }}
+                    className="mb-5 flex h-[72px] w-[72px] items-center justify-center rounded-full bg-[#ccff00] text-black shadow-[0_0_48px_rgba(204,255,0,0.55)] sm:mb-6 sm:h-20 sm:w-20"
                   >
-                    Open {cleanName}
-                  </Link>
-                </div>
-              </motion.section>
-            )}
-          </AnimatePresence>
+                    <Check className="h-9 w-9 sm:h-10 sm:w-10" strokeWidth={2.5} />
+                  </motion.div>
+                  <div className="flex items-center gap-2">
+                    <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00]" />
+                    <span className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/60 sm:tracking-[0.28em]">
+                      / wallet ready
+                    </span>
+                  </div>
+                  <h2 className="mt-3 text-[clamp(1.75rem,8vw,3rem)] font-light leading-[0.95] tracking-[-0.04em] text-white text-balance sm:mt-4">
+                    {cleanName} is{" "}
+                    <span className="italic-skew">ready</span>.
+                  </h2>
+                  <p className="mt-3 max-w-sm text-[15px] leading-relaxed text-white/60 sm:mt-4 sm:text-base">
+                    {currentShape.expectedMembers > 1
+                      ? `Send your first request, or invite the other ${
+                          currentShape.expectedMembers - 1
+                        } so they can approve with you.`
+                      : "Pick someone, pick an amount. We will do the rest."}
+                  </p>
+                  <div className="mt-7 flex w-full max-w-sm flex-col gap-3 sm:mt-10">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        router.push(
+                          `/app/wallet/${encodeURIComponent(createdSlug ?? slug(cleanName))}/send`,
+                        )
+                      }
+                      className="neon-cta inline-flex w-full items-center justify-center gap-2 rounded-full px-7 py-4 text-[14px] font-bold tracking-tight"
+                    >
+                      Send your first request
+                      <Send className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
+                    </button>
+                    {currentShape.expectedMembers > 1 && (
+                      <Link
+                        href={`/app/wallet/${encodeURIComponent(createdSlug ?? slug(cleanName))}/members/add`}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-6 py-3.5 text-[13px] font-medium text-white/80 backdrop-blur-md transition-colors duration-200 hover:border-white/40 hover:text-white"
+                      >
+                        Invite a {inviteNoun(currentShape.id)}
+                      </Link>
+                    )}
+                    <Link
+                      href={`/app/wallet/${encodeURIComponent(createdSlug ?? slug(cleanName))}`}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-2.5 font-mono-tech text-[11px] uppercase tracking-[0.24em] text-white/50 transition-colors duration-200 hover:text-white"
+                    >
+                      Open {cleanName}
+                    </Link>
+                  </div>
+                </motion.section>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
 
 // ─── Subcomponents ─────────────────────────────────────────────────
 
 /// Neutral holding state used by every pre-wizard branch (disconnected,
-/// memberships loading). Keeps the create CTA off-screen until we have
-/// proof the user needs it.
+/// memberships loading). Wears the same Obsidian & Lime chrome so the
+/// page never flashes a different design language while resolving.
 function NeutralWait({ label, reduce }: { label: string; reduce: boolean }) {
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-center bg-canvas px-gutter">
-      <motion.div
-        initial={reduce ? false : { opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="relative z-10 flex flex-col items-center text-center"
-      >
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-raised shadow-card-rest">
-          <BrandLoader size={32} label={label} />
+    // Nav is intentionally omitted while wallets/memberships resolve.
+    // No actionable links exist for the user during this state, so
+    // the chrome would just be noise around the spinner.
+    <div className="landing-shell relative min-h-screen bg-[#0c0c0c] text-[#ebebeb]">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+        <LandingAtmospherics />
+      </div>
+      <main className="relative mx-auto w-full max-w-[1600px]">
+        <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6">
+          <motion.div
+            initial={reduce ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="flex flex-col items-center text-center"
+          >
+            <div className="glass flex h-16 w-16 items-center justify-center rounded-full">
+              <Loader2
+                className="h-7 w-7 animate-spin text-[#ccff00]"
+                aria-hidden="true"
+              />
+            </div>
+            <p className="mt-5 font-mono-tech text-[11px] uppercase tracking-[0.28em] text-white/70">
+              {label}
+            </p>
+          </motion.div>
         </div>
-        <p className="mt-5 font-display text-base text-text-strong">{label}</p>
-      </motion.div>
-    </main>
+      </main>
+    </div>
   );
 }
 
@@ -786,17 +710,12 @@ function inviteNoun(id: ShapeId): string {
 }
 
 /// Wallet names go on chain and the backend allows only [a-zA-Z0-9_-].
-/// Pass the user's typed name through cleanly — only trim whitespace
-/// and clamp to the on-chain 64-byte limit. Earlier versions
-/// lowercased + dashed every non-alnum character, but that meant
-/// "Soccer Trip" became "soccer-trip" on chain (and visible to other
-/// members), which is hostile to retail. The backend allows any
-/// non-control UTF-8 within 64 bytes, so we let the typed name flow
-/// through.
+/// Pass the user's typed name through cleanly - only trim whitespace
+/// and clamp to the on-chain 64-byte limit.
 function slug(s: string): string {
   const trimmed = s.trim();
   if (!trimmed) return "wallet";
-  // 64 BYTES, not 64 chars — emoji are 4 bytes each in UTF-8.
+  // 64 BYTES, not 64 chars - emoji are 4 bytes each in UTF-8.
   const enc = new TextEncoder();
   const bytes = enc.encode(trimmed);
   if (bytes.length <= 64) return trimmed;

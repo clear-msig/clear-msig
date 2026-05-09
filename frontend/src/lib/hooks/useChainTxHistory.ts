@@ -4,7 +4,7 @@
 // addresses.
 //
 // Today the dashboard's `useRecentActivity` covers proposal-level
-// events (created / approved / executed) — that's the multisig
+// events (created / approved / executed) - that's the multisig
 // log. This hook covers the chain layer: actual SOL movement on
 // the vault PDA, ETH movement on the dWallet's EVM address, etc.
 // They're complementary; modern wallets ship both ("activity"
@@ -13,7 +13,7 @@
 //
 // V1 ships Solana only via `connection.getSignaturesForAddress`.
 // EVM (Etherscan API), Bitcoin (mempool.space), and Zcash come in
-// follow-ups — each chain's source has its own rate-limit / API-
+// follow-ups - each chain's source has its own rate-limit / API-
 // key story.
 
 import { useQuery } from "@tanstack/react-query";
@@ -31,13 +31,13 @@ export interface ChainTxRow {
   /// for finalised txs; pending txs have null. Use ts ?? slot to
   /// sort.
   ts: number | null;
-  /// Block / slot — fallback ordering when ts is null.
+  /// Block / slot - fallback ordering when ts is null.
   slot: number;
-  /// Status — "confirmed" / "finalized" / "failed".
+  /// Status - "confirmed" / "finalized" / "failed".
   status: "confirmed" | "finalized" | "failed";
   /// Raw error string when status is "failed". Most-failures-with-
   /// no-info is just `"err":{"InstructionError": [0, "Custom(N)"]}`
-  /// — we stringify and let callers decide how much to show.
+  /// - we stringify and let callers decide how much to show.
   errorBrief: string | null;
 }
 

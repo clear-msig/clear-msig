@@ -1,6 +1,6 @@
-// Contacts — local-first name → address book.
+// Contacts - local-first name → address book.
 //
-// Stored in localStorage, keyed per device. No server sync yet —
+// Stored in localStorage, keyed per device. No server sync yet -
 // when contacts go on-chain (or sync via the backend), swap the
 // implementation behind this module without touching consumers.
 //
@@ -18,7 +18,7 @@
 //   - DevTools edits that swap a single address
 //   - Browser-extension key-by-key tampering
 //   - Cross-device clipboard imports of a forged JSON
-// It does NOT defeat XSS — same-origin JS reads both the key and the
+// It does NOT defeat XSS - same-origin JS reads both the key and the
 // entries. See SECURITY.md surface C for the model.
 
 import { PublicKey } from "@solana/web3.js";
@@ -32,7 +32,7 @@ export interface Contact {
   name: string;
   /// Base58 Solana address.
   address: string;
-  /// Optional email — stored alongside the name/address so the
+  /// Optional email - stored alongside the name/address so the
   /// add-friend flow can later trigger a "you've been invited" email
   /// when a backend email service is wired. Validated lightly on save.
   email?: string;
@@ -72,7 +72,7 @@ function loadOrCreateDeviceKey(): Uint8Array {
     window.localStorage.setItem(INTEGRITY_KEY, bytesToHex(fresh));
     return fresh;
   } catch {
-    // localStorage blocked — fall back to a transient key. Integrity
+    // localStorage blocked - fall back to a transient key. Integrity
     // protection is reduced to the lifetime of this script execution
     // but the rest of the API still works.
     return randomBytes(32);
@@ -180,11 +180,11 @@ function persist(contacts: Contact[]): void {
     }));
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(signed));
   } catch {
-    /* localStorage full or blocked — silently noop */
+    /* localStorage full or blocked - silently noop */
   }
 }
 
-/// Light email validation — enough to catch typos before a friend
+/// Light email validation - enough to catch typos before a friend
 /// fills the field with "n/a" or similar. Real email-deliverability
 /// checks happen on the backend when the email service is wired.
 export function isValidEmail(s: string): boolean {

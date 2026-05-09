@@ -20,7 +20,7 @@
 //   - sendTransaction / signTransaction. Clear's signed-write path
 //     uses signMessage exclusively; if a future flow needs to submit
 //     a transaction through the user's wallet, add it here.
-//   - WalletProvider, ConnectionProvider, WalletModalProvider — those
+//   - WalletProvider, ConnectionProvider, WalletModalProvider - those
 //     are replaced by DynamicContextProvider in AppProviders.
 
 import { useCallback, useMemo } from "react";
@@ -40,7 +40,7 @@ import { useLedger } from "@/lib/wallet/LedgerProvider";
 /// the connect button on /connect), it takes precedence over Dynamic
 /// for both the surfaced public key and signMessage. Routing all
 /// signing through the device is what earns the "clear signing"
-/// claim — the Solana app on the Ledger renders the offchain message
+/// claim - the Solana app on the Ledger renders the offchain message
 /// body as text on the device screen rather than hex in a popup.
 export function useWallet() {
   const { primaryWallet, handleLogOut, sdkHasLoaded } = useDynamicContext();
@@ -67,14 +67,14 @@ export function useWallet() {
   // Detect signers that cannot sign clear-msig's offchain-wrapped
   // messages. Two known cases:
   //
-  //   "waas"    — Dynamic's WaaS-SVM connector. Its signMessage decodes
+  //   "waas"    - Dynamic's WaaS-SVM connector. Its signMessage decodes
   //               the input bytes as UTF-8 (Buffer.from(bytes).toString())
   //               before signing, which corrupts our envelope's leading
   //               `\xff` byte. Caught by the local ed25519 verify in
   //               useSignWithWallet (the signature is over different
   //               bytes than we asked for).
   //
-  //   "phantom" — Phantom. Per docs.phantom.com/solana/signing-a-message,
+  //   "phantom" - Phantom. Per docs.phantom.com/solana/signing-a-message,
   //               signMessage only accepts UTF-8 or hex-encoded strings.
   //               Phantom's transaction-detection heuristic refuses bytes
   //               starting with `\xff` (interprets it as `0x80 | version`
@@ -120,14 +120,14 @@ export function useWallet() {
   // The bug this solves: a user creates a multisig with their Dynamic
   // embedded pubkey D in the approvers list, then later connects a
   // Ledger with pubkey L. `useWallet().publicKey` then defaults to L
-  // (Ledger preferred), so every signed action signs with L — but L
+  // (Ledger preferred), so every signed action signs with L - but L
   // isn't in the wallet's approver list, so the on-chain ed25519
   // verify fails with a confusing error and the user can't sign at
   // all. Symmetric problem the other way (wallet with L approvers,
   // user accidentally has Dynamic active too). `pickSigner` resolves
   // to whichever pubkey we hold that's actually in the approver
   // list, prefering Ledger when both match. Returns null when
-  // neither pubkey is in approvers — the caller should surface a
+  // neither pubkey is in approvers - the caller should surface a
   // clear "this wallet isn't signable from your current connection"
   // error rather than letting the on-chain verify fail.
   const pickSigner = useCallback(
@@ -249,7 +249,7 @@ export function useWallet() {
     ledgerPublicKey,
     /// Resolve the right signer pubkey for a wallet with the given
     /// approver list. Returns null when neither pubkey we hold is in
-    /// `approvers` — caller should surface a clear error instead of
+    /// `approvers` - caller should surface a clear error instead of
     /// letting the on-chain ed25519 verify fail. Pass the chosen
     /// pubkey into signMessage / signDescriptor as `preferSigner` to
     /// route the sign through the matching signer.
@@ -265,7 +265,7 @@ export function useWallet() {
 // Lazy-init: createSolanaConnection() reads localStorage and wires up
 // websocket plumbing. Doing that at module evaluation means every
 // client component that imports `@/lib/wallet` (most of the app)
-// pays the cost on first JS load — including public surfaces like
+// pays the cost on first JS load - including public surfaces like
 // /privacy that never hit RPC. The getter defers it until something
 // actually calls useConnection() or imports the binding.
 let connectionInstance: ReturnType<typeof createSolanaConnection> | null =

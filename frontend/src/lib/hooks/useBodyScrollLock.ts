@@ -3,12 +3,12 @@
 // Body scroll lock for modal overlays.
 //
 // On iOS Safari, a fixed/absolute modal does not stop the body
-// underneath from scrolling — momentum scroll on the modal can
+// underneath from scrolling - momentum scroll on the modal can
 // bleed through, and a touch-drag on the page outside the modal
 // scrolls the page even while the modal is "blocking" interaction.
 //
 // The fix: while a modal is open, set `overflow: hidden` on
-// `<html>` (not `<body>` — `<body>` is unreliable on iOS). This
+// `<html>` (not `<body>` - `<body>` is unreliable on iOS). This
 // freezes the page underneath. We also stash the previous value
 // so concurrent locks compose correctly: if two modals open, only
 // the second's unlock restores the original overflow.
@@ -40,7 +40,7 @@ export function useBodyScrollLock(active: boolean): void {
     return () => {
       lockCount = Math.max(0, lockCount - 1);
       if (lockCount === 0) {
-        // Restore the original — null means no inline style was
+        // Restore the original - null means no inline style was
         // set, so we clear the property to fall back to whatever
         // CSS was applying.
         if (originalOverflow === null || originalOverflow === "") {

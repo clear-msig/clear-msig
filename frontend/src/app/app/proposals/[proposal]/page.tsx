@@ -1,6 +1,6 @@
 "use client";
 
-// Request detail — retail rebuild (locked 2026-04-30).
+// Request detail - retail rebuild (locked 2026-04-30).
 //
 // The page a member opens when they tap "Needs your approval" on the
 // dashboard or the wallet detail. Replaces the legacy 5-panel proposal
@@ -12,7 +12,7 @@
 //   - Where is it? ("in Roommates", with a link back)
 //   - Who created it? ("by you" / "by another member")
 //   - Where are we? ("1 of 2 approved" + relative time)
-//   - What can I do? (Approve / Decline) — only shown while Active
+//   - What can I do? (Approve / Decline) - only shown while Active
 //
 // Power-user surfaces (raw bitmaps, signable preview hex, PDA
 // inspection) are intentionally not rendered here.
@@ -29,6 +29,7 @@ import { PublicKey } from "@solana/web3.js";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  ArrowRight,
   Check,
   ExternalLink,
   Link2,
@@ -53,7 +54,6 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import { SignPayloadPreview } from "@/components/retail/SignPayloadPreview";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import {
   friendlyIntentLabel,
   friendlyStatus,
@@ -255,7 +255,7 @@ function Loaded({
       toast.success("Sent");
       // Refresh wallet balances so the dashboard reflects the
       // post-execute state on next mount. Multiple keys for the
-      // same vault balance — invalidate all of them.
+      // same vault balance - invalidate all of them.
       queryClient.invalidateQueries({ queryKey: ["wallet-balance"] });
       queryClient.invalidateQueries({
         queryKey: ["wallet-vault-balance-lamports"],
@@ -289,48 +289,43 @@ function Loaded({
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       className="flex flex-col gap-6"
     >
-      <div className="print:hidden">
-        <StickyTopBar offset="header">
+      {/* Compact left-aligned hero. Back navigation lives in the
+          global DashboardHeader; the wallet name is shown inline as
+          a clickable breadcrumb to the parent wallet detail page. */}
+      <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <Link
             href={`/app/wallet/${encodeURIComponent(walletName)}`}
+            className="inline-flex items-center gap-1 text-xs font-medium text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
+          >
+            <span>{walletDisplay}</span>
+            <ArrowRight className="h-3 w-3" aria-hidden="true" />
+            <span className="text-text-soft">Request</span>
+          </Link>
+          <span
             className={
-              "-ml-2 inline-flex w-fit items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
-              "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] " +
+              statusChipClasses(proposal.status)
             }
           >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            {walletDisplay}
-          </Link>
-        </StickyTopBar>
-      </div>
+            {proposal.status === ProposalStatus.Active && (
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-50" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-current" />
+              </span>
+            )}
+            {statusLabel}
+          </span>
+        </div>
 
-      {/* Hero */}
-      <section className="flex flex-col items-center rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest sm:p-8">
-        <span
-          className={
-            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] " +
-            statusChipClasses(proposal.status)
-          }
-        >
-          {proposal.status === ProposalStatus.Active && (
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-50" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-current" />
-            </span>
-          )}
-          {statusLabel}
-        </span>
-
-        <h1 className="mt-3 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+        <h1 className="hidden md:block mt-3 font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
           {intentLabel}
         </h1>
-        <p className="mt-2 text-base text-text-soft">
-          in <span className="font-medium text-text-strong">{walletDisplay}</span>{" "}
-          · created {createdAgo} {proposerLabel && `· ${proposerLabel}`}
+        <p className="mt-1 text-xs text-text-soft sm:text-sm">
+          Created {createdAgo} {proposerLabel && `· ${proposerLabel}`}
         </p>
 
-        <div className="mt-5 flex items-center justify-center gap-3">
+        <div className="mt-5 flex items-center gap-3">
           <ApprovalProgress
             collected={Math.min(approvalsCollected, approvalThreshold)}
             total={approvalThreshold}
@@ -355,7 +350,7 @@ function Loaded({
             className={
               "inline-flex min-h-tap items-center justify-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-4 py-2 text-xs font-medium text-text-soft " +
               "transition-[border-color,color,transform] duration-base ease-out-soft " +
-              "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+              "hover:-translate-y-0.5 hover:text-accent " +
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
             }
             title="Open this proposal account on Solscan"
@@ -452,7 +447,7 @@ function Loaded({
           title="You've approved this"
           body={
             approvalsRemaining === 0
-              ? "Threshold reached — about to send."
+              ? "Threshold reached - about to send."
               : `Waiting on ${approvalsRemaining} more approval${
                   approvalsRemaining === 1 ? "" : "s"
                 }.`
@@ -478,7 +473,7 @@ function Loaded({
         />
       )}
 
-      {/* Approved but not yet Executed — typical when the inline
+      {/* Approved but not yet Executed - typical when the inline
           execute step on the send page failed (or the user closed
           the tab between approve and execute). Any approver can
           push the button to retry the broadcast. */}
@@ -556,7 +551,7 @@ function ApprovalProgress({
 }
 
 // Copy-link affordance. The proposal PDA is the slug, so the URL
-// is stable and shareable — paste it in the wallet's group chat
+// is stable and shareable - paste it in the wallet's group chat
 // and members land on this page logged in to their own wallet.
 // Shows a transient "Copied" state on success and falls back to
 // the document.execCommand path for browsers (or contexts like
@@ -583,7 +578,7 @@ function ShareProposalButton() {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      /* swallow — surfaced as no-state-change to the user */
+      /* swallow - surfaced as no-state-change to the user */
     }
   };
   return (
@@ -593,7 +588,7 @@ function ShareProposalButton() {
       className={
         "inline-flex min-h-tap items-center justify-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-4 py-2 text-xs font-medium text-text-soft " +
         "transition-[border-color,color,transform] duration-base ease-out-soft " +
-        "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+        "hover:-translate-y-0.5 hover:text-accent " +
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
       }
     >
@@ -629,7 +624,7 @@ function PrintProposalButton() {
       className={
         "inline-flex min-h-tap items-center justify-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-4 py-2 text-xs font-medium text-text-soft " +
         "transition-[border-color,color,transform] duration-base ease-out-soft " +
-        "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+        "hover:-translate-y-0.5 hover:text-accent " +
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
       }
     >
@@ -639,7 +634,7 @@ function PrintProposalButton() {
   );
 }
 
-// Per-approver status row. Multisig collaboration UX — when a
+// Per-approver status row. Multisig collaboration UX - when a
 // member shares a proposal link in a group chat, the recipient
 // can see at a glance who's already approved and who's blocking.
 // Each row shows avatar + name + an Approved / Waiting pill.

@@ -80,7 +80,7 @@ export function setLedgerAccountIndex(index: number): void {
       String(Math.floor(index)),
     );
   } catch {
-    /* localStorage full or blocked — silently noop */
+    /* localStorage full or blocked - silently noop */
   }
 }
 
@@ -115,7 +115,7 @@ export interface LedgerSession {
   /// BIP44 derivation path used for this session (mostly for display).
   derivationPath: string;
   /// Sign an offchain-wrapped message. Returns 64-byte ed25519 sig.
-  /// Pass the OUTPUT of `wrapOffchain(body)` here, not the raw body —
+  /// Pass the OUTPUT of `wrapOffchain(body)` here, not the raw body -
   /// the Solana app insists on the offchain envelope and uses it to
   /// decide what to render on the device screen.
   signOffchainMessage(bytes: Uint8Array): Promise<Uint8Array>;

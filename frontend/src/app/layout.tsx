@@ -3,7 +3,7 @@
 // Fonts (editorial-sans rebuild 2026-05-08):
 //   --font-sans    → Geist (body). Clean, readable, neutral.
 //   --font-display → Manrope (display). Geometric warmth with
-//                    distinctive cuts — replaces the previous
+//                    distinctive cuts - replaces the previous
 //                    Geist alias, which was indistinguishable from
 //                    body and gave headlines no character. Manrope
 //                    keeps the sans-only money-app rule (Cash App /
@@ -12,7 +12,7 @@
 //                    sizes. font-display class survives unchanged.
 //   --font-mono    → Geist Mono (general code + raw bytes).
 //   --font-numerals → JetBrains Mono. Used for the big amount
-//                    input on /send/* pages — financial numerals
+//                    input on /send/* pages - financial numerals
 //                    deserve a treatment that reads as precise,
 //                    not as "another text field with bigger digits".
 //
@@ -22,9 +22,16 @@
 // Geist-everywhere by giving display + numerals a real voice.
 
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, JetBrains_Mono, Manrope } from "next/font/google";
+import {
+  Geist,
+  Geist_Mono,
+  JetBrains_Mono,
+  Manrope,
+  Space_Grotesk,
+} from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "@/components/providers/AppProviders";
+import { THEME_INIT_SCRIPT } from "@/lib/security/theme-init-script";
 
 const geist = Geist({
   subsets: ["latin"],
@@ -38,20 +45,31 @@ const geistMono = Geist_Mono({
   variable: "--font-mono",
 });
 
+// Variable-axis fonts: omit `weight` so next/font fetches a single
+// variable woff2 per family instead of one static file per weight.
+// All Tailwind weight classes (font-light/medium/semibold/bold) still
+// resolve because the variable font carries the full axis. This drops
+// dev-server cold-compile font traffic from ~17 fetches to ~5.
 const manrope = Manrope({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-display",
-  // 700 + 800 cover the display-weight ladder; 500 is the only
-  // body weight any Manrope call site uses (font-display.font-medium).
-  weight: ["500", "700", "800"],
 });
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-numerals",
-  weight: ["500", "600", "700"],
+});
+
+// Landing + welcome + connect. The Obsidian & Lime design language
+// uses Space Grotesk for display + body and JetBrains Mono for
+// technical labels. Scoped via `--font-grotesk` so /app/* pages keep
+// Geist.
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-grotesk",
 });
 
 export const metadata: Metadata = {
@@ -88,10 +106,21 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: [
+      { url: "/apple-icon.svg", type: "image/svg+xml" },
+    ],
+  },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#16a34a",
+  // Brand lime - drives the iOS Safari address-bar tint and the
+  // Android Chrome status bar. The previous #16a34a was the legacy
+  // brand-green from before the Obsidian & Lime pivot (2026-05-08).
+  themeColor: "#ccff00",
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
@@ -100,23 +129,22 @@ export const viewport: Viewport = {
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const fontVars = `${geist.variable} ${geistMono.variable} ${manrope.variable} ${jetbrainsMono.variable}`;
+  const fontVars = `${geist.variable} ${geistMono.variable} ${manrope.variable} ${jetbrainsMono.variable} ${spaceGrotesk.variable}`;
   return (
-    <html lang="en" className={fontVars}>
+    <html lang="en" className={fontVars} suppressHydrationWarning>
       <head>
         {/* Preconnect to Solana devnet RPC so initial queries shave their DNS+TLS. */}
         <link rel="preconnect" href="https://api.devnet.solana.com" />
         <link rel="dns-prefetch" href="https://api.devnet.solana.com" />
-        {/* Theme bootstrap — runs synchronously BEFORE first paint
-            so a user with the dark preference doesn't see a flash
-            of light page. Reads localStorage["clear.theme.v1"] and
-            sets data-theme on <html>. Inline script (not a
-            <Script> tag) so it runs before React hydrates. */}
+        {/* Theme bootstrap - runs SYNCHRONOUSLY before paint to set
+            the right `data-theme` attribute. Without this, users
+            with stored "light" preference would see a dark flash
+            for 1-2 frames while React hydrates. suppressHydrationWarning
+            on <html> lets the script-applied attribute differ from
+            SSR's deterministic markup without a React 19 mismatch. */}
         <script
           // eslint-disable-next-line react/no-danger
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('clear.theme.v1');if(t!=='light'&&t!=='dark'&&t!=='system')t='system';document.documentElement.setAttribute('data-theme',t);}catch(_){document.documentElement.setAttribute('data-theme','system');}})();`,
-          }}
+          dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
         />
       </head>
       <body className="font-sans antialiased">

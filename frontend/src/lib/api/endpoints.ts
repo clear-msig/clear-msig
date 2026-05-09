@@ -65,7 +65,7 @@ export const backendApi = {
           { timeoutMs: 180_000 },
         ),
       // DKG is expensive to redo, so cap to a single retry with a
-      // longer wait — the most common transient is the post-DKG
+      // longer wait - the most common transient is the post-DKG
       // confirm being a beat behind the cluster.
       { maxAttempts: 2, delayMs: 1500 },
     ),
@@ -125,7 +125,7 @@ export const backendApi = {
   // If the original landed silently, the retry fails fast with an
   // "already" hint that friendlyError surfaces as "this request has
   // already been handled". User rejections + rate limits do NOT
-  // retry — see lib/api/retry.ts for the predicate.
+  // retry - see lib/api/retry.ts for the predicate.
   submit: {
     addIntent: (walletName: string, input: SignedAddIntentInput) =>
       withRetry(() =>

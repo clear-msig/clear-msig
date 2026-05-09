@@ -2,7 +2,7 @@
 
 // Tiny per-wallet log of send attempts (success + failure), backed
 // by localStorage. The product had only ephemeral toast feedback
-// for failed sends — once the toast disappeared, there was no
+// for failed sends - once the toast disappeared, there was no
 // record of "did my send actually go through? what failed?".
 // Modern wallets keep an in-app history of attempts with
 // click-through to the explorer (success) or the structured error
@@ -10,20 +10,20 @@
 // per-wallet view (no server side).
 //
 // What's stored:
-//   - id              — random uuid for React keying + dedup.
-//   - walletName      — the on-chain wallet name (carries the
+//   - id              - random uuid for React keying + dedup.
+//   - walletName      - the on-chain wallet name (carries the
 //                       creator suffix). Used to filter.
-//   - chainKind       — `chain_kind` byte from the intent / send.
-//   - status          — "success" | "failed".
-//   - amountDisplay?  — pre-formatted amount string for UI.
-//   - ticker?         — chain ticker (SOL / ETH / …).
-//   - recipientShort? — abbreviated recipient for display.
-//   - txId?           — chain-native tx hash on success.
-//   - explorerUrl?    — pre-built explorer link on success.
-//   - errorBrief?     — short user-facing failure copy on failure.
-//   - errorStderr?    — raw CLI stderr (truncated) on failure, for
+//   - chainKind       - `chain_kind` byte from the intent / send.
+//   - status          - "success" | "failed".
+//   - amountDisplay?  - pre-formatted amount string for UI.
+//   - ticker?         - chain ticker (SOL / ETH / …).
+//   - recipientShort? - abbreviated recipient for display.
+//   - txId?           - chain-native tx hash on success.
+//   - explorerUrl?    - pre-built explorer link on success.
+//   - errorBrief?     - short user-facing failure copy on failure.
+//   - errorStderr?    - raw CLI stderr (truncated) on failure, for
 //                       debug / "Show details".
-//   - ts              — Date.now() at record-time.
+//   - ts              - Date.now() at record-time.
 //
 // Cap: 100 entries total across all wallets. FIFO drop. Plenty for
 // retail use and won't bloat localStorage.
@@ -71,10 +71,10 @@ function writeAll(rows: TxAttempt[]): void {
     // FIFO drop: keep the most-recent MAX_ENTRIES.
     const trimmed = rows.slice(-MAX_ENTRIES);
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
-    // Notify same-tab consumers — `storage` only fires on OTHER tabs.
+    // Notify same-tab consumers - `storage` only fires on OTHER tabs.
     window.dispatchEvent(new Event("clear:txlog-changed"));
   } catch {
-    /* quota / private mode — silently drop */
+    /* quota / private mode - silently drop */
   }
 }
 
@@ -132,7 +132,7 @@ async function fireSendWebhook(attempt: TxAttempt): Promise<void> {
       error_brief: attempt.errorBrief,
     });
   } catch {
-    /* webhook fire is best-effort — never propagate */
+    /* webhook fire is best-effort - never propagate */
   }
 }
 
@@ -150,7 +150,7 @@ export function listAttempts(walletName: string, limit?: number): TxAttempt[] {
 /// quick-pick chip strip above the recipient input on the EVM send
 /// pages. We dedupe by full address (case-insensitive for EVM) so
 /// repeated sends to the same place don't waste chip slots, and
-/// only return entries that recorded the full address — pre-v1.1
+/// only return entries that recorded the full address - pre-v1.1
 /// rows lack `recipientFull` and we can't pre-fill the input from
 /// a truncated display. Caller decides the limit.
 export function recentRecipients(
@@ -182,7 +182,7 @@ export function recentRecipients(
 }
 
 /// Clear every attempt for a single wallet. Used when the user
-/// dismisses or resets — not exposed in the UI yet but kept for
+/// dismisses or resets - not exposed in the UI yet but kept for
 /// completeness.
 export function clearWallet(walletName: string): void {
   const all = readAll();
@@ -190,7 +190,7 @@ export function clearWallet(walletName: string): void {
   writeAll(next);
 }
 
-/// Subscribe to changes — fires on this tab (via the
+/// Subscribe to changes - fires on this tab (via the
 /// "clear:txlog-changed" event we dispatch above) AND other tabs
 /// (via the native `storage` event). Returns the unsubscribe.
 export function subscribe(callback: () => void): () => void {

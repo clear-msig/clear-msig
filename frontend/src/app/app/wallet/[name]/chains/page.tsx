@@ -1,16 +1,16 @@
 "use client";
 
-// Chains — every chain this wallet can act on.
+// Chains - every chain this wallet can act on.
 //
 // Each binding is an Ika dWallet under the hood (one per chain), but
-// the retail framing is "chains your wallet supports" — Solana,
+// the retail framing is "chains your wallet supports" - Solana,
 // Ethereum, Bitcoin, Zcash. The technical mechanism (DKG, MPC,
 // dWallets) lives only in the Settings / Details panel, never on
 // this page.
 //
 // Solana is implicit on every wallet (the program runs there). Other
 // chains are added one at a time via /chains/add, which pops the
-// dWallet network's DKG ceremony — a ~30-second setup. After that,
+// dWallet network's DKG ceremony - a ~30-second setup. After that,
 // the wallet can send on that chain.
 
 import { useEffect, useMemo, useState } from "react";
@@ -26,16 +26,13 @@ import { fetchWalletByName } from "@/lib/chain/wallets";
 import { findVaultAddress } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
 import { appConfig } from "@/lib/config";
-import { Breadcrumb } from "@/components/retail/Breadcrumb";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
-import { BackToWallets } from "@/components/retail/BackToWallets";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import {
   CHAIN_CATALOG,
   chainByKind,
   type ChainMeta,
 } from "@/lib/retail/chains";
-import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
+import { toDisplayName } from "@/lib/retail/walletNames";
 import {
   chainAddress,
   useWalletChains,
@@ -63,7 +60,7 @@ export default function ChainsPage() {
     staleTime: 30_000,
   });
 
-  // Solana vault PDA — always rendered with the "Built in" badge
+  // Solana vault PDA - always rendered with the "Built in" badge
   // since Clear's program runs on Solana and the wallet's vault is
   // derivable client-side without an IkaConfig binding.
   const solanaAddress = useMemo(() => {
@@ -75,7 +72,7 @@ export default function ChainsPage() {
     return vault.toBase58();
   }, [walletQuery.data]);
 
-  // Backend-API list — returns ChainBindingResponse[] with the
+  // Backend-API list - returns ChainBindingResponse[] with the
   // chain-native addresses already derived (0x… / bc1q… / t1…).
   const bindingsQuery = useWalletChains(name);
 
@@ -102,37 +99,23 @@ export default function ChainsPage() {
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
 
   return (
-    <div className="flex flex-col gap-6">
-      <StickyTopBar offset="header">
-        <Breadcrumb
-          segments={[
-            { label: "Wallets", href: "/app/wallet" },
-            { label: toDisplayName(name), href: `/app/wallet/${encodeURIComponent(name)}` },
-            { label: "Chains" },
-          ]}
-        />
-      </StickyTopBar>
-      {/* Mobile-only back chip — see /send for rationale. */}
-      <div className="px-gutter pt-2 md:hidden">
-        <BackToWallets />
-      </div>
-
-      <motion.section
-        {...motionProps}
-        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="flex flex-col items-center text-center"
-      >
-        <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+    <motion.div
+      {...motionProps}
+      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      className="flex flex-col gap-6"
+    >
+      <header className="flex flex-col gap-1">
+        <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
           Chains
-        </p>
-        <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          <span className="text-accent">{toHeadingName(name)}</span> can send on
         </h1>
-        <p className="mt-2 max-w-md text-base text-text-soft">
-          Adding a chain takes about 30 seconds.
+        <p className="text-xs text-text-soft sm:text-sm">
+          Networks{" "}
+          <span className="font-medium text-text-strong">
+            {toDisplayName(name)}
+          </span>{" "}
+          can send on. Adding a chain takes about 30 seconds.
         </p>
-      </motion.section>
+      </header>
 
       {/* Already bound */}
       <section>
@@ -190,7 +173,7 @@ export default function ChainsPage() {
           </ul>
         </section>
       )}
-    </div>
+    </motion.div>
   );
 }
 
@@ -231,7 +214,7 @@ function ActiveChainRow({
   // balance (where SOL transfers come out of, see execute_custom in
   // the program). Other chains = balance at the dWallet's chain-
   // native address. Refetched every 30 s; errors render as a quiet
-  // "—" rather than a toast (balance is informational, not blocking).
+  // "-" rather than a toast (balance is informational, not blocking).
   const balanceQuery = useQuery({
     queryKey: ["chain-balance", chain.kind, address ?? "no-addr"],
     queryFn: () => loadBalance(chain.kind, address!, binding, connection),
@@ -258,7 +241,7 @@ function ActiveChainRow({
   //   Solana   : 1_000_000   lamports = 0.001 SOL
   //   EVM      : 2e15        wei      = 0.002 ETH
   //   Bitcoin  : 10_000      sats     ≈ one peak-fee P2WPKH
-  // Zcash skipped — we don't fetch balance for it today.
+  // Zcash skipped - we don't fetch balance for it today.
   const LOW_BALANCE_THRESHOLDS: Record<number, bigint> = {
     0: 1_000_000n,
     1: 2_000_000_000_000_000n,
@@ -278,7 +261,7 @@ function ActiveChainRow({
       await navigator.clipboard.writeText(address);
       setCopied(true);
     } catch {
-      /* clipboard blocked — silent */
+      /* clipboard blocked - silent */
     }
   };
 
@@ -328,10 +311,10 @@ function ActiveChainRow({
                     {chain.ticker}
                   </>
                 ) : balanceQuery.isError ? (
-                  <span title="Couldn’t fetch balance from the chain RPC">—</span>
+                  <span title="Couldn’t fetch balance from the chain RPC">-</span>
                 ) : (
                   <span title="No public balance source for this chain yet">
-                    —
+                    -
                   </span>
                 )}
               </span>
@@ -360,7 +343,7 @@ function ActiveChainRow({
             className={
               "group flex flex-1 items-center justify-between gap-3 rounded-soft border border-border-soft bg-canvas px-3 py-2 " +
               "transition-[border-color,transform,box-shadow] duration-base ease-out-soft " +
-              "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-rest active:scale-[0.98] " +
+              "hover:-translate-y-0.5 hover:shadow-card-rest active:scale-[0.98] " +
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
             }
           >
@@ -386,7 +369,7 @@ function ActiveChainRow({
               )}
             </span>
           </button>
-          {/* Quick "show QR" — links to the per-chain receive view.
+          {/* Quick "show QR" - links to the per-chain receive view.
               Useful for sharing the address with a sender's mobile
               wallet without a copy-paste dance. */}
           <Link
@@ -395,7 +378,7 @@ function ActiveChainRow({
             className={
               "flex shrink-0 items-center gap-1 rounded-soft border border-border-soft bg-canvas px-3 text-[11px] font-semibold uppercase tracking-wide text-text-soft " +
               "transition-[border-color,transform,box-shadow,color] duration-base ease-out-soft " +
-              "hover:-translate-y-0.5 hover:border-accent hover:text-accent hover:shadow-card-rest active:scale-[0.98] " +
+              "hover:-translate-y-0.5 hover:text-accent hover:shadow-card-rest active:scale-[0.98] " +
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
             }
           >
@@ -418,7 +401,7 @@ function ActiveChainRow({
                 className={
                   "flex shrink-0 items-center gap-1 rounded-soft border border-border-soft bg-canvas px-3 text-[11px] font-semibold uppercase tracking-wide text-text-soft " +
                   "transition-[border-color,transform,box-shadow,color] duration-base ease-out-soft " +
-                  "hover:-translate-y-0.5 hover:border-accent hover:text-accent hover:shadow-card-rest active:scale-[0.98] " +
+                  "hover:-translate-y-0.5 hover:text-accent hover:shadow-card-rest active:scale-[0.98] " +
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
                 }
               >
@@ -464,7 +447,7 @@ function AvailableChainRow({
         className={
           "group flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest " +
           "transition-[transform,box-shadow,border-color] duration-base ease-out-soft " +
-          "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
+          "hover:-translate-y-0.5 hover:shadow-card-raised " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
         }
       >
@@ -499,7 +482,7 @@ function ChainRowSkeleton() {
 
 /// Pick the right balance source for the row.
 ///
-/// Solana (kind 0) shows the **vault PDA** balance — that's where
+/// Solana (kind 0) shows the **vault PDA** balance - that's where
 /// SOL transfers come out of (the program's `execute_custom`
 /// handler operates on the vault). Other chains show the balance at
 /// the dWallet's chain-native address, fetched via lib/balances.

@@ -54,7 +54,7 @@ export function SignPayloadPreview({
       // Switched from bg-accent/10 to a SOLID surface
       // (bg-surface-raised: theme-aware white / dark) plus a thick
       // left accent stripe. The opacity-layered green tint kept
-      // bleeding into the page bg unpredictably — depending on the
+      // bleeding into the page bg unpredictably - depending on the
       // OS theme + user pref combo, text-text-strong on the
       // tinted panel rendered as anything from "barely readable"
       // to "fully legible" without a single deterministic answer.
@@ -87,7 +87,7 @@ export function SignPayloadPreview({
               // Stacked label-over-value so long values ("Just you
               // for now", "Ships immediately") aren't truncated by
               // the narrow right-aligned column. bg-canvas/60 was
-              // the same opacity-layering trap the parent had —
+              // the same opacity-layering trap the parent had -
               // switched to solid bg-canvas so the values never
               // render with semi-transparent surfaces over an
               // unpredictable parent.

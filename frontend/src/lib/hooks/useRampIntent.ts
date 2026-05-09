@@ -1,10 +1,10 @@
 "use client";
 
-// useRampIntent — polls a single ramp intent until it reaches a
+// useRampIntent - polls a single ramp intent until it reaches a
 // terminal status, then stops polling.
 //
 // React Query's `refetchInterval` accepts a function that returns
-// `false` to stop polling — we use that to halt as soon as the intent
+// `false` to stop polling - we use that to halt as soon as the intent
 // hits one of the terminal statuses (`payout_completed`, `failed`,
 // `cancelled`, `expired`, `manual_review_required`).
 

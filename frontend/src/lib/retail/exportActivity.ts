@@ -3,15 +3,15 @@
 // Build a CSV blob of multisig activity for accountants / DAO
 // treasurers. The on-chain side already exposes everything we need
 // (proposal status, who proposed, approvals collected, when), so this
-// is a pure transform — no extra RPC. Chain-side tx ids land via the
+// is a pure transform - no extra RPC. Chain-side tx ids land via the
 // localStorage txLog when the send was initiated from this device.
 //
 // Why CSV: every accounting tool ingests it. JSON would be cleaner
 // for engineering use, but the audience here is whoever does
-// quarterly bookkeeping for the DAO/treasury — same shape as a bank
+// quarterly bookkeeping for the DAO/treasury - same shape as a bank
 // statement.
 //
-// Quoting model: minimal RFC-4180 — wrap a field in double quotes if
+// Quoting model: minimal RFC-4180 - wrap a field in double quotes if
 // it contains comma, newline, or double-quote, and double-up
 // internal double-quotes. UTF-8 with BOM so Excel doesn't mojibake
 // non-ASCII names.
@@ -24,7 +24,7 @@ export interface ActivityCsvOptions {
   /// Optional global wallet name. When set, every output row uses
   /// this name in the Wallet column AND the attempt-join filters
   /// to attempts on this wallet. When omitted, each row uses its
-  /// own r.walletName — required for the cross-wallet export
+  /// own r.walletName - required for the cross-wallet export
   /// (rows can come from any wallet the user belongs to).
   walletName?: string;
   rows: RecentActivityRow[];
@@ -32,7 +32,7 @@ export interface ActivityCsvOptions {
   /// can be inferred from a recorded send, the matching tx id +
   /// explorer URL get joined onto the proposal's CSV row. Today we
   /// don't store proposalPda in TxAttempt, so the join is by
-  /// (walletName, recipientShort, amount) — best effort, but lets
+  /// (walletName, recipientShort, amount) - best effort, but lets
   /// the resulting CSV carry tx ids the user already has.
   attempts?: TxAttempt[];
   /// Per-approver count map (proposal PDA → approval count). Today
@@ -41,7 +41,7 @@ export interface ActivityCsvOptions {
   approvalsByProposal?: Map<string, { collected: number; total: number }>;
 }
 
-/// Header row order — keep stable so users with saved templates in
+/// Header row order - keep stable so users with saved templates in
 /// Excel/Sheets don't have to remap columns when we add fields.
 const HEADER = [
   "Date (UTC)",
@@ -67,7 +67,7 @@ export function buildActivityCsv(opts: ActivityCsvOptions): string {
   const { walletName, rows, attempts = [], approvalsByProposal } = opts;
 
   // Per-wallet attempt index. Used for the time-proximity join
-  // below — bucketing by wallet up-front saves filtering for
+  // below - bucketing by wallet up-front saves filtering for
   // every row in the cross-wallet path.
   const attemptsByWallet = new Map<string, TxAttempt[]>();
   for (const a of attempts) {
@@ -133,7 +133,7 @@ export function buildActivityCsv(opts: ActivityCsvOptions): string {
         .join(","),
     );
   }
-  // BOM + CRLF — Excel's preferred dialect.
+  // BOM + CRLF - Excel's preferred dialect.
   return "﻿" + lines.join("\r\n") + "\r\n";
 }
 
@@ -172,7 +172,7 @@ function formatUtc(epochSeconds: bigint): string {
   if (epochSeconds === 0n) return "";
   const d = new Date(Number(epochSeconds) * 1000);
   if (!Number.isFinite(d.getTime())) return "";
-  // YYYY-MM-DD HH:MM:SS UTC — accountant-friendly, sortable as text.
+  // YYYY-MM-DD HH:MM:SS UTC - accountant-friendly, sortable as text.
   const pad = (n: number) => String(n).padStart(2, "0");
   return (
     `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ` +

@@ -1,6 +1,6 @@
 "use client";
 
-// Per-friend allowances — "Sarah can spend up to $200/week from
+// Per-friend allowances - "Sarah can spend up to $200/week from
 // Roommates." Stored locally for now; the UI hint on /send and the
 // member-row badge read these to surface "within limit" / "needs
 // extra approval" cues. On-chain enforcement comes when the program
@@ -84,7 +84,7 @@ export default function AllowancesPage() {
     }));
   }, [intentsQuery.data, me, contacts.contacts]);
 
-  // Local form state mirror — one entry per member, hydrated from
+  // Local form state mirror - one entry per member, hydrated from
   // localStorage on mount and after any save.
   const [drafts, setDrafts] = useState<Record<string, AllowanceDraft>>({});
   useEffect(() => {
@@ -158,7 +158,7 @@ export default function AllowancesPage() {
           ]}
         />
       </StickyTopBar>
-      {/* Mobile-only back chip — see /send for rationale. */}
+      {/* Mobile-only back chip - see /send for rationale. */}
       <div className="px-gutter pt-2 md:hidden">
         <BackToWallets />
       </div>
@@ -174,7 +174,7 @@ export default function AllowancesPage() {
         <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Spending limits
         </p>
-        <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+        <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
           What each member can spend
         </h1>
         <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
@@ -220,7 +220,7 @@ export default function AllowancesPage() {
                 )}
               </div>
 
-              {/* Period FIRST, amount second — feedback: tapping the
+              {/* Period FIRST, amount second - feedback: tapping the
                   amount input first read as broken because it's
                   disabled until a non-"no-limit" period is chosen.
                   Asking for the period up front matches the actual

@@ -8,7 +8,7 @@
 //
 // Each chip fills the recipient input with the full address. We
 // short the address for display so the strip stays compact, and
-// only render entries that recorded `recipientFull` — older log
+// only render entries that recorded `recipientFull` - older log
 // entries have only the truncated `recipientShort` and we can't
 // fill an input from that.
 
@@ -73,7 +73,7 @@ export function RecentRecipientsChips({
               // the box just gains breathing room above and below.
               "inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-2 text-[11px] font-medium text-text-soft " +
               "transition-[border-color,color,transform] duration-base ease-out-soft " +
-              "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+              "hover:-translate-y-0.5 hover:text-accent " +
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
             }
             title={`Use ${it.address}`}

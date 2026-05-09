@@ -128,14 +128,14 @@ export function CommandPalette() {
         className="absolute inset-0 -z-10 cursor-default bg-surface-card/50 backdrop-blur-sm"
       />
 
-      <div className="mt-[10vh] flex w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-surface-card-strong shadow-2xl">
-        <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2 text-white/70">
+      <div className="mt-[10vh] flex w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border-soft bg-surface-card-strong shadow-2xl">
+        <div className="flex items-center gap-2 border-b border-border-soft px-3 py-2 text-white/70">
           <Search size={14} />
           <Command.Input
             placeholder="Search your wallets and requests…"
             className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/30"
           />
-          <kbd className="hidden rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-white/50 sm:inline">
+          <kbd className="hidden rounded border border-border-soft bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-white/50 sm:inline">
             esc
           </kbd>
         </div>
@@ -158,7 +158,7 @@ export function CommandPalette() {
             >
               {wallets.map((m) => {
                 const onChainName = m.wallet_name ?? "";
-                if (!onChainName) return null; // Unnamed memberships are skipped — addresses don't belong on screen.
+                if (!onChainName) return null; // Unnamed memberships are skipped - addresses don't belong on screen.
                 const display = toDisplayName(onChainName);
                 return (
                   <Command.Item
@@ -253,14 +253,14 @@ export function CommandPalette() {
           </Command.Group>
         </Command.List>
 
-        <div className="flex items-center justify-between border-t border-white/10 px-3 py-2 text-[10px] text-white/40">
+        <div className="flex items-center justify-between border-t border-border-soft px-3 py-2 text-[10px] text-white/40">
           <span className="flex items-center gap-1">
-            <kbd className="rounded border border-white/10 bg-white/5 px-1 py-0.5 font-mono">↑↓</kbd>
-            <kbd className="rounded border border-white/10 bg-white/5 px-1 py-0.5 font-mono">↵</kbd>
+            <kbd className="rounded border border-border-soft bg-white/5 px-1 py-0.5 font-mono">↑↓</kbd>
+            <kbd className="rounded border border-border-soft bg-white/5 px-1 py-0.5 font-mono">↵</kbd>
             navigate
           </span>
           <span className="flex items-center gap-1">
-            <kbd className="rounded border border-white/10 bg-white/5 px-1 py-0.5 font-mono">⌘K</kbd>
+            <kbd className="rounded border border-border-soft bg-white/5 px-1 py-0.5 font-mono">⌘K</kbd>
             toggle
           </span>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-// Batch send — payroll-style "one input, N requests."
+// Batch send - payroll-style "one input, N requests."
 //
 // The proposer enters {recipient, amount} rows, taps "Send batch",
 // and signs once per row in their wallet popup. Each row becomes its
@@ -43,11 +43,8 @@ import { useBatchSend, type BatchSendRow } from "@/lib/hooks/useBatchSend";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
-import { BackToWallets } from "@/components/retail/BackToWallets";
-import { Breadcrumb } from "@/components/retail/Breadcrumb";
 
-// Hard cap on rows per batch — high enough for real payroll, low
+// Hard cap on rows per batch - high enough for real payroll, low
 // enough to prevent runaway sign-prompt loops.
 const MAX_ROWS = 50;
 const STAGE_TRANSITION = {
@@ -111,7 +108,7 @@ function BatchSendPage() {
   });
   const firstIntent = useMemo(() => {
     if (!intentsQuery.data) return null;
-    // See send/page.tsx — skip bootstrap intents (slots 0/1/2).
+    // See send/page.tsx - skip bootstrap intents (slots 0/1/2).
     return (
       intentsQuery.data.find(
         (it) => it.account !== null && it.account.intentType === IntentType.Custom,
@@ -121,7 +118,7 @@ function BatchSendPage() {
 
   // No spending rule yet → render an explanatory state instead of
   // silently routing to /setup. Same pattern as /members/add and
-  // /rules — auto-redirect was disorienting.
+  // /rules - auto-redirect was disorienting.
   const needsSetup =
     !!walletName &&
     !intentsQuery.isLoading &&
@@ -194,7 +191,7 @@ function BatchSendPage() {
         });
       }
     } catch (err) {
-      // sendBatch swallows row-level errors — anything thrown here is
+      // sendBatch swallows row-level errors - anything thrown here is
       // a setup-level problem (wallet disconnected mid-flight, etc.).
       console.error("[batch-send]", err);
       const fe = friendlyError(err, "send");
@@ -208,34 +205,18 @@ function BatchSendPage() {
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
 
   return (
-    <div className="flex flex-col">
-      <StickyTopBar offset="header">
-        <Breadcrumb
-          segments={[
-            { label: "Wallets", href: "/app/wallet" },
-            {
-              label: walletDisplay || "Wallet",
-              href: walletName
-                ? `/app/wallet/${encodeURIComponent(walletName)}`
-                : "/app/wallet",
-            },
-            { label: "Batch send" },
-          ]}
-        />
-      </StickyTopBar>
-      {/* Mobile-only back chip — see /send for rationale. */}
-      <div className="px-gutter pt-2 md:hidden">
-        <BackToWallets />
-      </div>
-
-      <div className="flex flex-1 justify-center pt-6">
-        <motion.section
-          {...motionProps}
-          transition={STAGE_TRANSITION}
-          className="w-full max-w-xl"
-        >
+    // Back navigation lives in the global DashboardHeader. Container
+    // is centered + capped so the recipient rows stay one readable
+    // column on every viewport (a 1200px-wide row of name+amount
+    // would make scanning multiple rows much harder).
+    <div className="mx-auto flex w-full max-w-2xl flex-col">
+      <motion.section
+        {...motionProps}
+        transition={STAGE_TRANSITION}
+        className="flex flex-col gap-5"
+      >
           {needsSetup && (
-            <div className="mb-6 rounded-card border border-warning/30 bg-warning/5 p-5 shadow-card-rest text-center">
+            <div className="rounded-card border border-warning/30 bg-warning/[0.06] p-5 shadow-card-rest">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
                 Set up sending first
               </p>
@@ -244,11 +225,11 @@ function BatchSendPage() {
                 spending rule to be in place. Enable sending, then come
                 back here.
               </p>
-              <div className="mt-4 flex justify-center gap-2">
+              <div className="mt-4 flex flex-wrap gap-2">
                 <Link
                   href={`/app/wallet/${encodeURIComponent(walletName)}/setup`}
                   className={
-                    "inline-flex items-center gap-1.5 rounded-soft bg-accent px-3.5 py-2 text-sm font-medium text-white shadow-accent-rest " +
+                    "inline-flex items-center gap-1.5 rounded-soft bg-accent px-3.5 py-2 text-sm font-medium text-text-on-accent shadow-accent-rest " +
                     "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98]"
                   }
                 >
@@ -305,8 +286,7 @@ function BatchSendPage() {
               }}
             />
           )}
-        </motion.section>
-      </div>
+      </motion.section>
     </div>
   );
 }
@@ -339,20 +319,41 @@ function ComposeStage({
   onReview,
 }: ComposeProps) {
   const walletDisplay = toDisplayName(walletName);
+  const validCount = validRows(resolved);
   return (
-    <div className="flex flex-col items-center text-center">
-      <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-accent/10 text-accent">
-        <Users className="h-7 w-7" strokeWidth={1.75} />
-      </div>
-      <h1 className="font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-        Send a batch from {walletDisplay}
-      </h1>
-      <p className="mt-3 max-w-sm text-base text-text-soft">
-        Pay many people at once: payroll, splits, an event. Each row
-        becomes its own request your friends can approve together.
+    <div className="flex flex-col gap-5">
+      {/* Compact left-aligned header - matches the rest of the
+          redesigned app. The Users icon disc moved inline with the
+          title so it reads as a section badge, not a giant hero. */}
+      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+        <div className="flex items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent"
+          >
+            <Users className="h-5 w-5" strokeWidth={1.75} />
+          </span>
+          <div className="flex flex-col gap-0.5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              Batch send
+            </p>
+            <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
+              Pay many at once
+            </h1>
+          </div>
+        </div>
+        <p className="text-xs text-text-soft sm:text-sm">
+          From{" "}
+          <span className="font-medium text-text-strong">{walletDisplay}</span>
+        </p>
+      </header>
+
+      <p className="text-sm leading-relaxed text-text-soft">
+        Each row becomes its own request your friends can approve together -
+        ideal for payroll, splits, or event payouts.
       </p>
 
-      <ul className="mt-8 flex w-full flex-col gap-3 text-left">
+      <ul className="flex flex-col gap-3">
         {drafts.map((draft, i) => {
           const status = resolved[i];
           return (
@@ -360,6 +361,7 @@ function ComposeStage({
               key={draft.id}
               draft={draft}
               status={status}
+              index={i + 1}
               contacts={contacts}
               canRemove={drafts.length > 1}
               onChange={(patch) => onUpdateRow(draft.id, patch)}
@@ -374,10 +376,11 @@ function ComposeStage({
         onClick={onAddRow}
         disabled={drafts.length >= MAX_ROWS}
         className={
-          "mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-card border border-dashed border-border-soft " +
-          "bg-canvas px-4 py-3 text-sm font-medium text-text-soft " +
-          "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
-          "disabled:cursor-not-allowed disabled:opacity-40 " +
+          "inline-flex w-full items-center justify-center gap-1.5 rounded-card border border-dashed border-border-soft " +
+          "bg-surface-raised px-4 py-3 text-sm font-medium text-text-soft shadow-card-rest " +
+          "transition-[border-color,color,transform,box-shadow] duration-base ease-out-soft " +
+          "hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent hover:shadow-card-raised " +
+          "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:transform-none " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
         }
       >
@@ -388,32 +391,31 @@ function ComposeStage({
         </span>
       </button>
 
-      <div className="mt-6 w-full rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      {/* Batch total - full card with eyebrow + big numerals + status
+          line. Symmetric with the Amount card on /send so the two
+          send surfaces feel like the same family. */}
+      <section className="flex flex-col gap-2 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
         <div className="flex items-baseline justify-between">
           <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
             Batch total
           </span>
-          <span className="flex items-baseline gap-1.5">
-            <span className="font-numerals text-display-xs font-semibold text-text-strong tabular-nums">
-              {formatSol(totalSol)}
-            </span>
-            <span className="font-display text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
-              SOL
-            </span>
+          <span className="text-xs text-text-soft">
+            <span className="font-medium text-text-strong">{validCount}</span>{" "}
+            of <span className="font-medium text-text-strong">{drafts.length}</span>{" "}
+            ready
           </span>
         </div>
-        <p className="mt-1 text-right font-numerals text-xs text-text-soft tabular-nums">
-          {validRows(resolved)} of {drafts.length} rows ready
+        <p className="flex items-baseline gap-2">
+          <span className="font-numerals text-3xl font-semibold leading-none tracking-tight text-text-strong tabular-nums sm:text-4xl">
+            {formatSol(totalSol)}
+          </span>
+          <span className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft">
+            SOL
+          </span>
         </p>
-      </div>
+      </section>
 
-      <Button
-        size="lg"
-        fullWidth
-        className="mt-6"
-        onClick={onReview}
-        disabled={!canReview}
-      >
+      <Button size="lg" fullWidth onClick={onReview} disabled={!canReview}>
         Review batch
         <ArrowRight className="h-4 w-4" aria-hidden="true" />
       </Button>
@@ -424,6 +426,7 @@ function ComposeStage({
 interface RecipientRowProps {
   draft: DraftRow;
   status: ResolvedRow;
+  index: number;
   contacts: Contact[];
   canRemove: boolean;
   onChange: (patch: Partial<DraftRow>) => void;
@@ -433,39 +436,75 @@ interface RecipientRowProps {
 function RecipientRow({
   draft,
   status,
+  index,
   contacts,
   canRemove,
   onChange,
   onRemove,
 }: RecipientRowProps) {
   const datalistId = `contacts-${draft.id}`;
+  const isValid = status.kind === "valid";
   return (
-    <li className="flex flex-col gap-2 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
-      <div className="flex items-center gap-3">
-        <span className="w-12 shrink-0 text-xs font-medium uppercase tracking-wide text-text-soft">
-          To
+    <li className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <div className="flex items-start gap-3">
+        {/* Row index - matches the "row 3 of 8" mental model users
+            already have for spreadsheets / payroll lists. */}
+        <span
+          aria-hidden="true"
+          className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-canvas font-numerals text-[11px] font-semibold tabular-nums text-text-soft ring-1 ring-border-soft"
+        >
+          {index}
         </span>
-        <input
-          value={draft.recipient}
-          onChange={(e) => onChange({ recipient: e.target.value })}
-          placeholder="Name or wallet address"
-          list={datalistId}
-          maxLength={64}
-          spellCheck={false}
-          autoComplete="off"
-          className={
-            "flex-1 bg-transparent py-1.5 text-base text-text-strong outline-none " +
-            "placeholder:text-text-soft/60"
-          }
-        />
+        <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-text-soft">
+              Recipient
+            </span>
+            <input
+              value={draft.recipient}
+              onChange={(e) => onChange({ recipient: e.target.value })}
+              placeholder="Name or wallet address"
+              list={datalistId}
+              maxLength={64}
+              spellCheck={false}
+              autoComplete="off"
+              className={
+                "w-full rounded-soft border border-border-soft bg-canvas px-3 py-2 text-sm text-text-strong outline-none " +
+                "transition-[border-color,box-shadow] duration-base ease-out-soft " +
+                "placeholder:text-text-soft/60 " +
+                "focus:border-accent focus:shadow-accent-rest"
+              }
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-text-soft">
+              SOL
+            </span>
+            <input
+              value={draft.amount}
+              onChange={(e) =>
+                onChange({ amount: sanitizeAmount(e.target.value) })
+              }
+              inputMode="decimal"
+              placeholder="0.00"
+              maxLength={20}
+              className={
+                "w-full rounded-soft border border-border-soft bg-canvas px-3 py-2 text-right font-numerals text-sm tabular-nums text-text-strong outline-none sm:w-32 " +
+                "transition-[border-color,box-shadow] duration-base ease-out-soft " +
+                "placeholder:text-text-soft/60 " +
+                "focus:border-accent focus:shadow-accent-rest"
+              }
+            />
+          </label>
+        </div>
         {canRemove && (
           <button
             type="button"
             onClick={onRemove}
             aria-label="Remove recipient"
             className={
-              "rounded-soft p-1.5 text-text-soft transition-colors duration-base ease-out-soft hover:bg-canvas hover:text-danger " +
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+              "mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-soft text-text-soft transition-colors duration-base ease-out-soft hover:bg-rose-500/10 hover:text-rose-500 " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
             }
           >
             <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -477,40 +516,36 @@ function RecipientRow({
           <option key={c.address} value={c.name} />
         ))}
       </datalist>
-      <div className="h-px bg-border-soft" />
-      <div className="flex items-center gap-3">
-        <span className="w-12 shrink-0 text-xs font-medium uppercase tracking-wide text-text-soft">
-          SOL
-        </span>
-        <input
-          value={draft.amount}
-          onChange={(e) =>
-            onChange({ amount: sanitizeAmount(e.target.value) })
-          }
-          inputMode="decimal"
-          placeholder="0.00"
-          maxLength={20}
-          className={
-            "flex-1 bg-transparent py-1.5 text-base text-text-strong outline-none " +
-            "placeholder:text-text-soft/60"
-          }
-        />
-      </div>
-      {status.kind === "invalid-address" && draft.recipient.trim().length > 0 && (
-        <p className="text-xs text-warning">
-          That doesn&rsquo;t look like a contact or a valid Solana address.
-        </p>
-      )}
-      {status.kind === "invalid-amount" && draft.amount.trim().length > 0 && (
-        <p className="text-xs text-warning">
-          Amount must be greater than zero.
-        </p>
-      )}
-      {status.kind === "valid" && (
-        <p className="text-xs text-text-soft">
-          Resolves to {shortAddress(status.destination)} ·{" "}
-          {formatSol(Number(status.lamports) / 1_000_000_000)} SOL
-        </p>
+      {/* Status hints - colour-coded so a long batch reads at a
+          glance: green=valid, amber=needs attention. */}
+      {(status.kind !== "empty" || isValid) && (
+        <div className="ml-9 mt-2">
+          {status.kind === "invalid-address" &&
+            draft.recipient.trim().length > 0 && (
+              <p className="text-xs text-warning">
+                Not a contact or a valid Solana address.
+              </p>
+            )}
+          {status.kind === "invalid-amount" &&
+            draft.amount.trim().length > 0 && (
+              <p className="text-xs text-warning">
+                Amount must be greater than zero.
+              </p>
+            )}
+          {isValid && (
+            <p className="font-mono text-[11px] text-text-soft">
+              Resolves to{" "}
+              <span className="text-text-strong">
+                {shortAddress(status.destination)}
+              </span>
+              {" · "}
+              <span className="font-numerals tabular-nums text-text-strong">
+                {formatSol(Number(status.lamports) / 1_000_000_000)}
+              </span>{" "}
+              SOL
+            </p>
+          )}
+        </div>
       )}
     </li>
   );
@@ -533,32 +568,45 @@ function ReviewStage({
 }) {
   const walletDisplay = toDisplayName(walletName);
   return (
-    <div className="flex flex-col items-center text-center">
-      <h1 className="font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-        Send {rows.length} request{rows.length === 1 ? "" : "s"} from{" "}
-        {walletDisplay}?
-      </h1>
-      <p className="mt-3 max-w-sm text-base text-text-soft">
-        Each row becomes its own request. Your wallet will pop up{" "}
-        <span className="font-medium text-text-strong">
-          {rows.length} time{rows.length === 1 ? "" : "s"}
-        </span>{" "}
-        (once per recipient) so you can confirm each one.
-      </p>
+    <div className="flex flex-col gap-5">
+      <header className="flex flex-col gap-1">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          Review batch
+        </p>
+        <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
+          {rows.length} request{rows.length === 1 ? "" : "s"} from{" "}
+          {walletDisplay}
+        </h1>
+        <p className="text-xs text-text-soft sm:text-sm">
+          Each row becomes its own request. Your wallet will pop up{" "}
+          <span className="font-medium text-text-strong">
+            {rows.length} time{rows.length === 1 ? "" : "s"}
+          </span>{" "}
+          (once per recipient) so you can confirm each one.
+        </p>
+      </header>
 
-      <ul className="mt-6 w-full divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised text-left shadow-card-rest">
+      <ul className="flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
         {rows.map((r, i) => (
           <li
             key={i}
-            className="flex items-center justify-between gap-3 px-4 py-3"
+            className="flex items-center justify-between gap-3 px-4 py-3.5"
           >
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-text-strong">
-                {r.label}
-              </p>
-              <p className="truncate font-mono text-xs text-text-soft">
-                {shortAddress(r.destination)}
-              </p>
+            <div className="flex min-w-0 items-center gap-3">
+              <span
+                aria-hidden="true"
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-canvas font-numerals text-[11px] font-semibold tabular-nums text-text-soft ring-1 ring-border-soft"
+              >
+                {i + 1}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-text-strong">
+                  {r.label}
+                </p>
+                <p className="truncate font-mono text-[11px] text-text-soft">
+                  {shortAddress(r.destination)}
+                </p>
+              </div>
             </div>
             <span className="shrink-0 inline-flex items-baseline gap-1">
               <span className="font-numerals text-base font-semibold text-text-strong tabular-nums">
@@ -572,31 +620,37 @@ function ReviewStage({
         ))}
       </ul>
 
-      <div className="mt-4 flex w-full items-baseline justify-between rounded-card border border-accent/30 bg-accent/5 px-4 py-3">
+      <section className="flex items-center justify-between rounded-card border border-accent/30 bg-accent/[0.06] p-5 shadow-card-rest">
         <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
           Total
         </span>
-        <span className="inline-flex items-baseline gap-1.5">
-          <span className="font-numerals text-display-xs font-semibold text-text-strong tabular-nums">
+        <span className="inline-flex items-baseline gap-2">
+          <span className="font-numerals text-3xl font-semibold leading-none tracking-tight text-text-strong tabular-nums sm:text-4xl">
             {formatSol(totalSol)}
           </span>
-          <span className="font-display text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
+          <span className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft">
             SOL
           </span>
         </span>
-      </div>
+      </section>
 
-      <Button size="lg" fullWidth className="mt-6" onClick={onSend}>
-        Send batch
-        <ArrowRight className="h-4 w-4" aria-hidden="true" />
-      </Button>
-      <button
-        type="button"
-        onClick={onBack}
-        className="mt-3 text-sm text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
-      >
-        Back to edit
-      </button>
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+        <button
+          type="button"
+          onClick={onBack}
+          className={
+            "inline-flex min-h-tap items-center justify-center rounded-soft border border-border-soft bg-canvas px-4 py-2 text-sm font-medium text-text-soft " +
+            "transition-colors duration-base ease-out-soft hover:text-text-strong " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          }
+        >
+          Back to edit
+        </button>
+        <Button size="lg" onClick={onSend}>
+          Send batch
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Button>
+      </div>
     </div>
   );
 }
@@ -682,7 +736,7 @@ function DoneStage({
         className={
           "flex h-16 w-16 items-center justify-center rounded-full " +
           (allSucceeded
-            ? "bg-accent text-white shadow-accent-rest"
+            ? "bg-accent text-text-on-accent shadow-accent-rest"
             : "bg-warning/10 text-warning")
         }
       >

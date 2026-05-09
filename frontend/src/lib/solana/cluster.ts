@@ -12,16 +12,16 @@
 //
 // Implementation: Proxy-wrap the primary Connection so any method
 // that throws a network-level error retries the same call on a
-// fallback Connection. After the first failure we latch — every
+// fallback Connection. After the first failure we latch - every
 // subsequent call goes straight to the fallback so we don't pay the
 // primary's timeout on every read.
 //
 // What this does NOT cover:
 //   - WebSocket account subscriptions (web3.js opens a separate WS
 //     connection; failures there will just leave the subscription
-//     dead until the user reloads). Acceptable for now — reads are
+//     dead until the user reloads). Acceptable for now - reads are
 //     the load-bearing path.
-//   - Logical RPC errors (account not found, etc.) — those come back
+//   - Logical RPC errors (account not found, etc.) - those come back
 //     as null/empty responses, not exceptions, so the wrapper
 //     ignores them.
 
@@ -30,7 +30,7 @@ import { Commitment, Connection } from "@solana/web3.js";
 const PUBLIC_DEVNET_RPC = "https://api.devnet.solana.com";
 
 /// Per-device localStorage key for the user-set RPC override.
-/// Power-user setting — lets a treasury manager point the app at
+/// Power-user setting - lets a treasury manager point the app at
 /// their own paid RPC (Helius, QuickNode, Triton, …) without
 /// touching env vars. Only honoured when it's a syntactically
 /// valid http(s) URL.
@@ -49,12 +49,12 @@ function readOverrideFromStorage(): string | null {
   }
 }
 
-/// Default URL — env-driven. Doesn't see the override.
+/// Default URL - env-driven. Doesn't see the override.
 export const solanaClusterDefaultRpc =
   process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? PUBLIC_DEVNET_RPC;
 
 /// Effective primary URL: localStorage override (if any) wins,
-/// otherwise the env default. Evaluated at module load — the
+/// otherwise the env default. Evaluated at module load - the
 /// connection singleton built later sees this. Saving a new
 /// override after first load requires a page reload to take
 /// effect; the Settings UI handles that.
@@ -73,7 +73,7 @@ export const solanaClusterFallbackRpc = PUBLIC_DEVNET_RPC;
 export function createSolanaConnection(
   commitment: Commitment = "confirmed",
 ): Connection {
-  // Same URL? No fallback needed — return a plain Connection.
+  // Same URL? No fallback needed - return a plain Connection.
   if (solanaClusterRpc === solanaClusterFallbackRpc) {
     return new Connection(solanaClusterRpc, commitment);
   }
@@ -120,7 +120,7 @@ export function createSolanaConnection(
           if (!isNetworkError(err)) throw err;
           // First network failure on the primary. Latch and retry once
           // on the fallback. If the fallback also fails, that error
-          // propagates — caller's responsibility.
+          // propagates - caller's responsibility.
           if (typeof console !== "undefined") {
             console.warn(
               `[solana-rpc] primary ${solanaClusterRpc} failed, falling back to ${solanaClusterFallbackRpc}`,

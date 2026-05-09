@@ -1,6 +1,6 @@
 "use client";
 
-// Error boundary — Next App Router renders this for any unhandled
+// Error boundary - Next App Router renders this for any unhandled
 // runtime error inside the route tree. Retail-friendly fallback so an
 // uncaught exception doesn't drop the user into a stack trace.
 //

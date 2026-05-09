@@ -2,19 +2,22 @@
 
 // Workspace layout used by all connected-app pages.
 //
-// Visually flat: light bg-background outer, light bg-surface-raised
-// sidebar attached to the left, page column on the right. The sidebar
-// has two desktop states (rail / full) controlled by SidebarProvider;
-// the grid template columns animate smoothly between widths.
+// Desktop (md+): fixed two-column shell. The sidebar is pinned to the
+// viewport's left edge at full height (no scroll, no offset, no card
+// chrome - just a right divider). The right column has its own top
+// header and an internally-scrolling content area, so the sidebar
+// never moves when the user scrolls the page.
 //
-// Mobile (<md): the sidebar is hidden in the layout flow and rendered
-// instead inside HeaderBar's left-sliding drawer.
+// Mobile (<md): falls back to body scroll. The sidebar is hidden and
+// reachable via HeaderBar's left-sliding drawer; BottomNav handles
+// primary navigation. DashboardHeader is desktop-only.
 
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { useActionNotifications } from "@/lib/hooks/useActionNotifications";
 import { AppLockOverlay } from "@/components/security/AppLockOverlay";
 import { PhishingWarningBanner } from "@/components/security/PhishingWarningBanner";
 import { HeaderBar } from "@/components/layout/HeaderBar";
+import { DashboardHeader } from "@/components/layout/DashboardHeader";
 import { PreAlphaBanner } from "@/components/layout/PreAlphaBanner";
 import { WorkspaceSidebar } from "@/components/layout/WorkspaceSidebar";
 import { CommandPalette } from "@/components/layout/CommandPalette";
@@ -52,68 +55,78 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
   // components.
   useActionNotifications();
   return (
-    <main
-      className={
-        // Mobile: pt-16 (64px). The floating hamburger ends at
-        // ~52px; pt-16 sits the first content 12px below it. The
-        // backdrop strip below covers any overlap from scrolled
-        // content. pt-24 (the previous value) was overcorrected
-        // and produced a "long empty band" at the top of every
-        // page. Desktop hides the brand pill on /app/* so we drop
-        // to pt-6.
-        "relative min-h-screen overflow-x-hidden bg-canvas px-3 pb-32 pt-16 font-sans " +
-        "sm:px-4 sm:pb-16 md:pt-6 lg:px-6 lg:pt-6"
-      }
-    >
-      {/* Mobile-only header backdrop — when content scrolls under
-          the floating hamburger / brand pill, the scrolled text
-          would otherwise peek through the gap between the two
-          buttons. A canvas-coloured strip behind them solves it
-          without a per-button bg bump. Hidden on md+ where there
-          is no floating header. */}
+    <main className="relative bg-canvas font-sans md:flex md:h-screen md:overflow-hidden">
+      {/* Atmospheric accents - two soft radial blooms anchoring the
+          page corners. Pure decoration, pointer-events-none, lifts
+          the obsidian canvas off the "flat black" reading without
+          competing with foreground content. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none fixed inset-x-0 top-0 z-[90] h-14 bg-canvas md:hidden"
+        className="pointer-events-none fixed inset-0 -z-0 overflow-hidden"
+      >
+        <div
+          className="absolute -left-40 -top-40 h-[480px] w-[480px] rounded-full opacity-40"
+          style={{
+            background:
+              "radial-gradient(circle at center, rgba(204, 255, 0, 0.10) 0%, rgba(204, 255, 0, 0) 70%)",
+            filter: "blur(120px)",
+          }}
+        />
+        <div
+          className="absolute -bottom-40 -right-40 h-[560px] w-[560px] rounded-full opacity-40"
+          style={{
+            background:
+              "radial-gradient(circle at center, rgba(16, 185, 129, 0.10) 0%, rgba(16, 185, 129, 0) 70%)",
+            filter: "blur(120px)",
+          }}
+        />
+      </div>
+
+      {/* Mobile-only header backdrop - covers the gap between the
+          floating hamburger and the brand pill so scrolled content
+          doesn't peek through. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-x-0 top-0 z-[90] h-14 bg-canvas/85 backdrop-blur-md md:hidden"
       />
       <HeaderBar />
       <CommandPalette />
 
-      <div
+      {/* Sidebar - pinned to the viewport's left edge on md+. Owns
+          its own internal scroll so a long wallet list doesn't push
+          the rail off-screen. Hidden on mobile (lives in the drawer). */}
+      <aside
         className={
-          // Bumped from max-w-[78rem] to max-w-[96rem] (1536px). On a
-          // 1920+ monitor the previous cap left ~336px empty on each
-          // side; the new cap halves that to ~192px while keeping
-          // text-line widths reasonable on the page column.
-          "relative z-10 mx-auto grid w-full max-w-[96rem] grid-cols-1 items-start gap-6 md:gap-0 " +
-          "transition-[grid-template-columns] duration-base ease-out-soft " +
-          (expanded ? "md:grid-cols-[16rem_1fr]" : "md:grid-cols-[4rem_1fr]")
+          "hidden h-screen shrink-0 overflow-x-hidden overflow-y-auto " +
+          "border-r border-border-soft bg-glass-soft backdrop-blur-xl " +
+          "transition-[width] duration-base ease-out-soft md:block " +
+          (expanded ? "w-64" : "w-16")
         }
       >
-        {/* Persistent sidebar on md+; hidden on mobile (lives in the
-            HeaderBar drawer instead). Sticky so it stays visible as
-            the main column scrolls. Light surface with a soft right
-            border so it reads as a real navigation rail attached to
-            the page column, not a floating card. */}
-        <aside
-          className={
-            // top-6 matches md:pt-6 above so the sidebar's brand row
-            // sits flush with where the floating pill used to live.
-            "sticky top-6 hidden h-[calc(100vh-3rem)] overflow-x-hidden overflow-y-auto " +
-            "border-r border-border-soft bg-surface-raised " +
-            "transition-[width] duration-base ease-out-soft " +
-            "md:block"
-          }
-        >
-          <WorkspaceSidebar />
-        </aside>
+        <WorkspaceSidebar />
+      </aside>
 
-        {/* Page column. md:pl-6 restores the breathing space the
-            md:gap-0 grid removed, so the sidebar's right border has a
-            clear margin to the page content. */}
-        <div className="flex min-w-0 flex-col gap-4 md:pl-6">
-          <PhishingWarningBanner />
-          <PreAlphaBanner />
-          <section className="relative z-20 min-w-0">{children}</section>
+      {/* Right column.
+          • Desktop: md:overflow-hidden caps the column at viewport
+            height; the inner content div owns the scroll so the
+            DashboardHeader stays pinned at the top while the user
+            scrolls page content underneath.
+          • Mobile: no overflow constraints - body scroll handles it,
+            keeping URL-bar collapse and BottomNav behavior native. */}
+      <div className="flex min-w-0 flex-1 flex-col md:overflow-hidden">
+        <DashboardHeader />
+        {/* Top + bottom padding lives on the INNER wrapper (not the
+            scroll container) so a `sticky top-0` element inside the
+            page can land flush against the DashboardHeader. Putting
+            pt on the scroll container would push every sticky child
+            down by that amount because sticky offsets are measured
+            from the padding-box edge of the scrollport. */}
+        <div className="relative z-10 flex-1 px-3 sm:px-4 md:overflow-y-auto md:overscroll-contain md:px-8 lg:px-10 xl:px-12">
+          <div className="mx-auto flex w-full max-w-[80rem] flex-col gap-4 pb-32 pt-16 sm:pb-16 md:pb-12 md:pt-8">
+            <PhishingWarningBanner />
+            <PreAlphaBanner />
+            <section className="relative z-20 min-w-0">{children}</section>
+          </div>
         </div>
       </div>
 

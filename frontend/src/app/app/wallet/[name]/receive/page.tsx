@@ -1,51 +1,49 @@
 "use client";
 
-// Receive money — surface the wallet's funding addresses, one per
+// Receive money - surface the wallet's funding addresses, one per
 // bound chain.
 //
 // Solana is implicit on every wallet (the program runs there) and the
-// vault PDA is derived locally — no backend round-trip needed.
+// vault PDA is derived locally - no backend round-trip needed.
 // For Ethereum / Bitcoin / Zcash, the dWallet pubkey gets converted
 // to the chain-native format (0x…, bc1q…, t1…) by the CLI on the
 // backend and surfaced via `listWalletChains`. This page picks one
 // address at a time so the user always copies the right format.
 //
 // The "no raw addresses on screen by default" rule is deliberately
-// broken here — to add money, you need the address.
+// broken here - to add money, you need the address.
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Check, Copy, Wallet } from "lucide-react";
+import clsx from "clsx";
+import { Check, Copy, Download } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { findVaultAddress } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
-import { Breadcrumb } from "@/components/retail/Breadcrumb";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
-import { BackToWallets } from "@/components/retail/BackToWallets";
-import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import {
   CHAIN_CATALOG,
   chainByKind,
   type ChainMeta,
 } from "@/lib/retail/chains";
-import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
+import { toDisplayName } from "@/lib/retail/walletNames";
 import {
   chainAddress,
   useWalletChains,
 } from "@/lib/hooks/useWalletChains";
 import type { ChainBindingResponse } from "@/lib/api/types";
+import { downloadBrandedQr } from "@/lib/retail/qrDownload";
+import { useToast } from "@/components/ui/Toast";
 
 interface ReceiveOption {
   chain: ChainMeta;
   address: string | null;
   /// Friendly state label for chains where the dWallet is still
-  /// spinning up (no address yet) — never null when address is set.
+  /// spinning up (no address yet) - never null when address is set.
   pending?: boolean;
 }
 
@@ -61,6 +59,9 @@ export default function ReceivePage() {
 
   const reduce = useReducedMotion();
   const { connection } = useConnection();
+  const toast = useToast();
+  const qrRef = useRef<SVGSVGElement | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   // Solana side: derive the vault PDA locally from the wallet name.
   const walletQuery = useQuery({
@@ -105,7 +106,7 @@ export default function ReceivePage() {
     return out;
   }, [solanaAddress, chainsQuery.data]);
 
-  // Initial chain selection — honour ?chain=<apiName> deep link so
+  // Initial chain selection - honour ?chain=<apiName> deep link so
   // the chains-list "QR" button can jump straight to the right
   // address on /receive without an extra tap.
   const search = useSearchParams();
@@ -119,7 +120,7 @@ export default function ReceivePage() {
   }, [search]);
   const [selectedKind, setSelectedKind] = useState<number>(initialKind);
 
-  // If the only bound chain is Solana, no need for the picker — but
+  // If the only bound chain is Solana, no need for the picker - but
   // we still render the option so the page works for the common case.
   // When non-Solana chains are added, the picker appears at the top.
   const hasMultipleChains = options.length > 1;
@@ -133,7 +134,7 @@ export default function ReceivePage() {
     return () => clearTimeout(t);
   }, [copied]);
 
-  // Reset copied state when the user picks a different chain — fresh
+  // Reset copied state when the user picks a different chain - fresh
   // address, fresh "Copy" affordance.
   useEffect(() => {
     setCopied(false);
@@ -145,7 +146,28 @@ export default function ReceivePage() {
       await navigator.clipboard.writeText(selected.address);
       setCopied(true);
     } catch {
-      /* clipboard blocked — silent */
+      /* clipboard blocked - silent */
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!selected?.address || !qrRef.current) return;
+    setDownloading(true);
+    try {
+      await downloadBrandedQr({
+        qrSvg: qrRef.current,
+        walletName: toDisplayName(name) || "Wallet",
+        chainName: selected.chain.name,
+        address: selected.address,
+        filename: `clear-${toDisplayName(name) || "wallet"}-${selected.chain.apiName}-address`,
+      });
+      toast.success(`${selected.chain.name} QR downloaded`);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't generate the QR image",
+      );
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -154,182 +176,154 @@ export default function ReceivePage() {
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
 
   return (
-    <main className="relative flex min-h-screen flex-col bg-canvas">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 overflow-hidden"
-      >
-        <div className="absolute -left-32 -top-16 h-[55vh] w-[80vw] max-w-[640px] rounded-full bg-accent/[0.06] blur-3xl" />
-      </div>
+    <motion.div
+      {...motionProps}
+      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      className="mx-auto flex w-full max-w-2xl flex-col gap-6"
+    >
+      {/* Compact left-aligned header. */}
+      <header className="flex flex-col gap-1">
+        <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
+          Receive money
+        </h1>
+        <p className="text-xs text-text-soft sm:text-sm">
+          Add funds to{" "}
+          <span className="font-medium text-text-strong">
+            {toDisplayName(name)}
+          </span>
+          .{" "}
+          {hasMultipleChains
+            ? "Pick a chain, then share the address."
+            : "Send SOL to the address below."}{" "}
+          Anyone with the address can fund the wallet, but only members
+          can spend.
+        </p>
+      </header>
 
-      <StickyTopBar offset="header">
-        <Breadcrumb
-          segments={[
-            { label: "Wallets", href: "/app/wallet" },
-            { label: toDisplayName(name), href: `/app/wallet/${encodeURIComponent(name)}` },
-            { label: "Receive" },
-          ]}
-        />
-      </StickyTopBar>
-      {/* Mobile-only back chip — see /send for rationale. */}
-      <div className="px-gutter pt-2 md:hidden">
-        <BackToWallets />
-      </div>
-
-      <div className="relative z-10 flex flex-1 items-center justify-center px-gutter py-10">
-        <motion.section
-          {...motionProps}
-          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          className="w-full max-w-md"
+      {/* Chain picker - only when more than just Solana is bound. */}
+      {hasMultipleChains && (
+        <div
+          role="tablist"
+          aria-label="Pick a chain to receive on"
+          className="flex flex-wrap gap-2"
         >
-          <div className="flex flex-col items-center text-center">
-            <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-accent/10 text-accent">
-              <Wallet className="h-7 w-7" strokeWidth={1.75} />
-            </div>
-            <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-            <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Receive money
-            </p>
-            <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-              Add money to <span className="text-accent">{toHeadingName(name)}</span>
-            </h1>
-            <p className="mt-3 max-w-sm text-base text-text-soft">
-              {hasMultipleChains
-                ? "Pick a chain, then share the address. Anyone with it can fund the wallet. Only members can spend."
-                : "Send SOL to the address below. Anyone with the address can fund the wallet, but only members can spend from it."}
-            </p>
-
-            {/* Chain picker — only when we have more than just Solana. */}
-            {hasMultipleChains && (
-              <div
-                role="tablist"
-                aria-label="Pick a chain to receive on"
-                className="mt-6 flex w-full flex-wrap justify-center gap-2"
+          {options.map((opt) => {
+            const active = opt.chain.kind === selected?.chain.kind;
+            return (
+              <button
+                key={opt.chain.kind}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setSelectedKind(opt.chain.kind)}
+                className={clsx(
+                  "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium",
+                  "transition-[border-color,background-color] duration-base ease-out-soft",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+                  active
+                    ? "border-accent bg-accent/5 text-text-strong"
+                    : "border-border-soft bg-surface-raised text-text-soft hover:text-text-strong",
+                )}
               >
-                {options.map((opt) => {
-                  const active = opt.chain.kind === selected?.chain.kind;
-                  return (
-                    <button
-                      key={opt.chain.kind}
-                      type="button"
-                      role="tab"
-                      aria-selected={active}
-                      onClick={() => setSelectedKind(opt.chain.kind)}
-                      className={
-                        "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium " +
-                        "transition-[border-color,background-color,transform] duration-base ease-out-soft " +
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
-                        (active
-                          ? "border-accent bg-accent/5 text-text-strong"
-                          : "border-border-soft bg-surface-raised text-text-soft hover:border-accent/40 hover:text-text-strong")
-                      }
-                    >
-                      <ChainBadge chain={opt.chain} size="sm" />
-                      {opt.chain.name}
-                    </button>
-                  );
-                })}
+                <ChainBadge chain={opt.chain} size="sm" />
+                {opt.chain.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Address card. */}
+      {selected ? (
+        selected.address ? (
+          <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
+            <div className="flex items-center gap-2">
+              <ChainBadge chain={selected.chain} size="sm" />
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+                {selected.chain.name} address
+              </p>
+            </div>
+            <div className="mt-4 flex justify-center">
+              <div className="rounded-soft bg-white p-4 shadow-card-rest">
+                <QRCodeSVG
+                  key={selected.chain.kind}
+                  ref={qrRef}
+                  value={selected.address}
+                  size={192}
+                  level="M"
+                  marginSize={0}
+                  aria-label={`QR code for ${selected.chain.name} address`}
+                />
               </div>
-            )}
-
-            {/* Address card. */}
-            {selected ? (
-              selected.address ? (
-                <div className="mt-8 w-full rounded-card border border-border-soft bg-surface-raised p-5 text-left shadow-card-rest">
-                  <div className="flex items-center gap-2">
-                    <ChainBadge chain={selected.chain} size="sm" />
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-                      {selected.chain.name} address
-                    </p>
-                  </div>
-                  {/* QR code so the user can scan from a sender's
-                      mobile wallet instead of copy-pasting the
-                      address. Pure SVG render, no external service
-                      (so the address never leaves this page). The
-                      key forces a remount when the chain changes —
-                      otherwise React preserves the SVG and the
-                      payload-to-DOM diff produces a momentary
-                      malformed code on switch. */}
-                  <div className="mt-3 flex justify-center">
-                    <div className="rounded-soft bg-white p-3 shadow-card-rest">
-                      <QRCodeSVG
-                        key={selected.chain.kind}
-                        value={selected.address}
-                        size={176}
-                        level="M"
-                        marginSize={0}
-                        aria-label={`QR code for ${selected.chain.name} address`}
-                      />
-                    </div>
-                  </div>
-                  <p
-                    className="mt-3 break-all font-mono text-sm leading-relaxed text-text-strong"
-                    aria-label={`${selected.chain.name} address: ${selected.address}`}
-                  >
-                    {selected.address}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleCopy}
-                    aria-label={copied ? "Address copied" : "Copy address"}
-                    className={
-                      "group mt-4 flex w-full items-center justify-center gap-2 rounded-soft border border-border-soft bg-canvas " +
-                      "min-h-tap px-4 text-sm font-medium text-text-strong " +
-                      "transition-[border-color,transform,box-shadow] duration-base ease-out-soft " +
-                      "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-rest active:scale-[0.98] " +
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-                    }
-                  >
-                    {copied ? (
-                      <>
-                        <Check
-                          className="h-4 w-4 text-accent"
-                          strokeWidth={3}
-                          aria-hidden="true"
-                        />
-                        <span className="text-accent">Copied</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-4 w-4" aria-hidden="true" />
-                        Copy address
-                      </>
-                    )}
-                  </button>
-                </div>
-              ) : (
-                <div className="mt-8 w-full rounded-card border border-dashed border-border-soft bg-surface-raised p-5 text-left shadow-card-rest">
-                  <p className="font-display text-base text-text-strong">
-                    Setting up {selected.chain.name}…
-                  </p>
-                  <p className="mt-1.5 text-sm text-text-soft">
-                    The {selected.chain.name} address shows up here once
-                    the dWallet finishes spinning up. Refresh in a few
-                    seconds.
-                  </p>
-                </div>
-              )
-            ) : (
-              <div className="mt-8 h-44 w-full animate-pulse rounded-card border border-border-soft bg-surface-raised shadow-card-rest" />
-            )}
-
-            <p className="mt-4 max-w-sm text-xs text-text-soft">
-              Sending money you can&rsquo;t afford to lose? Don&rsquo;t.
-              This wallet is on a test network for now. Only send test
-              funds.
-            </p>
-
-            <Link
-              href={`/app/wallet/${encodeURIComponent(name)}`}
-              className="mt-6 inline-block w-full"
+            </div>
+            <p
+              className="mt-4 break-all rounded-soft border border-border-soft bg-canvas px-3 py-2.5 font-mono text-xs leading-relaxed text-text-strong"
+              aria-label={`${selected.chain.name} address: ${selected.address}`}
             >
-              <Button size="lg" variant="secondary" fullWidth>
-                Back to {toDisplayName(name)}
-              </Button>
-            </Link>
-          </div>
-        </motion.section>
-      </div>
-    </main>
+              {selected.address}
+            </p>
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={handleCopy}
+                aria-label={copied ? "Address copied" : "Copy address"}
+                className={clsx(
+                  "group flex w-full min-h-tap items-center justify-center gap-2 rounded-soft border bg-canvas px-4 text-sm font-medium",
+                  "transition-[border-color,transform,box-shadow,background-color,color] duration-base ease-out-soft active:scale-[0.98]",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+                  copied
+                    ? "border-accent/40 text-accent"
+                    : "border-border-soft text-text-strong hover:-translate-y-0.5 hover:shadow-card-rest",
+                )}
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-4 w-4" strokeWidth={3} aria-hidden="true" />
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4" aria-hidden="true" />
+                    Copy address
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={handleDownload}
+                disabled={downloading}
+                aria-label="Download QR code as PNG"
+                className={clsx(
+                  "group flex w-full min-h-tap items-center justify-center gap-2 rounded-soft border border-border-soft bg-canvas px-4 text-sm font-medium text-text-strong",
+                  "transition-[border-color,transform,box-shadow] duration-base ease-out-soft active:scale-[0.98]",
+                  "hover:-translate-y-0.5 hover:shadow-card-rest",
+                  "disabled:cursor-not-allowed disabled:opacity-60",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+                )}
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+                {downloading ? "Preparing…" : "Download QR"}
+              </button>
+            </div>
+          </section>
+        ) : (
+          <section className="rounded-card border border-dashed border-border-soft bg-surface-raised p-6 shadow-card-rest">
+            <p className="text-sm font-medium text-text-strong">
+              Setting up {selected.chain.name}…
+            </p>
+            <p className="mt-1.5 text-xs text-text-soft">
+              The {selected.chain.name} address shows up here once
+              the dWallet finishes spinning up. Refresh in a few seconds.
+            </p>
+          </section>
+        )
+      ) : (
+        <div className="h-64 w-full animate-pulse rounded-card border border-border-soft bg-surface-raised shadow-card-rest" />
+      )}
+
+      <p className="text-xs text-text-soft">
+        This wallet is on a test network for now. Only send test funds.
+      </p>
+    </motion.div>
   );
 }

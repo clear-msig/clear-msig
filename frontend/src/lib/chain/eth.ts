@@ -5,7 +5,7 @@ import { formatEvmAddressForDisplay } from "@/lib/security/addressFormat";
 
 // Ethereum (Sepolia) helpers for cross-chain send.
 //
-// Clear's signed-write path lives on Solana — the user signs an
+// Clear's signed-write path lives on Solana - the user signs an
 // offchain message that authorises the multisig to act. For non-
 // Solana destinations the actual chain transaction is built and
 // broadcast by Ika's dWallet network on execute, but the frontend
@@ -25,7 +25,7 @@ import { formatEvmAddressForDisplay } from "@/lib/security/addressFormat";
 // All three plug into prepare.createProposal as positional `params`
 // strings, the same way SolTransfer's destination/amount/nonce do.
 //
-// Pure module — no React. Imported by /send/eth and the EVM intent
+// Pure module - no React. Imported by /send/eth and the EVM intent
 // setup flow.
 
 const HEX_RE = /^0x[0-9a-fA-F]{40}$/;
@@ -40,7 +40,7 @@ export function isValidEvmAddress(s: string): boolean {
 
 /// `0x1234…abcd` style abbreviation for display when we don't have
 /// a contact name to show. Respects the user's address-format
-/// preference (abbreviated / full / EIP-55 checksum) — see
+/// preference (abbreviated / full / EIP-55 checksum) - see
 /// lib/security/addressFormat.ts. Default behaviour matches the
 /// pre-preference output (abbreviated, EIP-55 case).
 export function shortEvmAddress(s: string): string {
@@ -145,7 +145,7 @@ export interface EvmTxRow {
 }
 
 /// Fetch recent EVM tx history for an address from Blockscout.
-/// Picks the Blockscout instance from the destination RPC URL —
+/// Picks the Blockscout instance from the destination RPC URL -
 /// Sepolia hits eth-sepolia.blockscout.com, mainnet hits
 /// eth.blockscout.com, and so on. Returns up to `limit` rows,
 /// newest first. Blockscout is open-source + key-less; if it ever
@@ -169,7 +169,7 @@ export async function fetchEvmTxHistory(
     result: unknown;
   };
   // Blockscout returns status="0" with message="No transactions found"
-  // for empty histories — treat as success with empty list.
+  // for empty histories - treat as success with empty list.
   if (json.status === "0" && json.message === "No transactions found") {
     return [];
   }
@@ -219,14 +219,14 @@ export function blockscoutBaseFromRpc(rpcUrl: string): string {
 
 /// Fetch the destination chain's current gas price in wei. Falls
 /// back to a generous default if the RPC errors out or returns
-/// nonsense — the worst case here is over-reserving for gas, not
+/// nonsense - the worst case here is over-reserving for gas, not
 /// under-reserving (which would let a doomed send through).
 ///
 /// Used to size the "gas reserve" subtracted from the wallet
 /// balance in the send-eth pre-flight check + Max button. EIP-1559
 /// chains have eth_gasPrice as a single "expected total" estimate
 /// (priority fee + base fee), which is good enough for a UI
-/// reserve — the actual broadcast can spend up to its own
+/// reserve - the actual broadcast can spend up to its own
 /// max_fee_per_gas anyway.
 export async function fetchEvmGasPrice(rpcUrl?: string): Promise<bigint> {
   return withEvmFallback(async (url) => {

@@ -1,4 +1,4 @@
-// Custom not-found page — Next App Router renders this for any route
+// Custom not-found page - Next App Router renders this for any route
 // that doesn't match. Retail-styled fallback so users hitting a stale
 // share link or a typo see something on-brand instead of the framework
 // default.

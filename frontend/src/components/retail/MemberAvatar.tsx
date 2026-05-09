@@ -1,4 +1,4 @@
-// MemberAvatar — colored circle with two-letter initials.
+// MemberAvatar - colored circle with two-letter initials.
 //
 // Until a real names/contacts layer exists, this is how members
 // appear in lists, hero cards, and inline contexts. The look is
@@ -53,7 +53,7 @@ export function MemberAvatar({
 interface MemberAvatarStackProps {
   addresses: string[];
   size?: MemberAvatarProps["size"];
-  /// Stop rendering after this many — anything past shows as `+N`.
+  /// Stop rendering after this many - anything past shows as `+N`.
   max?: number;
   /// Ring color for the overlapping border (defaults to white card).
   ringClass?: string;

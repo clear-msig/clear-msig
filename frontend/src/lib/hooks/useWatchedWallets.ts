@@ -27,7 +27,7 @@ import {
 } from "@/lib/retail/watchedWallets";
 
 export interface WatchedMembership extends OnchainMembership {
-  /// Always true for entries this hook returns — the wallet hub
+  /// Always true for entries this hook returns - the wallet hub
   /// uses this to render a Watching badge.
   watching: true;
 }
@@ -40,7 +40,7 @@ export function useWatchedWallets(): {
   const [list, setList] = useState<WatchedWallet[]>([]);
 
   // Hydrate on mount + subscribe to the storage events the watch
-  // module dispatches. We don't render the list during SSR — the
+  // module dispatches. We don't render the list during SSR - the
   // initial empty array is fine and the effect re-runs immediately
   // client-side.
   useEffect(() => {
@@ -66,7 +66,7 @@ export function useWatchedWallets(): {
       wallet_name: list[i].name,
       roles: [],
       // intent_indexes seeds a per-wallet badge query that the
-      // hub doesn't actually run for watched wallets — leaving
+      // hub doesn't actually run for watched wallets - leaving
       // it as an empty array keeps the type contract intact
       // without a side query.
       intent_indexes: [],

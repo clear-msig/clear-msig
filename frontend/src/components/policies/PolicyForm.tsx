@@ -27,8 +27,6 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { Breadcrumb } from "@/components/retail/Breadcrumb";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { BadgePill } from "@/components/retail/BadgePill";
 import { Button } from "@/components/retail/Button";
 import { useToast } from "@/components/ui/Toast";
@@ -146,39 +144,32 @@ export function PolicyForm({ mode, initial }: FormProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <StickyTopBar offset="header">
-        <Breadcrumb
-          segments={[
-            { label: "Wallets", href: "/app/wallet" },
-            {
-              label: toDisplayName(name),
-              href: `/app/wallet/${encodeURIComponent(name)}`,
-            },
-            {
-              label: "Policies",
-              href: `/app/wallet/${encodeURIComponent(name)}/policies`,
-            },
-            { label: mode === "create" ? "New rule" : "Edit rule" },
-          ]}
-        />
-      </StickyTopBar>
+      {/* Compact left-aligned page header - back navigation lives in
+          the global DashboardHeader. */}
+      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+        <div className="flex flex-col gap-1">
+          <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
+            {mode === "create" ? "New policy rule" : "Edit policy rule"}
+          </h1>
+          <p className="text-xs text-text-soft sm:text-sm">
+            On{" "}
+            <span className="font-medium text-text-strong">
+              {toDisplayName(name)}
+            </span>
+            . Layered conditions on top of the wallet&rsquo;s spending rule.
+          </p>
+        </div>
+        <p className="inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-[11px] font-medium text-text-soft">
+          <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
+          {status.live ? "Encryption active" : "Encryption-ready · pre-alpha"}
+        </p>
+      </header>
 
       <motion.section
         {...motionProps}
         transition={{ duration: 0.2 }}
         className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
       >
-        <header>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            {mode === "create" ? "New policy rule" : "Edit policy rule"}
-          </p>
-          <p className="mt-1 inline-flex items-center gap-1.5 text-[11px] text-text-soft">
-            <Lock className="h-3 w-3" aria-hidden="true" />
-            {status.live
-              ? "Encryption active — condition values flow as ciphertext."
-              : "Encryption-ready · pre-alpha. Condition values route through Encrypt's local stub today."}
-          </p>
-        </header>
 
         <Field label="Name">
           <input
@@ -311,7 +302,7 @@ export function PolicyForm({ mode, initial }: FormProps) {
                   "rounded-card border p-3 text-left transition-[border-color,background-color] duration-base ease-out-soft " +
                   (active
                     ? "border-accent bg-accent/[0.08]"
-                    : "border-border-soft bg-canvas hover:border-accent/40")
+                    : "border-border-soft bg-canvas")
                 }
               >
                 <p className="text-xs font-medium text-text-strong">
@@ -337,7 +328,7 @@ export function PolicyForm({ mode, initial }: FormProps) {
               }
             />
             <p className="mt-1 text-[10px] text-text-soft">
-              Encrypted via Encrypt — addresses don&rsquo;t leave this device
+              Encrypted via Encrypt - addresses don&rsquo;t leave this device
               in plaintext.
             </p>
           </Field>
@@ -540,7 +531,7 @@ function RecipientEditor({
         />
         <span className="mt-1 inline-flex items-center gap-1 text-[10px] text-text-soft">
           <Lock className="h-3 w-3" aria-hidden="true" />
-          Encrypted on save — list never persists in plaintext.
+          Encrypted on save - list never persists in plaintext.
         </span>
       </label>
     </div>

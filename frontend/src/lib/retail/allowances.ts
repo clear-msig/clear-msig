@@ -3,7 +3,7 @@
 // Per-friend, per-wallet allowance metadata.
 //
 // "Sarah can spend up to $200/week from Roommates without extra
-// scrutiny." Stored locally for now — the on-chain SolTransfer
+// scrutiny." Stored locally for now - the on-chain SolTransfer
 // intent doesn't track per-approver allowances yet, so this is
 // advisory: it drives the dashboard "X of Y allowance used"
 // indicator and the warning chip on /send when a request would
@@ -50,7 +50,7 @@ function persist(rows: FriendAllowance[]) {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
   } catch {
-    // Storage failures aren't worth blocking on — the in-memory
+    // Storage failures aren't worth blocking on - the in-memory
     // copy still works for the current session.
   }
 }
@@ -103,7 +103,7 @@ export function removeAllowance(
   persist(next);
 }
 
-/// Shape for the period dropdown — order matters in the UI.
+/// Shape for the period dropdown - order matters in the UI.
 export const PERIOD_OPTIONS: Array<{
   value: AllowancePeriod;
   label: string;

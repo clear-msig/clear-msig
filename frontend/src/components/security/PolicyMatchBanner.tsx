@@ -136,7 +136,7 @@ export function PolicyMatchBanner({ walletName, evaluation }: Props) {
     );
   }
 
-  // action === "allow" — quiet confirmation. Useful when the
+  // action === "allow" - quiet confirmation. Useful when the
   // wallet has an "allowlist + deny everyone else" stack and the
   // user wants visible confirmation that this recipient is on
   // the list.

@@ -2,7 +2,7 @@
 //
 // Granularity: seconds → minutes → hours → days → weeks → months →
 // years. We collapse to the largest unit that's >= 1, so a 9-day-old
-// row reads "1w ago" rather than "9d ago" — once you're past the
+// row reads "1w ago" rather than "9d ago" - once you're past the
 // week boundary, the day count stops being the useful information.
 //
 // Months and years use the average-Gregorian convention (30.44 days
@@ -12,10 +12,10 @@
 // Input contract:
 //   - Date            → date.getTime() (ms)
 //   - bigint          → unix seconds (Solana convention)
-//   - number          → unix seconds, OR unix ms — autodetected
+//   - number          → unix seconds, OR unix ms - autodetected
 //                       by magnitude. Anything ≥ 10^12 is assumed
 //                       to be ms (10^12 unix seconds is year 33658,
-//                       10^12 ms is 2001 — easy to disambiguate).
+//                       10^12 ms is 2001 - easy to disambiguate).
 //
 // The autodetect exists because three call sites historically
 // pre-multiplied a bigint-second to ms before calling, then the
@@ -46,7 +46,7 @@ export function relativeTime(date: Date | number | bigint): string {
     target = date >= MS_THRESHOLD ? date : date * 1000;
   }
 
-  if (!Number.isFinite(target) || target <= 0) return "—";
+  if (!Number.isFinite(target) || target <= 0) return "-";
 
   const sec = Math.floor((Date.now() - target) / 1000);
   if (sec < 0) return "just now";

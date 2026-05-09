@@ -1,6 +1,6 @@
 "use client";
 
-// Send a request — third beat of the retail story, now real.
+// Send a request - third beat of the retail story, now real.
 //
 // Composes a SolTransfer proposal against the wallet's first spending
 // rule (intent_index of the first live intent). Recipient resolution
@@ -11,7 +11,7 @@
 //
 // Money UX: the amount input shows dollars, but the on-chain amount
 // is lamports. For the preview demo we treat $1 ≈ 1 SOL (no oracle
-// yet) — a price feed plugs in here when the network is live.
+// yet) - a price feed plugs in here when the network is live.
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -66,9 +66,6 @@ import {
 } from "@/components/retail/SignPayloadPreview";
 import { NextStepCard } from "@/components/retail/NextStepCard";
 import { QuickSendInput } from "@/components/retail/QuickSendInput";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
-import { BackToWallets } from "@/components/retail/BackToWallets";
-import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { txUrl as solanaTxUrl } from "@/lib/explorer";
 import { recordAttempt } from "@/lib/retail/txLog";
 import { resolveSnsName, looksLikeSnsName } from "@/lib/chain/sns";
@@ -85,7 +82,7 @@ const STAGE_TRANSITION = {
   ease: [0.22, 1, 0.36, 1] as const,
 };
 
-// Cosmetic formatter for the typed SOL amount — locale-grouped with
+// Cosmetic formatter for the typed SOL amount - locale-grouped with
 // up to four decimals (matches Solana's catalog `displayDecimals`).
 function formatAmount(raw: string): string {
   const n = parseFloat(raw);
@@ -167,7 +164,7 @@ function buildSendPreviewDetails(args: SendPreviewArgs): SignPayloadDetail[] {
     { label: "From wallet", value: toDisplayName(walletName) || "your wallet" },
     { label: "Chain", value: "Solana" },
   ];
-  // Always surface the destination address — even for contact-resolved
+  // Always surface the destination address - even for contact-resolved
   // sends. Without this, an attacker who tampers localStorage to swap
   // a contact's address (XSS, malicious extension, shared device) can
   // trick the user into signing "Send 5 SOL to Sarah" while the bytes
@@ -243,7 +240,7 @@ function buildSendPreviewWarning(args: {
     return `You have already sent ${budgetUsage.sendsLast24h} times in the last 24 hours, at the per-day limit. This send would go above it.`;
   }
 
-  // Recipient warning — last priority.
+  // Recipient warning - last priority.
   if (resolved.kind === "address") {
     return "You are sending to a raw address (no contact match). Money sent to the wrong address cannot be reversed.";
   }
@@ -312,7 +309,7 @@ function SendPage() {
   // bootstrap AddIntent / RemoveIntent / UpdateIntent; user intents
   // (intentType = Custom = 3) are added on top by setup-spending.
   // Skipping the bootstrap intents matters because they have no
-  // user-facing params — encoding {destination, amount} against them
+  // user-facing params - encoding {destination, amount} against them
   // produces empty params_data and the submit then rejects.
   const firstIntent = useMemo(() => {
     if (!intentsQuery.data) return null;
@@ -323,7 +320,7 @@ function SendPage() {
     );
   }, [intentsQuery.data]);
 
-  // No silent redirect to /setup when the wallet's missing a rule —
+  // No silent redirect to /setup when the wallet's missing a rule -
   // the page renders an inform-and-choose card below. Auto-redirect
   // was disorienting ("I tapped Send, ended up on Setup with no
   // breadcrumb of why").
@@ -355,7 +352,7 @@ function SendPage() {
   const [note, setNote] = useState(initialNote);
   const [savedNewContact, setSavedNewContact] = useState(false);
 
-  // SNS resolution — when the typed text looks like a `.sol` name
+  // SNS resolution - when the typed text looks like a `.sol` name
   // (or bare label) AND doesn't match a local contact / valid
   // address, query Bonfida's proxy for the on-chain owner. Cached
   // by react-query so re-typing the same name doesn't refetch.
@@ -419,7 +416,7 @@ function SendPage() {
     ? BigInt(Math.round(numericAmount * 1_000_000_000))
     : 0n;
 
-  // Live SOL balance of the wallet's vault PDA — that's the account
+  // Live SOL balance of the wallet's vault PDA - that's the account
   // SOL transfers actually come out of (programs/clear-wallet/src/
   // instructions/execute.rs::execute_custom). Vault PDA is
   // findVaultAddress(walletPda).
@@ -503,7 +500,7 @@ function SendPage() {
     !insufficientBalance &&
     !denied;
 
-  // Cross-chain budget tracker — used to render the "this send fits
+  // Cross-chain budget tracker - used to render the "this send fits
   // your $X cap" / "would push you over" hint above the CTA.
   const budgetUsage = useWalletBudgetUsage(walletName);
 
@@ -516,7 +513,7 @@ function SendPage() {
       // Resolve which of our pubkeys the wallet's approvers list
       // expects. With both Ledger and a Dynamic embedded wallet
       // available, the default Ledger-preferred pubkey may not be in
-      // approvers — signing with it lands a signature the on-chain
+      // approvers - signing with it lands a signature the on-chain
       // verifier rejects. pickSigner picks the matching pubkey, or
       // null when neither is acceptable.
       const signerPk = wallet.pickSigner(
@@ -629,7 +626,7 @@ function SendPage() {
         return submitted;
       }
 
-      // 4. If the user is also an approver, flip their bit — but
+      // 4. If the user is also an approver, flip their bit - but
       //    only if propose didn't already do it on chain (program
       //    auto-approves proposer when proposer ∈ approvers).
       const intent = firstIntent.account;
@@ -652,7 +649,7 @@ function SendPage() {
           });
         } catch (err) {
           // Don't poison the send if the user cancels the approve
-          // popup — the proposal is already on chain and they (or
+          // popup - the proposal is already on chain and they (or
           // their friends) can approve it later from the inbox.
           console.warn("[send] propose ok but approve step failed", err);
           return submitted;
@@ -670,7 +667,7 @@ function SendPage() {
         try {
           executed = await backendApi.executeProposal(walletName, proposal, {});
         } catch (err) {
-          // Don't swallow — without this the user sees a "Sent" UX
+          // Don't swallow - without this the user sees a "Sent" UX
           // even though the SOL never moved (balance stays the same
           // and they think the dashboard is broken). Re-throw with
           // the proposal address attached so onError can offer a
@@ -680,19 +677,19 @@ function SendPage() {
         }
         // Solana sends route through the program's `execute_custom`
         // (chain_kind=0 stays on the local path), so the response
-        // shape is { txid, path, status } — not the broadcast
+        // shape is { txid, path, status } - not the broadcast
         // wrapper EVM uses. Pull txid out so SentStage can link
         // the user to the actual on-chain transfer.
         const tid = (executed as { txid?: unknown })?.txid;
         if (typeof tid === "string" && tid.length > 0) {
           return { ...submitted, executedTxid: tid };
         }
-        // execute returned without a txid — backend reached a code
+        // execute returned without a txid - backend reached a code
         // path that didn't broadcast. Same UX risk as the throw
         // above (user sees "Sent" with no on-chain effect), so
         // surface it as a failure with the proposal link.
         const err = new Error(
-          "The execute step finished but didn't return a transaction id. The proposal is on chain — open it from the dashboard to retry.",
+          "The execute step finished but didn't return a transaction id. The proposal is on chain - open it from the dashboard to retry.",
         );
         tagExecuteFailure(err, proposal);
         throw err;
@@ -700,7 +697,7 @@ function SendPage() {
       // Threshold not met inline (multi-member wallet, threshold > 1).
       // Proposal is on chain Active; other approvers need to act
       // before SOL moves. Mark the result so onSuccess shows
-      // "Proposal created" instead of "Sent" — without this, a
+      // "Proposal created" instead of "Sent" - without this, a
       // multi-member proposer would see Sent UX with no balance
       // change because the inline execute step never fires.
       return { ...submitted, executedTxid: null, awaitingApprovers: true };
@@ -711,7 +708,7 @@ function SendPage() {
       // Refresh every place the SOL balance is shown so the
       // post-send compose stage, hero, /chains row, and portfolio
       // panel all reflect the new number. Three distinct query
-      // keys live in the codebase for the same vault balance —
+      // keys live in the codebase for the same vault balance -
       // each consumer that decided it wanted a different return
       // type added its own. Invalidate all of them on success;
       // the staleTime / refetchInterval will hydrate them again.
@@ -739,7 +736,7 @@ function SendPage() {
       // Only record the attempt as "success" when SOL actually
       // moved (we have a chain-level txid). For multi-member
       // wallets where the proposal is sitting in Active state
-      // waiting on approvers, the SOL has NOT moved — recording
+      // waiting on approvers, the SOL has NOT moved - recording
       // it as a successful send was lying about a state we hadn't
       // reached yet.
       if (txid) {
@@ -769,7 +766,7 @@ function SendPage() {
         // why. Showing the SentStage here would be the same lie
         // we just stopped recording.
         toast.success(
-          "Proposal created — waiting on approvers to finish the send",
+          "Proposal created - waiting on approvers to finish the send",
           {
             details:
               "Your SOL hasn't moved yet. Open the proposal from the dashboard once enough friends have approved.",
@@ -790,7 +787,7 @@ function SendPage() {
       // re-signing propose+approve.
       if (executeFailedProposal) {
         toast.error(
-          "Send didn't go through — proposal created but didn't execute",
+          "Send didn't go through - proposal created but didn't execute",
           {
             details:
               fe.body +
@@ -814,7 +811,7 @@ function SendPage() {
           : fe.title,
         errorStderr: stderr ? stderr.slice(0, 800) : undefined,
       });
-      // Even on failure, the propose step may have succeeded — the
+      // Even on failure, the propose step may have succeeded - the
       // proposal account is on chain. Refresh the proposals list so
       // the user can find and retry it from the dashboard.
       queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
@@ -855,33 +852,15 @@ function SendPage() {
 
   return (
     // Workspace shell (HeaderBar + sidebar + canvas blobs) is supplied
-    // by /app/layout.tsx; this page just renders the column.
-    <div className="flex flex-col">
-      <StickyTopBar offset="header">
-        <Breadcrumb
-          segments={[
-            { label: "Wallets", href: "/app/wallet" },
-            {
-              label: walletDisplay || "Wallet",
-              href: walletName
-                ? `/app/wallet/${encodeURIComponent(walletName)}`
-                : "/app/wallet",
-            },
-            { label: "Send" },
-          ]}
-        />
-      </StickyTopBar>
-      {/* Mobile-only back chip. The StickyTopBar is hidden on mobile
-          for workspace pages, so this is the only in-page path back
-          to /app/wallet from /send. Sits just above the page column
-          instead of full-width sticky to avoid the "long band" the
-          original breadcrumb wrapper produced. */}
-      <div className="px-gutter pt-2">
-        <BackToWallets />
-      </div>
-
-      <div className="relative z-10 flex flex-1 items-center justify-center px-gutter py-10">
-        <div className="w-full max-w-lg">
+    // by /app/layout.tsx; this page just renders the column. Back
+    // navigation lives in the global DashboardHeader.
+    //
+    // Width: max-w-lg on small screens (form stays a focused single
+    // column on phones), max-w-3xl on lg+ so the desktop layout has
+    // room for the 2-column Amount + Recipient grid below without
+    // feeling cramped between the sidebar and the empty right edge.
+    <div className="mx-auto flex w-full max-w-lg flex-col lg:max-w-3xl">
+      <div className="flex flex-1 flex-col">
           {needsSetup && (
             <div className="mb-6 rounded-card border border-warning/30 bg-warning/5 p-5 text-center shadow-card-rest">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
@@ -896,7 +875,7 @@ function SendPage() {
                 <Link
                   href={`/app/wallet/${encodeURIComponent(walletName)}/setup`}
                   className={
-                    "inline-flex items-center gap-1.5 rounded-soft bg-accent px-3.5 py-2 text-sm font-medium text-white shadow-accent-rest " +
+                    "inline-flex items-center gap-1.5 rounded-soft bg-accent px-3.5 py-2 text-sm font-medium text-text-on-accent shadow-accent-rest " +
                     "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98]"
                   }
                 >
@@ -973,7 +952,6 @@ function SendPage() {
               reduce={!!reduce}
             />
           )}
-        </div>
       </div>
     </div>
   );
@@ -1060,65 +1038,77 @@ function ComposeStage({
     return !isNaN(n) && n > 0;
   }, [amount]);
 
+  const solMeta = chainByKind(0);
+
   return (
     <motion.section
       {...motionProps}
       transition={STAGE_TRANSITION}
-      className="flex flex-col"
+      className="flex flex-col gap-5"
     >
-      {/* Centered chain Hero — same shape as /send/eth and
-          /send/erc20 so the three send pages read as one family.
-          ChainBadge → accent rule → "Send · Solana" eyebrow →
-          "Send SOL from {wallet}" headline. The Hero is the only
-          centered block; everything below (Quick-send strip,
-          Recents, To/Note card) is left-aligned full-width so the
-          form reads top-to-bottom in one column. */}
-      <div className="flex flex-col items-center text-center">
-        {(() => {
-          const solMeta = chainByKind(0);
-          return solMeta ? <ChainBadge chain={solMeta} size="lg" /> : null;
-        })()}
-        <span aria-hidden="true" className="mt-4 block h-px w-10 bg-accent" />
-        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-          Send · Solana
+      {/* Compact left-aligned header. Chain badge sits inline with
+          the title so the network identity is unmistakable without
+          eating a full hero block. Matches the rest of the redesigned
+          app (Home / Activity / Settings / Account). */}
+      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+        <div className="flex items-center gap-3">
+          {solMeta ? <ChainBadge chain={solMeta} size="md" /> : null}
+          <div className="flex flex-col gap-0.5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              Send · Solana
+            </p>
+            <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
+              Send SOL
+            </h1>
+          </div>
+        </div>
+        <p className="text-xs text-text-soft sm:text-sm">
+          From{" "}
+          <span className="font-medium text-text-strong">{walletDisplay}</span>
         </p>
-        <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          Send SOL from <span className="text-accent">{walletDisplay}</span>
-        </h1>
-      </div>
+      </header>
 
-      {/* Quick-send shortcut — type a sentence, the form fills.
-          Sits above the canonical step-by-step inputs so users who
-          want it find it; users who don't can ignore the strip and
-          fill the form normally. The user reviews + signs as usual. */}
-      <div className="mt-6">
-        <QuickSendInput
-          contactNames={contactNames}
-          onParsed={onQuickFill}
-        />
-      </div>
+      {/* Quick-send shortcut - type a sentence, the form fills. */}
+      <QuickSendInput contactNames={contactNames} onParsed={onQuickFill} />
 
-      {/* Amount block — editorial-sans rebuild (2026-05-08).
-          The number is the most important pixel on this page; it
-          earns a JetBrains Mono treatment with tabular figures so
-          digits align column-perfect. Decorative accent rule above
-          + small uppercase eyebrow set up a clear hierarchy. No
-          bordered card around the input — restraint, not chrome. */}
-      <div className="mt-8 flex flex-col items-center">
-        <span aria-hidden="true" className="block h-px w-12 bg-accent" />
-        <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-          Amount
-        </p>
+      {/* Compose grid - Amount + Recipient sit side-by-side on lg+
+          so desktop users see both inputs at once. Stacks single-
+          column on smaller screens. `items-start` keeps the cards
+          at their natural heights instead of stretching to match. */}
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+
+      {/* Amount card - proper bordered card with a section eyebrow.
+          The number stays the most prominent pixel on the page, but
+          it now sits inside a clear container instead of floating
+          centered. Balance + Max live as a footer row inside the
+          same card - they're scoped to the amount, not the page. */}
+      <section className="flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+            Amount
+          </p>
+          {typeof vaultBalanceLamports === "bigint" &&
+            vaultBalanceLamports > 0n && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  const max =
+                    vaultBalanceLamports > feeReserveLamports
+                      ? vaultBalanceLamports - feeReserveLamports
+                      : 0n;
+                  setAmount(formatLamports(max, 4));
+                }}
+                className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent transition-colors duration-base ease-out-soft hover:bg-accent/15"
+              >
+                Use max
+              </button>
+            )}
+        </div>
         <label htmlFor="send-amount-input" className="sr-only">
           Amount in SOL
         </label>
-        {/* Input width tracks the typed length so the row reads as
-            one tight number + ticker instead of "tiny zero floating
-            in a wide column". Falls back to 1ch when empty so the
-            "0" placeholder hugs the SOL ticker. Caps at 12ch so a
-            very long amount can't push the ticker off-screen on
-            narrow phones. */}
-        <div className="mt-4 flex items-baseline justify-center gap-2">
+        <div className="flex items-baseline gap-3 border-b border-border-soft pb-3">
           <input
             id="send-amount-input"
             type="text"
@@ -1136,116 +1126,54 @@ function ComposeStage({
             autoFocus
             maxLength={20}
             aria-label="Amount in SOL"
-            style={{ width: `${Math.min(12, Math.max(1, amount.length))}ch` }}
-            className={
-              "bg-transparent font-numerals text-[2.75rem] font-semibold tracking-tight text-text-strong tabular-nums " +
-              // text-right when typing keeps digits decimal-aligned next
-              // to the SOL ticker. placeholder:text-center centers the
-              // "0" so the empty state doesn't read as a tiny digit
-              // floating in a wide right-aligned column. caret colors
-              // match the accent so the cursor reads as on-brand.
-              "text-center caret-accent outline-none placeholder:text-text-soft sm:text-[3.25rem]"
-            }
+            className="min-w-0 flex-1 bg-transparent font-numerals text-3xl font-semibold tracking-tight text-text-strong caret-accent tabular-nums outline-none placeholder:text-text-soft/50 sm:text-4xl"
           />
           <span
             aria-hidden="true"
-            className="font-display text-lg font-semibold uppercase tracking-[0.18em] text-text-soft sm:text-xl"
+            className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft sm:text-lg"
           >
             SOL
           </span>
         </div>
-        <p className="mt-3 text-xs text-text-soft">
-          {amount ? `${display} SOL` : "Type to begin"}
-        </p>
-
-        {/* Balance + Max — single chip. The two pieces share visual
-            weight; together they read as "ceiling + shortcut"
-            rather than the old left/right split that disconnected
-            them. typeof-bigint guard catches loading + error. */}
-        <div className="mt-4 inline-flex min-h-tap items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-2 text-xs">
-          <span className="text-text-soft">Wallet has</span>
-          <span className="font-numerals font-semibold text-text-strong tabular-nums">
+        <p className="text-xs text-text-soft">
+          <span>Wallet has </span>
+          <span className="font-numerals font-medium text-text-strong tabular-nums">
             {balanceLoading
               ? "…"
               : typeof vaultBalanceLamports === "bigint"
                 ? formatLamports(vaultBalanceLamports)
-                : "—"}
+                : "-"}
           </span>
-          <span className="text-text-soft">SOL</span>
-          {typeof vaultBalanceLamports === "bigint" &&
-            vaultBalanceLamports > 0n && (
-              <>
-                <span aria-hidden="true" className="h-3 w-px bg-border-soft" />
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    const max =
-                      vaultBalanceLamports > feeReserveLamports
-                        ? vaultBalanceLamports - feeReserveLamports
-                        : 0n;
-                    setAmount(formatLamports(max, 4));
-                  }}
-                  // Visible label stays small but the hit area
-                  // grows to 44px via min-h/min-w-tap so a thumb
-                  // can land on it without missing.
-                  className="-mr-2 inline-flex min-h-tap min-w-tap items-center justify-center rounded-full px-3 text-[11px] font-semibold uppercase tracking-wider text-accent transition-colors hover:bg-accent/10"
-                >
-                  Max
-                </button>
-              </>
-            )}
-        </div>
+          <span> SOL</span>
+          {amount && (
+            <>
+              <span aria-hidden="true" className="mx-1.5">
+                ·
+              </span>
+              <span>{display} SOL to send</span>
+            </>
+          )}
+        </p>
         {insufficientBalance &&
           typeof vaultBalanceLamports === "bigint" && (
-            <p className="mt-3 w-full rounded-soft border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-text-strong">
+            <p className="rounded-soft border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-text-strong">
               <span className="font-medium">Insufficient balance.</span>{" "}
-              {walletDisplay} has {formatLamports(vaultBalanceLamports)} SOL —
+              {walletDisplay} has {formatLamports(vaultBalanceLamports)} SOL -
               need at least the amount plus a small reserve for the
-              on-chain fee. Top up the wallet from /receive or a faucet.
+              on-chain fee. Top up from Receive or a faucet.
             </p>
           )}
-      </div>
+      </section>
 
-      {/* Recents row — only shows if the user has any saved contacts. */}
-      {hydratedContacts && recents.length > 0 && (
-        <div className="mt-7">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            Recent
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {recents.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setRecipientText(c.name)}
-                className={
-                  "inline-flex items-center gap-1.5 rounded-full border bg-surface-raised px-3 py-1.5 text-sm " +
-                  "transition-[border-color,transform,box-shadow] duration-base ease-out-soft " +
-                  "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-rest " +
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
-                  (recipientText.trim().toLowerCase() === c.name.toLowerCase()
-                    ? "border-accent text-accent"
-                    : "border-border-soft text-text-strong")
-                }
-              >
-                <Star className="h-3 w-3" aria-hidden="true" />
-                {c.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="mt-6 flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
-        <div className="flex items-center gap-2">
+      {/* Recipient + Note card */}
+      <section className="flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+        <div className="flex items-end gap-2">
           <div className="min-w-0 flex-1">
             <Field
               label="To"
               value={recipientText}
               onChange={setRecipientText}
               placeholder="Sarah, or paste a wallet address"
-              autoFocus
               maxLength={64}
             />
           </div>
@@ -1255,11 +1183,45 @@ function ComposeStage({
             onResult={(v) => setRecipientText(parseSolanaRecipientFromQr(v))}
           />
         </div>
+
+        {/* Recents - surface saved contacts as inline chips so the
+            user doesn't have to remember a name. Hidden when empty. */}
+        {hydratedContacts && recents.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-text-soft">
+              Recents
+            </span>
+            {recents.map((c) => {
+              const active =
+                recipientText.trim().toLowerCase() === c.name.toLowerCase();
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setRecipientText(c.name)}
+                  className={
+                    "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium " +
+                    "transition-colors duration-base ease-out-soft " +
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
+                    (active
+                      ? "border-accent/40 bg-accent/[0.08] text-accent"
+                      : "border-border-soft bg-canvas text-text-soft hover:text-text-strong")
+                  }
+                >
+                  <Star className="h-2.5 w-2.5" aria-hidden="true" />
+                  {c.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         <RecipientStatus
           resolved={resolved}
           savedNewContact={savedNewContact}
           onSaveContact={onSaveNewContact}
         />
+
         <div className="h-px bg-border-soft" />
         <Field
           label="Note"
@@ -1269,7 +1231,9 @@ function ComposeStage({
           optional
           maxLength={140}
         />
-      </div>
+      </section>
+
+      </div>{/* end Amount + Recipient grid */}
 
       <BudgetHint
         budgetUsage={budgetUsage}
@@ -1277,7 +1241,10 @@ function ComposeStage({
         walletName={walletName}
       />
 
-      <div className="mt-6 flex flex-col gap-3">
+      {/* Preview + popup narration. Lives just above the CTA so the
+          user reads the action they're about to authorize before
+          they click Send. */}
+      <div className="flex flex-col gap-3">
         <SignPayloadPreview
           action={
             amountValid &&
@@ -1310,65 +1277,52 @@ function ComposeStage({
         <WalletPopupNarration action="send this request" />
       </div>
 
-      {/* Sticky-bottom CTA on mobile — JUST the button. The
-          previous version stuffed Send + caption + batch-link into
-          the sticky block, producing a ~200px tall bar that covered
-          SignPayloadPreview / WalletPopupNarration when scrolled.
-          The non-essential bits (approval caption, batch entry
-          point) sit in normal flow above the sticky so they show
-          up only when the user reaches the bottom of the form.
-          pb uses safe-area-inset-bottom so it clears the home
-          indicator on iOS, and bottom anchor lifts the bar above
-          the BottomNav which already pb-safe-bottoms itself. */}
-      <p className="mt-4 text-center text-xs text-text-soft">
-        Your friends in {walletDisplay} will be asked to approve before it
-        sends.
-      </p>
-
-      {/* Batch entry point — same template, N rows. Sits in flow
-          above the sticky bar so it doesn't add height when the
-          CTA pins to the bottom. */}
-      <div className="mt-3 flex justify-center">
+      {/* Action footer - primary Send CTA + secondary "Send to many"
+          link. Sticky on mobile (bottom of viewport, clears safe
+          area + BottomNav); inline on sm+ where the page scrolls
+          inside the workspace shell. */}
+      <div className="flex flex-col gap-3 pt-1">
+        <p className="text-xs text-text-soft">
+          Friends in {walletDisplay} will be asked to approve before it sends.
+        </p>
+        <div
+          className={
+            "-mx-3 sm:mx-0 px-3 sm:px-0 " +
+            "sticky bottom-[calc(env(safe-area-inset-bottom,0px)+4rem)] z-20 sm:static sm:bottom-auto " +
+            "border-t border-border-soft bg-canvas pt-3 sm:border-0 sm:bg-transparent sm:pt-0"
+          }
+        >
+          <Button
+            size="lg"
+            fullWidth
+            disabled={!canSubmit || waitingForRule}
+            onClick={onSubmit}
+          >
+            {waitingForRule ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Loading wallet…
+              </>
+            ) : (
+              <>
+                Send request
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </>
+            )}
+          </Button>
+        </div>
         <Link
           href={`/app/wallet/${encodeURIComponent(walletName)}/send/batch`}
           className={
-            "inline-flex min-h-tap items-center justify-center gap-2 rounded-full border border-border-soft " +
-            "bg-surface-raised px-4 py-2 text-xs font-medium text-text-soft " +
-            "transition-[border-color,color,transform] duration-base ease-out-soft " +
-            "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+            "inline-flex min-h-tap items-center justify-center gap-2 self-center rounded-full border border-border-soft " +
+            "bg-canvas px-4 py-2 text-xs font-medium text-text-soft " +
+            "transition-colors duration-base ease-out-soft hover:text-accent " +
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
           }
         >
           <Users className="h-3.5 w-3.5" aria-hidden="true" />
           Send to many at once
         </Link>
-      </div>
-
-      <div
-        className={
-          "mt-4 -mx-3 sm:mx-0 px-3 sm:px-0 " +
-          "sticky bottom-[calc(env(safe-area-inset-bottom,0px)+4rem)] z-20 sm:static sm:bottom-auto " +
-          "border-t border-border-soft bg-canvas pt-3 sm:border-0 sm:bg-transparent sm:pt-0"
-        }
-      >
-        <Button
-          size="lg"
-          fullWidth
-          disabled={!canSubmit || waitingForRule}
-          onClick={onSubmit}
-        >
-          {waitingForRule ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              Loading wallet…
-            </>
-          ) : (
-            <>
-              Send request
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </>
-          )}
-        </Button>
       </div>
     </motion.section>
   );
@@ -1431,7 +1385,7 @@ function RecipientStatus({
       </p>
     );
   }
-  // Pasted address — warn explicitly and offer to save as a contact.
+  // Pasted address - warn explicitly and offer to save as a contact.
   return (
     <PastedAddressNotice
       address={resolved.address}
@@ -1506,7 +1460,7 @@ function PastedAddressNotice({
                   setName("");
                 }}
                 className={
-                  "inline-flex min-h-tap items-center justify-center rounded-soft bg-accent px-4 py-2 text-xs font-semibold text-white " +
+                  "inline-flex min-h-tap items-center justify-center rounded-soft bg-accent px-4 py-2 text-xs font-semibold text-text-on-accent " +
                   "transition-colors duration-base ease-out-soft hover:bg-accent-hover " +
                   "disabled:cursor-not-allowed disabled:opacity-40"
                 }
@@ -1659,14 +1613,14 @@ async function findProposalIfLanded(
     BigInt(descriptor.proposal_index),
     CLEAR_WALLET_PROGRAM_ID,
   );
-  // Poll for ~3 seconds — RPC propagation lag is usually under a
+  // Poll for ~3 seconds - RPC propagation lag is usually under a
   // second, but devnet's public RPC has been observed at 2s+.
   for (let i = 0; i < 4; i++) {
     try {
       const info = await connection.getAccountInfo(pda, "confirmed");
       if (info) return pda.toBase58();
     } catch {
-      // ignore — try again
+      // ignore - try again
     }
     await new Promise((r) => setTimeout(r, 800));
   }
@@ -1681,7 +1635,7 @@ interface SentStageProps {
   walletName: string;
   /// Solana tx signature when the proposal was executed inline
   /// (auto-approve or sole-approver path). When null, the proposal
-  /// is on chain awaiting other signers — the copy reflects that
+  /// is on chain awaiting other signers - the copy reflects that
   /// distinction so users don't think their friends already moved
   /// money when they didn't.
   executedTxid: string | null;
@@ -1719,12 +1673,12 @@ function SentStage({
           stiffness: 240,
           delay: 0.05,
         }}
-        className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-accent text-white shadow-accent-rest"
+        className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-accent text-text-on-accent shadow-accent-rest"
       >
         <Check className="h-10 w-10" strokeWidth={2.5} />
       </motion.div>
 
-      <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
+      <h1 className="hidden md:block font-display text-display-sm leading-[1.05] text-text-strong">
         {executedTxid ? "Sent" : "Request created"}
       </h1>
       <p className="mt-3 max-w-sm text-base text-text-soft">
@@ -1756,7 +1710,7 @@ function SentStage({
           href={solanaTxUrl(executedTxid)}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-4 inline-flex items-center gap-1.5 rounded-pill border border-border-soft bg-surface-raised px-4 py-2 text-xs font-medium text-text-strong transition hover:border-accent/50 hover:text-accent"
+          className="mt-4 inline-flex items-center gap-1.5 rounded-pill border border-border-soft bg-surface-raised px-4 py-2 text-xs font-medium text-text-strong transition hover:text-accent"
         >
           View on Solana Explorer
           <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1803,10 +1757,10 @@ function SentStage({
 // ─── Budget hint (cross-chain spending limit nudge) ────────────────
 //
 // Sits above the wallet-popup narration on /send. Three states:
-//   1. No budget set — silent (don't pile a CTA on top of the
+//   1. No budget set - silent (don't pile a CTA on top of the
 //      send flow's existing surface area).
-//   2. Send fits — green "fits within $X left this week".
-//   3. Send overshoots — warning "would push {wallet} $X over its
+//   2. Send fits - green "fits within $X left this week".
+//   3. Send overshoots - warning "would push {wallet} $X over its
 //      weekly cap. Friends still need to approve, this is a heads-up".
 //
 // Today's a heads-up; the wallet's approval rule still gates every

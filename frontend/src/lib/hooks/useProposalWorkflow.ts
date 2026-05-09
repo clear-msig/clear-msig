@@ -10,7 +10,7 @@
 // Writes: full prepare → sign → submit flow for approve + cancel so
 // the on-chain bitmap actually changes when the user taps "Approve" /
 // "Decline." (Earlier scaffold only called the prepare step and never
-// landed on chain — silently broken.)
+// landed on chain - silently broken.)
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useConnection, useWallet } from "@/lib/wallet";

@@ -1,4 +1,4 @@
-// Wallet name suffix — disambiguates names per creator without
+// Wallet name suffix - disambiguates names per creator without
 // requiring an on-chain program change.
 //
 // The on-chain program derives wallet PDAs from sha256(name) only,
@@ -67,7 +67,7 @@ export function hasSuffix(name: string): boolean {
 /// the on-chain name's suffix (the first 6 base58 chars of the
 /// creator's pubkey are appended at create-time). Used to render a
 /// "creator" badge on the member list and to gate destructive
-/// actions (you can't kick the wallet's owner — they need to stay
+/// actions (you can't kick the wallet's owner - they need to stay
 /// in to authorise their own departure if they ever want to).
 ///
 /// Returns false for legacy names without a suffix.

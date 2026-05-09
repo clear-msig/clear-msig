@@ -1,6 +1,6 @@
 "use client";
 
-// Wallet hub — retail rebuild (locked 2026-04-30).
+// Wallet hub - retail rebuild (locked 2026-04-30).
 //
 // Replaces the previous "treasury console" dashboard. Same data hooks
 // (useUserStats / useRecentActivity / useActionNeeded / memberships
@@ -15,15 +15,16 @@
 //     flow), not the legacy CreateWalletCard wizard.
 //
 // The legacy wizard (CreateWalletCard, WalletPanel) and WorkflowTips
-// are intentionally NOT rendered here — they're being retired.
+// are intentionally NOT rendered here - they're being retired.
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import clsx from "clsx";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import { PublicKey } from "@solana/web3.js";
-import { ArrowRight, Bell, BellRing, Contact, Eye, Lock, Pin, PinOff, Settings as SettingsIcon, Users, X } from "lucide-react";
+import { ArrowRight, Bell, BellRing, Eye, Pin, PinOff, Users, Wallet, X } from "lucide-react";
 import {
   isWalletPinned,
   sortPinnedFirst,
@@ -48,6 +49,7 @@ import { findVaultAddress, ProposalStatus } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
 import { Button } from "@/components/retail/Button";
 import { BadgePill } from "@/components/retail/BadgePill";
+import { BrandMark } from "@/components/retail/BrandMark";
 import { relativeTime } from "@/lib/util/relativeTime";
 import {
   friendlyIntentLabel,
@@ -79,7 +81,7 @@ export default function WalletDashboard() {
   const stillLoading = memberships.isLoading;
   // Distinguish "RPC errored" from "user genuinely has no wallets."
   // Without this guard, a transient memberships failure renders the
-  // first-visit CTA — which then sends the user through /welcome to
+  // first-visit CTA - which then sends the user through /welcome to
   // create a duplicate wallet.
   const hasError = !stillLoading && memberships.isError;
   const isFirstVisit = !stillLoading && !hasError && wallets.length === 0;
@@ -115,10 +117,43 @@ export default function WalletDashboard() {
     refetchInterval: 30_000,
   });
 
+  const showStats = !hasError && !isFirstVisit && wallets.length > 0;
+  const showRecent = !isFirstVisit && recent.rows.length > 0;
+  const showWatched = !hasError;
+
   return (
     <div className="flex flex-col gap-6">
       <UnsupportedSignerBanner />
-      <Greeting reduce={!!reduce} />
+
+      {/* Compact hero - left-aligned title + dynamic summary line.
+          Replaces the centered "Welcome back" block; gives back the
+          vertical real estate to actionable content below. */}
+      <Hero
+        walletCount={wallets.length}
+        pendingCount={action.rows.length}
+        loading={stillLoading}
+        reduce={!!reduce}
+      />
+
+      {/* Stats - three at-a-glance metrics. Total balance sums the
+          Solana vault lamports already fetched by balancesQuery; the
+          approval card flips to accent when there's anything pending. */}
+      {showStats && (
+        <StatsRow
+          wallets={wallets}
+          balances={balancesQuery.data}
+          loadingBalances={balancesQuery.isLoading}
+          pendingCount={action.rows.length}
+          reduce={!!reduce}
+        />
+      )}
+
+      {/* Action-first ordering: surface what needs the user above the
+          wallet grid so a returning user sees their inbox without
+          having to scroll past their cards. */}
+      {!isFirstVisit && action.rows.length > 0 && (
+        <ActionNeededSection rows={action.rows} reduce={!!reduce} />
+      )}
 
       {hasError ? (
         <MembershipsErrorCard onRetry={() => memberships.refetch()} />
@@ -135,117 +170,346 @@ export default function WalletDashboard() {
         />
       )}
 
-      {!hasError && (
-        <WatchedWalletsSection
-          rows={watched.rows}
-          loading={watched.loading}
-          pendingByWallet={recent.pendingByWallet}
-          reduce={!!reduce}
-        />
+      {/* Bottom row - Recent activity (8 cols) sits next to Watching
+          (4 cols) on lg+. Either side collapses to full-width when
+          its sibling is hidden. */}
+      {(showRecent || showWatched) && (
+        <div className="grid gap-6 lg:grid-cols-12">
+          {showRecent && (
+            <div
+              className={clsx(
+                "min-w-0",
+                showWatched ? "lg:col-span-8" : "lg:col-span-12",
+              )}
+            >
+              <RecentActivitySection rows={recent.rows} reduce={!!reduce} />
+            </div>
+          )}
+          {showWatched && (
+            <div
+              className={clsx(
+                "min-w-0",
+                showRecent ? "lg:col-span-4" : "lg:col-span-12",
+              )}
+            >
+              <WatchedWalletsSection
+                rows={watched.rows}
+                loading={watched.loading}
+                pendingByWallet={recent.pendingByWallet}
+                reduce={!!reduce}
+              />
+            </div>
+          )}
+        </div>
       )}
-
-      {!isFirstVisit && action.rows.length > 0 && (
-        <ActionNeededSection rows={action.rows} reduce={!!reduce} />
-      )}
-
-      {!isFirstVisit && recent.rows.length > 0 && (
-        <RecentActivitySection rows={recent.rows} reduce={!!reduce} />
-      )}
-
-      {!isFirstVisit && <ShortcutGrid reduce={!!reduce} />}
     </div>
   );
 }
 
-// ─── Greeting ──────────────────────────────────────────────────────
+// ─── Hero ──────────────────────────────────────────────────────────
+//
+// Compact left-aligned page header. Replaces the previous centered
+// "Welcome back" block - same identity cue (small kicker + title)
+// but reclaims the vertical room for the stats and action-needed
+// blocks below. The dynamic summary line ("3 wallets · 2 need your
+// approval") gives a returning user a useful one-line status before
+// any cards have rendered.
 
-function Greeting({ reduce }: { reduce: boolean }) {
+function Hero({
+  walletCount,
+  pendingCount,
+  loading,
+  reduce,
+}: {
+  walletCount: number;
+  pendingCount: number;
+  loading: boolean;
+  reduce: boolean;
+}) {
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+
+  const summary = (() => {
+    if (loading) return "Loading your wallets…";
+    if (walletCount === 0) return "Start a shared wallet to get going.";
+    const w = `${walletCount} ${walletCount === 1 ? "wallet" : "wallets"}`;
+    if (pendingCount === 0) return `${w} · all caught up`;
+    const p = `${pendingCount} ${pendingCount === 1 ? "needs" : "need"} your approval`;
+    return `${w} · ${p}`;
+  })();
+
   return (
     <motion.div
       {...motionProps}
       transition={{ duration: 0.2 }}
-      className="flex flex-col items-center text-center"
+      className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1"
     >
-      <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-      <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-        Home
-      </p>
-      <h1 className="mt-2 font-display text-display-xs leading-tight text-text-strong">
+      {/* Mobile shows "Welcome back" in the floating header pill, so
+          the page H1 only renders on md+ to avoid repeating the same
+          greeting in two places. */}
+      <h1 className="hidden font-display text-display-xs leading-tight text-text-strong md:block">
         Welcome back
       </h1>
-      <p className="mt-1 text-base text-text-soft">
-        Your shared wallets and what needs your attention.
-      </p>
+      <p className="text-xs text-text-soft sm:text-sm">{summary}</p>
     </motion.div>
   );
 }
 
-// Shortcut row — quick links to the root-level retail destinations
-// other than the wallet flow itself. Surfaced on the dashboard so a
-// user with several wallets can still reach Contacts / Settings /
-// Privacy without drilling into a wallet first.
-function ShortcutGrid({ reduce }: { reduce: boolean }) {
+// ─── Stats row ─────────────────────────────────────────────────────
+//
+// Three at-a-glance metrics: total balance (sum of Solana vault
+// lamports across all member wallets), wallet count, and pending
+// approvals. The approvals card flips to an accent border + accent
+// numerals when > 0 so the eye lands there first. Reuses the same
+// balancesQuery the wallet grid feeds off - no extra RPC.
+
+function StatsRow({
+  wallets,
+  balances,
+  loadingBalances,
+  pendingCount,
+  reduce,
+}: {
+  wallets: OnchainMembership[];
+  balances: Map<string, number> | undefined;
+  loadingBalances: boolean;
+  pendingCount: number;
+  reduce: boolean;
+}) {
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+
+  const totalLamports = useMemo(() => {
+    if (!balances) return 0;
+    let sum = 0;
+    for (const m of wallets) sum += balances.get(m.wallet) ?? 0;
+    return sum;
+  }, [wallets, balances]);
+
+  const totalBalance = formatBalance(totalLamports);
+  const balanceLoading = loadingBalances && balances === undefined;
+
   return (
     <motion.div
       {...motionProps}
       transition={{ duration: 0.2 }}
-      className="grid grid-cols-1 gap-3 sm:grid-cols-3"
+      className="flex flex-col gap-3"
     >
-      <ShortcutCard
-        href="/app/contacts"
-        Icon={Contact}
-        label="Contacts"
-        body="Names you've saved."
+      <BalanceHeroCard
+        amount={totalBalance.amount}
+        unit={totalBalance.ticker}
+        walletCount={wallets.length}
+        loading={balanceLoading}
       />
-      <ShortcutCard
-        href="/app/settings"
-        Icon={SettingsIcon}
-        label="Settings"
-        body="Account + connection."
-      />
-      <ShortcutCard
-        href="/privacy"
-        Icon={Lock}
-        label="Privacy"
-        body="How your rules stay yours."
-      />
+      {/* Secondary stats - Wallets count and pending-approval bell.
+          Side-by-side on every viewport so the two metrics carry
+          equal visual weight under the hero. */}
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard
+          Icon={Users}
+          label="Wallets"
+          value={String(wallets.length)}
+        />
+        <StatCard
+          Icon={Bell}
+          label="Need approval"
+          value={String(pendingCount)}
+          accent={pendingCount > 0}
+        />
+      </div>
     </motion.div>
   );
 }
 
-function ShortcutCard({
-  href,
-  Icon,
-  label,
-  body,
+// ─── Balance hero card ─────────────────────────────────────────────
+//
+// Lead card on Home - total SOL balance across every wallet the
+// member belongs to. Treated like a premium debit-card surface:
+//   • A subtle accent gradient washes the panel (top-left → bottom-right)
+//   • A grid of large, very-low-opacity BrandMark icons sits behind
+//     the content as a watermark - ties the card to the product
+//     identity without competing with the number
+//   • A small visible BrandMark badge in the top-left anchors the
+//     "this is yours, on Clear" cue
+//   • Numerals are oversized (text-4xl / sm:text-5xl) so the balance
+//     reads as the page's primary number
+//
+// All decoration is `pointer-events-none` so taps and selections
+// always fall through to the actual content.
+
+function BalanceHeroCard({
+  amount,
+  unit,
+  walletCount,
+  loading,
 }: {
-  href: string;
-  Icon: typeof Contact;
-  label: string;
-  body: string;
+  amount: string;
+  unit: string;
+  walletCount: number;
+  loading: boolean;
 }) {
   return (
-    <Link
-      href={href}
-      className={
-        "group flex flex-col items-start gap-2 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest " +
-        "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
-        "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-      }
+    <section
+      className={clsx(
+        "relative overflow-hidden rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-7",
+      )}
     >
-      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/10 text-accent">
-        <Icon className="h-4 w-4" strokeWidth={1.75} />
-      </span>
-      <span className="text-sm font-medium text-text-strong">{label}</span>
-      <span className="text-xs leading-snug text-text-soft">{body}</span>
-    </Link>
+      {/* Accent gradient wash - soft top-right glow that anchors the
+          card to the brand palette without overwhelming. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-100"
+        style={{
+          background:
+            "radial-gradient(circle at 100% 0%, rgba(204,255,0,0.08) 0%, rgba(204,255,0,0) 55%)",
+        }}
+      />
+
+      {/* Watermark grid - repeated BrandMark at very low opacity,
+          rotated and scattered. Gives the card a "stamped on the
+          back of a credit card" feel that elevates it beyond a
+          plain stat tile. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 overflow-hidden text-accent"
+      >
+        {WATERMARK_GRID.map((mark) => (
+          <div
+            key={`${mark.top}-${mark.left}`}
+            className="absolute opacity-[0.045]"
+            style={{
+              top: mark.top,
+              left: mark.left,
+              transform: `rotate(${mark.rotate}deg)`,
+            }}
+          >
+            <BrandMark size={mark.size} />
+          </div>
+        ))}
+      </div>
+
+      {/* Foreground content. relative + z-10 keeps it above both
+          decoration layers. */}
+      <div className="relative z-10">
+        {/* Brand row - small visible mark + label */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-accent/15 text-accent ring-1 ring-accent/30">
+              <BrandMark size={16} />
+            </span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              Total balance
+            </span>
+          </div>
+          {!loading && (
+            <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-text-soft/70">
+              {walletCount === 0
+                ? "-"
+                : walletCount === 1
+                  ? "1 wallet"
+                  : `${walletCount} wallets`}
+            </span>
+          )}
+        </div>
+
+        {/* Big numerals */}
+        {loading ? (
+          <div className="mt-5 h-12 w-44 animate-pulse rounded bg-border-soft/80 sm:h-14 sm:w-56" />
+        ) : (
+          <p className="mt-5 flex items-baseline gap-2">
+            <span className="font-numerals text-4xl font-semibold leading-none tracking-tight text-text-strong tabular-nums sm:text-5xl">
+              {amount}
+            </span>
+            <span className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft sm:text-lg">
+              {unit}
+            </span>
+          </p>
+        )}
+
+        {/* Bottom hairline + brand caption - credit-card style.
+            Subtle, but ties the watermark grid to a clear "Clear"
+            attribution. */}
+        <div className="mt-6 flex items-center gap-2">
+          <span aria-hidden="true" className="block h-px w-8 bg-accent/60" />
+          <span className="text-[10px] font-medium uppercase tracking-[0.28em] text-text-soft/70">
+            Clear · shared treasury
+          </span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// Pre-computed scatter pattern for the watermark grid. Hand-tuned
+// positions + sizes + rotations so the marks read as a designed
+// pattern rather than random clutter. Static module-level array so
+// the layout is stable across renders (no jitter).
+const WATERMARK_GRID: {
+  top: string;
+  left: string;
+  size: number;
+  rotate: number;
+}[] = [
+  { top: "-8px", left: "12%", size: 56, rotate: -12 },
+  { top: "20%", left: "62%", size: 44, rotate: 18 },
+  { top: "40%", left: "8%", size: 48, rotate: 24 },
+  { top: "55%", left: "78%", size: 64, rotate: -8 },
+  { top: "70%", left: "32%", size: 52, rotate: 14 },
+  { top: "85%", left: "58%", size: 40, rotate: -22 },
+  { top: "8%", left: "85%", size: 36, rotate: 6 },
+];
+
+function StatCard({
+  Icon,
+  label,
+  value,
+  unit,
+  loading,
+  accent,
+}: {
+  Icon: typeof Wallet;
+  label: string;
+  value: string;
+  unit?: string;
+  loading?: boolean;
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className={clsx(
+        "rounded-card border bg-surface-raised p-4 shadow-card-rest",
+        "transition-[border-color,box-shadow] duration-base ease-out-soft",
+        accent ? "border-accent/40" : "border-border-soft",
+      )}
+    >
+      <div className="flex items-center gap-2 text-text-soft">
+        <Icon className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
+        <span className="text-[11px] font-semibold uppercase tracking-[0.2em]">
+          {label}
+        </span>
+      </div>
+      {loading ? (
+        <div className="mt-2.5 h-7 w-24 animate-pulse rounded bg-border-soft/80" />
+      ) : (
+        <p className="mt-1.5 flex items-baseline gap-1.5">
+          <span
+            className={clsx(
+              "font-numerals text-2xl font-semibold tabular-nums leading-tight",
+              accent ? "text-accent" : "text-text-strong",
+            )}
+          >
+            {value}
+          </span>
+          {unit && (
+            <span className="font-display text-[11px] font-semibold uppercase tracking-[0.16em] text-text-soft">
+              {unit}
+            </span>
+          )}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -253,7 +517,7 @@ function ShortcutCard({
 //
 // When the on-chain memberships fetch fails (RPC blip, connection
 // dropped mid-load), we used to render the first-visit CTA which
-// tells the user to "Create your first wallet" — for someone who
+// tells the user to "Create your first wallet" - for someone who
 // already has wallets, that's a dangerous nudge. This card replaces
 // the silent fallback with an explicit retry.
 
@@ -408,14 +672,14 @@ function WalletCard({
     <motion.div
       {...motionProps}
       transition={{ duration: 0.35, delay, ease: [0.22, 1, 0.36, 1] }}
-      className="relative"
+      className="group/card relative"
     >
       <Link
         href={`/app/wallet/${encodeURIComponent(onChainName)}`}
         className={
           "group relative flex flex-col gap-3 rounded-card border bg-surface-raised p-5 shadow-card-rest " +
           "transition-[transform,box-shadow,border-color] duration-base ease-out-soft " +
-          "hover:-translate-y-0.5 hover:border-accent/60 hover:shadow-card-raised " +
+          "hover:-translate-y-0.5 hover:shadow-card-raised " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
           (pinned ? "border-accent/40" : "border-border-soft")
         }
@@ -425,7 +689,7 @@ function WalletCard({
             {/* The pinned-state Pin icon used to also render inline
                 next to the name. With the corner pin button in
                 place (accent border + Pin icon when pinned) the
-                inline copy was duplicate chrome — both icons
+                inline copy was duplicate chrome - both icons
                 visible, neither carrying signal the other didn't.
                 Keep only the corner button. */}
             <p className="font-display text-xl text-text-strong">
@@ -437,7 +701,7 @@ function WalletCard({
               // Editorial-sans: JetBrains Mono numerals for the
               // balance value, Manrope display caps for the ticker.
               // Same currency-code treatment as /send/* and Hero
-              // single-chain balance — one shared pattern app-wide.
+              // single-chain balance - one shared pattern app-wide.
               <p className="mt-1 flex items-baseline gap-1.5">
                 <span className="font-numerals text-base font-semibold text-text-strong tabular-nums">
                   {balance ? balance.amount : "0"}
@@ -469,26 +733,28 @@ function WalletCard({
         aria-label={pinned ? `Unpin ${name}` : `Pin ${name} to the top`}
         title={pinned ? "Unpin" : "Pin to top"}
         className={
-          // display class moves into the conditional so the unpinned
-          // variant's `hidden md:inline-flex` actually takes effect.
+          // Anchored to the bottom-right corner so it doesn't fight the
+          // navigation arrow in the top-right of the card header. The
+          // pending-approval pill is self-start (bottom-LEFT), so this
+          // sits opposite it on the same baseline - reads as a balanced
+          // corner control rather than chrome stacked on chrome.
           // Tap target is h-tap w-tap (44px) when pinned for mobile
           // touch; desktop hover state still rendered fine on the
           // smaller 28px hit-area, but mobile users couldn't reach
           // it reliably.
-          "absolute right-2 top-2 items-center justify-center rounded-full border bg-surface-raised " +
-          "transition-[color,border-color,transform] duration-base ease-out-soft " +
+          "absolute bottom-3 right-3 items-center justify-center rounded-full border bg-surface-raised " +
+          "transition-[color,border-color,transform,opacity] duration-base ease-out-soft " +
           (pinned
             ? // Pinned cards always show the icon (status signal).
               // Accent border so it reads as "this is intentionally
               // here", not chrome. Full tap target for mobile.
-              "inline-flex h-tap w-tap border-accent/40 text-accent hover:border-accent"
+              "inline-flex h-tap w-tap border-accent/40 text-accent"
             : // Unpinned: hide on mobile (pin/unpin is rarely a
               // touch-first action and the icon read as clutter on
-              // every card). Desktop is hover-driven so a smaller
-              // 28px target is fine — touch never reaches this
-              // branch by design.
-              "hidden md:inline-flex h-7 w-7 border-border-soft text-text-soft/60 hover:border-accent hover:text-accent") +
-          " focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+              // every card). Desktop reveals it on card hover so the
+              // resting state stays clean.
+              "hidden h-7 w-7 border-border-soft text-text-soft/60 opacity-0 group-hover/card:opacity-100 hover:text-accent md:inline-flex") +
+          " focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
         }
       >
         {pinned ? (
@@ -502,7 +768,7 @@ function WalletCard({
 }
 
 // Geometry-matched skeleton for WalletCard. The previous version
-// was 110px tall and had two short stripes — real cards land at
+// was 110px tall and had two short stripes - real cards land at
 // 140-170px and have title-line + balance-line + optional pending
 // pill, so the swap-in caused a visible layout jump. This shape
 // matches the populated card closely enough that the transition
@@ -515,15 +781,15 @@ function CardSkeleton() {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          {/* Title line — same width as font-display text-xl. */}
+          {/* Title line - same width as font-display text-xl. */}
           <div className="h-6 w-1/2 animate-pulse rounded bg-border-soft" />
-          {/* Balance line — slightly tighter than the title. */}
+          {/* Balance line - slightly tighter than the title. */}
           <div className="mt-2.5 h-5 w-24 animate-pulse rounded bg-border-soft/80" />
         </div>
-        {/* Pin button placeholder — keeps the right edge stable. */}
+        {/* Pin button placeholder - keeps the right edge stable. */}
         <div className="h-7 w-7 shrink-0 animate-pulse rounded-full bg-border-soft/60" />
       </div>
-      {/* Pending-approval pill — most loaded cards have at least
+      {/* Pending-approval pill - most loaded cards have at least
           one badge slot worth of vertical space. Quieter pulse so
           it doesn't read as required. */}
       <div className="mt-4 h-6 w-32 animate-pulse rounded-full bg-border-soft/40" />
@@ -545,7 +811,7 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
   const batch = useBatchApprove();
   // Per-tab dismissal so we don't nag a user who's already declined.
   // Persisted in sessionStorage so a navigate-away-and-back keeps it
-  // hidden, but a fresh tab gets the prompt again — they may have
+  // hidden, but a fresh tab gets the prompt again - they may have
   // changed their mind, or be on a different device.
   const notif = useActionNotifications();
   const [dismissedNotifPrompt, setDismissedNotifPrompt] = useState<boolean>(
@@ -635,7 +901,7 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
             type="button"
             onClick={() => void notif.request()}
             className={
-              "shrink-0 rounded-full bg-accent px-2.5 py-1 text-[11px] font-medium text-white " +
+              "shrink-0 rounded-full bg-accent px-2.5 py-1 text-[11px] font-medium text-text-on-accent " +
               "transition-[background-color,transform] duration-base ease-out-soft " +
               "hover:bg-accent-hover active:scale-[0.98] " +
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
@@ -653,7 +919,7 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
                   "1",
                 );
               } catch {
-                /* storage blocked — keep state local to this view */
+                /* storage blocked - keep state local to this view */
               }
             }}
             aria-label="Dismiss notifications prompt"
@@ -892,7 +1158,7 @@ function RecentActivitySection({ rows, reduce }: RecentActivityProps) {
           className={
             "inline-flex items-center gap-1 rounded-full border border-border-soft bg-surface-raised px-2.5 py-1 text-[11px] font-medium text-text-soft " +
             "transition-[border-color,color,transform] duration-base ease-out-soft " +
-            "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+            "hover:-translate-y-0.5 hover:text-accent " +
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
           }
           title="See every proposal across all wallets, with filters + CSV export"
@@ -1016,7 +1282,7 @@ function WatchedWalletsSection({
           className={
             "mt-3 inline-flex items-center gap-1.5 rounded-full border border-dashed border-border-soft bg-canvas px-3.5 py-1.5 text-xs font-medium text-text-soft " +
             "transition-[border-color,color,transform] duration-base ease-out-soft " +
-            "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+            "hover:-translate-y-0.5 hover:text-accent " +
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
           }
         >
@@ -1071,7 +1337,7 @@ function WatchedWalletsSection({
               type="submit"
               disabled={busy || !draft.trim()}
               className={
-                "rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-white " +
+                "rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-text-on-accent " +
                 "transition-[background-color,transform] duration-base ease-out-soft " +
                 "hover:bg-accent-hover active:scale-[0.98] " +
                 "disabled:cursor-not-allowed disabled:opacity-50"

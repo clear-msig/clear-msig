@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
   // Same shape as invitations: revocation has the same abuse cost
   // as a fresh invite (it's just a different template). Match the
-  // tightened bucket on the invite route — 3 burst, 1/60s refill.
+  // tightened bucket on the invite route - 3 burst, 1/60s refill.
   const limited = await checkRateLimit("invitations-revoke", clientIp(request), {
     capacity: 3,
     refillPerSec: 1 / 60,

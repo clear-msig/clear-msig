@@ -1,9 +1,9 @@
 "use client";
 
-// BackToWallets — compact back-link chip rendered above the Hero
+// BackToWallets - compact back-link chip rendered above the Hero
 // on mobile workspace subpages. The full StickyTopBar (breadcrumb)
 // was killed on mobile because it ate ~56px of above-fold space
-// to show chrome the BottomNav already covers — but the user
+// to show chrome the BottomNav already covers - but the user
 // pointed out that BottomNav Home goes to /app/wallet (the wallet
 // hub), so once you're inside a subpage like /send or /policies
 // there's no obvious in-page affordance to bounce out.
@@ -14,7 +14,7 @@
 // without the full-width band of the original StickyTopBar.
 // Was h-9 (36px) until 2026-05-08; bumped to h-11 (44px) to clear
 // the HIG minimum exactly. Visual weight stays "chip" because of
-// rounded-full + small text — the height bump only changes the
+// rounded-full + small text - the height bump only changes the
 // hit area, not the perceived size.
 //
 // Hidden on md+ because the desktop sidebar + StickyTopBar
@@ -41,7 +41,7 @@ export function BackToWallets({
       className={
         "group inline-flex h-11 w-fit items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-4 text-xs font-medium text-text-soft md:hidden " +
         "transition-[border-color,color,transform] duration-base ease-out-soft " +
-        "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+        "hover:-translate-y-0.5 hover:text-accent " +
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
         (className ?? "")
       }

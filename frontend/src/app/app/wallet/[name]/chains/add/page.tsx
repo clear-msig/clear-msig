@@ -1,6 +1,6 @@
 "use client";
 
-// Add chain — bind an Ika dWallet for a target chain so this wallet
+// Add chain - bind an Ika dWallet for a target chain so this wallet
 // can send native transactions there.
 //
 // What happens behind the scenes (intentionally not surfaced here):
@@ -100,7 +100,7 @@ function AddChainPage() {
       });
     },
     onSuccess: () => {
-      // Two query keys, two prefixes — useWalletWorkflow uses
+      // Two query keys, two prefixes - useWalletWorkflow uses
       // ["wallet-chains", name] (read-only chain list from chain),
       // useWalletChains uses ["wallet-chains-api", name] (the
       // backend's address-enriched list that the /chains page
@@ -149,7 +149,7 @@ function AddChainPage() {
           ]}
         />
       </StickyTopBar>
-      {/* Mobile-only back chip — see /send for rationale. */}
+      {/* Mobile-only back chip - see /send for rationale. */}
       <div className="px-gutter pt-2 md:hidden">
         <BackToWallets />
       </div>
@@ -161,7 +161,7 @@ function AddChainPage() {
           className="flex flex-col gap-6"
         >
           <div className="flex flex-col items-center text-center">
-            <h1 className="font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+            <h1 className="hidden font-display text-display-sm leading-[1.05] text-text-strong text-balance md:block">
               Pick a chain
             </h1>
             <p className="mt-2 max-w-md text-base text-text-soft">
@@ -182,7 +182,7 @@ function AddChainPage() {
                   className={
                     "group flex w-full items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-4 text-left shadow-card-rest " +
                     "transition-[transform,box-shadow,border-color] duration-base ease-out-soft " +
-                    "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
+                    "hover:-translate-y-0.5 hover:shadow-card-raised " +
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
                   }
                 >
@@ -218,7 +218,7 @@ function AddChainPage() {
             <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
               Add chain · {selected.ticker}
             </p>
-            <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+            <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
               Add {selected.name} to {walletDisplay}
             </h1>
             <p className="mt-2 max-w-md text-base text-text-soft">
@@ -318,7 +318,7 @@ function BindingStage({
   // look frozen. Real progress events from the backend would
   // replace this placeholder. Also tick a separate elapsed counter
   // so if the DKG runs past 30s the user sees the page hasn't
-  // stalled — just a visible "still working, 47s elapsed".
+  // stalled - just a visible "still working, 47s elapsed".
   useEffect(() => {
     const stepTimer = setInterval(() => {
       setActiveStep((s) => Math.min(steps.length - 1, s + 1));
@@ -435,7 +435,7 @@ function DoneStage({
           stiffness: 240,
           delay: 0.05,
         }}
-        className="flex h-20 w-20 items-center justify-center rounded-full bg-accent text-white shadow-accent-rest"
+        className="flex h-20 w-20 items-center justify-center rounded-full bg-accent text-text-on-accent shadow-accent-rest"
       >
         <Check className="h-10 w-10" strokeWidth={2.5} />
       </motion.div>

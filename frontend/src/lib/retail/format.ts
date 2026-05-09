@@ -16,15 +16,15 @@ export interface FormattedAmount {
   /// precision and locale-grouped ("1,234.5678"). Excludes ticker
   /// and symbol so callers can compose layout independently.
   amount: string;
-  /// Three-letter chain ticker — "SOL" / "ETH" / "BTC" / "ZEC".
+  /// Three-letter chain ticker - "SOL" / "ETH" / "BTC" / "ZEC".
   ticker: string;
-  /// Currency-style glyph for visual punch — ◎ Ξ ₿ ⓩ.
+  /// Currency-style glyph for visual punch - ◎ Ξ ₿ ⓩ.
   symbol: string;
 }
 
 /// Convert a smallest-unit value (lamports / wei / sats / zats) to a
-/// retail-friendly amount card. Defaults to Solana — the primary
-/// chain — but accepts any catalog entry.
+/// retail-friendly amount card. Defaults to Solana - the primary
+/// chain - but accepts any catalog entry.
 export function formatBalance(
   smallestUnit: number,
   chain: ChainMeta = SOLANA,
@@ -43,7 +43,7 @@ export function formatBalance(
   };
 }
 
-/// Inverse of `formatBalance` — take a user-typed whole-unit string
+/// Inverse of `formatBalance` - take a user-typed whole-unit string
 /// (e.g. "0.5") and return the smallest-unit string the on-chain
 /// program expects. Used by /send to convert the typed SOL amount
 /// into lamports for the proposal params.

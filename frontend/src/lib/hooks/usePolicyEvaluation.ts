@@ -2,7 +2,7 @@
 
 // React wrapper around evaluateFirstMatch that re-runs when any of
 // the candidate-proposal inputs change. Used by the send pages as
-// a compose-time tripwire — surfaces "this rule denies the send" /
+// a compose-time tripwire - surfaces "this rule denies the send" /
 // "extra approvers will be required" banners before the user fires
 // the wallet popup.
 //

@@ -16,7 +16,7 @@
 // Transport: direct browser POST. Slack/Discord/Zapier/Make/n8n
 // incoming-webhook URLs all advertise permissive CORS, so we don't
 // need a server-side relay (and skipping the relay removes an SSRF
-// surface — see docs in this file). If the user's destination
+// surface - see docs in this file). If the user's destination
 // rejects with a CORS error, they pick a permissive provider or
 // point at their own proxy. Settings copy says so.
 //
@@ -24,11 +24,11 @@
 // header. The receiver re-computes HMAC-SHA256 over the raw body
 // using the shared secret to verify the request came from this
 // browser's pref store. Replay protection: the body includes a
-// `timestamp_ms` field — receivers should reject anything older
+// `timestamp_ms` field - receivers should reject anything older
 // than ~5 minutes.
 //
 // Storage: per-device localStorage. The secret is stored in plain
-// text — same threat model as the rest of the app, where the
+// text - same threat model as the rest of the app, where the
 // signing keypair lives in the wallet and Clear's local prefs are
 // considered low-value.
 
@@ -110,7 +110,7 @@ export function saveWebhookPrefs(prefs: WebhookPrefs): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
   } catch {
-    /* quota / private-mode — silently noop */
+    /* quota / private-mode - silently noop */
   }
 }
 
@@ -175,7 +175,7 @@ async function hmacSha256Hex(secret: string, body: string): Promise<string> {
 /// any failure (network / CORS / non-2xx). Never throws.
 ///
 /// Caller is responsible for upstream filtering (event-type opt-in,
-/// wallet-scope match) — this function unconditionally posts when
+/// wallet-scope match) - this function unconditionally posts when
 /// called.
 export async function fireWebhook(
   payload: WebhookPayload,
@@ -253,7 +253,7 @@ export function eventTypeLabel(event: WebhookEventType): string {
 export async function fireTestWebhook(): Promise<boolean> {
   const prefs = loadWebhookPrefs();
   if (!isValidWebhookUrl(prefs.url)) return false;
-  // Bypass `enabled` gate — the test fires even when paused so the
+  // Bypass `enabled` gate - the test fires even when paused so the
   // user can validate without flipping the switch.
   const body = JSON.stringify({
     event: "test" as const,

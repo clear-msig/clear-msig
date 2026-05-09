@@ -1,6 +1,6 @@
 "use client";
 
-// QuickSendInput — type a sentence, the form fills in.
+// QuickSendInput - type a sentence, the form fills in.
 //
 // Sits above the canonical step-by-step form on /send. The user
 // types something like "send sarah 5 sol for groceries" and we
@@ -10,7 +10,7 @@
 // Why no "AI" framing in copy: retail users associate "AI" with
 // chatbots, not form-fill. We say "Just say it" so the input reads
 // as a shortcut, not a co-pilot. Same trick Linear uses for their
-// command bar — power feature, plain copy.
+// command bar - power feature, plain copy.
 //
 // Privacy: only the typed text + the user's contact NAMES leave the
 // browser (no addresses). The server route at /api/nl/parse is the
@@ -30,7 +30,7 @@ interface QuickSendParse {
 }
 
 interface QuickSendInputProps {
-  /// Names from the user's contacts list — passed to the server so
+  /// Names from the user's contacts list - passed to the server so
   /// "send sarah" resolves against actual contacts rather than the
   /// model guessing.
   contactNames: string[];
@@ -69,7 +69,7 @@ export function QuickSendInput({ contactNames, onParsed }: QuickSendInputProps) 
       const result = (await res.json()) as QuickSendParse;
       onParsed(result);
       // Stash an ambiguity hint inline so the user knows to verify
-      // before signing — the form is filled but flagged.
+      // before signing - the form is filled but flagged.
       setHint(
         result.confidence === "low" && result.ambiguity
           ? result.ambiguity
@@ -131,9 +131,9 @@ export function QuickSendInput({ contactNames, onParsed }: QuickSendInputProps) 
             // min-h-tap (44px) so the Fill-in button hits Apple HIG
             // tap-target minimum on mobile. Was py-1.5 (24px) which
             // the parity audit flagged as too small to land reliably
-            // with a thumb. Visual size barely changes — the label
+            // with a thumb. Visual size barely changes - the label
             // already wants vertical breathing room.
-            "inline-flex min-h-tap items-center justify-center rounded-soft bg-accent px-4 py-2 text-xs font-medium text-white shadow-accent-rest " +
+            "inline-flex min-h-tap items-center justify-center rounded-soft bg-accent px-4 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest " +
             "transition-[background-color,transform] duration-base ease-out-soft " +
             "hover:bg-accent-hover active:scale-[0.98] " +
             "disabled:cursor-not-allowed disabled:opacity-50"

@@ -4,14 +4,14 @@
 // offchain-wrapped messages. Two known causes today, picked via
 // `wallet.signerIssue`:
 //
-//   "waas"    — Dynamic's embedded WaaS-SVM signer UTF-8-decodes the
+//   "waas"    - Dynamic's embedded WaaS-SVM signer UTF-8-decodes the
 //               message bytes before signing. Our offchain envelope
 //               starts with `\xff`, an invalid UTF-8 byte that gets
 //               replaced with U+FFFD, so the signature ends up over
 //               different bytes than we asked for. The CLI's verifier
 //               rejects every signed write.
 //
-//   "phantom" — Phantom's signMessage rejects bytes whose first byte
+//   "phantom" - Phantom's signMessage rejects bytes whose first byte
 //               looks like a Solana versioned-transaction prefix
 //               (`0x80 | version`). The Solana offchain-message spec
 //               mandates `\xff` as the first byte (`0x80 | 0x7f`), so

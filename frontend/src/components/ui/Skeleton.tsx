@@ -70,7 +70,7 @@ export function SkeletonCard({
       className={clsx(
         "flex flex-col gap-3 rounded-2xl border p-4",
         tone === "dark"
-          ? "border-white/10 bg-white/[0.02]"
+          ? "border-border-soft bg-glass-soft"
           : "border-black/10 bg-white/70",
         className
       )}

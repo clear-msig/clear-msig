@@ -1,10 +1,10 @@
-// Button — first primitive of the retail rebuild (locked 2026-04-30).
+// Button - first primitive of the retail rebuild (locked 2026-04-30).
 //
 // Tokens consumed: `accent` family, `surface-raised`, `border-soft`,
 // `text-strong`, `min-h-tap` / `min-h-tap-lg`, `rounded-soft`,
 // `duration-base`, `ease-out-soft`. If you find yourself reaching for a
 // raw hex or one-off shadow here, the design tokens are missing
-// something — extend `tailwind.config.ts` rather than inlining values.
+// something - extend `tailwind.config.ts` rather than inlining values.
 
 import { ButtonHTMLAttributes, forwardRef } from "react";
 import clsx from "clsx";
@@ -17,8 +17,9 @@ const cn = (...inputs: Array<string | undefined | false>) =>
   twMerge(clsx(inputs));
 
 const variants: Record<Variant, string> = {
+  // Lime primary: black text reads on solid lime (white would not).
   primary:
-    "bg-accent text-white shadow-accent-rest hover:bg-accent-hover hover:shadow-accent-hover",
+    "bg-accent text-text-on-accent font-semibold shadow-accent-rest hover:bg-accent-hover hover:shadow-accent-hover",
   secondary:
     "bg-surface-raised text-text-strong border border-border-soft hover:border-border-strong",
   ghost: "bg-transparent text-text-strong hover:bg-surface-card/5",

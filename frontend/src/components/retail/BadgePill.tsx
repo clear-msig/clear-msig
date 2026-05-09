@@ -1,6 +1,6 @@
 "use client";
 
-// BadgePill — small filled-accent action used inline next to chips
+// BadgePill - small filled-accent action used inline next to chips
 // and badges. Sits between the full Button primitive (≥36px tap
 // target, used as a primary CTA) and a borderless inline link.
 // Six call sites in the app shipped byte-identical 65-char inline
@@ -32,7 +32,7 @@ export const BadgePill = forwardRef<HTMLButtonElement, BadgePillProps>(
         ref={ref}
         type={rest.type ?? "button"}
         className={
-          "inline-flex min-h-tap items-center justify-center gap-1 rounded-full bg-accent font-medium text-white shadow-accent-rest " +
+          "inline-flex min-h-tap items-center justify-center gap-1 rounded-full bg-accent font-medium text-text-on-accent shadow-accent-rest " +
           sizeClasses +
           " transition-[background-color,box-shadow,transform] duration-base ease-out-soft " +
           "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98] " +

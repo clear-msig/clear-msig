@@ -1,6 +1,6 @@
 "use client";
 
-// approveIfNeeded — fetch the proposal's current status and decide
+// approveIfNeeded - fetch the proposal's current status and decide
 // whether the explicit approve+execute pair is still needed, or if
 // the proposal already landed Approved (program-side auto-approve
 // when the proposer sits in the approver list).
@@ -28,7 +28,7 @@
 // return null. Retry with a short backoff so we don't fire a
 // spurious second popup just because the read replica was a slot
 // behind. After exhausting retries with `null`, we trust the
-// program's auto-approve and skip the second sign — the alternative
+// program's auto-approve and skip the second sign - the alternative
 // (default-to-needs-approve) was producing a duplicate wallet popup
 // in production.
 
@@ -82,14 +82,14 @@ export async function approveIfNeeded(
   // Exhausted retries.
   //
   // If we hit a read error every time, conservatively keep the
-  // legacy approve path — the chain might genuinely be unreachable
+  // legacy approve path - the chain might genuinely be unreachable
   // and a missed read shouldn't cause us to skip a real approval
   // step.
   //
   // If reads succeeded but the account was null every time, the
   // submit returned 200 (so propose committed) but we can't see
   // the account. This is a frontend-RPC consistency lag, not a
-  // status issue. Trust the program's auto-approve — the
+  // status issue. Trust the program's auto-approve - the
   // alternative was firing a duplicate wallet popup for every
   // submit when the user's RPC was a slot behind the backend's.
   return {

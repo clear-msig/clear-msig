@@ -1,4 +1,4 @@
-// Chain catalog — retail-friendly metadata for every chain Clear can
+// Chain catalog - retail-friendly metadata for every chain Clear can
 // bind a wallet to via Ika's dWallet network.
 //
 // Maps the on-chain `chain_kind` byte (and the addWalletChain API's
@@ -13,9 +13,9 @@ export interface ChainMeta {
   kind: number;
   /// `chain` string the addWalletChain API expects.
   apiName: string;
-  /// Three-letter ticker — what users see on amounts ("0.5 SOL").
+  /// Three-letter ticker - what users see on amounts ("0.5 SOL").
   ticker: string;
-  /// Currency-style glyph — fallback when the logo image fails to load
+  /// Currency-style glyph - fallback when the logo image fails to load
   /// or is still loading. ◎ Solana, Ξ Ethereum, ₿ Bitcoin, ⓩ Zcash.
   symbol: string;
   /// CoinGecko CDN logo. Stable public URLs; cached at the edge.
@@ -23,12 +23,12 @@ export interface ChainMeta {
   logoUrl: string;
   /// Marketing name shown in cards and headers.
   name: string;
-  /// One-line retail blurb — what a non-crypto user gets from the chain.
+  /// One-line retail blurb - what a non-crypto user gets from the chain.
   description: string;
-  /// Tailwind gradient classes — used for the badge background ring
+  /// Tailwind gradient classes - used for the badge background ring
   /// and glyph fallback. Brand color family per chain.
   gradient: { from: string; to: string };
-  /// Smallest unit per ticker — what the chain stores on-wire.
+  /// Smallest unit per ticker - what the chain stores on-wire.
   /// SOL=lamports (1e9), ETH=wei (1e18), BTC=sats (1e8), ZEC=zats (1e8).
   smallestPerWhole: bigint;
   /// Decimal places to surface for retail amounts. Chains like
@@ -37,7 +37,7 @@ export interface ChainMeta {
 }
 
 /// Visible-in-retail chains. ERC-20 (kind 4) is folded into Ethereum
-/// in the user-facing surface — adding "Ethereum" makes the wallet
+/// in the user-facing surface - adding "Ethereum" makes the wallet
 /// able to send both ETH and ERC-20 tokens.
 export const CHAIN_CATALOG: readonly ChainMeta[] = [
   {
@@ -103,7 +103,7 @@ export function chainByApiName(apiName: string): ChainMeta | undefined {
 
 /// Retail label for a chain_kind, falling back to "Other" if we don't
 /// recognize it. The `kind_4` ERC-20 case is intentionally rendered
-/// as "Ethereum" — it's not a separate chain to a retail user.
+/// as "Ethereum" - it's not a separate chain to a retail user.
 export function friendlyChainName(kind: number): string {
   if (kind === 4) return "Ethereum";
   return chainByKind(kind)?.name ?? "Other";

@@ -51,7 +51,7 @@ export class WalletSignError extends Error {
     | "message_mismatch"
     | "wallet_signed_wrong_bytes"
     | "phantom_unsupported";
-  /// Set when `code === "message_mismatch"` — the bytes the backend
+  /// Set when `code === "message_mismatch"` - the bytes the backend
   /// asked us to sign did not match the bytes the frontend rebuilt
   /// from chain state. Includes both for debugging.
   expectedHex?: string;
@@ -102,7 +102,7 @@ export function useSignWithWallet() {
       }
       // Effective signer pubkey: caller's preference if set, else
       // the default. The signature has to verify against THIS pubkey,
-      // and `signer_pubkey` we return MUST match — otherwise the
+      // and `signer_pubkey` we return MUST match - otherwise the
       // backend's submit hands the on-chain program a sig + pubkey
       // pair that fails verify.
       const effectiveSigner = options?.preferSigner ?? publicKey;

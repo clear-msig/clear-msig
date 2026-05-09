@@ -7,9 +7,9 @@ import { withEvmFallback } from "@/lib/chain/evmRpcFallback";
 // Tokens on EVM chains are addressable contracts that implement the
 // ERC-20 ABI (decimals, symbol, name, balanceOf, transfer, …). Most
 // of what the wallet UI needs is metadata (decimals, symbol) and
-// balance — both are pure read calls, so we hit the destination RPC
+// balance - both are pure read calls, so we hit the destination RPC
 // directly via JSON-RPC `eth_call` and decode the bytes32-padded
-// return value ourselves. No web3 / ethers dep — keeps the bundle
+// return value ourselves. No web3 / ethers dep - keeps the bundle
 // lean.
 //
 // Used by:
@@ -21,10 +21,10 @@ import { withEvmFallback } from "@/lib/chain/evmRpcFallback";
 // Hard-coded here as constants so we don't hash at call time.
 //
 // Selectors:
-//   decimals()                — 0x313ce567
-//   symbol()                  — 0x95d89b41
-//   name()                    — 0x06fdde03
-//   balanceOf(address)        — 0x70a08231
+//   decimals()                - 0x313ce567
+//   symbol()                  - 0x95d89b41
+//   name()                    - 0x06fdde03
+//   balanceOf(address)        - 0x70a08231
 
 const SEL_DECIMALS = "0x313ce567";
 const SEL_SYMBOL = "0x95d89b41";
@@ -42,7 +42,7 @@ export interface Erc20Metadata {
   decimals: number;
   /// Token ticker (USDC, DAI, etc).
   symbol: string;
-  /// Long name, e.g. "USD Coin". Optional — many tokens implement
+  /// Long name, e.g. "USD Coin". Optional - many tokens implement
   /// `name()` but it's not strictly required by the standard.
   name: string | null;
 }
@@ -58,7 +58,7 @@ export async function fetchErc20Metadata(
   }
 
   // Run all three calls in parallel. `name()` failures are
-  // swallowed — some tokens omit it.
+  // swallowed - some tokens omit it.
   const [decRaw, symRaw, nameRaw] = await Promise.all([
     ethCall(url, contractAddress, SEL_DECIMALS),
     ethCall(url, contractAddress, SEL_SYMBOL),
@@ -136,9 +136,9 @@ async function ethCall(
 // Hand-rolled to avoid pulling in ethers/web3. Just enough to
 // handle the three return types we actually call:
 //
-//   uint8        — `decimals()`
-//   string       — `symbol()` / `name()`
-//   uint256      — `balanceOf(address)` (handled inline above via BigInt)
+//   uint8        - `decimals()`
+//   string       - `symbol()` / `name()`
+//   uint256      - `balanceOf(address)` (handled inline above via BigInt)
 
 function decodeUint8(hex: string): number {
   if (hex === "0x" || hex.length < 2) return 0;
@@ -182,7 +182,7 @@ function hexToUtf8(hex: string): string {
 }
 
 /// One ERC-20 the wallet currently holds. Decimals comes back as a
-/// string from Blockscout — parse to number for downstream math.
+/// string from Blockscout - parse to number for downstream math.
 export interface Erc20Holding {
   contractAddress: string;
   symbol: string;

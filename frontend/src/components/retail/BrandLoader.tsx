@@ -1,6 +1,6 @@
 "use client";
 
-// BrandLoader — the single waiting indicator the app uses.
+// BrandLoader - the single waiting indicator the app uses.
 //
 // Two variants:
 //   - "ring"  (default): a thin accent ring rotating around an
@@ -25,11 +25,11 @@ interface BrandLoaderProps {
   className?: string;
   /// Accessible label. Defaults to "Loading".
   label?: string;
-  /// "accent" (default) — green ring on tinted ghost. Use on canvas
+  /// "accent" (default) - green ring on tinted ghost. Use on canvas
   /// or surface-raised backgrounds.
-  /// "on-accent" — white ring on white-tinted ghost. Use inside
+  /// "on-accent" - white ring on white-tinted ghost. Use inside
   /// accent-coloured buttons / chips so the loader stays legible.
-  /// "neutral" — text-soft tone for skeleton-y row contexts.
+  /// "neutral" - text-soft tone for skeleton-y row contexts.
   tone?: "accent" | "on-accent" | "neutral";
 }
 
@@ -100,14 +100,14 @@ export function BrandLoader({
       className={"relative inline-flex shrink-0 " + (className ?? "")}
       style={{ width: px, height: px }}
     >
-      {/* Ghost — tinted disc behind the ring. Gives the loader a
+      {/* Ghost - tinted disc behind the ring. Gives the loader a
           "filled" identity even at small sizes where a pure ring
           reads as a generic icon. */}
       <span
         aria-hidden="true"
         className={"absolute inset-0 rounded-full " + t.ghost}
       />
-      {/* Rotating ring — three-quarter arc so the rotation is
+      {/* Rotating ring - three-quarter arc so the rotation is
           legible. transform-only animation, no layout. */}
       <span
         aria-hidden="true"

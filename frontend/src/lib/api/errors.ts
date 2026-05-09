@@ -1,4 +1,4 @@
-// Friendly error mapping — translates backend / wallet / signing
+// Friendly error mapping - translates backend / wallet / signing
 // errors into a `{ title, body }` retail user can act on.
 //
 // Source signals:
@@ -26,7 +26,7 @@ export interface FriendlyError {
   /// Short headline shown as the toast message.
   title: string;
   /// Action-oriented hint shown in the toast's `details` panel.
-  /// Keep concise — one or two short sentences.
+  /// Keep concise - one or two short sentences.
   body?: string;
   /// Override the toast's auto-dismiss timing. Defaults to undefined
   /// (the toast layer's standard 5s for errors).
@@ -119,7 +119,7 @@ export function friendlyError(
   // ── Wallet policy: pre-flight check rejected the send ─────────
   // PolicyViolationError fires BEFORE any network or wallet step,
   // so it has the cleanest title + body of any error class. Show
-  // verbatim — the violation copy is already action-oriented.
+  // verbatim - the violation copy is already action-oriented.
   if (err instanceof PolicyViolationError) {
     return { title: err.message, body: err.body };
   }
@@ -254,10 +254,10 @@ export function friendlyError(
     const friendly = walletProgramErrorMessage(hay);
     if (friendly) return friendly;
     // Anchor / system error outside our catalogue. Try to surface
-    // an actually informative stderr line — but ONLY if it looks
+    // an actually informative stderr line - but ONLY if it looks
     // like prose. The previous version would happily prepend a
     // bare `}` from a JSON dump, producing toasts like
-    // "} — wait a few seconds and try again". The picker now
+    // "} - wait a few seconds and try again". The picker now
     // refuses junk and the catch-all falls through to a clean
     // prose body when nothing prose-shaped is available.
     const tail = pickLastUsefulLine(bag);
@@ -266,7 +266,7 @@ export function friendlyError(
       body: tail
         ? `${tail.slice(0, 220)} Wait a few seconds and try again. If it keeps failing, refresh the page and retry from a fresh state.`
         : "The network rejected this submission. Wait a few seconds and try again. " +
-          "If the wallet name is new and it still fails, the previous attempt might still be confirming — refresh to see.",
+          "If the wallet name is new and it still fails, the previous attempt might still be confirming - refresh to see.",
     };
   }
 
@@ -328,7 +328,7 @@ export function friendlyError(
   // ── Wallet name conflicts ─────────────────────────────────────
   // The on-chain program derives the wallet PDA from sha256(name)
   // alone (not creator-scoped), so names are globally unique on
-  // devnet — any name a previous user took is permanently locked.
+  // devnet - any name a previous user took is permanently locked.
   // Anchor surfaces the conflict three different ways: as a system
   // error ("account already in use"), as an Anchor constraint
   // ("AlreadyInitialized"), and as a runtime error from the
@@ -454,7 +454,7 @@ export function friendlyError(
   };
 
   // Prefer stderr/stdout when the wrapper message is the generic
-  // "clear-msig command failed" — without this the toast is opaque
+  // "clear-msig command failed" - without this the toast is opaque
   // (the real diagnostic from the CLI is sitting in stderr). Cap the
   // surfaced text so we don't flood the toast with a 5KB anyhow chain.
   const wrapperOnly =
@@ -629,11 +629,11 @@ const WALLET_ERRORS: Record<string, FriendlyError> = {
   },
   InvalidProposalIndex: {
     title: "Another request landed before yours",
-    body: "Someone else (or your previous attempt) created a request just before this one. Try again — the new one will use the next slot.",
+    body: "Someone else (or your previous attempt) created a request just before this one. Try again - the new one will use the next slot.",
   },
   InvalidSignature: {
     title: "Signature didn't verify",
-    body: "The wallet signed something that doesn't match what the program expected. This is usually a stale request — refresh and try again from a fresh state.",
+    body: "The wallet signed something that doesn't match what the program expected. This is usually a stale request - refresh and try again from a fresh state.",
   },
   NotProposer: {
     title: "Your wallet can't propose from this rule",
@@ -665,7 +665,7 @@ const WALLET_ERRORS: Record<string, FriendlyError> = {
   },
   AccountAddressMismatch: {
     title: "An account address didn't match",
-    body: "One of the accounts the program expected doesn't match what was passed. This is usually a stale state — refresh and retry.",
+    body: "One of the accounts the program expected doesn't match what was passed. This is usually a stale state - refresh and retry.",
   },
   ParamConstraintViolation: {
     title: "A value in this request breaks the rule's constraints",

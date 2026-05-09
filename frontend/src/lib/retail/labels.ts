@@ -1,4 +1,4 @@
-// Retail copy translators — turn on-chain enums and template names
+// Retail copy translators - turn on-chain enums and template names
 // into language a non-technical user can read at a glance.
 //
 // Used by the dashboard, wallet detail, and request-detail screens.
@@ -30,7 +30,7 @@ const CHAIN_LABEL: Record<number, string> = {
 export type ProposalStatusLike = ProposalStatus | number;
 
 // Template families that mutate the wallet's rules rather than move
-// money. For these, "Executed" should read as "Done" — saying "Sent"
+// money. For these, "Executed" should read as "Done" - saying "Sent"
 // next to "Set up a spending rule" makes users think they just lost
 // SOL. We branch on template name to keep the per-status word right.
 const META_TEMPLATES = new Set([
@@ -134,7 +134,7 @@ export function statusTextColor(s: ProposalStatusLike): string {
   }
 }
 
-/// Full chip styling — border + tinted bg + text — for the rounded
+/// Full chip styling - border + tinted bg + text - for the rounded
 /// pill variant on proposal hero / list items where the status
 /// reads as a primary signal rather than inline metadata.
 export function statusChipClasses(s: ProposalStatusLike): string {

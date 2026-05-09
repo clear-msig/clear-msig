@@ -1,6 +1,6 @@
 "use client";
 
-// Spending rules — all the on-chain intents this wallet has.
+// Spending rules - all the on-chain intents this wallet has.
 //
 // Each spending rule answers: who can use it, how many of them have to
 // approve, and how long the wait is between approval and execution.
@@ -8,7 +8,7 @@
 // and this page shows them with retail framing so users (and future
 // expanded UIs) can browse / add more.
 //
-// Edit + remove require signed mutations on chain — out of scope for
+// Edit + remove require signed mutations on chain - out of scope for
 // this list view. The "Add another rule" CTA sends the user back
 // through the existing /setup flow.
 
@@ -121,7 +121,7 @@ export default function RulesPage() {
           ]}
         />
       </StickyTopBar>
-      {/* Mobile-only back chip — see /send for rationale. */}
+      {/* Mobile-only back chip - see /send for rationale. */}
       <div className="px-gutter pt-2 md:hidden">
         <BackToWallets />
       </div>
@@ -135,7 +135,7 @@ export default function RulesPage() {
         <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Spending rules
         </p>
-        <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+        <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
           How <span className="text-accent">{toHeadingName(name)}</span> spends
         </h1>
         <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
@@ -147,7 +147,7 @@ export default function RulesPage() {
           href="/privacy"
           className={
             "mt-4 inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
+            "transition-colors duration-base ease-out-soft hover:text-accent " +
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
           }
         >
@@ -187,7 +187,7 @@ export default function RulesPage() {
         className={
           "group inline-flex w-full items-center justify-center gap-2 self-start rounded-card border border-dashed border-border-soft bg-surface-raised px-5 py-4 text-sm font-medium text-text-strong shadow-card-rest " +
           "transition-[transform,box-shadow,border-color] duration-base ease-out-soft " +
-          "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
+          "hover:-translate-y-0.5 hover:shadow-card-raised " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
         }
       >
@@ -444,7 +444,7 @@ function TimelockEditModal({
       });
       toast.success(
         value === 0
-          ? "Timelock removed — sends ship right away after approval"
+          ? "Timelock removed - sends ship right away after approval"
           : `Timelock set to ${formatDuration(value)}`,
       );
       onClose();
@@ -497,7 +497,7 @@ function TimelockEditModal({
             {currentSeconds === 0 ? "0s (ships immediately)" : formatDuration(currentSeconds)}
           </span>{" "}
           between approval and execute. Updating runs an UpdateIntent
-          on chain — you&rsquo;ll sign 1–2 wallet popups.
+          on chain - you&rsquo;ll sign 1–2 wallet popups.
         </p>
 
         {!showingCustom && (
@@ -514,7 +514,7 @@ function TimelockEditModal({
                     "rounded-soft border px-3 py-2 text-left text-xs transition-[border-color,background-color] duration-base ease-out-soft " +
                     (active
                       ? "border-accent bg-accent/[0.08] text-text-strong"
-                      : "border-border-soft bg-canvas text-text-soft hover:border-accent/40 hover:text-text-strong")
+                      : "border-border-soft bg-canvas text-text-soft hover:text-text-strong")
                   }
                 >
                   <span className="font-medium">{p.label}</span>
@@ -528,7 +528,7 @@ function TimelockEditModal({
               type="button"
               onClick={() => setCustomMode(true)}
               disabled={update.isPending}
-              className="rounded-soft border border-dashed border-border-soft px-3 py-2 text-left text-xs text-text-soft transition-colors hover:border-accent hover:text-accent"
+              className="rounded-soft border border-dashed border-border-soft px-3 py-2 text-left text-xs text-text-soft transition-colors hover:text-accent"
             >
               Custom number of seconds
             </button>

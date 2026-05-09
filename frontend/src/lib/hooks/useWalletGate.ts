@@ -1,6 +1,6 @@
 "use client";
 
-// Wallet gate — centralized routing on connection state.
+// Wallet gate - centralized routing on connection state.
 //
 // Protected routes (/app/**, /welcome/**, /send) require a connected
 // wallet. Unconnected visitors are bounced to /connect with a `next`
@@ -12,7 +12,7 @@
 // Connected visitors on / or /connect are forwarded into the app
 // shell. The post-connect destination depends on whether the user is
 // onboarded: if they already have at least one shared wallet, they
-// always land on /app/wallet (the dashboard) — even if a stale
+// always land on /app/wallet (the dashboard) - even if a stale
 // ?next=/welcome is in the URL from a previous "Get started" tap.
 // Returning users should never be sent through the create-wallet flow.
 //
@@ -79,11 +79,11 @@ export function useWalletGate() {
         );
         const next = params.get("next");
         if (hasWallets) {
-          // Already onboarded — go home, ignore any stale ?next that
+          // Already onboarded - go home, ignore any stale ?next that
           // would have routed through /welcome's create flow.
           router.replace("/app/wallet");
         } else {
-          // First-timer — honor ?next, fall back to /welcome.
+          // First-timer - honor ?next, fall back to /welcome.
           // Open-redirect hardening: require single leading "/", reject
           // protocol-relative ("//attacker.com") + scheme-prefixed
           // ("javascript:..."), and reject anything containing ":".
@@ -130,7 +130,7 @@ export function useWalletGate() {
 /// query string. Accepts only single-leading-slash same-origin
 /// paths. Rejects:
 ///   - null / empty
-///   - protocol-relative URLs ("//evil.com" — would route to evil.com
+///   - protocol-relative URLs ("//evil.com" - would route to evil.com
 ///     because router.replace treats it as a host-relative URL)
 ///   - scheme-prefixed URLs ("javascript:...", "data:...", "https:...")
 ///   - any path containing ":" before the first "/" (custom schemes)
@@ -140,7 +140,7 @@ function isSafeNext(next: string | null): boolean {
   if (!next.startsWith("/")) return false;
   if (next.startsWith("//")) return false;
   if (next.startsWith("/\\")) return false; // Windows-style escape
-  // No colon allowed anywhere in the first segment — blocks
+  // No colon allowed anywhere in the first segment - blocks
   // "javascript:" tucked inside encoded query params, etc.
   const firstSlash = next.indexOf("/", 1);
   const firstSegment = firstSlash === -1 ? next : next.slice(0, firstSlash);

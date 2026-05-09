@@ -1,6 +1,6 @@
 "use client";
 
-// USD price conversion — single swap point for a real oracle.
+// USD price conversion - single swap point for a real oracle.
 //
 // The cross-chain spending budget needs to compare apples to apples.
 // "5 SOL" and "0.001 BTC" are different sizes; only when both land
@@ -8,7 +8,7 @@
 //
 // **This is a stub.** The numbers are static demo prices, hand-set
 // for the pre-alpha demo. They WILL be wrong against the live
-// market — anyone reading "$200/SOL" should treat it as a sketch,
+// market - anyone reading "$200/SOL" should treat it as a sketch,
 // not a quote. When the network is live, swap `quotePerWhole()` for
 // a Pyth read, a CoinGecko fetch, or whatever oracle ships in the
 // price feeds workstream. Every consumer in the app reads through
@@ -16,11 +16,11 @@
 //
 // Tickers are upper-case three-letter strings matching ChainMeta.ticker
 // (so "SOL", "ETH", "BTC", "ZEC", "USDC"). Unknown tickers return
-// null — callers decide whether to treat that as $0 or skip.
+// null - callers decide whether to treat that as $0 or skip.
 //
 // Currency display: USD is the canonical reasoning unit (budgets,
 // policy thresholds, internal math). The user can pick a display
-// fiat in Settings — formatFiat / lamportsToFiat read that pref and
+// fiat in Settings - formatFiat / lamportsToFiat read that pref and
 // convert at format time. The internal USD numbers stay USD-pinned
 // so a budget cap of "$1,000" doesn't drift when the user switches
 // display currencies.
@@ -34,7 +34,7 @@ const STATIC_PRICES_USD: Readonly<Record<string, number>> = {
 };
 
 // Static USD→fiat cross rates. As with the spot prices above,
-// these are demo numbers — wired to the same oracle whenever a
+// these are demo numbers - wired to the same oracle whenever a
 // real price feed lands. The choice of currencies covers the
 // common ones a treasury team would want; we deliberately don't
 // ship 30 obscure ones because the pref is display-only.
@@ -84,10 +84,10 @@ export function setDisplayCurrency(currency: DisplayCurrency): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(CURRENCY_PREF_KEY, currency);
-    // Same-tab notification — `storage` only fires on other tabs.
+    // Same-tab notification - `storage` only fires on other tabs.
     window.dispatchEvent(new Event("clear:display-currency-changed"));
   } catch {
-    /* quota / private mode — silently noop */
+    /* quota / private mode - silently noop */
   }
 }
 
@@ -114,7 +114,7 @@ export interface PriceQuote {
 
 /// Lookup the current USD price per whole unit. Returns null when
 /// the ticker isn't in our known set (e.g. an exotic SPL the wallet
-/// happens to hold) — callers decide whether to fall through.
+/// happens to hold) - callers decide whether to fall through.
 export function quotePerWhole(ticker: string): PriceQuote | null {
   const usd = STATIC_PRICES_USD[ticker.toUpperCase()];
   if (typeof usd !== "number") return null;
@@ -124,7 +124,7 @@ export function quotePerWhole(ticker: string): PriceQuote | null {
 /// Convert a chain-native bigint amount (lamports, wei, satoshis)
 /// to a USD number using the static price map. Returns 0 for
 /// unknown tickers so a budget summation doesn't crash on a stray
-/// SPL — but `quotePerWhole(ticker)` is the right call when the UI
+/// SPL - but `quotePerWhole(ticker)` is the right call when the UI
 /// needs to know the conversion was real vs zero-by-default.
 export function lamportsToUsd(
   amount: bigint,
@@ -145,7 +145,7 @@ export function lamportsToUsd(
 /// Render a USD amount with sensible rounding. Always shows the $
 /// prefix, no fractional cents above $100, two decimals below.
 export function formatUsd(usd: number): string {
-  if (!isFinite(usd)) return "$—";
+  if (!isFinite(usd)) return "$-";
   if (usd >= 100) {
     return `$${Math.round(usd).toLocaleString("en-US")}`;
   }
@@ -157,18 +157,18 @@ export function formatUsd(usd: number): string {
 
 /// Render a USD-denominated value in the user's chosen display
 /// currency. Internal math stays USD-pinned (budgets, policies); use
-/// this only for display surfaces. Currency arg is optional — when
+/// this only for display surfaces. Currency arg is optional - when
 /// omitted, reads the active pref.
 export function formatFiat(usd: number, currency?: DisplayCurrency): string {
   const cur = currency ?? getDisplayCurrency();
   if (cur === "USD") return formatUsd(usd);
   if (!isFinite(usd)) {
-    return `${currencySymbol(cur)}—`;
+    return `${currencySymbol(cur)}-`;
   }
   const rate = STATIC_FX_PER_USD[cur];
   const local = usd * rate;
   // JPY is conventionally rendered without decimals; same trick we
-  // use for "above $100, no cents" — let the locale-aware formatter
+  // use for "above $100, no cents" - let the locale-aware formatter
   // pick the right number of digits.
   const fractionDigits = cur === "JPY" ? 0 : local >= 100 ? 0 : 2;
   return new Intl.NumberFormat(currencyLocale(cur), {

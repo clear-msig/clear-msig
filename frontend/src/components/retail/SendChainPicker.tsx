@@ -8,7 +8,7 @@
 // "Coming soon" until UTXO management lands.
 //
 // activeKind dims the current chain so the user knows where they
-// are. Always renders — even on a Solana-only wallet — so the
+// are. Always renders - even on a Solana-only wallet - so the
 // "Add chain" tile at the end is reachable from the send page.
 // Was self-hiding when ≤1 chain was bound, which left users with
 // no obvious entry point to add a second chain.
@@ -35,7 +35,7 @@ export function SendChainPicker({
   const boundCount = options.filter(
     (o) => o.status === "ready" || o.status === "needs_setup",
   ).length;
-  // Always render the row — even with only Solana bound — because
+  // Always render the row - even with only Solana bound - because
   // the trailing "Add chain" tile is now part of the row, not a
   // hidden affordance.
   const addChainHref = `/app/wallet/${encodeURIComponent(walletName)}/chains/add`;
@@ -58,7 +58,7 @@ export function SendChainPicker({
                 ? "cursor-not-allowed opacity-60 border-border-soft bg-canvas"
                 : isActive
                   ? "border-accent bg-accent/5 shadow-card-rest"
-                  : "border-border-soft bg-surface-raised hover:-translate-y-px hover:border-accent/40")
+                  : "border-border-soft bg-surface-raised hover:-translate-y-px")
             }
           >
             <ChainBadge chain={opt.chain} size="sm" />
@@ -75,7 +75,7 @@ export function SendChainPicker({
             <span
               key={opt.chain.kind}
               aria-disabled
-              // Coming-soon tiles hidden on mobile — they're a
+              // Coming-soon tiles hidden on mobile - they're a
               // discovery affordance for desktop, not a tappable
               // option. Keeping them on mobile ate ~2/3 of the
               // 375px row.
@@ -96,7 +96,7 @@ export function SendChainPicker({
         );
       })}
 
-      {/* Add-chain tile — always rendered as the last item so users
+      {/* Add-chain tile - always rendered as the last item so users
           can find the chain-management flow without leaving /send.
           Solana-only wallets see this as the only secondary tile;
           multi-chain wallets see it after their bound chains.
@@ -107,7 +107,7 @@ export function SendChainPicker({
         className={
           "flex items-center gap-2 rounded-card border border-dashed border-border-soft bg-surface-raised px-3 py-2 text-left " +
           "transition-[border-color,background-color,transform] duration-base ease-out-soft " +
-          "hover:-translate-y-px hover:border-accent/60 hover:bg-accent/5 " +
+          "hover:-translate-y-px hover:bg-accent/5 " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
         }
       >

@@ -1,4 +1,4 @@
-// Encrypt — confidential policies abstraction.
+// Encrypt - confidential policies abstraction.
 //
 // Per the locked retail-pivot spec: every Clear policy (signer list,
 // thresholds, allowances, recipient allowlists) ships through the
@@ -10,7 +10,7 @@
 // ── What we learned from docs.encrypt.xyz / dwallet-labs/encrypt-pre-alpha
 //
 // 1.  Their TypeScript client lives at `@encrypt.xyz/pre-alpha-solana-client`
-//     (not yet on npm — only in their git repo). Two transports:
+//     (not yet on npm - only in their git repo). Two transports:
 //       - `src/grpc.ts`     (Node)
 //       - `src/grpc-web.ts` (browser, what we'd want)
 //
@@ -35,13 +35,13 @@
 //       fn transfer(from: EUint64, to: EUint64, amount: EUint64)
 //         -> (EUint64, EUint64) { … }
 //
-//     Comparisons, arithmetic, conditional branching — all FHE.
+//     Comparisons, arithmetic, conditional branching - all FHE.
 //
-// 4.  Pre-alpha disclaimer (verbatim): "There is no real encryption —
+// 4.  Pre-alpha disclaimer (verbatim): "There is no real encryption -
 //     all data is completely public and stored as plaintext on-chain."
 //     The API surface exists; the cryptography hasn't switched on yet.
 //
-// 5.  Network keys + endpoints aren't published yet — at minimum we'll
+// 5.  Network keys + endpoints aren't published yet - at minimum we'll
 //     need the gRPC gateway URL and a way to fetch the current
 //     `networkEncryptionPublicKey`. Those plug into the config below
 //     when Alpha 1 lands.
@@ -85,14 +85,14 @@ export interface EncryptInput {
   fheType: FheType;
 }
 
-/// What ends up on chain — either real ciphertext (Alpha 1+) or the
+/// What ends up on chain - either real ciphertext (Alpha 1+) or the
 /// plaintext bytes verbatim (today). Versioned so a single wallet can
 /// hold a mix of bound-pre-alpha and bound-after-Alpha-1 policies
 /// during the rollout window.
 export interface EncryptedPayload {
   ciphertext: Uint8Array;
   scheme: EncryptScheme;
-  /// Set when scheme is `encrypt-fhe-v1` — the gRPC service's
+  /// Set when scheme is `encrypt-fhe-v1` - the gRPC service's
   /// reference back to the stored ciphertext. The on-chain program
   /// dereferences this to pull the encrypted bytes for FHE ops.
   ciphertextIdentifier?: string;
@@ -100,7 +100,7 @@ export interface EncryptedPayload {
 }
 
 /// Network configuration we'll need at swap time. None of these
-/// fields are populated today — they'll come from env when Encrypt
+/// fields are populated today - they'll come from env when Encrypt
 /// publishes endpoints + ships their npm package.
 export interface NetworkConfig {
   /// gRPC-Web endpoint for the Encrypt service. Likely something like
@@ -109,7 +109,7 @@ export interface NetworkConfig {
   /// 32-byte network public key the client encrypts inputs against.
   /// Fetched from the gRPC service at startup, cached for the session.
   networkEncryptionPublicKey: Uint8Array | null;
-  /// Program authorized to receive these ciphertexts — Clear's program.
+  /// Program authorized to receive these ciphertexts - Clear's program.
   authorizedProgram: Uint8Array;
 }
 
@@ -121,7 +121,7 @@ export function getNetworkConfig(): NetworkConfig {
   };
 }
 
-/// Encrypt a policy field. Routes through the active client —
+/// Encrypt a policy field. Routes through the active client -
 /// `LocalEncryptClient` today, swap to the real gRPC client when
 /// `@encrypt.xyz/pre-alpha-solana-client` ships. The returned
 /// `ciphertextIdentifier` matches the real service's shape so call
@@ -139,7 +139,7 @@ export async function encryptPolicy(
     networkEncryptionPublicKey: cfg.networkEncryptionPublicKey,
   });
   return {
-    // Pre-alpha: ciphertext bytes are still the plaintext bytes — the
+    // Pre-alpha: ciphertext bytes are still the plaintext bytes - the
     // real cryptography hasn't switched on. The identifier IS real
     // (locally-deterministic SHA-256), so any persistence keyed off
     // it works the same way at Alpha 1.
@@ -178,7 +178,7 @@ export async function encryptPolicyBatch(
 
 /// Aggregate count of locally-stored ciphertexts. Surfaced in the
 /// /privacy explainer so users see real evidence the encryption
-/// surface is flowing — even if today's pre-alpha doesn't yet apply
+/// surface is flowing - even if today's pre-alpha doesn't yet apply
 /// the FHE primitives.
 export function localCiphertextCount(): number {
   return localEncryptClient.list().length;
@@ -195,7 +195,7 @@ export async function decryptPolicy(
       return payload.ciphertext;
     case "encrypt-fhe-v1":
       throw new Error(
-        "encrypt-fhe-v1 decrypt not implemented — pending Encrypt SDK npm release",
+        "encrypt-fhe-v1 decrypt not implemented - pending Encrypt SDK npm release",
       );
   }
 }

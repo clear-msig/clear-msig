@@ -1,11 +1,11 @@
 "use client";
 
-// QR scanner button — opens the device camera, detects a QR code,
+// QR scanner button - opens the device camera, detects a QR code,
 // returns the decoded string to the parent. Uses the native
 // `BarcodeDetector` API + `navigator.mediaDevices.getUserMedia`.
 // No new deps: Chrome/Edge desktop, Chrome Android, Safari iOS 17+
 // all ship BarcodeDetector. Browsers that don't (Firefox, older
-// Safari) get a hidden button — fall back to manual paste.
+// Safari) get a hidden button - fall back to manual paste.
 //
 // Why this matters for a multisig: cross-device flows. An admin
 // composes a proposal on desktop, hands their phone to a collaborator
@@ -57,7 +57,7 @@ export function QrScanButton({
 
   // Run the support probe on mount so SSR doesn't try to read
   // `window.BarcodeDetector`. Hides the button entirely if absent
-  // — we don't want to dangle an affordance that does nothing.
+  // - we don't want to dangle an affordance that does nothing.
   useEffect(() => {
     setSupported(!!getBarcodeDetectorCtor());
   }, []);
@@ -75,7 +75,7 @@ export function QrScanButton({
           className ??
           "inline-flex h-tap w-tap shrink-0 items-center justify-center rounded-full border border-border-soft bg-surface-raised text-text-soft " +
             "transition-[border-color,color,transform] duration-base ease-out-soft " +
-            "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+            "hover:-translate-y-0.5 hover:text-accent " +
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
         }
       >
@@ -114,7 +114,7 @@ function ScannerModal({ title, onClose, onResult }: ScannerModalProps) {
 
   // Freeze the page underneath while the camera is up. Without this,
   // a touch-drag outside the viewfinder scrolls the send page on
-  // iOS Safari while the user is trying to aim — bad enough to lose
+  // iOS Safari while the user is trying to aim - bad enough to lose
   // the QR code in frame.
   useBodyScrollLock(true);
 
@@ -178,7 +178,7 @@ function ScannerModal({ title, onClose, onResult }: ScannerModalProps) {
               return;
             }
           } catch {
-            // Some frames fail decode (motion blur, etc) — keep
+            // Some frames fail decode (motion blur, etc) - keep
             // looping; only fail the modal on persistent errors.
           }
           rafRef.current = requestAnimationFrame(tick);
@@ -250,7 +250,7 @@ function ScannerModal({ title, onClose, onResult }: ScannerModalProps) {
             playsInline
             className="absolute inset-0 h-full w-full object-cover"
           />
-          {/* Reticle — pure decoration, helps the user aim. */}
+          {/* Reticle - pure decoration, helps the user aim. */}
           {status === "scanning" && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div className="h-2/3 w-2/3 rounded-card border-2 border-white/70 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />

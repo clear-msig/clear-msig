@@ -1,47 +1,45 @@
 "use client";
 
-// Connect — the dedicated wallet-selection page.
+// Connect - Obsidian & Lime rebuild (2026-05-08).
 //
-// Lifted out of the landing per the user request: the public landing
-// no longer has a wallet-select button anywhere. CTAs that need a
-// wallet (Get started, dashboard deep links, /welcome, /send) bounce
-// here via `useWalletGate`, which appends a `?next=<original-path>`
-// so we land them back where they meant to go after connecting.
+// The bridge between landing and /welcome. Lifted out of the landing
+// per the user request: the public landing has no wallet-select button
+// anywhere. CTAs that need a wallet (Get started, dashboard deep links,
+// /welcome, /send) bounce here via `useWalletGate`, which appends a
+// `?next=<original-path>` so we land them back where they meant to go
+// after connecting.
 //
-// Visual direction: not "a centered text + button" — that read as
-// half-finished. The connect screen is the user's *first* impression
-// of the brand, so we lay out a small floating preview cluster (sample
-// balance card, member avatars, a request-approved chip) behind the
-// connect surface to communicate what they're about to see. Squads
-// pulls the same trick with a blurred app preview behind their modal.
+// Visual layer matches the landing page (.landing-shell, glass cards,
+// lime accents, Space Grotesk + JetBrains Mono typography). Behavior
+// (Dynamic auth, Ledger WebHID, post-connect bridge state) is unchanged
+// from the prior retail version.
 
 import { Suspense } from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import {
-  ArrowLeft,
   ArrowRight,
   Check,
   Loader2,
   Lock,
   ShieldCheck,
-  Sparkles,
   Usb,
 } from "lucide-react";
 import { useDynamicContext, DynamicWidget } from "@dynamic-labs/sdk-react-core";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { useWallet } from "@/lib/wallet";
-import { Button } from "@/components/retail/Button";
-import { BrandLoader } from "@/components/retail/BrandLoader";
-import { BrandMark } from "@/components/retail/BrandMark";
 import { useLedger } from "@/lib/wallet/LedgerProvider";
 import { useLedgerPresence } from "@/lib/hooks/useLedgerPresence";
 import { useToast } from "@/components/ui/Toast";
+import {
+  LandingAtmospherics,
+  LandingNav,
+} from "@/components/landing/LandingChrome";
 
 export default function ConnectPageWrapper() {
   return (
     <Suspense
-      fallback={<main className="min-h-screen bg-canvas" aria-hidden="true" />}
+      fallback={<main className="min-h-screen bg-black" aria-hidden="true" />}
     >
       <ConnectPage />
     </Suspense>
@@ -79,177 +77,167 @@ function ConnectPage() {
         };
 
   return (
-    <main className="relative flex min-h-screen flex-col overflow-x-hidden bg-canvas">
-      {/* Background — layered atmosphere instead of a single wash:
-          1. Two soft accent blooms anchoring opposite corners.
-          2. A faint dot-grid texture for depth (Tailwind's
-             `bg-[radial-gradient]` with a tight stop). The opacity is
-             low enough that it never competes with foreground content
-             but the eye reads "made", not "default Tailwind page". */}
-      {/* Background was a layered atmosphere (two accent blooms + a
-          dot-grid) — fine on a marketing page, but /connect is the
-          first time a user touches the actual product. The flat
-          canvas matches Cash App / Apple Wallet / Squads. The card
-          itself is the visual interest. */}
-
-      {/* Brand-mark home link, pinned in the top-left corner.
-          Matches the /welcome treatment — the StickyTopBar wrapper
-          baked in 5rem of flow spacing before this, leaving "← Clear"
-          floating in a vast empty band. Absolute positioning here
-          drops it right against the viewport corner. */}
-      <Link
-        href="/"
-        aria-label="Back to home"
-        className={
-          "absolute left-3 top-3 z-20 inline-flex h-tap min-w-tap items-center justify-center gap-1.5 rounded-soft px-3 text-text-soft sm:left-4 sm:top-4 " +
-          "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-        }
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        <span className="flex h-5 w-5 items-center justify-center text-accent">
-          <BrandMark size={18} />
-        </span>
-      </Link>
-
-      <div className="relative z-10 flex flex-1 items-center justify-center px-gutter py-10">
-        <div className="grid w-full max-w-5xl items-center gap-12 lg:grid-cols-[1.1fr_1fr]">
-          {/* Left column — the brand argument. Bigger Fraunces hero,
-              one trust line, and the floating preview cluster that
-              communicates what's behind the wall. On mobile it stacks
-              above the connect card. */}
-          <motion.section {...fadeIn(0)} className="flex flex-col">
-            <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
-              <Sparkles className="h-3 w-3" strokeWidth={2.25} aria-hidden="true" />
-              Shared wallets, signed by you
-            </span>
-            <h1 className="mt-5 font-display text-display-md leading-[0.95] text-text-strong text-balance lg:text-display-lg">
-              Money you decide on,{" "}
-              <span className="text-accent">together</span>.
-            </h1>
-            <p className="mt-4 max-w-md text-base text-text-soft">
-              Send and approve from a wallet you share with people you
-              trust. Partners, family, your team. Every move is signed
-              by your own wallet; we never see your keys.
-            </p>
-
-            {/* Floating preview cluster — three small cards angled
-                slightly, evoking "the dashboard you're about to see".
-                Hidden on small screens to keep the connect card front
-                and center. Pure decoration: pointer-events-none so
-                they never intercept clicks. */}
-            <div
-              aria-hidden="true"
-              className="pointer-events-none relative mt-10 hidden h-56 lg:block"
-            >
-              <PreviewCard
-                className="absolute left-0 top-0 w-60 rotate-[-4deg]"
-                kind="wallet"
-                {...fadeIn(0.18, 16)}
-              />
-              <PreviewCard
-                className="absolute left-32 top-16 w-56 rotate-[3deg]"
-                kind="request"
-                {...fadeIn(0.26, 16)}
-              />
-              <PreviewCard
-                className="absolute left-4 top-32 w-52 rotate-[-2deg]"
-                kind="members"
-                {...fadeIn(0.34, 16)}
-              />
-            </div>
-          </motion.section>
-
-          {/* Right column — the connect surface. */}
-          <motion.section
-            {...fadeIn(0.08)}
-            className="relative mx-auto w-full max-w-md"
-          >
-            <div className="rounded-card border border-border-soft bg-surface-raised p-7 shadow-card-raised sm:p-8">
-              <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-accent/10 text-accent">
-                <ShieldCheck className="h-7 w-7" strokeWidth={1.75} />
+    // Bleed-to-edge shell - same flat structure as `/` and `/welcome`.
+    // Atmospherics live in their own absolute overflow-hidden wrapper
+    // so the fixed nav can layer above without being clipped.
+    <div className="landing-shell relative min-h-screen bg-[#0c0c0c] text-[#ebebeb]">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+        <LandingAtmospherics />
+      </div>
+      <LandingNav cta={null} status="SIGN IN · DEVNET" />
+      <main className="relative mx-auto w-full max-w-[1600px]">
+        <div className="relative z-10 flex min-h-[calc(100vh-9rem)] items-center justify-center px-6 pb-16 pt-6 sm:min-h-[calc(100vh-12rem)] sm:px-10">
+          <div className="grid w-full max-w-5xl items-center gap-12 lg:grid-cols-[1.1fr_1fr]">
+            {/* Left - brand argument */}
+            <motion.section {...fadeIn(0)} className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_8px_#ccff00]" />
+                <span className="font-mono-tech text-[10px] uppercase tracking-[0.32em] text-white/60">
+                  Shared wallets · signed by you
+                </span>
               </div>
-              <h2 className="font-display text-display-sm leading-[1.05] text-text-strong">
-                Sign in or sign up
-              </h2>
-              <p className="mt-2 text-base text-text-soft">
-                Use your email, your phone, or a wallet you already have.
-                We will set the rest up for you.
+
+              <h1 className="mt-6 text-[clamp(2.5rem,6.5vw,5rem)] font-light leading-[0.9] tracking-[-0.05em] text-white text-balance">
+                Money you decide
+                <br />
+                on, <span className="italic-skew">together</span>.
+              </h1>
+              <p className="mt-6 max-w-md text-base leading-relaxed text-white/60 sm:text-lg">
+                Send and approve from a wallet you share with people you
+                trust. Partners, family, your team. Every move is signed
+                by your own wallet; we never see your keys.
               </p>
 
-              {/* Replace the DynamicWidget's default outline CTA with
-                  our own Button primary so it matches the rest of the
-                  product (full-width, accent green, shadow-accent-rest).
-                  setShowAuthFlow opens the same modal DynamicWidget
-                  uses internally; we still mount <DynamicWidget /> in
-                  a hidden node so the modal/portal stays wired up,
-                  but the user-facing CTA is the Button below. */}
-              <div className="mt-6">
-                <ConnectCta />
-                <div className="hidden">
-                  <DynamicWidget />
+              {/* Floating preview cluster - pure decoration. */}
+              <div
+                aria-hidden="true"
+                className="pointer-events-none relative mt-12 hidden h-60 lg:block"
+              >
+                <PreviewCard
+                  className="float-slow absolute left-0 top-0 w-60 rotate-[-4deg]"
+                  kind="wallet"
+                  {...fadeIn(0.18, 16)}
+                />
+                <PreviewCard
+                  className="float-slower absolute left-32 top-16 w-56 rotate-[3deg]"
+                  kind="request"
+                  {...fadeIn(0.26, 16)}
+                />
+                <PreviewCard
+                  className="float-slow absolute left-4 top-36 w-52 rotate-[-2deg]"
+                  kind="members"
+                  {...fadeIn(0.34, 16)}
+                />
+              </div>
+            </motion.section>
+
+            {/* Right - connect surface */}
+            <motion.section
+              {...fadeIn(0.08)}
+              className="relative mx-auto w-full max-w-md"
+            >
+              <div className="glass relative overflow-hidden rounded-[2rem] p-7 sm:p-8">
+                {/* Inner lime glow accent */}
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -right-24 -top-24 h-48 w-48 rounded-full opacity-50"
+                  style={{
+                    background:
+                      "radial-gradient(circle at center, rgba(204,255,0,0.18) 0%, rgba(204,255,0,0) 70%)",
+                    filter: "blur(40px)",
+                  }}
+                />
+
+                <div className="relative flex flex-col items-center text-center">
+                  <div className="mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[#ccff00]/10 text-[#ccff00] ring-1 ring-[#ccff00]/30 shadow-[0_0_24px_rgba(204,255,0,0.15)]">
+                    <ShieldCheck className="h-7 w-7" strokeWidth={1.75} />
+                  </div>
+                  <h2 className="mt-3 text-[clamp(1.75rem,3.5vw,2.5rem)] font-light leading-[1] tracking-[-0.03em] text-white">
+                    Sign in <span className="italic-skew">or</span> sign up.
+                  </h2>
+                  <p className="mt-3 max-w-xs text-[15px] leading-relaxed text-white/60">
+                    Use your email, your phone, or a wallet you already
+                    have. We will set the rest up for you.
+                  </p>
+
+                  {/* Replace Dynamic's default outline CTA with a
+                      neon-cta primary so it matches the rest of the
+                      brand. setShowAuthFlow opens the same modal
+                      DynamicWidget uses internally; we still mount
+                      <DynamicWidget /> hidden so the modal/portal
+                      stays wired up. */}
+                  <div className="mt-7 w-full">
+                    <ConnectCta />
+                    <div className="hidden">
+                      <DynamicWidget />
+                    </div>
+                  </div>
+
+                  <div className="w-full">
+                    <LedgerConnectRow />
+                  </div>
                 </div>
               </div>
 
-              <p className="mt-5 text-xs leading-snug text-text-soft">
-                Email and social sign-in mint a built-in wallet. You stay
-                in control; we never see the keys.
-              </p>
-
-              <LedgerConnectRow />
-            </div>
-
-            {/* Trust strip — three brief lines justifying the ask.
-                Stacked vertically below the connect card so they read
-                as the immediate "why am I trusting this" answer
-                without distracting from the primary action. */}
-            <ul className="mt-5 flex flex-col gap-2 text-xs text-text-soft">
-              <TrustItem icon={Lock} text="We never see your keys. Your wallet signs everything." />
-              <TrustItem icon={ShieldCheck} text="Spending rules are encrypted on chain." />
-              <TrustItem icon={Check} text="Open source. Every signature is auditable." />
-            </ul>
-          </motion.section>
+              {/* Trust strip */}
+              <ul className="mt-6 flex flex-col gap-2 text-[13px] text-white/60">
+                <TrustItem
+                  icon={Lock}
+                  text="We never see your keys. Your wallet signs everything."
+                />
+                <TrustItem
+                  icon={ShieldCheck}
+                  text="Spending rules are encrypted on chain."
+                />
+                <TrustItem
+                  icon={Check}
+                  text="Open source. Every signature is auditable."
+                />
+              </ul>
+            </motion.section>
+          </div>
         </div>
-      </div>
 
-      <footer className="relative z-10 flex items-center justify-center gap-4 px-gutter pb-6 text-xs text-text-soft">
-        <Link
-          href="/privacy"
-          className="rounded-soft px-1.5 py-0.5 transition-colors duration-base ease-out-soft hover:text-text-strong"
-        >
-          How privacy works
-        </Link>
-        <span aria-hidden="true">·</span>
-        <Link
-          href="/"
-          className="rounded-soft px-1.5 py-0.5 transition-colors duration-base ease-out-soft hover:text-text-strong"
-        >
-          What is Clear?
-        </Link>
-      </footer>
-    </main>
+        <footer className="relative z-10 flex items-center justify-center gap-4 border-t border-border-soft px-6 py-6 sm:px-10">
+          <Link
+            href="/privacy"
+            className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/50 transition-colors duration-200 hover:text-[#ccff00]"
+          >
+            How privacy works
+          </Link>
+          <span aria-hidden="true" className="text-white/20">
+            ·
+          </span>
+          <Link
+            href="/"
+            className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/50 transition-colors duration-200 hover:text-[#ccff00]"
+          >
+            What is Clear?
+          </Link>
+        </footer>
+      </main>
+    </div>
   );
 }
 
 // ─── Brand-aligned Dynamic CTA ─────────────────────────────────────
 //
 // Dynamic's default CTA is a small white outline button that ignored
-// our scoped CSS overrides (its inner button uses inline styles via
-// emotion that win against arbitrary-variant Tailwind). Replacing it
-// with our Button primitive that calls `setShowAuthFlow` opens the
-// same modal — Dynamic doesn't care who opens it.
+// our scoped CSS overrides. Replacing it with a neon-cta button that
+// calls `setShowAuthFlow` opens the same modal - Dynamic doesn't care
+// who opens it.
 
 function ConnectCta() {
   const { setShowAuthFlow } = useDynamicContext();
   return (
-    <Button
-      size="lg"
-      fullWidth
+    <button
+      type="button"
       onClick={() => setShowAuthFlow(true)}
+      className="neon-cta inline-flex w-full items-center justify-center gap-2 rounded-full px-7 py-4 text-[14px] font-bold tracking-tight"
     >
-      Log in or sign up
-      <ArrowRight className="h-4 w-4" aria-hidden="true" />
-    </Button>
+      Continue
+      <ArrowRight className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
+    </button>
   );
 }
 
@@ -257,34 +245,68 @@ function ConnectCta() {
 //
 // Dynamic auth completed, wallet.connected is true, but the wallet
 // gate is still fetching memberships before deciding whether to send
-// the user to /app/wallet (returning) or /welcome (first-timer).
-// That fetch can take 5-10s on devnet. Render a dedicated "we got
-// you" state so the user knows the click worked.
+// the user to /app/wallet (returning) or /welcome (first-timer). That
+// fetch can take 5-10s on devnet. Render a dedicated "we got you"
+// state so the user knows the click worked.
 
 function SignedInWaiting({ reduce }: { reduce: boolean }) {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-canvas px-gutter">
-      <motion.div
-        initial={reduce ? false : { opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] as const }}
-        className="flex w-full max-w-sm flex-col items-center text-center"
-      >
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent/10 text-accent">
-          <Check className="h-7 w-7" strokeWidth={2.25} aria-hidden="true" />
+    // Flat landing-shell with NO nav. Wallets are loading - the user
+    // can't act on anything else, so the chrome would just be noise
+    // around the loading state. Bringing the loading content to the
+    // front of the user's attention is the whole point of this view.
+    <div className="landing-shell relative min-h-screen bg-[#0c0c0c] text-[#ebebeb]">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+        <LandingAtmospherics />
+      </div>
+      <main className="relative mx-auto w-full max-w-[1600px]">
+        <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6">
+          <motion.div
+            initial={reduce ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] as const }}
+            className="flex w-full max-w-sm flex-col items-center text-center"
+          >
+            <motion.div
+              initial={reduce ? false : { scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{
+                type: "spring",
+                damping: 18,
+                stiffness: 220,
+                delay: 0.05,
+              }}
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-[#ccff00] text-black shadow-[0_0_40px_rgba(204,255,0,0.5)]"
+            >
+              <Check className="h-8 w-8" strokeWidth={2.5} aria-hidden="true" />
+            </motion.div>
+
+            <div className="mt-6 flex items-center gap-2">
+              <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00]" />
+              <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-white/60">
+                / session ready
+              </span>
+            </div>
+            <h1 className="mt-3 text-[clamp(2rem,5vw,3rem)] font-light leading-[0.95] tracking-[-0.04em] text-white">
+              You&rsquo;re <span className="italic-skew">in</span>.
+            </h1>
+            <p className="mt-3 text-base leading-relaxed text-white/60">
+              Loading your shared wallets. This usually takes a few
+              seconds on devnet.
+            </p>
+            <div className="mt-7 inline-flex items-center gap-2 rounded-full border border-border-soft bg-glass-soft px-4 py-2 backdrop-blur-md">
+              <Loader2
+                className="h-3.5 w-3.5 animate-spin text-[#ccff00]"
+                aria-hidden="true"
+              />
+              <span className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/70">
+                Loading wallets
+              </span>
+            </div>
+          </motion.div>
         </div>
-        <h1 className="mt-5 font-display text-display-sm leading-[1.05] text-text-strong">
-          You&rsquo;re in
-        </h1>
-        <p className="mt-2 text-base text-text-soft">
-          Loading your shared wallets. This usually takes a few
-          seconds on devnet.
-        </p>
-        <div className="mt-6">
-          <BrandLoader size={28} label="Loading wallets" />
-        </div>
-      </motion.div>
-    </main>
+      </main>
+    </div>
   );
 }
 
@@ -295,7 +317,11 @@ interface PreviewCardProps {
   kind: "wallet" | "request" | "members";
   initial?: { opacity: number; y: number };
   animate?: { opacity: number; y: number };
-  transition?: { duration: number; delay: number; ease: readonly [number, number, number, number] };
+  transition?: {
+    duration: number;
+    delay: number;
+    ease: readonly [number, number, number, number];
+  };
 }
 
 function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
@@ -303,13 +329,13 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
     if (kind === "wallet") {
       return (
         <>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          <p className="font-mono-tech text-[9px] uppercase tracking-[0.28em] text-white/50">
             Family
           </p>
-          <p className="mt-1 font-display text-2xl text-text-strong">
+          <p className="mt-1 text-2xl font-light tracking-tight text-white">
             $4,820
           </p>
-          <p className="mt-1 text-[10px] text-text-soft">
+          <p className="mt-1 font-mono-tech text-[9px] uppercase tracking-[0.24em] text-white/40">
             Balance · 4 members
           </p>
         </>
@@ -318,49 +344,54 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
     if (kind === "request") {
       return (
         <>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
-            Approved
-          </p>
-          <p className="mt-1 text-sm font-medium text-text-strong">
+          <div className="flex items-center gap-1.5">
+            <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00]" />
+            <p className="font-mono-tech text-[9px] uppercase tracking-[0.28em] text-[#ccff00]">
+              Approved
+            </p>
+          </div>
+          <p className="mt-1.5 text-sm font-medium text-white">
             Send $120 to Sarah
           </p>
           <div className="mt-2 flex items-center gap-1">
-            <span className="h-1.5 w-6 rounded-full bg-accent" />
-            <span className="h-1.5 w-6 rounded-full bg-accent" />
-            <span className="h-1.5 w-6 rounded-full bg-border-soft" />
-            <span className="ml-1 text-[10px] text-text-soft">2/3</span>
+            <span className="h-1.5 w-6 rounded-full bg-[#ccff00]" />
+            <span className="h-1.5 w-6 rounded-full bg-[#ccff00]" />
+            <span className="h-1.5 w-6 rounded-full bg-white/15" />
+            <span className="ml-1 font-mono-tech text-[9px] uppercase tracking-[0.24em] text-white/50">
+              2/3
+            </span>
           </div>
         </>
       );
     }
     return (
       <>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        <p className="font-mono-tech text-[9px] uppercase tracking-[0.28em] text-white/50">
           Members
         </p>
         <div className="mt-2 flex -space-x-2">
-          {["bg-accent", "bg-accent/70", "bg-text-soft/40", "bg-warning"].map(
-            (bg, i) => (
-              <span
-                key={i}
-                className={
-                  "h-6 w-6 rounded-full ring-2 ring-surface-raised " + bg
-                }
-              />
-            ),
-          )}
+          {[
+            "bg-[#ccff00]",
+            "bg-[#ccff00]/70",
+            "bg-white/30",
+            "bg-[#10b981]",
+          ].map((bg, i) => (
+            <span
+              key={i}
+              className={"h-6 w-6 rounded-full ring-2 ring-[#0c0c0c] " + bg}
+            />
+          ))}
         </div>
-        <p className="mt-1.5 text-[10px] text-text-soft">You + 3 friends</p>
+        <p className="mt-2 font-mono-tech text-[9px] uppercase tracking-[0.24em] text-white/40">
+          You + 3 friends
+        </p>
       </>
     );
   })();
   return (
     <motion.div
       {...motionProps}
-      className={
-        "rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest " +
-        className
-      }
+      className={"glass rounded-2xl p-3.5 " + className}
     >
       {inner}
     </motion.div>
@@ -374,7 +405,6 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
 // users had to decide between two hero-level affordances at first
 // paint. Squads moved off this exact pattern for the same reason.
 // Hardware-wallet users still find it; retail users skip past.
-// On success the wallet gate redirects; no extra navigation here.
 
 function LedgerConnectRow() {
   const ledger = useLedger();
@@ -393,20 +423,25 @@ function LedgerConnectRow() {
     }
   };
 
-  // Already connected — keep the prominent success card; the user
-  // needs to know their device is in the loop and how to back out.
+  // Already connected - keep the prominent success card.
   if (ledger.session) {
     return (
-      <div className="mt-5 flex items-center justify-between gap-3 rounded-card border border-accent/30 bg-accent/5 p-3 text-xs text-text-strong">
+      <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-[#ccff00]/40 bg-[#ccff00]/[0.06] p-3 text-xs text-white backdrop-blur-md">
         <span className="inline-flex items-center gap-2">
-          <Check className="h-4 w-4 text-accent" strokeWidth={2.25} />
-          Ledger connected. Your device will show the full message when
-          you sign.
+          <Check
+            className="h-4 w-4 text-[#ccff00]"
+            strokeWidth={2.25}
+            aria-hidden="true"
+          />
+          <span className="text-[12px] leading-snug">
+            Ledger connected. Your device will show the full message
+            when you sign.
+          </span>
         </span>
         <button
           type="button"
           onClick={() => ledger.disconnect()}
-          className="rounded-soft px-2 py-1 text-[11px] text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+          className="rounded-full px-2.5 py-1 font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/60 transition-colors duration-200 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ccff00]/50"
         >
           Disconnect
         </button>
@@ -414,40 +449,34 @@ function LedgerConnectRow() {
     );
   }
 
-  // Browser without WebHID — silent. Retail users get nothing, power
-  // users who do `navigator.hid` know what's missing. The previous
-  // "Hardware wallets need WebHID" message was a teaching moment we
-  // didn't need to surface at this height.
+  // Browser without WebHID - silent.
   if (!supportsHid) return null;
 
-  // Auto-detected a previously-paired Ledger via WebHID. Promote
-  // the CTA from a footer link to a prominent banner — most users
-  // who plug in their hardware wallet expect the app to notice.
-  // Tier-4 hardware-wallet auto-detect.
+  // Auto-detected a previously-paired Ledger via WebHID.
   if (presence.detected) {
     return (
       <button
         type="button"
         onClick={handleClick}
         disabled={ledger.connecting}
-        className={
-          "mt-5 flex w-full items-center justify-between gap-3 rounded-card border border-accent/40 bg-accent/[0.06] p-3 text-left text-xs text-text-strong " +
-          "transition-[border-color,background-color,transform] duration-base ease-out-soft " +
-          "hover:-translate-y-0.5 hover:border-accent hover:bg-accent/10 " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
-          "disabled:cursor-not-allowed disabled:opacity-60"
-        }
+        className="mt-5 flex w-full items-center justify-between gap-3 rounded-2xl border border-[#ccff00]/40 bg-[#ccff00]/[0.06] p-3 text-left text-xs backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:border-[#ccff00] hover:bg-[#ccff00]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ccff00]/50 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <span className="inline-flex items-center gap-2">
-          <Usb className="h-4 w-4 text-accent" strokeWidth={2.25} aria-hidden="true" />
+          <Usb
+            className="h-4 w-4 text-[#ccff00]"
+            strokeWidth={2.25}
+            aria-hidden="true"
+          />
           <span className="flex flex-col">
-            <span className="font-medium">Ledger detected</span>
-            <span className="text-[11px] text-text-soft">
+            <span className="text-[13px] font-medium text-white">
+              Ledger detected
+            </span>
+            <span className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/50">
               Sign with your hardware wallet
             </span>
           </span>
         </span>
-        <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-[11px] font-medium text-white">
+        <span className="inline-flex items-center gap-1 rounded-full bg-[#ccff00] px-3 py-1 text-[11px] font-bold text-black shadow-[0_0_18px_rgba(204,255,0,0.35)]">
           {ledger.connecting ? (
             <>
               <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
@@ -462,17 +491,12 @@ function LedgerConnectRow() {
   }
 
   return (
-    <div className="mt-4">
+    <div className="mt-5">
       <button
         type="button"
         onClick={handleClick}
         disabled={ledger.connecting}
-        className={
-          "inline-flex w-full items-center justify-center gap-1.5 rounded-soft px-2 py-1 text-xs text-text-soft " +
-          "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
-          "disabled:cursor-not-allowed disabled:opacity-60"
-        }
+        className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-border-strong bg-glass-soft px-4 py-2.5 font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/60 backdrop-blur-md transition-[color,background-color,border-color] duration-200 hover:border-[#ccff00]/50 hover:bg-[#ccff00]/[0.08] hover:text-[#ccff00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ccff00]/50 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {ledger.connecting ? (
           <>
@@ -492,13 +516,13 @@ function LedgerConnectRow() {
 
 function TrustItem({ icon: Icon, text }: { icon: typeof Lock; text: string }) {
   return (
-    <li className="flex items-start gap-2">
+    <li className="flex items-start gap-2.5">
       <Icon
-        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent"
+        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#ccff00]"
         strokeWidth={2}
         aria-hidden="true"
       />
-      <span>{text}</span>
+      <span className="leading-relaxed">{text}</span>
     </li>
   );
 }

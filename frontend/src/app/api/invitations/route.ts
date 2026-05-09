@@ -47,12 +47,12 @@ export async function POST(request: NextRequest) {
   if (blocked) return blocked;
 
   // Email is paid + reputational. The body's `invitee.email` is
-  // user-supplied — we cannot pin it without a server-side
+  // user-supplied - we cannot pin it without a server-side
   // verified-pubkey → verified-email mapping, which is on the
   // hardening backlog. Until then, the rate limit is the only
   // brake on a same-origin XSS turning this into a branded-spam
   // relay. Tight bucket: 3 burst, refill one every 60 seconds. A
-  // real signer never trips this — invites land at human pace.
+  // real signer never trips this - invites land at human pace.
   // The limiter is in-process by default; ensure the prod env has
   // UPSTASH_REDIS_REST_URL + _TOKEN set so the budget is shared
   // across cold-start instances.

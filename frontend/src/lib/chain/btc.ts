@@ -1,6 +1,6 @@
 "use client";
 
-// Bitcoin chain helpers — symmetric to lib/chain/eth.ts.
+// Bitcoin chain helpers - symmetric to lib/chain/eth.ts.
 //
 // V1 covers tx-history reads via the public mempool.space Esplora
 // API (no key, decent rate limit). The on-chain balance is already
@@ -103,7 +103,7 @@ function isLikelyBitcoinTestnetAddress(addr: string): boolean {
   if (s.startsWith("tb1") || s.startsWith("tb1q") || s.startsWith("tb1p")) {
     return true;
   }
-  // Legacy testnet starts with m / n / 2 — but mainnet legacy starts
+  // Legacy testnet starts with m / n / 2 - but mainnet legacy starts
   // with 1 / 3 (P2PKH / P2SH). Bech32 is the discriminator we trust;
   // if the bech32 check above missed, leave it as mainnet.
   if (s.startsWith("m") || s.startsWith("n") || s.startsWith("2")) {

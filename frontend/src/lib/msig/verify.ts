@@ -20,12 +20,12 @@
 //   - The connected wallet's signMessage (no way around that).
 // What no longer stays trusted:
 //   - `message_hex` from the prepare endpoint (now verified).
-//   - `params_data_hex` (folded into the rebuild — a swapped
+//   - `params_data_hex` (folded into the rebuild - a swapped
 //     params_data produces different bytes and fails the compare).
 // What still falls back to backend trust:
 //   - The descriptor's structured fields (action, expiry, wallet,
 //     proposalIndex). These are user-visible in `<SignPayloadPreview>`,
-//     so tampering shows up in the preview text — the preview is the
+//     so tampering shows up in the preview text - the preview is the
 //     human consent step, the rebuild is the byte-equality check.
 
 import { Connection, PublicKey } from "@solana/web3.js";
@@ -105,7 +105,7 @@ export async function rebuildAndVerifyMessage(
   if (descriptor.proposal_index === undefined || descriptor.proposal_index === null) {
     throw new MessageVerificationError(
       "missing_field",
-      "Descriptor is missing proposal_index — cannot rebuild signable message",
+      "Descriptor is missing proposal_index - cannot rebuild signable message",
     );
   }
 

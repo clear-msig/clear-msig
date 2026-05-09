@@ -41,13 +41,13 @@ export function buildMultisigInviteRevokedEmail(input: RevokeTemplateInput) {
               </tr>
               <tr>
                 <td style="padding:22px 24px;">
-                  <p style="margin:0 0 12px 0;color:#d0d0d0;font-size:14px;line-height:1.6;">The invite you received to a shared wallet on Clear was withdrawn by the person who sent it. You can ignore the previous email — there's nothing for you to do.</p>
+                  <p style="margin:0 0 12px 0;color:#d0d0d0;font-size:14px;line-height:1.6;">The invite you received to a shared wallet on Clear was withdrawn by the person who sent it. You can ignore the previous email - there's nothing for you to do.</p>
                   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#0b0b0b;border:1px solid #2a2a2a;border-radius:10px;">
                     <tr><td style="padding:12px 14px;color:#8f8f8f;font-size:12px;">Wallet</td><td style="padding:12px 14px;color:#ffffff;font-size:13px;">${walletName}</td></tr>
                     <tr><td style="padding:12px 14px;color:#8f8f8f;font-size:12px;">Withdrawn by</td><td style="padding:12px 14px;color:#ffffff;font-size:13px;">${inviterAddress}</td></tr>
                     <tr><td style="padding:12px 14px;color:#8f8f8f;font-size:12px;">Your address</td><td style="padding:12px 14px;color:#ffffff;font-size:13px;">${inviteeAddress}</td></tr>
                   </table>
-                  <p style="margin:14px 0 0 0;color:#8f8f8f;font-size:12px;line-height:1.5;">If you think this was a mistake, reach out to the sender directly. Clear can't restore the invite for you — they need to send a fresh one.</p>
+                  <p style="margin:14px 0 0 0;color:#8f8f8f;font-size:12px;line-height:1.5;">If you think this was a mistake, reach out to the sender directly. Clear can't restore the invite for you - they need to send a fresh one.</p>
                 </td>
               </tr>
             </table>
@@ -65,7 +65,7 @@ export function buildMultisigInviteRevokedEmail(input: RevokeTemplateInput) {
     `Withdrawn by: ${input.inviterAddress}`,
     `Your address: ${input.inviteeAddress}`,
     "",
-    "You can ignore the previous email. If this was a mistake, reach out to the sender — Clear can't restore the invite, they need to send a new one.",
+    "You can ignore the previous email. If this was a mistake, reach out to the sender - Clear can't restore the invite, they need to send a new one.",
   ].join("\n");
 
   return { subject, html, text };

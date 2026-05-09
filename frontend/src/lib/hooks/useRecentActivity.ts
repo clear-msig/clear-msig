@@ -34,7 +34,7 @@ export interface RecentActivityRow {
   statusLabel: ProposalWithPda["account"]["statusLabel"];
   proposedAt: bigint;
   approvalBitmap: number;
-  /// Coarse template hint derived from intentIndex — the program's
+  /// Coarse template hint derived from intentIndex - the program's
   /// bootstrap intents always sit at slots 0/1/2 (AddIntent /
   /// RemoveIntent / UpdateIntent), so anything below 3 is meta and
   /// shouldn't read "Sent" when executed. Custom intents fall through
@@ -97,7 +97,7 @@ export function useRecentActivity(limit = 5) {
         staleTime: 15_000,
         // Live badge: refetch every 30s so the sidebar's "needs your
         // approval" count stays fresh without the user having to
-        // navigate away and back. Polite cadence — proposals land at
+        // navigate away and back. Polite cadence - proposals land at
         // human pace, not stream-rate.
         refetchInterval: 30_000,
         // Pause the poll when the tab is hidden. With BottomNav
@@ -112,7 +112,7 @@ export function useRecentActivity(limit = 5) {
   // useQueries returns a fresh array reference every render, so a
   // memo keyed on `[proposalsQueries]` would re-run every parent
   // render. Use the per-query dataUpdatedAt fingerprint as the
-  // dep — it changes only when query state actually changes, which
+  // dep - it changes only when query state actually changes, which
   // means BottomNav / useActionNotifications / useActionNeeded
   // upstream don't recompute their derived rows on unrelated
   // re-renders.
@@ -161,7 +161,7 @@ export function useRecentActivity(limit = 5) {
   const rows = useMemo(() => allRows.slice(0, limit), [allRows, limit]);
 
   // Per-wallet count of Active proposals. Used by the sidebar to badge
-  // wallets that need attention without re-fetching anything — same
+  // wallets that need attention without re-fetching anything - same
   // underlying flat array.
   const pendingByWallet = useMemo(() => {
     const m = new Map<string, number>();
@@ -180,6 +180,6 @@ export function useRecentActivity(limit = 5) {
   return { rows, allRows, pendingByWallet, loading };
 }
 
-// ProposalStatus.Active — inlined to avoid pulling the whole enum into
+// ProposalStatus.Active - inlined to avoid pulling the whole enum into
 // the hook file. Mirrors lib/msig/accounts.ts.
 const ACTIVE_STATUS = 0;

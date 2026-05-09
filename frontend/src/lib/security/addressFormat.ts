@@ -2,11 +2,11 @@
 
 // Per-device address display preference. Three modes:
 //
-//   - "abbreviated"  — `0x1234…5678` / `Aabc…XyZ9`. Default. Fits
+//   - "abbreviated"  - `0x1234…5678` / `Aabc…XyZ9`. Default. Fits
 //                      tight UI without revealing the full string
 //                      to anyone glancing at the screen.
-//   - "full"         — the entire string. For copy / verify / paste.
-//   - "checksum"     — EVM only: EIP-55 mixed-case. For chains that
+//   - "full"         - the entire string. For copy / verify / paste.
+//   - "checksum"     - EVM only: EIP-55 mixed-case. For chains that
 //                      aren't EVM, falls back to "abbreviated".
 //
 // Why a per-device preference: legitimate users vary on this. A

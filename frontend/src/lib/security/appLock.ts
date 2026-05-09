@@ -3,7 +3,7 @@
 // Per-device PIN gate before any /app/* surface renders.
 //
 // Threat model: shared devices and unlocked laptops. Dynamic's
-// session token persists across browser tabs and reloads — anyone
+// session token persists across browser tabs and reloads - anyone
 // who opens the laptop can navigate to /app/wallet/<name> and see
 // balances, pending approvals, and tap into sign flows. The PIN
 // lock interposes a per-tab gate so the cost of "leaving the
@@ -11,7 +11,7 @@
 // PIN this session".
 //
 // What this is NOT: a secret-key protector. The PIN doesn't encrypt
-// any sensitive data — Dynamic still holds the wallet on its
+// any sensitive data - Dynamic still holds the wallet on its
 // servers, contacts/attempts/seen-notifications still live in
 // localStorage in the clear. The PIN's job is to hide the UI
 // surface from a casual passer-by, not to defeat a malicious
@@ -32,7 +32,7 @@
 //
 // Per-tab unlock: a new tab opening starts at sessionStorage's
 // blank slate, so it's locked even when the original tab is
-// unlocked. That's the security contract — re-prompt on every
+// unlocked. That's the security contract - re-prompt on every
 // fresh context.
 
 const STORAGE_KEY = "clear.applock.v1";
@@ -103,7 +103,7 @@ export interface AppLockState {
   unlocked: boolean;
 }
 
-/// Read the lock state synchronously. Safe to call during render —
+/// Read the lock state synchronously. Safe to call during render -
 /// no async work, just localStorage + sessionStorage reads.
 export function getAppLockState(): AppLockState {
   if (typeof window === "undefined") {
@@ -124,7 +124,7 @@ export function getAppLockState(): AppLockState {
   try {
     unlocked = window.sessionStorage.getItem(SESSION_KEY) === "1";
   } catch {
-    /* sessionStorage blocked — treat as locked */
+    /* sessionStorage blocked - treat as locked */
   }
   return { hasPin: true, unlocked };
 }
@@ -156,7 +156,7 @@ export async function verifyPin(pin: string): Promise<boolean> {
 }
 
 /// Set or replace the device PIN. Caller must already have verified
-/// the user knows the existing PIN (if any) — this function does
+/// the user knows the existing PIN (if any) - this function does
 /// not gate on it.
 export async function setPin(pin: string): Promise<void> {
   if (typeof window === "undefined") return;
@@ -173,7 +173,7 @@ export async function setPin(pin: string): Promise<void> {
     version: 1,
   };
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-  // Setting a PIN also unlocks this tab — no point requiring the
+  // Setting a PIN also unlocks this tab - no point requiring the
   // user to immediately re-enter the value they just typed.
   try {
     window.sessionStorage.setItem(SESSION_KEY, "1");

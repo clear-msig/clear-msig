@@ -1,9 +1,9 @@
-// Avatar helpers — deterministic visuals from a Solana address.
+// Avatar helpers - deterministic visuals from a Solana address.
 //
 // Until a real contacts/identity layer exists, members show up as
 // colored circles with two-letter initials. The color and initials
 // are derived from the address hash so the same wallet always renders
-// the same avatar — visual continuity even when names aren't known.
+// the same avatar - visual continuity even when names aren't known.
 //
 // Palette is curated to harmonize with the accent green brand and to
 // keep enough variation that two members rarely collide visually
@@ -21,7 +21,7 @@ const PALETTE: ReadonlyArray<readonly [string, string]> = [
 ];
 
 /// Stable 32-bit-ish hash so the avatar is the same on every load.
-/// Not crypto-grade — just enough for picking a palette index.
+/// Not crypto-grade - just enough for picking a palette index.
 function hash(input: string): number {
   let h = 5381;
   for (let i = 0; i < input.length; i++) {
@@ -38,7 +38,7 @@ export function avatarInitials(address: string): string {
   if (letters.length >= 2) {
     return (letters[0] + letters[letters.length - 1]).toUpperCase();
   }
-  // Address has fewer than 2 letters (rare — base58 always has some,
+  // Address has fewer than 2 letters (rare - base58 always has some,
   // but be defensive). Fall back to the first two characters as-is.
   return address.slice(0, 2).toUpperCase();
 }

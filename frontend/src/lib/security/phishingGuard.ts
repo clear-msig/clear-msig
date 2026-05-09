@@ -12,7 +12,7 @@
 // Allowlist sources:
 //   1. Hard-coded `CANONICAL_HOSTS` (the known prod / staging
 //      domains we ship from this repo).
-//   2. NEXT_PUBLIC_ALLOWED_HOSTS — comma-separated CSV from env,
+//   2. NEXT_PUBLIC_ALLOWED_HOSTS - comma-separated CSV from env,
 //      so a custom-domain deploy doesn't have to fork the repo.
 //   3. Localhost / 127.0.0.1 always pass (dev convenience).
 //
@@ -23,7 +23,7 @@
 // remains the bookmark + sign-payload-substitution protection
 // already in useSignWithWallet.
 
-/// Hard-coded canonical hosts — the prod app + the demo app.
+/// Hard-coded canonical hosts - the prod app + the demo app.
 const CANONICAL_HOSTS: readonly string[] = [
   "clear-msig.vercel.app",
 ];
@@ -45,7 +45,7 @@ function envAllowed(): string[] {
 }
 
 function normaliseHost(host: string): string {
-  // Strip port for the comparison — `localhost:3000` and
+  // Strip port for the comparison - `localhost:3000` and
   // `localhost:3001` should both pass the dev exception.
   return host.toLowerCase().split(":")[0];
 }
@@ -74,7 +74,7 @@ export function currentHost(): string {
   return window.location.host;
 }
 
-/// First-listed canonical host — the one to point the user at
+/// First-listed canonical host - the one to point the user at
 /// when surfacing the warning.
 export function expectedCanonicalHost(): string {
   return CANONICAL_HOSTS[0];

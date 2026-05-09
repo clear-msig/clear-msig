@@ -1,6 +1,6 @@
 "use client";
 
-// Policy v1 — client-side spending policies that enforce at sign time.
+// Policy v1 - client-side spending policies that enforce at sign time.
 //
 // Three new fields on top of what /budget + /allowances already do:
 //
@@ -19,7 +19,7 @@
 // **Enforcement is client-side until the on-chain program grows
 // FHE-aware policy slots.** Same disclosure as /budget: a motivated
 // user opening DevTools can defeat any of these checks. Honest
-// framing matters — /policy chips say "pre-alpha" and /SECURITY.md
+// framing matters - /policy chips say "pre-alpha" and /SECURITY.md
 // describes the gap.
 
 const ALLOWLIST_KEY = "clear-msig:policy.allowlist:v1";
@@ -57,7 +57,7 @@ function persistAllowlists(rows: Allowlist[]): void {
   try {
     window.localStorage.setItem(ALLOWLIST_KEY, JSON.stringify(rows));
   } catch {
-    /* localStorage full or blocked — fall through */
+    /* localStorage full or blocked - fall through */
   }
 }
 

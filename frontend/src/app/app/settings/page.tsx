@@ -1,44 +1,42 @@
 "use client";
 
-// Settings — minimal retail account screen.
+// Settings - minimal retail account screen.
 //
 // What a non-technical user needs from a settings surface:
 //   - Confirmation they're connected, with a copyable identity.
-//   - Which network ("Test network" — the preview banner says the
+//   - Which network ("Test network" - the preview banner says the
 //     same, this is a quieter restatement).
 //   - A clear way to sign out.
 //
 // Everything else (chain switching, RPC URL, intent template editor,
 // raw address display) is a power-user concern. Out of scope here.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import clsx from "clsx";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { useWallet } from "@/lib/wallet";
 import {
   ArrowRight,
   Bell,
   BellOff,
   Check,
   Coins,
-  Contact,
-  Copy,
   Download,
   ExternalLink,
+  Hash,
   Lock,
-  LogOut,
   Mail,
   MailX,
+  Monitor,
+  Moon,
   Share2,
   ShieldCheck,
+  Sun,
   Webhook,
   Wifi,
 } from "lucide-react";
 import { Button } from "@/components/retail/Button";
-import { MemberAvatar } from "@/components/retail/MemberAvatar";
-import { PageEyebrow } from "@/components/retail/PageEyebrow";
-import { BackToWallets } from "@/components/retail/BackToWallets";
+import { BrandSelect } from "@/components/retail/BrandSelect";
 import { useActionNotifications } from "@/lib/hooks/useActionNotifications";
 import { useInstallPrompt } from "@/lib/hooks/useInstallPrompt";
 import {
@@ -46,14 +44,6 @@ import {
   solanaClusterDefaultRpc,
   solanaClusterRpc,
 } from "@/lib/solana/cluster";
-import {
-  clearPin,
-  getAppLockState,
-  lockNow,
-  setPin as setAppLockPin,
-  verifyPin,
-} from "@/lib/security/appLock";
-import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import {
   getStoredTheme,
   setStoredTheme,
@@ -102,42 +92,9 @@ import {
 } from "@/lib/retail/priceConversion";
 
 export default function SettingsPage() {
-  const router = useRouter();
-  const wallet = useWallet();
   const reduce = useReducedMotion();
   const notif = useActionNotifications();
   const install = useInstallPrompt();
-
-  const address = wallet.publicKey?.toBase58() ?? "";
-  const short = useMemo(
-    () => (address ? `${address.slice(0, 4)}…${address.slice(-4)}` : ""),
-    [address],
-  );
-
-  const [copied, setCopied] = useState(false);
-  useEffect(() => {
-    if (!copied) return;
-    const t = setTimeout(() => setCopied(false), 1800);
-    return () => clearTimeout(t);
-  }, [copied]);
-
-  const handleCopy = async () => {
-    if (!address) return;
-    try {
-      await navigator.clipboard.writeText(address);
-      setCopied(true);
-    } catch {
-      /* clipboard blocked — silent */
-    }
-  };
-
-  const handleDisconnect = async () => {
-    try {
-      await wallet.disconnect();
-    } finally {
-      router.replace("/");
-    }
-  };
 
   const motionProps = reduce
     ? {}
@@ -150,128 +107,42 @@ export default function SettingsPage() {
     <motion.div
       {...motionProps}
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col gap-8"
+      className="flex flex-col gap-6"
     >
-      {/* Mobile-only back chip — Settings sits at the top level
-          of the workspace nav but mobile has no StickyTopBar to
-          show breadcrumbs. Without this, the only way back is the
-          BottomNav Home tab, which the user flagged. Mirrors the
-          BackToWallets pattern used on every wallet subpage. */}
-      <div className="px-gutter md:hidden">
-        <BackToWallets label="Wallets" />
-      </div>
-      <PageEyebrow label="Settings" align="center">
-        <h1 className="font-display text-display-xs leading-tight text-text-strong">
-          Your account
-        </h1>
-        <p className="mt-1 text-base text-text-soft">
-          Identity, connection, and notifications.
-        </p>
-      </PageEyebrow>
-
-      {/* ── Identity ─────────────────────────────────────────── */}
-      <Group label="Identity">
-      {/* Connected identity card */}
-      <section className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-          Your wallet
-        </p>
-
-        {address ? (
-          <>
-            <div className="mt-3 flex items-center gap-3">
-              <MemberAvatar address={address} size="lg" />
-              <p className="inline-flex items-center gap-2 text-base text-text-strong">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent/70 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
-                </span>
-                Connected
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={handleCopy}
-              aria-label={copied ? "Address copied" : "Copy your wallet address"}
-              className={
-                "group mt-4 flex w-full items-center justify-between gap-3 rounded-card " +
-                "border border-border-soft bg-canvas px-4 py-3 " +
-                "transition-[border-color,transform,box-shadow] duration-base ease-out-soft " +
-                "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-rest " +
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-              }
-            >
-              <span className="font-mono text-sm text-text-strong">{short}</span>
-              <span
-                className={
-                  "flex shrink-0 items-center gap-1 text-xs font-semibold uppercase tracking-wide transition-colors duration-base ease-out-soft " +
-                  (copied
-                    ? "text-accent"
-                    : "text-text-soft group-hover:text-accent")
-                }
-              >
-                {copied ? (
-                  <>
-                    <Check className="h-3.5 w-3.5" strokeWidth={3} />
-                    Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-3.5 w-3.5" />
-                    Copy
-                  </>
-                )}
-              </span>
-            </button>
-            <p className="mt-2 text-xs text-text-soft">
-              Friends use this when they want to send you money outside a
-              shared wallet.
-            </p>
-          </>
-        ) : (
-          <p className="mt-3 text-sm text-text-soft">
-            You&rsquo;re not connected.
-          </p>
-        )}
-      </section>
-
-      {/* Contacts row — your local address book. */}
-      <Link
-        href="/app/contacts"
-        className={
-          "group flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest " +
-          "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
-          "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-        }
-      >
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
-          <Contact className="h-5 w-5" strokeWidth={1.75} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-text-strong">Contacts</p>
-          <p className="mt-0.5 text-xs text-text-soft">
-            Names you&rsquo;ve saved for sending money.
+      {/* Compact header. Identity, app lock, sign-in security, and
+          sign-out have all moved to /app/account so this page can
+          stay focused on app-level preferences (display, notifications,
+          privacy info, advanced, about). */}
+      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+        <div className="flex flex-col gap-1">
+          <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
+            Settings
+          </h1>
+          <p className="text-xs text-text-soft sm:text-sm">
+            App preferences, notifications, and advanced controls.
           </p>
         </div>
-        <ArrowRight
-          className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
-          aria-hidden="true"
-        />
-      </Link>
+      </header>
 
-      </Group>
+      {/* Sticky section-jump nav. Active pill is driven by an
+          IntersectionObserver watching each Group section; clicking
+          a pill scrolls the matching section into view (`scroll-mt-20`
+          on Group provides the offset so the section title isn't
+          hidden under the nav). */}
+      <SettingsNav />
 
-      {/* ── Security ─────────────────────────────────────────── */}
-      <Group label="Security">
-      {/* Privacy row — links to the explainer. Status flips
-          automatically when Encrypt's network goes live. */}
+
+      {/* ── Privacy & security ──────────────────────────────── */}
+      {/* Identity, app-lock PIN, and sign-in management have moved
+          to /app/account. Settings keeps only the public-facing
+          privacy/security explainer links. */}
+      <Group id="privacy" label="Privacy & security">
       <Link
         href="/privacy"
         className={
           "group flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest " +
           "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
-          "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
+          "hover:-translate-y-0.5 hover:shadow-card-raised " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
         }
       >
@@ -293,13 +164,12 @@ export default function SettingsPage() {
         />
       </Link>
 
-      {/* Security row — explainer + passkey nudge for email signups. */}
       <Link
         href="/security"
         className={
           "group flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest " +
           "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
-          "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
+          "hover:-translate-y-0.5 hover:shadow-card-raised " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
         }
       >
@@ -317,30 +187,21 @@ export default function SettingsPage() {
           aria-hidden="true"
         />
       </Link>
-
-      {/* App lock — per-device PIN that gates /app/* on every fresh
-          tab. Stored locally only; we never see the PIN. */}
-      <AppLockSettingRow />
-
-      {/* Sign-in security — opens Dynamic's user-profile modal so
-          embedded-wallet users can enroll passkeys / change email /
-          revoke devices without us baking that flow ourselves. */}
-      <SignInSecurityRow />
       </Group>
 
       {/* ── Display ─────────────────────────────────────────── */}
-      <Group label="Display">
-      {/* Theme — light / dark / system. Stored per-device in
+      <Group id="display" label="Display">
+      {/* Theme - light / dark / system. Stored per-device in
           localStorage; an inline script in app/layout.tsx applies
           it before first paint to avoid the light-mode flash. */}
       <ThemeSettingRow />
 
-      {/* Address display — abbreviated / full / EIP-55 checksum.
+      {/* Address display - abbreviated / full / EIP-55 checksum.
           Applied through shortEvmAddress + shortAddress so every
           existing call site picks it up automatically. */}
       <AddressFormatRow />
 
-      {/* Display currency — display-only pref. Internal math (budget
+      {/* Display currency - display-only pref. Internal math (budget
           caps, policy thresholds) stays USD-pinned because that's
           where the on-chain rules are denominated. */}
       <DisplayCurrencyRow />
@@ -348,31 +209,31 @@ export default function SettingsPage() {
       </Group>
 
       {/* ── Notifications ────────────────────────────────────── */}
-      <Group label="Notifications">
+      <Group id="notifications" label="Notifications">
       {/* Browser-Notification ping for new pending approvals. The
           in-page prompt on the dashboard handles first-run; this is
           the always-available switch. */}
       <NotificationsSettingRow notif={notif} />
 
-      {/* Email-on-pending — opt-in email when a new approval lands
+      {/* Email-on-pending - opt-in email when a new approval lands
           and the tab is in the background. Fires from the browser
           (no server-side cron yet), so it only sends while the app
           is loaded somewhere. */}
       <EmailNotificationsSettingRow />
 
-      {/* Webhooks — POST events to a user-supplied URL so treasury
+      {/* Webhooks - POST events to a user-supplied URL so treasury
           teams can pipe Clear into Slack / Discord / PagerDuty /
           Zapier without us shipping per-tool integrations. */}
       <WebhooksSettingRow />
 
-      {/* Sent invitations — audit log of email invites this device
+      {/* Sent invitations - audit log of email invites this device
           dispatched, with a withdrawal email for mistakes. */}
       <Link
         href="/app/invitations"
         className={
           "group flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest " +
           "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
-          "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
+          "hover:-translate-y-0.5 hover:shadow-card-raised " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
         }
       >
@@ -395,8 +256,24 @@ export default function SettingsPage() {
 
       </Group>
 
-      {/* ── Power user ─────────────────────────────────────── */}
-      <Group label="Power user">
+      {/* ── Advanced ───────────────────────────────────────── */}
+      <Group id="advanced" label="Advanced">
+      {/* Network indicator - hoisted from the old Connection group
+          since it's a network setting and lives next to the RPC
+          overrides. Single info card, no interaction. */}
+      <section className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
+          <Wifi className="h-5 w-5" strokeWidth={1.75} />
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-medium text-text-strong">Test networks</p>
+          <p className="mt-0.5 text-xs text-text-soft">
+            Solana devnet for the multisig, Sepolia for Ethereum. Money
+            on either isn&rsquo;t real.
+          </p>
+        </div>
+      </section>
+
       {/* PWA install on supported browsers; iOS Safari instructions
           otherwise. Important on iOS specifically because
           notifications only fire once installed-as-PWA. */}
@@ -415,77 +292,77 @@ export default function SettingsPage() {
       <LedgerAccountSettingRow />
       </Group>
 
-      {/* ── Connection ───────────────────────────────────────── */}
-      <Group label="Connection">
-      {/* Network indicator */}
-      <section className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
-          <Wifi className="h-5 w-5" strokeWidth={1.75} />
-        </div>
-        <div className="flex-1">
-          <p className="text-sm font-medium text-text-strong">Test networks</p>
-          <p className="mt-0.5 text-xs text-text-soft">
-            Solana devnet for the multisig, Sepolia for Ethereum. Money
-            on either isn&rsquo;t real.
-          </p>
-        </div>
-      </section>
-
+      {/* ── About ──────────────────────────────────────────── */}
+      <Group
+        id="about"
+        label="About"
+        description="What's new and the elevator pitch."
+      >
+        <ul className="flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
+          <li>
+            <Link
+              href="/changelog"
+              className={clsx(
+                "group flex items-center justify-between gap-3 px-5 py-3.5",
+                "transition-colors duration-base ease-out-soft hover:bg-canvas",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
+              )}
+            >
+              <span className="text-sm font-medium text-text-strong">
+                What&rsquo;s new
+              </span>
+              <ArrowRight
+                className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
+                aria-hidden="true"
+              />
+            </Link>
+          </li>
+          <li>
+            <Link
+              href="/"
+              className={clsx(
+                "group flex items-center justify-between gap-3 px-5 py-3.5",
+                "transition-colors duration-base ease-out-soft hover:bg-canvas",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
+              )}
+            >
+              <span className="text-sm font-medium text-text-strong">
+                What is Clear?
+              </span>
+              <ArrowRight
+                className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
+                aria-hidden="true"
+              />
+            </Link>
+          </li>
+        </ul>
       </Group>
 
-      {/* What's new — in-app changelog. Discoverable from Settings
-          so users notice the new affordances they might otherwise
-          miss on familiar surfaces. */}
+      {/* Sign-out lives on /app/account now. Pointer-link here so a
+          user who's expecting it on Settings (the old home of the
+          control) can still find their way. */}
       <Link
-        href="/changelog"
-        className={
-          "group inline-flex items-center justify-between gap-3 rounded-card border border-border-soft bg-surface-raised px-5 py-3 text-sm shadow-card-rest " +
-          "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
-          "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-        }
+        href="/app/account"
+        className={clsx(
+          "group inline-flex items-center justify-between gap-3 rounded-card border border-border-soft bg-surface-raised px-5 py-3.5 shadow-card-rest",
+          "transition-[transform,border-color,box-shadow] duration-base ease-out-soft",
+          "hover:-translate-y-0.5 hover:shadow-card-raised",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+        )}
       >
-        <span className="text-text-strong">What&rsquo;s new</span>
+        <span className="flex flex-col">
+          <span className="text-sm font-medium text-text-strong">
+            Looking for sign-out?
+          </span>
+          <span className="mt-0.5 text-xs text-text-soft">
+            Identity, app lock, and sign-out moved to your Account page.
+          </span>
+        </span>
         <ArrowRight
-          className="h-4 w-4 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
+          className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
           aria-hidden="true"
         />
       </Link>
-
-      {/* About — links to the marketing landing. */}
-      <Link
-        href="/"
-        className={
-          "group inline-flex items-center justify-between gap-3 rounded-card border border-border-soft bg-surface-raised px-5 py-3 text-sm shadow-card-rest " +
-          "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
-          "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-        }
-      >
-        <span className="text-text-strong">What is Clear?</span>
-        <ArrowRight
-          className="h-4 w-4 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
-          aria-hidden="true"
-        />
-      </Link>
-
-      {/* Sign out — destructive action sits absolute last so the
-          Settings page reads as "explore what you can do" → "leave"
-          rather than burying useful nav under the disconnect button. */}
-      <section className="rounded-card border border-border-soft bg-surface-raised p-2 shadow-card-rest">
-        <button
-          type="button"
-          onClick={handleDisconnect}
-          className={
-            "flex w-full items-center gap-3 rounded-card px-4 py-3 text-left text-sm font-medium text-rose-600 " +
-            "transition-colors duration-base ease-out-soft hover:bg-rose-500/5 " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-          }
-        >
-          <LogOut className="h-4 w-4" aria-hidden="true" />
-          Sign out
-        </button>
-      </section>
     </motion.div>
   );
 }
@@ -493,25 +370,159 @@ export default function SettingsPage() {
 // ─── Group wrapper ─────────────────────────────────────────────
 //
 // Settings used to be 18 identically-styled cards stacked
-// vertically — a wall to scan. Group wraps each thematic cluster
+// vertically - a wall to scan. Group wraps each thematic cluster
 // with a small uppercase label + a tighter inner gap so the page
-// reads as ~6 short clusters rather than one long list. Same
-// pattern the wallet hub uses (SectionLabel).
+// reads as ~7 short clusters rather than one long list.
+//
+// `id` powers the section-jump anchors driven by SettingsNav;
+// `scroll-mt-20` (5rem) offsets the smooth scroll so the section
+// title isn't hidden under the sticky nav.
 
 function Group({
+  id,
   label,
+  description,
   children,
 }: {
+  id?: string;
   label: string;
+  description?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-3">
-      <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-        {label}
-      </h2>
+    <section
+      id={id}
+      // scroll-mt-32 (8rem) clears the mobile backdrop (56px) + nav
+      // (~50px) + breathing room when scrolled to via anchor jump.
+      // Desktop only needs to clear the nav itself, so md:scroll-mt-24.
+      className="flex scroll-mt-32 flex-col gap-3 md:scroll-mt-24"
+      data-section-anchor={id || undefined}
+    >
+      <div className="flex flex-col gap-0.5">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          {label}
+        </h2>
+        {description ? (
+          <p className="text-xs text-text-soft/80">{description}</p>
+        ) : null}
+      </div>
       {children}
     </section>
+  );
+}
+
+// ─── Section nav ────────────────────────────────────────────────
+//
+// Sticky horizontal pill bar that lets users jump to a section
+// without scrolling through the full page. The active pill is
+// driven by an IntersectionObserver - whichever section is
+// closest to the top (within the strip set by rootMargin) wins.
+//
+// Mobile: pills scroll horizontally. The active pill auto-scrolls
+// into view so the user always sees where they are.
+// Desktop: pills fit on one line for typical max-w-[80rem].
+
+const NAV_SECTIONS: { id: string; label: string }[] = [
+  { id: "privacy", label: "Privacy" },
+  { id: "display", label: "Display" },
+  { id: "notifications", label: "Notifications" },
+  { id: "advanced", label: "Advanced" },
+  { id: "about", label: "About" },
+];
+
+function SettingsNav() {
+  const [activeId, setActiveId] = useState<string>(NAV_SECTIONS[0].id);
+
+  // Watch each Group section. As the user scrolls, whichever
+  // section is intersecting the top-third strip wins. The negative
+  // bottom rootMargin shrinks the active zone to just the top of
+  // the viewport so we don't flicker between two visible sections.
+  useEffect(() => {
+    const visible = new Set<string>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) visible.add(entry.target.id);
+          else visible.delete(entry.target.id);
+        }
+        // Pick the first section in the canonical order that's
+        // currently in the active zone - gives stable upward
+        // progression as the user scrolls.
+        const ordered = NAV_SECTIONS.map((s) => s.id);
+        const next = ordered.find((id) => visible.has(id));
+        if (next) setActiveId(next);
+      },
+      {
+        rootMargin: "-72px 0px -55% 0px",
+        threshold: 0,
+      },
+    );
+    NAV_SECTIONS.forEach((s) => {
+      const el = document.getElementById(s.id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  const handleJump = (id: string) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    setActiveId(id);
+  };
+
+  return (
+    <nav
+      role="tablist"
+      aria-label="Settings sections"
+      className={clsx(
+        // top-14 on mobile clears the fixed mobile-backdrop (h-14)
+        // that sits above the body scroll, so the nav sticks directly
+        // below the floating header pill. Desktop has no backdrop -
+        // the parent scroll container starts directly below the
+        // DashboardHeader, so md:top-0 sticks the nav flush against
+        // the header bottom (no gap, no double-line).
+        "sticky top-14 z-10 -mx-3 md:top-0 sm:-mx-4 md:-mx-8 lg:-mx-10 xl:-mx-12",
+        "border-b border-border-soft bg-canvas/90 backdrop-blur-xl",
+        // Soft downward shadow gives the nav a stronger "stuck" cue
+        // on mobile (the pill above + the nav below need to read as
+        // distinct chrome layers, not one merged blur).
+        "shadow-[0_6px_16px_-8px_rgba(0,0,0,0.5)]",
+      )}
+    >
+      <div
+        className={clsx(
+          "flex items-center gap-1.5 overflow-x-auto px-3 py-2.5 sm:px-4 md:px-8 lg:px-10 xl:px-12",
+          // Hide the scrollbar visually - the horizontal scroll is
+          // there as a fallback for narrow viewports, but a permanent
+          // scrollbar reads as clutter inside what's effectively chrome.
+          "[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+        )}
+      >
+        {NAV_SECTIONS.map((s) => {
+          const active = activeId === s.id;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => handleJump(s.id)}
+              className={clsx(
+                "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium",
+                "transition-colors duration-base ease-out-soft",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+                active
+                  ? "bg-accent/10 text-accent"
+                  : "text-text-soft hover:bg-glass-soft hover:text-text-strong",
+              )}
+            >
+              {s.label}
+            </button>
+          );
+        })}
+      </div>
+    </nav>
   );
 }
 
@@ -555,7 +566,7 @@ function NotificationsSettingRow({
           type="button"
           onClick={() => void notif.request()}
           className={
-            "shrink-0 inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-white " +
+            "shrink-0 inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-text-on-accent " +
             "transition-[background-color,transform] duration-base ease-out-soft " +
             "hover:bg-accent-hover active:scale-[0.98] " +
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
@@ -571,7 +582,7 @@ function NotificationsSettingRow({
 // ─── Email notifications row ────────────────────────────────────
 
 function EmailNotificationsSettingRow() {
-  // localStorage-backed prefs. Mount-only read — saves are pushed
+  // localStorage-backed prefs. Mount-only read - saves are pushed
   // through saveEmailPrefs immediately so cross-tab pickup works on
   // next render of the consumer (useActionNotifications re-reads on
   // each fire).
@@ -617,7 +628,7 @@ function EmailNotificationsSettingRow() {
     const next: EmailNotificationPrefs = {
       ...prefs,
       email: trimmed,
-      // Auto-enable on first save — there's no point asking the user
+      // Auto-enable on first save - there's no point asking the user
       // to type their email then flip a separate toggle.
       enabled: true,
     };
@@ -667,7 +678,7 @@ function EmailNotificationsSettingRow() {
               "shrink-0 inline-flex min-h-tap items-center justify-center rounded-full px-4 py-2 text-xs font-medium transition-[background-color,transform] duration-base ease-out-soft active:scale-[0.98] " +
               (prefs.enabled
                 ? "border border-border-soft bg-canvas text-text-soft hover:border-rose-500 hover:text-rose-600"
-                : "bg-accent text-white hover:bg-accent-hover")
+                : "bg-accent text-text-on-accent hover:bg-accent-hover")
             }
           >
             {prefs.enabled ? "Pause" : "Resume"}
@@ -696,7 +707,7 @@ function EmailNotificationsSettingRow() {
               onClick={saveEmail}
               disabled={!valid}
               className={
-                "inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-white " +
+                "inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-text-on-accent " +
                 "transition-[background-color,transform] duration-base ease-out-soft " +
                 "hover:bg-accent-hover active:scale-[0.98] " +
                 "disabled:cursor-not-allowed disabled:opacity-50 " +
@@ -712,7 +723,7 @@ function EmailNotificationsSettingRow() {
                   setEditing(false);
                   setDraft(prefs.email);
                 }}
-                className="inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft hover:border-accent hover:text-accent"
+                className="inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft hover:text-accent"
               >
                 Cancel
               </button>
@@ -724,7 +735,7 @@ function EmailNotificationsSettingRow() {
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft hover:border-accent hover:text-accent"
+            className="inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft hover:text-accent"
           >
             Change email
           </button>
@@ -860,7 +871,7 @@ function WebhooksSettingRow() {
               "shrink-0 inline-flex min-h-tap items-center justify-center rounded-full px-4 py-2 text-xs font-medium transition-[background-color,transform] duration-base ease-out-soft active:scale-[0.98] " +
               (prefs.enabled
                 ? "border border-border-soft bg-canvas text-text-soft hover:border-rose-500 hover:text-rose-600"
-                : "bg-accent text-white hover:bg-accent-hover")
+                : "bg-accent text-text-on-accent hover:bg-accent-hover")
             }
           >
             {prefs.enabled ? "Pause" : "Resume"}
@@ -907,7 +918,7 @@ function WebhooksSettingRow() {
               onClick={saveUrl}
               disabled={!validUrl}
               className={
-                "inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-white " +
+                "inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-text-on-accent " +
                 "transition-[background-color,transform] duration-base ease-out-soft " +
                 "hover:bg-accent-hover active:scale-[0.98] " +
                 "disabled:cursor-not-allowed disabled:opacity-50 " +
@@ -924,7 +935,7 @@ function WebhooksSettingRow() {
                   setDraftUrl(prefs.url);
                   setDraftSecret(prefs.secret);
                 }}
-                className="inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft hover:border-accent hover:text-accent"
+                className="inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft hover:text-accent"
               >
                 Cancel
               </button>
@@ -950,7 +961,7 @@ function WebhooksSettingRow() {
                     "rounded-soft border px-3 py-2 text-left text-xs font-medium transition-[border-color,background-color,transform] duration-base ease-out-soft " +
                     (active
                       ? "border-accent bg-accent/[0.08] text-text-strong"
-                      : "border-border-soft bg-canvas text-text-soft hover:border-accent/40 hover:text-text-strong")
+                      : "border-border-soft bg-canvas text-text-soft hover:text-text-strong")
                   }
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -972,7 +983,7 @@ function WebhooksSettingRow() {
                   ? "border-accent text-accent"
                   : test.status === "fail"
                     ? "border-warning text-warning"
-                    : "text-text-soft hover:border-accent hover:text-accent") +
+                    : "text-text-soft hover:text-accent") +
                 " disabled:cursor-not-allowed disabled:opacity-50"
               }
             >
@@ -987,7 +998,7 @@ function WebhooksSettingRow() {
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft hover:border-accent hover:text-accent"
+              className="inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft hover:text-accent"
             >
               Change URL
             </button>
@@ -1045,7 +1056,7 @@ function AddressFormatRow() {
     <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
-          <Contact className="h-5 w-5" strokeWidth={1.75} />
+          <Hash className="h-5 w-5" strokeWidth={1.75} />
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-text-strong">
@@ -1070,7 +1081,7 @@ function AddressFormatRow() {
                   "rounded-soft border px-3 py-2 text-xs font-medium transition-[border-color,background-color,transform] duration-base ease-out-soft " +
                   (active
                     ? "border-accent bg-accent/[0.08] text-text-strong"
-                    : "border-border-soft bg-canvas text-text-soft hover:border-accent/40 hover:text-text-strong")
+                    : "border-border-soft bg-canvas text-text-soft hover:text-text-strong")
                 }
               >
                 {opt === "abbreviated"
@@ -1110,7 +1121,7 @@ function DisplayCurrencyRow() {
           </p>
           <p className="mt-0.5 text-xs text-text-soft">
             Wallet totals render in this fiat. Budget caps and policy
-            thresholds stay set in USD — that&rsquo;s the unit on chain.
+            thresholds stay set in USD - that&rsquo;s the unit on chain.
           </p>
         </div>
       </div>
@@ -1127,7 +1138,7 @@ function DisplayCurrencyRow() {
                 "rounded-soft border px-3 py-2 text-center text-xs font-medium transition-[border-color,background-color,transform] duration-base ease-out-soft " +
                 (active
                   ? "border-accent bg-accent/[0.08] text-text-strong"
-                  : "border-border-soft bg-canvas text-text-soft hover:border-accent/40 hover:text-text-strong")
+                  : "border-border-soft bg-canvas text-text-soft hover:text-text-strong")
               }
             >
               <span className="text-base font-semibold">
@@ -1158,39 +1169,51 @@ function ThemeSettingRow() {
     setMode(next);
     setStoredTheme(next);
   };
+  const options: { id: ThemeMode; label: string; Icon: typeof Sun }[] = [
+    { id: "light", label: "Light", Icon: Sun },
+    { id: "system", label: "System", Icon: Monitor },
+    { id: "dark", label: "Dark", Icon: Moon },
+  ];
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
-          <Wifi className="h-5 w-5" strokeWidth={1.75} />
+          {mode === "light" ? (
+            <Sun className="h-5 w-5" strokeWidth={1.75} />
+          ) : mode === "dark" ? (
+            <Moon className="h-5 w-5" strokeWidth={1.75} />
+          ) : (
+            <Monitor className="h-5 w-5" strokeWidth={1.75} />
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-text-strong">Theme</p>
           <p className="mt-0.5 text-xs text-text-soft">
-            Light, dark, or follow your OS. Saved on this device.
+            Light, dark, or follow your OS. Smooth transition; saved on
+            this device.
           </p>
         </div>
       </div>
       <div className="mt-3 grid grid-cols-3 gap-2">
-        {(["light", "system", "dark"] as ThemeMode[]).map((opt) => {
-          const active = mode === opt;
+        {options.map(({ id, label, Icon }) => {
+          const active = mode === id;
           return (
             <button
-              key={opt}
+              key={id}
               type="button"
-              onClick={() => set(opt)}
-              className={
-                "rounded-soft border px-3 py-2 text-xs font-medium transition-[border-color,background-color,transform] duration-base ease-out-soft " +
-                (active
-                  ? "border-accent bg-accent/[0.08] text-text-strong"
-                  : "border-border-soft bg-canvas text-text-soft hover:border-accent/40 hover:text-text-strong")
-              }
+              onClick={() => set(id)}
+              aria-pressed={active}
+              className={clsx(
+                "inline-flex items-center justify-center gap-1.5 rounded-soft border px-3 py-2 text-xs font-medium",
+                "transition-[border-color,background-color,color,transform] duration-base ease-out-soft",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+                active
+                  ? "border-accent bg-accent/[0.08] text-accent"
+                  : "border-border-soft bg-canvas text-text-soft hover:border-border-strong hover:text-text-strong",
+              )}
             >
-              {opt === "light"
-                ? "Light"
-                : opt === "dark"
-                  ? "Dark"
-                  : "System"}
+              <Icon className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
+              {label}
             </button>
           );
         })}
@@ -1199,323 +1222,6 @@ function ThemeSettingRow() {
   );
 }
 
-// ─── Sign-in security (Dynamic user profile) ─────────────────────
-
-function SignInSecurityRow() {
-  const { setShowDynamicUserProfile, user, primaryWallet } = useDynamicContext();
-  // External wallets (Phantom / Solflare / Backpack / Ledger) carry
-  // their own auth — Dynamic isn't where their passkey lives. We
-  // tell users that explicitly so the row doesn't read as
-  // "passkey unavailable" when actually they already have a
-  // hardware-grade signer. Same duck-type the rest of the codebase
-  // uses (lib/wallet/index.ts::signerIssue) — `key` carries the
-  // connector identifier at runtime, embedded variants are
-  // "dynamicwaas" / "turnkey", external is everything else.
-  const c = (primaryWallet as unknown as {
-    connector?: { key?: string; name?: string; overrideKey?: string };
-  })?.connector;
-  const id = (c?.key ?? c?.overrideKey ?? c?.name ?? "").toLowerCase();
-  const isEmbedded = /dynamicwaas|turnkey/.test(id);
-  const isExternal = !!primaryWallet && !isEmbedded;
-  const hasDynamicAccount = !!user;
-
-  return (
-    <section className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
-        <ShieldCheck className="h-5 w-5" strokeWidth={1.75} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-text-strong">
-          Sign-in security
-        </p>
-        <p className="mt-0.5 text-xs text-text-soft">
-          {isExternal
-            ? "Connected via an external wallet — passkey / hardware-key auth is managed by that wallet, not Clear."
-            : hasDynamicAccount
-              ? "Manage passkey, email, and device list. Passkey beats email-link sign-in for both speed and security."
-              : "Connect first; sign-in options become available after."}
-        </p>
-      </div>
-      {!isExternal && hasDynamicAccount && (
-        <button
-          type="button"
-          onClick={() => setShowDynamicUserProfile(true)}
-          className={
-            "shrink-0 inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-white " +
-            "transition-[background-color,transform] duration-base ease-out-soft " +
-            "hover:bg-accent-hover active:scale-[0.98] " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-          }
-        >
-          Manage
-        </button>
-      )}
-    </section>
-  );
-}
-
-// ─── App lock (PIN) ──────────────────────────────────────────────
-
-function AppLockSettingRow() {
-  // Re-read on every mount + after each save/clear so the row
-  // reflects the actual stored state. AppLockOverlay also reads
-  // from the same source of truth — no shared state needed.
-  const [hasPin, setHasPin] = useState(false);
-  const [editing, setEditing] = useState<
-    "set" | "change" | "disable" | null
-  >(null);
-  const refresh = () => setHasPin(getAppLockState().hasPin);
-  useEffect(() => {
-    refresh();
-  }, []);
-
-  return (
-    <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
-          <ShieldCheck className="h-5 w-5" strokeWidth={1.75} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-text-strong">
-            App lock {hasPin ? "(on)" : "(off)"}
-          </p>
-          <p className="mt-0.5 text-xs text-text-soft">
-            Ask for a PIN before showing wallets on this device. Stored
-            on this device only — we never see your PIN.
-          </p>
-        </div>
-        {hasPin ? (
-          <div className="flex shrink-0 gap-2">
-            <button
-              type="button"
-              onClick={() => setEditing(editing === "change" ? null : "change")}
-              className={
-                "inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft " +
-                "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent"
-              }
-            >
-              Change
-            </button>
-            <button
-              type="button"
-              onClick={() => setEditing(editing === "disable" ? null : "disable")}
-              className={
-                "inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft " +
-                "transition-colors duration-base ease-out-soft hover:border-rose-500 hover:text-rose-600"
-              }
-            >
-              Disable
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                lockNow();
-                window.location.reload();
-              }}
-              title="Lock this tab now and require the PIN to continue"
-              className={
-                "inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-white " +
-                "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98]"
-              }
-            >
-              Lock now
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setEditing(editing === "set" ? null : "set")}
-            className={
-              "shrink-0 inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-white " +
-              "transition-[background-color,transform] duration-base ease-out-soft " +
-              "hover:bg-accent-hover active:scale-[0.98] " +
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-            }
-          >
-            Set PIN
-          </button>
-        )}
-      </div>
-      {editing === "set" && (
-        <PinForm
-          mode="set"
-          onClose={() => setEditing(null)}
-          onSaved={() => {
-            refresh();
-            setEditing(null);
-          }}
-        />
-      )}
-      {editing === "change" && (
-        <PinForm
-          mode="change"
-          onClose={() => setEditing(null)}
-          onSaved={() => {
-            refresh();
-            setEditing(null);
-          }}
-        />
-      )}
-      {editing === "disable" && (
-        <PinForm
-          mode="disable"
-          onClose={() => setEditing(null)}
-          onSaved={() => {
-            refresh();
-            setEditing(null);
-          }}
-        />
-      )}
-    </section>
-  );
-}
-
-function PinForm({
-  mode,
-  onClose,
-  onSaved,
-}: {
-  mode: "set" | "change" | "disable";
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [current, setCurrent] = useState("");
-  const [next, setNext] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  const submit = async () => {
-    setErr(null);
-    setBusy(true);
-    try {
-      if (mode === "change" || mode === "disable") {
-        const ok = await verifyPin(current);
-        if (!ok) {
-          setErr("Current PIN is wrong");
-          return;
-        }
-      }
-      if (mode === "disable") {
-        clearPin();
-        onSaved();
-        return;
-      }
-      if (next.length < 4 || next.length > 8 || !/^\d+$/.test(next)) {
-        setErr("New PIN must be 4–8 digits");
-        return;
-      }
-      if (next !== confirm) {
-        setErr("New PIN doesn't match the confirmation");
-        return;
-      }
-      await setAppLockPin(next);
-      onSaved();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Couldn't save PIN");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        void submit();
-      }}
-      className="mt-4 flex flex-col gap-2 rounded-soft border border-border-soft bg-canvas p-3"
-    >
-      {(mode === "change" || mode === "disable") && (
-        <PinInput
-          label="Current PIN"
-          value={current}
-          onChange={setCurrent}
-          autoFocus
-        />
-      )}
-      {mode !== "disable" && (
-        <>
-          <PinInput
-            label={mode === "change" ? "New PIN" : "New PIN (4–8 digits)"}
-            value={next}
-            onChange={setNext}
-            autoFocus={mode === "set"}
-          />
-          <PinInput
-            label="Confirm new PIN"
-            value={confirm}
-            onChange={setConfirm}
-          />
-        </>
-      )}
-      {err && (
-        <p className="text-[11px] text-warning" role="alert">
-          {err}
-        </p>
-      )}
-      <div className="mt-1 flex items-center justify-end gap-2">
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-[11px] text-text-soft hover:text-text-strong"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={busy}
-          className={
-            "inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-white " +
-            "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] " +
-            "disabled:cursor-not-allowed disabled:opacity-50"
-          }
-        >
-          {busy
-            ? "Saving…"
-            : mode === "set"
-              ? "Set PIN"
-              : mode === "change"
-                ? "Change PIN"
-                : "Disable PIN"}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function PinInput({
-  label,
-  value,
-  onChange,
-  autoFocus,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  autoFocus?: boolean;
-}) {
-  return (
-    <label className="flex items-center gap-3">
-      <span className="min-w-[110px] shrink-0 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-        {label}
-      </span>
-      <input
-        type="password"
-        inputMode="numeric"
-        autoComplete="off"
-        value={value}
-        onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 8))}
-        autoFocus={autoFocus}
-        className={
-          "min-w-0 flex-1 rounded-soft border border-border-soft bg-surface-raised px-2.5 py-1.5 text-sm tracking-[0.4em] text-text-strong outline-none " +
-          "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-          "focus:border-accent focus:shadow-accent-rest"
-        }
-      />
-    </label>
-  );
-}
 
 // ─── Solana RPC override ─────────────────────────────────────────
 
@@ -1524,7 +1230,7 @@ function SolanaRpcSettingRow() {
   const [busy, setBusy] = useState(false);
   // Read the currently-active value from localStorage on mount so a
   // user who saved an override sees their URL pre-filled. (We can't
-  // just import `solanaClusterRpc` here — that const is captured at
+  // just import `solanaClusterRpc` here - that const is captured at
   // module init, before localStorage was readable on first SSR-ish
   // pass, so it may not reflect what's actually stored.)
   useEffect(() => {
@@ -1607,7 +1313,7 @@ function SolanaRpcSettingRow() {
             onClick={handleSave}
             disabled={!hasOverride || busy}
             className={
-              "inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-white " +
+              "inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-text-on-accent " +
               "transition-[background-color,transform] duration-base ease-out-soft " +
               "hover:bg-accent-hover active:scale-[0.98] " +
               "disabled:cursor-not-allowed disabled:opacity-50 " +
@@ -1623,7 +1329,7 @@ function SolanaRpcSettingRow() {
               disabled={busy}
               className={
                 "inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft " +
-                "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
+                "transition-colors duration-base ease-out-soft hover:text-accent " +
                 "disabled:cursor-not-allowed disabled:opacity-50"
               }
             >
@@ -1681,7 +1387,7 @@ function LedgerAccountSettingRow() {
         try {
           await ledger.disconnect();
         } catch {
-          /* swallow — connect below will surface a real error */
+          /* swallow - connect below will surface a real error */
         }
         try {
           await ledger.connect();
@@ -1718,31 +1424,26 @@ function LedgerAccountSettingRow() {
       <p className="mt-1 break-all font-mono text-[11px] text-text-strong">
         {ledgerDerivationPath(sessionIndex ?? savedIndex)}
       </p>
-      <div className="mt-3 flex items-center gap-2">
-        <label className="inline-flex items-center gap-1.5 text-[11px] text-text-soft">
-          <span className="uppercase tracking-[0.24em]">Account</span>
-          <select
-            value={index}
-            onChange={(e) => setIndex(parseInt(e.target.value, 10))}
-            className={
-              "rounded-soft border border-border-soft bg-canvas px-2 py-1 text-xs font-medium text-text-strong outline-none " +
-              "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-              "focus:border-accent focus:shadow-accent-rest"
-            }
-          >
-            {Array.from({ length: 10 }, (_, i) => (
-              <option key={i} value={i}>
-                Account {i}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
+          Account
+        </span>
+        <BrandSelect
+          value={String(index)}
+          onChange={(v) => setIndex(parseInt(v, 10))}
+          ariaLabel="Ledger account index"
+          options={Array.from({ length: 10 }, (_, i) => ({
+            value: String(i),
+            label: `Account ${i}`,
+            description: ledgerDerivationPath(i),
+          }))}
+        />
         <button
           type="button"
           onClick={handleSave}
           disabled={!dirty || busy}
           className={
-            "ml-auto inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-white " +
+            "ml-auto inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-text-on-accent " +
             "transition-[background-color,transform] duration-base ease-out-soft " +
             "hover:bg-accent-hover active:scale-[0.98] " +
             "disabled:cursor-not-allowed disabled:opacity-50 " +
@@ -1757,7 +1458,7 @@ function LedgerAccountSettingRow() {
 }
 
 function parseLedgerAccountFromPath(path: string): number | null {
-  // path looks like "44'/501'/<n>'" — pull <n>.
+  // path looks like "44'/501'/<n>'" - pull <n>.
   const m = path.match(/^44'\/501'\/(\d+)'$/);
   if (!m) return null;
   const n = parseInt(m[1], 10);
@@ -1849,7 +1550,7 @@ function EvmRpcSettingRow() {
             onClick={handleSave}
             disabled={!hasOverride || busy}
             className={
-              "inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-white " +
+              "inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-text-on-accent " +
               "transition-[background-color,transform] duration-base ease-out-soft " +
               "hover:bg-accent-hover active:scale-[0.98] " +
               "disabled:cursor-not-allowed disabled:opacity-50 " +
@@ -1865,7 +1566,7 @@ function EvmRpcSettingRow() {
               disabled={busy}
               className={
                 "inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft " +
-                "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
+                "transition-colors duration-base ease-out-soft hover:text-accent " +
                 "disabled:cursor-not-allowed disabled:opacity-50"
               }
             >
@@ -1892,7 +1593,7 @@ function InstallSettingRow({
 }) {
   // Hide entirely when there's no install path (already installed,
   // or unsupported browser/context). No row beats a row that says
-  // "you can't install" — saves vertical space.
+  // "you can't install" - saves vertical space.
   if (install.status === "installed" || install.status === "unsupported") {
     return null;
   }
@@ -1933,7 +1634,7 @@ function InstallSettingRow({
           Install Clear on this device
         </p>
         <p className="mt-0.5 text-xs text-text-soft">
-          Adds a launcher icon and runs in its own window — quicker than
+          Adds a launcher icon and runs in its own window - quicker than
           finding the tab.
         </p>
       </div>
@@ -1941,7 +1642,7 @@ function InstallSettingRow({
         type="button"
         onClick={() => void install.prompt()}
         className={
-          "shrink-0 inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-white " +
+          "shrink-0 inline-flex min-h-tap items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-medium text-text-on-accent " +
           "transition-[background-color,transform] duration-base ease-out-soft " +
           "hover:bg-accent-hover active:scale-[0.98] " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"

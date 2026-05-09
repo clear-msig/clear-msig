@@ -7,16 +7,16 @@
 //      send is one-shot through /api/invitations and the SMTP
 //      provider doesn't expose history we can query back.
 //   2. The audit trail is most useful to the person doing the
-//      inviting — "did I already email Alice? when?" — and that
+//      inviting - "did I already email Alice? when?" - and that
 //      person is in this browser. A second device of the same user
 //      gets a fresh log; that's a known limitation of the device-
 //      local model.
 //
 // Status transitions:
-//   sent     — the /api/invitations call returned 2xx.
-//   revoked  — user clicked "Withdraw" in /app/invitations and the
+//   sent     - the /api/invitations call returned 2xx.
+//   revoked  - user clicked "Withdraw" in /app/invitations and the
 //              follow-up email shipped (success). Distinct from
-//              "removed on chain" — the membership PDA might still
+//              "removed on chain" - the membership PDA might still
 //              be active; this just notifies the invitee that the
 //              invite was withdrawn before they got around to acting.
 
@@ -62,7 +62,7 @@ function writeAll(rows: InviteLogEntry[]): void {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
     window.dispatchEvent(new Event("clear:invite-log-changed"));
   } catch {
-    /* quota / private mode — silently drop */
+    /* quota / private mode - silently drop */
   }
 }
 

@@ -67,7 +67,7 @@ export async function fetchWalletByName(
       }
     } catch {
       // Account didn't parse as ClearWallet (discriminator mismatch
-      // or layout drift). Skip and continue scanning — a corrupt row
+      // or layout drift). Skip and continue scanning - a corrupt row
       // shouldn't poison the whole lookup.
       continue;
     }
@@ -88,7 +88,7 @@ export async function fetchWalletByPda(
   return parseWallet(new Uint8Array(info.data));
 }
 
-/// Encode a single byte as base58 — the format Solana RPC's memcmp
+/// Encode a single byte as base58 - the format Solana RPC's memcmp
 /// filter expects for byte-comparison. Stays tiny on purpose; for
 /// arbitrary bytes use a real base58 encoder.
 function bs58FromByte(b: number): string {

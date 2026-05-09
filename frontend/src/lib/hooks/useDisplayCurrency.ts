@@ -5,10 +5,10 @@
 // USD and EUR sees the new symbol/locale immediately, no reload.
 //
 // Returned object:
-//   currency  — the active code (USD / EUR / ...)
-//   format    — pre-bound formatFiat that uses the live pref. Saves
+//   currency  - the active code (USD / EUR / ...)
+//   format    - pre-bound formatFiat that uses the live pref. Saves
 //               every call site from passing `currency` through.
-//   formatLamports — same convenience for chain-native amounts.
+//   formatLamports - same convenience for chain-native amounts.
 
 import { useEffect, useState, useCallback } from "react";
 import {

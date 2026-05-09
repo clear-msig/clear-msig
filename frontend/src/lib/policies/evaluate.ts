@@ -4,7 +4,7 @@
 // against a candidate proposal and returns the first matching
 // rule's action, plus per-condition reasoning for the UI.
 //
-// "First matching" — Fordefi's convention. Rules are sorted by
+// "First matching" - Fordefi's convention. Rules are sorted by
 // priority descending; ties broken by createdAt ascending in
 // listPolicies(). The first rule whose every condition matches
 // applies.
@@ -40,7 +40,7 @@ export interface CandidateProposal {
   tokenContract?: string | null;
   /// Recipient address as the user has it. Solana base58, EVM 0x.
   recipient: string;
-  /// Display ticker — "SOL" / "ETH" / "USDC" / etc.
+  /// Display ticker - "SOL" / "ETH" / "USDC" / etc.
   ticker: string;
   /// Display amount as the user typed it ("1.5"). Parsed as
   /// JS Number for comparisons; bigint precision isn't needed for
@@ -195,7 +195,7 @@ function matchAmount(
     return { condition: "amount", matched: false, detail: "invalid amount" };
   }
   if (c.ticker && candidate.ticker && c.ticker !== candidate.ticker) {
-    // Mismatched ticker — rule doesn't apply (treat as no-match
+    // Mismatched ticker - rule doesn't apply (treat as no-match
     // not as "denied").
     return {
       condition: "amount",

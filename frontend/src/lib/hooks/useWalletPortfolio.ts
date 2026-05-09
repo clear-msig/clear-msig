@@ -6,7 +6,7 @@
 // Modern wallets surface a single "wallet value" headline that's
 // the sum of holdings across whatever chains/tokens the wallet
 // has. clear-msig has been showing only the Solana vault balance
-// in the hero — undersells multi-chain wallets, which is the
+// in the hero - undersells multi-chain wallets, which is the
 // product's actual differentiator.
 //
 // This hook fans out:
@@ -70,7 +70,7 @@ export interface WalletPortfolio {
 export function useWalletPortfolio(walletName: string): WalletPortfolio {
   const { connection } = useConnection();
 
-  // Solana wallet PDA — needed to derive the vault address.
+  // Solana wallet PDA - needed to derive the vault address.
   const walletQuery = useQuery({
     queryKey: ["wallet", walletName],
     queryFn: () => fetchWalletByName(connection, walletName),
@@ -78,7 +78,7 @@ export function useWalletPortfolio(walletName: string): WalletPortfolio {
     staleTime: 30_000,
   });
 
-  // Vault PDA balance — bigint for byte-accurate sums. Distinct
+  // Vault PDA balance - bigint for byte-accurate sums. Distinct
   // query key from the dashboard's `["wallet-balance", …]` (which
   // returns number) to avoid the same bigint↔number cache collision
   // we hit in send/page.tsx; share the data via shared `wallet`
@@ -149,7 +149,7 @@ export function useWalletPortfolio(walletName: string): WalletPortfolio {
     const breakdown: PortfolioChain[] = [];
     const unknownPriceChains: string[] = [];
 
-    // Solana — always present.
+    // Solana - always present.
     const solanaMeta = chainByKind(0);
     if (solanaMeta) {
       const raw = solanaBalanceQuery.data ?? null;
@@ -213,6 +213,6 @@ export function useWalletPortfolio(walletName: string): WalletPortfolio {
   ]);
 }
 
-// Make `CHAIN_CATALOG` import non-dead — used implicitly via
+// Make `CHAIN_CATALOG` import non-dead - used implicitly via
 // chainByKind, kept for future per-chain ordering.
 void CHAIN_CATALOG;

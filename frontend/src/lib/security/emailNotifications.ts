@@ -1,7 +1,7 @@
 "use client";
 
 // Email-on-pending preference + sender. Piggybacks on the same
-// SMTP infra wired for invitations (/api/invitations) — adds a
+// SMTP infra wired for invitations (/api/invitations) - adds a
 // /api/notify-pending route that the browser POSTs to from the
 // useActionNotifications hook when a new pending approval lands
 // and the tab is in the background.
@@ -18,7 +18,7 @@
 // Storage: per-device localStorage. Email never leaves the
 // browser without an explicit opt-in click + a verification step
 // (a confirmation email fires once on save and the user must reply
-// or click the link — not implemented yet, see TODO at the bottom).
+// or click the link - not implemented yet, see TODO at the bottom).
 
 const STORAGE_KEY = "clear.email-notifications.v1";
 
@@ -29,7 +29,7 @@ export interface EmailNotificationPrefs {
   /// Subset of wallet names to scope notifications to. Empty
   /// array means "every wallet I'm in" (the default).
   walletScope: string[];
-  /// Unix ms of last successful send — used to throttle (no more
+  /// Unix ms of last successful send - used to throttle (no more
   /// than one email per minute regardless of rule volume).
   lastSentAt?: number;
 }
@@ -75,7 +75,7 @@ export function saveEmailPrefs(prefs: EmailNotificationPrefs): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
   } catch {
-    /* quota / private-mode — silently noop */
+    /* quota / private-mode - silently noop */
   }
 }
 
@@ -94,7 +94,7 @@ interface FirePayload {
   approvalsCollected: number;
   approverCount: number;
   /// Base58 proposal PDA. The server builds the user-facing URL
-  /// from this + its own origin — never trusts a body-supplied URL.
+  /// from this + its own origin - never trusts a body-supplied URL.
   /// Without that pin the route is a "branded Clear" phishing relay
   /// (attacker chooses the destination email AND the link).
   proposalPda: string;
