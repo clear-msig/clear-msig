@@ -55,6 +55,10 @@ export default function SecurePage() {
 
   // listVaultsForCreator hits getProgramAccounts; cache + pause when
   // the user isn't connected so we don't spam the RPC.
+  // refetchOnWindowFocus is set explicitly here (overriding the
+  // global default that's `false` in AppProviders) so a user
+  // coming back from /app/secure/new sees their freshly-created
+  // vault without a manual reload.
   const vaultsQuery = useQuery({
     queryKey: ["ikavery-vaults", creatorB58],
     queryFn: () => {
@@ -63,6 +67,7 @@ export default function SecurePage() {
     },
     enabled: !!creator && wallet.connected,
     staleTime: 30_000,
+    refetchOnWindowFocus: true,
   });
 
   const vaults = vaultsQuery.data ?? [];

@@ -479,12 +479,18 @@ function CreatingStage({ reduce }: { reduce: boolean }) {
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">
         <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
       </div>
-      <p className="font-display text-display-xs text-text-strong">
-        Building your vault
-      </p>
-      <p className="max-w-md text-sm text-text-soft">
-        Sign the transaction in your wallet. The vault is created on chain
-        in one step.
+      <PageEyebrow label="// 03 · creating" align="center">
+        <p className="font-display text-display-xs text-text-strong">
+          Building your vault
+        </p>
+        <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
+          Your wallet is being asked to sign the create-recovery transaction.
+          Confirm in the popup. The vault lands on chain in one step.
+        </p>
+      </PageEyebrow>
+      <p className="mt-2 text-[11px] text-text-soft">
+        Cancel in the wallet popup if you change your mind — nothing has
+        been broadcast yet.
       </p>
     </motion.section>
   );
