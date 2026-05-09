@@ -1,7 +1,7 @@
 "use client";
 
 // Update an existing intent's timelock_seconds. Mirrors
-// useUpdateMemberRole — propose UpdateIntent → approve → execute,
+// useUpdateMemberRole - propose UpdateIntent → approve → execute,
 // with a stale-proposal sweep so the program's
 // IntentHasActiveProposals check doesn't reject.
 //
@@ -28,14 +28,14 @@ import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 
 interface UpdateArgs {
   walletName: string;
-  /// Index of the intent to update — see IntentAccount.intentIndex.
+  /// Index of the intent to update - see IntentAccount.intentIndex.
   intentIndex: number;
   /// New timelock value in seconds. 0 = ship immediately on
   /// approval; > 0 = additional wait before execute.
   newTimelockSeconds: number;
   /// Path to the intent template file. Same shape the CLI used
   /// when the intent was created (looked up from the on-chain
-  /// chainKind by the caller — see useUpdateTimelock callers in
+  /// chainKind by the caller - see useUpdateTimelock callers in
   /// the rules page for the mapping).
   templateFile: string;
 }
@@ -129,7 +129,7 @@ export function useUpdateTimelock() {
       // Re-encrypt the policy fields. The proposer/approver/threshold
       // values stay the same; only the timelock byte changes. We
       // round-trip everything through encryptPolicyBatch so the
-      // ciphertext IDs come out fresh — Encrypt's spec says repeat
+      // ciphertext IDs come out fresh - Encrypt's spec says repeat
       // calls produce distinct identifiers, and the CLI keys the
       // policy_ciphertexts array off them.
       const enc = new TextEncoder();

@@ -3,7 +3,7 @@
 // Full-viewport gate that intercepts /app/* surfaces when a PIN is
 // configured + this tab hasn't been unlocked yet. The gate hides
 // children entirely (the wallet hub, balances, pending approvals,
-// member list, settings — everything) until the user enters the
+// member list, settings - everything) until the user enters the
 // right PIN.
 //
 // The component renders at the workspace-layout level. When
@@ -29,7 +29,7 @@ interface Props {
 }
 
 export function AppLockOverlay({ children }: Props) {
-  // Hydrate on mount — server can't read storage. Until we know,
+  // Hydrate on mount - server can't read storage. Until we know,
   // assume locked-no-pin (renders children) so SSR + first paint
   // are stable. The check fires immediately client-side and flips
   // state correctly within a tick.
@@ -169,7 +169,7 @@ function Gate({ onUnlock }: { onUnlock: () => void }) {
             type="submit"
             disabled={busy || pin.length < 4}
             className={
-              "inline-flex items-center justify-center gap-1.5 rounded-full bg-accent px-4 py-2.5 text-sm font-medium text-white " +
+              "inline-flex items-center justify-center gap-1.5 rounded-full bg-accent px-4 py-2.5 text-sm font-medium text-text-on-accent " +
               "transition-[background-color,transform] duration-base ease-out-soft " +
               "hover:bg-accent-hover active:scale-[0.98] " +
               "disabled:cursor-not-allowed disabled:opacity-50 " +

@@ -68,7 +68,7 @@ const nextConfig = {
       "date-fns",
     ],
   },
-  // Strip console.log in prod but keep .error/.warn — production
+  // Strip console.log in prod but keep .error/.warn - production
   // diagnostics (chain adapters, useProposalSubscription) still need
   // to surface in the browser console.
   compiler: {
@@ -91,9 +91,16 @@ const nextConfig = {
   },
   // WalletConnect (transitive via Dynamic) pulls in pino, which tries
   // to resolve pino-pretty + a few other optional logger backends that
-  // aren't installed. Marking them external stops webpack from logging
-  // a "Module not found" warning on every dev rebuild. Runtime is
-  // unaffected — they were never used.
+  // aren't installed. Runtime is unaffected - they were never used.
+  // Two configs because dev runs Turbopack (`next dev --turbopack`) and
+  // prod runs Webpack (`next build`); each ignores the other's block.
+  turbopack: {
+    resolveAlias: {
+      "pino-pretty": "./src/empty-module.ts",
+      lokijs: "./src/empty-module.ts",
+      encoding: "./src/empty-module.ts",
+    },
+  },
   webpack: (config: { externals?: unknown[] }) => {
     config.externals = [
       ...(config.externals ?? []),

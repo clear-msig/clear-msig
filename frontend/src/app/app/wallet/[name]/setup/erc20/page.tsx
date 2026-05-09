@@ -2,15 +2,15 @@
 
 // Enable ERC-20 sending. Sibling of /setup/eth: same shape, different
 // template + chain_kind. The on-chain ERC-20 intent uses the
-// erc20_transfer_sepolia template — its params let the user pick a
+// erc20_transfer_sepolia template - its params let the user pick a
 // per-send token contract, recipient, amount, and nonce. So a single
 // intent unlocks sends for ANY ERC-20 token on Sepolia (USDC, DAI,
 // LINK, …) without each one needing its own intent.
 //
 // Pre-flight:
 //   - The wallet MUST already be bound to Ethereum. The same dWallet
-//     handles both ETH and ERC-20 transfers — they share an EVM
-//     address — so no extra binding step is required for ERC-20
+//     handles both ETH and ERC-20 transfers - they share an EVM
+//     address - so no extra binding step is required for ERC-20
 //     specifically; the bind that enabled ETH is sufficient.
 //   - If the wallet is not bound yet, this page surfaces the same
 //     "bind Ethereum first" CTA as setup/eth.
@@ -47,7 +47,7 @@ import { shortEvmAddress } from "@/lib/chain/eth";
 
 // Chain kind 4 = ERC-20 (EIP-1559 envelope, ERC-20 transfer calldata).
 // The same dWallet that signs ETH on chain_kind=1 signs ERC-20 calls
-// on chain_kind=4 — same secp256k1 key, different preimage builder.
+// on chain_kind=4 - same secp256k1 key, different preimage builder.
 const ERC20_TEMPLATE = "examples/intents/erc20_transfer_sepolia.json";
 const ERC20_CHAIN_KIND = 4;
 // We piggy-back on the Ethereum binding (chain_kind=1) for the
@@ -254,7 +254,7 @@ export default function SetupErc20Page() {
           ]}
         />
       </StickyTopBar>
-      {/* Mobile-only back chip — see /send for rationale. */}
+      {/* Mobile-only back chip - see /send for rationale. */}
       <div className="px-gutter pt-2 md:hidden">
         <BackToWallets />
       </div>
@@ -275,7 +275,7 @@ export default function SetupErc20Page() {
             <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
               ERC-20 setup
             </p>
-            <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+            <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
               Enable ERC-20 sending in{" "}
               <span className="text-accent">{toHeadingName(name)}</span>
             </h1>
@@ -358,7 +358,7 @@ export default function SetupErc20Page() {
                     action={`Enable ERC-20 sending in ${toDisplayName(name)}`}
                     details={[
                       { label: "Wallet", value: toDisplayName(name) },
-                      { label: "Chain", value: "Ethereum (Sepolia) — ERC-20" },
+                      { label: "Chain", value: "Ethereum (Sepolia) - ERC-20" },
                       ethAddress
                         ? {
                             label: "Address",
@@ -428,7 +428,7 @@ function PaceTile({ selected, onSelect, title, body }: PaceTileProps) {
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
         (selected
           ? "border-accent bg-accent/5 shadow-card-rest"
-          : "border-border-soft bg-canvas hover:border-accent/40")
+          : "border-border-soft bg-canvas")
       }
     >
       <div

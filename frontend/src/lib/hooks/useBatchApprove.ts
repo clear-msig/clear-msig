@@ -1,6 +1,6 @@
 "use client";
 
-// Batch approve — one decision, N signatures.
+// Batch approve - one decision, N signatures.
 //
 // Retail users with two or more pending requests in their inbox can
 // hit "Approve all" and walk through each wallet sign-prompt in
@@ -26,7 +26,7 @@ export interface BatchTarget {
   walletName: string;
   proposalPda: string;
   /// Short human label rendered while the row is in flight
-  /// (e.g. "Send money in Roommates"). Optional — falls back to
+  /// (e.g. "Send money in Roommates"). Optional - falls back to
   /// proposalPda if absent.
   label?: string;
 }
@@ -34,7 +34,7 @@ export interface BatchTarget {
 export interface BatchProgress {
   total: number;
   completed: number;
-  /// Set when the loop stopped early — user cancelled or backend
+  /// Set when the loop stopped early - user cancelled or backend
   /// errored. The UI can keep showing the partial result.
   error?: string;
   /// Label of the row currently in flight. Lets the UI render
@@ -92,7 +92,7 @@ export function useBatchApprove() {
       }
 
       setProgress({ total: rows.length, completed: rows.length });
-      // All approvals landed — refresh the inbox + per-wallet caches.
+      // All approvals landed - refresh the inbox + per-wallet caches.
       touchedWallets.forEach((w) => {
         queryClient.invalidateQueries({ queryKey: ["proposals", w] });
       });

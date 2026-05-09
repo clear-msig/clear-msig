@@ -5,7 +5,7 @@ import type { Config } from "tailwindcss";
 //
 // Two layers live here side-by-side during the 4-6 week rebuild:
 //
-//   1. SEMANTIC tokens (the new system) — `bg-app`, `surface-card`,
+//   1. SEMANTIC tokens (the new system) - `bg-app`, `surface-card`,
 //      `accent`, `text-strong`, `display-md`, `tap`, `duration-base`,
 //      `ease-out-soft`. These are what new retail components consume.
 //
@@ -21,7 +21,7 @@ const config: Config = {
   // <html>, set by lib/security/theme.ts. Five semantic tokens
   // (canvas / surface-raised / border-soft / text-strong /
   // text-soft) resolve to CSS vars, defined in globals.css per
-  // theme — flips the load-bearing surfaces without touching every
+  // theme - flips the load-bearing surfaces without touching every
   // call-site's `bg-canvas` / `text-text-strong` class.
   darkMode: ["class", '[data-theme="dark"]'],
   theme: {
@@ -30,15 +30,24 @@ const config: Config = {
         // ── Semantic ──────────────────────────────────────────────
         // The 5 highest-traffic tokens are CSS vars so dark mode
         // can flip them without per-class diffs. Everything else
-        // stays a fixed value — accent green / feedback / etc.
+        // stays a fixed value - accent green / feedback / etc.
         // should look the same in both themes.
         canvas: "var(--clear-canvas, #f4f4f5)",
         "surface-raised": "var(--clear-surface-raised, #ffffff)",
+        "surface-elevated": "var(--clear-surface-elevated, #ffffff)",
+        "surface-sunken": "var(--clear-surface-sunken, #eef0f4)",
         "text-strong": "var(--clear-text-strong, #0f172a)",
         "text-soft": "var(--clear-text-soft, #71717a)",
+        "text-softer": "var(--clear-text-softer, rgba(10, 14, 22, 0.42))",
         "border-soft": "var(--clear-border-soft, #e4e4e7)",
+        "border-strong": "var(--clear-border-strong, #d4d4d8)",
+        // Theme-aware glass overlays - replace ad-hoc bg-white/[0.0X]
+        // surfaces. Dark = white-on-dark tint; light = black-on-light.
+        "glass-soft": "var(--clear-glass-soft, rgba(10, 14, 22, 0.03))",
+        "glass-mid": "var(--clear-glass-mid, rgba(10, 14, 22, 0.05))",
+        "glass-strong": "var(--clear-glass-strong, rgba(10, 14, 22, 0.08))",
 
-        // Dark surfaces sit in the mid-gray family — never pure black.
+        // Dark surfaces sit in the mid-gray family - never pure black.
         // Lifted further on 2026-04-30 to match the rendered gray of the
         // workflow-tips translucent layers (the user's reference). All
         // values keep WCAG AA contrast with white text.
@@ -47,16 +56,24 @@ const config: Config = {
         "surface-card-strong": "#27272a",
         "surface-soft": "#52525b",
 
-        accent: "#16a34a",
-        "accent-hover": "#15803d",
-        "accent-bright": "#22c55e",
+        // Brand pivot 2026-05-08: accent is now lime (Obsidian & Lime
+        // identity). Black text reads on solid lime; white reads on
+        // translucent lime overlays. The Button primary swaps to
+        // text-on-accent for the new contrast pairing.
+        accent: "#ccff00",
+        "accent-hover": "#d8ff33",
+        "accent-bright": "#e0ff66",
         "accent-emerald": "#10b981",
+        "text-on-accent": "#000000",
 
         "text-primary": "#18181b",
         "text-on-dark": "#ffffff",
         "text-on-dark-soft": "#a1a1aa",
 
-        "border-strong": "#d4d4d8",
+        // border-strong is now defined above as a CSS-var token; the
+        // legacy hard-coded #d4d4d8 fell out of date when the obsidian
+        // dark theme shipped and stayed as dead code until the dual-
+        // theme rebuild. Removed here to dedupe.
 
         success: "#16a34a",
         danger: "#dc2626",
@@ -70,7 +87,7 @@ const config: Config = {
         "brand-green-bright": "#22c55e",
         "brand-emerald": "#10b981",
         "brand-white": "#ffffff",
-        "text-muted": "#71717a",
+        "text-muted": "var(--clear-text-soft, #71717a)",
         "text-card": "#ffffff",
         "text-card-muted": "#a1a1aa",
       },
@@ -82,7 +99,7 @@ const config: Config = {
         // headlines real character without breaking the sans-only
         // money-app rule. Existing call sites need no change.
         // `font-numerals` is the new family for the financial
-        // amount input on /send/* — JetBrains Mono with proper
+        // amount input on /send/* - JetBrains Mono with proper
         // tabular-numeric figures.
         sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
         display: [
@@ -109,7 +126,7 @@ const config: Config = {
       },
 
       fontSize: {
-        // Display scale — sans-tightened, capped at 2.5rem on desktop.
+        // Display scale - sans-tightened, capped at 2.5rem on desktop.
         // Old scale (Fraunces) climbed to 5rem, which read as magazine
         // hero, not money app. Geist at 2.5rem with weight 700 is the
         // Cash App / Apple Wallet register.
@@ -119,7 +136,7 @@ const config: Config = {
         "display-lg": ["2.5rem", { lineHeight: "1.05", letterSpacing: "-0.025em" }],
         "display-xl": ["2.5rem", { lineHeight: "1.05", letterSpacing: "-0.025em" }],
 
-        // Legacy hero-* — same cap. Retire over time.
+        // Legacy hero-* - same cap. Retire over time.
         "hero-sm": ["2rem", { lineHeight: "1.1", letterSpacing: "-0.02em" }],
         "hero-md": ["2.25rem", { lineHeight: "1.08", letterSpacing: "-0.022em" }],
         "hero-lg": ["2.5rem", { lineHeight: "1.05", letterSpacing: "-0.025em" }],
@@ -131,10 +148,10 @@ const config: Config = {
       },
 
       spacing: {
-        // Touch sizing — Apple HIG min target is 44px; 56px for primary CTAs.
+        // Touch sizing - Apple HIG min target is 44px; 56px for primary CTAs.
         tap: "44px",
         "tap-lg": "56px",
-        // Page gutters — generous on mobile, more on desktop.
+        // Page gutters - generous on mobile, more on desktop.
         gutter: "20px",
         "gutter-lg": "28px",
         // iOS bottom-bar safe inset (use as `pb-safe-bottom` on bottom-nav).
@@ -152,7 +169,7 @@ const config: Config = {
       },
 
       borderRadius: {
-        // Friendly, banking-app feel — softer than the hard `rounded-md` default.
+        // Friendly, banking-app feel - softer than the hard `rounded-md` default.
         soft: "10px",
         card: "16px",
         sheet: "24px",
@@ -172,24 +189,31 @@ const config: Config = {
 
       boxShadow: {
         // ── Semantic ──────────────────────────────────────────────
-        // Layered shadows + a 1px top highlight. The highlight reads
-        // as a soft rim-light from above, the layered drops give
-        // cards a touch of depth without crossing into skeuomorphism.
-        // Cash App / Venmo as the reference; very subtle.
+        // Three-layer 3D treatment, theme-aware via CSS vars:
+        //   1. inset top rim-light - light from above (white on dark,
+        //      bright white on light for a soft glossy finish)
+        //   2. inset bottom edge - gives the card visible "thickness"
+        //      (40-50% black on dark; faint cool drop on light)
+        //   3. layered drop shadows (close contact + soft far) - anchor
+        //      the card to the surface and lift it ~12px on rest, ~24px
+        //      raised. No colored hover ring; the depth change IS the
+        //      hover signal. Light theme uses cool slate drops at much
+        //      lower opacity so the card reads "lifted" without the
+        //      heavy black halo that suits the obsidian canvas.
         "card-rest":
-          "inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 1px 2px rgba(15, 23, 42, 0.05), 0 6px 18px rgba(15, 23, 42, 0.07), 0 2px 6px rgba(15, 23, 42, 0.04)",
+          "inset 0 1px 0 var(--clear-card-rim-top), inset 0 -1px 0 var(--clear-card-rim-bottom), 0 1px 2px var(--clear-card-shadow-close), 0 8px 16px -2px var(--clear-card-shadow-mid), 0 16px 32px -4px var(--clear-card-shadow-far)",
         "card-raised":
-          "inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 4px 14px rgba(15, 23, 42, 0.10), 0 16px 40px rgba(15, 23, 42, 0.12)",
-        "accent-rest": "0 8px 24px -8px rgba(22, 163, 74, 0.30)",
-        "accent-hover": "0 16px 36px -10px rgba(22, 163, 74, 0.40)",
+          "inset 0 1px 0 var(--clear-card-rim-top-raised), inset 0 -1px 0 var(--clear-card-rim-bottom-raised), 0 2px 4px var(--clear-card-shadow-close-raised), 0 12px 24px -2px var(--clear-card-shadow-mid-raised), 0 28px 56px -8px var(--clear-card-shadow-far-raised)",
+        "accent-rest": "0 8px 24px -8px var(--clear-accent-glow-rest)",
+        "accent-hover": "0 16px 36px -10px var(--clear-accent-glow-hover)",
 
         // ── Legacy ────────────────────────────────────────────────
-        glow: "0 10px 30px -10px rgba(22, 163, 74, 0.30)",
-        "glow-hover": "0 20px 40px -10px rgba(22, 163, 74, 0.40)",
-        "glow-strong": "0 0 60px -10px rgba(22, 163, 74, 0.35)",
-        "card-shadow": "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+        glow: "0 10px 30px -10px rgba(204, 255, 0, 0.30)",
+        "glow-hover": "0 20px 40px -10px rgba(204, 255, 0, 0.45)",
+        "glow-strong": "0 0 60px -10px rgba(204, 255, 0, 0.35)",
+        "card-shadow": "0 25px 50px -12px rgba(0, 0, 0, 0.45)",
         "card-dark": "0 20px 45px -15px rgba(0, 0, 0, 0.65)",
-        "inner-glow": "inset 0 0 0 1px rgba(22, 163, 74, 0.15)",
+        "inner-glow": "inset 0 0 0 1px rgba(204, 255, 0, 0.18)",
       },
 
       animation: {
@@ -225,15 +249,15 @@ const config: Config = {
 
       backgroundImage: {
         "hero-grid":
-          "radial-gradient(circle at 50% 0%, rgba(22,163,74,0.08), transparent 60%)",
+          "radial-gradient(circle at 50% 0%, rgba(204,255,0,0.10), transparent 60%)",
         "hero-noise":
-          "linear-gradient(135deg, rgba(22,163,74,0.06) 0%, rgba(0,0,0,0.04) 100%)",
+          "linear-gradient(135deg, rgba(204,255,0,0.06) 0%, rgba(16,185,129,0.04) 100%)",
         "skeleton-shimmer":
           "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0) 100%)",
       },
 
       screens: {
-        // 360px-class phones — keeps tight layouts from stacking too early.
+        // 360px-class phones - keeps tight layouts from stacking too early.
         xs: "420px",
       },
     },

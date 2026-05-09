@@ -82,7 +82,7 @@ export function useUserIntents() {
     }),
   });
 
-  // useQueries returns a fresh array each render — keying the memo
+  // useQueries returns a fresh array each render - keying the memo
   // off the array ref means it re-runs even when nothing changed.
   // Fingerprint by per-query dataUpdatedAt so we recompute only on
   // actual fetch updates. This matters because useActionNeeded ->

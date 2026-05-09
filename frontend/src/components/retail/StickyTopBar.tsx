@@ -1,6 +1,6 @@
 "use client";
 
-// StickyTopBar — page-level back / breadcrumb bar that stays pinned to
+// StickyTopBar - page-level back / breadcrumb bar that stays pinned to
 // the top of the page column on every screen size.
 //
 // History:
@@ -28,9 +28,9 @@
 //
 // The `offset` prop selects between these:
 //
-//   "header" — workspace pages. parent <main> has pt-20 (mobile) /
+//   "header" - workspace pages. parent <main> has pt-20 (mobile) /
 //              md:pt-4 (desktop). Bar inherits flow + pin matches.
-//   "top"    — standalone pages. <main> has no top padding. The bar
+//   "top"    - standalone pages. <main> has no top padding. The bar
 //              bakes the spacing in so its flow position matches the
 //              sticky pin and content below isn't covered at scroll-0.
 
@@ -56,7 +56,7 @@ export function StickyTopBar({
   // gutter drops at md+.
   const innerHorizontal = offset === "top" ? "px-gutter md:px-0 " : "";
   // Pin offset.
-  //   - offset="header": workspace pages — md:top-2 on desktop. On
+  //   - offset="header": workspace pages - md:top-2 on desktop. On
   //     MOBILE, the bar is hidden entirely (`hidden md:block`). The
   //     bottom nav handles primary navigation on phones, the page
   //     Hero tells the user where they are, and the breadcrumb /
@@ -65,7 +65,7 @@ export function StickyTopBar({
   //     mobile back affordance render it inside their Hero card,
   //     not via this component.
   //   - offset="top": standalone pages (welcome, connect, privacy,
-  //     security) — top-14 lg:top-10. These pages don't have a
+  //     security) - top-14 lg:top-10. These pages don't have a
   //     bottom nav, so the bar still earns its keep on mobile.
   //
   // Background is SOLID bg-canvas (not bg-canvas/85 + backdrop-blur)

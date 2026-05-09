@@ -202,7 +202,7 @@ export default function BudgetPage() {
           ]}
         />
       </StickyTopBar>
-      {/* Mobile-only back chip — see /send for rationale. */}
+      {/* Mobile-only back chip - see /send for rationale. */}
       <div className="px-gutter pt-2 md:hidden">
         <BackToWallets />
       </div>
@@ -219,7 +219,7 @@ export default function BudgetPage() {
         <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Spending policy
         </p>
-        <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+        <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
           How much can {name} spend?
         </h1>
         <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
@@ -493,7 +493,7 @@ function QuickChip({
         (small ? "px-2.5 py-0.5 text-[11px] " : "px-3 py-1 text-xs ") +
         (active
           ? "border-accent bg-accent/10 text-accent"
-          : "border-border-soft bg-canvas text-text-soft hover:border-accent/40 hover:text-text-strong")
+          : "border-border-soft bg-canvas text-text-soft hover:text-text-strong")
       }
     >
       {label}

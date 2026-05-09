@@ -2,7 +2,7 @@
 //
 // `defaultWalletName` is intentionally an empty string. Auto-filling
 // it to a known wallet name (e.g. "treasury") meant brand-new visitors
-// saw on-chain data from a wallet they didn't create — a "default
+// saw on-chain data from a wallet they didn't create - a "default
 // transactions" UX bug. Components require the user to explicitly
 // choose a wallet, which they can do from /app/wallet's memberships
 // card.
@@ -18,7 +18,7 @@ const IS_PRODUCTION =
 
 /// Per-device localStorage key for the user-set EVM destination
 /// RPC override. Symmetric with the Solana override in
-/// lib/solana/cluster.ts — power users running real volume can
+/// lib/solana/cluster.ts - power users running real volume can
 /// point at their own paid RPC (Alchemy, Infura, QuickNode) when
 /// the public Sepolia endpoint is rate-limited or down.
 export const EVM_RPC_OVERRIDE_STORAGE_KEY = "clear.evm-rpc-override.v1";
@@ -36,7 +36,7 @@ function readEvmRpcOverride(): string | null {
   }
 }
 
-/// Env-default EVM RPC URL — doesn't see the override. Exposed so
+/// Env-default EVM RPC URL - doesn't see the override. Exposed so
 /// the Settings row can tell the user whether the active value is
 /// theirs or the env default.
 export const destinationRpcDefault =
@@ -61,7 +61,7 @@ export const appConfig = {
       process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
       "https://api.devnet.solana.com",
     // Effective EVM RPC: localStorage override (if present) wins,
-    // otherwise the env default. Evaluated at module load — the
+    // otherwise the env default. Evaluated at module load - the
     // singleton callers see this. Saving a new override after first
     // load requires a page reload to take effect; the Settings UI
     // handles that.
@@ -81,7 +81,7 @@ export interface ConfigGap {
 /// real action, so the failure isn't a silent network call.
 ///
 /// In dev (NODE_ENV !== "production") this returns an empty list
-/// regardless — local defaults are fine for hacking on the app.
+/// regardless - local defaults are fine for hacking on the app.
 export function validateConfig(): ConfigGap[] {
   const gaps: ConfigGap[] = [];
   if (!process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID) {

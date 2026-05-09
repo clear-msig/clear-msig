@@ -1,6 +1,6 @@
 "use client";
 
-// Theme initialiser — runs on EVERY app load and writes the right
+// Theme initialiser - runs on EVERY app load and writes the right
 // data-theme attribute on <html> before any visible content
 // renders. Reading localStorage at component-mount time would flash
 // light first, then flip to dark. The Script tag in /app/layout.tsx

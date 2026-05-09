@@ -29,7 +29,7 @@ export type RampChainTarget = {
 
 /// Map an on-chain ChainKind byte (from `chain_kind` in IkaConfig)
 /// to the ramp service's expected target. `chainEnv` lets the caller
-/// signal whether they're hitting mainnet or testnet — clear-msig is
+/// signal whether they're hitting mainnet or testnet - clear-msig is
 /// devnet-only today, so the default is testnet.
 export function rampTargetForChainKind(
   kind: number,
@@ -44,7 +44,7 @@ export function rampTargetForChainKind(
         smallest_per_whole: 1_000_000_000n,
         display_decimals: 4,
       };
-    case 1: // evm_1559 — Ethereum / Sepolia
+    case 1: // evm_1559 - Ethereum / Sepolia
       return {
         chain_family: "evm",
         chain_id: chainEnv === "mainnet" ? "1" : "11155111",
@@ -68,7 +68,7 @@ export function rampTargetForChainKind(
         smallest_per_whole: 100_000_000n,
         display_decimals: 8,
       };
-    case 4: // evm_1559_erc20 — folded into ETH, caller passes token
+    case 4: // evm_1559_erc20 - folded into ETH, caller passes token
       // address in the metadata path.
       return {
         chain_family: "evm",
@@ -84,7 +84,7 @@ export function rampTargetForChainKind(
 
 /// Convert a whole-asset string ("0.05") to its smallest-unit BigInt.
 /// Returns null on invalid input. Truncates beyond the chain's
-/// precision rather than rounding (defensive — operator hot wallets
+/// precision rather than rounding (defensive - operator hot wallets
 /// shouldn't pay extra fractions due to rounding).
 export function wholeToMinor(
   whole: string,
@@ -98,7 +98,7 @@ export function wholeToMinor(
   const [intPart, fracPart = ""] = trimmed.split(".");
   const decimals = String(smallest_per_whole).length - 1;
   const padded = (fracPart + "0".repeat(decimals)).slice(0, decimals);
-  // Suppress the unused-binding warning — display_decimals is part of
+  // Suppress the unused-binding warning - display_decimals is part of
   // the public API for callers who want to round-trip-check.
   void display_decimals;
   try {

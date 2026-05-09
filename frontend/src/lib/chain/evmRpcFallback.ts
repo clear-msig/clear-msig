@@ -2,7 +2,7 @@
 
 // Multi-provider failover for EVM read calls. Mirrors the proxy
 // pattern in lib/solana/cluster.ts but for the EVM destination
-// chain — the public Sepolia RPC has been the source of every
+// chain - the public Sepolia RPC has been the source of every
 // "balance flickered" / "gas estimate empty" report we've had on
 // Ethereum, and a single misbehaving provider shouldn't kill the
 // dashboard for everyone.
@@ -13,7 +13,7 @@
 //     on chain) but the failure mode of a half-landed broadcast is
 //     bad UX: the second provider returns "already known" and the
 //     CLI thinks it's a fresh failure. So broadcast stays
-//     single-URL — `cli/src/chains/evm.rs` handles that path.
+//     single-URL - `cli/src/chains/evm.rs` handles that path.
 //   - Subscriptions. We don't use eth_subscribe anywhere yet.
 //
 // Order of attempts (per call):
@@ -24,7 +24,7 @@
 // Each URL gets one shot. On network-level failure (TypeError,
 // fetch failed, rate-limit / 5xx), we move on to the next. Logical
 // errors (eth_call returns "execution reverted") propagate
-// immediately — no point retrying those, and retrying could mask
+// immediately - no point retrying those, and retrying could mask
 // genuine contract bugs.
 
 import { appConfig, EVM_RPC_OVERRIDE_STORAGE_KEY, destinationRpcDefault } from "@/lib/config";
@@ -123,7 +123,7 @@ export async function withEvmFallback<T>(
       return await fn(url);
     } catch (err) {
       lastError = err;
-      // Logical errors propagate immediately — the next provider
+      // Logical errors propagate immediately - the next provider
       // would just fail the same way (or return a stale value).
       const retryable = isRetryableNetworkError(err) || isHttpRetryable(err);
       if (!retryable) throw err;

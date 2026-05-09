@@ -1,4 +1,4 @@
-// LocalEncryptClient — mirrors `@encrypt.xyz/pre-alpha-solana-client`'s
+// LocalEncryptClient - mirrors `@encrypt.xyz/pre-alpha-solana-client`'s
 // `createInput` API surface so call sites can exercise the encryption
 // path today, before Encrypt's npm package + gRPC gateway are public.
 //
@@ -11,13 +11,13 @@
 //
 // What it explicitly is NOT:
 //   - Real cryptography. Encrypt's pre-alpha disclaimer says the same
-//     thing about their own service — "all data is completely public
+//     thing about their own service - "all data is completely public
 //     and stored as plaintext." Local stub matches that contract.
 //
 // Swap path: when `@encrypt.xyz/pre-alpha-solana-client` lands on npm
 // with a stable browser entry, `lib/encrypt/client.ts` instantiates
 // the gRPC-Web client instead of this one. Same `createInput` call,
-// same shape of identifier — every consumer keeps working.
+// same shape of identifier - every consumer keeps working.
 
 import type { FheType } from "@/lib/encrypt/client";
 
@@ -44,7 +44,7 @@ export interface CiphertextRecord {
   /// Hex-encoded plaintext bytes. (Real client would store ciphertext.)
   ciphertext: string;
   fheType: FheType;
-  /// Hex of `authorized` program-id bytes — kept so the lookup path
+  /// Hex of `authorized` program-id bytes - kept so the lookup path
   /// can verify the requester is allowed to read.
   authorizedHex: string;
   createdAt: number;
@@ -67,7 +67,7 @@ function persistAll(records: Record<string, CiphertextRecord>): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
   } catch {
-    /* localStorage full or blocked — silent */
+    /* localStorage full or blocked - silent */
   }
 }
 

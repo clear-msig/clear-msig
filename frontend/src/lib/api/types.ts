@@ -35,14 +35,14 @@ export interface ChainBindingResponse {
   signature_scheme: number;
   /// Set when the underlying dWallet account exists on chain.
   secp256k1_pubkey_hex?: string;
-  /// Solana — chain_kind 0.
+  /// Solana - chain_kind 0.
   solana_address?: string;
-  /// Ethereum / ERC-20 — chain_kind 1, 4.
+  /// Ethereum / ERC-20 - chain_kind 1, 4.
   evm_address?: string;
-  /// Bitcoin P2WPKH — chain_kind 2.
+  /// Bitcoin P2WPKH - chain_kind 2.
   btc_p2wpkh_mainnet?: string;
   btc_p2wpkh_testnet?: string;
-  /// Zcash transparent — chain_kind 3.
+  /// Zcash transparent - chain_kind 3.
   zcash_t_addr_mainnet?: string;
   zcash_t_addr_testnet?: string;
 }
@@ -134,7 +134,7 @@ export type PrepareCreateProposalInput = {
   expiry?: string;
   /// Connected wallet's pubkey (base58). Used by the CLI's dry-run
   /// proposer/approver validation. Without it the CLI falls back to
-  /// its filesystem keypair, which isn't in any user's intent —
+  /// its filesystem keypair, which isn't in any user's intent -
   /// every prepare call would fail "signer is not a proposer".
   actor_pubkey?: string;
 };

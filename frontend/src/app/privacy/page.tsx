@@ -1,9 +1,9 @@
 "use client";
 
-// Privacy explainer — how Clear keeps shared-wallet rules private.
+// Privacy explainer - how Clear keeps shared-wallet rules private.
 //
 // One page that tells the FHE-via-Encrypt story in retail terms. The
-// tone is forward-looking but honest about the pre-alpha state — we
+// tone is forward-looking but honest about the pre-alpha state - we
 // accepted shipping the UX + marketing now while the network catches
 // up. When Encrypt is live, the only thing that changes here is
 // dropping the "Preview" callout near the bottom.
@@ -28,7 +28,7 @@ export default function PrivacyPage() {
   const status = encryptStatus();
 
   // Tangible proof the Encrypt surface fires on every policy
-  // change — count of locally-stored ciphertexts. Refreshes once
+  // change - count of locally-stored ciphertexts. Refreshes once
   // on mount; localStorage doesn't have a change event we'd want
   // to subscribe to in this context.
   const [ctCount, setCtCount] = useState<number | null>(null);

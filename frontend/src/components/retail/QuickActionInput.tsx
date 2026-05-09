@@ -68,7 +68,7 @@ export function QuickActionInput({ walletName }: QuickActionInputProps) {
       const data = (await res.json()) as RouteResponse;
       router.push(data.route);
       // Don't clear the input until the navigation actually swaps
-      // pages — the user can see what they typed if they bounce back.
+      // pages - the user can see what they typed if they bounce back.
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network glitch.");
     } finally {
@@ -116,7 +116,7 @@ export function QuickActionInput({ walletName }: QuickActionInputProps) {
               disabled={loading || !text.trim()}
               aria-label="Route to the right form"
               className={
-                "inline-flex h-tap w-tap shrink-0 items-center justify-center rounded-soft bg-accent text-white shadow-accent-rest " +
+                "inline-flex h-tap w-tap shrink-0 items-center justify-center rounded-soft bg-accent text-text-on-accent shadow-accent-rest " +
                 "transition-[background-color,transform,box-shadow] duration-base ease-out-soft " +
                 "hover:bg-accent-hover active:scale-[0.98] " +
                 "disabled:cursor-not-allowed disabled:opacity-60 " +

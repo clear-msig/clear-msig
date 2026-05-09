@@ -15,14 +15,16 @@
 // swap was an import path change in those files, no logic changes.
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 import { ToastProvider } from "@/components/ui/Toast";
 import { validateConfig } from "@/lib/config";
+import { applyTheme, getStoredTheme, watchSystemTheme } from "@/lib/security/theme";
 
 // Dynamic Labs SDK + connectors + LedgerProvider live in their own
 // chunk so the initial layout bundle doesn't ship them. We render a
-// minimal shell while the chunk loads — about one frame on prod —
+// minimal shell while the chunk loads - about one frame on prod -
 // then the auth provider takes over. ssr:false because all the
 // connectors touch browser-only globals.
 const DynamicProviderTree = dynamic(
@@ -67,6 +69,25 @@ export function AppProviders({ children }: Props) {
       }),
   );
 
+  // System-theme watcher - when the user's preference is "system",
+  // this listener re-applies the theme as the OS flips (e.g. macOS
+  // auto dark/light schedule). Only matters for "system" mode; the
+  // explicit "light"/"dark" choices ignore OS changes.
+  useEffect(() => watchSystemTheme(), []);
+
+  // Force-dark route enforcement for client-side navigation. The
+  // <Script> in layout.tsx handles the initial load; this effect
+  // handles route changes inside the SPA. Without it, a user with
+  // stored "light" preference would navigate from /app/wallet
+  // (light) into /welcome and see light surfaces around the
+  // marketing dark chrome - a broken-theme look. applyTheme reads
+  // the current pathname internally and short-circuits to "dark"
+  // for the force-dark routes.
+  const pathname = usePathname();
+  useEffect(() => {
+    applyTheme(getStoredTheme());
+  }, [pathname]);
+
   const environmentId = process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID;
 
   // Hard fail in development if the env id is missing; on production
@@ -90,17 +111,11 @@ export function AppProviders({ children }: Props) {
   );
 }
 
-// Mount target while the Dynamic chunk loads. Used to be a blank
-// canvas, which gave /welcome and /connect a "frozen" feel for the
-// 200-800ms the chunk takes to land — the user taps Get started,
-// the page goes black, nothing moves, then the wizard pops in.
-//
-// Updated 2026-05-08: render the brand mark + a single accent
-// hairline + an animated ring so the user sees motion immediately.
-// The ring isn't a scolding spinner, it's a calm "we're booting"
-// signal that matches the app's other waiting states (BrandLoader
-// is the canonical one). No layout shift when the real tree
-// hydrates because both states center inside min-h-screen.
+// Mount target while the Dynamic chunk loads. Same canvas color +
+// font as the app proper so the swap to the real tree is invisible.
+// We deliberately don't render an interactive loader here - the
+// chunk lands fast in prod and a spinner just becomes visible
+// noise.
 function ProvidersLoadingShell() {
   return (
     <main

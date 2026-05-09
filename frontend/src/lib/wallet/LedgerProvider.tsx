@@ -4,14 +4,14 @@
 //
 // When the user clicks "Use a Ledger" on /connect, we open a WebHID
 // transport, get the pubkey, and stash a `LedgerSession` here. The
-// rest of the app reads the session through `useLedger()` — most
+// rest of the app reads the session through `useLedger()` - most
 // commonly `useWallet()`, which prefers a Ledger session over the
 // Dynamic primary wallet so all signing routes through the device.
 //
 // The session does not persist across page reloads. WebHID requires
 // a user-initiated permission grant per origin per device, and the
 // Solana app must be unlocked, so re-prompting on reload is the
-// least-bad UX — silently reconnecting to a possibly-locked device
+// least-bad UX - silently reconnecting to a possibly-locked device
 // would be confusing.
 
 import {
@@ -50,7 +50,7 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
   const [connecting, setConnecting] = useState(false);
   const [lastError, setLastError] = useState<LedgerError | null>(null);
   const sessionRef = useRef<LedgerSession | null>(null);
-  // Reuse the in-flight promise when callers race connect() — without
+  // Reuse the in-flight promise when callers race connect() - without
   // this, a double-click fires two TransportWebHID.create()s and only
   // the first wins; the second corrupts state. All callers in a race
   // resolve from the same underlying connect attempt.
@@ -86,7 +86,7 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
       if (!current) return;
       sessionRef.current = null;
       setSession(null);
-      // No toast — the user yanking the cable is intentional. The
+      // No toast - the user yanking the cable is intentional. The
       // "Connect Ledger" CTA reappearing is signal enough.
       void current.disconnect().catch(() => undefined);
     };
@@ -97,7 +97,7 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
   const connect = useCallback(async () => {
     // Coalesce concurrent calls. Without this, racing connect()
     // attempts each call TransportWebHID.create() and only one
-    // succeeds — the rest leak transport state and confuse the UI.
+    // succeeds - the rest leak transport state and confuse the UI.
     if (inflightConnectRef.current) return inflightConnectRef.current;
 
     setConnecting(true);

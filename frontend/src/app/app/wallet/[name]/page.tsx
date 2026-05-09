@@ -1,6 +1,6 @@
 "use client";
 
-// Wallet detail — retail rebuild (locked 2026-04-30).
+// Wallet detail - retail rebuild (locked 2026-04-30).
 //
 // Replaces the legacy power-user wallet page (chain bindings,
 // intent CRUD, PDA panels, DKG progress, raw approver tables).
@@ -23,7 +23,7 @@ import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ArrowLeft, ArrowRight, Banknote, Bell, ChevronDown, Coins, Download, Layers, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, Vault } from "lucide-react";
+import { Activity, ArrowRight, Banknote, Bell, ChevronDown, Coins, Download, Layers, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users } from "lucide-react";
 import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -60,7 +60,6 @@ import { ProposalStatus } from "@/lib/msig";
 import { Button } from "@/components/retail/Button";
 import { BadgePill } from "@/components/retail/BadgePill";
 import { MemberAvatarStack } from "@/components/retail/MemberAvatar";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { QuickActionInput } from "@/components/retail/QuickActionInput";
 import { relativeTime } from "@/lib/util/relativeTime";
 import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
@@ -118,7 +117,7 @@ export default function WalletDetailPage() {
     staleTime: 30_000,
   });
 
-  // Vault balance — the lamports actually held by this wallet's vault
+  // Vault balance - the lamports actually held by this wallet's vault
   // PDA. Refreshed every 15s; invalidated after a successful Send so
   // the new balance shows up immediately.
   const balanceQuery = useQuery({
@@ -151,7 +150,7 @@ export default function WalletDetailPage() {
   }, [intentsQuery.data]);
   const memberCount = intentsQuery.data ? memberAddresses.length : null;
 
-  // Whether the wallet has any active intents — gates the "Send money"
+  // Whether the wallet has any active intents - gates the "Send money"
   // CTA. With zero intents, the program can't accept a proposal, so we
   // route the user to the one-tap setup screen instead.
   const hasIntents = useMemo(() => {
@@ -193,7 +192,7 @@ export default function WalletDetailPage() {
   const evmTxHistoryQuery = useEvmTxHistory(evmAddress, 8);
   const btcTxHistoryQuery = useBitcoinTxHistory(btcAddress, 8);
 
-  // ERC-20 holdings — every token the wallet's Sepolia address holds,
+  // ERC-20 holdings - every token the wallet's Sepolia address holds,
   // pulled from Blockscout. Drives the new Tokens-held panel below
   // so users can find a Send link without knowing the contract
   // address by heart.
@@ -236,13 +235,9 @@ export default function WalletDetailPage() {
           first in the tree so the overlay snaps in over a stable
           layout. */}
       <WalletTourModal />
-      {/* "← Wallets" sticky bar — visible on every breakpoint.
-          Originally md:hidden because the sidebar was the assumed
-          desktop nav, but a collapsed sidebar (rail mode) leaves
-          the user with no obvious back path. The bar's compact +
-          the band-killer layout fix means it doesn't read as
-          wasted space anymore. */}
-      <BackLink />
+      {/* Back navigation lives in the global DashboardHeader (desktop)
+          and the BottomNav Home tab (mobile) - no per-page chrome
+          needed here anymore. */}
       <Hero
         name={name}
         memberCount={memberCount}
@@ -253,7 +248,7 @@ export default function WalletDetailPage() {
         pendingApprovalCount={walletAction.length}
         reduce={!!reduce}
       />
-      {/* Pending approvals come right after the hero — they're the
+      {/* Pending approvals come right after the hero - they're the
           single highest-priority action a wallet member can take.
           Always-visible, regardless of which tab is active, so a
           member with waiting proposals can't miss them by sitting
@@ -285,7 +280,7 @@ export default function WalletDetailPage() {
 // ─── Tab nav ───────────────────────────────────────────────────────
 //
 // Phantom / Rainbow precedent: a wallet detail screen is a vertical
-// dump in two ways — Hero on top, then a tabbed feed below. We
+// dump in two ways - Hero on top, then a tabbed feed below. We
 // already moved primary actions (Send / Receive / Policies) to the
 // Hero tile row; the tabs here own the long-tail of content that
 // previously stacked into 12 sections.
@@ -301,7 +296,7 @@ export default function WalletDetailPage() {
 //
 // Active tab persisted via URL hash (#activity / #holdings /
 // #manage) so a refresh / back-nav lands on the same tab and the
-// URL is shareable. Hash is intentionally cosmetic — the page
+// URL is shareable. Hash is intentionally cosmetic - the page
 // renders correctly without it.
 
 type WalletTab = "activity" | "holdings" | "manage";
@@ -362,12 +357,12 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
   // Tab-bar ref so a tab switch scrolls the user back to the bar's
   // top edge. Without this, switching from a deep-scrolled Activity
   // tab to the much shorter Holdings tab leaves the user mid-page on
-  // empty content — the tap registers but reads as broken.
+  // empty content - the tap registers but reads as broken.
   const tabBarRef = useRef<HTMLDivElement>(null);
   const switchTab = (next: WalletTab) => {
     setTab(next);
     if (typeof window !== "undefined") {
-      // Replace, not push — back-button in a wallet should leave
+      // Replace, not push - back-button in a wallet should leave
       // the wallet, not cycle through tabs the user already saw.
       const url =
         window.location.pathname +
@@ -390,12 +385,12 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
   // Activity sums to ~24+ on any wallet with chain history (5 chains
   // × 5 rows each + send attempts), so a perpetual "99+" badge reads
   // as decoration. Pending approvals are already pinned above the
-  // tabs in ActionNeededSection — no need to repeat them here.
+  // tabs in ActionNeededSection - no need to repeat them here.
   const holdingsCount = erc20Holdings.length;
 
   return (
     <>
-      {/* Onboarding nudge — sits above the tabs, NOT inside Manage.
+      {/* Onboarding nudge - sits above the tabs, NOT inside Manage.
           The component self-hides once the wallet has intents +
           members + activity, so it's only visible during the
           first-run window. Was wrongly placed inside the Manage tab
@@ -418,7 +413,7 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
         <div className="flex flex-col gap-4">
           {/* Recent send attempts (success + failure). Persisted in
               localStorage so the user has a durable record of what
-              happened — failed sends used to vanish with the toast. */}
+              happened - failed sends used to vanish with the toast. */}
           {sendAttempts.length > 0 && (
             <TxAttemptsSection rows={sendAttempts} reduce={reduce} />
           )}
@@ -528,15 +523,12 @@ const TabBar = forwardRef<HTMLDivElement, TabBarProps>(function TabBar(
       ref={ref}
       role="tablist"
       aria-label="Wallet view"
-      // Static placement — sticky would collide with the mobile-only
-      // BackLink which also pins at top-20. The tabs are short enough
-      // that a quick scroll-to-top via the browser swipe / bottom nav
-      // still gets the user back to them; can revisit if real users
-      // want them pinned. mt-2 gives it air from the hero card above
-      // (gap-4 alone reads as flush).
+      // Static placement - sticky would collide with the mobile-only
+      // BackLink which also pins at top-20. mt-2 gives it air from
+      // the hero card above (gap-4 alone reads as flush).
       className="mt-2 mb-1 scroll-mt-24 print:hidden"
     >
-      <div className="flex items-stretch gap-1 overflow-x-auto rounded-card border border-border-soft bg-surface-raised p-1 shadow-card-rest">
+      <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto">
         {items.map((it) => {
           const active = tab === it.id;
           return (
@@ -548,29 +540,25 @@ const TabBar = forwardRef<HTMLDivElement, TabBarProps>(function TabBar(
               aria-controls={`wallet-tab-panel-${it.id}`}
               onClick={() => onSelect(it.id)}
               className={
-                "group inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft px-3 py-2 text-sm font-medium " +
-                "transition-[background-color,color,transform] duration-base ease-out-soft " +
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
+                "group inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium " +
+                "transition-colors duration-base ease-out-soft " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
                 (active
-                  ? "bg-canvas text-text-strong shadow-card-rest"
-                  : "text-text-soft hover:bg-canvas hover:text-text-strong")
+                  ? "bg-accent/10 text-accent"
+                  : "text-text-soft hover:bg-glass-soft hover:text-text-strong")
               }
             >
-              <span
-                className={
-                  active ? "text-accent" : "text-text-soft group-hover:text-text-strong"
-                }
-              >
+              <span className={active ? "text-accent" : "text-text-soft group-hover:text-text-strong"}>
                 {it.icon}
               </span>
               <span>{it.label}</span>
               {typeof it.count === "number" && it.count > 0 && (
                 <span
                   className={
-                    "ml-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-semibold " +
+                    "ml-0.5 inline-flex h-4 min-w-[18px] items-center justify-center rounded-full px-1 font-mono text-[10px] font-semibold " +
                     (active
                       ? "bg-accent/15 text-accent"
-                      : "bg-border-soft text-text-soft")
+                      : "border border-border-soft bg-surface-raised text-text-soft")
                   }
                 >
                   {it.count > 99 ? "99+" : it.count}
@@ -596,26 +584,6 @@ function HoldingsEmptyState() {
         balances live on the wallet hero above.
       </p>
     </section>
-  );
-}
-
-// ─── Top breadcrumb ────────────────────────────────────────────────
-
-function BackLink() {
-  return (
-    <StickyTopBar offset="header">
-      <Link
-        href="/app/wallet"
-        className={
-          "-ml-2 inline-flex min-h-tap w-fit items-center gap-1.5 rounded-soft px-2 py-2 text-sm text-text-soft " +
-          "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-        }
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Wallets
-      </Link>
-    </StickyTopBar>
   );
 }
 
@@ -650,7 +618,7 @@ function Hero({
   const balance =
     balanceLamports !== null ? formatBalance(balanceLamports) : null;
 
-  // Pull the picker output. Both fall back gracefully — wallets
+  // Pull the picker output. Both fall back gracefully - wallets
   // created before the appearance store existed get the
   // deterministic gradient and no shape subtitle.
   const walletGrad = useMemo(
@@ -666,147 +634,134 @@ function Hero({
     <motion.section
       {...motionProps}
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest sm:p-8"
+      className="overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-rest"
     >
-      {/* Inner stack capped to 2xl so headline + sub-line don't
-          stretch the full 96rem workspace width on wide monitors.
-          Without this, copy reads as a thin strip floating in a wide
-          empty card on 1920+ displays. */}
-      <div className="mx-auto flex max-w-2xl flex-col">
-      {/* Header avatar — picks up the picker color from welcome.
-          Gives the hub the same identity hook the sidebar shows so
-          the user knows they're in the right wallet at a glance. */}
-      <div className="mb-4 flex justify-center">
-        <span
-          aria-hidden="true"
-          className={
-            "flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br text-xl font-semibold text-white shadow-card-rest " +
-            walletGrad.from +
-            " " +
-            walletGrad.to
-          }
-        >
-          {name.trim().charAt(0).toUpperCase() || "?"}
-        </span>
-      </div>
-      <span aria-hidden="true" className="mx-auto block h-px w-10 bg-accent" />
-      <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-        {shapeLabel ? `${shapeLabel} wallet` : "Shared wallet"}
-      </p>
-      <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-        {toHeadingName(name)}
-      </h1>
-      {/* Sub-line: shape preset + member count. Carries the create-
-          time choice through to the hub so the user feels the wallet
-          remembers what they set it up for. Sits right under the
-          headline so identity copy reads as one block; the urgent
-          "X waiting on you" pill lives below it (was wedged in
-          between, breaking the rhythm). */}
-      {shapeLabel && memberCount !== null && (
-        <p className="mt-2 text-xs text-text-soft">
-          For {shapeLabel.toLowerCase()} ·{" "}
-          <span className="font-medium text-text-strong">{memberCount}</span>{" "}
-          {memberCount === 1 ? "member" : "members"}
-        </p>
-      )}
-      {/* Quiet pending-approvals pill. Anchors to the
-          ActionNeededSection below for keyboard users; visible only
-          when there's at least one approval waiting on this user. */}
-      {pendingApprovalCount > 0 && (
-        <a
-          href="#action-needed"
-          className="mx-auto mt-3 inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/[0.07] px-3 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent/[0.12]"
-        >
-          <Bell className="h-3 w-3" strokeWidth={2.5} />
-          {pendingApprovalCount} waiting on you
-        </a>
-      )}
-
-      {/* Wallet value — total USD across every bound chain plus the
-          per-chain breakdown. SOL stays as the primary tile so
-          single-chain wallets feel the same; multi-chain wallets get
-          the aggregate as the headline.
-          Demo prices today (priceConversion.ts is a stub); the
-          "demo prices" disclaimer keeps the UI honest. */}
-      <PortfolioPanel walletName={name} fallbackBalance={balance} loadingFallback={loadingBalance} />
-
-      {/* Hero footer A — meta row: members + settings. */}
-      <div className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-text-soft">
-        <Link
-          href={`/app/wallet/${encodeURIComponent(name)}/members`}
-          aria-label="View members"
-          className={
-            "group inline-flex items-center gap-2 rounded-soft px-1 py-0.5 -mx-1 " +
-            "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-          }
-        >
-          {loadingMembers ? (
-            <>
-              <Users className="h-4 w-4" aria-hidden="true" />
-              <span className="inline-block h-4 w-24 animate-pulse rounded bg-border-soft" />
-            </>
-          ) : memberAddresses.length > 0 ? (
-            <>
-              <MemberAvatarStack
-                addresses={memberAddresses}
-                size="md"
-                max={4}
-              />
-              <span>
-                {memberCount} {memberCount === 1 ? "member" : "members"}
+      {/* ── Identity row ──────────────────────────────────────────
+          Left: avatar + eyebrow + display name. Right: member-link
+          (with avatar stack) + pending-approval pill. Mirrors the
+          left-aligned header pattern used on /wallet, /activity,
+          /contacts, /settings. */}
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 p-5 sm:p-6">
+        <div className="flex min-w-0 items-center gap-4">
+          <span
+            aria-hidden="true"
+            className={
+              "flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-xl font-semibold text-white shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)] ring-1 ring-white/10 sm:h-16 sm:w-16 sm:text-2xl " +
+              walletGrad.from +
+              " " +
+              walletGrad.to
+            }
+          >
+            {name.trim().charAt(0).toUpperCase() || "?"}
+          </span>
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              {shapeLabel ? `${shapeLabel} · shared wallet` : "Shared wallet"}
+            </p>
+            <h1 className="hidden truncate font-display text-2xl font-semibold tracking-tight text-text-strong sm:text-3xl md:block">
+              {toHeadingName(name)}
+            </h1>
+          </div>
+        </div>
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <Link
+            href={`/app/wallet/${encodeURIComponent(name)}/members`}
+            aria-label="View members"
+            className={
+              "group inline-flex items-center gap-2 rounded-soft px-1 py-0.5 -mx-1 text-xs text-text-soft sm:text-sm " +
+              "transition-colors duration-base ease-out-soft hover:text-text-strong " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+            }
+          >
+            {loadingMembers ? (
+              <>
+                <Users className="h-4 w-4" aria-hidden="true" />
+                <span className="inline-block h-4 w-20 animate-pulse rounded bg-border-soft" />
+              </>
+            ) : memberAddresses.length > 0 ? (
+              <>
+                <MemberAvatarStack
+                  addresses={memberAddresses}
+                  size="sm"
+                  max={4}
+                />
+                <span>
+                  {memberCount} {memberCount === 1 ? "member" : "members"}
+                </span>
+                <ArrowRight
+                  className="h-3.5 w-3.5 -ml-0.5 text-text-soft/60 transition-transform duration-base group-hover:translate-x-0.5"
+                  aria-hidden="true"
+                />
+              </>
+            ) : (
+              <>
+                <Users className="h-4 w-4" aria-hidden="true" />
+                <span>1 member</span>
+              </>
+            )}
+          </Link>
+          {pendingApprovalCount > 0 && (
+            <a
+              href="#action-needed"
+              className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-2.5 py-1 text-[11px] font-semibold text-accent ring-1 ring-accent/30 transition-colors duration-base ease-out-soft hover:bg-accent/15"
+            >
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent/70 opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
               </span>
-              <ArrowRight
-                className="h-3.5 w-3.5 -ml-0.5 text-text-soft/60 transition-transform duration-base group-hover:translate-x-0.5"
-                aria-hidden="true"
-              />
-            </>
-          ) : (
-            <>
-              <Users className="h-4 w-4" aria-hidden="true" />
-              <span>1 member</span>
-            </>
+              <Bell className="h-3 w-3" strokeWidth={2.5} />
+              {pendingApprovalCount} waiting on you
+            </a>
           )}
-        </Link>
+        </div>
       </div>
 
-      {/* Hero footer B — primary action tiles. Replaces the
-          three sub-tap-target pills (Send / Receive / Add policies)
-          that read as decoration on the most-visited surface in
-          the app. Tiles meet the 44px Apple HIG minimum and read
-          as primary CTAs. mx-auto so the grid centers within the
-          flex-col-items-center hero (text-center on a parent does
-          not propagate to block-level grid children). */}
-      <div
-        className="mx-auto mt-4 grid w-full max-w-md grid-cols-3 gap-2"
-        role="group"
-        aria-label="Wallet actions"
-      >
-        <HeroActionTile
-          href={`/app/wallet/${encodeURIComponent(name)}/send`}
-          icon={<Send className="h-5 w-5" strokeWidth={1.75} />}
-          label="Send"
+      <div className="border-t border-border-soft" />
+
+      {/* ── Portfolio + actions ──────────────────────────────────
+          Wallet value is the centerpiece - total USD across every
+          bound chain plus the per-chain breakdown. SOL stays as the
+          primary number for single-chain wallets; multi-chain wallets
+          get the aggregate as the headline. Demo prices today
+          (priceConversion.ts is a stub); the disclaimer keeps the
+          UI honest. */}
+      <div className="flex flex-col gap-5 p-5 sm:p-6">
+        <PortfolioPanel
+          walletName={name}
+          fallbackBalance={balance}
+          loadingFallback={loadingBalance}
         />
-        <HeroActionTile
-          href={`/app/wallet/${encodeURIComponent(name)}/receive`}
-          icon={<Download className="h-5 w-5" strokeWidth={1.75} />}
-          label="Receive"
-        />
-        <HeroActionTile
-          href={`/app/wallet/${encodeURIComponent(name)}/policies`}
-          icon={<ShieldCheck className="h-5 w-5" strokeWidth={1.75} />}
-          label="Policies"
-        />
+
+        <div
+          className="grid grid-cols-3 gap-2"
+          role="group"
+          aria-label="Wallet actions"
+        >
+          <HeroActionTile
+            href={`/app/wallet/${encodeURIComponent(name)}/send`}
+            icon={<Send className="h-5 w-5" strokeWidth={1.75} />}
+            label="Send"
+          />
+          <HeroActionTile
+            href={`/app/wallet/${encodeURIComponent(name)}/receive`}
+            icon={<Download className="h-5 w-5" strokeWidth={1.75} />}
+            label="Receive"
+          />
+          <HeroActionTile
+            href={`/app/wallet/${encodeURIComponent(name)}/policies`}
+            icon={<ShieldCheck className="h-5 w-5" strokeWidth={1.75} />}
+            label="Policies"
+          />
+        </div>
       </div>
-      </div>{/* end max-w-2xl Hero stack */}
     </motion.section>
   );
 }
 
-// Hero primary-action tile. ≥56px tap target, icon + label, accent
-// hover lift. Lives in this file so the wallet hub remains a single
-// vertical scan; the same pattern can be promoted to
-// components/retail later if it shows up on a second surface.
+// Hero primary-action tile. ≥64px tap target, accent icon disc,
+// flat surface that matches the kit's section card vocabulary
+// (rounded-card / border-border-soft / bg-canvas). Hover swaps the
+// border to accent and lifts; no neon glow.
 function HeroActionTile({
   href,
   icon,
@@ -820,14 +775,14 @@ function HeroActionTile({
     <Link
       href={href}
       className={
-        "group flex min-h-[56px] flex-col items-center justify-center gap-1 rounded-card border border-border-soft bg-canvas px-3 py-3 " +
-        "text-xs font-medium text-text-strong " +
-        "transition-[transform,border-color,box-shadow,color] duration-base ease-out-soft " +
-        "hover:-translate-y-0.5 hover:border-accent hover:text-accent hover:shadow-card-rest " +
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+        "group flex min-h-[80px] flex-col items-center justify-center gap-2 rounded-card border border-border-soft bg-canvas px-3 py-3 " +
+        "text-xs font-medium text-text-strong shadow-card-rest " +
+        "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
+        "hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-card-raised " +
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
       }
     >
-      <span className="text-text-soft transition-colors duration-base ease-out-soft group-hover:text-accent">
+      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/10 text-accent transition-colors duration-base ease-out-soft group-hover:bg-accent/15">
         {icon}
       </span>
       <span>{label}</span>
@@ -853,36 +808,28 @@ function PortfolioPanel({
   const portfolio = useWalletPortfolio(walletName);
   const fiat = useDisplayCurrency();
 
-  // Multi-chain check — only when a non-Solana chain has loaded.
+  // Multi-chain check - only when a non-Solana chain has loaded.
   const hasMultipleChains =
     portfolio.breakdown.filter((c) => c.raw !== null && c.raw > 0n).length >
     1 || portfolio.breakdown.length > 1;
 
   if (!hasMultipleChains) {
-    // Single-chain fallback: keep the existing SOL-only display so
-    // wallets that haven't bound other chains feel identical to
-    // before this change. Less noise, no demo-price disclaimer.
-    //
-    // Editorial-sans treatment: thin accent rule above the eyebrow
-    // (hairline rhythm carried from the send pages), JetBrains Mono
-    // tabular-nums on the value column for column-aligned digits,
-    // ticker rendered as Manrope display caps (matches the SOL
-    // suffix on /send/* — single shared treatment for currency
-    // codes everywhere).
+    // Single-chain fallback: kit-styled eyebrow + numerals + ticker.
+    // Bumped the value to display-sm so the headline number leads
+    // the hero - this is the centerpiece, not a stat.
     return (
-      <div className="mt-5 flex flex-col items-center">
-        <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+      <div className="flex flex-col items-start gap-1.5">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Balance
         </p>
         {loadingFallback ? (
-          <div className="mx-auto mt-2 h-9 w-40 animate-pulse rounded bg-border-soft" />
+          <div className="h-10 w-48 animate-pulse rounded bg-border-soft" />
         ) : (
-          <p className="mt-2 flex items-baseline justify-center gap-2">
-            <span className="font-numerals text-display-xs font-semibold text-text-strong tabular-nums">
+          <p className="flex items-baseline gap-2">
+            <span className="font-numerals text-3xl font-semibold leading-none tracking-tight text-text-strong tabular-nums sm:text-4xl">
               {fallbackBalance ? fallbackBalance.amount : "0"}
             </span>
-            <span className="font-display text-sm font-semibold uppercase tracking-[0.24em] text-text-soft">
+            <span className="font-display text-sm font-semibold uppercase tracking-[0.16em] text-text-soft">
               {fallbackBalance?.ticker ?? "SOL"}
             </span>
           </p>
@@ -903,25 +850,24 @@ function PortfolioPanel({
     .join(" · ");
 
   return (
-    <div className="mt-5 flex flex-col items-center">
-      <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-      <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+    <div className="flex flex-col items-start gap-1.5">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
         Wallet value
       </p>
       {portfolio.isLoading && portfolio.totalUsd === 0 ? (
-        <div className="mx-auto mt-2 h-9 w-40 animate-pulse rounded bg-border-soft" />
+        <div className="h-10 w-48 animate-pulse rounded bg-border-soft" />
       ) : (
         <>
-          <p className="mt-2 font-numerals text-display-xs font-semibold text-text-strong tabular-nums">
+          <p className="font-numerals text-3xl font-semibold leading-none tracking-tight text-text-strong tabular-nums sm:text-4xl">
             {fiat.format(portfolio.totalUsd)}
           </p>
           {breakdownText && (
-            <p className="mt-1 font-numerals text-xs text-text-soft tabular-nums">
+            <p className="font-numerals text-xs text-text-soft tabular-nums">
               {breakdownText}
             </p>
           )}
           <p
-            className="mt-2 text-[10px] uppercase tracking-[0.24em] text-text-soft"
+            className="text-[10px] uppercase tracking-[0.24em] text-text-soft"
             title="Prices are demo values today (priceConversion.ts is a stub). Treat as a sketch, not a quote."
           >
             demo prices
@@ -937,7 +883,7 @@ function PortfolioPanel({
 
 // Lookup the catalog row for a chain_kind. CHAIN_CATALOG itself is
 // imported at the top of the file (alongside the other chain
-// imports) — keep it that way; mid-file imports are not valid ES
+// imports) - keep it that way; mid-file imports are not valid ES
 // module syntax.
 function chainByKindOnce(
   kind: number,
@@ -1015,7 +961,7 @@ function TxAttemptsSection({
                     ) : (
                       <span className="text-warning">! </span>
                     )}
-                    {row.amountDisplay ?? "—"} {row.ticker ?? ""}
+                    {row.amountDisplay ?? "-"} {row.ticker ?? ""}
                     {row.recipientShort ? ` → ${row.recipientShort}` : ""}
                   </p>
                   <p className="mt-0.5 truncate text-xs text-text-soft">
@@ -1030,7 +976,7 @@ function TxAttemptsSection({
                     href={row.explorerUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="shrink-0 rounded-pill border border-border-soft bg-canvas px-3 py-1 text-[11px] font-medium text-text-strong transition hover:border-accent/50 hover:text-accent"
+                    className="shrink-0 rounded-pill border border-border-soft bg-canvas px-3 py-1 text-[11px] font-medium text-text-strong transition hover:text-accent"
                   >
                     View tx ↗
                   </a>
@@ -1059,7 +1005,7 @@ function TxAttemptsSection({
 
 // ─── On-chain tx history (per-chain) ───────────────────────────────
 //
-// Fetches actual chain-native activity for the wallet's address —
+// Fetches actual chain-native activity for the wallet's address -
 // incoming deposits + every spend, regardless of whether it came
 // from this app. Complements the localStorage `TxAttemptsSection`
 // (which only knows about sends initiated from this browser).
@@ -1122,7 +1068,7 @@ function Erc20HoldingsSection({
                 className={
                   "shrink-0 inline-flex items-center gap-1 rounded-full border border-border-soft bg-canvas px-3 py-1 text-[11px] font-medium text-text-soft " +
                   "transition-[border-color,color,transform] duration-base ease-out-soft " +
-                  "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+                  "hover:-translate-y-0.5 hover:text-accent " +
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
                 }
               >
@@ -1202,7 +1148,7 @@ function ChainTxHistorySection({
                   }
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="shrink-0 rounded-pill border border-border-soft bg-canvas px-3 py-1 text-[11px] font-medium text-text-strong transition hover:border-accent/50 hover:text-accent"
+                  className="shrink-0 rounded-pill border border-border-soft bg-canvas px-3 py-1 text-[11px] font-medium text-text-strong transition hover:text-accent"
                 >
                   View ↗
                 </a>
@@ -1215,7 +1161,21 @@ function ChainTxHistorySection({
   );
 }
 
-// ─── Quick actions row ─────────────────────────────────────────────
+// ─── Manage tab actions ────────────────────────────────────────────
+//
+// The Manage tab owns wallet-level configuration and second-tier
+// money flows. Send / Receive / Policies live in the Hero - replicating
+// them here was clutter, so this row is now strictly "things I do less
+// often, but still need":
+//   • Set up sending  - only when the wallet has no intents yet (gates
+//     the entire send flow). Treated as an accent prompt card so it
+//     doesn't read as just another row.
+//   • Configure       - Members / Chains / Policies / Settings
+//   • Money           - Buy with naira / Sell to bank (NGN ↔ crypto)
+//
+// Each row uses the icon + title + description + chevron pattern from
+// the Settings page so the whole product reads with one navigation
+// vocabulary.
 
 function Actions({
   name,
@@ -1231,77 +1191,144 @@ function Actions({
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
   const encoded = encodeURIComponent(name);
-
-  // Default to the Send CTA while loading so we don't flash the setup
-  // affordance for half a second before the intents query resolves.
   const sendingReady = hasIntents !== false;
 
   return (
     <motion.div
       {...motionProps}
       transition={{ duration: 0.2 }}
-      className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+      className="flex flex-col gap-5"
     >
-      {sendingReady ? (
-        <Link href={`/app/wallet/${encoded}/send`} className="block">
-          <Button size="lg" fullWidth>
-            <Send className="h-4 w-4" aria-hidden="true" />
-            Send money
-          </Button>
-        </Link>
-      ) : (
-        <Link href={`/app/wallet/${encoded}/setup`} className="block">
-          <Button size="lg" fullWidth>
-            <Send className="h-4 w-4" aria-hidden="true" />
-            Set up sending
-          </Button>
+      {!sendingReady && (
+        <Link
+          href={`/app/wallet/${encoded}/setup`}
+          className={
+            "group flex items-center gap-3 rounded-card border border-accent/30 bg-accent/[0.05] p-5 shadow-card-rest " +
+            "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
+            "hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-card-raised " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          }
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
+            <Send className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-text-strong">
+              Set up sending
+            </p>
+            <p className="mt-0.5 text-xs text-text-soft">
+              Add a spending rule before this wallet can send. One-tap setup.
+            </p>
+          </div>
+          <ArrowRight
+            className="h-4 w-4 shrink-0 text-accent transition-transform duration-base group-hover:translate-x-0.5"
+            aria-hidden="true"
+          />
         </Link>
       )}
-      <Link href={`/app/wallet/${encoded}/receive`} className="block">
-        <Button size="lg" variant="secondary" fullWidth>
-          <Download className="h-4 w-4" aria-hidden="true" />
-          Receive money
-        </Button>
-      </Link>
 
-      {/* Chains — entry point for adding ETH / BTC / ZEC support to
-          the wallet. Sits in the Manage tab so a user with only SOL
-          bound has a clear "make this multi-chain" CTA without
-          having to find the picker on /send. */}
-      <Link href={`/app/wallet/${encoded}/chains`} className="block">
-        <Button size="lg" variant="secondary" fullWidth>
-          <Layers className="h-4 w-4" aria-hidden="true" />
-          Chains
-        </Button>
-      </Link>
+      <ActionGroup label="Configure" description="Wallet-level setup.">
+        <ActionRow
+          href={`/app/wallet/${encoded}/members`}
+          icon={Users}
+          title="Members"
+          body="Who can spend, approve, and watch."
+        />
+        <ActionRow
+          href={`/app/wallet/${encoded}/chains`}
+          icon={Layers}
+          title="Chains"
+          body="Bind ETH, BTC, or Zcash for multi-chain sending."
+        />
+        <ActionRow
+          href={`/app/wallet/${encoded}/policies`}
+          icon={ShieldCheck}
+          title="Policies"
+          body="Approval thresholds and per-friend allowances."
+        />
+        <ActionRow
+          href={`/app/wallet/${encoded}/settings`}
+          icon={SettingsIcon}
+          title="Wallet settings"
+          body="Rename, weekly budget, intent rules."
+        />
+      </ActionGroup>
 
-      {/* Secure — cross-discovery to the ikavery vault flow. Sits
-          here because users in the wallet hub thinking about "how do
-          I protect my key?" are exactly the audience for personal
-          recovery. Goes to /app/secure (global, not per-wallet). */}
-      <Link href="/app/secure" className="block">
-        <Button size="lg" variant="secondary" fullWidth>
-          <Vault className="h-4 w-4" aria-hidden="true" />
-          Secure your key
-        </Button>
-      </Link>
-
-      {/* Fiat ramping (NGN ↔ crypto) — second-tier actions, sit
-          beneath the primary Send/Receive row so they're discoverable
-          without competing with the everyday flow. */}
-      <Link href={`/app/wallet/${encoded}/buy`} className="block">
-        <Button size="lg" variant="secondary" fullWidth>
-          <Banknote className="h-4 w-4" aria-hidden="true" />
-          Buy with naira
-        </Button>
-      </Link>
-      <Link href={`/app/wallet/${encoded}/sell`} className="block">
-        <Button size="lg" variant="secondary" fullWidth>
-          <TrendingDown className="h-4 w-4" aria-hidden="true" />
-          Sell to bank
-        </Button>
-      </Link>
+      <ActionGroup label="Money" description="Fiat ↔ crypto. Naira-routed for now.">
+        <ActionRow
+          href={`/app/wallet/${encoded}/buy`}
+          icon={Banknote}
+          title="Buy with naira"
+          body="Top up SOL or ETH from a Nigerian bank account."
+        />
+        <ActionRow
+          href={`/app/wallet/${encoded}/sell`}
+          icon={TrendingDown}
+          title="Sell to bank"
+          body="Off-ramp crypto back to NGN."
+        />
+      </ActionGroup>
     </motion.div>
+  );
+}
+
+function ActionGroup({
+  label,
+  description,
+  children,
+}: {
+  label: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex flex-col gap-0.5">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          {label}
+        </h3>
+        {description ? (
+          <p className="text-xs text-text-soft/80">{description}</p>
+        ) : null}
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{children}</div>
+    </section>
+  );
+}
+
+function ActionRow({
+  href,
+  icon: Icon,
+  title,
+  body,
+}: {
+  href: string;
+  icon: typeof Send;
+  title: string;
+  body: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className={
+        "group flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest " +
+        "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
+        "hover:-translate-y-0.5 hover:shadow-card-raised " +
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+      }
+    >
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+        <Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-text-strong">{title}</p>
+        <p className="mt-0.5 text-xs text-text-soft">{body}</p>
+      </div>
+      <ArrowRight
+        className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
+        aria-hidden="true"
+      />
+    </Link>
   );
 }
 
@@ -1338,17 +1365,17 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
       id="action-needed"
       {...motionProps}
       transition={{ duration: 0.2 }}
-      className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest scroll-mt-24"
+      className="rounded-card border border-accent/40 bg-surface-raised p-5 shadow-card-rest scroll-mt-24"
     >
       <header className="flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-medium text-text-strong">
+        <h2 className="flex items-center gap-2.5 text-sm font-medium text-text-strong">
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent/10 text-accent">
             <Bell className="h-3.5 w-3.5" strokeWidth={2} />
           </span>
           Needs your approval
         </h2>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-text-soft">{rows.length}</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-soft">{rows.length} pending</span>
           {showApproveAll && (
             <BadgePill onClick={handleApproveAll} disabled={running}>
               {running ? "Approving…" : "Approve all"}
@@ -1372,16 +1399,16 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
             <Link
               href={`/app/proposals/${row.proposalPda}`}
               className={
-                "group flex items-center justify-between gap-3 py-3 " +
-                "transition-colors duration-base ease-out-soft " +
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+                "group flex items-center justify-between gap-3 rounded-soft px-2 py-3 -mx-2 " +
+                "transition-colors duration-base ease-out-soft hover:bg-canvas " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
               }
             >
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-text-strong">
                   {friendlyIntentLabel(row.intentTemplate)}
                 </p>
-                <p className="mt-0.5 truncate text-xs text-text-soft">
+                <p className="mt-0.5 truncate font-mono text-[11px] text-text-soft">
                   {row.approvalsCollected} of {row.approverCount} approved
                 </p>
               </div>
@@ -1459,7 +1486,7 @@ function BatchProgressRow({
 
 interface ActivityProps {
   rows: RecentActivityRow[];
-  /// Full unsliced list for this wallet — used by the CSV export
+  /// Full unsliced list for this wallet - used by the CSV export
   /// so accountants get the complete history, not just the visible
   /// top-5 the dashboard renders.
   allRows: RecentActivityRow[];
@@ -1479,7 +1506,7 @@ function ActivitySection({
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
   // Per-wallet collapsed flag in localStorage so the user's choice
-  // sticks across page nav. Default expanded — recent activity is
+  // sticks across page nav. Default expanded - recent activity is
   // the most-glanced-at section after Pending approvals.
   const collapsedKey = `clear.activity-collapsed.${walletName}`;
   const [collapsed, setCollapsed] = useState<boolean>(() => {
@@ -1548,7 +1575,7 @@ function ActivitySection({
               className={
                 "inline-flex items-center gap-1 rounded-full border border-border-soft bg-surface-raised px-2.5 py-1 text-[11px] font-medium text-text-soft " +
                 "transition-[border-color,color,transform] duration-base ease-out-soft " +
-                "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+                "hover:-translate-y-0.5 hover:text-accent " +
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
               }
               title="See every proposal with chain + status filters"
@@ -1564,7 +1591,7 @@ function ActivitySection({
               className={
                 "inline-flex items-center gap-1 rounded-full border border-border-soft bg-surface-raised px-2.5 py-1 text-[11px] font-medium text-text-soft " +
                 "transition-[border-color,color,transform] duration-base ease-out-soft " +
-                "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+                "hover:-translate-y-0.5 hover:text-accent " +
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
               }
               title="Download every proposal on this wallet as CSV"
@@ -1624,7 +1651,7 @@ function ActivityEmptyState({ reduce }: { reduce: boolean }) {
       <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
         Activity
       </h2>
-      {/* Ghost row — same shape as a real activity row, just muted.
+      {/* Ghost row - same shape as a real activity row, just muted.
           Cash App pattern: tell the user what this surface looks like
           when it has content, so the empty state isn't a void. */}
       <div className="mt-3 flex items-center gap-3 rounded-soft border border-dashed border-border-soft px-3 py-3">
@@ -1638,7 +1665,7 @@ function ActivityEmptyState({ reduce }: { reduce: boolean }) {
         Your first send or invite shows up here.
       </p>
       <p className="mt-1 text-xs text-text-soft">
-        Every move on this wallet — sent, approved, declined — gets a
+        Every move on this wallet - sent, approved, declined - gets a
         row, with the friend who acted and when.
       </p>
     </motion.section>
@@ -1647,48 +1674,50 @@ function ActivityEmptyState({ reduce }: { reduce: boolean }) {
 
 // ─── Loading + not-found ───────────────────────────────────────────
 
-// Geometry-matched detail skeleton — Hero (status chip, headline,
-// sub-line, portfolio tile, member row, 3-up action tile row) +
-// Actions card. The previous version was a generic 3-stripe block
-// that left ~250px of layout shift when the real Hero swapped in.
+// Geometry-matched detail skeleton - Hero (avatar + identity left,
+// members on the right, portfolio block, 3-up action tiles) so the
+// loading state doesn't reflow when the real Hero hydrates.
 function DetailSkeleton() {
   return (
     <div aria-hidden="true" className="flex flex-col gap-6">
       {/* Sticky-bar back link placeholder. */}
       <div className="-ml-2 h-7 w-24 animate-pulse rounded bg-border-soft" />
 
-      {/* Hero card. Centered column to match the real Hero. */}
-      <div className="flex flex-col items-center rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest sm:p-8">
-        {/* Status chip. */}
-        <div className="h-6 w-32 animate-pulse rounded-full bg-border-soft/60" />
-        {/* Headline (font-display text-display-sm). */}
-        <div className="mt-3 h-9 w-3/4 animate-pulse rounded bg-border-soft" />
-        {/* Sub-line. */}
-        <div className="mt-3 h-4 w-1/2 animate-pulse rounded bg-border-soft/70" />
-        {/* Portfolio panel — label + headline + breakdown line. */}
-        <div className="mt-5 flex w-full max-w-xs flex-col items-center gap-2">
+      {/* Hero card - left-aligned identity row + members meta + portfolio + 3 tiles. */}
+      <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
+        {/* Top row: avatar + eyebrow + headline | members meta */}
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+          <div className="flex items-start gap-3">
+            <div className="h-12 w-12 animate-pulse rounded-2xl bg-border-soft" />
+            <div className="flex flex-col gap-2">
+              <div className="h-3 w-32 animate-pulse rounded bg-border-soft/60" />
+              <div className="h-7 w-48 animate-pulse rounded bg-border-soft" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex -space-x-2">
+              <div className="h-6 w-6 animate-pulse rounded-full border-2 border-surface-raised bg-border-soft" />
+              <div className="h-6 w-6 animate-pulse rounded-full border-2 border-surface-raised bg-border-soft/80" />
+              <div className="h-6 w-6 animate-pulse rounded-full border-2 border-surface-raised bg-border-soft/60" />
+            </div>
+            <div className="h-4 w-20 animate-pulse rounded bg-border-soft/60" />
+          </div>
+        </div>
+        {/* Portfolio block - eyebrow + headline + breakdown line. */}
+        <div className="mt-5 flex flex-col gap-2">
           <div className="h-3 w-20 animate-pulse rounded bg-border-soft/60" />
           <div className="h-8 w-32 animate-pulse rounded bg-border-soft" />
           <div className="h-3 w-40 animate-pulse rounded bg-border-soft/50" />
         </div>
-        {/* Members row. */}
-        <div className="mt-5 flex items-center gap-2">
-          <div className="flex -space-x-2">
-            <div className="h-7 w-7 animate-pulse rounded-full border-2 border-surface-raised bg-border-soft" />
-            <div className="h-7 w-7 animate-pulse rounded-full border-2 border-surface-raised bg-border-soft/80" />
-            <div className="h-7 w-7 animate-pulse rounded-full border-2 border-surface-raised bg-border-soft/60" />
-          </div>
-          <div className="h-4 w-20 animate-pulse rounded bg-border-soft/60" />
-        </div>
-        {/* 3-up Hero action tiles — mx-auto matches the live Hero. */}
-        <div className="mx-auto mt-4 grid w-full max-w-md grid-cols-3 gap-2">
-          <div className="h-[56px] animate-pulse rounded-card border border-border-soft bg-canvas" />
-          <div className="h-[56px] animate-pulse rounded-card border border-border-soft bg-canvas" />
-          <div className="h-[56px] animate-pulse rounded-card border border-border-soft bg-canvas" />
+        {/* 3-up Hero action tiles - match the live Hero. */}
+        <div className="mt-5 grid w-full grid-cols-3 gap-2">
+          <div className="h-[80px] animate-pulse rounded-card border border-border-soft bg-canvas" />
+          <div className="h-[80px] animate-pulse rounded-card border border-border-soft bg-canvas" />
+          <div className="h-[80px] animate-pulse rounded-card border border-border-soft bg-canvas" />
         </div>
       </div>
 
-      {/* Quick actions card — 2-up grid below the hero. */}
+      {/* Quick actions card - 2-up grid below the hero. */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="h-tap-lg animate-pulse rounded-soft bg-border-soft" />
         <div className="h-tap-lg animate-pulse rounded-soft bg-border-soft" />
@@ -1700,7 +1729,6 @@ function DetailSkeleton() {
 function NotFound({ name }: { name: string }) {
   return (
     <div className="flex flex-col gap-6">
-      <BackLink />
       <div className="rounded-card border border-border-soft bg-surface-raised p-8 text-center shadow-card-rest">
         <h1 className="font-display text-display-xs text-text-strong">
           We couldn&rsquo;t find {toDisplayName(name)}
@@ -1805,7 +1833,7 @@ function NextStepsStripe({
         <Link
           href={nudge.href}
           className={
-            "inline-flex shrink-0 items-center gap-1.5 self-stretch rounded-soft bg-accent px-4 py-2 text-sm font-medium text-white shadow-accent-rest sm:self-auto " +
+            "inline-flex shrink-0 items-center gap-1.5 self-stretch rounded-soft bg-accent px-4 py-2 text-sm font-medium text-text-on-accent shadow-accent-rest sm:self-auto " +
             "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] " +
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
           }
@@ -1842,7 +1870,7 @@ function BudgetStripe({ name }: { name: string }) {
     return null;
   }
 
-  // No-limit case — saved as null. The render-gate above already
+  // No-limit case - saved as null. The render-gate above already
   // filters this; defensive belt-and-braces in case the storage
   // shape evolves.
   if (cap === 0) {
@@ -1869,7 +1897,7 @@ function BudgetStripe({ name }: { name: string }) {
       href={`/app/wallet/${encodeURIComponent(name)}/budget`}
       className={
         "block rounded-card border bg-surface-raised p-4 shadow-card-rest transition-[border-color,transform] duration-base ease-out-soft " +
-        "hover:-translate-y-0.5 hover:border-accent/40 " +
+        "hover:-translate-y-0.5 " +
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
         (over
           ? "border-danger/30"

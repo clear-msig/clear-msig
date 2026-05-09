@@ -1,4 +1,4 @@
-// POST /api/nl/parse — turn a free-text send instruction into form
+// POST /api/nl/parse - turn a free-text send instruction into form
 // fields the /send page can prefill.
 //
 // Request:  { text: string, contactNames: string[] }
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
     : [];
 
   // Tool-use call. Forcing the model to invoke the tool gets us
-  // strict-shaped JSON without the "extract from prose" dance —
+  // strict-shaped JSON without the "extract from prose" dance -
   // saves tokens AND makes the success path a single object access.
   const tool = {
     name: "fill_send_form",
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
   const userPrompt =
     contactNames.length > 0
       ? `Saved contact names: ${contactNames.join(", ")}.\n\nRequest: ${text}`
-      : `(No saved contacts — recipient must be a base58 address or omitted.)\n\nRequest: ${text}`;
+      : `(No saved contacts - recipient must be a base58 address or omitted.)\n\nRequest: ${text}`;
 
   let resp: Response;
   try {
@@ -223,7 +223,7 @@ interface ToolUseBlock {
 }
 
 /// Pull the tool_use block out of Anthropic's response. Returns the
-/// raw input object — the caller filters/coerces.
+/// raw input object - the caller filters/coerces.
 function extractToolInput(payload: unknown): ToolUseBlock["input"] | null {
   if (!payload || typeof payload !== "object") return null;
   const content = (payload as { content?: unknown }).content;

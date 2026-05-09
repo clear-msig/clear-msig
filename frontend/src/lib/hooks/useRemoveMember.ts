@@ -5,8 +5,8 @@
 // friend from both proposers and approvers, then approve (the actor's
 // signature flips the bitmap), then execute (sponsored, no signature).
 //
-// Watchers — friends in the local watchers store but not in any
-// on-chain list — skip the chain entirely. We just remove the local
+// Watchers - friends in the local watchers store but not in any
+// on-chain list - skip the chain entirely. We just remove the local
 // record and return.
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -43,7 +43,7 @@ export function useRemoveMember() {
 
   return useMutation({
     mutationFn: async ({ walletName, friendAddress, role }: RemoveArgs) => {
-      // Watchers live only in localStorage — no chain mutation needed.
+      // Watchers live only in localStorage - no chain mutation needed.
       if (role === "watcher") {
         removeWatcher(walletName, friendAddress);
         return { kind: "watcher" } as const;
@@ -146,7 +146,7 @@ export function useRemoveMember() {
         policy_ciphertexts,
       });
 
-      // 2. Sign — first wallet popup.
+      // 2. Sign - first wallet popup.
       const signed = await signDescriptor(dry);
 
       // 3. Submit propose.
@@ -165,7 +165,7 @@ export function useRemoveMember() {
         );
       }
 
-      // 4. Approve — only if propose didn't already auto-approve
+      // 4. Approve - only if propose didn't already auto-approve
       //    (the program flips the proposer's bit when proposer is
       //    in approvers; with threshold=1 this lands the proposal
       //    Approved directly).
@@ -183,7 +183,7 @@ export function useRemoveMember() {
         });
       }
 
-      // 5. Execute — sponsored, no signature. Actually swaps the
+      // 5. Execute - sponsored, no signature. Actually swaps the
       //    on-chain proposer/approver lists.
       await backendApi.executeProposal(walletName, proposal, {});
 

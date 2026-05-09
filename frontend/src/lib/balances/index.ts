@@ -8,7 +8,7 @@
 // All fetchers return a `bigint` in the chain's smallest unit
 // (lamports / wei / sats / zats) for byte-accurate display, and
 // throw on network failure so react-query's error state renders
-// a clean "—" placeholder.
+// a clean "-" placeholder.
 //
 // Endpoints we hit:
 //   - Solana:  configured RPC (with the fallback Connection)
@@ -17,7 +17,7 @@
 //   - Bitcoin: mempool.space REST (testnet vs mainnet inferred
 //              from the destination RPC's path)
 //   - Zcash:   no widely-available public REST today; skipped.
-//              Caller can render "—" when this returns null.
+//              Caller can render "-" when this returns null.
 
 import { Connection, PublicKey } from "@solana/web3.js";
 import type { ChainBindingResponse } from "@/lib/api/types";
@@ -26,7 +26,7 @@ export interface ChainBalance {
   /// Smallest-unit balance (lamports / wei / sats). `null` when the
   /// chain has no balance source we can hit (Zcash today).
   raw: bigint | null;
-  /// The address we queried — useful for "balance at 0x…abc" copy.
+  /// The address we queried - useful for "balance at 0x…abc" copy.
   address: string;
 }
 
@@ -69,7 +69,7 @@ export async function fetchChainBalance(
         binding.zcash_t_addr_mainnet ?? binding.zcash_t_addr_testnet ?? null;
       if (!addr) return null;
       // Zcash: no widely-available public REST today. Surface
-      // address but null balance so the UI renders "—".
+      // address but null balance so the UI renders "-".
       return { raw: null, address: addr };
     }
     default:

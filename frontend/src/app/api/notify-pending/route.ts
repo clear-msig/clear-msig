@@ -1,4 +1,4 @@
-// /api/notify-pending — fires an email to a user who's opted in
+// /api/notify-pending - fires an email to a user who's opted in
 // when their browser sees a new pending approval. Same SMTP infra
 // as /api/invitations, separate route so rate limits don't
 // cross-contaminate (invitations are sent person-to-person; this
@@ -7,7 +7,7 @@
 // Threat model:
 //   - Same-origin check + per-IP rate limit defend against
 //     trivial spam from a hostile origin.
-//   - The endpoint takes a destination email from the body — anyone
+//   - The endpoint takes a destination email from the body - anyone
 //     who finds the route can ask us to email arbitrary addresses.
 //     Pre-alpha tradeoff: per-IP rate limit caps the abuse window
 //     to ~1 email / 30s; production would key opt-in to a
@@ -16,7 +16,7 @@
 //     plus the request's own origin, NOT taken from the body. An
 //     attacker with same-origin XSS could otherwise trick the
 //     endpoint into sending fully-branded "Clear" emails whose
-//     "Open the proposal" link points anywhere — turning the route
+//     "Open the proposal" link points anywhere - turning the route
 //     into a high-deliverability phishing relay. The origin pin
 //     means every link in every email anchors to this deployment.
 //
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
   const blocked = assertSameOrigin(request);
   if (blocked) return blocked;
 
-  // Tighter than invitations — there's no person-to-person reason
+  // Tighter than invitations - there's no person-to-person reason
   // to fire two of these in the same minute. 3 burst, refill 1 per
   // 30s.
   const limited = await checkRateLimit("notify-pending", clientIp(request), {

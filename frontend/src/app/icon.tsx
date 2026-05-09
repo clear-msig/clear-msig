@@ -1,4 +1,4 @@
-// Browser favicon — generated at build time via Next.js' ImageResponse
+// Browser favicon - generated at build time via Next.js' ImageResponse
 // metadata convention. Solid brand-green tile with a stylised glyph;
 // keeps the bundle lighter than shipping a PNG and stays crisp at any
 // rasterised size.

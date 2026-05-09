@@ -41,7 +41,7 @@ const ENTRIES: Entry[] = [
     date: "2026-05-07",
     title: "SOL sends actually move SOL",
     body:
-      "Two regressions silently bricked SOL transfers — the intent template was missing its accounts/instructions block (silent no-op tx), and the CLI's resolver was passing accounts the on-chain handler auto-injects (AccountAddressMismatch). Both fixed; new test_execute_sol_transfer locks in the path.",
+      "Two regressions silently bricked SOL transfers - the intent template was missing its accounts/instructions block (silent no-op tx), and the CLI's resolver was passing accounts the on-chain handler auto-injects (AccountAddressMismatch). Both fixed; new test_execute_sol_transfer locks in the path.",
   },
   {
     date: "2026-05-07",
@@ -67,7 +67,7 @@ const ENTRIES: Entry[] = [
     date: "2026-05-05",
     title: "Multisig collaboration",
     body:
-      "Member nicknames on /members, approver names + per-approver Approved/Waiting status on the proposal page, threshold-aware progress (was rendering 'X of N approvers' — now uses the actual threshold), Copy-link button on proposals so you can paste them in a group chat. Pending-approvals badge on the Home tab in the bottom nav.",
+      "Member nicknames on /members, approver names + per-approver Approved/Waiting status on the proposal page, threshold-aware progress (was rendering 'X of N approvers' - now uses the actual threshold), Copy-link button on proposals so you can paste them in a group chat. Pending-approvals badge on the Home tab in the bottom nav.",
   },
 ];
 
@@ -99,7 +99,7 @@ export default function ChangelogPage() {
             Changelog
           </h1>
           <p className="mt-2 text-sm text-text-soft">
-            The shortlist. Bug fixes and tiny polish aren&rsquo;t here —
+            The shortlist. Bug fixes and tiny polish aren&rsquo;t here -
             those are in the git log.
           </p>
         </header>

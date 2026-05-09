@@ -1,4 +1,4 @@
-// Vitest configuration — keeps tests co-located with the msig library
+// Vitest configuration - keeps tests co-located with the msig library
 // and wires the same `@/` path alias Next.js uses.
 import { defineConfig } from "vitest/config";
 import path from "node:path";

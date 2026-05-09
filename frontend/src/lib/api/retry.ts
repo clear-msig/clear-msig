@@ -5,7 +5,7 @@
 // node behind, slot was skipped, transaction simulation failed
 // (often because the previous tx is still confirming). When the
 // signed payload is bound to a fixed proposal index + nonce, the
-// retry targets the same on-chain slot — so if the original tx
+// retry targets the same on-chain slot - so if the original tx
 // silently landed, the retry fails fast with "already approved" /
 // "account already in use", which we let through to the catch-all.
 //

@@ -72,7 +72,7 @@ export async function encryptApprovers(
 /// equivalents. Other condition shapes pass through; their values
 /// are tiny (numbers, hours, days) and round-tripping them through
 /// FHE today is overhead without payoff. When real on-chain FHE
-/// lands the amount + time conditions get encrypted too — that's a
+/// lands the amount + time conditions get encrypted too - that's a
 /// one-spot extension here.
 export async function encryptConditions(
   raw: RuleCondition[],

@@ -1,6 +1,6 @@
 "use client";
 
-// Sell crypto for NGN — offramp flow.
+// Sell crypto for NGN - offramp flow.
 //
 // Stages:
 //   compose  → pick chain + amount + bank account
@@ -16,7 +16,7 @@
 //   payout    → polling intent status (settlement → payout → done)
 //   completed → payout_completed
 //
-// The clear-msig multisig is invisible to the ramp service — from its
+// The clear-msig multisig is invisible to the ramp service - from its
 // POV, it's just a regular incoming on-chain transfer.
 
 import { Suspense, useEffect, useMemo, useState } from "react";
@@ -49,9 +49,6 @@ import { friendlyError } from "@/lib/api/errors";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
-import { BackToWallets } from "@/components/retail/BackToWallets";
-import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { useToast } from "@/components/ui/Toast";
 import type {
   BankListItem,
@@ -120,7 +117,7 @@ function SellPage() {
   const chains = useWalletChains(walletName);
   const bindings: ChainBindingResponse[] = chains.data?.chains ?? [];
 
-  // Bank list — fetched once, cached for the session.
+  // Bank list - fetched once, cached for the session.
   const banks = useQuery<BankListItem[]>({
     queryKey: ["ramp-banks", "nigeria"],
     queryFn: () => rampApi.listBanks("nigeria"),
@@ -314,7 +311,6 @@ function SellPage() {
   if (!wallet.connected) {
     return (
       <div className="flex flex-col gap-6">
-        <SellTopBar walletName={walletName} walletDisplay={walletDisplay} />
         <p className="text-sm text-text-soft">Connect a wallet to sell crypto.</p>
       </div>
     );
@@ -323,7 +319,6 @@ function SellPage() {
   if (memberships.isLoading || chains.isLoading) {
     return (
       <div className="flex flex-col gap-6">
-        <SellTopBar walletName={walletName} walletDisplay={walletDisplay} />
         <PageLoading />
       </div>
     );
@@ -332,7 +327,6 @@ function SellPage() {
   if (!memberOfThisWallet) {
     return (
       <div className="flex flex-col gap-6">
-        <SellTopBar walletName={walletName} walletDisplay={walletDisplay} />
         <p className="text-sm text-text-soft">
           You are not a member of <strong>{walletDisplay}</strong>.
         </p>
@@ -342,25 +336,20 @@ function SellPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <SellTopBar walletName={walletName} walletDisplay={walletDisplay} />
-
       <motion.section
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
         className="flex flex-col gap-6"
       >
-        <header className="flex flex-col items-center text-center">
-          <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            Cash out
-          </p>
-          <h1 className="mt-2 font-display text-display-xs leading-tight text-text-strong">
-            Sell crypto for naira
+        <header className="flex flex-col gap-1">
+          <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
+            Sell to bank
           </h1>
-          <p className="mt-1 text-sm text-text-soft">
-            Send crypto from <strong>{walletDisplay}</strong>. We pay NGN
-            into your bank.
+          <p className="text-xs text-text-soft sm:text-sm">
+            Send crypto from{" "}
+            <span className="font-medium text-text-strong">{walletDisplay}</span>
+            . We pay NGN into your bank account.
           </p>
         </header>
 
@@ -422,35 +411,6 @@ function SellPage() {
         {stage.kind === "failed" && <FailedCard reason={stage.reason} />}
       </motion.section>
     </div>
-  );
-}
-
-function SellTopBar({
-  walletName,
-  walletDisplay,
-}: {
-  walletName: string;
-  walletDisplay: string;
-}) {
-  return (
-    <>
-      <StickyTopBar offset="header">
-        <Breadcrumb
-          segments={[
-            { label: "Wallets", href: "/app/wallet" },
-            {
-              label: walletDisplay || "Wallet",
-              href: `/app/wallet/${encodeURIComponent(walletName)}`,
-            },
-            { label: "Sell" },
-          ]}
-        />
-      </StickyTopBar>
-      {/* Mobile-only back chip — see /send for rationale. */}
-      <div className="px-gutter pt-2 md:hidden">
-        <BackToWallets />
-      </div>
-    </>
   );
 }
 
@@ -668,7 +628,7 @@ function AwaitingSendCard({
             Send {assetAmountMinor} {prep.asset_symbol} (smallest unit)
           </p>
           <p className="text-xs text-text-soft">
-            to the operator treasury — we&rsquo;ll pay you in NGN once it&rsquo;s confirmed on-chain.
+            to the operator treasury - we&rsquo;ll pay you in NGN once it&rsquo;s confirmed on-chain.
           </p>
         </div>
       </div>
@@ -724,7 +684,7 @@ function AwaitingSendCard({
           className="w-full rounded-soft border border-border-soft bg-canvas/50 py-3 px-3 font-mono text-xs text-text-strong placeholder:text-text-soft focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
         />
         <Button size="lg" fullWidth disabled={!txHashInput.trim()} onClick={onConfirm}>
-          I&rsquo;ve sent it — record my transfer
+          I&rsquo;ve sent it - record my transfer
           <ArrowRight className="h-4 w-4" />
         </Button>
       </div>
@@ -785,7 +745,7 @@ function FailedCard({ reason }: { reason: string }) {
         Something went wrong
       </h2>
       <p className="text-sm text-text-soft">
-        {humanStatus(reason)} — please try again or contact support.
+        {humanStatus(reason)} - please try again or contact support.
       </p>
     </div>
   );
@@ -802,7 +762,7 @@ function humanStatus(status: string): string {
     case "settlement_in_progress":
       return "Settlement in progress";
     case "settlement_completed":
-      return "Crypto received — preparing payout";
+      return "Crypto received - preparing payout";
     case "payout_in_progress":
       return "Bank transfer in progress";
     case "payout_completed":

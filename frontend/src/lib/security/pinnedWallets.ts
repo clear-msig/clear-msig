@@ -8,13 +8,13 @@
 // Why localStorage:
 //   - The on-chain Wallet account has no per-user "favorite" slot
 //     and adding one would be a poor use of an account-rent byte.
-//   - The pin is purely UI ergonomics — losing it on a fresh
+//   - The pin is purely UI ergonomics - losing it on a fresh
 //     device is no worse than losing tab order. A second device
 //     gets a clean default.
 //
 // Storage shape: array of wallet *on-chain names* (the form that
 // carries the creator-suffix). We stash names rather than PDAs
-// because the rest of the wallet-list flow keys off names too —
+// because the rest of the wallet-list flow keys off names too -
 // no extra translation step.
 
 const STORAGE_KEY = "clear.pinned-wallets.v1";
@@ -42,7 +42,7 @@ function writeAll(values: string[]): void {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(dedup));
     window.dispatchEvent(new Event("clear:pinned-wallets-changed"));
   } catch {
-    /* quota / private-mode — silently noop */
+    /* quota / private-mode - silently noop */
   }
 }
 
@@ -57,7 +57,7 @@ export function isWalletPinned(walletName: string): boolean {
 export function pinWallet(walletName: string): void {
   const all = readAll();
   if (all.includes(walletName)) return;
-  // Newest pin first — a small UX nicety so the user sees the row
+  // Newest pin first - a small UX nicety so the user sees the row
   // they just pinned bubble to position #1 of the pinned group.
   writeAll([walletName, ...all]);
 }

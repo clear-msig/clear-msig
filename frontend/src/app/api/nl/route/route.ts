@@ -1,4 +1,4 @@
-// POST /api/nl/route — parse a free-text wallet instruction and route
+// POST /api/nl/route - parse a free-text wallet instruction and route
 // it to the right surface with prefilled state.
 //
 // /api/nl/parse is send-specific. This endpoint is the broader Months
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
         system: systemPrompt,
         messages: [{ role: "user", content: userPrompt }],
         tools,
-        // Don't pin a single tool — let the model pick which retail
+        // Don't pin a single tool - let the model pick which retail
         // action best fits the user's text. tool_choice "any" forces
         // it to invoke ONE of them rather than emitting prose.
         tool_choice: { type: "any" },

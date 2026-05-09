@@ -83,7 +83,7 @@ export function useUpdateMemberRole() {
       let newApprovers = [...intent.approvers];
       let newProposers = [...intent.proposers];
       if (newRole === "watcher") {
-        // Drop from both — chain layer no longer tracks this person.
+        // Drop from both - chain layer no longer tracks this person.
         newApprovers = newApprovers.filter((a) => a !== friendAddress);
         newProposers = newProposers.filter((p) => p !== friendAddress);
       } else if (newRole === "approver") {
@@ -94,7 +94,7 @@ export function useUpdateMemberRole() {
         if (!wasProposer) newProposers.push(friendAddress);
       }
 
-      // Threshold safety — same guard as remove. Refuse if dropping
+      // Threshold safety - same guard as remove. Refuse if dropping
       // approvers leaves the threshold unsatisfiable.
       if (intent.approvalThreshold > newApprovers.length) {
         throw new Error(
@@ -179,7 +179,7 @@ export function useUpdateMemberRole() {
         policy_ciphertexts,
       });
 
-      // 2. Sign propose — first wallet popup.
+      // 2. Sign propose - first wallet popup.
       const signed = await signDescriptor(dry);
       const submitted = await backendApi.submit.updateIntent(walletName, {
         ...signed,
@@ -196,7 +196,7 @@ export function useUpdateMemberRole() {
         );
       }
 
-      // 3. Approve — only when propose hasn't already auto-approved
+      // 3. Approve - only when propose hasn't already auto-approved
       //    on chain (program flips proposer's bit when proposer ∈
       //    approvers; with threshold=1 the proposal lands Approved).
       const decision = await approveIfNeeded(connection, proposal);
@@ -213,7 +213,7 @@ export function useUpdateMemberRole() {
         });
       }
 
-      // 4. Execute — sponsored, no signature.
+      // 4. Execute - sponsored, no signature.
       await backendApi.executeProposal(walletName, proposal, {});
 
       // 5. Reconcile the local watcher record.
@@ -227,7 +227,7 @@ export function useUpdateMemberRole() {
         removeWatcher(walletName, friendAddress);
       }
 
-      // Quiet the linter — `isOnChain` exists for symmetry with the
+      // Quiet the linter - `isOnChain` exists for symmetry with the
       // remove hook's call sites; consumers can branch on the return.
       void isOnChain;
 

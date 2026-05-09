@@ -1,6 +1,6 @@
 "use client";
 
-// Legacy redirect — canonical batch send is now
+// Legacy redirect - canonical batch send is now
 // /app/wallet/[name]/send/batch.
 
 import { Suspense, useEffect } from "react";

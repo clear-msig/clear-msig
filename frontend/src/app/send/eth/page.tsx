@@ -1,6 +1,6 @@
 "use client";
 
-// Legacy redirect — canonical Ethereum send is now
+// Legacy redirect - canonical Ethereum send is now
 // /app/wallet/[name]/send/eth.
 
 import { Suspense, useEffect } from "react";

@@ -1,6 +1,6 @@
 "use client";
 
-// Wallet settings — one place to find every per-wallet control.
+// Wallet settings - one place to find every per-wallet control.
 //
 // Used to live as five competing pills in the wallet hub hero
 // (Spending rules / Weekly limit / Policy / Chains / Privacy-ready).
@@ -59,7 +59,7 @@ export default function WalletSettingsPage() {
 
   // Pull the first user intent so we can render a one-line status
   // summary on the "Spending rules" row ("X of Y signers, Z second
-  // hold"). Cheap query — already cached if the user came from the
+  // hold"). Cheap query - already cached if the user came from the
   // hub.
   const walletQuery = useQuery({
     queryKey: ["wallet", name],
@@ -138,7 +138,7 @@ export default function WalletSettingsPage() {
           ]}
         />
       </StickyTopBar>
-      {/* Mobile-only back chip — see /send for rationale. */}
+      {/* Mobile-only back chip - see /send for rationale. */}
       <div className="px-gutter pt-2 md:hidden">
         <BackToWallets />
       </div>
@@ -152,7 +152,7 @@ export default function WalletSettingsPage() {
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">
           <WalletIcon className="h-5 w-5" strokeWidth={1.75} />
         </div>
-        <h1 className="mt-4 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+        <h1 className="hidden md:block mt-4 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
           <span className="text-accent">{toHeadingName(name)}</span> settings
         </h1>
         <p className="mt-2 max-w-md text-base text-text-soft">
@@ -170,7 +170,7 @@ export default function WalletSettingsPage() {
               className={
                 "group flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest " +
                 "transition-[border-color,transform,box-shadow] duration-base ease-out-soft " +
-                "hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised " +
+                "hover:-translate-y-0.5 hover:shadow-card-raised " +
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
               }
             >

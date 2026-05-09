@@ -1,6 +1,6 @@
 "use client";
 
-// Set up sending — single-tap spending-rule bootstrap.
+// Set up sending - single-tap spending-rule bootstrap.
 //
 // A freshly-created wallet has no on-chain intents (spending rules)
 // yet, so creating a request to send money fails. This screen wraps
@@ -40,7 +40,7 @@ import { NextStepCard } from "@/components/retail/NextStepCard";
 
 // Backend reads template files relative to the workspace root. The
 // SolTransfer template gives the wallet a generic "send to anyone, any
-// amount" rule — what a retail user expects from "send money."
+// amount" rule - what a retail user expects from "send money."
 const TEMPLATE_FILE = "examples/intents/solana_transfer.json";
 
 export default function SetupSpendingPage() {
@@ -64,7 +64,7 @@ export default function SetupSpendingPage() {
   // Guard against landing here for a wallet that's already set up.
   // Without this, a user reloading /setup on a wallet with an
   // existing SolTransfer would happily start adding a duplicate
-  // rule — second rule lands at a higher slot, /send picks the wrong
+  // rule - second rule lands at a higher slot, /send picks the wrong
   // intent, and the wallet popup behavior gets confusing fast. The
   // guard is a redirect rather than a hidden CTA so the user
   // arriving at the page mistakenly is moved on to where they
@@ -108,7 +108,7 @@ export default function SetupSpendingPage() {
 
   // Time-lock choice. 0 = ship immediately once approvals land.
   // 24 * 3600 = 86_400s wait. Per the retail-pivot Months 3-4 spec,
-  // this is "Wait 24h before sending" — a cooling-off period for
+  // this is "Wait 24h before sending" - a cooling-off period for
   // shared wallets that want a buffer against impulse / mistakes.
   const [delaySeconds, setDelaySeconds] = useState<number>(0);
   // Stays true after the on-chain enable lands so we can render the
@@ -123,7 +123,7 @@ export default function SetupSpendingPage() {
       // Setup signs against the AddIntent meta-intent (slot 0),
       // whose approvers were set at wallet-create time. Resolve
       // which of our pubkeys (Ledger vs Dynamic embedded) is in
-      // that approver list — without this, a user with both
+      // that approver list - without this, a user with both
       // signers connected can pick the wrong one and have the
       // on-chain verify reject. Mirror of the send pages' fix.
       const addIntent = (intentsQuery.data ?? []).find(
@@ -177,7 +177,7 @@ export default function SetupSpendingPage() {
 
       // 3. Submit propose: lands the AddIntent proposal on chain in
       //    `Active` status with empty approval bitmap. The proposer's
-      //    signature does NOT auto-flip an approval bit — that's a
+      //    signature does NOT auto-flip an approval bit - that's a
       //    separate step.
       const submitted = await backendApi.submit.addIntent(name, {
         ...signed,
@@ -216,7 +216,7 @@ export default function SetupSpendingPage() {
 
       // 5. Execute: now that the proposal is Approved, run it. The
       //    AddIntent meta-handler creates the SolTransfer intent and
-      //    bumps `wallet.intent_index`. Sponsored by the relayer —
+      //    bumps `wallet.intent_index`. Sponsored by the relayer -
       //    no third user signature needed.
       await backendApi.executeProposal(name, proposal, {});
       return submitted;
@@ -224,7 +224,7 @@ export default function SetupSpendingPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });
       queryClient.invalidateQueries({ queryKey: ["wallet", name] });
-      // Don't push the user away — render a NextStepCard inline so
+      // Don't push the user away - render a NextStepCard inline so
       // they choose where to go next (send their first request,
       // invite someone, or back to the hub). The toast captures the
       // celebration; the card captures the next move.
@@ -256,7 +256,7 @@ export default function SetupSpendingPage() {
           ]}
         />
       </StickyTopBar>
-      {/* Mobile-only back chip — see /send for rationale. */}
+      {/* Mobile-only back chip - see /send for rationale. */}
       <div className="px-gutter pt-2 md:hidden">
         <BackToWallets />
       </div>
@@ -269,7 +269,7 @@ export default function SetupSpendingPage() {
         >
           {showDone ? (
             <div className="flex flex-col items-center text-center">
-              <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-accent text-white shadow-accent-rest">
+              <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-accent text-text-on-accent shadow-accent-rest">
                 <Check className="h-8 w-8" strokeWidth={2.5} />
               </div>
               <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
@@ -314,7 +314,7 @@ export default function SetupSpendingPage() {
             <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
               First-time setup
             </p>
-            <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+            <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
               Set up sending in <span className="text-accent">{toHeadingName(name)}</span>
             </h1>
             <p className="mt-3 max-w-sm text-base text-text-soft">
@@ -345,7 +345,7 @@ export default function SetupSpendingPage() {
               </ul>
             </div>
 
-            {/* Optional cooling-off period — `timelockSeconds` on the
+            {/* Optional cooling-off period - `timelockSeconds` on the
                 intent. Defaults to ship-immediately; 24h is the
                 second-thoughts buffer for shared wallets. */}
             <div className="mt-4 w-full rounded-card border border-border-soft bg-surface-raised p-5 text-left shadow-card-rest">
@@ -446,7 +446,7 @@ function SpeedOption({
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
         (selected
           ? "border-accent bg-accent/5 shadow-card-rest"
-          : "border-border-soft bg-canvas hover:border-accent/40")
+          : "border-border-soft bg-canvas")
       }
     >
       <div

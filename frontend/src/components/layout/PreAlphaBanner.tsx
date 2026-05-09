@@ -1,6 +1,6 @@
 "use client";
 
-// Pre-alpha truth signal — formerly a persistent banner, now a
+// Pre-alpha truth signal - formerly a persistent banner, now a
 // one-time toast.
 //
 // The old PreAlphaBanner sat under the header on every /app/* route,
@@ -24,7 +24,7 @@ export function PreAlphaBanner() {
     try {
       acknowledged = localStorage.getItem(STORAGE_KEY) === "1";
     } catch {
-      // Private mode / sandboxed iframe. Show the toast — better to
+      // Private mode / sandboxed iframe. Show the toast - better to
       // tell the user once on every fresh tab than to skip the truth
       // signal entirely.
     }

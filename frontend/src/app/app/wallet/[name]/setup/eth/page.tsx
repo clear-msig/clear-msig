@@ -232,7 +232,7 @@ export default function SetupEthPage() {
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });
       queryClient.invalidateQueries({ queryKey: ["wallet", name] });
       toast.success(`${toHeadingName(name)} can now send Ethereum`);
-      // Inline success — parity with /setup (SOL). The previous
+      // Inline success - parity with /setup (SOL). The previous
       // router.push to /send/eth threw the user into the compose
       // form before they could register that the chain was enabled.
       setShowDone(true);
@@ -269,7 +269,7 @@ export default function SetupEthPage() {
           ]}
         />
       </StickyTopBar>
-      {/* Mobile-only back chip — see /send for rationale. */}
+      {/* Mobile-only back chip - see /send for rationale. */}
       <div className="px-gutter pt-2 md:hidden">
         <BackToWallets />
       </div>
@@ -282,7 +282,7 @@ export default function SetupEthPage() {
         >
           {showDone ? (
             <div className="flex flex-col items-center text-center">
-              <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-accent text-white shadow-accent-rest">
+              <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-accent text-text-on-accent shadow-accent-rest">
                 <Check className="h-8 w-8" strokeWidth={2.5} />
               </div>
               <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
@@ -329,7 +329,7 @@ export default function SetupEthPage() {
             <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
               Ethereum setup
             </p>
-            <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+            <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
               Enable Ethereum sending in <span className="text-accent">{toHeadingName(name)}</span>
             </h1>
             <p className="mt-3 max-w-sm text-base text-text-soft">
@@ -479,7 +479,7 @@ function PaceTile({ selected, onSelect, title, body }: PaceTileProps) {
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
         (selected
           ? "border-accent bg-accent/5 shadow-card-rest"
-          : "border-border-soft bg-canvas hover:border-accent/40")
+          : "border-border-soft bg-canvas")
       }
     >
       <div

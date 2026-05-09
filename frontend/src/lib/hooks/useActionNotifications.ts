@@ -3,7 +3,7 @@
 // Browser-notification glue for the multisig "something needs you"
 // signal. Watches useActionNeeded and fires a Notification each time
 // a new pending row appears that the user hasn't already seen on
-// this device. Only fires when the tab is hidden — there's no point
+// this device. Only fires when the tab is hidden - there's no point
 // pinging a user who's already on the page.
 //
 // Why this matters in a multisig: collaborators land proposals at
@@ -12,7 +12,7 @@
 // a send. This closes that loop without a server-side push pipeline.
 //
 // Persistence: the seen-set lives in localStorage keyed per-user so
-// reloads / navigations don't re-fire. The set is bounded — only
+// reloads / navigations don't re-fire. The set is bounded - only
 // proposals seen in the most recent N pending snapshots are kept,
 // so it doesn't grow unboundedly.
 
@@ -69,7 +69,7 @@ function persistSeen(userAddress: string, seen: Set<string>): void {
       JSON.stringify(trimmed),
     );
   } catch {
-    /* localStorage full or blocked — silently noop */
+    /* localStorage full or blocked - silently noop */
   }
 }
 
@@ -110,7 +110,7 @@ export function useActionNotifications(): UseActionNotificationsResult {
   const hydratedRef = useRef(false);
 
   // Hydrate the seen set on first user load. Re-hydrates when the
-  // connected wallet changes — different identities, different
+  // connected wallet changes - different identities, different
   // pending lists.
   useEffect(() => {
     seenRef.current = loadSeen(userAddress);
@@ -118,7 +118,7 @@ export function useActionNotifications(): UseActionNotificationsResult {
   }, [userAddress]);
 
   // Keep the permission state fresh when the user changes it from
-  // browser settings without a reload — Chrome fires no event for
+  // browser settings without a reload - Chrome fires no event for
   // permission changes, but useEffect re-running on dependency
   // changes covers most of it.
   useEffect(() => {
@@ -127,7 +127,7 @@ export function useActionNotifications(): UseActionNotificationsResult {
 
   // Fire on new pending rows. We compare against the seen set, mark
   // each fired row as seen, persist, then bail. Tab visibility
-  // gates the actual Notification dispatch — when the tab is
+  // gates the actual Notification dispatch - when the tab is
   // foreground, the user already sees the in-page badge.
   useEffect(() => {
     if (!hydratedRef.current) return;
@@ -147,14 +147,14 @@ export function useActionNotifications(): UseActionNotificationsResult {
 
     if (window.Notification.permission !== "granted") return;
     if (typeof document !== "undefined" && document.visibilityState === "visible") {
-      // User's already on the page — no point pinging them. We
+      // User's already on the page - no point pinging them. We
       // still flipped the seen flag so we don't ping later if they
       // background the tab and the row sticks around.
       return;
     }
 
     // Cap how many we fire at once. A flurry of N proposals all at
-    // once shouldn't spam — show the first 3 and let the badge
+    // once shouldn't spam - show the first 3 and let the badge
     // handle the rest.
     const FIRE_CAP = 3;
     const fired = fresh.slice(0, FIRE_CAP);
@@ -181,19 +181,19 @@ export function useActionNotifications(): UseActionNotificationsResult {
           }
         };
       } catch {
-        /* notification blocked / quota / browser quirk — ignore */
+        /* notification blocked / quota / browser quirk - ignore */
       }
     }
     setLastFiredAt(Date.now());
 
     // Also fire an email for the first new pending row when the
     // user has opted in. Throttled so a burst of N proposals doesn't
-    // produce N inbox pings — first one wins, the badge handles the
+    // produce N inbox pings - first one wins, the badge handles the
     // rest.
     void maybeFireEmail(fired[0]);
 
     // Webhooks fire one event per fresh row (not throttled to one
-    // like email) — ops tooling wants the full feed, not a sample.
+    // like email) - ops tooling wants the full feed, not a sample.
     // Caller of fireWebhook still respects per-event-type opt-in
     // and walletScope.
     for (const r of fired) {
@@ -260,7 +260,7 @@ async function maybeFireEmail(
     return;
   }
 
-  // Pass the bare proposal PDA — the API rebuilds the URL from
+  // Pass the bare proposal PDA - the API rebuilds the URL from
   // its own origin so an XSS that calls fireNotificationEmail
   // with an attacker-chosen URL can't turn the SMTP path into a
   // branded phishing relay.

@@ -1,6 +1,6 @@
 "use client";
 
-// Sent invitations — per-device audit log of email invites this
+// Sent invitations - per-device audit log of email invites this
 // browser dispatched. Each row shows the recipient + wallet, with
 // a Withdraw button that fires the revocation email and flips the
 // row's status. The on-chain membership is independent of this
@@ -120,7 +120,7 @@ export default function InvitationsPage() {
         <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Invitations
         </p>
-        <h1 className="mt-2 font-display text-display-xs leading-tight text-text-strong">
+        <h1 className="hidden md:block mt-2 font-display text-display-xs leading-tight text-text-strong">
           Sent invitations
         </h1>
         <p className="mt-1 text-base text-text-soft">
@@ -218,7 +218,7 @@ export default function InvitationsPage() {
                       <p className="mt-0.5 text-[11px] text-text-soft">
                         {toDisplayName(entry.walletName) || entry.walletName} ·
                         withdrawn{" "}
-                        {entry.revokedAt ? formatTime(entry.revokedAt) : "—"}
+                        {entry.revokedAt ? formatTime(entry.revokedAt) : "-"}
                       </p>
                     </div>
                     <Undo2

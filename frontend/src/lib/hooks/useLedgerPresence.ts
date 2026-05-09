@@ -1,7 +1,7 @@
 "use client";
 
 // Quiet probe for an already-paired Ledger device. Uses
-// `navigator.hid.getDevices()` (no permission prompt — only returns
+// `navigator.hid.getDevices()` (no permission prompt - only returns
 // devices the user has previously authorised this site to talk to).
 // Lets /connect promote the Ledger CTA from a footer link to a
 // prominent banner when we can SEE a hardware wallet plugged in.

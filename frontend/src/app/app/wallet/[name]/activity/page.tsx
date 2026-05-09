@@ -1,6 +1,6 @@
 "use client";
 
-// Wallet activity — full-page view of every proposal on this wallet.
+// Wallet activity - full-page view of every proposal on this wallet.
 //
 // The dashboard's Recent activity section (in /app/wallet/[name]) caps
 // at top-5; treasury managers with multiple wallets and dozens of
@@ -8,7 +8,7 @@
 // proposal address, and export to CSV. This is that place.
 //
 // Same data source (useRecentActivity), additionally joined with
-// useUserIntents so we can attach a chain hint to each row — Custom
+// useUserIntents so we can attach a chain hint to each row - Custom
 // intents land in the row stream as "Custom" without a chain, and
 // without that join the chain filter would be useless.
 
@@ -136,7 +136,7 @@ export default function WalletActivityPage() {
           ]}
         />
       </StickyTopBar>
-      {/* Mobile-only back chip — see /send for rationale. */}
+      {/* Mobile-only back chip - see /send for rationale. */}
       <div className="px-gutter pt-2 md:hidden">
         <BackToWallets />
       </div>
@@ -152,7 +152,7 @@ export default function WalletActivityPage() {
             <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
               Wallet activity
             </p>
-            <h1 className="mt-2 font-display text-display-xs leading-tight text-text-strong">
+            <h1 className="hidden md:block mt-2 font-display text-display-xs leading-tight text-text-strong">
               Activity
             </h1>
           </div>
@@ -215,7 +215,7 @@ export default function WalletActivityPage() {
               className={
                 "ml-auto inline-flex min-h-tap items-center justify-center gap-1 rounded-full border border-border-soft bg-canvas px-3 py-2 text-[11px] font-medium text-text-soft " +
                 "transition-[border-color,color,transform] duration-base ease-out-soft " +
-                "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+                "hover:-translate-y-0.5 hover:text-accent " +
                 "disabled:cursor-not-allowed disabled:opacity-50 " +
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
               }
@@ -251,7 +251,7 @@ export default function WalletActivityPage() {
                   }}
                   className={
                     "mt-3 inline-flex min-h-tap items-center justify-center gap-1.5 rounded-full border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-soft " +
-                    "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
+                    "transition-colors duration-base ease-out-soft hover:text-accent " +
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
                   }
                 >

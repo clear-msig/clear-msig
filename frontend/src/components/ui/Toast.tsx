@@ -80,7 +80,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       const id = nextId.current++;
       const entry: ToastEntry = { id, kind, message, ...opts };
       setEntries((prev) => [...prev, entry]);
-      // Errors auto-dismiss in 10 seconds — long enough for users to
+      // Errors auto-dismiss in 10 seconds - long enough for users to
       // read a stack-trace-flavoured message and decide whether to
       // retry, but not so long the page carries a stale banner.
       // Callers that previously passed `durationMs: 0` (network down,
@@ -180,7 +180,7 @@ function ToastItem({
       aria-live={entry.kind === "error" ? "assertive" : "polite"}
       // Solid-bg variants (no backdrop-blur). Toasts often render
       // while the user is interacting with the page underneath
-      // (typing, scrolling, signing) — backdrop-blur adds a frame
+      // (typing, scrolling, signing) - backdrop-blur adds a frame
       // of paint cost on every scroll while the toast is up,
       // measurable on mid-tier mobile. Solid bg keeps it cheap.
       className={[
@@ -190,7 +190,7 @@ function ToastItem({
           "border-accent/30 bg-surface-card text-white",
         entry.kind === "error" &&
           "border-rose-500/40 bg-rose-950 text-rose-50",
-        entry.kind === "info" && "border-white/15 bg-surface-card text-white",
+        entry.kind === "info" && "border-border-strong bg-surface-card text-white",
       ]
         .filter(Boolean)
         .join(" ")}

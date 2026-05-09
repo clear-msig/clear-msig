@@ -1,15 +1,15 @@
 "use client";
 
-// SidebarProvider — shared state for the workspace sidebar.
+// SidebarProvider - shared state for the workspace sidebar.
 //
 // Two pieces of state live here:
 //
-//   1. `expanded` — desktop only. When true, the sidebar shows full
+//   1. `expanded` - desktop only. When true, the sidebar shows full
 //      content (16rem). When false, it collapses to a rail (4rem)
 //      that shows icons. Persisted to localStorage so user preference
 //      survives reloads.
 //
-//   2. `mobileOpen` — mobile only. The drawer overlay's open state.
+//   2. `mobileOpen` - mobile only. The drawer overlay's open state.
 //      Not persisted; resets each session.
 //
 // HeaderBar is rendered both inside the workspace shell (where this
@@ -49,7 +49,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored === "0") setExpanded(false);
     } catch {
-      /* private mode / sandboxed iframe — fall back to default */
+      /* private mode / sandboxed iframe - fall back to default */
     }
   }, []);
 

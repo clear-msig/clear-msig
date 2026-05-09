@@ -1,12 +1,12 @@
 "use client";
 
-// Batch send — one input, N proposals.
+// Batch send - one input, N proposals.
 //
 // The shared-wallet equivalent of payroll: a proposer enters a list
 // of {recipient, amount} rows, then signs N times in sequence (Solana
 // wallets can't sign multiple messages in one popup yet) so each
 // recipient lands as its own SolTransfer proposal. Approvers can then
-// clear the whole batch with the existing `useBatchApprove` hook —
+// clear the whole batch with the existing `useBatchApprove` hook -
 // the proposals share a `batchId` (saved per-proposal under the
 // `clear-msig:batches` namespace) so the dashboard can group them.
 //
@@ -45,7 +45,7 @@ export interface BatchSendProgress {
   failed: number;
   /// Label of the row currently in flight ("Sending Sarah…").
   currentLabel?: string;
-  /// Per-row failures so the UI can list "Sarah ($120) — declined"
+  /// Per-row failures so the UI can list "Sarah ($120) - declined"
   /// rather than a single anonymous error toast.
   failures: BatchFailure[];
   /// Once the loop fully exits the hook flips this so the caller can
@@ -74,7 +74,7 @@ export function useBatchSend() {
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState<BatchSendProgress | null>(null);
   /// Cancellation goes through a ref because React state updates are
-  /// async — by the time the next iteration reads the flag, a
+  /// async - by the time the next iteration reads the flag, a
   /// state-based one would be stale.
   const cancelRef = useRef(false);
 
@@ -102,7 +102,7 @@ export function useBatchSend() {
 
       for (let i = 0; i < rows.length; i++) {
         if (cancelRef.current) {
-          // Bail — caller hit cancel between rows. Remaining rows
+          // Bail - caller hit cancel between rows. Remaining rows
           // get marked as failures so the summary tells the user
           // exactly what didn't go.
           for (let j = i; j < rows.length; j++) {
@@ -125,7 +125,7 @@ export function useBatchSend() {
         // current `proposal_index`. The CLI's `prepare` reads that
         // index from the wallet account every call, so we have to
         // make sure the previous submit has been observed by the RPC
-        // before the next prepare runs — otherwise both rows compute
+        // before the next prepare runs - otherwise both rows compute
         // the same PDA and the second submit fails with "account
         // already in use." Retry the prepare → sign → submit cycle a
         // few times on transient errors before giving up on the row.
@@ -237,9 +237,9 @@ interface RowAttemptArgs {
 
 /// Run prepare → sign → submit for one row. Retries on transient
 /// chain errors (PDA collision from RPC lag, blockhash not found,
-/// "node behind" — see `RETRYABLE_HINTS`) by waiting a beat and
+/// "node behind" - see `RETRYABLE_HINTS`) by waiting a beat and
 /// rebuilding the message from a fresh prepare. Wallet rejections
-/// fail fast — never re-prompt the user without their click.
+/// fail fast - never re-prompt the user without their click.
 async function runRowWithRetry(
   { walletName, intentIndex, row, signDescriptor, actorPubkey, connection }: RowAttemptArgs,
 ): Promise<RowAttemptResult> {
@@ -270,7 +270,7 @@ async function runRowWithRetry(
 
       // Propose may auto-approve on chain (program flips proposer
       // bit when proposer ∈ approvers + threshold met). Skip the
-      // approve popup in that case — every saved popup × N rows is
+      // approve popup in that case - every saved popup × N rows is
       // a meaningful UX win for a 50-row payroll. Best-effort: if
       // the user rejects mid-batch we still consider the row a
       // success (proposal's on chain, can be approved later).
@@ -291,7 +291,7 @@ async function runRowWithRetry(
           }
           await backendApi.executeProposal(walletName, proposalPda, {});
         } catch (innerErr) {
-          // Per-row partial success — the proposal's on chain even if
+          // Per-row partial success - the proposal's on chain even if
           // approve/execute didn't land. Surface in console for
           // debugging without poisoning the rest of the batch.
           console.warn(
@@ -366,7 +366,7 @@ function appendBatchRecord(record: BatchRecord) {
     window.localStorage.setItem(BATCH_LOG_KEY, JSON.stringify(next));
   } catch {
     // Quota / privacy mode failures aren't worth blocking the send
-    // path over — the proposals still landed, we just can't group
+    // path over - the proposals still landed, we just can't group
     // them in the UI.
   }
 }

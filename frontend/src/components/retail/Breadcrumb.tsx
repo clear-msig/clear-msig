@@ -1,6 +1,6 @@
 "use client";
 
-// Breadcrumb — a clickable trail showing where the user is.
+// Breadcrumb - a clickable trail showing where the user is.
 //
 // Replaces the bare "← Wallet" back link on nested pages with the
 // full trail (Home → Wallet → Section), each segment a link to its
@@ -13,7 +13,7 @@
 //     segments={[
 //       { label: "Wallets", href: "/app/wallet" },
 //       { label: walletName, href: `/app/wallet/${encoded}` },
-//       { label: "Members" }, // current page — no href
+//       { label: "Members" }, // current page - no href
 //     ]}
 //   />
 

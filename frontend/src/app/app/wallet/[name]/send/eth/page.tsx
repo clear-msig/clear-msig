@@ -1,6 +1,6 @@
 "use client";
 
-// Send ETH (Sepolia) — purpose-built sibling of /send.
+// Send ETH (Sepolia) - purpose-built sibling of /send.
 //
 // The Solana send path is the original /send/page.tsx, untouched.
 // This page exists for cross-chain. The flow:
@@ -13,7 +13,7 @@
 //   4. Frontend fetches the wallet's current EVM nonce from the
 //      destination RPC.
 //   5. prepare.createProposal with intent_index + EVM params.
-//   6. signMessage on Solana (the multisig is on Solana — your
+//   6. signMessage on Solana (the multisig is on Solana - your
 //      signature gates the EVM-side action).
 //   7. submit.createProposal lands the proposal Approved on chain
 //      (program auto-approves proposer-in-approvers, mirrors the
@@ -106,7 +106,7 @@ function parseEvmRecipientFromQr(raw: string): string {
   const m = trimmed.match(/^(?:pay-)?ethereum:(0x[0-9a-fA-F]{40})/);
   if (m) return m[1];
   // Otherwise let the input field's existing validation surface
-  // any issues — better to pass through than silently swallow.
+  // any issues - better to pass through than silently swallow.
   return trimmed;
 }
 
@@ -205,7 +205,7 @@ function SendEthPage() {
   const trimmedRecipient = recipient.trim();
   const directlyValid = isValidEvmAddress(trimmedRecipient);
 
-  // ENS resolution — fired when the typed text doesn't already
+  // ENS resolution - fired when the typed text doesn't already
   // look like a 0x address but does look like an ENS name. The
   // resolved 0x address is what we sign / broadcast against; the
   // user-typed name is preserved for display only.
@@ -261,7 +261,7 @@ function SendEthPage() {
   // Live gas price from the destination RPC. Refetched every 30s so
   // a Sepolia base-fee spike doesn't leave the user stuck with an
   // off-by-2x reserve. Falls back to a 50-gwei default below if the
-  // query is still loading or errored — over-reserving is the safe
+  // query is still loading or errored - over-reserving is the safe
   // direction (lets a real send through later; doesn't push a
   // doomed one through now).
   const gasPriceQuery = useQuery({
@@ -277,7 +277,7 @@ function SendEthPage() {
   // transfers; if that changes, read gas_limit from the intent's
   // tx_template (8 bytes at offset 8) instead.
   const VALUE_TRANSFER_GAS = 21_000n;
-  // Headroom multiplier — 50% over the live estimate so a spike
+  // Headroom multiplier - 50% over the live estimate so a spike
   // mid-broadcast doesn't trip the wallet's effective balance.
   const GAS_RESERVE_HEADROOM_NUMER = 3n;
   const GAS_RESERVE_HEADROOM_DENOM = 2n;
@@ -295,7 +295,7 @@ function SendEthPage() {
   const balanceLoaded = ethBalanceQuery.isFetched && balance !== null;
   const requiredWei = amountValid ? amountWei + ETH_GAS_RESERVE_WEI : 0n;
   // Block submit when we know the balance is too low. While the
-  // balance is still loading, don't block — the propose step is
+  // balance is still loading, don't block - the propose step is
   // safe; the broadcast itself will short-circuit if the balance
   // really is empty.
   const insufficientBalance =
@@ -431,7 +431,7 @@ function SendEthPage() {
         explorerLabel,
       });
       // Persist the success in the per-wallet tx log for the
-      // "Recent send attempts" widget — gives the user durable
+      // "Recent send attempts" widget - gives the user durable
       // proof of the send instead of a transient toast.
       recordAttempt({
         walletName,
@@ -447,7 +447,7 @@ function SendEthPage() {
       queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
       // Refresh every place ETH balance is shown so the post-send
       // compose, /chains row, and portfolio panel all reflect the
-      // new number. Multiple keys for the same data — each consumer
+      // new number. Multiple keys for the same data - each consumer
       // picked its own type/shape; invalidate them all.
       queryClient.invalidateQueries({ queryKey: ["wallet-eth-balance"] });
       queryClient.invalidateQueries({ queryKey: ["chain-balance"] });
@@ -538,7 +538,7 @@ function SendEthPage() {
           ]}
         />
       </StickyTopBar>
-      {/* Mobile-only back chip — see /send for rationale. */}
+      {/* Mobile-only back chip - see /send for rationale. */}
       <div className="px-gutter pt-2">
         <BackToWallets />
       </div>
@@ -619,7 +619,7 @@ interface ComposeStageProps {
   recipient: string;
   setRecipient: (s: string) => void;
   recipientValid: boolean;
-  /// The 0x address we'll actually sign + broadcast against —
+  /// The 0x address we'll actually sign + broadcast against -
   /// either the typed 0x or the ENS-resolved one. Null while
   /// the user is typing.
   effectiveRecipient: string | null;
@@ -706,7 +706,7 @@ function ComposeStage({
         <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Send · Ethereum
         </p>
-        <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+        <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
           Send ETH from <span className="text-accent">{walletDisplay}</span>
         </h1>
         <Link
@@ -714,7 +714,7 @@ function ComposeStage({
           className={
             "mt-3 inline-flex min-h-tap items-center justify-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-4 py-2 text-xs font-medium text-text-soft " +
             "transition-[border-color,color,transform] duration-base ease-out-soft " +
-            "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+            "hover:-translate-y-0.5 hover:text-accent " +
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
           }
         >
@@ -743,7 +743,7 @@ function ComposeStage({
               }}
               placeholder="0.05"
               // font-numerals tabular-nums for column-aligned digits.
-              // Same treatment as the SOL send page — every financial
+              // Same treatment as the SOL send page - every financial
               // amount input shares this typography.
               className={
                 "flex-1 rounded-card border border-border-soft bg-surface-raised px-4 py-3 font-numerals text-2xl font-semibold text-text-strong tabular-nums outline-none " +
@@ -756,7 +756,7 @@ function ComposeStage({
             </span>
           </div>
           {/* Live wallet balance + insufficient-balance gate.
-              Same chip-pill treatment as the SOL send page —
+              Same chip-pill treatment as the SOL send page -
               balance + Max sit as one group, font-numerals on
               the value for tabular alignment. */}
           <div className="mt-2 inline-flex min-h-tap items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-2 text-xs">
@@ -766,7 +766,7 @@ function ComposeStage({
                 ? "…"
                 : typeof walletBalanceWei === "bigint"
                   ? weiToEth(walletBalanceWei)
-                  : "—"}
+                  : "-"}
             </span>
             <span className="text-text-soft">ETH</span>
             {typeof walletBalanceWei === "bigint" &&
@@ -792,7 +792,7 @@ function ComposeStage({
           {insufficientBalance && walletBalanceWei !== null && (
             <p className="mt-2 rounded-soft border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-text-strong">
               <span className="font-medium">Insufficient balance.</span>{" "}
-              You have {weiToEth(walletBalanceWei)} ETH — need at least{" "}
+              You have {weiToEth(walletBalanceWei)} ETH - need at least{" "}
               {weiToEth(amountWei + gasReserveWei)} ETH including ~
               {weiToEth(gasReserveWei)} for gas. Top up the wallet&rsquo;s
               Sepolia address from a faucet
@@ -837,7 +837,7 @@ function ComposeStage({
               className={
                 "shrink-0 inline-flex h-auto items-center justify-center rounded-card border border-border-soft bg-surface-raised px-3 text-text-soft " +
                 "transition-[border-color,color,transform] duration-base ease-out-soft " +
-                "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+                "hover:-translate-y-0.5 hover:text-accent " +
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
               }
             />
@@ -889,7 +889,7 @@ function ComposeStage({
         <WalletPopupNarration action="send this Ethereum request" popups={1} />
       </div>
 
-      {/* Sticky-bottom CTA on mobile — see SOL send for full
+      {/* Sticky-bottom CTA on mobile - see SOL send for full
           rationale. Form is long; without sticky the user scrolls
           past their typed values to find the button. */}
       <div
@@ -983,7 +983,7 @@ function SentStage({
         initial={reduce ? false : { scale: 0.5, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: "spring", damping: 18, stiffness: 220 }}
-        className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-accent text-white shadow-accent-rest"
+        className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-accent text-text-on-accent shadow-accent-rest"
       >
         <Check className="h-10 w-10" strokeWidth={2.5} />
       </motion.div>
@@ -998,7 +998,7 @@ function SentStage({
           href={explorerUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-4 inline-flex items-center gap-1.5 rounded-pill border border-border-soft bg-surface-raised px-4 py-2 text-xs font-medium text-text-strong transition hover:border-accent/50 hover:text-accent"
+          className="mt-4 inline-flex items-center gap-1.5 rounded-pill border border-border-soft bg-surface-raised px-4 py-2 text-xs font-medium text-text-strong transition hover:text-accent"
         >
           View on {explorerLabel}
           <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />

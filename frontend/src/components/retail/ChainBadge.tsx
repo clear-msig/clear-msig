@@ -1,13 +1,13 @@
-// ChainBadge — circular chain logo, deterministic per chain.
+// ChainBadge - circular chain logo, deterministic per chain.
 //
 // First paint: load the CoinGecko CDN logo for the chain. If the image
 // errors (offline, CDN hiccup), fall back to the chain's currency
-// glyph (◎/Ξ/₿/ⓩ) on a gradient background — the original "letter
+// glyph (◎/Ξ/₿/ⓩ) on a gradient background - the original "letter
 // disc" look. Either way, the badge surface is the same size so
 // layouts don't shift.
 //
 // We use `<img>` directly rather than `next/image` so external CDN
-// URLs don't need allowlist configuration in next.config — the image
+// URLs don't need allowlist configuration in next.config - the image
 // is small and cached by the browser/CDN, no real perf penalty.
 
 "use client";
@@ -33,7 +33,7 @@ export function ChainBadge({ chain, size = "md", ringClass }: ChainBadgeProps) {
   const dim = SIZE[size];
 
   if (imgFailed) {
-    // Fallback — gradient circle with the currency glyph centered.
+    // Fallback - gradient circle with the currency glyph centered.
     return (
       <span
         role="img"

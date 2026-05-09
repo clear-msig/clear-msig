@@ -1,36 +1,33 @@
 "use client";
 
-// Members — who's in this shared wallet, what each can do, and what
+// Members - who's in this shared wallet, what each can do, and what
 // they're allowed to spend.
 //
 // Today's program model: every intent carries an `approvers` list and
 // a uniform threshold. Retail vocabulary maps:
 //   approver         → "Can approve"
 //   approver + you   → "You" (with the same Can-approve power)
-// Per-friend allowances and a Viewer role aren't on chain yet — both
+// Per-friend allowances and a Viewer role aren't on chain yet - both
 // need program changes. We surface them here as the destination state
 // with an honest "coming when Encrypt is live" note, mirroring the
 // FHE-scaffold we shipped at /privacy.
 
 import { useMemo, useState } from "react";
+import clsx from "clsx";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Crown, Loader2, Lock, Pencil, Tag, Trash2, UserPlus } from "lucide-react";
+import { ArrowRight, Crown, Loader2, Lock, Pencil, Plus, Tag, Trash2 } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { deriveRole, listWatchers, ROLE_HINT, ROLE_LABEL, type Role } from "@/lib/retail/roles";
 import { useContacts } from "@/lib/hooks/useContacts";
-import { Breadcrumb } from "@/components/retail/Breadcrumb";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
-import { BackToWallets } from "@/components/retail/BackToWallets";
 import { BadgePill } from "@/components/retail/BadgePill";
-import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { avatarInitials } from "@/lib/retail/avatar";
-import { isCreatorAddress, toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
+import { isCreatorAddress, toDisplayName } from "@/lib/retail/walletNames";
 import { useRemoveMember } from "@/lib/hooks/useRemoveMember";
 import { useUpdateMemberRole } from "@/lib/hooks/useUpdateMemberRole";
 import { useToast } from "@/components/ui/Toast";
@@ -72,7 +69,7 @@ export default function MembersPage() {
   // Local-first nickname lookup. Members come back as raw base58
   // pubkeys; if the user has saved a contact for that address (via
   // /send paste-and-save or the inline rename action below), show
-  // the friendly name instead. Multisig-specific UX win — without
+  // the friendly name instead. Multisig-specific UX win - without
   // this every approver row reads "Member ABCD" and groups can't
   // tell each other apart.
   const { contacts, save: saveContact } = useContacts();
@@ -120,89 +117,83 @@ export default function MembersPage() {
         animate: { opacity: 1, y: 0 },
       };
 
-  return (
-    <div className="flex flex-col gap-6">
-      <StickyTopBar offset="header">
-        <Breadcrumb
-          segments={[
-            { label: "Wallets", href: "/app/wallet" },
-            { label: toDisplayName(name), href: `/app/wallet/${encodeURIComponent(name)}` },
-            { label: "Members" },
-          ]}
-        />
-      </StickyTopBar>
-      {/* Mobile-only back chip — see /send for rationale. */}
-      <div className="px-gutter pt-2 md:hidden">
-        <BackToWallets />
-      </div>
+  const memberCount = members.length;
+  const summary = intentsQuery.isLoading
+    ? "Loading members…"
+    : memberCount === 1
+      ? "Just you for now."
+      : `${memberCount} ${memberCount === 1 ? "member" : "members"} · ${memberCount - 1} other${memberCount - 1 === 1 ? "" : "s"} can act with you.`;
 
-      <motion.section
-        {...motionProps}
-        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest sm:p-8"
-      >
-        <span aria-hidden="true" className="mx-auto block h-px w-10 bg-accent" />
-        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-          Members
-        </p>
-        <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          Who&rsquo;s in <span className="text-accent">{toHeadingName(name)}</span>
-        </h1>
-        <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
-          {members.length === 1
-            ? "Just you for now."
-            : `You and ${members.length - 1} other${members.length - 1 === 1 ? "" : "s"} can act on this wallet.`}
-        </p>
+  return (
+    <motion.div
+      {...motionProps}
+      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      className="flex flex-col gap-6"
+    >
+      {/* Compact header - left-aligned, matches the new app pattern.
+          Back navigation lives in the global DashboardHeader. */}
+      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+        <div className="flex flex-col gap-1">
+          <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
+            Members
+          </h1>
+          <p className="text-xs text-text-soft sm:text-sm">{summary}</p>
+        </div>
         <Link
           href="/privacy"
-          className={
-            "mt-4 inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-          }
+          className={clsx(
+            "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-[11px] font-medium text-text-soft",
+            "transition-colors duration-base ease-out-soft hover:text-accent",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+          )}
         >
           <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
           Privacy-ready · pre-alpha
         </Link>
-      </motion.section>
+      </header>
 
-      {/* Real signed flow — appends the friend's address to this
-          wallet's spending-rule approver list and saves them as a
-          contact for /send. */}
-      <Link
-        href={`/app/wallet/${encodeURIComponent(name)}/members/add`}
-        className="block w-full"
-      >
-        <Button size="lg" fullWidth>
-          <UserPlus className="h-4 w-4" aria-hidden="true" />
-          Add a friend
-        </Button>
-      </Link>
+      {/* Toolbar - primary CTA + spending-limits link as a chip. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Link
+          href={`/app/wallet/${encodeURIComponent(name)}/members/add`}
+          className={clsx(
+            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest sm:flex-none",
+            "transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
+            "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+          )}
+        >
+          <Plus size={13} aria-hidden="true" />
+          <span>Add a friend</span>
+        </Link>
+        <Link
+          href={`/app/wallet/${encodeURIComponent(name)}/allowances`}
+          className={clsx(
+            "inline-flex items-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-soft",
+            "transition-colors duration-base ease-out-soft hover:text-text-strong",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+          )}
+        >
+          Spending limits
+        </Link>
+      </div>
 
-      <Link
-        href={`/app/wallet/${encodeURIComponent(name)}/allowances`}
-        className={
-          "self-center inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3.5 py-1.5 text-xs font-medium text-text-soft " +
-          "transition-[border-color,color,transform] duration-base ease-out-soft " +
-          "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-        }
-      >
-        Set spending limits
-      </Link>
-
-      {/* Member list */}
-      <section>
+      {/* Member list - single divided-row card (Activity / Contacts /
+          Settings pattern). Denser than the per-row cards we had,
+          and the divider hierarchy reads as one list rather than a
+          stack of identical containers. */}
+      <section className="flex flex-col gap-3">
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Member list
         </h2>
         {intentsQuery.isLoading ? (
-          <div className="mt-3 space-y-2">
+          <ul className="flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
             <MemberRowSkeleton />
             <MemberRowSkeleton />
-          </div>
+            <MemberRowSkeleton />
+          </ul>
         ) : (
-          <ul className="mt-3 flex flex-col gap-2">
+          <ul className="flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
             {members.map((m, i) => (
               <MemberRow
                 key={m.address}
@@ -214,7 +205,7 @@ export default function MembersPage() {
                 onRename={(nextName) =>
                   saveContact({ name: nextName, address: m.address })
                 }
-                delay={i * 0.04}
+                delay={Math.min(i, 6) * 0.03}
                 reduce={!!reduce}
               />
             ))}
@@ -222,37 +213,36 @@ export default function MembersPage() {
         )}
       </section>
 
-      {/* Allowances callout — destination state, marked as preview. */}
+      {/* Allowances callout - destination state, marked as preview. */}
       <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
         <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
-            <Lock className="h-4 w-4" strokeWidth={1.75} />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+            <Lock className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
           </div>
-          <div>
-            <p className="font-display text-base text-text-strong">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-text-strong">
               Per-friend spending limits
             </p>
-            <p className="mt-1.5 text-sm leading-relaxed text-text-soft">
+            <p className="mt-1 text-xs leading-relaxed text-text-soft">
               Set a daily, weekly, or monthly cap for each friend. The
               wallet enforces it on chain, and the limits stay
-              encrypted, so nobody outside this wallet can read them.
+              encrypted - nobody outside this wallet can read them.
             </p>
-            <p className="mt-2 text-xs text-text-soft">
-              <Link
-                href="/privacy"
-                className="font-medium text-accent transition-colors duration-base ease-out-soft hover:text-accent-hover"
-              >
-                How privacy works
-              </Link>
-            </p>
+            <Link
+              href="/privacy"
+              className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-accent transition-colors duration-base ease-out-soft hover:text-accent-hover"
+            >
+              How privacy works
+              <ArrowRight className="h-3 w-3" aria-hidden="true" />
+            </Link>
           </div>
         </div>
       </section>
-    </div>
+    </motion.div>
   );
 }
 
-// ─── Row — one member ──────────────────────────────────────────────
+// ─── Row - one member ──────────────────────────────────────────────
 
 interface MemberRowProps {
   walletName: string;
@@ -260,7 +250,7 @@ interface MemberRowProps {
   role: Role | "unknown";
   isYou: boolean;
   /// Saved local nickname for this member's address, if any.
-  /// `null` means there's no contact yet — fall back to the
+  /// `null` means there's no contact yet - fall back to the
   /// "Member ABCD" label and offer the inline rename action.
   contactName: string | null;
   onRename: (name: string) => void;
@@ -290,7 +280,7 @@ function MemberRow({
   const isCreator = isCreatorAddress(walletName, address);
   // Display priority: "You" for self, the saved nickname if one
   // exists, otherwise the avatar-initial fallback. Showing "You ·
-  // Sarah" as a hybrid would just add clutter — self always reads
+  // Sarah" as a hybrid would just add clutter - self always reads
   // as "You".
   const displayName = isYou
     ? "You"
@@ -316,7 +306,7 @@ function MemberRow({
   const [editingNickname, setEditingNickname] = useState(false);
   const [nicknameDraft, setNicknameDraft] = useState(contactName ?? "");
 
-  // Creator is permanent. Removing them would brick the wallet — every
+  // Creator is permanent. Removing them would brick the wallet - every
   // future approval needs an authorised signer, and the creator's
   // pubkey is the seed component that derives the wallet PDA. Same
   // logic for role: creator stays as proposer + approver, no edits.
@@ -389,7 +379,7 @@ function MemberRow({
     <motion.li
       {...motionProps}
       transition={{ duration: 0.3, delay, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest"
+      className="px-4 py-3.5 transition-colors duration-base ease-out-soft hover:bg-canvas/40"
     >
       <div className="flex items-center gap-3">
         <MemberAvatar address={address} size="md" />
@@ -399,7 +389,7 @@ function MemberRow({
             {isCreator && (
               <span
                 className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent"
-                title="Created this wallet — can't be removed"
+                title="Created this wallet - can't be removed"
               >
                 <Crown className="h-3 w-3" strokeWidth={2.25} aria-hidden="true" />
                 Creator
@@ -472,7 +462,7 @@ function MemberRow({
             {hasNickname ? "Rename" : "Give a nickname"}
           </p>
           <p className="mt-1 text-[11px] text-text-soft">
-            Saved on this device only — your friend never sees it.
+            Saved on this device only - your friend never sees it.
           </p>
           <div className="mt-2 flex items-center gap-2">
             <input
@@ -527,7 +517,7 @@ function MemberRow({
                     "disabled:cursor-not-allowed disabled:opacity-50 " +
                     (selected
                       ? "border-accent bg-accent/5 text-text-strong"
-                      : "border-border-soft bg-surface-raised hover:border-accent/40")
+                      : "border-border-soft bg-surface-raised")
                   }
                 >
                   <span className="text-xs font-medium text-text-strong">
@@ -606,7 +596,7 @@ function MemberRow({
 }
 
 function RoleChip({ role }: { role: Role | "unknown" }) {
-  // Self-describing labels — feedback: "at first I was confused
+  // Self-describing labels - feedback: "at first I was confused
   // what 'Full' meant". Replacing with the verb makes the chip
   // legible without context.
   const styles =
@@ -637,12 +627,12 @@ function RoleChip({ role }: { role: Role | "unknown" }) {
 
 function MemberRowSkeleton() {
   return (
-    <div className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+    <li className="flex items-center gap-3 px-4 py-3.5">
       <div className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-border-soft" />
       <div className="flex-1 space-y-1.5">
         <div className="h-4 w-1/4 animate-pulse rounded bg-border-soft" />
         <div className="h-3 w-1/3 animate-pulse rounded bg-border-soft" />
       </div>
-    </div>
+    </li>
   );
 }

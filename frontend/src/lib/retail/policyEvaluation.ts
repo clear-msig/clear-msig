@@ -4,7 +4,7 @@
 //
 // Every signed send hits this before the wallet popup opens. If any
 // rule fails, the send aborts with a friendly violation that the UI
-// surfaces as a toast — the user never reaches the signature step on
+// surfaces as a toast - the user never reaches the signature step on
 // a doomed send.
 //
 // Sources of truth:
@@ -203,7 +203,7 @@ function formatSol(amount: number): string {
 }
 
 function formatUsd(usd: number): string {
-  if (!isFinite(usd)) return "$—";
+  if (!isFinite(usd)) return "$-";
   if (usd >= 100) return `$${Math.round(usd).toLocaleString("en-US")}`;
   return `$${usd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }

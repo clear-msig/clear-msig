@@ -11,11 +11,11 @@
 // What's stored: just the wallet name (with its on-chain
 // creator-derived suffix). The wallet hub re-fetches each watched
 // wallet's on-chain account on every page mount, so adding a
-// wallet here is a one-line localStorage change — no rehydration
+// wallet here is a one-line localStorage change - no rehydration
 // of stale balances.
 //
 // What's NOT stored: any sign-capable material. Watching is
-// strictly read-only — the existing pickSigner() check on the
+// strictly read-only - the existing pickSigner() check on the
 // send / approve / setup flows refuses to sign when the user
 // isn't in the approver list, so a "watcher" can browse the UI
 // but can't take any action that mutates state.
@@ -27,7 +27,7 @@ export interface WatchedWallet {
   /// On-chain wallet name (carries the `#XXXXXX` creator-derived
   /// suffix). Used as a stable identifier + the URL slug.
   name: string;
-  /// Unix ms when added — for sort order in the UI.
+  /// Unix ms when added - for sort order in the UI.
   addedAt: number;
 }
 
@@ -57,7 +57,7 @@ function persist(rows: WatchedWallet[]): void {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
     window.dispatchEvent(new Event("clear:watched-wallets-changed"));
   } catch {
-    /* localStorage full or blocked — silently noop */
+    /* localStorage full or blocked - silently noop */
   }
 }
 
@@ -78,7 +78,7 @@ export function removeWatchedWallet(name: string): void {
   persist(loadWatchedWallets().filter((w) => w.name !== name));
 }
 
-/// Subscribe to watch-list changes — fires on this tab (via the
+/// Subscribe to watch-list changes - fires on this tab (via the
 /// custom event we dispatch above) AND other tabs (via `storage`).
 export function subscribe(callback: () => void): () => void {
   if (typeof window === "undefined") return () => undefined;

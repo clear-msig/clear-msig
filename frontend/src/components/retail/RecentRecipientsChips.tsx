@@ -3,24 +3,11 @@
 // Recent recipients — Cash-App-style list of the last few people
 // this wallet sent to on a given chain. Each row is:
 //
-//   [avatar]  Sarah                          5.0 SOL
-//             0xB7…F4 · 2h ago · sent 3×
-//
-// Source of truth is the per-wallet txLog (localStorage), enriched
-// with the contact name when one exists. The same address-based
-// avatar (deterministic gradient + 2-letter initials) we use for
-// members, so a recipient who's also a member shows the same color
-// everywhere.
-//
-// Falls back gracefully:
-//   - No matching contact → show shortened address as the heading.
-//   - No prior amount stored (pre-v1.1 entries) → omit the amount.
-//   - Zero recents → render nothing (caller controls heading
-//     visibility via the Recent eyebrow above).
-//
-// Tap a row to fill the recipient input. Same `onPick(address)`
-// contract every consumer expects, so the SOL / ETH / ERC-20 send
-// pages drop in without code changes.
+// Each chip fills the recipient input with the full address. We
+// short the address for display so the strip stays compact, and
+// only render entries that recorded `recipientFull` - older log
+// entries have only the truncated `recipientShort` and we can't
+// fill an input from that.
 
 import { useEffect, useState } from "react";
 import { History } from "lucide-react";
@@ -67,13 +54,28 @@ export function RecentRecipientsChips({
         <History className="h-3 w-3" aria-hidden="true" />
         Recent
       </p>
-      <ul className="flex flex-col gap-1.5">
-        {items.map((r) => (
-          <RecipientRow
-            key={r.address.toLowerCase()}
-            recipient={r}
-            onPick={onPick}
-          />
+      <div className="flex flex-wrap gap-1.5">
+        {items.map((it) => (
+          <button
+            key={it.address}
+            type="button"
+            onClick={() => onPick(it.address)}
+            className={
+              // min-h-tap (44px) so each chip is reliably tappable.
+              // Was h≈20 (py-1+text-[11px]), well below HIG. Visual
+              // size barely changes because the type stays at 11px;
+              // the box just gains breathing room above and below.
+              "inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-2 text-[11px] font-medium text-text-soft " +
+              "transition-[border-color,color,transform] duration-base ease-out-soft " +
+              "hover:-translate-y-0.5 hover:text-accent " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+            }
+            title={`Use ${it.address}`}
+          >
+            <span className="font-mono text-text-strong">
+              {shortEvmAddress(it.address)}
+            </span>
+          </button>
         ))}
       </ul>
     </div>

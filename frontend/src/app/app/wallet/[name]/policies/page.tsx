@@ -1,6 +1,6 @@
 "use client";
 
-// Per-wallet policy rules — the page that lists them. Inspired by
+// Per-wallet policy rules - the page that lists them. Inspired by
 // Fordefi's policy-rule UI (https://docs.fordefi.com/user-guide/
 // policies/create-a-policy-rule). Each rule layers conditions on
 // top of the on-chain intent: when the conditions match a candidate
@@ -17,8 +17,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
+import clsx from "clsx";
 import {
-  ArrowLeft,
   ArrowRight,
   Eye,
   Lock,
@@ -26,10 +26,6 @@ import {
   ShieldCheck,
   Trash2,
 } from "lucide-react";
-import { Breadcrumb } from "@/components/retail/Breadcrumb";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
-import { BackToWallets } from "@/components/retail/BackToWallets";
-import { Button } from "@/components/retail/Button";
 import { encryptStatus } from "@/lib/encrypt/client";
 import {
   listPolicies,
@@ -37,7 +33,7 @@ import {
   subscribePolicies,
 } from "@/lib/policies/storage";
 import type { PolicyRule, RuleCondition } from "@/lib/policies/types";
-import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
+import { toDisplayName } from "@/lib/retail/walletNames";
 
 export default function PoliciesPage() {
   const params = useParams<{ name: string }>();
@@ -62,89 +58,70 @@ export default function PoliciesPage() {
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
 
+  const summary =
+    rules.length === 0
+      ? "Layer extra checks on top of this wallet's spending rule."
+      : `${rules.length} ${rules.length === 1 ? "rule" : "rules"} active on ${toDisplayName(name)}.`;
+
   return (
-    <div className="flex flex-col gap-6">
-      <StickyTopBar offset="header">
-        <Breadcrumb
-          segments={[
-            { label: "Wallets", href: "/app/wallet" },
-            {
-              label: toDisplayName(name),
-              href: `/app/wallet/${encodeURIComponent(name)}`,
-            },
-            { label: "Policies" },
-          ]}
-        />
-      </StickyTopBar>
-      {/* Mobile-only back chip — see /send for rationale. */}
-      <div className="px-gutter pt-2 md:hidden">
-        <BackToWallets />
-      </div>
-
-      <motion.section
-        {...motionProps}
-        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest sm:p-8"
-      >
-        <span aria-hidden="true" className="mx-auto block h-px w-10 bg-accent" />
-        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-          Policy rules
-        </p>
-        <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          Add a guardrail to{" "}
-          <span className="text-accent">{toHeadingName(name)}</span>
-        </h1>
-        <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
-          Layer extra checks on top of this wallet&rsquo;s spending rule —
-          recipient allowlists, per-period caps, time windows. Conditions
-          encrypt through Encrypt&rsquo;s confidential-policy network.
-        </p>
-
+    <motion.div
+      {...motionProps}
+      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      className="flex flex-col gap-6"
+    >
+      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+        <div className="flex flex-col gap-1">
+          <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
+            Policies
+          </h1>
+          <p className="text-xs text-text-soft sm:text-sm">{summary}</p>
+        </div>
         <Link
           href="/privacy"
-          className={
-            "mt-4 inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:border-accent hover:text-accent " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-          }
+          className={clsx(
+            "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-[11px] font-medium text-text-soft",
+            "transition-colors duration-base ease-out-soft hover:text-accent",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+          )}
         >
           <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-          {status.live
-            ? "Encryption active"
-            : "Encryption-ready · pre-alpha"}
+          {status.live ? "Encryption active" : "Encryption-ready · pre-alpha"}
         </Link>
-      </motion.section>
+      </header>
 
-      <Link
-        href={`/app/wallet/${encodeURIComponent(name)}/policies/new`}
-        className="block w-full"
-      >
-        <Button size="lg" fullWidth>
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          New policy rule
-        </Button>
-      </Link>
+      <div className="flex flex-wrap items-center gap-2">
+        <Link
+          href={`/app/wallet/${encodeURIComponent(name)}/policies/new`}
+          className={clsx(
+            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest sm:flex-none",
+            "transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
+            "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+          )}
+        >
+          <Plus size={13} aria-hidden="true" />
+          <span>New policy rule</span>
+        </Link>
+      </div>
 
       {rules.length === 0 ? (
-        <motion.section
-          {...motionProps}
-          transition={{ duration: 0.2 }}
-          className="rounded-card border border-dashed border-border-soft bg-canvas p-6 text-center"
-        >
-          <p className="text-sm font-medium text-text-strong">
-            No policy rules yet
-          </p>
-          <p className="mt-1 text-xs text-text-soft">
-            The wallet&rsquo;s on-chain intent (the spending rule from{" "}
-            <Link
-              href={`/app/wallet/${encodeURIComponent(name)}/rules`}
-              className="font-medium text-accent hover:text-accent-hover"
-            >
-              Rules
-            </Link>
-            ) is your baseline. Policy rules add conditions on top.
-          </p>
-        </motion.section>
+        // Vertically center the empty state on mobile - same pattern
+        // as Contacts. Desktop reverts to natural flow.
+        <div className="flex min-h-[calc(100dvh-14rem)] flex-col justify-center md:min-h-0 md:block">
+          <div className="rounded-card border border-dashed border-border-soft bg-surface-raised p-8 text-center shadow-card-rest">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">
+              <ShieldCheck className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
+            </div>
+            <p className="mt-4 font-display text-base font-semibold text-text-strong">
+              No policy rules yet
+            </p>
+            <p className="mx-auto mt-2 max-w-sm text-sm text-text-soft">
+              The wallet&rsquo;s on-chain intent is your baseline. Policy
+              rules layer recipient allowlists, per-period caps, and time
+              windows on top.
+            </p>
+          </div>
+        </div>
       ) : (
         <ul className="flex flex-col gap-3">
           {rules.map((rule) => (
@@ -152,19 +129,7 @@ export default function PoliciesPage() {
           ))}
         </ul>
       )}
-
-      <Link
-        href={`/app/wallet/${encodeURIComponent(name)}`}
-        className={
-          "self-start inline-flex items-center gap-1.5 rounded-soft px-2 py-1 text-xs text-text-soft " +
-          "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-        }
-      >
-        <ArrowLeft className="h-3 w-3" aria-hidden="true" />
-        Back to wallet
-      </Link>
-    </div>
+    </motion.div>
   );
 }
 
@@ -231,7 +196,7 @@ function PolicyCard({
             className={
               "inline-flex min-h-tap items-center justify-center gap-1 rounded-full border border-border-soft bg-canvas px-3 py-2 text-[11px] font-medium text-text-soft " +
               "transition-[border-color,color,transform] duration-base ease-out-soft " +
-              "hover:-translate-y-0.5 hover:border-accent hover:text-accent"
+              "hover:-translate-y-0.5 hover:text-accent"
             }
           >
             Edit

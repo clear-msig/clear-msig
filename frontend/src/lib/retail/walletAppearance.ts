@@ -1,6 +1,6 @@
 "use client";
 
-// Per-wallet appearance — shape preset + color.
+// Per-wallet appearance - shape preset + color.
 //
 // Stored locally because the chain doesn't carry presentation
 // metadata. Two pieces:
@@ -57,7 +57,7 @@ export interface WalletAppearance {
   walletName: string;
   shape?: WalletShapeId;
   /// One of `COLOR_PALETTE[i].id`. When unset, callers fall back to
-  /// `avatarGradient(walletName)` — the deterministic colour the
+  /// `avatarGradient(walletName)` - the deterministic colour the
   /// wallet has worn since before this picker existed.
   color?: string;
   updatedAt: number;
@@ -81,7 +81,7 @@ function persist(rows: WalletAppearance[]) {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
   } catch {
-    // Quota / privacy mode — appearance is non-critical, fail soft.
+    // Quota / privacy mode - appearance is non-critical, fail soft.
   }
 }
 
@@ -109,7 +109,7 @@ export function saveWalletAppearance(
   return next;
 }
 
-/// Returns the gradient pair the caller should use — picked color if
+/// Returns the gradient pair the caller should use - picked color if
 /// the user set one, otherwise the deterministic gradient. Centralizes
 /// the precedence so call sites don't repeat it.
 export function gradientFor(

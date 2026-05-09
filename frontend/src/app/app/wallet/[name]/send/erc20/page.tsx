@@ -1,10 +1,10 @@
 "use client";
 
-// Send an ERC-20 token (Sepolia) — sibling of /send/eth for token
+// Send an ERC-20 token (Sepolia) - sibling of /send/eth for token
 // transfers. The wallet's same Sepolia address (chain_kind=1 binding)
 // holds ERC-20 balances; the intent that unlocks the send is
 // chain_kind=4 (set up via /setup/erc20). The user picks the token
-// per-send by pasting its contract address — one intent unlocks every
+// per-send by pasting its contract address - one intent unlocks every
 // ERC-20 the wallet holds.
 //
 // Flow:
@@ -21,7 +21,7 @@
 //      via Ika to broadcast the actual ERC-20 tx to Sepolia.
 //
 // The wallet's secp256k1 dWallet key signs both ETH transfers and
-// ERC-20 calls — same key, different preimage builder. So a single
+// ERC-20 calls - same key, different preimage builder. So a single
 // chain binding covers both intents.
 
 import { Suspense, useMemo, useState } from "react";
@@ -179,7 +179,7 @@ function SendErc20Page() {
   const tokenContractValid = isValidErc20Contract(trimmedToken);
   const recipientValid = isValidEvmAddress(trimmedRecipient);
 
-  // Token metadata — decimals + symbol + name from the token contract
+  // Token metadata - decimals + symbol + name from the token contract
   // via eth_call. Without this we couldn't scale the user's typed
   // "1.5" into base units, and the post-send confirmation would say
   // "1.5 (unknown token)".
@@ -438,7 +438,7 @@ function SendErc20Page() {
           ]}
         />
       </StickyTopBar>
-      {/* Mobile-only back chip — see /send for rationale. */}
+      {/* Mobile-only back chip - see /send for rationale. */}
       <div className="px-gutter pt-2">
         <BackToWallets />
       </div>
@@ -570,7 +570,7 @@ function ComposeStage({
 
   const previewDetails: SignPayloadDetail[] = [
     { label: "From wallet", value: walletDisplay || "your wallet" },
-    { label: "Chain", value: "Ethereum (Sepolia) — ERC-20" },
+    { label: "Chain", value: "Ethereum (Sepolia) - ERC-20" },
     walletEthAddress
       ? {
           label: "From address",
@@ -615,7 +615,7 @@ function ComposeStage({
         <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Send · ERC-20 token
         </p>
-        <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+        <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
           Send a token from <span className="text-accent">{walletDisplay}</span>
         </h1>
       </div>
@@ -682,7 +682,7 @@ function ComposeStage({
               }}
               placeholder="0.0"
               disabled={!metadata}
-              // font-numerals tabular-nums — same financial typography
+              // font-numerals tabular-nums - same financial typography
               // as SOL / ETH amount inputs.
               className={
                 "flex-1 rounded-card border border-border-soft bg-surface-raised px-4 py-3 font-numerals text-2xl font-semibold text-text-strong tabular-nums outline-none " +
@@ -695,7 +695,7 @@ function ComposeStage({
               {symbol}
             </span>
           </div>
-          {/* Balance chip — single pill consolidates the
+          {/* Balance chip - single pill consolidates the
               "Wallet has X TOKEN" + Max button. Tabular-numeric
               digits keep the value column aligned. */}
           <div className="mt-2 inline-flex min-h-tap items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-2 text-xs">
@@ -705,7 +705,7 @@ function ComposeStage({
                 ? "…"
                 : typeof walletBalance === "bigint" && metadata
                   ? tokenAmountToString(walletBalance, metadata.decimals, 6)
-                  : "—"}
+                  : "-"}
             </span>
             <span className="text-text-soft">{metadata?.symbol ?? symbol}</span>
             {typeof walletBalance === "bigint" &&
@@ -735,7 +735,7 @@ function ComposeStage({
             <p className="mt-2 rounded-soft border border-warning/40 bg-warning/[0.07] px-3 py-2 text-xs text-text-strong">
               <span className="font-medium">Insufficient balance.</span> You
               have {tokenAmountToString(walletBalance, metadata.decimals, 6)}{" "}
-              {metadata.symbol} — need{" "}
+              {metadata.symbol} - need{" "}
               {tokenAmountToString(amountBase, metadata.decimals, 6)}.
             </p>
           )}
@@ -796,7 +796,7 @@ function ComposeStage({
         <WalletPopupNarration action="send this token request" popups={1} />
       </div>
 
-      {/* Sticky-bottom CTA on mobile — see SOL send for rationale. */}
+      {/* Sticky-bottom CTA on mobile - see SOL send for rationale. */}
       <div
         className={
           "mt-3 -mx-3 sm:mx-0 px-3 sm:px-0 " +
@@ -913,7 +913,7 @@ function SentStage({
           className={
             "mt-5 inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3.5 py-1.5 text-xs font-medium text-text-soft " +
             "transition-[border-color,color,transform] duration-base ease-out-soft " +
-            "hover:-translate-y-0.5 hover:border-accent hover:text-accent " +
+            "hover:-translate-y-0.5 hover:text-accent " +
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
           }
         >

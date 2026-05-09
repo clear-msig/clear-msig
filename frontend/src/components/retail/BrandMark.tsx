@@ -1,4 +1,4 @@
-// Brand mark — two interlocking circles in accent green.
+// Brand mark - two interlocking circles in accent green.
 //
 // Replaces the generic wallet-icon-in-pill we shipped for the first
 // month. The wallet emoji is what every fintech default screen uses
@@ -49,7 +49,7 @@ export function BrandMark({ size = 12, className }: BrandMarkProps) {
         strokeWidth="2.4"
         fill="none"
       />
-      {/* Intersection — solid lens for emphasis */}
+      {/* Intersection - solid lens for emphasis */}
       <path
         d="M 12 7.04 A 5.25 5.25 0 0 1 12 16.96 A 5.25 5.25 0 0 1 12 7.04 Z"
         fill="currentColor"

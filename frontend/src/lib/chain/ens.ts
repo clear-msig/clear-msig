@@ -1,6 +1,6 @@
 "use client";
 
-// Ethereum Name Service (ENS) resolution — `vitalik.eth` → 0x….
+// Ethereum Name Service (ENS) resolution - `vitalik.eth` → 0x….
 //
 // Symmetric to lib/chain/sns.ts but for EVM. Modern EVM wallets
 // resolve ENS names in the recipient field so users can send to
@@ -11,7 +11,7 @@
 //
 // Doing the full ENS lookup (namehash → registry → resolver →
 // addr()) needs keccak256 + an EVM RPC client. We don't ship
-// either — instead we hit the long-standing `api.ensideas.com`
+// either - instead we hit the long-standing `api.ensideas.com`
 // public proxy that wraps the on-chain lookup and returns a JSON
 // `{address, name, displayName, avatar}` payload. Same approach
 // Coinbase Wallet / Rainbow have used for years.
@@ -32,7 +32,7 @@ const HEX_ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
 /// Heuristic: does this look like a name we should attempt to
 /// resolve? Skip if it's already a 0x address, accept anything
 /// containing a dot, and accept bare lowercase labels (3–32 chars,
-/// alphanumeric plus hyphens — the ENS character set is broader
+/// alphanumeric plus hyphens - the ENS character set is broader
 /// but this is the safe subset).
 export function looksLikeEnsName(input: string): boolean {
   const trimmed = input.trim();

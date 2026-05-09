@@ -1,12 +1,12 @@
 "use client";
 
 // PWA install glue. Browsers don't expose a permission API for "is
-// this site installable?" — instead they fire a `beforeinstallprompt`
+// this site installable?" - instead they fire a `beforeinstallprompt`
 // event when the heuristics say yes (manifest valid, https, prior
 // engagement). We capture the event, expose a `prompt()` that fires
 // the saved Event.prompt(), and watch `appinstalled` to flip state.
 //
-// iOS Safari doesn't fire beforeinstallprompt at all — install on
+// iOS Safari doesn't fire beforeinstallprompt at all - install on
 // iOS is via the Share sheet → "Add to Home Screen". Detect iOS
 // Safari so the UI can render those instructions instead.
 //
@@ -25,9 +25,9 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export type InstallStatus =
-  /// Already installed — don't show the affordance.
+  /// Already installed - don't show the affordance.
   | "installed"
-  /// Browser fired beforeinstallprompt — `prompt()` is callable.
+  /// Browser fired beforeinstallprompt - `prompt()` is callable.
   | "available"
   /// iOS Safari (or another non-Chromium browser that supports
   /// home-screen install but doesn't expose the API). Show manual
@@ -102,7 +102,7 @@ export function useInstallPrompt(): UseInstallPromptResult {
     try {
       await savedEvent.prompt();
       const choice = await savedEvent.userChoice;
-      // The event is one-shot — Chrome won't re-fire prompt() on
+      // The event is one-shot - Chrome won't re-fire prompt() on
       // the same instance. Drop our reference so the row hides
       // until the browser fires beforeinstallprompt again (it does
       // when the user dismisses + revisits later).

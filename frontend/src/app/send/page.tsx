@@ -1,6 +1,6 @@
 "use client";
 
-// Legacy redirect — the canonical send URL is now
+// Legacy redirect - the canonical send URL is now
 // /app/wallet/[name]/send. Kept around so old links, bookmarks, and
 // any in-flight email/Slack notifications still land somewhere
 // useful. Pulls the wallet name out of `?wallet=...` and forwards

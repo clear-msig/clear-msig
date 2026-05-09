@@ -1,7 +1,7 @@
 "use client";
 
 // Per-wallet policy-rule storage. Rules persist locally under a
-// stable per-wallet key — when on-chain enforcement lands (Encrypt's
+// stable per-wallet key - when on-chain enforcement lands (Encrypt's
 // `#[encrypt_fn]` handlers), this same shape moves to chain-stored
 // ciphertext refs without changing call sites.
 //
@@ -45,7 +45,7 @@ function writeAll(shape: StoredShape): void {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(shape));
     window.dispatchEvent(new Event(CHANGE_EVENT));
   } catch {
-    /* quota / private mode — silently noop */
+    /* quota / private mode - silently noop */
   }
 }
 

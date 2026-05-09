@@ -2,7 +2,7 @@
 
 // Policy-rule type system. Inspired by Fordefi's policy-rule shape
 // (https://docs.fordefi.com/user-guide/policies/create-a-policy-rule)
-// — conditions describe WHEN a rule fires, action describes WHAT
+// - conditions describe WHEN a rule fires, action describes WHAT
 // happens. Adapted for the clear-msig domain: a rule lives under a
 // specific wallet, augments the on-chain intent (which carries the
 // approver set + base threshold), and adds finer-grained checks
@@ -30,7 +30,7 @@
 
 import type { EncryptedPayload } from "@/lib/encrypt/client";
 
-/// Rule version — bumped when the condition shape evolves so older
+/// Rule version - bumped when the condition shape evolves so older
 /// stored rules can be migrated or skipped without crashing the
 /// evaluator.
 export type RuleVersion = 1;
@@ -52,7 +52,7 @@ export type RuleAction =
   /// enforcement is the FHE follow-up.
   | "require-extra-approvers"
   /// Add a wait time on top of the intent's timelock. Same
-  /// caveat — UI-only today.
+  /// caveat - UI-only today.
   | "require-cooldown";
 
 // ── Conditions ──────────────────────────────────────────────────
@@ -89,7 +89,7 @@ export interface AmountCondition {
   minDisplay?: string | null;
   /// Inclusive upper bound in display units.
   maxDisplay?: string | null;
-  /// Ticker the bounds are denominated in — provides UI display
+  /// Ticker the bounds are denominated in - provides UI display
   /// + sanity-checks the bounds belong to the asset filter above
   /// when both are set.
   ticker?: string | null;
@@ -106,9 +106,9 @@ export interface TimeWindowCondition {
   endHour: number;
   /// Subset of [0..6]; empty means every day.
   daysOfWeek: number[];
-  /// "inside"  — rule fires when the proposal's local time falls
+  /// "inside"  - rule fires when the proposal's local time falls
   ///             inside the window.
-  /// "outside" — fires only when OUTSIDE the window (useful for
+  /// "outside" - fires only when OUTSIDE the window (useful for
   ///             "no sends overnight").
   match: "inside" | "outside";
 }
@@ -168,7 +168,7 @@ export interface RuleEvaluation {
   ruleName: string;
   /// True if every condition matched.
   matched: boolean;
-  /// Per-condition match detail — useful for the "why was this
+  /// Per-condition match detail - useful for the "why was this
   /// rule applied" affordance on the send page.
   reasons: Array<{ condition: string; matched: boolean; detail?: string }>;
   action: RuleAction;

@@ -1,6 +1,6 @@
 "use client";
 
-// Dynamic spike — does the embedded-wallet signMessage produce an
+// Dynamic spike - does the embedded-wallet signMessage produce an
 // ed25519 signature the on-chain Clear program will accept?
 //
 // This is a one-page proof. It does NOT touch the rest of the app's
@@ -109,7 +109,7 @@ function SpikeBody() {
       const signer = await solanaWallet.getSigner();
       const signed = await signer.signMessage(TEST_MESSAGE);
       // Dynamic returns either Uint8Array directly or {signature: ...}
-      // depending on version — normalize.
+      // depending on version - normalize.
       const sigBytes: Uint8Array =
         signed instanceof Uint8Array
           ? signed
@@ -144,7 +144,7 @@ function SpikeBody() {
       <div className="mx-auto max-w-2xl">
         <header className="mb-8">
           <span className="inline-flex items-center rounded-full border border-warning/30 bg-warning/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
-            Spike — not user-facing
+            Spike - not user-facing
           </span>
           <h1 className="mt-3 font-display text-display-md text-text-strong">
             Dynamic ↔ Clear sig compatibility
@@ -165,7 +165,7 @@ function SpikeBody() {
           <p className="mt-1 text-sm text-text-soft">
             Email login mints an embedded Solana wallet on the fly.
             External wallets (Solflare / Backpack) work too. Phantom is
-            currently incompatible — it rejects our offchain envelope.
+            currently incompatible - it rejects our offchain envelope.
           </p>
           <div className="mt-4">
             <DynamicWidget />
@@ -241,7 +241,7 @@ function SpikeBody() {
                   app.dynamic.xyz → Wallets → Embedded Wallets
                 </a>
                 . Toggle the <strong>Solana</strong> chain on (separate
-                from the Chains &amp; Networks page — that one only
+                from the Chains &amp; Networks page - that one only
                 allows the chain, this one wires up wallet minting on
                 login). Save, sign out + back in, then reload this page.
               </p>
@@ -264,7 +264,7 @@ function SpikeBody() {
             onClick={handleSign}
             disabled={!solanaWallet || signing}
             className={
-              "mt-4 inline-flex items-center justify-center rounded-soft bg-accent px-4 py-2 text-sm font-medium text-white shadow-accent-rest " +
+              "mt-4 inline-flex items-center justify-center rounded-soft bg-accent px-4 py-2 text-sm font-medium text-text-on-accent shadow-accent-rest " +
               "transition-[background-color,transform] duration-base ease-out-soft " +
               "hover:bg-accent-hover active:scale-[0.98] " +
               "disabled:cursor-not-allowed disabled:opacity-50"
@@ -296,8 +296,8 @@ function SpikeBody() {
                   }
                 >
                   {result.verified
-                    ? "✓ Signature verifies as ed25519 — migration unblocked."
-                    : "✗ Signature did NOT verify — Dynamic's signer is incompatible. Dig deeper before migrating."}
+                    ? "✓ Signature verifies as ed25519 - migration unblocked."
+                    : "✗ Signature did NOT verify - Dynamic's signer is incompatible. Dig deeper before migrating."}
                 </p>
               </div>
               <SpikeKv label="Pubkey" value={result.pubkey} mono />
@@ -312,7 +312,7 @@ function SpikeBody() {
           over the exact bytes we passed in, signed by the wallet&rsquo;s
           public key. The on-chain program calls{" "}
           <code className="font-mono text-text-strong">brine_ed25519::sig_verify</code>{" "}
-          with the same three inputs — algorithm parity means a sig that
+          with the same three inputs - algorithm parity means a sig that
           passes here passes there.
         </footer>
       </div>

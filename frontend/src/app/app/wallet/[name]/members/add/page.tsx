@@ -1,12 +1,12 @@
 "use client";
 
-// Add a friend — real signed flow that grows the wallet's approver
+// Add a friend - real signed flow that grows the wallet's approver
 // list. The user types a friend's name + Solana address; we save the
 // pair locally to contacts AND run the on-chain update-intent flow
 // (prepare → sign → submit) so the friend can sign requests on this
 // wallet from then on.
 //
-// Threshold isn't bumped automatically here — adding a friend keeps
+// Threshold isn't bumped automatically here - adding a friend keeps
 // the existing X-of-Y count, just expands the Y. Changing approval
 // thresholds is its own future flow.
 
@@ -40,10 +40,7 @@ import {
 } from "@/lib/retail/roles";
 import { sendOrganizationInvite } from "@/lib/organizations/client";
 import { recordInvite } from "@/lib/security/inviteLog";
-import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
-import { Breadcrumb } from "@/components/retail/Breadcrumb";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
-import { BackToWallets } from "@/components/retail/BackToWallets";
+import { toDisplayName } from "@/lib/retail/walletNames";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
@@ -106,7 +103,7 @@ export default function AddFriendPage() {
   }, [intentsQuery.data]);
 
   // We used to silently router.replace() to /setup when no spending
-  // rule existed yet — that yanked the user mid-flow with no context.
+  // rule existed yet - that yanked the user mid-flow with no context.
   // Now we render an explanatory card below (see needsSetupCta) so
   // the user chooses to proceed.
   const needsSetup =
@@ -167,7 +164,7 @@ export default function AddFriendPage() {
       // Resolve which signer pubkey the wallet's UpdateIntent
       // meta-intent (slot 2) expects. Adding a member calls
       // UpdateIntent on the spending rule, so the proposal/approval
-      // signs against UpdateIntent's approver list — NOT the target
+      // signs against UpdateIntent's approver list - NOT the target
       // intent's. See setup/page.tsx for the full reasoning. The
       // watcher branch below skips the chain entirely so we only
       // need to gate when role !== "watcher".
@@ -190,7 +187,7 @@ export default function AddFriendPage() {
       // `IntentHasActiveProposals` = 0x1780). A previous failed
       // execute could have left an Approved-but-not-Executed
       // proposal blocking us. Try to drain those before the update.
-      // Execute is sponsored — no signature needed.
+      // Execute is sponsored - no signature needed.
       if (walletQuery.data && (intent.activeProposalCount ?? 0) > 0) {
         const proposals = await listProposalsForWallet(
           connection,
@@ -214,7 +211,7 @@ export default function AddFriendPage() {
         }
       }
 
-      // Watchers don't touch the chain — they're a local "people who
+      // Watchers don't touch the chain - they're a local "people who
       // can read this wallet's activity" pin. Save to the watchers
       // store and exit early before any signed write.
       if (role === "watcher") {
@@ -269,12 +266,12 @@ export default function AddFriendPage() {
         policy_ciphertexts,
       });
 
-      // 2. Sign — preferSigner routes through the matching
+      // 2. Sign - preferSigner routes through the matching
       //    Ledger/Dynamic pubkey resolved above.
       const signed = await signDescriptor(dry, { preferSigner: signerPk! });
 
       // 3. Submit propose: lands the UpdateIntent proposal in Active
-      //    state. The propose call does NOT count as an approval —
+      //    state. The propose call does NOT count as an approval -
       //    we have to flip the bit explicitly with a second sign.
       const submitted = await backendApi.submit.updateIntent(name, {
         ...signed,
@@ -334,7 +331,7 @@ export default function AddFriendPage() {
       queryClient.invalidateQueries({ queryKey: ["wallet", name] });
 
       // Fire the actual invite email if the user supplied an address
-      // AND the inviter wallet is connected. This is best-effort —
+      // AND the inviter wallet is connected. This is best-effort -
       // the on-chain change is already done; an email failure (SMTP
       // misconfig, throttling) shouldn't block the success toast.
       let emailDelivered = false;
@@ -347,7 +344,7 @@ export default function AddFriendPage() {
             invitee: { address: trimmedAddress, email: trimmedEmail },
           });
           emailDelivered = true;
-          // Audit trail for the inviter — surfaces in /app/invitations
+          // Audit trail for the inviter - surfaces in /app/invitations
           // and lets them send a withdrawal email if the invite was a
           // mistake. Only record when the SMTP send actually
           // succeeded; failures stay out of the log to avoid a
@@ -382,7 +379,7 @@ export default function AddFriendPage() {
           ? `${base}. Invite emailed to ${trimmedEmail}`
           : `${base}. Couldn't reach ${trimmedEmail}; share the wallet link manually`;
       toast.success(message);
-      // Don't router.push — let the success view show NextStepCard
+      // Don't router.push - let the success view show NextStepCard
       // so the user picks where to go (add another, set their limit,
       // back to members).
       setJustAddedName(trimmedName);
@@ -400,37 +397,26 @@ export default function AddFriendPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <StickyTopBar offset="header">
-        <Breadcrumb
-          segments={[
-            { label: "Wallets", href: "/app/wallet" },
-            { label: toDisplayName(name), href: `/app/wallet/${encodeURIComponent(name)}` },
-            {
-              label: "Members",
-              href: `/app/wallet/${encodeURIComponent(name)}/members`,
-            },
-            { label: "Add someone" },
-          ]}
-        />
-      </StickyTopBar>
-      {/* Mobile-only back chip — see /send for rationale. */}
-      <div className="px-gutter pt-2 md:hidden">
-        <BackToWallets />
-      </div>
-
-      <motion.section
+      {/* Compact left-aligned header - back navigation is in the
+          DashboardHeader (desktop) / BottomNav (mobile). */}
+      <motion.header
         {...motionProps}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="flex flex-col items-center text-center"
+        className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1"
       >
-        <h1 className="font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          Add someone to{" "}
-          <span className="text-accent">{toHeadingName(name)}</span>
-        </h1>
-        <p className="mt-1.5 text-sm text-text-soft">
-          You&rsquo;ll need their Solana wallet address.
-        </p>
-      </motion.section>
+        <div className="flex flex-col gap-1">
+          <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
+            Add a friend
+          </h1>
+          <p className="text-xs text-text-soft sm:text-sm">
+            Adding to{" "}
+            <span className="font-medium text-text-strong">
+              {toDisplayName(name)}
+            </span>
+            . You&rsquo;ll need their Solana wallet address.
+          </p>
+        </div>
+      </motion.header>
 
       {justAddedName && (
         <NextStepCard
@@ -484,7 +470,7 @@ export default function AddFriendPage() {
             <Link
               href={`/app/wallet/${encodeURIComponent(name)}/setup`}
               className={
-                "inline-flex items-center gap-1.5 rounded-soft bg-accent px-3.5 py-2 text-sm font-medium text-white shadow-accent-rest " +
+                "inline-flex items-center gap-1.5 rounded-soft bg-accent px-3.5 py-2 text-sm font-medium text-text-on-accent shadow-accent-rest " +
                 "transition-[background-color,transform] duration-base ease-out-soft " +
                 "hover:bg-accent-hover active:scale-[0.98]"
               }
@@ -564,7 +550,7 @@ export default function AddFriendPage() {
         )}
 
         {/* Role lives inline at the bottom of the form. Used to be a
-            separate "What can they do?" card with three tile buttons —
+            separate "What can they do?" card with three tile buttons -
             same choice, twice the surface area. Compact chip row keeps
             the decision on the page without competing with the inputs. */}
         <div className="h-px bg-border-soft" />
@@ -588,7 +574,7 @@ export default function AddFriendPage() {
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
                     (selected
                       ? "border-accent bg-accent/10 text-accent"
-                      : "border-border-soft bg-canvas text-text-soft hover:border-accent/40 hover:text-text-strong")
+                      : "border-border-soft bg-canvas text-text-soft hover:text-text-strong")
                   }
                 >
                   {ROLE_LABEL[r]}

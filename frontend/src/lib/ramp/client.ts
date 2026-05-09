@@ -117,7 +117,7 @@ async function request<T>(
   try {
     parsed = await resp.json();
   } catch {
-    /* opaque error body — fall through */
+    /* opaque error body - fall through */
   }
 
   if (!resp.ok) {

@@ -19,7 +19,7 @@
 // Pattern: one primary (accent-coloured CTA), zero or more secondaries
 // (ghost), and an optional "Back" escape hatch. Mirrors the explicit
 // inform-and-choose pattern we replaced silent /setup auto-redirects
-// with — the same idea, applied at the *end* of an action instead of
+// with - the same idea, applied at the *end* of an action instead of
 // the start.
 
 import Link from "next/link";
@@ -28,7 +28,7 @@ import { ArrowRight, type LucideIcon } from "lucide-react";
 export interface NextStepOption {
   /// Visible label.
   label: string;
-  /// Where the link goes. Mutually exclusive with `onClick` —
+  /// Where the link goes. Mutually exclusive with `onClick` -
   /// callers either route the user away (href) or stay on the
   /// page and run a local action (onClick), never both.
   href?: string;
@@ -91,8 +91,8 @@ function NextStepLink({
     "group flex w-full items-center gap-3 rounded-card px-4 py-3 text-left transition-[border-color,background-color,transform,box-shadow] duration-base ease-out-soft " +
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised";
   const variant = primary
-    ? "border border-accent/40 bg-accent/[0.06] text-text-strong shadow-card-rest hover:-translate-y-0.5 hover:border-accent hover:shadow-card-raised"
-    : "border border-border-soft bg-canvas text-text-strong hover:border-accent/40 hover:bg-surface-raised";
+    ? "border border-accent/40 bg-accent/[0.06] text-text-strong shadow-card-rest hover:-translate-y-0.5 hover:shadow-card-raised"
+    : "border border-border-soft bg-canvas text-text-strong hover:bg-surface-raised";
   const inner = (
     <>
       {Icon && (
@@ -100,7 +100,7 @@ function NextStepLink({
           className={
             "flex h-8 w-8 shrink-0 items-center justify-center rounded-full " +
             (primary
-              ? "bg-accent text-white"
+              ? "bg-accent text-text-on-accent"
               : "bg-accent/10 text-accent")
           }
           aria-hidden="true"

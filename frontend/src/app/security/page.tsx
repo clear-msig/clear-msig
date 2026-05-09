@@ -1,6 +1,6 @@
 "use client";
 
-// /security — plain-language security posture for retail users.
+// /security - plain-language security posture for retail users.
 //
 // The full attack-surface walkthrough lives in SECURITY.md at the
 // project root. This page is the human-readable subset: what we

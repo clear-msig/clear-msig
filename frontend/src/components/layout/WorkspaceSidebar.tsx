@@ -1,6 +1,6 @@
 "use client";
 
-// Workspace sidebar — light-theme rail with expand-to-full toggle.
+// Workspace sidebar - light-theme rail with expand-to-full toggle.
 //
 // History:
 //   - 2026-04-30 (locked spec): persistent left rail on desktop, drawer
@@ -12,9 +12,9 @@
 //
 // Two render modes, controlled by the `SidebarProvider` context:
 //
-//   • Expanded (default, ~16rem) — brand row + search + "+ New" CTA +
+//   • Expanded (default, ~16rem) - brand row + search + "+ New" CTA +
 //     wallet list + recent activity feed + connected pill + settings.
-//   • Collapsed (rail, ~4rem) — icon-only column. Wallet list shows
+//   • Collapsed (rail, ~4rem) - icon-only column. Wallet list shows
 //     gradient avatars; recent feed hides; pill collapses to avatar.
 //
 // On mobile the component is rendered inside HeaderBar's drawer; the
@@ -26,14 +26,16 @@ import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useWallet } from "@/lib/wallet";
 import {
+  Activity as ActivityIcon,
   ChevronsLeft,
   ChevronsRight,
+  Contact as ContactIcon,
+  Home,
   Layers,
   LogOut,
-  Plus,
-  Search,
   Settings,
-  Vault,
+  UserCircle2,
+  type LucideIcon,
 } from "lucide-react";
 import { BrandMark } from "@/components/retail/BrandMark";
 import clsx from "clsx";
@@ -41,15 +43,19 @@ import {
   fetchOnchainMemberships,
   type OnchainMembership,
 } from "@/lib/memberships/client";
-import { openCommandPalette } from "@/components/layout/CommandPalette";
-import { useRecentActivity } from "@/lib/hooks/useRecentActivity";
+import {
+  useRecentActivity,
+  type RecentActivityRow,
+} from "@/lib/hooks/useRecentActivity";
+import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
+import { friendlyStatus } from "@/lib/retail/labels";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { avatarGradient } from "@/lib/retail/avatar";
 import { gradientFor } from "@/lib/retail/walletAppearance";
 import { useSidebar } from "@/components/providers/SidebarProvider";
 
 type Props = {
-  /// Called after a navigation link fires — used by the mobile drawer
+  /// Called after a navigation link fires - used by the mobile drawer
   /// to close itself.
   onNavigate?: () => void;
   /// When true, ignores the rail (collapsed) state and always renders
@@ -74,12 +80,16 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
 
   const memberships = myOrganizationsQuery.data ?? [];
   const recent = useRecentActivity(3);
+  // Used by the Home tab badge in the primary nav. Cheap - derives
+  // from queries already mounted higher up the tree.
+  const action = useActionNeeded();
+  const pendingCount = action.rows.length;
 
   // Pull the active wallet slug out of the path so wallet-scoped
   // entries (Chains, …) can link straight back into the right
   // wallet. Matches /app/wallet/{name}/... and decodes the slug.
   // null when the user is on a non-wallet route (e.g. /app/settings,
-  // /app/wallet hub) — the entry hides so we never render a broken
+  // /app/wallet hub) - the entry hides so we never render a broken
   // /app/wallet//chains link.
   const activeWalletSlug = (() => {
     const m = pathname.match(/^\/app\/wallet\/([^/]+)/);
@@ -106,50 +116,17 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
         onToggle={sidebar?.toggleExpanded}
       />
 
-      {/* Search — opens the cmd-K palette. Touch-only trigger; the
-          keyboard shortcut works globally regardless. */}
-      <button
-        type="button"
-        onClick={() => {
-          onNavigate?.();
-          openCommandPalette();
-        }}
-        aria-label="Search"
-        className={clsx(
-          "group flex items-center rounded-soft border border-border-soft bg-canvas/50 text-left text-text-soft",
-          "transition-colors duration-base ease-out-soft hover:border-border-strong hover:bg-canvas hover:text-text-strong",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
-          expanded ? "gap-2 px-3 py-2 text-xs" : "h-10 w-10 justify-center self-center",
-        )}
-      >
-        <Search size={14} className="shrink-0" />
-        {expanded && (
-          <>
-            <span>Search</span>
-            <kbd className="ml-auto rounded border border-border-soft bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-text-soft">
-              ⌘K
-            </kbd>
-          </>
-        )}
-      </button>
-
-      {/* Primary CTA — "+ New shared wallet". Same accent green as the
-          rest of the app's primary actions. */}
-      <Link
-        href="/welcome"
-        onClick={onNavigate}
-        aria-label="New shared wallet"
-        className={clsx(
-          "group inline-flex items-center justify-center gap-2 rounded-soft bg-accent text-xs font-medium text-white",
-          "shadow-accent-rest transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
-          "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
-          expanded ? "px-4 py-2.5" : "h-10 w-10 self-center p-0",
-        )}
-      >
-        <Plus size={14} className="shrink-0" />
-        {expanded && <span>New shared wallet</span>}
-      </Link>
+      {/* Primary navigation - the four cross-cutting destinations a
+          user can reach without drilling into a specific wallet. The
+          desktop top header is dedicated to back-navigation, so this
+          rail owns the section-jump job. The Home tab carries the
+          same pending-approvals badge BottomNav surfaces on mobile. */}
+      <PrimaryNav
+        pathname={pathname}
+        expanded={expanded}
+        pendingCount={pendingCount}
+        onNavigate={onNavigate}
+      />
 
       {/* Wallet list. Hidden on the dashboard (/app/wallet) where the
           page already renders the same wallets as cards with richer
@@ -188,14 +165,32 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
         </SidebarSection>
       )}
 
-      {/* Secure — ikavery promo entry (replaces the old "Recent"
-          section, which duplicated the wallet hub's Activity tab).
-          Renders in expanded mode as a Try-it card with a "Powered
-          by Ika" mark; in rail mode the full card collapses, leaving
-          just the bottom-group icon. /app/secure is the discovery
-          surface for ikavery's t-of-N personal key recovery —
-          companion product on Ika dWallets. */}
-      {expanded && <SecurePromoCard onNavigate={onNavigate} pathname={pathname} />}
+      {/* Recent activity. Hidden in rail mode - text-only rows don't
+          translate to a meaningful icon and stacking would just create
+          dead space. */}
+      {expanded && (
+        <SidebarSection
+          label="Recent"
+          count={recent.rows.length}
+          loading={recent.loading}
+          expanded={expanded}
+        >
+          {recent.rows.length === 0 && !recent.loading ? (
+            <p className="px-2 text-[11px] text-text-soft">Nothing here yet.</p>
+          ) : (
+            <ul className="flex flex-col gap-0.5">
+              {recent.rows.map((r) => (
+                <SidebarActivityRow
+                  key={r.proposalPda}
+                  row={r}
+                  pathname={pathname}
+                  onNavigate={onNavigate}
+                />
+              ))}
+            </ul>
+          )}
+        </SidebarSection>
+      )}
 
       <div
         className={clsx(
@@ -213,12 +208,12 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
             }}
           />
         )}
-        {/* Chains — wallet-scoped entry. Only renders when the
+        {/* Chains - wallet-scoped entry. Only renders when the
             user is inside a /app/wallet/{name}/... route so the
             link has a real target. Was the most-flagged "I can't
             find where to add a chain" surface; lives here next to
             Settings so it sits in the menu icon row on rail mode
-            too (icon-only sidebar) — discoverable from anywhere
+            too (icon-only sidebar) - discoverable from anywhere
             inside a wallet without drilling through the Manage
             tab. */}
         {activeWalletSlug && (
@@ -232,50 +227,135 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
               expanded ? "gap-3 rounded-xl px-3 py-2" : "h-10 w-10 justify-center rounded-soft",
               pathname.includes("/chains")
                 ? "bg-accent/10 text-accent"
-                : "text-text-soft hover:bg-canvas hover:text-text-strong",
+                : "text-text-soft hover:bg-glass-mid hover:text-text-strong",
             )}
           >
             <Layers size={14} className="shrink-0" />
             {expanded && <span>Chains</span>}
           </Link>
         )}
-        {/* Secure — global discovery entry for ikavery. Rail mode
-            shows just the icon (the expanded SecurePromoCard above
-            already covers expanded mode, so we only render this
-            link when collapsed to avoid two Secure rows). */}
-        {!expanded && (
-          <Link
-            href="/app/secure"
-            onClick={onNavigate}
-            aria-label="Secure — quorum-gated key recovery"
-            title="Secure"
-            className={clsx(
-              "inline-flex h-10 w-10 items-center justify-center rounded-soft text-xs font-medium transition-colors duration-base ease-out-soft",
-              pathname.startsWith("/app/secure")
-                ? "bg-accent/10 text-accent"
-                : "text-text-soft hover:bg-canvas hover:text-text-strong",
-            )}
-          >
-            <Vault size={14} className="shrink-0" />
-          </Link>
-        )}
-        <Link
-          href="/app/settings"
-          onClick={onNavigate}
-          aria-label="Settings"
-          className={clsx(
-            "inline-flex items-center text-xs font-medium transition-colors duration-base ease-out-soft",
-            expanded ? "gap-3 rounded-xl px-3 py-2" : "h-10 w-10 justify-center rounded-soft",
-            pathname.startsWith("/app/settings")
-              ? "bg-accent/10 text-accent"
-              : "text-text-soft hover:bg-canvas hover:text-text-strong",
-          )}
-        >
-          <Settings size={14} className="shrink-0" />
-          {expanded && <span>Settings</span>}
-        </Link>
       </div>
     </div>
+  );
+}
+
+// ─── Primary nav ───────────────────────────────────────────────────
+//
+// The four cross-cutting destinations: Home (wallet hub + drill-downs),
+// Activity, Contacts, Settings. Renders as a labeled list in expanded
+// mode, icon-only in rail mode (active state via accent fill, pending
+// count surfaces as a corner dot). Mirrors the active-prefix logic
+// BottomNav and the previous DashboardHeader used so navigation feels
+// the same regardless of viewport.
+
+type PrimaryNavItem = {
+  id?: "home";
+  href: string;
+  label: string;
+  Icon: LucideIcon;
+  matchPrefixes?: string[];
+};
+
+const PRIMARY_NAV: PrimaryNavItem[] = [
+  {
+    id: "home",
+    href: "/app/wallet",
+    label: "Home",
+    Icon: Home,
+    matchPrefixes: [
+      "/app/wallet",
+      "/app/proposals",
+      "/app/intents",
+      "/app/invitations",
+    ],
+  },
+  { href: "/app/activity", label: "Activity", Icon: ActivityIcon },
+  { href: "/app/contacts", label: "Contacts", Icon: ContactIcon },
+  {
+    href: "/app/account",
+    label: "Account",
+    Icon: UserCircle2,
+    matchPrefixes: ["/app/account"],
+  },
+  {
+    href: "/app/settings",
+    label: "Settings",
+    Icon: Settings,
+    matchPrefixes: ["/app/settings"],
+  },
+];
+
+function isPrimaryActive(pathname: string, item: PrimaryNavItem): boolean {
+  if (pathname === item.href) return true;
+  for (const p of item.matchPrefixes ?? []) {
+    if (pathname === p || pathname.startsWith(`${p}/`)) return true;
+  }
+  return false;
+}
+
+function PrimaryNav({
+  pathname,
+  expanded,
+  pendingCount,
+  onNavigate,
+}: {
+  pathname: string;
+  expanded: boolean;
+  pendingCount: number;
+  onNavigate?: () => void;
+}) {
+  return (
+    <nav
+      aria-label="Primary"
+      className={clsx(
+        "flex flex-col",
+        expanded ? "gap-0.5" : "items-center gap-1.5",
+      )}
+    >
+      {PRIMARY_NAV.map((item) => {
+        const active = isPrimaryActive(pathname, item);
+        const showBadge = item.id === "home" && pendingCount > 0;
+        const badgeLabel = pendingCount > 9 ? "9+" : String(pendingCount);
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            onClick={onNavigate}
+            aria-current={active ? "page" : undefined}
+            aria-label={item.label}
+            title={!expanded ? item.label : undefined}
+            className={clsx(
+              "group relative inline-flex items-center text-xs font-medium",
+              "transition-colors duration-base ease-out-soft",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+              expanded
+                ? "gap-3 rounded-xl px-3 py-2"
+                : "h-10 w-10 justify-center rounded-soft",
+              active
+                ? "bg-accent/10 text-accent"
+                : "text-text-soft hover:bg-glass-mid hover:text-text-strong",
+            )}
+          >
+            <item.Icon size={14} className="shrink-0" aria-hidden="true" />
+            {expanded && <span className="flex-1 truncate">{item.label}</span>}
+            {showBadge && expanded && (
+              <span
+                aria-label={`${pendingCount} pending`}
+                className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-accent/15 px-1 text-[10px] font-semibold leading-none text-accent"
+              >
+                {badgeLabel}
+              </span>
+            )}
+            {showBadge && !expanded && (
+              <span
+                aria-hidden="true"
+                className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-accent ring-2 ring-canvas"
+              />
+            )}
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -314,7 +394,7 @@ function ConnectedAsPill({
 
   return (
     <div className="group/pill relative">
-      <div className="flex items-center gap-2.5 rounded-xl border border-border-soft bg-canvas/50 px-2.5 py-2 text-xs transition-colors duration-base ease-out-soft group-hover/pill:bg-canvas">
+      <div className="flex items-center gap-2.5 rounded-xl border border-border-soft bg-glass-soft px-2.5 py-2 text-xs backdrop-blur-md transition-colors duration-base ease-out-soft group-hover/pill:bg-glass-mid">
         <span
           className={clsx(
             "flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-white shadow-sm",
@@ -371,7 +451,7 @@ function BrandRow({
           expanded ? "gap-2 px-1 py-1" : "p-1",
         )}
       >
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/10 text-accent">
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/15 text-accent shadow-[0_0_16px_rgba(204,255,0,0.25)] ring-1 ring-accent/30">
           <BrandMark size={20} />
         </div>
         {expanded && (
@@ -388,7 +468,7 @@ function BrandRow({
           title={expanded ? "Collapse sidebar" : "Expand sidebar"}
           className={clsx(
             "flex h-8 w-8 items-center justify-center rounded-soft text-text-soft",
-            "transition-colors duration-base ease-out-soft hover:bg-canvas hover:text-text-strong",
+            "transition-colors duration-base ease-out-soft hover:bg-glass-mid hover:text-text-strong",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
           )}
         >
@@ -420,7 +500,7 @@ function SidebarSection({
             {label}
           </span>
           {!loading && typeof count === "number" && count > 0 && (
-            <span className="rounded-full bg-canvas px-2 py-0.5 text-[10px] text-text-soft">
+            <span className="rounded-full border border-border-soft bg-glass-soft px-2 py-0.5 font-mono text-[10px] text-text-soft">
               {count}
             </span>
           )}
@@ -447,35 +527,33 @@ function SecurePromoCard({
   const href = "/app/secure";
   const active = pathname === href || pathname.startsWith(`${href}/`);
   return (
-    <Link
-      href={href}
-      onClick={onNavigate}
-      aria-label="Secure — quorum-gated key recovery, powered by Ika"
-      className={clsx(
-        "group relative flex flex-col gap-1 overflow-hidden rounded-xl border bg-surface-raised p-3 transition-colors duration-base ease-out-soft",
-        active
-          ? "border-accent/60"
-          : "border-border-soft hover:border-accent/40",
-      )}
-    >
-      {/* Decorative accent rule + monospace eyebrow — nod to
-          ika.xyz / ikavery's numbered-section voice without
-          breaking clear-msig's eyebrow standard elsewhere. */}
-      <span aria-hidden="true" className="block h-px w-8 bg-accent" />
-      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
-        // 01 · secure
-      </p>
-      <p className="text-sm font-semibold text-text-strong">
-        Quorum-gated key recovery
-      </p>
-      <p className="text-[11px] leading-snug text-text-soft">
-        Place your Solana key under t-of-N. Powered by Ika.
-      </p>
-      <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-accent">
-        Open
-        <ChevronsRight className="h-3 w-3" aria-hidden="true" />
-      </span>
-    </Link>
+    <li>
+      <Link
+        href={href}
+        onClick={onNavigate}
+        className={clsx(
+          "group flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] transition-colors duration-base ease-out-soft",
+          active
+            ? "bg-accent/10 text-accent"
+            : "text-text-soft hover:bg-glass-mid hover:text-text-strong",
+        )}
+      >
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate font-medium">
+            {toDisplayName(row.walletName)}
+          </span>
+          <span className="flex items-center gap-1.5 text-[10px] text-text-soft">
+            <span>{friendlyStatus(row.status, row.intentTemplate)}</span>
+            {row.proposedAt > 0n && (
+              <>
+                <span aria-hidden="true" className="text-text-soft">·</span>
+                <span>{relativeTime(row.proposedAt)}</span>
+              </>
+            )}
+          </span>
+        </span>
+      </Link>
+    </li>
   );
 }
 
@@ -502,7 +580,7 @@ function SidebarOrgLink({
   const grad = gradientFor(onChainName, avatarGradient(onChainName));
   const initial = display.trim().charAt(0).toUpperCase() || "?";
 
-  // Rail mode — icon-only, full hit target on the avatar tile, name +
+  // Rail mode - icon-only, full hit target on the avatar tile, name +
   // pending count surface via title attribute.
   if (!expanded) {
     const title =
@@ -542,7 +620,7 @@ function SidebarOrgLink({
 
   return (
     <li className="relative">
-      {/* Active-state accent bar — Linear/Notion's move. Sits flush
+      {/* Active-state accent bar - Linear/Notion's move. Sits flush
           with the row edge and reads "this is your context" without
           relying on color contrast alone. */}
       {active && (

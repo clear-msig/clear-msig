@@ -1,6 +1,6 @@
 "use client";
 
-// Buy crypto with NGN — onramp flow.
+// Buy crypto with NGN - onramp flow.
 //
 // Pattern mirrors /send: a single Suspense-wrapped client page with
 // a stage state machine. Stages:
@@ -38,9 +38,6 @@ import { friendlyError } from "@/lib/api/errors";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
-import { BackToWallets } from "@/components/retail/BackToWallets";
-import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { useToast } from "@/components/ui/Toast";
 import type {
   CreateRampIntentRequest,
@@ -90,7 +87,7 @@ function BuyPage() {
   }, [route?.name]);
   const walletDisplay = toDisplayName(walletName);
 
-  // Verify the wallet exists + the connected user is a member —
+  // Verify the wallet exists + the connected user is a member -
   // matches the gate every other workspace page applies.
   const memberships = useQuery({
     queryKey: ["my-organizations", wallet.publicKey?.toBase58() ?? ""],
@@ -236,22 +233,6 @@ function BuyPage() {
   if (!wallet.connected) {
     return (
       <div className="flex flex-col gap-6">
-        <StickyTopBar offset="header">
-          <Breadcrumb
-            segments={[
-              { label: "Wallets", href: "/app/wallet" },
-              {
-                label: walletDisplay || "Wallet",
-                href: `/app/wallet/${encodeURIComponent(walletName)}`,
-              },
-              { label: "Buy" },
-            ]}
-          />
-        </StickyTopBar>
-      {/* Mobile-only back chip — see /send for rationale. */}
-      <div className="px-gutter pt-2 md:hidden">
-        <BackToWallets />
-      </div>
         <p className="text-sm text-text-soft">Connect a wallet to buy crypto.</p>
       </div>
     );
@@ -260,18 +241,6 @@ function BuyPage() {
   if (memberships.isLoading || chains.isLoading) {
     return (
       <div className="flex flex-col gap-6">
-        <StickyTopBar offset="header">
-          <Breadcrumb
-            segments={[
-              { label: "Wallets", href: "/app/wallet" },
-              {
-                label: walletDisplay || "Wallet",
-                href: `/app/wallet/${encodeURIComponent(walletName)}`,
-              },
-              { label: "Buy" },
-            ]}
-          />
-        </StickyTopBar>
         <PageLoading />
       </div>
     );
@@ -280,14 +249,6 @@ function BuyPage() {
   if (!memberOfThisWallet) {
     return (
       <div className="flex flex-col gap-6">
-        <StickyTopBar offset="header">
-          <Breadcrumb
-            segments={[
-              { label: "Wallets", href: "/app/wallet" },
-              { label: "Buy" },
-            ]}
-          />
-        </StickyTopBar>
         <p className="text-sm text-text-soft">
           You are not a member of <strong>{walletDisplay}</strong>.
         </p>
@@ -297,36 +258,20 @@ function BuyPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <StickyTopBar offset="header">
-        <Breadcrumb
-          segments={[
-            { label: "Wallets", href: "/app/wallet" },
-            {
-              label: walletDisplay || "Wallet",
-              href: `/app/wallet/${encodeURIComponent(walletName)}`,
-            },
-            { label: "Buy" },
-          ]}
-        />
-      </StickyTopBar>
-
       <motion.section
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
         className="flex flex-col gap-6"
       >
-        <header className="flex flex-col items-center text-center">
-          <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            Top up
-          </p>
-          <h1 className="mt-2 font-display text-display-xs leading-tight text-text-strong">
-            Buy crypto with naira
+        <header className="flex flex-col gap-1">
+          <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
+            Buy with naira
           </h1>
-          <p className="mt-1 text-sm text-text-soft">
-            Pay in NGN. We send crypto straight to{" "}
-            <strong>{walletDisplay}</strong> on the chain you pick.
+          <p className="text-xs text-text-soft sm:text-sm">
+            Pay in NGN - we send crypto straight to{" "}
+            <span className="font-medium text-text-strong">{walletDisplay}</span>{" "}
+            on the chain you pick.
           </p>
         </header>
 
@@ -543,7 +488,7 @@ function AwaitingCard({ status }: { status: string | null }) {
     <div className="flex flex-col items-center gap-4 rounded-card border border-border-soft bg-surface-raised p-5 text-center shadow-card-rest">
       <Loader2 className="h-8 w-8 animate-spin text-accent" />
       <h2 className="font-display text-lg text-text-strong">
-        Payment received — settling now
+        Payment received - settling now
       </h2>
       <p className="text-sm text-text-soft">
         Sending crypto from the operator treasury to your wallet.
@@ -595,7 +540,7 @@ function FailedCard({ reason }: { reason: string }) {
         Something went wrong
       </h2>
       <p className="text-sm text-text-soft">
-        {humanStatus(reason)} — please try again or contact support.
+        {humanStatus(reason)} - please try again or contact support.
       </p>
     </div>
   );
