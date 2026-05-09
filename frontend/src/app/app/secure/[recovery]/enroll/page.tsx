@@ -206,6 +206,33 @@ function EnrollDevicePage() {
     }
   }, [vaultQuery.data, walletIsMember, vaultHasPasskey]);
 
+  // Pre-flight WebAuthn capability check so the user sees a useful
+  // message at page load instead of a hung enroll. Three possible
+  // states:
+  //   - null (still checking)
+  //   - { ok: true } the browser exposes credentials.create + this
+  //     context is secure
+  //   - { ok: false, reason: ... } known why it won't work
+  const [webauthnState, setWebauthnState] = useState<
+    | null
+    | { ok: true }
+    | { ok: false; reason: "insecure" | "unavailable" }
+  >(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const insecure =
+      typeof window.isSecureContext === "boolean" && !window.isSecureContext;
+    if (insecure) {
+      setWebauthnState({ ok: false, reason: "insecure" });
+      return;
+    }
+    const hasApi =
+      typeof navigator !== "undefined" &&
+      !!navigator.credentials &&
+      typeof navigator.credentials.create === "function";
+    setWebauthnState(hasApi ? { ok: true } : { ok: false, reason: "unavailable" });
+  }, []);
+
   const fadeIn = (delay = 0) =>
     reduce
       ? {}
@@ -252,7 +279,13 @@ function EnrollDevicePage() {
         userName: shortAddress(wallet.publicKey.toBase58()),
         userDisplayName: `Passkey for vault ${shortAddress(recoveryStr)}`,
         challenge,
-        authenticatorAttachment: "platform",
+        // No `authenticatorAttachment` — the OS picks. Forcing
+        // "platform" hangs forever on machines without a built-in
+        // authenticator (e.g. older Macs without Touch ID), since
+        // the browser keeps waiting for one to appear. Leaving it
+        // undefined lets the browser surface roaming-key / "use a
+        // phone" fallbacks alongside the platform option, so users
+        // on non-Touch-ID Macs can still enroll via their phone.
       });
 
       // Encryption-key address. The pre-alpha program stores it but
@@ -383,6 +416,7 @@ function EnrollDevicePage() {
             setAuthMode={setAuthMode}
             walletIsMember={walletIsMember}
             vaultHasPasskey={vaultHasPasskey}
+            webauthnState={webauthnState}
             reduce={!!reduce}
           />
         )}
@@ -417,6 +451,10 @@ interface IntroStageProps {
   setAuthMode: (m: EnrollAuthMode) => void;
   walletIsMember: boolean;
   vaultHasPasskey: boolean;
+  webauthnState:
+    | null
+    | { ok: true }
+    | { ok: false; reason: "insecure" | "unavailable" };
   reduce: boolean;
 }
 
@@ -428,6 +466,7 @@ function IntroStage({
   setAuthMode,
   walletIsMember,
   vaultHasPasskey,
+  webauthnState,
   reduce,
 }: IntroStageProps) {
   const motionProps = reduce
@@ -524,8 +563,33 @@ function IntroStage({
         </p>
       )}
 
+      {/* Pre-flight WebAuthn warning. Shown above the Enroll CTA so
+          the user sees it BEFORE clicking and getting a hung popup
+          (the most common report from users on older Macs). */}
+      {webauthnState && !webauthnState.ok && (
+        <aside className="mx-auto flex max-w-md items-start gap-3 rounded-card border border-warning/40 bg-warning/[0.06] p-4 text-sm text-text-soft">
+          <ShieldCheck
+            className="mt-0.5 h-5 w-5 shrink-0 text-warning"
+            strokeWidth={2}
+            aria-hidden="true"
+          />
+          <p className="leading-snug">
+            <span className="font-medium text-text-strong">
+              Passkeys aren&rsquo;t available here.
+            </span>{" "}
+            {webauthnState.reason === "insecure"
+              ? "WebAuthn requires HTTPS. Reload the page over https:// (or localhost) and try again."
+              : "Your browser doesn't expose passkey support — try Chrome / Safari / Edge in a normal tab. Webview-embedded browsers (Twitter, Instagram, in-app) often disable WebAuthn."}
+          </p>
+        </aside>
+      )}
+
       <div className="flex flex-col items-center gap-2">
-        <Button size="lg" onClick={onContinue} disabled={loading}>
+        <Button
+          size="lg"
+          onClick={onContinue}
+          disabled={loading || (webauthnState?.ok === false)}
+        >
           {loading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -539,7 +603,9 @@ function IntroStage({
           )}
         </Button>
         <p className="text-[11px] text-text-soft">
-          Your browser will prompt to mint a new passkey.
+          Your browser will prompt to mint a new passkey. If your Mac
+          doesn&rsquo;t have Touch&nbsp;ID, the prompt offers to use your
+          phone (QR code) instead.
         </p>
       </div>
     </motion.section>

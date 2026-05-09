@@ -71,8 +71,20 @@ export async function registerPasskey(
     !navigator.credentials ||
     typeof navigator.credentials.create !== "function"
   ) {
+    // The browser exposes `navigator.credentials.create` only in a
+    // secure context (HTTPS or localhost) AND a top-level browsing
+    // context (no embedded webview / sandboxed iframe). The most
+    // common real-world cause is a non-HTTPS visit (e.g. mobile
+    // testing on http://192.168.x.x). Tell the user the likely fix
+    // instead of just "not available".
+    const isInsecure =
+      typeof window !== "undefined" &&
+      typeof window.isSecureContext === "boolean" &&
+      !window.isSecureContext;
     throw new Error(
-      "WebAuthn is not available - passkey enrollment requires a browser with PublicKeyCredential support.",
+      isInsecure
+        ? "Passkeys need HTTPS. Reload over https:// (or localhost) and try again."
+        : "Your browser doesn't expose passkey support on this page. Try Chrome / Safari / Edge in a normal tab — webview-embedded browsers (Twitter, Instagram, in-app) often disable WebAuthn.",
     );
   }
   if (params.challenge.length !== 32) {
