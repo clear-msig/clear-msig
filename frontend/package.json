@@ -20,6 +20,7 @@
     "@dynamic-labs/waas-sui": "^4.79.0",
     "@dynamic-labs/waas-svm": "^4.79.0",
     "@dynamic-labs/wallet-connector-core": "^4.79.0",
+    "@ika.xyz/pre-alpha-solana-client": "^0.1.1",
     "@ledgerhq/hw-app-solana": "^7.10.1",
     "@ledgerhq/hw-transport-webhid": "^6.35.1",
     "@noble/curves": "^1.9.7",

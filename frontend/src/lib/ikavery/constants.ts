@@ -1,8 +1,12 @@
 import { PublicKey } from "@solana/web3.js";
 
-/** Deployed program id — keep in sync with `declare_id!` in `lib.rs`. */
+/** Deployed program id — match the live deployment at
+ * solana.ikavery.com. The vendored SDK ships an older program id
+ * (4ZrX…) but upstream redeployed; `solana.ikavery.com` and
+ * upstream's frontend env both point at this one. Keep in sync if
+ * upstream redeploys again. */
 export const IKAVERY_PROGRAM_ID = new PublicKey(
-  "4ZrXgy2Grv9RH3gWF7mksQvRqSUgc4atQyhcss569fw7",
+  "6kdyWi8FJah4xt2SyL2fEBFYacQ7iaDsgQjKCDhgEbCi",
 );
 
 /** Solana sysvar program (owns the rent + instructions sysvar accounts). */

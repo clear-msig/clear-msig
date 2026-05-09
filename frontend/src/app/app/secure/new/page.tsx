@@ -43,7 +43,10 @@ import { Button } from "@/components/retail/Button";
 import { BackToWallets } from "@/components/retail/BackToWallets";
 import { PageEyebrow } from "@/components/retail/PageEyebrow";
 import { useToast } from "@/components/ui/Toast";
-import { createSoloVault } from "@/lib/ikavery/clearmsig-actions";
+import {
+  createSoloVault,
+  type CreateVaultStage,
+} from "@/lib/ikavery/clearmsig-actions";
 
 type Stage = "shape" | "confirm" | "creating" | "done";
 
@@ -106,6 +109,9 @@ function SecureBuildPage() {
   const [shape, setShape] = useState<ThresholdShape>(SHAPES[0]!);
   const [resultRecovery, setResultRecovery] = useState<string | null>(null);
   const [resultTxSig, setResultTxSig] = useState<string | null>(null);
+  const [createSubStage, setCreateSubStage] = useState<CreateVaultStage | null>(
+    null,
+  );
 
   const fadeIn = (delay = 0) =>
     reduce
@@ -142,6 +148,7 @@ function SecureBuildPage() {
       });
       return;
     }
+    setCreateSubStage("dkg");
     setStage("creating");
     try {
       const result = await createSoloVault({
@@ -149,15 +156,18 @@ function SecureBuildPage() {
         creator: wallet.publicKey,
         threshold: shape.threshold,
         signTransaction: wallet.signTransaction,
+        onProgress: (s) => setCreateSubStage(s),
       });
       setResultRecovery(result.recovery.toBase58());
       setResultTxSig(result.txSignature);
+      setCreateSubStage(null);
       setStage("done");
     } catch (e) {
       console.error("[secure/build]", e);
       toast.error("Couldn't build the vault", {
         details: e instanceof Error ? e.message : String(e),
       });
+      setCreateSubStage(null);
       setStage("confirm");
     }
   };
@@ -240,7 +250,7 @@ function SecureBuildPage() {
         />
       )}
       {!blockedByDisconnect && !blockedByLedger && stage === "creating" && (
-        <CreatingStage reduce={!!reduce} />
+        <CreatingStage reduce={!!reduce} subStage={createSubStage} />
       )}
       {stage === "done" && (
         <DoneStage
@@ -466,32 +476,88 @@ function PreviewRow({
   );
 }
 
-function CreatingStage({ reduce }: { reduce: boolean }) {
+function CreatingStage({
+  reduce,
+  subStage,
+}: {
+  reduce: boolean;
+  subStage: CreateVaultStage | null;
+}) {
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0 }, animate: { opacity: 1 } };
+
+  // Map the engine sub-stages to user-facing copy. Each step is a
+  // discrete network round-trip, so showing the live one helps a
+  // user reason about "should this be taking this long" rather
+  // than staring at an opaque spinner.
+  const STAGES: { id: CreateVaultStage; label: string; detail: string }[] = [
+    {
+      id: "dkg",
+      label: "Running DKG",
+      detail: "Asking the Ika network to mint your dWallet. Usually a few seconds.",
+    },
+    {
+      id: "build",
+      label: "Building transaction",
+      detail: "Encoding the create-recovery instruction with your roster.",
+    },
+    {
+      id: "sign",
+      label: "Waiting for your signature",
+      detail: "Confirm in your wallet popup. Cancel there if you change your mind.",
+    },
+    {
+      id: "submit",
+      label: "Submitting on Solana",
+      detail: "Sending the signed transaction to a devnet RPC.",
+    },
+    {
+      id: "confirm",
+      label: "Waiting for confirmation",
+      detail: "The vault is on chain — just waiting for the slot to finalize.",
+    },
+  ];
+  const activeIdx = subStage ? STAGES.findIndex((s) => s.id === subStage) : 0;
+  const activeStep = STAGES[activeIdx] ?? STAGES[0]!;
+
   return (
     <motion.section
       {...motionProps}
       transition={{ duration: 0.3 }}
-      className="flex flex-col items-center gap-4 py-16 text-center"
+      className="flex flex-col items-center gap-6 py-12 text-center"
     >
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">
         <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
       </div>
-      <PageEyebrow label="// 03 · creating" align="center">
+      <PageEyebrow label={`// ${(activeIdx + 1).toString().padStart(2, "0")} · ${activeStep.id}`} align="center">
         <p className="font-display text-display-xs text-text-strong">
-          Building your vault
+          {activeStep.label}
         </p>
         <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
-          Your wallet is being asked to sign the create-recovery transaction.
-          Confirm in the popup. The vault lands on chain in one step.
+          {activeStep.detail}
         </p>
       </PageEyebrow>
-      <p className="mt-2 text-[11px] text-text-soft">
-        Cancel in the wallet popup if you change your mind — nothing has
-        been broadcast yet.
-      </p>
+
+      {/* Mini-progress: 5 dots, the active one accent, prior ones
+          accent (past), future ones text-soft. Helps the user see
+          how far through the flow they are. */}
+      <ol className="flex items-center gap-2" aria-label="Progress">
+        {STAGES.map((s, i) => (
+          <li
+            key={s.id}
+            aria-current={i === activeIdx ? "step" : undefined}
+            className={
+              "h-1.5 rounded-full transition-colors duration-base " +
+              (i < activeIdx
+                ? "w-6 bg-accent"
+                : i === activeIdx
+                  ? "w-10 bg-accent"
+                  : "w-6 bg-border-soft")
+            }
+          />
+        ))}
+      </ol>
     </motion.section>
   );
 }

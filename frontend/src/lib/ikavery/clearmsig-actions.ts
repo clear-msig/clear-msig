@@ -38,37 +38,27 @@ import { buildCreateRecoveryIx } from "./ix/create-recovery";
 import { packSolanaMember } from "./credential";
 import { listAllRecoveries, type DecodedRecovery } from "./discovery";
 import { decodeRecovery } from "./codec/recovery";
+import { ikaDkgWeb, type IkaDkgResult } from "./ika-web";
+import { saveAttestation } from "./clearmsig-attestations";
 
 /** Curve tag stored on chain alongside the dWallet handle. 2 = ed25519. */
 export const DWALLET_CURVE_ED25519 = 2;
 
 /**
- * Generate the 32-byte dWallet handle stored on the Recovery account.
- * In v2 this is a deterministic placeholder derived from the creator's
- * pubkey + a per-vault nonce; the real DKG against Ika's pre-alpha
- * network is deferred to v3 (would need a gRPC-Web call to
- * `pre-alpha-dev-1.ika.ika-network.net`).
+ * Run real DKG against the Ika pre-alpha network and return the
+ * 32-byte dWallet pubkey + the full attestation bundle the network
+ * will demand at sign-time. v3a wiring; v2 used a placeholder.
  *
- * The handle is opaque to the program and the SDK — `create_recovery`
- * stores it verbatim and emits it back from `propose_sweep` so the
- * sweep flow can pass it to the dWallet program. Until that v3 lift
- * lands, the handle is just an identifier; sweep won't yet broadcast.
+ * One gRPC-Web fetch round-trip to
+ * `pre-alpha-dev-1.ika.ika-network.net`. Returns inside a few hundred
+ * ms on a normal connection. Mock signer pre-alpha — the user
+ * signature in the request is zero-filled and the network does the
+ * crypto on its own.
  */
-export function placeholderDwalletHandle(creator: PublicKey): Uint8Array {
-  // Mix the creator pubkey with a random nonce so collisions across
-  // vaults from the same creator are impossible. 32 bytes = the wire
-  // format the program expects.
-  const out = new Uint8Array(32);
-  const creatorBytes = creator.toBytes();
-  for (let i = 0; i < 32; i++) out[i] = creatorBytes[i] ?? 0;
-  // XOR in 16 random bytes so two vaults from the same creator
-  // produce different handles.
-  const nonce = new Uint8Array(16);
-  if (typeof window !== "undefined" && window.crypto?.getRandomValues) {
-    window.crypto.getRandomValues(nonce);
-  }
-  for (let i = 0; i < 16; i++) out[16 + i] ^= nonce[i] ?? 0;
-  return out;
+export async function runDkgForCreator(
+  creator: PublicKey,
+): Promise<IkaDkgResult> {
+  return ikaDkgWeb(creator.toBytes());
 }
 
 export interface CreateVaultParams {
@@ -88,7 +78,15 @@ export interface CreateVaultParams {
    * users always come in via a Solana wallet.
    */
   dwalletCurve?: number;
+  /**
+   * Optional callback that fires as the create flow walks through its
+   * stages. Lets the wizard render "running DKG…" / "submitting…"
+   * micro-states instead of a single opaque spinner.
+   */
+  onProgress?: (stage: CreateVaultStage) => void;
 }
+
+export type CreateVaultStage = "dkg" | "build" | "sign" | "submit" | "confirm";
 
 export interface CreateVaultResult {
   /** PDA address of the new Recovery. Use this to look it up later. */
@@ -97,6 +95,8 @@ export interface CreateVaultResult {
   recoveryId: PublicKey;
   /** Solana tx signature for explorer links. */
   txSignature: string;
+  /** dWallet pubkey from DKG. Stored on the Recovery account. */
+  dwalletPubkey: Uint8Array;
 }
 
 /**
@@ -113,29 +113,33 @@ export async function createSoloVault(
     threshold,
     signTransaction,
     dwalletCurve = DWALLET_CURVE_ED25519,
+    onProgress,
   } = params;
+  const progress = onProgress ?? (() => undefined);
 
-  // Sanity guard: threshold must be exactly 1 for a single-member
-  // vault. The wizard enforces this in the UI; check again here so
-  // a mis-wired caller doesn't silently submit a doomed tx.
   if (threshold !== 1) {
     throw new Error(
       `solo vault must have threshold=1 (got ${threshold}); add devices via enrollment for higher thresholds`,
     );
   }
 
-  // Member 0 is the connected Solana wallet. `packSolanaMember`
-  // returns the on-chain MemberSlot wire format (scheme byte +
-  // padded pubkey).
-  const members = [packSolanaMember(creator)];
+  // Stage 1: Run DKG against the Ika pre-alpha network. This returns
+  // the real 32-byte dWallet pubkey we'll store on chain, plus the
+  // attestation bundle the network needs at sign-time. We persist
+  // the bundle locally below so the sweep flow can use it later.
+  progress("dkg");
+  const dkg = await runDkgForCreator(creator);
 
+  // Stage 2: build the create_recovery ix with the real dwallet
+  // pubkey. Member 0 is the connected Solana wallet.
+  progress("build");
+  const members = [packSolanaMember(creator)];
   const recoveryIdKeypair = Keypair.generate();
-  const dwallet = placeholderDwalletHandle(creator);
 
   const { ix, recovery } = buildCreateRecoveryIx({
     creator,
     recoveryId: recoveryIdKeypair.publicKey,
-    dwallet,
+    dwallet: dkg.publicKey,
     dwalletCurve,
     threshold,
     members,
@@ -151,27 +155,41 @@ export async function createSoloVault(
   const tx = new VersionedTransaction(message);
 
   // Sign the recoveryId slot first — that's the throwaway keypair
-  // we generated above. tx.sign matches signers to header slots
-  // by pubkey, so passing only this Keypair fills only its slot.
+  // we generated above.
   tx.sign([recoveryIdKeypair]);
 
-  // Hand off to the user's wallet for the creator signature. Dynamic
-  // returns the same VersionedTransaction with both signatures in place.
+  // Stage 3: hand off to the user's wallet for the creator signature.
+  progress("sign");
   const signedTx = await signTransaction(tx);
 
+  // Stage 4: submit + wait for confirmation.
+  progress("submit");
   const sig = await connection.sendRawTransaction(signedTx.serialize(), {
     skipPreflight: false,
     preflightCommitment: "confirmed",
   });
+  progress("confirm");
   await connection.confirmTransaction(
     { signature: sig, blockhash, lastValidBlockHeight },
     "confirmed",
   );
 
+  // Persist the attestation against this recovery PDA so the v3 sweep
+  // flow can read it. Best-effort — if localStorage is blocked, the
+  // vault still works; sweep will surface a clean "no attestation"
+  // error and prompt re-DKG.
+  saveAttestation(recovery.toBase58(), {
+    attestationData: dkg.attestationData,
+    networkSignature: dkg.networkSignature,
+    networkPubkey: dkg.networkPubkey,
+    publicKey: dkg.publicKey,
+  });
+
   return {
     recovery,
     recoveryId: recoveryIdKeypair.publicKey,
     txSignature: sig,
+    dwalletPubkey: dkg.publicKey,
   };
 }
 
