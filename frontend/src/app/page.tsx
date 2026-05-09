@@ -256,6 +256,101 @@ export default function HomePage() {
         </motion.div>
       </section>
 
+      {/* Featured: Secure — promo for the ikavery vault feature.
+          Sits between Built-on (the technical foundation) and Why
+          Clear (the comparison) so visitors see "this is what we
+          do uniquely" before "this is why it's better than X".
+          Visual is a horizontal split: copy + CTA on the left,
+          a stylized vault preview on the right. Uses the monospace
+          // 01 // 02 // 03 numbered eyebrows from /app/secure to
+          carry the ikavery / ika.xyz visual cue here too. */}
+      <section className="relative z-10 mx-auto w-full max-w-5xl px-gutter pt-24 sm:pt-32">
+        <motion.div
+          {...fadeIn(0)}
+          className="overflow-hidden rounded-card border border-accent/40 bg-surface-raised shadow-card-rest"
+        >
+          <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr]">
+            {/* Left: copy + CTA */}
+            <div className="flex flex-col justify-center gap-5 p-8 sm:p-10">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
+                  Bonus
+                </span>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+                  Secure · Powered by Ika
+                </p>
+              </div>
+              <h2 className="font-display text-display-xs leading-tight text-text-strong text-balance sm:text-display-sm">
+                Your private keys, behind a quorum
+              </h2>
+              <p className="max-w-md text-base text-text-soft text-pretty">
+                Clear comes with{" "}
+                <Link href="/app/secure" className="text-accent hover:text-accent-hover">
+                  Secure
+                </Link>
+                : a built-in personal-recovery vault. Place a Solana key
+                under a t-of-N threshold of devices and passkeys. Recover
+                with any threshold. Never lose a key, never trust one
+                device. Powered by{" "}
+                <a
+                  href="https://ika.xyz"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-accent hover:text-accent-hover"
+                >
+                  Ika
+                </a>{" "}
+                dWallets, same engine that backs the multi-chain send.
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <Link href="/app/secure">
+                  <Button size="lg">
+                    Open Secure
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                </Link>
+                <a
+                  href="https://github.com/Iamknownasfesal/ikavery"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-tap items-center gap-1 rounded-full border border-border-soft bg-surface-raised px-4 py-2 text-xs font-medium text-text-soft hover:border-accent hover:text-accent"
+                >
+                  ikavery on GitHub
+                  <Github className="h-3 w-3" aria-hidden="true" />
+                </a>
+              </div>
+            </div>
+
+            {/* Right: stylized vault diagram. Mock card with the same
+                three-step rhythm as /app/secure but compressed for
+                marketing context. */}
+            <div className="relative flex flex-col gap-2 border-t border-border-soft bg-canvas p-8 sm:p-10 lg:border-l lg:border-t-0">
+              <span aria-hidden="true" className="block h-px w-8 bg-accent" />
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+                // 01 · build a vault
+              </p>
+              <p className="font-display text-sm font-semibold text-text-strong">
+                Pick 3-of-5 in three taps
+              </p>
+              <span aria-hidden="true" className="mt-3 block h-px w-8 bg-accent" />
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+                // 02 · add devices
+              </p>
+              <p className="font-display text-sm font-semibold text-text-strong">
+                iPhone · MacBook · YubiKey · iPad · Watch
+              </p>
+              <span aria-hidden="true" className="mt-3 block h-px w-8 bg-accent" />
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+                // 03 · sweep when needed
+              </p>
+              <p className="font-display text-sm font-semibold text-text-strong">
+                Three taps, your key is back
+              </p>
+            </div>
+          </div>
+        </motion.div>
+      </section>
+
       {/* Why not just a regular multisig — direct comparison vs
           Squads / Safe. Two-column panel: what existing multisigs
           ask of you on the left, what Clear delivers on the right.
