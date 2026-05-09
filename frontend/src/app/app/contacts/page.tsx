@@ -155,9 +155,11 @@ function Hero({
     <motion.div
       {...motionProps}
       transition={{ duration: 0.2 }}
-      className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1"
+      // Mobile: stack centred. md+: keep the original split row
+      // (title/subtitle on the left, count summary on the right).
+      className="flex flex-col items-center gap-1 text-center md:flex-row md:flex-wrap md:items-end md:justify-between md:gap-x-4 md:gap-y-1 md:text-left"
     >
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col items-center gap-1 md:items-start">
         <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
           Contacts
         </h1>
