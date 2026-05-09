@@ -248,9 +248,9 @@ function SecureRecoveryPage() {
             />
             <p className="leading-snug">
               <span className="font-medium text-text-strong">Pre-alpha.</span>{" "}
-              The dWallet handle is a v2 placeholder. Real DKG against the Ika
-              pre-alpha network lands when device enrollment ships, alongside
-              the in-app sweep flow. Until then, sweeps work upstream at{" "}
+              The dWallet was minted by Ika&rsquo;s pre-alpha network and lives
+              on-chain. Device enrollment and in-app sweep are the next pieces
+              landing; until then, sweeps work upstream at{" "}
               <a
                 href={IKAVERY_LIVE}
                 target="_blank"

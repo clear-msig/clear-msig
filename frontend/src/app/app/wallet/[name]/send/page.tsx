@@ -1177,37 +1177,14 @@ function ComposeStage({
           />
         </div>
 
-        {/* Recents - surface saved contacts as inline chips so the
-            user doesn't have to remember a name. Hidden when empty. */}
-        {hydratedContacts && recents.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-1">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-text-soft">
-              Recents
-            </span>
-            {recents.map((c) => {
-              const active =
-                recipientText.trim().toLowerCase() === c.name.toLowerCase();
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setRecipientText(c.name)}
-                  className={
-                    "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium " +
-                    "transition-colors duration-base ease-out-soft " +
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
-                    (active
-                      ? "border-accent/40 bg-accent/[0.08] text-accent"
-                      : "border-border-soft bg-canvas text-text-soft hover:text-text-strong")
-                  }
-                >
-                  <Star className="h-2.5 w-2.5" aria-hidden="true" />
-                  {c.name}
-                </button>
-              );
-            })}
-          </div>
-        )}
+        {/* Recents - Cash-App-style stacked list of recent recipients
+            on this wallet+chain. The component subscribes to txLog
+            updates and self-hides when empty. */}
+        <RecentRecipientsChips
+          walletName={walletName}
+          chainKind={0}
+          onPick={setRecipientText}
+        />
 
         <RecipientStatus
           resolved={resolved}
