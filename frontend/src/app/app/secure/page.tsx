@@ -112,8 +112,28 @@ export default function SecurePage() {
         </a>
       </PageEyebrow>
 
-      {/* My vaults — only renders when the user has at least one.
-          Empty state rolls into the three-step explainer below. */}
+      {/* States:
+          - not connected → "connect first" callout
+          - connected + loading + no cached vaults → skeleton
+          - connected + at least one vault → list + Build another link
+          - connected + zero vaults (after load) → big CTA card
+          - connected + error → red banner with retry */}
+      {!wallet.connected && (
+        <ConnectCallout />
+      )}
+      {wallet.connected && vaultsQuery.isLoading && !hasVaults && (
+        <VaultListSkeleton />
+      )}
+      {wallet.connected && vaultsQuery.isError && (
+        <ErrorCallout
+          message={
+            vaultsQuery.error instanceof Error
+              ? vaultsQuery.error.message
+              : String(vaultsQuery.error)
+          }
+          onRetry={() => vaultsQuery.refetch()}
+        />
+      )}
       {hasVaults && (
         <section>
           <div className="mb-3 flex items-baseline justify-between">
@@ -135,9 +155,7 @@ export default function SecurePage() {
           </ul>
         </section>
       )}
-
-      {/* Empty-state CTA: only when the user has no vaults yet. */}
-      {!hasVaults && wallet.connected && !vaultsQuery.isLoading && (
+      {!hasVaults && wallet.connected && !vaultsQuery.isLoading && !vaultsQuery.isError && (
         <motion.section
           {...fadeIn(0.04)}
           className="rounded-card border border-accent/40 bg-accent/[0.05] p-6 text-center shadow-card-rest sm:p-8"
@@ -267,6 +285,80 @@ function Step({ n, Icon, title, body, delay, reduce, stub }: StepProps) {
       </h3>
       <p className="mt-1.5 text-sm text-text-soft text-pretty">{body}</p>
     </motion.article>
+  );
+}
+
+function ConnectCallout() {
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        Sign in to continue
+      </p>
+      <h2 className="mt-2 font-display text-display-xs leading-tight text-text-strong">
+        Connect your wallet to see vaults
+      </h2>
+      <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
+        Vaults are anchored to your Solana wallet. Sign in to read your
+        list or build your first one.
+      </p>
+      <div className="mt-5 flex justify-center">
+        <Link href="/connect?next=/app/secure" className="inline-block">
+          <Button size="lg">
+            Sign in
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function VaultListSkeleton() {
+  return (
+    <section>
+      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        Reading vaults…
+      </p>
+      <ul className="flex flex-col gap-2">
+        {[0, 1].map((i) => (
+          <li
+            key={i}
+            aria-hidden="true"
+            className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest"
+          >
+            <span className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-border-soft" />
+            <span className="flex flex-1 flex-col gap-1.5">
+              <span className="h-3 w-32 animate-pulse rounded bg-border-soft" />
+              <span className="h-2.5 w-48 animate-pulse rounded bg-border-soft" />
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function ErrorCallout({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <section className="rounded-card border border-warning/40 bg-warning/[0.06] p-4 text-sm text-text-soft sm:p-5">
+      <p className="font-medium text-text-strong">
+        Couldn&rsquo;t read vaults from devnet.
+      </p>
+      <p className="mt-1 leading-snug">{message}</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-3 inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-surface-raised px-4 py-2 text-xs font-medium text-text-soft hover:border-accent hover:text-accent"
+      >
+        Try again
+      </button>
+    </section>
   );
 }
 

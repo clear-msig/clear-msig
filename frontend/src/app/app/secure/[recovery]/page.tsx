@@ -22,14 +22,15 @@ import { useQuery } from "@tanstack/react-query";
 import { PublicKey } from "@solana/web3.js";
 import {
   ArrowLeft,
-  ArrowRight,
+  Check,
+  Copy,
   ExternalLink,
   Fingerprint,
   KeyRound,
   Loader2,
   ShieldAlert,
-  Vault as VaultIcon,
 } from "lucide-react";
+import { useState } from "react";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { PageEyebrow } from "@/components/retail/PageEyebrow";
 import { BackToWallets } from "@/components/retail/BackToWallets";
@@ -138,13 +139,11 @@ function SecureRecoveryPage() {
         </Link>
       </div>
 
-      <PageEyebrow label="Vault" align="center">
+      <PageEyebrow label="Vault · powered by Ika" align="center">
         <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
-          Vault <span className="font-mono">{recoveryShort}</span>
+          Vault {recoveryShort}
         </h1>
-        <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
-          Powered by Ika dWallets. Click the address to copy.
-        </p>
+        <CopyAddressPill address={recoveryStr} />
       </PageEyebrow>
 
       {vaultQuery.isLoading && (
@@ -301,6 +300,19 @@ function MemberRow({ index, slot, isUser }: MemberRowProps) {
       : address
     : `slot ${index}`;
 
+  const canCopy = !!address;
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!canCopy) return;
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      /* clipboard blocked — silent */
+    }
+  };
   return (
     <li
       className={
@@ -325,6 +337,25 @@ function MemberRow({ index, slot, isUser }: MemberRowProps) {
           <span className="font-numerals tabular-nums">{index}</span>
         </span>
       </span>
+      {canCopy && (
+        <button
+          type="button"
+          onClick={handleCopy}
+          aria-label={`Copy ${label}`}
+          title={`Copy ${address}`}
+          className={
+            "inline-flex h-tap w-tap shrink-0 items-center justify-center rounded-soft text-text-soft " +
+            "transition-colors duration-base ease-out-soft hover:bg-canvas hover:text-text-strong " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+          }
+        >
+          {copied ? (
+            <Check className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+          ) : (
+            <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+          )}
+        </button>
+      )}
     </li>
   );
 }
@@ -378,6 +409,43 @@ function pubkeyMatchesSlot(pk: PublicKey, slot: Uint8Array): boolean {
   return true;
 }
 
+function CopyAddressPill({ address }: { address: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      /* clipboard blocked — silent */
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      title={`Copy ${address}`}
+      className={
+        "mt-3 inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 font-mono text-[11px] text-text-soft " +
+        "transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent " +
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+      }
+    >
+      {copied ? (
+        <>
+          <Check className="h-3 w-3 text-accent" aria-hidden="true" />
+          <span className="text-accent">Copied</span>
+        </>
+      ) : (
+        <>
+          <Copy className="h-3 w-3" aria-hidden="true" />
+          {`${address.slice(0, 8)}…${address.slice(-8)}`}
+        </>
+      )}
+    </button>
+  );
+}
+
 function bytesToHexShort(bytes: Uint8Array): string {
   let s = "";
   for (let i = 0; i < bytes.length; i++) {
@@ -386,9 +454,3 @@ function bytesToHexShort(bytes: Uint8Array): string {
   return s;
 }
 
-// Suppress unused-import warning — VaultIcon is referenced in the
-// page's eyebrow icon row indirectly via the route layout. Keeping
-// the import here so future edits that add a header icon don't have
-// to re-add it. (Tree-shaking removes it from the bundle when unused.)
-void VaultIcon;
-void ArrowRight;
