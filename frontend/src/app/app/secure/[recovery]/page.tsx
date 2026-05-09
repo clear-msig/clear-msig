@@ -332,20 +332,25 @@ function SecureRecoveryPage() {
               body="Authorise a transfer of funds from the dWallet to a destination wallet, signed by your threshold."
               cta="Open"
             />
-            {/* Threshold-bump card. Only shown once the vault has more
-                than one member (no quorum to bump on a 1-of-1) and the
-                threshold is still 1 (this commit's bundled bump only
-                works for that case). The page itself surfaces the same
-                gate copy if the user navigates manually. */}
+            {/* Threshold-bump card. Disabled at v3l-fix1: the
+                deployed ikavery program at 6kdyWi8… predates the
+                staging-PDA pattern (`stage_roster_change_payload`,
+                disc 10), so any roster-change attempt fails with
+                `InvalidInstructionData` at simulation time.
+                Confirmed by inspecting the deployed ELF — only
+                execute_roster_change.rs ships, no
+                stage_roster_change.rs. The action layer
+                (clearmsig-roster.ts) and the threshold page stay
+                intact so the feature relights as soon as upstream
+                redeploys. */}
             {vault.account.members.length > 1 &&
               vault.account.threshold === 1 && (
-                <ActionCard
-                  href={`/app/secure/${encodeURIComponent(recoveryStr)}/threshold`}
+                <DisabledActionCard
                   Icon={Lock}
                   eyebrow="// 06 · roster"
                   title="Lock down"
-                  body={`Today any 1 of ${vault.account.members.length} can sign. Bump the threshold so multiple devices must agree.`}
-                  cta="Open"
+                  body={`Today any 1 of ${vault.account.members.length} can sign. Bumping the threshold needs an upstream program redeploy — coming soon.`}
+                  cta="Awaiting redeploy"
                 />
               )}
           </section>
@@ -740,6 +745,44 @@ function ActionCard({
         />
       </span>
     </Link>
+  );
+}
+
+function DisabledActionCard({
+  Icon,
+  eyebrow,
+  title,
+  body,
+  cta,
+}: {
+  Icon: typeof Fingerprint;
+  eyebrow: string;
+  title: string;
+  body: string;
+  cta: string;
+}) {
+  return (
+    <div
+      className={
+        "flex flex-col rounded-card border border-dashed border-border-soft bg-surface-raised/60 p-5 " +
+        "opacity-80"
+      }
+      aria-disabled="true"
+    >
+      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-text-soft/10 text-text-soft">
+        <Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+      </span>
+      <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+        {eyebrow}
+      </p>
+      <h3 className="mt-1 font-display text-base font-semibold text-text-soft">
+        {title}
+      </h3>
+      <p className="mt-1.5 text-sm text-text-soft text-pretty">{body}</p>
+      <span className="mt-3 inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-text-soft">
+        {cta}
+      </span>
+    </div>
   );
 }
 
