@@ -195,7 +195,24 @@ Every signed write goes through `signDescriptor()` in `useSignWithWallet`. The h
 
 The Ledger path (`frontend/src/lib/wallet/ledger.ts`, `@ledgerhq/hw-transport-webhid` → `Solana.signOffchainMessage`) closes the sign-payload-substitution surface end-to-end: the device renders the wrapped offchain message body (magic prefix `\xffsolana offchain` + format byte 0) as plain text on hardware. `useWallet` prefers an active `LedgerSession` over Dynamic when both are available.
 
-Frontend lib organization: `lib/msig/` (byte-exact TS port of the offchain wrap, datetime, render, encode, message, hash, types, accounts), `lib/chain/` (read-only direct Solana RPC — memberships, wallet, intents, proposals; **no backend dependency**), `lib/encrypt/` (Encrypt scaffold), `lib/wallet/` (Dynamic + Ledger).
+Frontend lib organization: `lib/msig/` (byte-exact TS port of the offchain wrap, datetime, render, encode, message, hash, types, accounts), `lib/chain/` (read-only direct Solana RPC — memberships, wallet, intents, proposals; **no backend dependency**), `lib/encrypt/` (Encrypt scaffold), `lib/wallet/` (Dynamic + Ledger), `lib/ikavery/` (vendored ikavery Solana SDK, BSD-3 — see Secure feature below).
+
+### Secure — personal key recovery via ikavery (companion product on Ika dWallets)
+
+`/app/secure/*` ships a personal-recovery vault product alongside the shared-wallet flow. Users place a Solana key under a t-of-N quorum of devices/passkeys and recover by signing a sweep with any threshold. Built on top of the [ikavery](https://github.com/Iamknownasfesal/ikavery) project; same Ika dWallet engine clear-msig uses for cross-chain signing, different user goal (single user, multi-device recovery).
+
+| Layer | Status | Where |
+|---|---|---|
+| ikavery SDK (vendored, BSD-3) | Live. Solana SDK source copied to `frontend/src/lib/ikavery/` — upstream's `workspace:*` dep on `ikavery-core` doesn't resolve via npm, so we vendor and ship one helper inline. See `NOTICE.md` in that dir. | `lib/ikavery/` |
+| Vault create flow | Live. `clearmsig-actions.ts::createSoloVault` builds the `create_recovery` ix, partial-signs with a fresh `recoveryId` keypair locally, hands off to the user's Dynamic wallet for the creator signature, submits + confirms. Solo (1-of-1) only at v2. | `lib/ikavery/clearmsig-actions.ts`, `app/app/secure/new/page.tsx` |
+| Vault list + detail | Live. `listVaultsForCreator` filters `getProgramAccounts` by member-slot match. Detail page decodes member schemes (Solana / ed25519 / secp256k1 / passkey / WebAuthn). | `app/app/secure/page.tsx`, `app/app/secure/[recovery]/page.tsx` |
+| dWallet handle | **Placeholder.** v2 uses a creator-XOR-random 32-byte stub. Real DKG against `pre-alpha-dev-1.ika.ika-network.net` (gRPC-Web) is the v3 lift. | `clearmsig-actions.ts::placeholderDwalletHandle` |
+| Add device (passkey enrollment) | **Stub.** UI card on detail page links to `solana.ikavery.com`. v3. | — |
+| Sweep (move funds out) | **Stub.** Same hand-off pattern. v3. | — |
+
+The wallet shim (`lib/wallet/index.ts`) gained `signTransaction` for this flow — it goes through Dynamic's `solanaWallet.getSigner().signTransaction`. Ledger transaction signing for vault is also v3; the wizard gates on `isLedger` upfront with a "use a hot wallet" callout.
+
+Sidebar entry: `WorkspaceSidebar` renders a "Secure" promo card (expanded mode) or icon (rail mode) replacing the old "Recent" section, which duplicated the wallet hub Activity tab.
 
 ## Two-identity model
 

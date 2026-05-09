@@ -25,6 +25,8 @@
 
 /// Hard-coded canonical hosts - the prod app + the demo app.
 const CANONICAL_HOSTS: readonly string[] = [
+  "clearsig.xyz",
+  "www.clearsig.xyz",
   "clear-msig.vercel.app",
 ];
 

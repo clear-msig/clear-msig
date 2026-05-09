@@ -118,7 +118,28 @@ export function AppProviders({ children }: Props) {
 // noise.
 function ProvidersLoadingShell() {
   return (
-    <main className="min-h-screen bg-canvas font-sans" aria-hidden="true" />
+    <main
+      className="flex min-h-screen flex-col items-center justify-center gap-6 bg-canvas px-gutter font-sans"
+      aria-busy="true"
+      aria-label="Loading"
+    >
+      <div className="relative h-10 w-10">
+        <span
+          aria-hidden="true"
+          className="absolute inset-0 rounded-full bg-accent/15"
+        />
+        <span
+          aria-hidden="true"
+          className="absolute inset-0 animate-spin rounded-full border-2 border-accent border-t-transparent"
+        />
+      </div>
+      <div className="flex flex-col items-center text-center">
+        <span aria-hidden="true" className="block h-px w-10 bg-accent" />
+        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          Booting Clear
+        </p>
+      </div>
+    </main>
   );
 }
 

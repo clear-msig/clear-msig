@@ -1,10 +1,7 @@
 "use client";
 
-// Quick-pick strip of the user's most-recent send targets for a
-// given wallet+chain. Mirrors the recentContacts(4) UX on the
-// Solana send page; EVM doesn't have a contacts integration yet
-// (the contacts module validates as base58), so we read from the
-// localStorage txLog instead.
+// Recent recipients — Cash-App-style list of the last few people
+// this wallet sent to on a given chain. Each row is:
 //
 // Each chip fills the recipient input with the full address. We
 // short the address for display so the strip stays compact, and
@@ -14,16 +11,22 @@
 
 import { useEffect, useState } from "react";
 import { History } from "lucide-react";
-import { recentRecipients } from "@/lib/retail/txLog";
-import { shortEvmAddress } from "@/lib/chain/eth";
-import { subscribe } from "@/lib/retail/txLog";
+import {
+  recentRecipients,
+  subscribe,
+  type RecentRecipient,
+} from "@/lib/retail/txLog";
+import { findByAddress } from "@/lib/retail/contacts";
+import { shortAddress } from "@/lib/retail/contacts";
+import { shortEvmAddress, isValidEvmAddress } from "@/lib/chain/eth";
+import { MemberAvatar } from "@/components/retail/MemberAvatar";
+import { relativeTime } from "@/lib/util/relativeTime";
 
 interface Props {
   walletName: string;
   chainKind: number;
   onPick: (address: string) => void;
-  /// How many chips to show. Default 4 matches the Solana
-  /// recentContacts strip.
+  /// How many rows to show. Default 4.
   limit?: number;
 }
 
@@ -33,20 +36,11 @@ export function RecentRecipientsChips({
   onPick,
   limit = 4,
 }: Props) {
-  const [items, setItems] = useState<{ address: string; ticker: string }[]>([]);
+  const [items, setItems] = useState<RecentRecipient[]>([]);
 
-  // Hydrate on mount + subscribe to log changes. We can't read
-  // localStorage during render (SSR mismatch), so the initial state
-  // is empty + filled in useEffect. Subscribing means the strip
-  // refreshes automatically after a successful send on this page.
   useEffect(() => {
     const refresh = () => {
-      setItems(
-        recentRecipients(walletName, chainKind, limit).map((r) => ({
-          address: r.address,
-          ticker: r.ticker,
-        })),
-      );
+      setItems(recentRecipients(walletName, chainKind, limit));
     };
     refresh();
     return subscribe(refresh);
@@ -55,7 +49,7 @@ export function RecentRecipientsChips({
   if (items.length === 0) return null;
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-2">
       <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
         <History className="h-3 w-3" aria-hidden="true" />
         Recent
@@ -83,7 +77,81 @@ export function RecentRecipientsChips({
             </span>
           </button>
         ))}
-      </div>
+      </ul>
     </div>
   );
+}
+
+function RecipientRow({
+  recipient,
+  onPick,
+}: {
+  recipient: RecentRecipient;
+  onPick: (address: string) => void;
+}) {
+  // Try contact lookup first — case-insensitive for EVM, exact for
+  // Solana. Falls back to the short address as the heading when no
+  // contact match exists.
+  const contact =
+    findByAddress(recipient.address) ??
+    findByAddress(recipient.address.toLowerCase()) ??
+    findByAddress(recipient.address.toUpperCase());
+
+  const isEvm = isValidEvmAddress(recipient.address);
+  const display = contact?.name ?? shortenAddress(recipient.address, isEvm);
+  const showShortBeneath = !!contact;
+
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => onPick(recipient.address)}
+        title={`Use ${recipient.address}`}
+        className={
+          "group flex w-full items-center gap-3 rounded-card border border-border-soft bg-surface-raised px-3 py-2 text-left " +
+          "transition-[border-color,transform,box-shadow] duration-base ease-out-soft " +
+          "hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-card-rest " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+        }
+      >
+        <MemberAvatar address={recipient.address} size="md" />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-sm font-medium text-text-strong">
+            {display}
+          </span>
+          <span className="truncate text-[11px] text-text-soft">
+            {showShortBeneath && (
+              <>
+                {shortenAddress(recipient.address, isEvm)}
+                {" · "}
+              </>
+            )}
+            {relativeTime(recipient.ts)}
+            {recipient.count > 1 && (
+              <>
+                {" · "}sent {recipient.count}×
+              </>
+            )}
+          </span>
+        </span>
+        {recipient.amountDisplay && (
+          <span className="shrink-0 text-right">
+            <span className="block font-numerals text-sm font-semibold text-text-strong tabular-nums">
+              {recipient.amountDisplay}
+            </span>
+            {recipient.ticker && (
+              <span className="block font-display text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+                {recipient.ticker}
+              </span>
+            )}
+          </span>
+        )}
+      </button>
+    </li>
+  );
+}
+
+function shortenAddress(address: string, isEvm: boolean): string {
+  if (isEvm) return shortEvmAddress(address);
+  return shortAddress(address);
 }

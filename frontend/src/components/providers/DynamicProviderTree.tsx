@@ -6,10 +6,12 @@
 // every connector package out of the initial layout chunk that
 // ships on /privacy, /security, /, etc.
 //
-// The cost: a thin "Connecting…" shell flashes for ~one frame
-// while the chunk hydrates. Worth it: the 5 connector packages
-// (Turnkey, WaaS-SVM/EVM/Sui, vanilla Solana) are the heaviest
-// shared dependency in the app.
+// 2026-05-08: dropped WaaS-EVM and WaaS-Sui connectors. clear-msig's
+// user-facing chain is Solana — ETH/BTC/Zcash transfers are signed
+// by the user's existing Solana key via Ika dWallets, so users never
+// connect with an EVM account. Sui isn't a destination chain at all.
+// Removing the two unused connector packages trims hundreds of KB
+// off the chunk that gates /welcome and /connect rendering.
 
 import {
   DynamicContextProvider,
@@ -17,8 +19,6 @@ import {
 } from "@dynamic-labs/sdk-react-core";
 import { TurnkeySolanaWalletConnectors } from "@dynamic-labs/embedded-wallet-solana";
 import { DynamicWaasSVMConnectors } from "@dynamic-labs/waas-svm";
-import { DynamicWaasEVMConnectors } from "@dynamic-labs/waas-evm";
-import { DynamicWaasSuiConnectors } from "@dynamic-labs/waas-sui";
 import { SolanaWalletConnectors } from "@dynamic-labs/solana";
 import { LedgerProvider } from "@/lib/wallet/LedgerProvider";
 
@@ -181,8 +181,6 @@ export default function DynamicProviderTree({ environmentId, children }: Props) 
       SolanaWalletConnectors,
       DynamicWaasSVMConnectors,
       TurnkeySolanaWalletConnectors,
-      DynamicWaasEVMConnectors,
-      DynamicWaasSuiConnectors,
     ],
     initialAuthenticationMode: "connect-only",
     deviceRegistrationModal: { enabled: false },

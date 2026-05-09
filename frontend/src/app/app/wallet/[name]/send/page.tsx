@@ -27,7 +27,6 @@ import {
   List as ListIcon,
   Loader2,
   ShieldAlert,
-  Star,
   UserPlus,
   Users,
 } from "lucide-react";
@@ -47,7 +46,6 @@ import { listIntents } from "@/lib/chain/intents";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import {
   isValidSolanaAddress,
-  recentContacts,
   shortAddress,
   type Contact,
 } from "@/lib/retail/contacts";
@@ -70,6 +68,7 @@ import { txUrl as solanaTxUrl } from "@/lib/explorer";
 import { recordAttempt } from "@/lib/retail/txLog";
 import { resolveSnsName, looksLikeSnsName } from "@/lib/chain/sns";
 import { QrScanButton } from "@/components/retail/QrScanButton";
+import { RecentRecipientsChips } from "@/components/retail/RecentRecipientsChips";
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import { ChainBadge } from "@/components/retail/ChainBadge";
@@ -910,8 +909,6 @@ function SendPage() {
               note={note}
               setNote={setNote}
               resolved={resolved}
-              recents={recentContacts(4)}
-              hydratedContacts={contacts.hydrated}
               savedNewContact={savedNewContact}
               onSaveNewContact={handleSaveNewContact}
               canSubmit={canSubmit}
@@ -976,8 +973,6 @@ interface ComposeStageProps {
   note: string;
   setNote: (s: string) => void;
   resolved: ResolvedRecipient;
-  recents: Contact[];
-  hydratedContacts: boolean;
   savedNewContact: boolean;
   onSaveNewContact: (name: string, address: string) => void;
   canSubmit: boolean;
@@ -1007,8 +1002,6 @@ function ComposeStage({
   note,
   setNote,
   resolved,
-  recents,
-  hydratedContacts,
   savedNewContact,
   onSaveNewContact,
   canSubmit,

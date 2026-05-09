@@ -50,7 +50,6 @@ import {
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
 import { friendlyStatus } from "@/lib/retail/labels";
 import { toDisplayName } from "@/lib/retail/walletNames";
-import { relativeTime } from "@/lib/util/relativeTime";
 import { avatarGradient } from "@/lib/retail/avatar";
 import { gradientFor } from "@/lib/retail/walletAppearance";
 import { useSidebar } from "@/components/providers/SidebarProvider";
@@ -512,18 +511,21 @@ function SidebarSection({
   );
 }
 
-function SidebarActivityRow({
-  row,
+// Promoted "Secure" card — the discovery surface for ikavery
+// (a sister project on Ika dWallets that does t-of-N personal key
+// recovery). Replaced the old "Recent" sidebar section, which
+// duplicated the wallet hub's Activity tab. Renders only in
+// expanded sidebar mode; rail mode collapses it (the bottom-group
+// Secure icon stays visible). Active when on /app/secure.
+function SecurePromoCard({
   pathname,
   onNavigate,
 }: {
-  row: RecentActivityRow;
   pathname: string;
   onNavigate?: () => void;
 }) {
-  const href = `/app/proposals/${encodeURIComponent(row.proposalPda)}`;
-  const active = pathname === href;
-
+  const href = "/app/secure";
+  const active = pathname === href || pathname.startsWith(`${href}/`);
   return (
     <li>
       <Link

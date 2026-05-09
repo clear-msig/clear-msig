@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
     // Build the URL server-side from the request's own origin so the
     // CTA in every email always points at this deployment. Drops the
     // body-supplied URL entirely.
-    const requestHost = request.headers.get("host") ?? "clear-msig.vercel.app";
+    const requestHost = request.headers.get("host") ?? "clearsig.xyz";
     const protocol =
       request.headers.get("x-forwarded-proto") ??
       (requestHost.startsWith("localhost") ? "http" : "https");
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
       `${intentLabel}\n` +
       (total > 0 ? `${collected}/${total} approvals so far\n\n` : "\n") +
       `Open the proposal:\n${proposalUrl}\n\n` +
-      `- Clear (https://clear-msig.vercel.app/)`;
+      `— Clear (https://clearsig.xyz/)`;
     const html =
       `<!doctype html><html><body style="font-family:system-ui,Helvetica,Arial,sans-serif;color:#0f172a;max-width:540px;margin:24px auto;padding:0 16px;">` +
       `<p style="font-size:13px;color:#71717a;text-transform:uppercase;letter-spacing:0.18em;margin:0">Pending approval</p>` +
