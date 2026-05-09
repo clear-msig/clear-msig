@@ -138,6 +138,43 @@ export function friendlyError(
     };
   }
 
+  // ── Ika dWallet stale-key probe ───────────────────────────────
+  // The CLI rejects a broadcast when the Ika-network signature
+  // doesn't recover to the dWallet pubkey stored on the IkaConfig.
+  // Two known causes in pre-alpha, one user-actionable:
+  //
+  //   1. **Ika network rotated keys** since the dWallet was minted.
+  //      Every dWallet that was DKG'd against the previous instance
+  //      is orphaned — its on-chain pubkey doesn't match what Ika
+  //      signs with today. The fix is to bind a fresh chain on a
+  //      fresh wallet so DKG runs against the current Ika instance.
+  //
+  //   2. **Preimage builder drift** — the on-chain `chains/<chain>.rs`
+  //      and `cli/src/chains/<chain>.rs` have to produce the exact
+  //      same bytes (CLAUDE.md "byte-exact preimage parity"). A
+  //      redeploy of just one side regresses the other; not user-
+  //      fixable, only authors.
+  //
+  // The CLI's error message is identical for both; we surface the
+  // user-actionable workaround and let the team's metrics catch
+  // the parity case if it's that.
+  if (
+    hay.includes("neither v=0 nor v=1 recovers") ||
+    hay.includes("not over keccak256(preimage)") ||
+    hay.includes("produced by a different key")
+  ) {
+    return {
+      title: "This wallet's chain key is stale",
+      body:
+        "The Ika network's signature doesn't match the key stored on this " +
+        "wallet's chain binding. That happens when the Ika pre-alpha mock " +
+        "signer rotates keys after the dWallet was minted (the old binding " +
+        "becomes orphaned). Fix: create a fresh wallet today, re-bind the " +
+        "chain, and re-fund. Other chains on this same wallet keep working " +
+        "if they were minted against the current Ika instance.",
+    };
+  }
+
   // ── Wallet UX: Phantom rejected our offchain envelope ────────
   // Phantom's signMessage refuses bytes whose first byte looks like a
   // Solana versioned-transaction prefix (0x80 | version). Solana's
