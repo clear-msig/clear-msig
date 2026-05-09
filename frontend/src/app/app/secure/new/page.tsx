@@ -37,11 +37,14 @@ import {
   User,
   Vault as VaultIcon,
 } from "lucide-react";
+import { PublicKey } from "@solana/web3.js";
 import { useConnection, useWallet } from "@/lib/wallet";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/retail/Button";
 import { useToast } from "@/components/ui/Toast";
 import {
   createSoloVault,
+  fetchVault,
   type CreateVaultStage,
 } from "@/lib/ikavery/clearmsig-actions";
 
@@ -98,6 +101,7 @@ function SecureBuildPage() {
   const { connection } = useConnection();
   const wallet = useWallet();
   const toast = useToast();
+  const queryClient = useQueryClient();
 
   const [stage, setStage] = useState<Stage>("shape");
   const [shape, setShape] = useState<ThresholdShape>(SHAPES[0]!);
@@ -157,6 +161,38 @@ function SecureBuildPage() {
       setResultTxSig(result.txSignature);
       setCreateSubStage(null);
       setStage("done");
+
+      // Pre-warm the vault detail page so clicking "Open vault" lands
+      // on a populated page instead of the read-vault skeleton. Three
+      // queries to fill, all in parallel:
+      //   - vault account (already fetched once in the create flow,
+      //     but persist into the listing's queryKey shape)
+      //   - dwallet balance (0 lamports — we know this for a brand-new
+      //     dWallet)
+      //   - proposals list (empty — proposalCount is 0)
+      // All best-effort; failures are silent because the destination
+      // page will refetch anyway.
+      const recoveryStr = result.recovery.toBase58();
+      const dwalletStr = new PublicKey(result.dwalletPubkey).toBase58();
+      void Promise.allSettled([
+        queryClient.prefetchQuery({
+          queryKey: ["ikavery-vault", recoveryStr],
+          queryFn: () => fetchVault(connection, result.recovery),
+        }),
+        queryClient.setQueryData(
+          ["ikavery-dwallet-balance", dwalletStr],
+          0,
+        ),
+        queryClient.setQueryData(
+          ["ikavery-proposals", recoveryStr, 0],
+          [],
+        ),
+        // Bust the listing query so the new vault shows up after the
+        // user backs out, rather than waiting for the next focus-refetch.
+        queryClient.invalidateQueries({
+          queryKey: ["ikavery-vaults"],
+        }),
+      ]);
     } catch (e) {
       console.error("[secure/build]", e);
       toast.error("Couldn't build the vault", {

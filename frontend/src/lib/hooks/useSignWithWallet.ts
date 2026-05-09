@@ -45,6 +45,8 @@ export class WalletSignError extends Error {
     | "no_sign_message"
     | "rejected"
     | "ledger_app_closed"
+    | "ledger_device_locked"
+    | "ledger_blind_signing_required"
     | "ledger_transport"
     | "ledger_unsupported"
     | "unknown"
@@ -201,6 +203,13 @@ function classifySignError(err: unknown): WalletSignError {
         return new WalletSignError("rejected", err.message);
       case "app_closed":
         return new WalletSignError("ledger_app_closed", err.message);
+      case "device_locked":
+        return new WalletSignError("ledger_device_locked", err.message);
+      case "blind_signing_required":
+        return new WalletSignError(
+          "ledger_blind_signing_required",
+          err.message,
+        );
       case "transport_lost":
       case "no_device":
         return new WalletSignError("ledger_transport", err.message);

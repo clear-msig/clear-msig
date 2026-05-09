@@ -94,6 +94,8 @@ export type LedgerErrorCode =
   | "unsupported"
   | "no_device"
   | "app_closed"
+  | "device_locked"
+  | "blind_signing_required"
   | "rejected"
   | "transport_lost"
   | "unknown";
@@ -236,15 +238,47 @@ function mapTransportError(err: unknown): LedgerError {
   );
 }
 
+// Status-code reference: APDU response codes the Solana app on Ledger
+// returns. Documented in Ledger's @ledgerhq/errors and the
+// upstream solana-app source. Mapping notes:
+//
+//   0x6982  Security status not satisfied — device is locked. The user
+//           sees a black screen and we want to send them to "unlock the
+//           device and try again", not a vague error.
+//   0x6985  Conditions of use not satisfied — user pressed Reject.
+//   0x6808  BLIND_SIGNATURE_REQUIRED — message format the device won't
+//           render in clear-sign mode. Show the user how to enable
+//           blind signing instead of throwing them under the bus.
+//   0x6d00  / 0x6d02 / 0x6e00  Wrong app open / app not running /
+//           ins not supported by current app.
+const LEDGER_STATUS = {
+  DEVICE_LOCKED: 0x6982,
+  REJECTED: 0x6985,
+  BLIND_SIGNING_REQUIRED: 0x6808,
+  APP_NOT_OPEN_A: 0x6d00,
+  APP_NOT_OPEN_B: 0x6d02,
+  APP_NOT_OPEN_C: 0x6e00,
+} as const;
+
 function mapAppError(err: unknown): LedgerError {
   const e = (err ?? {}) as RawHidError;
   const message = (e.message ?? "").toLowerCase();
-  // Ledger device returns 0x6d00 / 0x6d02 / 0x6e00 family when the app
-  // expected by the SDK is not the one currently open.
   if (
-    e.statusCode === 0x6d00 ||
-    e.statusCode === 0x6d02 ||
-    e.statusCode === 0x6e00 ||
+    e.statusCode === LEDGER_STATUS.DEVICE_LOCKED ||
+    message.includes("security status not satisfied") ||
+    message.includes("device is locked")
+  ) {
+    return new LedgerError(
+      "device_locked",
+      "Unlock your Ledger (PIN screen), then try again.",
+    );
+  }
+  // Ledger device returns the 0x6d / 0x6e family when the app expected
+  // by the SDK is not the one currently open.
+  if (
+    e.statusCode === LEDGER_STATUS.APP_NOT_OPEN_A ||
+    e.statusCode === LEDGER_STATUS.APP_NOT_OPEN_B ||
+    e.statusCode === LEDGER_STATUS.APP_NOT_OPEN_C ||
     message.includes("incorrect length") ||
     message.includes("app is not open") ||
     message.includes("ins not supported")
@@ -263,10 +297,34 @@ function mapAppError(err: unknown): LedgerError {
 function mapSignError(err: unknown): LedgerError {
   const e = (err ?? {}) as RawHidError;
   const message = (e.message ?? "").toLowerCase();
-  if (e.statusCode === 0x6985 || message.includes("denied by the user") || message.includes("rejected")) {
+  if (
+    e.statusCode === LEDGER_STATUS.REJECTED ||
+    message.includes("denied by the user") ||
+    message.includes("rejected")
+  ) {
     return new LedgerError(
       "rejected",
       "You declined the message on the Ledger. Tap Approve on the device to sign.",
+    );
+  }
+  if (
+    e.statusCode === LEDGER_STATUS.DEVICE_LOCKED ||
+    message.includes("security status not satisfied") ||
+    message.includes("device is locked")
+  ) {
+    return new LedgerError(
+      "device_locked",
+      "Your Ledger went to sleep. Unlock it (enter your PIN), reopen the Solana app, and try again.",
+    );
+  }
+  if (
+    e.statusCode === LEDGER_STATUS.BLIND_SIGNING_REQUIRED ||
+    message.includes("blind signing") ||
+    message.includes("blind sign")
+  ) {
+    return new LedgerError(
+      "blind_signing_required",
+      "Your Ledger needs Blind Signing enabled for this kind of message. Open the Solana app on the device → Settings → Blind Signing → Enabled, then try again.",
     );
   }
   if (message.includes("transport") || message.includes("disconnected")) {
@@ -276,8 +334,8 @@ function mapSignError(err: unknown): LedgerError {
     );
   }
   if (
-    e.statusCode === 0x6d00 ||
-    e.statusCode === 0x6e00 ||
+    e.statusCode === LEDGER_STATUS.APP_NOT_OPEN_A ||
+    e.statusCode === LEDGER_STATUS.APP_NOT_OPEN_C ||
     message.includes("app is not open")
   ) {
     return new LedgerError(
