@@ -143,7 +143,22 @@ function SecureRecoveryPage() {
         <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
           Vault {recoveryShort}
         </h1>
-        <CopyAddressPill address={recoveryStr} />
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+          <CopyAddressPill address={recoveryStr} />
+          <a
+            href={`https://explorer.solana.com/address/${recoveryStr}?cluster=devnet`}
+            target="_blank"
+            rel="noreferrer"
+            className={
+              "inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-[11px] font-medium text-text-soft " +
+              "transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+            }
+          >
+            Explorer
+            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+          </a>
+        </div>
       </PageEyebrow>
 
       {vaultQuery.isLoading && (
