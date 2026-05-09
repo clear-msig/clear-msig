@@ -1,28 +1,26 @@
 "use client";
 
-// /app/secure/[recovery]/sweep — sweep composition wizard.
+// /app/secure/[recovery]/sweep — full in-app sweep wizard (v3e).
 //
-// What ships in v3c:
-//   - Three-stage flow: compose (form) → review (preview card) →
-//     handoff (explainer + upstream link + saved intent).
-//   - Builds the SOL transfer message client-side from the dWallet
-//     pubkey saved in v3a (loadAttestation) — destination + amount in
-//     SOL, validated via base58 + numeric parse.
-//   - Saves the composed intent to localStorage so v3d's in-app
-//     execute path can pick it up without a re-prompt.
+// Three stages:
+//   1. compose  — destination address + SOL amount.
+//   2. review   — preview card (from / to / amount / message size).
+//   3. running  — runs propose+approve → execute → presign+sign →
+//                 broadcast in sequence, with live progress dots.
+//   4. done     — explorer pills for the proposal, execute, and the
+//                 actual sweep broadcast.
 //
-// What v3c deliberately does NOT do:
-//   - The on-chain propose+approve pair needs the structural intent
-//     digest the program rebuilds at execute time (see sweep/message.ts
-//     parser). The byte-exact digest helper is the next infra piece;
-//     until it lands, the UI hands users to the upstream
-//     solana.ikavery.com flow rather than submitting a propose with a
-//     digest that will fail to match at execute time.
-//   - The dWallet's authority transfer to ikavery's CPI authority
-//     (one-time, post-DKG) is the other gate. Not in v3c.
+// Two user popups: one for the propose+approve bundle, one for the
+// execute. The presign+sign step is a gRPC-Web round trip with no
+// user interaction. Broadcast happens automatically once the network
+// signature lands.
 //
-// The handoff stage is explicit about both. Better to be honest than
-// claim functionality that isn't end-to-end.
+// Pre-conditions enforced by the action layer:
+//   - the connected wallet is on the roster (solo at v3e)
+//   - the v3a-saved DKG attestation includes `dwalletAddr` (anything
+//     post-v3d does)
+//   - vault threshold = 1
+// Anything else fails fast with a useful message in the toast.
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -34,10 +32,8 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
-  Copy,
   ExternalLink,
-  KeyRound,
-  ShieldAlert,
+  Loader2,
 } from "lucide-react";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { Button } from "@/components/retail/Button";
@@ -47,20 +43,57 @@ import { useToast } from "@/components/ui/Toast";
 import { fetchVault } from "@/lib/ikavery/clearmsig-actions";
 import { loadAttestation } from "@/lib/ikavery/clearmsig-attestations";
 import { buildSweepMessage, transferSol } from "@/lib/ikavery/sweep/message";
-
-const IKAVERY_LIVE = "https://solana.ikavery.com";
-const SWEEP_INTENTS_KEY = "clear.ikavery-sweep-intents.v1";
+import {
+  runInAppSweep,
+  type SweepStage as ActionStage,
+} from "@/lib/ikavery/clearmsig-sweep";
 
 const LAMPORTS_PER_SOL = 1_000_000_000n;
 
-type Stage = "compose" | "review" | "handoff";
+type Stage = "compose" | "review" | "running" | "done";
 
-interface SavedSweepIntent {
-  recovery: string;
-  destination: string;
-  lamports: string; // bigint as string for JSON
-  composedAt: number;
-}
+const RUN_STAGES: { id: ActionStage; label: string; detail: string }[] = [
+  {
+    id: "build",
+    label: "Building sweep",
+    detail: "Encoding the SOL transfer + structural intent digest.",
+  },
+  {
+    id: "propose-approve-sign",
+    label: "Sign propose + approve",
+    detail: "Confirm the bundle in your wallet.",
+  },
+  {
+    id: "propose-approve-confirm",
+    label: "Submitting propose + approve",
+    detail: "Recording the proposal on Solana.",
+  },
+  {
+    id: "execute-sign",
+    label: "Sign execute",
+    detail: "Authorising the dWallet message approval CPI.",
+  },
+  {
+    id: "execute-confirm",
+    label: "Submitting execute",
+    detail: "Confirming the MessageApproval row on chain.",
+  },
+  {
+    id: "presign-sign",
+    label: "Ika network sign",
+    detail: "Asking the Ika network to sign the sweep with the dWallet key.",
+  },
+  {
+    id: "broadcast",
+    label: "Broadcasting sweep",
+    detail: "Sending the dWallet-signed sweep to a Solana RPC.",
+  },
+  {
+    id: "broadcast-confirm",
+    label: "Waiting for confirmation",
+    detail: "Solana confirms the funds have moved.",
+  },
+];
 
 export default function SweepPageWrapper() {
   return (
@@ -123,6 +156,10 @@ function SweepPage() {
   const [amountError, setAmountError] = useState<string | null>(null);
   const [previewMessageBytes, setPreviewMessageBytes] =
     useState<Uint8Array | null>(null);
+  const [runStage, setRunStage] = useState<ActionStage | null>(null);
+  const [proposeSig, setProposeSig] = useState<string | null>(null);
+  const [executeSig, setExecuteSig] = useState<string | null>(null);
+  const [broadcastSig, setBroadcastSig] = useState<string | null>(null);
 
   const lamports = useMemo<bigint | null>(() => {
     const trimmed = amountSol.trim();
@@ -179,24 +216,49 @@ function SweepPage() {
     setStage("review");
   };
 
-  const handleHandoff = () => {
-    if (!destinationPk || !lamports) return;
-    const intent: SavedSweepIntent = {
-      recovery: recoveryStr,
-      destination: destinationPk.toBase58(),
-      lamports: lamports.toString(),
-      composedAt: Date.now(),
-    };
-    try {
-      const raw = window.localStorage.getItem(SWEEP_INTENTS_KEY);
-      const all: SavedSweepIntent[] = raw ? JSON.parse(raw) : [];
-      all.push(intent);
-      window.localStorage.setItem(SWEEP_INTENTS_KEY, JSON.stringify(all));
-    } catch {
-      /* localStorage blocked — silent. The intent is still in the URL
-       * the user can copy. */
+  const handleRun = async () => {
+    if (!destinationPk || !lamports || !recoveryPk) return;
+    if (!vaultQuery.data) {
+      toast.error("Vault not loaded yet");
+      return;
     }
-    setStage("handoff");
+    if (!wallet.connected || !wallet.publicKey || !wallet.signTransaction) {
+      toast.error("Connect a wallet first");
+      return;
+    }
+    if (wallet.isLedger) {
+      toast.error("Ledger not supported yet", {
+        details:
+          "Vault sweep needs full transaction signing. Use your Dynamic embedded wallet.",
+      });
+      return;
+    }
+    setRunStage("build");
+    setStage("running");
+    try {
+      const result = await runInAppSweep({
+        connection,
+        recovery: recoveryPk,
+        recoveryId: vaultQuery.data.account.recoveryId,
+        creator: wallet.publicKey,
+        destination: destinationPk,
+        lamports,
+        signTransaction: wallet.signTransaction,
+        onProgress: (s) => setRunStage(s),
+      });
+      setProposeSig(result.proposeSig);
+      setExecuteSig(result.executeSig);
+      setBroadcastSig(result.broadcastSig);
+      setRunStage(null);
+      setStage("done");
+    } catch (e) {
+      console.error("[secure/sweep]", e);
+      toast.error("Sweep failed", {
+        details: e instanceof Error ? e.message : String(e),
+      });
+      setRunStage(null);
+      setStage("review");
+    }
   };
 
   if (!recoveryPk) {
@@ -294,17 +356,22 @@ function SweepPage() {
           dwalletPubkey={dwalletPubkey?.toBase58() ?? ""}
           messageBytesLen={previewMessageBytes?.length ?? 0}
           onBack={() => setStage("compose")}
-          onContinue={handleHandoff}
+          onContinue={handleRun}
           reduce={!!reduce}
         />
       )}
 
-      {!blockedByDisconnect && !blockedByLedger && stage === "handoff" && (
-        <HandoffStage
-          destination={destinationPk?.toBase58() ?? ""}
+      {!blockedByDisconnect && !blockedByLedger && stage === "running" && (
+        <RunningStage subStage={runStage} reduce={!!reduce} />
+      )}
+
+      {stage === "done" && (
+        <DoneStage
           amountSol={amountSol}
-          recoveryAddress={recoveryStr}
-          dwalletPubkey={dwalletPubkey?.toBase58() ?? ""}
+          destination={destinationPk?.toBase58() ?? ""}
+          proposeSig={proposeSig}
+          executeSig={executeSig}
+          broadcastSig={broadcastSig}
           reduce={!!reduce}
         />
       )}
@@ -497,30 +564,78 @@ function Row({
   );
 }
 
-interface HandoffStageProps {
-  destination: string;
-  amountSol: string;
-  recoveryAddress: string;
-  dwalletPubkey: string;
+interface RunningStageProps {
+  subStage: ActionStage | null;
   reduce: boolean;
 }
 
-function HandoffStage(props: HandoffStageProps) {
+function RunningStage({ subStage, reduce }: RunningStageProps) {
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
+  const activeIdx = subStage ? RUN_STAGES.findIndex((s) => s.id === subStage) : 0;
+  const active = activeIdx >= 0 ? RUN_STAGES[activeIdx] : RUN_STAGES[0]!;
+  return (
+    <motion.section
+      {...motionProps}
+      transition={{ duration: 0.3 }}
+      className="flex flex-col items-center gap-6 px-gutter py-16"
+    >
+      <Loader2
+        className="h-10 w-10 animate-spin text-accent"
+        strokeWidth={1.5}
+        aria-hidden="true"
+      />
+      <div className="flex flex-col items-center gap-1 text-center">
+        <p className="font-display text-xl font-semibold text-text-strong">
+          {active?.label ?? "Sweeping…"}
+        </p>
+        <p className="max-w-sm text-sm text-text-soft">
+          {active?.detail ?? "Running through the sweep stages."}
+        </p>
+      </div>
+      <ol
+        className="flex items-center gap-1.5"
+        aria-label="sweep progress"
+      >
+        {RUN_STAGES.map((s, i) => {
+          const completed = activeIdx > i;
+          const current = activeIdx === i;
+          return (
+            <li
+              key={s.id}
+              aria-label={s.label}
+              className={
+                "h-1.5 w-6 rounded-full " +
+                (completed
+                  ? "bg-accent"
+                  : current
+                    ? "bg-accent/60"
+                    : "bg-border-soft")
+              }
+            />
+          );
+        })}
+      </ol>
+    </motion.section>
+  );
+}
+
+interface DoneStageProps {
+  amountSol: string;
+  destination: string;
+  proposeSig: string | null;
+  executeSig: string | null;
+  broadcastSig: string | null;
+  reduce: boolean;
+}
+
+function DoneStage(props: DoneStageProps) {
   const motionProps = props.reduce
     ? {}
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
-  const [copied, setCopied] = useState(false);
-  const summary = `Sweep ${props.amountSol} SOL\nfrom: ${props.dwalletPubkey}\nto:   ${props.destination}\nvault: ${props.recoveryAddress}`;
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(summary);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
-    } catch {
-      /* clipboard blocked */
-    }
-  };
-  const upstreamUrl = `${IKAVERY_LIVE}/recovery/${encodeURIComponent(props.recoveryAddress)}`;
+  const explorer = (sig: string) =>
+    `https://explorer.solana.com/tx/${sig}?cluster=devnet`;
   return (
     <motion.section
       {...motionProps}
@@ -532,66 +647,80 @@ function HandoffStage(props: HandoffStageProps) {
           <Check className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
         </span>
         <h1 className="mt-3 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          Sweep saved locally
+          Funds moved
         </h1>
         <p className="mx-auto mt-2 max-w-md text-base text-text-soft">
-          The intent is composed and stored on this device. Finish it
-          upstream until v3d ships the in-app execute path.
+          {props.amountSol} SOL is on its way to{" "}
+          <span className="font-mono text-text-strong">
+            {shortPub(props.destination)}
+          </span>
+          . Three Solana txs took it across the line.
         </p>
       </PageEyebrow>
 
-      <aside className="mx-auto flex max-w-md items-start gap-3 rounded-card border border-warning/40 bg-warning/[0.06] p-4 text-sm text-text-soft">
-        <ShieldAlert
-          className="mt-0.5 h-5 w-5 shrink-0 text-warning"
-          strokeWidth={2}
+      <ul className="mx-auto flex w-full max-w-md flex-col gap-2">
+        <ExplorerRow
+          label="Propose + approve"
+          sig={props.proposeSig}
+          href={props.proposeSig ? explorer(props.proposeSig) : null}
+        />
+        <ExplorerRow
+          label="Execute (MessageApproval)"
+          sig={props.executeSig}
+          href={props.executeSig ? explorer(props.executeSig) : null}
+        />
+        <ExplorerRow
+          label="Sweep broadcast"
+          sig={props.broadcastSig}
+          href={props.broadcastSig ? explorer(props.broadcastSig) : null}
+          highlight
+        />
+      </ul>
+    </motion.section>
+  );
+}
+
+function ExplorerRow({
+  label,
+  sig,
+  href,
+  highlight,
+}: {
+  label: string;
+  sig: string | null;
+  href: string | null;
+  highlight?: boolean;
+}) {
+  if (!sig || !href) return null;
+  return (
+    <li>
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className={
+          "group flex items-center gap-3 rounded-card border bg-surface-raised p-3 shadow-card-rest " +
+          "transition-[border-color,transform] duration-base ease-out-soft " +
+          "hover:-translate-y-0.5 " +
+          (highlight
+            ? "border-accent/60 hover:border-accent"
+            : "border-border-soft hover:border-accent/40")
+        }
+      >
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+            {label}
+          </span>
+          <span className="truncate font-mono text-[11px] text-text-strong">
+            {sig}
+          </span>
+        </div>
+        <ExternalLink
+          className="h-4 w-4 shrink-0 text-text-soft transition-colors group-hover:text-accent"
           aria-hidden="true"
         />
-        <p className="leading-snug">
-          <span className="font-medium text-text-strong">v3c limitation.</span>{" "}
-          The on-chain execute path needs the dWallet&rsquo;s authority
-          transferred to ikavery&rsquo;s CPI authority — a one-time
-          activation step landing in v3d. Until then, run the sweep
-          upstream with the same credentials. The composed intent is on
-          this device for the in-app flow when it lands.
-        </p>
-      </aside>
-
-      <section className="mx-auto w-full max-w-md rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
-        <pre className="whitespace-pre-wrap break-all font-mono text-[11px] text-text-strong">
-          {summary}
-        </pre>
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="mt-3 inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-[11px] font-medium text-text-soft hover:border-accent hover:text-accent"
-        >
-          {copied ? (
-            <>
-              <Check className="h-3 w-3 text-accent" aria-hidden="true" />
-              Copied
-            </>
-          ) : (
-            <>
-              <Copy className="h-3 w-3" aria-hidden="true" />
-              Copy summary
-            </>
-          )}
-        </button>
-      </section>
-
-      <div className="mx-auto flex flex-col items-center gap-2">
-        <a href={upstreamUrl} target="_blank" rel="noreferrer">
-          <Button size="lg">
-            <KeyRound className="h-4 w-4" aria-hidden="true" />
-            Open upstream
-            <ExternalLink className="h-3 w-3" aria-hidden="true" />
-          </Button>
-        </a>
-        <p className="text-[11px] text-text-soft">
-          ikavery shows the same vault and runs the execute today.
-        </p>
-      </div>
-    </motion.section>
+      </a>
+    </li>
   );
 }
 
