@@ -147,6 +147,12 @@ function sendHrefFor(
       ? `/app/wallet/${encodeURIComponent(walletName)}/setup/eth`
       : `/app/wallet/${encodeURIComponent(walletName)}/send/eth`;
   }
+  if (kind === 2) {
+    // Bitcoin: setup + send live in the same /send/btc page (it
+    // detects whether the BTC intent already exists and either
+    // offers a one-tap setup or jumps to the compose form).
+    return `/app/wallet/${encodeURIComponent(walletName)}/send/btc`;
+  }
   return null;
 }
 
