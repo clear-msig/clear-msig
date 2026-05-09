@@ -188,14 +188,14 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
         </SidebarSection>
       )}
 
-      {/* Vault — ikavery promo entry (replaces the old "Recent"
+      {/* Secure — ikavery promo entry (replaces the old "Recent"
           section, which duplicated the wallet hub's Activity tab).
           Renders in expanded mode as a Try-it card with a "Powered
           by Ika" mark; in rail mode the full card collapses, leaving
-          just the bottom-group icon. /app/vault is the discovery
+          just the bottom-group icon. /app/secure is the discovery
           surface for ikavery's t-of-N personal key recovery —
           companion product on Ika dWallets. */}
-      {expanded && <VaultPromoCard onNavigate={onNavigate} pathname={pathname} />}
+      {expanded && <SecurePromoCard onNavigate={onNavigate} pathname={pathname} />}
 
       <div
         className={clsx(
@@ -239,19 +239,19 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
             {expanded && <span>Chains</span>}
           </Link>
         )}
-        {/* Vault — global discovery entry for ikavery. Rail mode
-            shows just the icon (the expanded VaultPromoCard above
+        {/* Secure — global discovery entry for ikavery. Rail mode
+            shows just the icon (the expanded SecurePromoCard above
             already covers expanded mode, so we only render this
-            link when collapsed to avoid two Vault rows). */}
+            link when collapsed to avoid two Secure rows). */}
         {!expanded && (
           <Link
-            href="/app/vault"
+            href="/app/secure"
             onClick={onNavigate}
-            aria-label="Vault — quorum-gated key recovery"
-            title="Vault"
+            aria-label="Secure — quorum-gated key recovery"
+            title="Secure"
             className={clsx(
               "inline-flex h-10 w-10 items-center justify-center rounded-soft text-xs font-medium transition-colors duration-base ease-out-soft",
-              pathname.startsWith("/app/vault")
+              pathname.startsWith("/app/secure")
                 ? "bg-accent/10 text-accent"
                 : "text-text-soft hover:bg-canvas hover:text-text-strong",
             )}
@@ -431,26 +431,26 @@ function SidebarSection({
   );
 }
 
-// Promoted "Vault" card — the discovery surface for ikavery
+// Promoted "Secure" card — the discovery surface for ikavery
 // (a sister project on Ika dWallets that does t-of-N personal key
 // recovery). Replaced the old "Recent" sidebar section, which
 // duplicated the wallet hub's Activity tab. Renders only in
 // expanded sidebar mode; rail mode collapses it (the bottom-group
-// Vault icon stays visible). Active when on /app/vault.
-function VaultPromoCard({
+// Secure icon stays visible). Active when on /app/secure.
+function SecurePromoCard({
   pathname,
   onNavigate,
 }: {
   pathname: string;
   onNavigate?: () => void;
 }) {
-  const href = "/app/vault";
+  const href = "/app/secure";
   const active = pathname === href || pathname.startsWith(`${href}/`);
   return (
     <Link
       href={href}
       onClick={onNavigate}
-      aria-label="Vault — quorum-gated key recovery, powered by Ika"
+      aria-label="Secure — quorum-gated key recovery, powered by Ika"
       className={clsx(
         "group relative flex flex-col gap-1 overflow-hidden rounded-xl border bg-surface-raised p-3 transition-colors duration-base ease-out-soft",
         active
@@ -463,7 +463,7 @@ function VaultPromoCard({
           breaking clear-msig's eyebrow standard elsewhere. */}
       <span aria-hidden="true" className="block h-px w-8 bg-accent" />
       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
-        // 01 · vault
+        // 01 · secure
       </p>
       <p className="text-sm font-semibold text-text-strong">
         Quorum-gated key recovery

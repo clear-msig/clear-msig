@@ -1,7 +1,11 @@
 "use client";
 
-// /app/vault — discovery surface for ikavery, a sister project on
-// Ika dWallets that handles t-of-N personal key recovery.
+// /app/secure — Secure: discovery surface for ikavery, a sister
+// project on Ika dWallets that handles t-of-N personal key recovery.
+//
+// Naming note: the destination is "Secure" (noun-form-of-verb,
+// sits naturally next to Settings/Chains in the sidebar). The
+// CTA verb is "Secure your key" — verb where verbs belong.
 //
 // clear-msig is "shared spending"; ikavery is "personal vault" —
 // same MPC foundation, distinct user goal. This page is a v1
@@ -65,7 +69,7 @@ export default function VaultPage() {
         <BackToWallets label="Wallets" />
       </div>
 
-      <PageEyebrow label="Vault · powered by Ika" align="center">
+      <PageEyebrow label="Secure · powered by Ika" align="center">
         <h1 className="font-display text-display-sm leading-[1.05] text-text-strong text-balance">
           Threshold-signed key custody
         </h1>
@@ -167,7 +171,7 @@ export default function VaultPage() {
           Try it now
         </p>
         <h2 className="mt-2 font-display text-display-xs leading-tight text-text-strong">
-          Open Vault on Solana devnet
+          Secure your key on Solana devnet
         </h2>
         <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
           The flow lives at{" "}
@@ -182,7 +186,7 @@ export default function VaultPage() {
             className="inline-block"
           >
             <Button size="lg">
-              Open Vault
+              Secure your key
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Button>
           </a>
