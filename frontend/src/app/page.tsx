@@ -108,7 +108,7 @@ function Hero({ fadeIn }: { fadeIn: FadeInFn }) {
       {/* Left - copy */}
       <div className="lg:col-span-7">
         <motion.div {...fadeIn(0)} className="flex items-center gap-2">
-          <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_4px_rgba(204,255,0,0.4)]" />
+          <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_4px_rgba(204, 255, 0,0.4)]" />
           <span className="font-mono-tech text-[9px] uppercase tracking-[0.3em] text-white/60 sm:text-[10px] sm:tracking-[0.32em]">
             Shared wallets · for friends and family
           </span>
@@ -227,7 +227,7 @@ function HeroMockup() {
             className="pointer-events-none absolute inset-0 rounded-[2rem]"
             style={{
               background:
-                "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 35%, rgba(255,255,255,0) 70%, rgba(204,255,0,0.05) 100%)",
+                "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 35%, rgba(255,255,255,0) 70%, rgba(204, 255, 0,0.05) 100%)",
             }}
           />
 
@@ -236,7 +236,7 @@ function HeroMockup() {
               lights + jargon "proposal · #042" of the old mockup. */}
           <div className="relative flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#ccff00] text-black shadow-[0_0_12px_rgba(204,255,0,0.16)]">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#ccff00] text-black shadow-[0_0_12px_rgba(204, 255, 0,0.16)]">
                 <BrandMark size={18} />
               </span>
               <div className="leading-tight">
@@ -245,7 +245,7 @@ function HeroMockup() {
               </div>
             </div>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_4px_rgba(204,255,0,0.4)]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_4px_rgba(204, 255, 0,0.4)]" />
               <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-white/70">
                 live
               </span>
@@ -338,7 +338,7 @@ function HeroMockup() {
                 white. Reads as a scoreboard at a glance. */}
             <div className="mt-5 h-[5px] w-full overflow-hidden rounded-full bg-white/[0.05]">
               <div
-                className="h-full rounded-full bg-[#ccff00] shadow-[0_0_6px_rgba(204,255,0,0.25)]"
+                className="h-full rounded-full bg-[#ccff00] shadow-[0_0_6px_rgba(204, 255, 0,0.25)]"
                 style={{ width: "66.67%" }}
               />
             </div>
@@ -350,7 +350,7 @@ function HeroMockup() {
               <div className="text-[11px] text-white/45">Just one more</div>
               <div className="text-[13px] font-semibold text-white">Ada to approve</div>
             </div>
-            <span className="rounded-full bg-[#ccff00] px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-black shadow-[0_0_10px_rgba(204,255,0,0.20)]">
+            <span className="rounded-full bg-[#ccff00] px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-black shadow-[0_0_10px_rgba(204, 255, 0,0.20)]">
               Approve
             </span>
           </div>
@@ -371,7 +371,7 @@ function HeroMockup() {
       {/* Floating fee chip - sits on the bottom-left edge of the
           mockup, partially overlapping. */}
       <div className="float-slower absolute -left-3 bottom-12 z-20 hidden items-center gap-2 rounded-full border border-white/[0.10] bg-[#0c0c0c]/90 px-3.5 py-2 shadow-[0_18px_40px_-12px_rgba(0,0,0,0.6)] backdrop-blur-md sm:flex">
-        <span className="h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_4px_rgba(204,255,0,0.4)]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_4px_rgba(204, 255, 0,0.4)]" />
         <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/85">
           Fee &lt; $0.01
         </span>
@@ -571,11 +571,11 @@ function BentoLargeBars() {
               animate={{
                 borderColor:
                   state === "signing"
-                    ? "rgba(204,255,0,0.22)"
+                    ? "rgba(204, 255, 0,0.22)"
                     : "rgba(255,255,255,0.04)",
                 backgroundColor:
                   state === "signing"
-                    ? "rgba(204,255,0,0.04)"
+                    ? "rgba(204, 255, 0,0.04)"
                     : "rgba(255,255,255,0.015)",
               }}
               transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] as const }}
@@ -914,7 +914,7 @@ function WhyClear({ fadeIn }: { fadeIn: FadeInFn }) {
           </div>
           <div className="border-t border-white/[0.06] bg-[#ccff00]/[0.04] px-6 py-5 sm:px-8 sm:py-6 md:border-l md:border-t-0">
             <span className="inline-flex items-center gap-1.5">
-              <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_4px_rgba(204,255,0,0.4)]" />
+              <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_4px_rgba(204, 255, 0,0.4)]" />
               <span className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-[#ccff00]">
                 With Clearsig
               </span>
@@ -956,7 +956,7 @@ function WhyClear({ fadeIn }: { fadeIn: FadeInFn }) {
                   above the cell backgrounds. */}
               <div
                 aria-hidden="true"
-                className="pointer-events-none absolute left-1/2 top-1/2 z-10 hidden h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-[#0c0c0c] text-[#ccff00] shadow-[0_0_10px_rgba(204,255,0,0.14)] md:flex"
+                className="pointer-events-none absolute left-1/2 top-1/2 z-10 hidden h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-[#0c0c0c] text-[#ccff00] shadow-[0_0_10px_rgba(204, 255, 0,0.14)] md:flex"
               >
                 <ArrowRight className="h-4 w-4" strokeWidth={2.5} />
               </div>
@@ -964,7 +964,7 @@ function WhyClear({ fadeIn }: { fadeIn: FadeInFn }) {
               {/* Good cell */}
               <div className="relative border-t border-white/[0.06] bg-[#ccff00]/[0.025] px-6 py-7 sm:px-8 sm:py-9 md:border-l md:border-t-0">
                 <div className="flex items-start gap-3">
-                  <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#ccff00] text-black shadow-[0_0_6px_rgba(204,255,0,0.20)]">
+                  <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#ccff00] text-black shadow-[0_0_6px_rgba(204, 255, 0,0.20)]">
                     <Check className="h-3 w-3" strokeWidth={3.2} />
                   </span>
                   <div className="flex-1">
@@ -1147,7 +1147,6 @@ function Footer({ fadeIn }: { fadeIn: FadeInFn }) {
           {[
             { href: "/privacy", label: "Privacy" },
             { href: "/security", label: "Security" },
-            { href: "/changelog", label: "Changelog" },
             { href: "/welcome", label: "Open app" },
           ].map((l) => (
             <Link
@@ -1161,6 +1160,24 @@ function Footer({ fadeIn }: { fadeIn: FadeInFn }) {
         </div>
 
         <div className="flex items-center gap-4 md:justify-end">
+          <Link
+            href="https://x.com/Clearsig_XYZ"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Clearsig on X"
+            title="@Clearsig_XYZ"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/60 transition-colors duration-200 hover:border-[#ccff00] hover:text-[#ccff00]"
+          >
+            <XGlyph />
+          </Link>
+          <a
+            href="mailto:info@clearsig.xyz"
+            aria-label="Email Clearsig"
+            title="info@clearsig.xyz"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/60 transition-colors duration-200 hover:border-[#ccff00] hover:text-[#ccff00]"
+          >
+            <MailGlyph />
+          </a>
           <Link
             href="https://github.com/clear-msig/clear-msig"
             target="_blank"
@@ -1188,6 +1205,37 @@ function GitHubGlyph() {
       aria-hidden="true"
     >
       <path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.89 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2z" />
+    </svg>
+  );
+}
+
+function XGlyph() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
+
+function MailGlyph() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m3 7 9 6 9-6" />
     </svg>
   );
 }

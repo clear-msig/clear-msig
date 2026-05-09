@@ -363,7 +363,7 @@ function BalanceHeroCard({
         className="pointer-events-none absolute inset-0 opacity-100"
         style={{
           background:
-            "radial-gradient(circle at 100% 0%, rgba(204,255,0,0.08) 0%, rgba(204,255,0,0) 55%)",
+            "radial-gradient(circle at 100% 0%, rgba(204, 255, 0,0.08) 0%, rgba(204, 255, 0,0) 55%)",
         }}
       />
 

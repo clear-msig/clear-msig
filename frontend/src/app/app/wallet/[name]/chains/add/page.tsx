@@ -13,22 +13,12 @@
 // pill, land on a "your wallet now sends [Chain]" success state.
 
 import { Suspense, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  Loader2,
-  Plus,
-} from "lucide-react";
+import { ArrowRight, Check, Plus } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
-import { Breadcrumb } from "@/components/retail/Breadcrumb";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
-import { BackToWallets } from "@/components/retail/BackToWallets";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
@@ -132,139 +122,30 @@ function AddChainPage() {
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
 
   return (
-    <div className="flex flex-col gap-6">
-      <StickyTopBar offset="header">
-        <Breadcrumb
-          segments={[
-            { label: "Wallets", href: "/app/wallet" },
-            {
-              label: walletDisplay,
-              href: `/app/wallet/${encodeURIComponent(walletName)}`,
-            },
-            {
-              label: "Chains",
-              href: `/app/wallet/${encodeURIComponent(walletName)}/chains`,
-            },
-            { label: "Add a chain" },
-          ]}
-        />
-      </StickyTopBar>
-      {/* Mobile-only back chip - see /send for rationale. */}
-      <div className="px-gutter pt-2 md:hidden">
-        <BackToWallets />
-      </div>
-
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
       {stage === "pick" && (
-        <motion.section
-          {...motionProps}
-          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          className="flex flex-col gap-6"
-        >
-          <div className="flex flex-col items-center text-center">
-            <h1 className="hidden font-display text-display-sm leading-[1.05] text-text-strong text-balance md:block">
-              Pick a chain
-            </h1>
-            <p className="mt-2 max-w-md text-base text-text-soft">
-              Each chain you add lets {walletDisplay} send money there.
-              You only need to set this up once per chain.
-            </p>
-          </div>
-
-          <ul className="flex flex-col gap-2">
-            {addable.map((chain) => (
-              <li key={chain.kind}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelected(chain);
-                    setStage("confirm");
-                  }}
-                  className={
-                    "group flex w-full items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-4 text-left shadow-card-rest " +
-                    "transition-[transform,box-shadow,border-color] duration-base ease-out-soft " +
-                    "hover:-translate-y-0.5 hover:shadow-card-raised " +
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-                  }
-                >
-                  <ChainBadge chain={chain} size="lg" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-text-strong">
-                      {chain.name}
-                    </p>
-                    <p className="mt-0.5 truncate text-xs text-text-soft">
-                      {chain.description}
-                    </p>
-                  </div>
-                  <ArrowRight
-                    className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
-                    aria-hidden="true"
-                  />
-                </button>
-              </li>
-            ))}
-          </ul>
-        </motion.section>
+        <PickStage
+          walletDisplay={walletDisplay}
+          chains={addable}
+          onPick={(chain) => {
+            setSelected(chain);
+            setStage("confirm");
+          }}
+          motionProps={motionProps}
+        />
       )}
 
       {stage === "confirm" && selected && (
-        <motion.section
-          {...motionProps}
-          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          className="flex flex-col gap-6"
-        >
-          <div className="flex flex-col items-center text-center">
-            <ChainBadge chain={selected} size="lg" />
-            <span aria-hidden="true" className="mt-4 block h-px w-10 bg-accent" />
-            <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Add chain · {selected.ticker}
-            </p>
-            <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-              Add {selected.name} to {walletDisplay}
-            </h1>
-            <p className="mt-2 max-w-md text-base text-text-soft">
-              {selected.description}
-            </p>
-          </div>
-
-          <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              What happens next
-            </p>
-            <ul className="mt-3 flex flex-col gap-2 text-sm text-text-strong">
-              <li className="flex items-start gap-2">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                We&rsquo;ll create a new key for {walletDisplay} on{" "}
-                {selected.name} (about 30 seconds).
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                Your spending rules apply on {selected.name} too. Same
-                friends, same approvals.
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                You can send {selected.ticker} from {walletDisplay} as
-                soon as it&rsquo;s ready.
-              </li>
-            </ul>
-          </div>
-
-          <Button size="lg" fullWidth onClick={startBind}>
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Add {selected.name}
-          </Button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setSelected(null);
-              setStage("pick");
-            }}
-            className="self-center text-sm text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
-          >
-            Pick a different chain
-          </button>
-        </motion.section>
+        <ConfirmStage
+          chain={selected}
+          walletDisplay={walletDisplay}
+          onConfirm={startBind}
+          onPickDifferent={() => {
+            setSelected(null);
+            setStage("pick");
+          }}
+          motionProps={motionProps}
+        />
       )}
 
       {stage === "binding" && selected && (
@@ -284,6 +165,193 @@ function AddChainPage() {
         />
       )}
     </div>
+  );
+}
+
+// ─── Pick stage ────────────────────────────────────────────────────
+
+function PickStage({
+  walletDisplay,
+  chains,
+  onPick,
+  motionProps,
+}: {
+  walletDisplay: string;
+  chains: ChainMeta[];
+  onPick: (c: ChainMeta) => void;
+  motionProps: Record<string, unknown>;
+}) {
+  return (
+    <motion.section
+      {...motionProps}
+      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      className="flex flex-col gap-6"
+    >
+      <header>
+        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+          Add chain · {walletDisplay}
+        </p>
+        <h1 className="mt-2 font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
+          Pick a chain
+        </h1>
+        <p className="mt-3 max-w-xl text-sm text-text-soft sm:text-base">
+          Each chain you add lets {walletDisplay} send money there. You only
+          need to set this up once per chain.
+        </p>
+      </header>
+
+      <ul className="flex flex-col gap-2">
+        {chains.map((chain) => (
+          <li key={chain.kind}>
+            <button
+              type="button"
+              onClick={() => onPick(chain)}
+              className={
+                "group flex w-full items-center gap-4 rounded-card border border-border-soft bg-surface-raised p-4 text-left shadow-card-rest sm:p-5 " +
+                "transition-[transform,box-shadow,border-color] duration-base ease-out-soft " +
+                "hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-card-raised " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+              }
+            >
+              <ChainBadge chain={chain} size="lg" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-2">
+                  <p className="truncate text-sm font-semibold text-text-strong">
+                    {chain.name}
+                  </p>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+                    {chain.ticker}
+                  </span>
+                </div>
+                <p className="mt-1 truncate text-xs text-text-soft">
+                  {chain.description}
+                </p>
+              </div>
+              <ArrowRight
+                className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
+                aria-hidden="true"
+              />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </motion.section>
+  );
+}
+
+// ─── Confirm stage ─────────────────────────────────────────────────
+
+function ConfirmStage({
+  chain,
+  walletDisplay,
+  onConfirm,
+  onPickDifferent,
+  motionProps,
+}: {
+  chain: ChainMeta;
+  walletDisplay: string;
+  onConfirm: () => void;
+  onPickDifferent: () => void;
+  motionProps: Record<string, unknown>;
+}) {
+  return (
+    <motion.section
+      {...motionProps}
+      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      className="flex flex-col gap-6"
+    >
+      {/* Header strip — chain badge + eyebrow + display title.
+          Left-aligned to match the rest of the workspace. */}
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+        <div className="flex min-w-0 items-center gap-4">
+          <ChainBadge chain={chain} size="lg" />
+          <div className="flex min-w-0 flex-col">
+            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+              Add chain · {chain.ticker}
+            </p>
+            <h1 className="mt-1.5 font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
+              Add {chain.name}
+            </h1>
+            <p className="mt-1 text-xs text-text-soft sm:text-sm">
+              to <span className="text-text-strong">{walletDisplay}</span>
+            </p>
+          </div>
+        </div>
+      </header>
+
+      <p className="max-w-xl text-sm text-text-soft sm:text-base">
+        {chain.description}
+      </p>
+
+      {/* What happens next — card with refined header strip. */}
+      <section className="overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
+        <header className="border-b border-border-soft px-5 py-3 sm:px-6">
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            What happens next
+          </p>
+        </header>
+        <ul className="divide-y divide-border-soft">
+          {[
+            {
+              n: "01",
+              body: (
+                <>
+                  We&rsquo;ll create a new key for {walletDisplay} on{" "}
+                  <span className="text-text-strong">{chain.name}</span>{" "}
+                  <span className="text-text-soft">(about 30 seconds)</span>.
+                </>
+              ),
+            },
+            {
+              n: "02",
+              body: (
+                <>
+                  Your spending rules apply on {chain.name} too. Same
+                  friends, same approvals.
+                </>
+              ),
+            },
+            {
+              n: "03",
+              body: (
+                <>
+                  You can send{" "}
+                  <span className="text-text-strong">{chain.ticker}</span>{" "}
+                  from {walletDisplay} as soon as it&rsquo;s ready.
+                </>
+              ),
+            },
+          ].map((row) => (
+            <li
+              key={row.n}
+              className="flex items-start gap-3 px-5 py-3.5 text-sm text-text-strong sm:px-6"
+            >
+              <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft pt-0.5">
+                {row.n}
+              </span>
+              <span className="min-w-0 flex-1 leading-relaxed">{row.body}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <Button size="lg" fullWidth onClick={onConfirm}>
+        <Plus className="h-4 w-4" aria-hidden="true" />
+        Add {chain.name}
+      </Button>
+
+      <button
+        type="button"
+        onClick={onPickDifferent}
+        className={
+          "self-center rounded-soft px-3 py-1.5 text-sm text-text-soft " +
+          "transition-colors duration-base ease-out-soft hover:text-text-strong " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+        }
+      >
+        Pick a different chain
+      </button>
+    </motion.section>
   );
 }
 
@@ -336,71 +404,93 @@ function BindingStage({
     <motion.section
       {...motionProps}
       transition={{ duration: 0.25 }}
-      className="flex flex-col items-center gap-6 text-center"
+      className="flex flex-col gap-6"
     >
-      <div className="relative">
-        <ChainBadge chain={chain} size="lg" />
-        <span
-          aria-hidden="true"
-          className={
-            "absolute -inset-2 rounded-full border-2 border-accent/30 " +
-            (reduce ? "" : "animate-pulse")
-          }
-        />
-      </div>
-      <div>
-        <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
-          Setting up {chain.name}…
-        </h1>
-        <p className="mt-2 max-w-md text-base text-text-soft">
-          This usually takes about 30 seconds. Hang tight; you don&rsquo;t
-          need to do anything. Don&rsquo;t close the tab.
-        </p>
-        <p className="mt-2 text-xs text-text-soft tabular-nums">
-          {elapsedSecs}s elapsed
-          {elapsedSecs > 45 && (
-            <>
-              {" · "}
-              <span className="text-text-strong">
-                Devnet is slower than usual today; still working.
-              </span>
-            </>
-          )}
-        </p>
-      </div>
-
-      <ul className="w-full max-w-sm space-y-2 text-left">
-        {steps.map((label, i) => {
-          const done = i < activeStep;
-          const active = i === activeStep;
-          return (
-            <li
-              key={label}
+      {/* Header strip — chain badge + eyebrow + display title. */}
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+        <div className="flex min-w-0 items-center gap-4">
+          <div className="relative shrink-0">
+            <ChainBadge chain={chain} size="lg" />
+            <span
+              aria-hidden="true"
               className={
-                "flex items-center gap-3 rounded-soft border px-4 py-2.5 text-sm transition-colors duration-base ease-out-soft " +
-                (done
-                  ? "border-accent/30 bg-accent/5 text-text-strong"
-                  : active
-                    ? "border-border-soft bg-surface-raised text-text-strong"
-                    : "border-border-soft bg-canvas text-text-soft")
+                "absolute -inset-1.5 rounded-full border-2 border-accent/30 " +
+                (reduce ? "" : "animate-pulse")
               }
-            >
-              {done ? (
-                <Check
-                  className="h-4 w-4 text-accent"
-                  strokeWidth={3}
-                  aria-hidden="true"
-                />
-              ) : active ? (
-                <BrandLoader size={16} label="Working" />
-              ) : (
-                <span className="h-4 w-4 rounded-full border border-border-soft" />
+            />
+          </div>
+          <div className="flex min-w-0 flex-col">
+            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+              Setting up · {chain.ticker}
+            </p>
+            <h1 className="mt-1.5 font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
+              Adding {chain.name}…
+            </h1>
+            <p className="mt-1 font-numerals text-xs tabular-nums text-text-soft">
+              {elapsedSecs}s elapsed
+              {elapsedSecs > 45 && (
+                <>
+                  {" · "}
+                  <span className="text-text-strong">
+                    Devnet is slower than usual today; still working.
+                  </span>
+                </>
               )}
-              {label}
-            </li>
-          );
-        })}
-      </ul>
+            </p>
+          </div>
+        </div>
+      </header>
+
+      <p className="max-w-xl text-sm text-text-soft sm:text-base">
+        This usually takes about 30 seconds. Hang tight; you don&rsquo;t need
+        to do anything. Don&rsquo;t close the tab.
+      </p>
+
+      {/* Progress steps card. Each step lights up as the DKG advances. */}
+      <section className="overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
+        <header className="border-b border-border-soft px-5 py-3 sm:px-6">
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            Progress
+          </p>
+        </header>
+        <ul className="divide-y divide-border-soft">
+          {steps.map((label, i) => {
+            const done = i < activeStep;
+            const active = i === activeStep;
+            return (
+              <li
+                key={label}
+                className={
+                  "flex items-center gap-3 px-5 py-3.5 text-sm transition-colors duration-base ease-out-soft sm:px-6 " +
+                  (done
+                    ? "bg-accent/[0.04] text-text-strong"
+                    : active
+                      ? "text-text-strong"
+                      : "text-text-soft")
+                }
+              >
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+                  {done ? (
+                    <Check
+                      className="h-4 w-4 text-accent"
+                      strokeWidth={3}
+                      aria-hidden="true"
+                    />
+                  ) : active ? (
+                    <BrandLoader size={16} label="Working" />
+                  ) : (
+                    <span className="h-2 w-2 rounded-full bg-border-soft" />
+                  )}
+                </span>
+                <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft tabular-nums">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span className="flex-1 leading-relaxed">{label}</span>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
     </motion.section>
   );
 }
@@ -424,30 +514,41 @@ function DoneStage({
       initial={reduce ? false : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col items-center gap-6 text-center"
+      className="flex flex-col gap-6"
     >
-      <motion.div
-        initial={reduce ? false : { scale: 0.6, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{
-          type: "spring",
-          damping: 18,
-          stiffness: 240,
-          delay: 0.05,
-        }}
-        className="flex h-20 w-20 items-center justify-center rounded-full bg-accent text-text-on-accent shadow-accent-rest"
-      >
-        <Check className="h-10 w-10" strokeWidth={2.5} />
-      </motion.div>
-      <div>
-        <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
-          {chain.name} is ready
-        </h1>
-        <p className="mt-2 max-w-md text-base text-text-soft">
-          {walletDisplay} can now send {chain.ticker} the same way it
-          sends Solana. Your friends approve, the network signs.
-        </p>
-      </div>
+      {/* Header strip — success chip + eyebrow + display title. */}
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+        <div className="flex min-w-0 items-center gap-4">
+          <motion.div
+            initial={reduce ? false : { scale: 0.6, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{
+              type: "spring",
+              damping: 18,
+              stiffness: 240,
+              delay: 0.05,
+            }}
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-accent text-text-on-accent shadow-accent-rest sm:h-16 sm:w-16"
+          >
+            <Check className="h-7 w-7 sm:h-8 sm:w-8" strokeWidth={2.5} />
+          </motion.div>
+          <div className="flex min-w-0 flex-col">
+            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
+              Done · {chain.ticker}
+            </p>
+            <h1 className="mt-1.5 font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
+              {chain.name} is ready
+            </h1>
+          </div>
+        </div>
+      </header>
+
+      <p className="max-w-xl text-sm text-text-soft sm:text-base">
+        {walletDisplay} can now send{" "}
+        <span className="text-text-strong">{chain.ticker}</span> the same way
+        it sends Solana. Your friends approve, the network signs.
+      </p>
+
       <Button size="lg" fullWidth onClick={onContinue}>
         Back to chains
         <ArrowRight className="h-4 w-4" aria-hidden="true" />

@@ -486,7 +486,7 @@ export default function WelcomePage() {
                         placeholder={currentShape.defaultName}
                         maxLength={57}
                         autoFocus
-                        className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-3 text-base text-white outline-none backdrop-blur-md transition-[border-color,box-shadow] duration-200 placeholder:text-white/30 focus:border-[#ccff00]/60 focus:shadow-[0_0_0_3px_rgba(204,255,0,0.15)] sm:px-4"
+                        className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-3 text-base text-white outline-none backdrop-blur-md transition-[border-color,box-shadow] duration-200 placeholder:text-white/30 focus:border-[#ccff00]/60 focus:shadow-[0_0_0_3px_rgba(204, 255, 0,0.15)] sm:px-4"
                       />
                     </div>
                   </div>
@@ -512,7 +512,7 @@ export default function WelcomePage() {
                                 "rounded-full border px-3.5 py-2 text-xs font-medium backdrop-blur-md transition-all duration-200 sm:py-1.5 " +
                                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ccff00]/50 " +
                                 (selected
-                                  ? "border-[#ccff00] bg-[#ccff00]/10 text-[#ccff00] shadow-[0_0_18px_rgba(204,255,0,0.18)]"
+                                  ? "border-[#ccff00] bg-[#ccff00]/10 text-[#ccff00] shadow-[0_0_18px_rgba(204, 255, 0,0.18)]"
                                   : "border-white/10 bg-white/[0.03] text-white/60 hover:border-white/30 hover:text-white")
                               }
                             >
@@ -601,7 +601,7 @@ export default function WelcomePage() {
                       stiffness: 220,
                       delay: 0.05,
                     }}
-                    className="mb-5 flex h-[72px] w-[72px] items-center justify-center rounded-full bg-[#ccff00] text-black shadow-[0_0_48px_rgba(204,255,0,0.55)] sm:mb-6 sm:h-20 sm:w-20"
+                    className="mb-5 flex h-[72px] w-[72px] items-center justify-center rounded-full bg-[#ccff00] text-black shadow-[0_0_48px_rgba(204, 255, 0,0.55)] sm:mb-6 sm:h-20 sm:w-20"
                   >
                     <Check className="h-9 w-9 sm:h-10 sm:w-10" strokeWidth={2.5} />
                   </motion.div>

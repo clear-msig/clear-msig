@@ -137,7 +137,7 @@ export function HeaderBar() {
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
           )}
         >
-          <span className="flex h-5 w-5 items-center justify-center text-accent drop-shadow-[0_0_6px_rgba(204,255,0,0.5)]">
+          <span className="flex h-5 w-5 items-center justify-center text-accent drop-shadow-[0_0_6px_rgba(204, 255, 0,0.5)]">
             <BrandMark size={18} />
           </span>
           Clear
@@ -155,7 +155,7 @@ export function HeaderBar() {
           transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
           className="flex items-center gap-2 md:hidden"
         >
-          <span className="flex h-6 w-6 items-center justify-center text-accent drop-shadow-[0_0_6px_rgba(204,255,0,0.5)]">
+          <span className="flex h-6 w-6 items-center justify-center text-accent drop-shadow-[0_0_6px_rgba(204, 255, 0,0.5)]">
             <BrandMark size={22} />
           </span>
           <span className="text-lg font-semibold tracking-tight text-text-strong">

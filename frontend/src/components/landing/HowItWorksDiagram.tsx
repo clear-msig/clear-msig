@@ -265,7 +265,7 @@ export function HowItWorksDiagram() {
           <use
             key={`u-out-${i}`}
             href={`#${ID.pOut(i)}`}
-            stroke="rgba(204,255,0,0.20)"
+            stroke="rgba(204, 255, 0,0.20)"
             strokeWidth="1.5"
             strokeDasharray="2 4"
             fill="none"
@@ -291,7 +291,7 @@ export function HowItWorksDiagram() {
               cy={WALLET.y}
               r="64"
               fill="none"
-              stroke="rgba(204,255,0,0.42)"
+              stroke="rgba(204, 255, 0,0.42)"
               strokeWidth="1.6"
             >
               <animate
@@ -318,7 +318,7 @@ export function HowItWorksDiagram() {
             cy={WALLET.y}
             r="64"
             fill="none"
-            stroke="rgba(204,255,0,0.30)"
+            stroke="rgba(204, 255, 0,0.30)"
             strokeWidth="1.2"
           />
           {/* Inner accent ring - solid lime tint at low opacity. */}
@@ -326,8 +326,8 @@ export function HowItWorksDiagram() {
             cx={WALLET.x}
             cy={WALLET.y}
             r="56"
-            fill="rgba(204,255,0,0.06)"
-            stroke="rgba(204,255,0,0.42)"
+            fill="rgba(204, 255, 0,0.06)"
+            stroke="rgba(204, 255, 0,0.42)"
             strokeWidth="1.6"
           />
           {/* Brand tile - bigger (60×60) so the mark reads at any
@@ -378,7 +378,7 @@ export function HowItWorksDiagram() {
               height="26"
               rx="13"
               fill="rgba(12,12,12,0.85)"
-              stroke="rgba(204,255,0,0.30)"
+              stroke="rgba(204, 255, 0,0.30)"
               strokeWidth="1"
             />
             <text
@@ -522,7 +522,7 @@ export function HowItWorksDiagram() {
         {AVATARS.map((_, i) => (
           <g key={`pulse-in-${i}`}>
             {/* Trailing glow halo */}
-            <circle r="6" fill="rgba(204,255,0,0.25)">
+            <circle r="6" fill="rgba(204, 255, 0,0.25)">
               <animateMotion
                 dur="1.4s"
                 repeatCount="indefinite"
@@ -545,7 +545,7 @@ export function HowItWorksDiagram() {
         ))}
         {CHAIN_POSITIONS.map((_, i) => (
           <g key={`pulse-out-${i}`}>
-            <circle r="6" fill="rgba(204,255,0,0.25)">
+            <circle r="6" fill="rgba(204, 255, 0,0.25)">
               <animateMotion
                 dur="1.7s"
                 repeatCount="indefinite"
@@ -593,10 +593,10 @@ function RowLabel({
   const isAccent = mode === "accent";
   const fg = isAccent ? "#ccff00" : "rgba(255,255,255,0.65)";
   const bg = isAccent
-    ? "rgba(204,255,0,0.08)"
+    ? "rgba(204, 255, 0,0.08)"
     : "rgba(12,12,12,0.85)";
   const stroke = isAccent
-    ? "rgba(204,255,0,0.30)"
+    ? "rgba(204, 255, 0,0.30)"
     : "rgba(255,255,255,0.10)";
   const text = `${n} · ${label}`;
   // Approximate width based on character count - 8.5px/char for

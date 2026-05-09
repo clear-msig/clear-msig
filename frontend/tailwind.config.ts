@@ -249,9 +249,9 @@ const config: Config = {
 
       backgroundImage: {
         "hero-grid":
-          "radial-gradient(circle at 50% 0%, rgba(204,255,0,0.10), transparent 60%)",
+          "radial-gradient(circle at 50% 0%, rgba(204, 255, 0,0.10), transparent 60%)",
         "hero-noise":
-          "linear-gradient(135deg, rgba(204,255,0,0.06) 0%, rgba(16,185,129,0.04) 100%)",
+          "linear-gradient(135deg, rgba(204, 255, 0,0.06) 0%, rgba(16,185,129,0.04) 100%)",
         "skeleton-shimmer":
           "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0) 100%)",
       },

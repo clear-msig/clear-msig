@@ -143,13 +143,13 @@ function ConnectPage() {
                   className="pointer-events-none absolute -right-24 -top-24 h-48 w-48 rounded-full opacity-50"
                   style={{
                     background:
-                      "radial-gradient(circle at center, rgba(204,255,0,0.18) 0%, rgba(204,255,0,0) 70%)",
+                      "radial-gradient(circle at center, rgba(204, 255, 0,0.18) 0%, rgba(204, 255, 0,0) 70%)",
                     filter: "blur(40px)",
                   }}
                 />
 
                 <div className="relative flex flex-col items-center text-center">
-                  <div className="mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[#ccff00]/10 text-[#ccff00] ring-1 ring-[#ccff00]/30 shadow-[0_0_24px_rgba(204,255,0,0.15)]">
+                  <div className="mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[#ccff00]/10 text-[#ccff00] ring-1 ring-[#ccff00]/30 shadow-[0_0_24px_rgba(204, 255, 0,0.15)]">
                     <ShieldCheck className="h-7 w-7" strokeWidth={1.75} />
                   </div>
                   <h2 className="mt-3 text-[clamp(1.75rem,3.5vw,2.5rem)] font-light leading-[1] tracking-[-0.03em] text-white">
@@ -276,7 +276,7 @@ function SignedInWaiting({ reduce }: { reduce: boolean }) {
                 stiffness: 220,
                 delay: 0.05,
               }}
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-[#ccff00] text-black shadow-[0_0_40px_rgba(204,255,0,0.5)]"
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-[#ccff00] text-black shadow-[0_0_40px_rgba(204, 255, 0,0.5)]"
             >
               <Check className="h-8 w-8" strokeWidth={2.5} aria-hidden="true" />
             </motion.div>
@@ -476,7 +476,7 @@ function LedgerConnectRow() {
             </span>
           </span>
         </span>
-        <span className="inline-flex items-center gap-1 rounded-full bg-[#ccff00] px-3 py-1 text-[11px] font-bold text-black shadow-[0_0_18px_rgba(204,255,0,0.35)]">
+        <span className="inline-flex items-center gap-1 rounded-full bg-[#ccff00] px-3 py-1 text-[11px] font-bold text-black shadow-[0_0_18px_rgba(204, 255, 0,0.35)]">
           {ledger.connecting ? (
             <>
               <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />

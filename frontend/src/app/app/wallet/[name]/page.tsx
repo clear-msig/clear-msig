@@ -618,9 +618,6 @@ function Hero({
   const balance =
     balanceLamports !== null ? formatBalance(balanceLamports) : null;
 
-  // Pull the picker output. Both fall back gracefully - wallets
-  // created before the appearance store existed get the
-  // deterministic gradient and no shape subtitle.
   const walletGrad = useMemo(
     () => gradientFor(name, avatarGradient(name)),
     [name],
@@ -630,23 +627,29 @@ function Hero({
     return a?.shape ? SHAPE_LABEL[a.shape] : null;
   }, [name]);
 
+  const encoded = encodeURIComponent(name);
+  const eyebrow = shapeLabel
+    ? `Shared wallet · ${shapeLabel}`
+    : "Shared wallet · Solana devnet";
+
   return (
     <motion.section
       {...motionProps}
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-rest"
+      className="flex flex-col gap-5"
     >
-      {/* ── Identity row ──────────────────────────────────────────
-          Left: avatar + eyebrow + display name. Right: member-link
-          (with avatar stack) + pending-approval pill. Mirrors the
-          left-aligned header pattern used on /wallet, /activity,
-          /contacts, /settings. */}
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 p-5 sm:p-6">
+      {/* ── Page header strip ───────────────────────────────────
+          Mirrors the secure / account / wizard headers — mono
+          eyebrow + display-sm title + chips row — so the workspace
+          reads as one product surface. Avatar disc anchors the
+          identity inline; chips on the trailing edge surface
+          members + pending approvals at a glance. */}
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div className="flex min-w-0 items-center gap-4">
           <span
             aria-hidden="true"
             className={
-              "flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-xl font-semibold text-white shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)] ring-1 ring-white/10 sm:h-16 sm:w-16 sm:text-2xl " +
+              "flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-xl font-semibold text-white shadow-[0_10px_28px_-10px_rgba(0,0,0,0.55)] ring-1 ring-white/10 sm:h-16 sm:w-16 sm:text-2xl " +
               walletGrad.from +
               " " +
               walletGrad.to
@@ -654,29 +657,29 @@ function Hero({
           >
             {name.trim().charAt(0).toUpperCase() || "?"}
           </span>
-          <div className="flex min-w-0 flex-col gap-1">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              {shapeLabel ? `${shapeLabel} · shared wallet` : "Shared wallet"}
+          <div className="flex min-w-0 flex-col">
+            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+              {eyebrow}
             </p>
-            <h1 className="hidden truncate font-display text-2xl font-semibold tracking-tight text-text-strong sm:text-3xl md:block">
+            <h1 className="mt-1.5 truncate font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
               {toHeadingName(name)}
             </h1>
           </div>
         </div>
-        <div className="flex flex-col items-start gap-2 sm:items-end">
+        <div className="flex flex-wrap items-center gap-2">
           <Link
-            href={`/app/wallet/${encodeURIComponent(name)}/members`}
+            href={`/app/wallet/${encoded}/members`}
             aria-label="View members"
             className={
-              "group inline-flex items-center gap-2 rounded-soft px-1 py-0.5 -mx-1 text-xs text-text-soft sm:text-sm " +
-              "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+              "group inline-flex min-h-tap items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-[11px] font-medium text-text-soft " +
+              "transition-[border-color,color,transform] duration-base ease-out-soft hover:-translate-y-0.5 hover:border-accent/40 hover:text-text-strong " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
             }
           >
             {loadingMembers ? (
               <>
-                <Users className="h-4 w-4" aria-hidden="true" />
-                <span className="inline-block h-4 w-20 animate-pulse rounded bg-border-soft" />
+                <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="inline-block h-3 w-16 animate-pulse rounded bg-border-soft" />
               </>
             ) : memberAddresses.length > 0 ? (
               <>
@@ -685,107 +688,139 @@ function Hero({
                   size="sm"
                   max={4}
                 />
-                <span>
-                  {memberCount} {memberCount === 1 ? "member" : "members"}
+                <span className="font-numerals tabular-nums">
+                  {memberCount}
                 </span>
-                <ArrowRight
-                  className="h-3.5 w-3.5 -ml-0.5 text-text-soft/60 transition-transform duration-base group-hover:translate-x-0.5"
-                  aria-hidden="true"
-                />
+                <span>{memberCount === 1 ? "member" : "members"}</span>
               </>
             ) : (
               <>
-                <Users className="h-4 w-4" aria-hidden="true" />
+                <Users className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>1 member</span>
               </>
             )}
+            <ArrowRight
+              className="h-3 w-3 text-text-soft/60 transition-transform duration-base group-hover:translate-x-0.5"
+              aria-hidden="true"
+            />
           </Link>
           {pendingApprovalCount > 0 && (
             <a
               href="#action-needed"
-              className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-2.5 py-1 text-[11px] font-semibold text-accent ring-1 ring-accent/30 transition-colors duration-base ease-out-soft hover:bg-accent/15"
+              className={
+                "inline-flex min-h-tap items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 text-[11px] font-semibold text-accent " +
+                "transition-[background-color,transform,border-color] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-accent/15 hover:border-accent/60 " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+              }
             >
               <span className="relative flex h-1.5 w-1.5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent/70 opacity-75" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
               </span>
               <Bell className="h-3 w-3" strokeWidth={2.5} />
-              {pendingApprovalCount} waiting on you
+              <span className="font-numerals tabular-nums">
+                {pendingApprovalCount}
+              </span>
+              <span>waiting on you</span>
             </a>
           )}
         </div>
-      </div>
+      </header>
 
-      <div className="border-t border-border-soft" />
-
-      {/* ── Portfolio + actions ──────────────────────────────────
-          Wallet value is the centerpiece - total USD across every
-          bound chain plus the per-chain breakdown. SOL stays as the
-          primary number for single-chain wallets; multi-chain wallets
-          get the aggregate as the headline. Demo prices today
-          (priceConversion.ts is a stub); the disclaimer keeps the
-          UI honest. */}
-      <div className="flex flex-col gap-5 p-5 sm:p-6">
-        <PortfolioPanel
-          walletName={name}
-          fallbackBalance={balance}
-          loadingFallback={loadingBalance}
-        />
-
+      {/* ── Balance + actions card ──────────────────────────────
+          Wallet value as the focal headline; the three primary
+          actions (Send / Receive / Policies) sit underneath as
+          first-class affordances. A soft accent bloom in the
+          top-right lifts the card off the canvas without
+          competing with the number. */}
+      <div className="relative overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
         <div
-          className="grid grid-cols-3 gap-2"
-          role="group"
-          aria-label="Wallet actions"
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-0"
         >
-          <HeroActionTile
-            href={`/app/wallet/${encodeURIComponent(name)}/send`}
-            icon={<Send className="h-5 w-5" strokeWidth={1.75} />}
-            label="Send"
+          <div
+            className="absolute -right-24 -top-24 h-60 w-60 rounded-full opacity-50"
+            style={{
+              background:
+                "radial-gradient(circle at center, rgba(204, 255, 0, 0.08) 0%, rgba(204, 255, 0, 0) 70%)",
+              filter: "blur(60px)",
+            }}
           />
-          <HeroActionTile
-            href={`/app/wallet/${encodeURIComponent(name)}/receive`}
-            icon={<Download className="h-5 w-5" strokeWidth={1.75} />}
-            label="Receive"
+        </div>
+        <div className="relative z-10 flex flex-col gap-6 p-5 sm:p-7">
+          <PortfolioPanel
+            walletName={name}
+            fallbackBalance={balance}
+            loadingFallback={loadingBalance}
           />
-          <HeroActionTile
-            href={`/app/wallet/${encodeURIComponent(name)}/policies`}
-            icon={<ShieldCheck className="h-5 w-5" strokeWidth={1.75} />}
-            label="Policies"
-          />
+
+          <div
+            className="grid grid-cols-3 gap-2 sm:gap-3"
+            role="group"
+            aria-label="Wallet actions"
+          >
+            <HeroActionTile
+              href={`/app/wallet/${encoded}/send`}
+              icon={<Send className="h-5 w-5" strokeWidth={1.75} />}
+              label="Send"
+              hint="Pay anyone"
+            />
+            <HeroActionTile
+              href={`/app/wallet/${encoded}/receive`}
+              icon={<Download className="h-5 w-5" strokeWidth={1.75} />}
+              label="Receive"
+              hint="Get paid"
+            />
+            <HeroActionTile
+              href={`/app/wallet/${encoded}/policies`}
+              icon={<ShieldCheck className="h-5 w-5" strokeWidth={1.75} />}
+              label="Policies"
+              hint="Spending rules"
+            />
+          </div>
         </div>
       </div>
     </motion.section>
   );
 }
 
-// Hero primary-action tile. ≥64px tap target, accent icon disc,
-// flat surface that matches the kit's section card vocabulary
-// (rounded-card / border-border-soft / bg-canvas). Hover swaps the
-// border to accent and lifts; no neon glow.
+// Hero primary-action tile. ≥80px tap target, accent icon disc,
+// label + optional small hint. Matches the kit's section card
+// vocabulary (rounded-card / border-border-soft / bg-canvas).
+// Hover swaps the border to accent and lifts; no neon glow.
 function HeroActionTile({
   href,
   icon,
   label,
+  hint,
 }: {
   href: string;
   icon: React.ReactNode;
   label: string;
+  hint?: string;
 }) {
   return (
     <Link
       href={href}
       className={
-        "group flex min-h-[80px] flex-col items-center justify-center gap-2 rounded-card border border-border-soft bg-canvas px-3 py-3 " +
+        "group flex min-h-[88px] flex-col items-center justify-center gap-1.5 rounded-card border border-border-soft bg-canvas px-3 py-3.5 " +
         "text-xs font-medium text-text-strong shadow-card-rest " +
-        "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
-        "hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-card-raised " +
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+        "transition-[transform,border-color,box-shadow,background-color] duration-base ease-out-soft " +
+        "hover:-translate-y-0.5 hover:border-accent/40 hover:bg-canvas hover:shadow-card-raised " +
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
       }
     >
       <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/10 text-accent transition-colors duration-base ease-out-soft group-hover:bg-accent/15">
         {icon}
       </span>
-      <span>{label}</span>
+      <span className="text-[13px] font-semibold leading-none text-text-strong">
+        {label}
+      </span>
+      {hint && (
+        <span className="hidden text-[10px] font-medium uppercase tracking-[0.16em] text-text-soft sm:inline">
+          {hint}
+        </span>
+      )}
     </Link>
   );
 }
@@ -818,18 +853,18 @@ function PortfolioPanel({
     // Bumped the value to display-sm so the headline number leads
     // the hero - this is the centerpiece, not a stat.
     return (
-      <div className="flex flex-col items-start gap-1.5">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+      <div className="flex flex-col items-start gap-2">
+        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
           Balance
         </p>
         {loadingFallback ? (
-          <div className="h-10 w-48 animate-pulse rounded bg-border-soft" />
+          <div className="h-11 w-56 animate-pulse rounded bg-border-soft" />
         ) : (
           <p className="flex items-baseline gap-2">
-            <span className="font-numerals text-3xl font-semibold leading-none tracking-tight text-text-strong tabular-nums sm:text-4xl">
+            <span className="font-numerals text-display-sm font-semibold leading-none tracking-[-0.02em] text-text-strong tabular-nums">
               {fallbackBalance ? fallbackBalance.amount : "0"}
             </span>
-            <span className="font-display text-sm font-semibold uppercase tracking-[0.16em] text-text-soft">
+            <span className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-text-soft">
               {fallbackBalance?.ticker ?? "SOL"}
             </span>
           </p>
@@ -838,36 +873,49 @@ function PortfolioPanel({
     );
   }
 
-  const breakdownText = portfolio.breakdown
+  const breakdownChips = portfolio.breakdown
     .filter((c) => c.raw !== null)
     .map((c) => {
       const meta = chainByKindOnce(c.kind);
       if (!meta) return null;
-      const amount = formatChainAmount(c.raw!, meta.smallestPerWhole, meta.displayDecimals);
-      return `${amount} ${c.ticker}`;
+      const amount = formatChainAmount(
+        c.raw!,
+        meta.smallestPerWhole,
+        meta.displayDecimals,
+      );
+      return { kind: c.kind, ticker: c.ticker, amount };
     })
-    .filter((s): s is string => s !== null)
-    .join(" · ");
+    .filter((c): c is { kind: number; ticker: string; amount: string } => c !== null);
 
   return (
-    <div className="flex flex-col items-start gap-1.5">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+    <div className="flex flex-col items-start gap-2">
+      <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
         Wallet value
       </p>
       {portfolio.isLoading && portfolio.totalUsd === 0 ? (
-        <div className="h-10 w-48 animate-pulse rounded bg-border-soft" />
+        <div className="h-11 w-56 animate-pulse rounded bg-border-soft" />
       ) : (
         <>
-          <p className="font-numerals text-3xl font-semibold leading-none tracking-tight text-text-strong tabular-nums sm:text-4xl">
+          <p className="font-numerals text-display-sm font-semibold leading-none tracking-[-0.02em] text-text-strong tabular-nums">
             {fiat.format(portfolio.totalUsd)}
           </p>
-          {breakdownText && (
-            <p className="font-numerals text-xs text-text-soft tabular-nums">
-              {breakdownText}
-            </p>
+          {breakdownChips.length > 0 && (
+            <ul className="mt-1 flex flex-wrap items-center gap-1.5">
+              {breakdownChips.map((c) => (
+                <li
+                  key={c.kind}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-canvas px-2 py-0.5 font-numerals text-[11px] tabular-nums text-text-soft"
+                >
+                  <span className="text-text-strong">{c.amount}</span>
+                  <span className="text-[10px] uppercase tracking-[0.18em]">
+                    {c.ticker}
+                  </span>
+                </li>
+              ))}
+            </ul>
           )}
           <p
-            className="text-[10px] uppercase tracking-[0.24em] text-text-soft"
+            className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft"
             title="Prices are demo values today (priceConversion.ts is a stub). Treat as a sketch, not a quote."
           >
             demo prices
@@ -1365,61 +1413,65 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
       id="action-needed"
       {...motionProps}
       transition={{ duration: 0.2 }}
-      className="rounded-card border border-accent/40 bg-surface-raised p-5 shadow-card-rest scroll-mt-24"
+      className="overflow-hidden rounded-card border border-accent/40 bg-surface-raised shadow-card-rest scroll-mt-24"
     >
-      <header className="flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2.5 text-sm font-medium text-text-strong">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent/10 text-accent">
-            <Bell className="h-3.5 w-3.5" strokeWidth={2} />
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-accent/20 bg-accent/[0.04] px-5 py-3">
+        <span className="inline-flex items-center gap-2">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/15 text-accent">
+            <Bell className="h-3 w-3" strokeWidth={2.25} />
           </span>
-          Needs your approval
-        </h2>
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-soft">{rows.length} pending</span>
-          {showApproveAll && (
-            <BadgePill onClick={handleApproveAll} disabled={running}>
-              {running ? "Approving…" : "Approve all"}
-            </BadgePill>
-          )}
-        </div>
+          <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
+            Needs your approval
+          </span>
+          <span className="font-numerals text-[11px] font-semibold tabular-nums text-text-strong">
+            {rows.length}
+          </span>
+        </span>
+        {showApproveAll && (
+          <BadgePill onClick={handleApproveAll} disabled={running}>
+            {running ? "Approving…" : "Approve all"}
+          </BadgePill>
+        )}
       </header>
 
-      {batch.progress && (
-        <BatchProgressRow progress={batch.progress} onDismiss={batch.reset} />
-      )}
-      {!batch.progress && rows.length > 0 && (
-        <p className="mt-2 text-[11px] text-text-soft">
-          Approving fires one wallet popup per request. Tap Approve in each.
-        </p>
-      )}
+      <div className="px-5 py-4">
+        {batch.progress && (
+          <BatchProgressRow progress={batch.progress} onDismiss={batch.reset} />
+        )}
+        {!batch.progress && rows.length > 0 && (
+          <p className="text-[11px] text-text-soft">
+            Approving fires one wallet popup per request. Tap Approve in each.
+          </p>
+        )}
 
-      <ul className="mt-3 flex flex-col divide-y divide-border-soft">
-        {rows.map((row) => (
-          <li key={row.proposalPda}>
-            <Link
-              href={`/app/proposals/${row.proposalPda}`}
-              className={
-                "group flex items-center justify-between gap-3 rounded-soft px-2 py-3 -mx-2 " +
-                "transition-colors duration-base ease-out-soft hover:bg-canvas " +
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-              }
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-text-strong">
-                  {friendlyIntentLabel(row.intentTemplate)}
-                </p>
-                <p className="mt-0.5 truncate font-mono text-[11px] text-text-soft">
-                  {row.approvalsCollected} of {row.approverCount} approved
-                </p>
-              </div>
-              <ArrowRight
-                className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
-                aria-hidden="true"
-              />
-            </Link>
-          </li>
-        ))}
-      </ul>
+        <ul className="mt-3 flex flex-col divide-y divide-border-soft">
+          {rows.map((row) => (
+            <li key={row.proposalPda}>
+              <Link
+                href={`/app/proposals/${row.proposalPda}`}
+                className={
+                  "group flex items-center justify-between gap-3 rounded-soft px-2 py-3 -mx-2 " +
+                  "transition-colors duration-base ease-out-soft hover:bg-canvas " +
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+                }
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-text-strong">
+                    {friendlyIntentLabel(row.intentTemplate)}
+                  </p>
+                  <p className="mt-0.5 truncate font-mono text-[11px] text-text-soft">
+                    {row.approvalsCollected} of {row.approverCount} approved
+                  </p>
+                </div>
+                <ArrowRight
+                  className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
+                  aria-hidden="true"
+                />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
     </motion.section>
   );
 }
@@ -1674,53 +1726,39 @@ function ActivityEmptyState({ reduce }: { reduce: boolean }) {
 
 // ─── Loading + not-found ───────────────────────────────────────────
 
-// Geometry-matched detail skeleton - Hero (avatar + identity left,
-// members on the right, portfolio block, 3-up action tiles) so the
-// loading state doesn't reflow when the real Hero hydrates.
+// Geometry-matched detail skeleton - mirrors the Hero's header
+// strip + balance card + action tiles so the loading state doesn't
+// reflow when the real Hero hydrates.
 function DetailSkeleton() {
   return (
-    <div aria-hidden="true" className="flex flex-col gap-6">
-      {/* Sticky-bar back link placeholder. */}
-      <div className="-ml-2 h-7 w-24 animate-pulse rounded bg-border-soft" />
-
-      {/* Hero card - left-aligned identity row + members meta + portfolio + 3 tiles. */}
-      <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
-        {/* Top row: avatar + eyebrow + headline | members meta */}
-        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-          <div className="flex items-start gap-3">
-            <div className="h-12 w-12 animate-pulse rounded-2xl bg-border-soft" />
-            <div className="flex flex-col gap-2">
-              <div className="h-3 w-32 animate-pulse rounded bg-border-soft/60" />
-              <div className="h-7 w-48 animate-pulse rounded bg-border-soft" />
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex -space-x-2">
-              <div className="h-6 w-6 animate-pulse rounded-full border-2 border-surface-raised bg-border-soft" />
-              <div className="h-6 w-6 animate-pulse rounded-full border-2 border-surface-raised bg-border-soft/80" />
-              <div className="h-6 w-6 animate-pulse rounded-full border-2 border-surface-raised bg-border-soft/60" />
-            </div>
-            <div className="h-4 w-20 animate-pulse rounded bg-border-soft/60" />
+    <div aria-hidden="true" className="flex flex-col gap-5">
+      {/* Header strip - avatar + eyebrow + title | chips */}
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+        <div className="flex items-center gap-4">
+          <div className="h-14 w-14 animate-pulse rounded-2xl bg-border-soft sm:h-16 sm:w-16" />
+          <div className="flex flex-col gap-2">
+            <div className="h-3 w-44 animate-pulse rounded bg-border-soft/60" />
+            <div className="h-8 w-56 animate-pulse rounded bg-border-soft sm:h-10 sm:w-64" />
           </div>
         </div>
-        {/* Portfolio block - eyebrow + headline + breakdown line. */}
-        <div className="mt-5 flex flex-col gap-2">
-          <div className="h-3 w-20 animate-pulse rounded bg-border-soft/60" />
-          <div className="h-8 w-32 animate-pulse rounded bg-border-soft" />
-          <div className="h-3 w-40 animate-pulse rounded bg-border-soft/50" />
-        </div>
-        {/* 3-up Hero action tiles - match the live Hero. */}
-        <div className="mt-5 grid w-full grid-cols-3 gap-2">
-          <div className="h-[80px] animate-pulse rounded-card border border-border-soft bg-canvas" />
-          <div className="h-[80px] animate-pulse rounded-card border border-border-soft bg-canvas" />
-          <div className="h-[80px] animate-pulse rounded-card border border-border-soft bg-canvas" />
+        <div className="flex items-center gap-2">
+          <div className="h-7 w-28 animate-pulse rounded-full bg-border-soft/70" />
+          <div className="h-7 w-32 animate-pulse rounded-full bg-border-soft/60" />
         </div>
       </div>
 
-      {/* Quick actions card - 2-up grid below the hero. */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="h-tap-lg animate-pulse rounded-soft bg-border-soft" />
-        <div className="h-tap-lg animate-pulse rounded-soft bg-border-soft" />
+      {/* Balance card - portfolio headline + 3-up action tiles. */}
+      <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-7">
+        <div className="flex flex-col gap-2">
+          <div className="h-3 w-20 animate-pulse rounded bg-border-soft/60" />
+          <div className="h-10 w-48 animate-pulse rounded bg-border-soft" />
+          <div className="h-3 w-40 animate-pulse rounded bg-border-soft/50" />
+        </div>
+        <div className="mt-6 grid w-full grid-cols-3 gap-2 sm:gap-3">
+          <div className="h-[88px] animate-pulse rounded-card border border-border-soft bg-canvas" />
+          <div className="h-[88px] animate-pulse rounded-card border border-border-soft bg-canvas" />
+          <div className="h-[88px] animate-pulse rounded-card border border-border-soft bg-canvas" />
+        </div>
       </div>
     </div>
   );
