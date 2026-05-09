@@ -22,7 +22,6 @@ import { useQuery } from "@tanstack/react-query";
 import { PublicKey } from "@solana/web3.js";
 import { QRCodeSVG } from "qrcode.react";
 import {
-  ArrowLeft,
   ArrowRight,
   ArrowUpRight,
   Check,
@@ -35,10 +34,10 @@ import {
   Lock,
   RefreshCw,
   ShieldAlert,
+  Users,
 } from "lucide-react";
 import { useState } from "react";
 import { useConnection, useWallet } from "@/lib/wallet";
-import { PageEyebrow } from "@/components/retail/PageEyebrow";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { fetchVault } from "@/lib/ikavery/clearmsig-actions";
 import { loadAttestation } from "@/lib/ikavery/clearmsig-attestations";
@@ -155,16 +154,7 @@ function SecureRecoveryPage() {
 
   if (!recoveryPk) {
     return (
-      <div className="flex flex-col gap-6">
-        <div className="px-gutter">
-          <Link
-            href="/app/secure"
-            className="inline-flex items-center gap-1.5 text-xs text-text-soft hover:text-text-strong"
-          >
-            <ArrowLeft className="h-3 w-3" aria-hidden="true" />
-            Back to Secure
-          </Link>
-        </div>
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-gutter">
         <p className="text-sm text-text-soft">Invalid vault address.</p>
       </div>
     );
@@ -174,22 +164,23 @@ function SecureRecoveryPage() {
   const recoveryShort = `${recoveryStr.slice(0, 4)}…${recoveryStr.slice(-4)}`;
 
   return (
-    <motion.div {...fadeIn(0)} className="flex flex-col gap-8">
-      <div className="px-gutter">
-        <Link
-          href="/app/secure"
-          className="inline-flex items-center gap-1.5 text-xs text-text-soft hover:text-text-strong"
-        >
-          <ArrowLeft className="h-3 w-3" aria-hidden="true" />
-          Back to Secure
-        </Link>
-      </div>
-
-      <PageEyebrow label="Vault · powered by Ika" align="center">
-        <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
+    <motion.div
+      {...fadeIn(0)}
+      className="mx-auto flex w-full max-w-3xl flex-col gap-8"
+    >
+      {/* Page hero - mono eyebrow + display title + chips row.
+          Mirrors the Account / Secure / Wizard headers so the
+          workspace reads as one product surface. The Header bar's
+          back button handles back-navigation; no inline back link
+          here. */}
+      <header className="px-gutter">
+        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+          Vault · powered by Ika
+        </p>
+        <h1 className="mt-2 font-display text-display-sm leading-[1.05] tracking-[-0.02em] text-text-strong">
           Vault {recoveryShort}
         </h1>
-        <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+        <div className="mt-4 flex flex-wrap items-center gap-2">
           <CopyAddressPill address={recoveryStr} />
           <a
             href={`https://explorer.solana.com/address/${recoveryStr}?cluster=devnet`}
@@ -205,7 +196,7 @@ function SecureRecoveryPage() {
             <ExternalLink className="h-3 w-3" aria-hidden="true" />
           </a>
         </div>
-      </PageEyebrow>
+      </header>
 
       {vaultQuery.isLoading && (
         <div className="flex items-center justify-center gap-2 py-8 text-sm text-text-soft">
@@ -252,6 +243,7 @@ function SecureRecoveryPage() {
             <Stat
               label="Threshold"
               value={`${vault.account.threshold} of ${vault.account.members.length}`}
+              accent
             />
             <Stat
               label="Sweeps proposed"
@@ -263,11 +255,26 @@ function SecureRecoveryPage() {
             />
           </section>
 
-          <section>
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Members · {vault.account.members.length}
-            </p>
-            <ul className="flex flex-col gap-2">
+          {/* Members card - header strip + ordered roster. Wrapping
+              the list in a single bordered card with a divide-y body
+              reads as a refined spec sheet rather than scattered rows. */}
+          <section className="overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
+            <header className="flex items-center justify-between border-b border-border-soft px-5 py-3 sm:px-6">
+              <span className="inline-flex items-center gap-2">
+                <Users
+                  className="h-3.5 w-3.5 text-text-soft"
+                  strokeWidth={1.75}
+                  aria-hidden="true"
+                />
+                <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+                  Members
+                </span>
+              </span>
+              <span className="font-numerals text-[11px] font-semibold tabular-nums text-text-strong">
+                {vault.account.members.length}
+              </span>
+            </header>
+            <ul className="divide-y divide-border-soft">
               {vault.account.members.map((slot, i) => (
                 <MemberRow
                   key={i}
@@ -310,16 +317,15 @@ function SecureRecoveryPage() {
             </section>
           )}
 
-          {/* Action cards - Add device wired in v3b, Sweep wired in
-              v3c (propose only; execute defers to upstream until the
-              Ika dWallet on-chain coordinator binding lands). The
-              card design mirrors the empty-state CTA on /app/secure:
-              accent rule + caps eyebrow + headline + detail. */}
+          {/* Action cards - Add device + Sweep. Eyebrow uses the
+              clean "Action · device" style instead of the casual
+              `// 04 ·` slash form so the card reads as a real
+              product affordance. */}
           <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <ActionCard
               href={`/app/secure/${encodeURIComponent(recoveryStr)}/enroll`}
               Icon={Fingerprint}
-              eyebrow="// 04 · device"
+              eyebrow="Action · device"
               title="Add a passkey"
               body="Enroll a Touch ID, Face ID, or security key on this device. One signature, on-chain in seconds."
               cta="Enroll"
@@ -327,7 +333,7 @@ function SecureRecoveryPage() {
             <ActionCard
               href={`/app/secure/${encodeURIComponent(recoveryStr)}/sweep`}
               Icon={KeyRound}
-              eyebrow="// 05 · sweep"
+              eyebrow="Action · sweep"
               title="Sweep funds"
               body="Authorise a transfer of funds from the dWallet to a destination wallet, signed by your threshold."
               cta="Open"
@@ -355,20 +361,22 @@ function SecureRecoveryPage() {
               )}
           </section>
 
+          {/* Pre-alpha disclosure - lighter treatment, neutral
+              surface with the warning icon carrying the tone. */}
           <motion.aside
-            {...fadeIn(0.20)}
-            className="flex items-start gap-3 rounded-card border border-warning/40 bg-warning/[0.06] p-4 text-sm text-text-soft sm:p-5"
+            {...fadeIn(0.2)}
+            className="flex items-start gap-3 rounded-card border border-border-soft bg-surface-raised/60 p-4 text-xs text-text-soft sm:p-5"
           >
             <ShieldAlert
-              className="mt-0.5 h-5 w-5 shrink-0 text-warning"
+              className="mt-0.5 h-4 w-4 shrink-0 text-warning"
               strokeWidth={2}
               aria-hidden="true"
             />
-            <p className="leading-snug">
+            <p className="leading-relaxed">
               <span className="font-medium text-text-strong">Pre-alpha.</span>{" "}
-              The dWallet was minted by Ika&rsquo;s pre-alpha network and lives
-              on-chain. Device enrollment and in-app sweep are the next pieces
-              landing; until then, sweeps work upstream at{" "}
+              The dWallet was minted by Ika&rsquo;s pre-alpha network and
+              lives on-chain. Device enrollment and in-app sweep are the
+              next pieces landing; until then, sweeps work upstream at{" "}
               <a
                 href={IKAVERY_LIVE}
                 target="_blank"
@@ -595,13 +603,31 @@ function ProposalRow({ entry }: { entry: ProposalEntry }) {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+}) {
   return (
-    <div className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+    <div
+      className={
+        "rounded-card border bg-surface-raised p-5 shadow-card-rest " +
+        (accent ? "border-accent/40" : "border-border-soft")
+      }
+    >
+      <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
         {label}
       </p>
-      <p className="mt-1 font-numerals text-xl font-semibold text-text-strong tabular-nums">
+      <p
+        className={
+          "mt-2 font-numerals text-2xl font-semibold tabular-nums " +
+          (accent ? "text-accent" : "text-text-strong")
+        }
+      >
         {value}
       </p>
     </div>
@@ -658,23 +684,23 @@ function MemberRow({ index, slot, isUser }: MemberRowProps) {
   return (
     <li
       className={
-        "flex items-center gap-3 rounded-card border bg-surface-raised p-3 shadow-card-rest " +
-        (isUser ? "border-accent/40" : "border-border-soft")
+        "flex items-center gap-3 px-5 py-3 sm:px-6 " +
+        (isUser ? "bg-accent/[0.03]" : "")
       }
     >
       <MemberAvatar address={address || `slot-${index}`} size="md" />
-      <span className="flex min-w-0 flex-1 flex-col">
+      <span className="flex min-w-0 flex-1 flex-col leading-tight">
         <span className="flex items-center gap-2">
-          <span className="font-display text-sm font-semibold text-text-strong">
+          <span className="truncate font-display text-[14px] font-semibold tracking-[-0.01em] text-text-strong">
             {short}
           </span>
           {isUser && (
-            <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
+            <span className="rounded-full bg-accent/10 px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-accent">
               You
             </span>
           )}
         </span>
-        <span className="text-[11px] text-text-soft">
+        <span className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.16em] text-text-soft">
           {label} · slot{" "}
           <span className="font-numerals tabular-nums">{index}</span>
         </span>
@@ -686,8 +712,8 @@ function MemberRow({ index, slot, isUser }: MemberRowProps) {
           aria-label={`Copy ${label}`}
           title={`Copy ${address}`}
           className={
-            "inline-flex h-tap w-tap shrink-0 items-center justify-center rounded-soft text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:bg-canvas hover:text-text-strong " +
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border-soft bg-canvas text-text-soft " +
+            "transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent " +
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
           }
         >
@@ -721,23 +747,28 @@ function ActionCard({
     <Link
       href={href}
       className={
-        "group flex flex-col rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest " +
+        "group flex flex-col rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6 " +
         "transition-[border-color,box-shadow,transform] duration-base ease-out-soft " +
         "hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-card-raised " +
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
       }
     >
-      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/10 text-accent">
-        <Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+      <span
+        aria-hidden="true"
+        className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/[0.08] text-accent ring-1 ring-accent/20"
+      >
+        <Icon className="h-5 w-5" strokeWidth={1.75} />
       </span>
-      <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+      <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.22em] text-text-soft">
         {eyebrow}
       </p>
-      <h3 className="mt-1 font-display text-base font-semibold text-text-strong">
+      <h3 className="mt-1.5 font-display text-base font-semibold tracking-[-0.01em] text-text-strong">
         {title}
       </h3>
-      <p className="mt-1.5 text-sm text-text-soft text-pretty">{body}</p>
-      <span className="mt-3 inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-accent">
+      <p className="mt-2 text-[13.5px] leading-relaxed text-text-soft text-pretty">
+        {body}
+      </p>
+      <span className="mt-4 inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
         {cta}
         <ArrowRight
           className="h-3 w-3 transition-transform duration-base ease-out-soft group-hover:translate-x-0.5"
@@ -811,7 +842,7 @@ function CopyAddressPill({ address }: { address: string }) {
       onClick={handleCopy}
       title={`Copy ${address}`}
       className={
-        "mt-3 inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 font-mono text-[11px] text-text-soft " +
+        "inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 font-mono text-[11px] text-text-soft " +
         "transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent " +
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
       }

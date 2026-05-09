@@ -27,6 +27,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useWallet } from "@/lib/wallet";
 import {
   Activity as ActivityIcon,
+  ArrowLeft,
   ChevronsLeft,
   ChevronsRight,
   Contact as ContactIcon,
@@ -35,8 +36,11 @@ import {
   Plus,
   Search,
   Settings,
+  Shield,
   ShieldCheck,
   UserCircle2,
+  Users,
+  Wallet as WalletIcon,
   type LucideIcon,
 } from "lucide-react";
 import { openCommandPalette } from "@/components/layout/CommandPalette";
@@ -115,68 +119,79 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
         onToggle={sidebar?.toggleExpanded}
       />
 
-      {/* Workspace actions - global Search trigger + New shared
-          wallet CTA. Lives near the top so the user's first instinct
-          ("I want to find or create something") is reachable in
-          two pixels. Moved here from the desktop top header so the
-          header can own the wallet-connection state instead. */}
-      <WorkspaceActions expanded={expanded} onNavigate={onNavigate} />
-
-      {/* Primary navigation - the four cross-cutting destinations a
-          user can reach without drilling into a specific wallet. The
-          desktop top header is dedicated to back-navigation, so this
-          rail owns the section-jump job. The Home tab carries the
-          same pending-approvals badge BottomNav surfaces on mobile. */}
-      <PrimaryNav
-        pathname={pathname}
-        expanded={expanded}
-        pendingCount={pendingCount}
-        onNavigate={onNavigate}
-      />
-
-      {/* Wallet list. Hidden on the dashboard (/app/wallet) where the
-          page already renders the same wallets as cards with richer
-          info. On every other /app/* route the user has drilled into
-          one wallet and needs cross-wallet navigation back in the
-          sidebar. */}
-      {pathname !== "/app/wallet" && (
-        <SidebarSection
-          label="Your wallets"
-          count={memberships.length}
-          loading={myOrganizationsQuery.isLoading}
+      {/* Two layout paths in one sidebar:
+       *   • Inside a wallet (`activeWalletSlug` set) - the sidebar
+       *     becomes wallet-scoped: back link to the hub, active
+       *     wallet identity card, and a focused sub-nav. Hides the
+       *     global workspace chrome so the user feels they're
+       *     "inside" the wallet.
+       *   • Anywhere else - the standard workspace chrome (search +
+       *     new + primary nav + wallets list + Secure promo). */}
+      {activeWalletSlug ? (
+        <WalletScopedSidebar
+          slug={activeWalletSlug}
+          pathname={pathname}
           expanded={expanded}
-        >
-          {memberships.length === 0 && !myOrganizationsQuery.isLoading ? (
-            expanded ? (
-              <p className="px-2 text-[11px] text-text-soft">
-                {wallet.connected
-                  ? "No wallets yet. Create one above."
-                  : "Connect to see your wallets."}
-              </p>
-            ) : null
-          ) : (
-            <ul className="flex flex-col gap-0.5">
-              {memberships.map((m) => (
-                <SidebarOrgLink
-                  key={m.wallet}
-                  membership={m}
-                  pathname={pathname}
-                  pendingCount={recent.pendingByWallet.get(m.wallet) ?? 0}
-                  onNavigate={onNavigate}
-                  expanded={expanded}
-                />
-              ))}
-            </ul>
-          )}
-        </SidebarSection>
-      )}
+          onNavigate={onNavigate}
+        />
+      ) : (
+        <>
+          {/* Workspace actions - global Search trigger + New shared
+              wallet CTA. Lives near the top so the user's first
+              instinct ("I want to find or create something") is
+              reachable in two pixels. */}
+          <WorkspaceActions expanded={expanded} onNavigate={onNavigate} />
 
-      {/* Secure promo card - discovery surface for the ikavery
-          companion product. Expanded mode only; rail mode uses the
-          dedicated icon in the bottom group below so the entry never
-          disappears when the sidebar collapses. */}
-      {expanded && (
-        <SecurePromoCard pathname={pathname} onNavigate={onNavigate} />
+          {/* Primary navigation - the four cross-cutting
+              destinations a user can reach without drilling into a
+              specific wallet. */}
+          <PrimaryNav
+            pathname={pathname}
+            expanded={expanded}
+            pendingCount={pendingCount}
+            onNavigate={onNavigate}
+          />
+
+          {/* Wallet list - the entry point into a wallet's own
+              layout. Tapping a row swaps the sidebar to the wallet-
+              scoped variant above. */}
+          <SidebarSection
+            label="Your wallets"
+            count={memberships.length}
+            loading={myOrganizationsQuery.isLoading}
+            expanded={expanded}
+          >
+            {memberships.length === 0 && !myOrganizationsQuery.isLoading ? (
+              expanded ? (
+                <p className="px-2 text-[11px] text-text-soft">
+                  {wallet.connected
+                    ? "No wallets yet. Create one above."
+                    : "Connect to see your wallets."}
+                </p>
+              ) : null
+            ) : (
+              <ul className="flex flex-col gap-0.5">
+                {memberships.map((m) => (
+                  <SidebarOrgLink
+                    key={m.wallet}
+                    membership={m}
+                    pathname={pathname}
+                    pendingCount={recent.pendingByWallet.get(m.wallet) ?? 0}
+                    onNavigate={onNavigate}
+                    expanded={expanded}
+                  />
+                ))}
+              </ul>
+            )}
+          </SidebarSection>
+
+          {/* Secure promo card - discovery surface for the ikavery
+              companion product. Expanded mode only; rail mode uses
+              the dedicated icon in the bottom group below. */}
+          {expanded && (
+            <SecurePromoCard pathname={pathname} onNavigate={onNavigate} />
+          )}
+        </>
       )}
 
       <div
@@ -212,32 +227,10 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
             <ShieldCheck size={16} className="shrink-0" />
           </Link>
         )}
-        {/* Chains - wallet-scoped entry. Only renders when the
-            user is inside a /app/wallet/{name}/... route so the
-            link has a real target. Was the most-flagged "I can't
-            find where to add a chain" surface; lives here next to
-            Settings so it sits in the menu icon row on rail mode
-            too (icon-only sidebar) - discoverable from anywhere
-            inside a wallet without drilling through the Manage
-            tab. */}
-        {activeWalletSlug && (
-          <Link
-            href={`/app/wallet/${encodeURIComponent(activeWalletSlug)}/chains`}
-            onClick={onNavigate}
-            aria-label="Chains for this wallet"
-            title="Chains for this wallet"
-            className={clsx(
-              "inline-flex items-center text-xs font-medium transition-colors duration-base ease-out-soft",
-              expanded ? "gap-3 rounded-xl px-3 py-2" : "h-10 w-10 justify-center rounded-soft",
-              pathname.includes("/chains")
-                ? "bg-accent/10 text-accent"
-                : "text-text-soft hover:bg-glass-mid hover:text-text-strong",
-            )}
-          >
-            <Layers size={14} className="shrink-0" />
-            {expanded && <span>Chains</span>}
-          </Link>
-        )}
+        {/* Chains used to live here as a wallet-scoped shortcut.
+            It now lives inside WalletScopedSidebar's sub-nav so the
+            entry is part of the wallet's own layout, not bolted on
+            to the workspace footer. */}
       </div>
     </div>
   );
@@ -266,8 +259,13 @@ const PRIMARY_NAV: PrimaryNavItem[] = [
     href: "/app/wallet",
     label: "Home",
     Icon: Home,
+    // /app/wallet exact-match handles the hub itself.
+    // /app/wallet/{name}/... is intentionally NOT in the prefix
+    // list - when the user opens a specific wallet, the Home tab
+    // should drop out of active state so only the wallet row in
+    // the sidebar lights up. Cross-wallet inboxes (proposals /
+    // intents / invitations) DO stay under Home.
     matchPrefixes: [
-      "/app/wallet",
       "/app/proposals",
       "/app/intents",
       "/app/invitations",
@@ -452,6 +450,190 @@ function WorkspaceActions({
   );
 }
 
+// ─── Wallet-scoped sidebar ────────────────────────────────────────
+//
+// The chrome a user sees once they've drilled into /app/wallet/{name}.
+// Replaces the global workspace nav (Search / Primary / Wallets list)
+// with a focused wallet layout: back link, active wallet identity,
+// and a sub-nav for the wallet's own destinations.
+//
+// Sub-nav entries map directly to the routes under /app/wallet/[name]/
+// so each link has a real target. Active state matches by
+// pathname.startsWith(href) so deep drill-downs (e.g. /send/eth,
+// /policies/[id]) still highlight the correct top-level entry. The
+// Overview entry is exact-match only - any sub-route should claim
+// its own tab, not Overview.
+
+// Send / Receive intentionally omitted - the wallet Overview page
+// owns those primary actions (top of the page, focal CTAs). Putting
+// them in the sidebar too would be a double-affordance.
+const WALLET_SUB_NAV: { sub: string; label: string; Icon: LucideIcon }[] = [
+  { sub: "", label: "Overview", Icon: WalletIcon },
+  { sub: "members", label: "Members", Icon: Users },
+  { sub: "activity", label: "Activity", Icon: ActivityIcon },
+  { sub: "chains", label: "Chains", Icon: Layers },
+  { sub: "policies", label: "Policies", Icon: Shield },
+  { sub: "settings", label: "Settings", Icon: Settings },
+];
+
+function WalletScopedSidebar({
+  slug,
+  pathname,
+  expanded,
+  onNavigate,
+}: {
+  slug: string;
+  pathname: string;
+  expanded: boolean;
+  onNavigate?: () => void;
+}) {
+  const display = toDisplayName(slug);
+  const grad = gradientFor(slug, avatarGradient(slug));
+  const initial = display.trim().charAt(0).toUpperCase() || "?";
+  const base = `/app/wallet/${encodeURIComponent(slug)}`;
+
+  function isActive(sub: string): boolean {
+    const href = sub ? `${base}/${sub}` : base;
+    if (pathname === href) return true;
+    if (sub) return pathname.startsWith(`${href}/`);
+    // Overview is exact-match only - any sub-route owns its own tab.
+    return false;
+  }
+
+  // ── Rail mode (collapsed sidebar) ──────────────────────────────
+  if (!expanded) {
+    return (
+      <div className="flex flex-col items-center gap-1.5">
+        <Link
+          href="/app/wallet"
+          onClick={onNavigate}
+          aria-label="All wallets"
+          title="All wallets"
+          className={clsx(
+            "flex h-10 w-10 items-center justify-center rounded-soft border border-border-soft text-text-soft",
+            "transition-colors duration-base ease-out-soft hover:border-border-strong hover:text-text-strong",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+          )}
+        >
+          <ArrowLeft size={14} aria-hidden="true" />
+        </Link>
+        <span
+          aria-label={display}
+          title={display}
+          className={clsx(
+            "flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br text-[12px] font-semibold text-white shadow-sm",
+            grad.from,
+            grad.to,
+          )}
+        >
+          {initial}
+        </span>
+        {WALLET_SUB_NAV.map(({ sub, label, Icon }) => {
+          const href = sub ? `${base}/${sub}` : base;
+          const active = isActive(sub);
+          return (
+            <Link
+              key={sub || "overview"}
+              href={href}
+              onClick={onNavigate}
+              aria-label={label}
+              title={label}
+              aria-current={active ? "page" : undefined}
+              className={clsx(
+                "flex h-10 w-10 items-center justify-center rounded-soft transition-colors duration-base ease-out-soft",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+                active
+                  ? "bg-accent/10 text-accent"
+                  : "text-text-soft hover:bg-glass-mid hover:text-text-strong",
+              )}
+            >
+              <Icon size={14} aria-hidden="true" />
+            </Link>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // ── Expanded mode ──────────────────────────────────────────────
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Back to all wallets - small monospace caps link, sits at
+          the top so the user always knows they're inside a scoped
+          surface and how to escape. */}
+      <Link
+        href="/app/wallet"
+        onClick={onNavigate}
+        className={clsx(
+          "inline-flex items-center gap-1.5 self-start rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-text-soft",
+          "transition-colors duration-base ease-out-soft hover:text-text-strong",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+        )}
+      >
+        <ArrowLeft size={11} aria-hidden="true" />
+        All wallets
+      </Link>
+
+      {/* Active wallet identity card - avatar + display name +
+          monospace eyebrow. Anchors the user's mental model of
+          "you're inside this wallet." */}
+      <div className="flex items-center gap-2.5 rounded-xl border border-border-soft bg-glass-soft p-3">
+        <span
+          aria-hidden="true"
+          className={clsx(
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-[12px] font-semibold text-white shadow-sm",
+            grad.from,
+            grad.to,
+          )}
+        >
+          {initial}
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col leading-tight">
+          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-text-soft">
+            Active wallet
+          </span>
+          <span className="mt-0.5 truncate font-display text-[13px] font-semibold tracking-[-0.01em] text-text-strong">
+            {display}
+          </span>
+        </div>
+      </div>
+
+      {/* Sub-nav - the wallet's own destinations. */}
+      <nav
+        aria-label="Wallet"
+        className="flex flex-col gap-0.5"
+      >
+        <p className="mb-1 px-3 font-mono text-[10px] uppercase tracking-[0.22em] text-text-soft">
+          Manage
+        </p>
+        {WALLET_SUB_NAV.map(({ sub, label, Icon }) => {
+          const href = sub ? `${base}/${sub}` : base;
+          const active = isActive(sub);
+          return (
+            <Link
+              key={sub || "overview"}
+              href={href}
+              onClick={onNavigate}
+              aria-current={active ? "page" : undefined}
+              className={clsx(
+                "group inline-flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-medium",
+                "transition-colors duration-base ease-out-soft",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+                active
+                  ? "bg-accent/10 text-accent"
+                  : "text-text-soft hover:bg-glass-mid hover:text-text-strong",
+              )}
+            >
+              <Icon size={14} className="shrink-0" aria-hidden="true" />
+              <span className="flex-1 truncate">{label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+    </div>
+  );
+}
+
 function BrandRow({
   expanded,
   canToggle,
@@ -477,7 +659,7 @@ function BrandRow({
           expanded ? "gap-2 px-1 py-1" : "p-1",
         )}
       >
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/15 text-accent shadow-[0_0_16px_rgba(204,255,0,0.25)] ring-1 ring-accent/30">
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/15 text-accent shadow-[0_0_16px_rgba(204, 255, 0,0.25)] ring-1 ring-accent/30">
           <BrandMark size={20} />
         </div>
         {expanded && (

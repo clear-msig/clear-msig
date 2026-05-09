@@ -156,7 +156,7 @@ export function LandingNav({
           className="group flex items-center gap-3"
           onClick={() => setMenuOpen(false)}
         >
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#ccff00] text-black shadow-[0_0_12px_rgba(204,255,0,0.16)] transition-transform duration-300 group-hover:scale-105">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#ccff00] text-black shadow-[0_0_12px_rgba(204, 255, 0,0.16)] transition-transform duration-300 group-hover:scale-105">
             <BrandMark size={22} />
           </span>
           <span className="hidden font-mono-tech text-[11px] uppercase tracking-[0.28em] text-white/70 sm:block">
@@ -184,7 +184,7 @@ export function LandingNav({
         <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
           {status && (
             <div className="hidden items-center gap-2 sm:flex">
-              <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_4px_rgba(204,255,0,0.4)]" />
+              <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_4px_rgba(204, 255, 0,0.4)]" />
               <span className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/60">
                 {status}
               </span>
@@ -254,7 +254,7 @@ export function LandingNav({
               <div className="flex items-center justify-between border-b border-white/[0.08] px-5 py-3.5">
                 {status ? (
                   <div className="flex items-center gap-2">
-                    <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_4px_rgba(204,255,0,0.4)]" />
+                    <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_4px_rgba(204, 255, 0,0.4)]" />
                     <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-white/60">
                       {status}
                     </span>

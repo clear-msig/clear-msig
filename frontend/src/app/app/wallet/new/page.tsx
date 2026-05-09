@@ -292,7 +292,7 @@ export default function NewWalletPage() {
                       "transition-[border-color,background-color,color] duration-base ease-out-soft",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
                       selected
-                        ? "border-accent bg-accent/[0.08] text-accent shadow-[0_0_18px_rgba(204,255,0,0.18)]"
+                        ? "border-accent bg-accent/[0.08] text-accent shadow-[0_0_18px_rgba(204, 255, 0,0.18)]"
                         : "border-border-soft bg-canvas text-text-soft hover:text-text-strong",
                     )}
                   >
