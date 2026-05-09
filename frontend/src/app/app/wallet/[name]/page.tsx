@@ -23,7 +23,7 @@ import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ArrowLeft, ArrowRight, Banknote, Bell, ChevronDown, Coins, Download, Layers, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, Banknote, Bell, ChevronDown, Coins, Download, Layers, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, Vault } from "lucide-react";
 import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -1272,6 +1272,17 @@ function Actions({
         <Button size="lg" variant="secondary" fullWidth>
           <Layers className="h-4 w-4" aria-hidden="true" />
           Chains
+        </Button>
+      </Link>
+
+      {/* Secure — cross-discovery to the ikavery vault flow. Sits
+          here because users in the wallet hub thinking about "how do
+          I protect my key?" are exactly the audience for personal
+          recovery. Goes to /app/secure (global, not per-wallet). */}
+      <Link href="/app/secure" className="block">
+        <Button size="lg" variant="secondary" fullWidth>
+          <Vault className="h-4 w-4" aria-hidden="true" />
+          Secure your key
         </Button>
       </Link>
 

@@ -162,6 +162,13 @@ function SecureBuildPage() {
     }
   };
 
+  // Upfront gates so the user can't get stuck halfway through.
+  // The wizard needs (a) a Solana wallet connected and (b) a
+  // signer that can sign transactions. Ledger only signs offchain
+  // messages in clear-msig today; it'll get vault support in v3.
+  const blockedByLedger = wallet.isLedger;
+  const blockedByDisconnect = !wallet.connected;
+
   return (
     <motion.div {...fadeIn(0)} className="flex flex-col gap-8">
       <div className="px-gutter md:hidden">
@@ -180,7 +187,42 @@ function SecureBuildPage() {
         </div>
       )}
 
-      {stage === "shape" && (
+      {blockedByDisconnect && (
+        <PageEyebrow label="Sign in to continue" align="center">
+          <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
+            Connect a wallet first
+          </h1>
+          <p className="mx-auto mt-2 max-w-md text-base text-text-soft">
+            The vault is anchored to your Solana wallet. Sign in to start
+            building.
+          </p>
+          <Link
+            href="/connect?next=/app/secure/new"
+            className="mt-5 inline-flex"
+          >
+            <Button size="lg">
+              Sign in
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </Link>
+        </PageEyebrow>
+      )}
+
+      {!blockedByDisconnect && blockedByLedger && (
+        <PageEyebrow label="Ledger" align="center">
+          <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
+            Vault flow needs a hot wallet
+          </h1>
+          <p className="mx-auto mt-2 max-w-md text-base text-text-soft">
+            clear-msig&rsquo;s Ledger path only signs ed25519 messages
+            today. The vault create flow needs full transaction signing.
+            Disconnect Ledger and use your Dynamic embedded wallet, then
+            try again. Ledger support for vault is on the v3 list.
+          </p>
+        </PageEyebrow>
+      )}
+
+      {!blockedByDisconnect && !blockedByLedger && stage === "shape" && (
         <ShapeStage
           shape={shape}
           setShape={setShape}
@@ -188,7 +230,7 @@ function SecureBuildPage() {
           reduce={!!reduce}
         />
       )}
-      {stage === "confirm" && (
+      {!blockedByDisconnect && !blockedByLedger && stage === "confirm" && (
         <ConfirmStage
           shape={shape}
           creatorAddress={wallet.publicKey?.toBase58() ?? ""}
@@ -197,7 +239,9 @@ function SecureBuildPage() {
           reduce={!!reduce}
         />
       )}
-      {stage === "creating" && <CreatingStage reduce={!!reduce} />}
+      {!blockedByDisconnect && !blockedByLedger && stage === "creating" && (
+        <CreatingStage reduce={!!reduce} />
+      )}
       {stage === "done" && (
         <DoneStage
           recoveryAddress={resultRecovery}
@@ -305,8 +349,22 @@ function ShapeStage({ shape, setShape, onContinue, reduce }: ShapeStageProps) {
         })}
       </ul>
 
-      <div className="flex justify-center">
-        <Button size="lg" onClick={onContinue} disabled={!shape.available}>
+      {/* Sticky-bottom CTA on mobile so the Continue button stays
+          reachable after picking a shape on a long page. md+ keeps
+          it in flow — the column is short there. */}
+      <div
+        className={
+          "-mx-3 sm:mx-0 px-3 sm:px-0 " +
+          "sticky bottom-[calc(env(safe-area-inset-bottom,0px)+4rem)] z-20 sm:static sm:bottom-auto " +
+          "border-t border-border-soft bg-canvas pt-3 sm:border-0 sm:bg-transparent sm:pt-0"
+        }
+      >
+        <Button
+          size="lg"
+          fullWidth
+          onClick={onContinue}
+          disabled={!shape.available}
+        >
           Continue
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Button>
@@ -359,15 +417,21 @@ function ConfirmStage({
         <PreviewRow label="Network" value="Solana devnet" />
       </ul>
 
-      <div className="flex flex-col items-center gap-3">
-        <Button size="lg" onClick={onBuild}>
+      <div
+        className={
+          "-mx-3 sm:mx-0 px-3 sm:px-0 " +
+          "sticky bottom-[calc(env(safe-area-inset-bottom,0px)+4rem)] z-20 sm:static sm:bottom-auto " +
+          "border-t border-border-soft bg-canvas pt-3 sm:border-0 sm:bg-transparent sm:pt-0"
+        }
+      >
+        <Button size="lg" fullWidth onClick={onBuild}>
           Build vault
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Button>
         <button
           type="button"
           onClick={onBack}
-          className="text-sm text-text-soft hover:text-text-strong"
+          className="mt-3 inline-flex w-full items-center justify-center text-sm text-text-soft hover:text-text-strong"
         >
           Back
         </button>
