@@ -60,7 +60,7 @@ import {
   hashIntents,
 } from "./sweep/intent";
 import { fetchVault } from "./clearmsig-actions";
-import { loadAttestation } from "./clearmsig-attestations";
+import { loadAttestationVerified } from "./clearmsig-attestations";
 import { ikaPresignAndSignCurve25519 } from "./ika-web";
 import { IKAVERY_PROGRAM_ID } from "./constants";
 import type { AuthCredential } from "./ix/types";
@@ -219,13 +219,15 @@ export async function runInAppSweep(params: SweepParams): Promise<SweepResult> {
     );
   }
 
-  // Stage 0: load attestation + verify the recovery is in shape.
-  const att = loadAttestation(recovery.toBase58());
-  if (!att) {
-    throw new Error(
-      "No DKG attestation for this vault on this device. Re-mint via /secure/new (or import the saved attestation).",
-    );
-  }
+  // Stage 0: load + cross-validate the cached attestation against
+  // the on-chain Recovery's `dwallet` field. The localStorage entry
+  // is just a CACHE — using it without verifying would let any
+  // localStorage-write attacker (XSS, malicious userscript, dev-tools
+  // tamper) substitute their own pubkey, which would propagate into
+  // PDA derivations + the message bytes Ika signs. Verified loader
+  // throws if the cache is missing, the on-chain row is gone, or the
+  // dwallet pubkey disagrees.
+  const att = await loadAttestationVerified(connection, recovery);
   if (!att.dwalletAddr) {
     throw new Error(
       "Saved attestation is missing the session id. This vault was created before v3d; re-mint via /secure/new.",

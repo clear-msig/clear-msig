@@ -72,7 +72,22 @@ export type ParseKeyResult = ParseKeyOk | ParseKeyErr;
  * Browser-only. `Keypair.fromSecretKey` runs the public-key derivation
  * locally via tweetnacl; no network request.
  */
+/**
+ * Hard length cap — legitimate inputs (Phantom/Solflare base58: ~88 chars,
+ * solana-keygen JSON: <500 chars) are well under this. Rejecting absurd
+ * sizes keeps `JSON.parse` from blocking the main thread on a
+ * 100 MB pasted payload before the 64-element check fires.
+ */
+const MAX_INPUT_LEN = 8192;
+
 export function parseSolanaSecretKey(input: string): ParseKeyResult {
+  if (input.length > MAX_INPUT_LEN) {
+    return {
+      ok: false,
+      error: "invalid-length",
+      reason: `Input is ${input.length} bytes — way larger than any Solana secret key. Did you paste the wrong thing?`,
+    };
+  }
   const trimmed = input.trim().replace(/^["']|["']$/g, "");
   if (!trimmed) {
     return {

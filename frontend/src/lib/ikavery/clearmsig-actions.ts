@@ -99,12 +99,19 @@ export interface CreateVaultParams {
    * fresh dWallet PDA. Atomic with create_recovery + transfer_authority,
    * so a partial state (vault exists but funds didn't move) is
    * impossible. The Keypair is partial-signed locally; the connected
-   * wallet doesn't see the secret key. Caller is responsible for
-   * wiping the Keypair after this function resolves.
+   * wallet doesn't see the secret key.
+   *
+   * `wipe` is called once `tx.sign(localSigners)` returns — at that
+   * point the keypair's signature is already filled into
+   * `tx.signatures` and the buffer can be scrubbed even if the
+   * downstream submit/confirm steps fail. Callers should still hold a
+   * top-level `wipe` reference (idempotent) to handle aborted flows
+   * where we throw before reaching the inner `tx.sign`.
    */
   importFunds?: {
     keypair: Keypair;
     lamports: bigint;
+    wipe?: () => void;
   };
 }
 
@@ -245,6 +252,22 @@ export async function createSoloVault(
     ? [recoveryIdKeypair, importFunds.keypair]
     : [recoveryIdKeypair];
   tx.sign(localSigners);
+
+  // Wipe the imported key's secret buffer the moment `tx.sign`
+  // returns. The 64-byte signature is already inside `tx.signatures`
+  // (Solana validators verify against `messageBytes`, not the secret),
+  // so the keypair object isn't needed for any downstream step. Doing
+  // this here — inside the action layer — guarantees the wipe runs
+  // even if the page unmounts mid-flight (Dynamic-popup cancel,
+  // browser tab close, etc). The page's outer wipe is still kept as
+  // a belt-and-braces idempotent safety net.
+  if (importFunds?.wipe) {
+    try {
+      importFunds.wipe();
+    } catch {
+      /* idempotent — outer caller will retry on cleanup */
+    }
+  }
 
   // Stage 3: hand off to the user's wallet for the creator signature.
   progress("sign");

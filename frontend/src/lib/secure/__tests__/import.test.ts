@@ -81,6 +81,17 @@ describe("parseSolanaSecretKey", () => {
     expect(["invalid-base58", "invalid-length"]).toContain(r.error);
   });
 
+  it("rejects input larger than the hard cap (DoS guard)", () => {
+    // 10 KB of "0" — would block JSON.parse if we let it through.
+    const huge = "0".repeat(10_000);
+    const r = parseSolanaSecretKey(huge);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toBe("invalid-length");
+    // Reason should not echo the (huge) input.
+    expect(r.reason.length).toBeLessThan(200);
+  });
+
   it("rejects base58 of wrong length", () => {
     const r = parseSolanaSecretKey(bs58.encode(new Uint8Array(32)));
     expect(r.ok).toBe(false);

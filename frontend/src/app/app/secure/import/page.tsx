@@ -355,12 +355,16 @@ function SecureImportPage() {
         importFunds: {
           keypair: importKeypair,
           lamports,
+          // Action-layer wipe runs the instant `tx.sign` returns, so
+          // the secret buffer is zeroed before submit/confirm/Dynamic
+          // popup. Page-level wipe below is the redundant safety net.
+          wipe: wipeFn,
         },
       });
 
-      // Success — wipe the imported key + clear the paste surface
-      // immediately. The user no longer needs the imported key for
-      // anything; the vault now controls the funds.
+      // Success — clear the paste surface + ref. Action layer already
+      // wiped the buffer; this is just bookkeeping (idempotent wipe
+      // for ironclad path coverage).
       wipeFn();
       parsedRef.current = null;
       clearPasteSurface();
