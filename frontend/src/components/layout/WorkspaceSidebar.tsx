@@ -34,6 +34,7 @@ import {
   Layers,
   LogOut,
   Settings,
+  ShieldCheck,
   UserCircle2,
   type LucideIcon,
 } from "lucide-react";
@@ -193,6 +194,14 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
         </SidebarSection>
       )}
 
+      {/* Secure promo card — discovery surface for the ikavery
+          companion product. Expanded mode only; rail mode uses the
+          dedicated icon in the bottom group below so the entry never
+          disappears when the sidebar collapses. */}
+      {expanded && (
+        <SecurePromoCard pathname={pathname} onNavigate={onNavigate} />
+      )}
+
       <div
         className={clsx(
           "mt-auto flex flex-col border-t border-border-soft",
@@ -208,6 +217,29 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
               onNavigate?.();
             }}
           />
+        )}
+        {/* Secure - rail-mode discovery for the ikavery companion
+            product. Always visible (not wallet-scoped) so users can
+            jump to /app/secure from any /app/* route. Expanded mode
+            uses the SecurePromoCard above; this icon takes over once
+            the sidebar collapses so the entry never disappears. The
+            accent ring + bg make it read as "special" next to the
+            neutral Chains icon below. */}
+        {!expanded && (
+          <Link
+            href="/app/secure"
+            onClick={onNavigate}
+            aria-label="Secure — quorum-gated key recovery"
+            title="Secure — quorum-gated key recovery"
+            className={clsx(
+              "inline-flex h-10 w-10 items-center justify-center rounded-soft border transition-colors duration-base ease-out-soft",
+              pathname === "/app/secure" || pathname.startsWith("/app/secure/")
+                ? "border-accent/60 bg-accent/15 text-accent"
+                : "border-accent/30 bg-accent/[0.06] text-accent hover:border-accent/60 hover:bg-accent/15",
+            )}
+          >
+            <ShieldCheck size={16} className="shrink-0" />
+          </Link>
         )}
         {/* Chains - wallet-scoped entry. Only renders when the
             user is inside a /app/wallet/{name}/... route so the
