@@ -34,6 +34,7 @@ import {
   Layers,
   LogOut,
   Settings,
+  ShieldCheck,
   UserCircle2,
   type LucideIcon,
 } from "lucide-react";
@@ -50,6 +51,7 @@ import {
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
 import { friendlyStatus } from "@/lib/retail/labels";
 import { toDisplayName } from "@/lib/retail/walletNames";
+import { relativeTime } from "@/lib/util/relativeTime";
 import { avatarGradient } from "@/lib/retail/avatar";
 import { gradientFor } from "@/lib/retail/walletAppearance";
 import { useSidebar } from "@/components/providers/SidebarProvider";
@@ -192,6 +194,14 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
         </SidebarSection>
       )}
 
+      {/* Secure promo card — discovery surface for the ikavery
+          companion product. Expanded mode only; rail mode uses the
+          dedicated icon in the bottom group below so the entry never
+          disappears when the sidebar collapses. */}
+      {expanded && (
+        <SecurePromoCard pathname={pathname} onNavigate={onNavigate} />
+      )}
+
       <div
         className={clsx(
           "mt-auto flex flex-col border-t border-border-soft",
@@ -207,6 +217,29 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
               onNavigate?.();
             }}
           />
+        )}
+        {/* Secure - rail-mode discovery for the ikavery companion
+            product. Always visible (not wallet-scoped) so users can
+            jump to /app/secure from any /app/* route. Expanded mode
+            uses the SecurePromoCard above; this icon takes over once
+            the sidebar collapses so the entry never disappears. The
+            accent ring + bg make it read as "special" next to the
+            neutral Chains icon below. */}
+        {!expanded && (
+          <Link
+            href="/app/secure"
+            onClick={onNavigate}
+            aria-label="Secure — quorum-gated key recovery"
+            title="Secure — quorum-gated key recovery"
+            className={clsx(
+              "inline-flex h-10 w-10 items-center justify-center rounded-soft border transition-colors duration-base ease-out-soft",
+              pathname === "/app/secure" || pathname.startsWith("/app/secure/")
+                ? "border-accent/60 bg-accent/15 text-accent"
+                : "border-accent/30 bg-accent/[0.06] text-accent hover:border-accent/60 hover:bg-accent/15",
+            )}
+          >
+            <ShieldCheck size={16} className="shrink-0" />
+          </Link>
         )}
         {/* Chains - wallet-scoped entry. Only renders when the
             user is inside a /app/wallet/{name}/... route so the
@@ -526,6 +559,55 @@ function SecurePromoCard({
 }) {
   const href = "/app/secure";
   const active = pathname === href || pathname.startsWith(`${href}/`);
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      aria-label="Secure — quorum-gated key recovery, powered by Ika"
+      className={clsx(
+        "group relative flex flex-col gap-1 overflow-hidden rounded-xl border bg-surface-raised p-3 transition-colors duration-base ease-out-soft",
+        active
+          ? "border-accent/60"
+          : "border-border-soft hover:border-accent/40",
+      )}
+    >
+      {/* Decorative accent rule + monospace eyebrow — nod to
+          ika.xyz / ikavery's numbered-section voice without
+          breaking clear-msig's eyebrow standard elsewhere. */}
+      <span aria-hidden="true" className="block h-px w-8 bg-accent" />
+      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+        // 01 · secure
+      </p>
+      <p className="text-sm font-semibold text-text-strong">
+        Quorum-gated key recovery
+      </p>
+      <p className="text-[11px] leading-snug text-text-soft">
+        Place your Solana key under t-of-N. Powered by Ika.
+      </p>
+      <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-accent">
+        Open
+        <ChevronsRight className="h-3 w-3" aria-hidden="true" />
+      </span>
+    </Link>
+  );
+}
+
+// Sidebar row for the "Recent" activity section — one Proposal per
+// row, links into /app/wallet/<name>/proposal/<index>. Wallet name
+// + friendly status + relative time. Compact (text-[11px]) to fit
+// three rows above the bottom group without the sidebar feeling
+// crowded.
+function SidebarActivityRow({
+  row,
+  pathname,
+  onNavigate,
+}: {
+  row: RecentActivityRow;
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  const href = `/app/wallet/${encodeURIComponent(row.walletName)}/proposal/${row.proposalIndex.toString()}`;
+  const active = pathname.startsWith(href);
   return (
     <li>
       <Link

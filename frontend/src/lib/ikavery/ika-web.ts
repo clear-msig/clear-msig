@@ -34,7 +34,10 @@
 // the v2 placeholder. `clearmsig-attestations.ts` persists the
 // attestation locally (keyed by recovery PDA) for the v3 sweep flow.
 
-import { defineBcsTypes } from "@ika.xyz/pre-alpha-solana-client/grpc-web";
+// `defineBcsTypes` is vendored from @ika.xyz/pre-alpha-solana-client@0.1.1
+// because the published package ships raw TS sources with broken `.js`
+// import paths and won't resolve under webpack. See bcs-types.ts.
+import { defineBcsTypes } from "./bcs-types";
 
 import { IKA_GRPC_WEB_URL } from "./ika-config";
 
