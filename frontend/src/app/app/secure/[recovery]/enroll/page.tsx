@@ -21,7 +21,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
 import { PublicKey } from "@solana/web3.js";
 import {
@@ -64,23 +64,33 @@ const WALLET_ENROLL_STAGES: EnrollStageInfo[] = [
   },
   {
     id: "build",
-    label: "Building transaction",
-    detail: "Packing propose, approve, and execute into one bundle.",
+    label: "Building transactions",
+    detail: "Packing propose, then approve + execute.",
   },
   {
     id: "sign",
-    label: "Waiting for your signature",
-    detail: "Your wallet authorises the new device joining the roster.",
+    label: "Sign propose tx",
+    detail: "First wallet popup authorises the enrollment proposal.",
   },
   {
     id: "submit",
-    label: "Submitting on Solana",
-    detail: "Sending the bundle to the validator pool.",
+    label: "Submitting propose",
+    detail: "Recording the proposal on Solana.",
   },
   {
     id: "confirm",
-    label: "Waiting for confirmation",
-    detail: "Solana confirms the new device is now on the roster.",
+    label: "Awaiting propose confirmation",
+    detail: "Solana commits the proposal.",
+  },
+  {
+    id: "approve-sign",
+    label: "Sign approve + execute tx",
+    detail: "Second wallet popup approves and applies the change.",
+  },
+  {
+    id: "approve-confirm",
+    label: "Finalising enrollment",
+    detail: "Solana confirms the new device is on the roster.",
   },
 ];
 
@@ -138,6 +148,7 @@ export default function EnrollDevicePageWrapper() {
 function EnrollDevicePage() {
   const reduce = useReducedMotion();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const params = useParams<{ recovery: string }>();
   const { connection } = useConnection();
   const wallet = useWallet();
@@ -205,6 +216,33 @@ function EnrollDevicePage() {
     }
   }, [vaultQuery.data, walletIsMember, vaultHasPasskey]);
 
+  // Pre-flight WebAuthn capability check so the user sees a useful
+  // message at page load instead of a hung enroll. Three possible
+  // states:
+  //   - null (still checking)
+  //   - { ok: true } the browser exposes credentials.create + this
+  //     context is secure
+  //   - { ok: false, reason: ... } known why it won't work
+  const [webauthnState, setWebauthnState] = useState<
+    | null
+    | { ok: true }
+    | { ok: false; reason: "insecure" | "unavailable" }
+  >(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const insecure =
+      typeof window.isSecureContext === "boolean" && !window.isSecureContext;
+    if (insecure) {
+      setWebauthnState({ ok: false, reason: "insecure" });
+      return;
+    }
+    const hasApi =
+      typeof navigator !== "undefined" &&
+      !!navigator.credentials &&
+      typeof navigator.credentials.create === "function";
+    setWebauthnState(hasApi ? { ok: true } : { ok: false, reason: "unavailable" });
+  }, []);
+
   const fadeIn = (delay = 0) =>
     reduce
       ? {}
@@ -251,7 +289,13 @@ function EnrollDevicePage() {
         userName: shortAddress(wallet.publicKey.toBase58()),
         userDisplayName: `Passkey for vault ${shortAddress(recoveryStr)}`,
         challenge,
-        authenticatorAttachment: "platform",
+        // No `authenticatorAttachment` — the OS picks. Forcing
+        // "platform" hangs forever on machines without a built-in
+        // authenticator (e.g. older Macs without Touch ID), since
+        // the browser keeps waiting for one to appear. Leaving it
+        // undefined lets the browser surface roaming-key / "use a
+        // phone" fallbacks alongside the platform option, so users
+        // on non-Touch-ID Macs can still enroll via their phone.
       });
 
       // Encryption-key address. The pre-alpha program stores it but
@@ -278,6 +322,11 @@ function EnrollDevicePage() {
       setTxSig(result.txSignature);
       setSubStage(null);
       setStage("done");
+      // Refresh the vault detail so when the user backs out, the new
+      // member shows up in the roster + member-count stat.
+      void queryClient.invalidateQueries({
+        queryKey: ["ikavery-vault", recoveryStr],
+      });
     } catch (e) {
       console.error("[secure/enroll]", e);
       toast.error("Couldn't enroll the device", {
@@ -345,18 +394,42 @@ function EnrollDevicePage() {
         </PageEyebrow>
       )}
 
-      {!blockedByDisconnect && !blockedByLedger && stage === "intro" && (
-        <IntroStage
-          onContinue={handleEnroll}
-          loading={vaultQuery.isLoading}
-          recoveryShort={`${recoveryStr.slice(0, 4)}…${recoveryStr.slice(-4)}`}
-          authMode={authMode}
-          setAuthMode={setAuthMode}
-          walletIsMember={walletIsMember}
-          vaultHasPasskey={vaultHasPasskey}
-          reduce={!!reduce}
-        />
+      {!blockedByDisconnect && !blockedByLedger && vaultQuery.isError && (
+        <div className="mx-auto max-w-md rounded-card border border-warning/40 bg-warning/[0.06] p-4 text-sm text-text-soft">
+          <p className="font-medium text-text-strong">
+            Couldn&rsquo;t load this vault.
+          </p>
+          <p className="mt-1">
+            {vaultQuery.error instanceof Error
+              ? vaultQuery.error.message
+              : String(vaultQuery.error)}
+          </p>
+          <button
+            type="button"
+            onClick={() => vaultQuery.refetch()}
+            className="mt-3 inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-[11px] font-medium text-text-soft hover:border-accent hover:text-accent"
+          >
+            Retry
+          </button>
+        </div>
       )}
+
+      {!blockedByDisconnect &&
+        !blockedByLedger &&
+        !vaultQuery.isError &&
+        stage === "intro" && (
+          <IntroStage
+            onContinue={handleEnroll}
+            loading={vaultQuery.isLoading}
+            recoveryShort={`${recoveryStr.slice(0, 4)}…${recoveryStr.slice(-4)}`}
+            authMode={authMode}
+            setAuthMode={setAuthMode}
+            walletIsMember={walletIsMember}
+            vaultHasPasskey={vaultHasPasskey}
+            webauthnState={webauthnState}
+            reduce={!!reduce}
+          />
+        )}
 
       {!blockedByDisconnect && !blockedByLedger && stage === "enrolling" && (
         <EnrollingStage
@@ -388,6 +461,10 @@ interface IntroStageProps {
   setAuthMode: (m: EnrollAuthMode) => void;
   walletIsMember: boolean;
   vaultHasPasskey: boolean;
+  webauthnState:
+    | null
+    | { ok: true }
+    | { ok: false; reason: "insecure" | "unavailable" };
   reduce: boolean;
 }
 
@@ -399,6 +476,7 @@ function IntroStage({
   setAuthMode,
   walletIsMember,
   vaultHasPasskey,
+  webauthnState,
   reduce,
 }: IntroStageProps) {
   const motionProps = reduce
@@ -444,10 +522,11 @@ function IntroStage({
             {authMode === "wallet" ? (
               <>
                 <span className="font-medium text-text-strong">
-                  One signature.
+                  Two wallet popups.
                 </span>{" "}
-                propose + approve + execute travel in a single transaction —
-                you sign once, and the new device is live.
+                propose first, then approve + execute. Solana&rsquo;s 1232-byte
+                packet limit means we can&rsquo;t fit all three steps into one
+                tx.
               </>
             ) : (
               <>
@@ -477,7 +556,7 @@ function IntroStage({
               active={authMode === "wallet"}
               onClick={() => setAuthMode("wallet")}
               label="Wallet"
-              detail="One-tap. Single tx."
+              detail="Two wallet popups."
             />
             <AuthOption
               active={authMode === "passkey"}
@@ -495,8 +574,33 @@ function IntroStage({
         </p>
       )}
 
+      {/* Pre-flight WebAuthn warning. Shown above the Enroll CTA so
+          the user sees it BEFORE clicking and getting a hung popup
+          (the most common report from users on older Macs). */}
+      {webauthnState && !webauthnState.ok && (
+        <aside className="mx-auto flex max-w-md items-start gap-3 rounded-card border border-warning/40 bg-warning/[0.06] p-4 text-sm text-text-soft">
+          <ShieldCheck
+            className="mt-0.5 h-5 w-5 shrink-0 text-warning"
+            strokeWidth={2}
+            aria-hidden="true"
+          />
+          <p className="leading-snug">
+            <span className="font-medium text-text-strong">
+              Passkeys aren&rsquo;t available here.
+            </span>{" "}
+            {webauthnState.reason === "insecure"
+              ? "WebAuthn requires HTTPS. Reload the page over https:// (or localhost) and try again."
+              : "Your browser doesn't expose passkey support — try Chrome / Safari / Edge in a normal tab. Webview-embedded browsers (Twitter, Instagram, in-app) often disable WebAuthn."}
+          </p>
+        </aside>
+      )}
+
       <div className="flex flex-col items-center gap-2">
-        <Button size="lg" onClick={onContinue} disabled={loading}>
+        <Button
+          size="lg"
+          onClick={onContinue}
+          disabled={loading || (webauthnState?.ok === false)}
+        >
           {loading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -510,7 +614,9 @@ function IntroStage({
           )}
         </Button>
         <p className="text-[11px] text-text-soft">
-          Your browser will prompt to mint a new passkey.
+          Your browser will prompt to mint a new passkey. If your Mac
+          doesn&rsquo;t have Touch&nbsp;ID, the prompt offers to use your
+          phone (QR code) instead.
         </p>
       </div>
     </motion.section>

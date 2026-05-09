@@ -40,8 +40,24 @@ function readOverrideFromStorage(): string | null {
   if (typeof window === "undefined") return null;
   try {
     const v = window.localStorage.getItem(RPC_OVERRIDE_STORAGE_KEY);
-    if (typeof v === "string" && /^https?:\/\/[^\s]+$/i.test(v.trim())) {
-      return v.trim();
+    if (typeof v !== "string") return null;
+    const trimmed = v.trim();
+    // Reject anything that isn't HTTPS — except localhost / 127.0.0.1
+    // for local development. Plain HTTP RPCs let a passive network
+    // observer modify `getBalance` / `getAccountInfo` / `getRecentBlockhash`
+    // responses on the wire, manipulating both the balance display the
+    // user uses to decide what to import/sweep AND the blockhash that
+    // gets baked into the signed tx. That's a big enough lift that we
+    // simply don't honour HTTP overrides at all.
+    const httpsOk = /^https:\/\/[^\s]+$/i.test(trimmed);
+    const localhostOk = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/[^\s]*)?$/i.test(
+      trimmed,
+    );
+    if (httpsOk || localhostOk) return trimmed;
+    if (typeof console !== "undefined") {
+      console.warn(
+        "[solana-rpc] localStorage override rejected — only https:// or http://localhost are honoured. Falling back to env default.",
+      );
     }
     return null;
   } catch {

@@ -12,7 +12,7 @@
 // generic `Record<string, unknown>` shape still work; new components
 // can consume the typed `WalletAccount` / `ChainBindingWithPda[]`.
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useConnection } from "@/lib/wallet";
 import { backendApi } from "@/lib/api/endpoints";
 import type { AddChainInput, CreateWalletInput } from "@/lib/api/types";
@@ -21,6 +21,7 @@ import { listChainBindings, type ChainBindingWithPda } from "@/lib/chain/chainBi
 
 export function useWalletWorkflow(walletName: string) {
   const { connection } = useConnection();
+  const queryClient = useQueryClient();
 
   // `healthQuery` stays on the backend . it's the liveness probe for
   // the relayer specifically, not for Solana RPC.
@@ -48,7 +49,11 @@ export function useWalletWorkflow(walletName: string) {
       return listChainBindings(connection, wallet.pda);
     },
     enabled: walletName.trim().length > 0,
-    staleTime: 30_000,
+    // 10s instead of 30s so a freshly-added chain shows up promptly
+    // even without a window-focus event. The Receive / Chains pages
+    // also expose a refresh chip for manual bumps.
+    staleTime: 10_000,
+    refetchOnWindowFocus: true,
   });
 
   const createWalletMutation = useMutation({
@@ -62,7 +67,24 @@ export function useWalletWorkflow(walletName: string) {
   const addChainMutation = useMutation({
     mutationFn: (input: AddChainInput) => backendApi.addWalletChain(walletName, input),
     onSuccess: async () => {
-      await chainsQuery.refetch();
+      // The chain list lives in TWO query keys with different
+      // sources of truth:
+      //   - "wallet-chains" — read on chain via this hook's
+      //     `chainsQuery` (Solana RPC `getProgramAccounts`).
+      //   - "wallet-chains-api" — read via `useWalletChains` which
+      //     hits backend-api `GET /wallets/{name}/chains`.
+      // Pages mix both (Receive uses the API key; the wallet detail
+      // uses the on-chain key). Invalidate BOTH so the new chain
+      // appears immediately wherever the user lands next.
+      await Promise.allSettled([
+        chainsQuery.refetch(),
+        queryClient.invalidateQueries({
+          queryKey: ["wallet-chains-api", walletName],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["wallet-chains", walletName],
+        }),
+      ]);
     },
   });
 

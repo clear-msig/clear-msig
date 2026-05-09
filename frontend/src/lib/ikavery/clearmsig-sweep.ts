@@ -47,10 +47,20 @@ import {
   dwalletPda,
   messageApprovalPda,
 } from "./dwallet/pdas";
-import { buildSweepMessage, transferSol } from "./sweep/message";
-import { buildSolTransferIntent, hashIntents } from "./sweep/intent";
+import { approvalPda, memberIdHash } from "./pda";
+import {
+  buildSweepMessage,
+  createIdempotentAta,
+  transferSol,
+  transferSplTokenChecked,
+} from "./sweep/message";
+import {
+  buildSolTransferIntent,
+  buildSplTransferIntent,
+  hashIntents,
+} from "./sweep/intent";
 import { fetchVault } from "./clearmsig-actions";
-import { loadAttestation } from "./clearmsig-attestations";
+import { loadAttestationVerified } from "./clearmsig-attestations";
 import { ikaPresignAndSignCurve25519 } from "./ika-web";
 import { IKAVERY_PROGRAM_ID } from "./constants";
 import type { AuthCredential } from "./ix/types";
@@ -69,12 +79,19 @@ export type SweepStage =
   | "approve-passkey"
   | "approve-sign"
   | "approve-confirm"
+  | "collecting-approvals"
   | "execute-sign"
   | "execute-confirm"
   | "presign-sign"
   | "broadcast"
   | "broadcast-confirm"
   | "done";
+
+export interface AdditionalApprovalsRequest {
+  proposal: PublicKey;
+  currentCount: number;
+  threshold: number;
+}
 
 /**
  * Auth mode controls who authorises the proposal + approval.
@@ -89,6 +106,44 @@ export type SweepStage =
  */
 export type SweepAuthMode = "wallet" | "passkey";
 
+/**
+ * What the sweep is moving. The sweep machinery is asset-agnostic
+ * past the ix-list / intent-builder boundary; this discriminated
+ * union lets the page describe the target and the action layer
+ * builds the right ixs + structural digest.
+ */
+export type SweepTarget =
+  | {
+      kind: "sol";
+      /** Recipient wallet. */
+      destination: PublicKey;
+      /** Lamports to move from the dWallet. */
+      lamports: bigint;
+    }
+  | {
+      kind: "spl";
+      /** Token program backing the mint (Token or Token-2022). */
+      programId: PublicKey;
+      /** Mint of the token being moved. */
+      mint: PublicKey;
+      /** Mint decimals — must match the on-chain `decimals` field. */
+      decimals: number;
+      /** dWallet's source ATA (where the tokens live today). */
+      sourceAta: PublicKey;
+      /** Recipient wallet (NOT the destination ATA). */
+      destinationOwner: PublicKey;
+      /** Recipient's ATA — derived from `destinationOwner` + `mint`. */
+      destinationAta: PublicKey;
+      /**
+       * Whether the destination ATA already exists. When false, the
+       * sweep emits an `AtaCreateIdempotent` ix before the transfer.
+       * Caller computes this via `getAccountInfo(destinationAta)`.
+       */
+      destinationAtaExists: boolean;
+      /** Amount in mint base units. */
+      amount: bigint;
+    };
+
 export interface SweepParams {
   connection: Connection;
   recovery: PublicKey;
@@ -96,10 +151,8 @@ export interface SweepParams {
   /** Connected wallet — pays fees on every leg. Must be a member only
    *  when authMode === "wallet". */
   creator: PublicKey;
-  /** Destination for the sweep — receives the lamports. */
-  destination: PublicKey;
-  /** Lamports to move from the dWallet. */
-  lamports: bigint;
+  /** What's being moved. */
+  target: SweepTarget;
   /** Sign callback — Dynamic's signTransaction wrapped from useWallet(). */
   signTransaction: <T extends VersionedTransaction>(tx: T) => Promise<T>;
   /** Auth mode — defaults to "wallet" so legacy callers stay unchanged. */
@@ -108,6 +161,19 @@ export interface SweepParams {
   rpId?: string;
   /** Optional progress reporter for the wizard. */
   onProgress?: (stage: SweepStage) => void;
+  /**
+   * Called once after the proposer's first vote lands when the vault's
+   * threshold > 1 and the proposal still needs more approvals. The page
+   * is responsible for collecting the remaining votes (typically by
+   * showing a picker and calling `addSweepApproval` per credential).
+   * Resolve when `proposal.status === STATUS_APPROVED` on chain;
+   * `runInAppSweep` reads the proposal back, verifies the threshold has
+   * been met, and only then proceeds to execute. Throws if the threshold
+   * is greater than 1 and no callback is supplied — that's a misconfig.
+   */
+  collectAdditionalApprovals?: (
+    req: AdditionalApprovalsRequest,
+  ) => Promise<void>;
 }
 
 export interface SweepResult {
@@ -132,26 +198,36 @@ export async function runInAppSweep(params: SweepParams): Promise<SweepResult> {
     recovery,
     recoveryId,
     creator,
-    destination,
-    lamports,
+    target,
     signTransaction,
     authMode = "wallet",
     rpId,
     onProgress,
+    collectAdditionalApprovals,
   } = params;
   const progress = onProgress ?? (() => undefined);
 
-  if (lamports <= 0n) {
+  if (target.kind === "sol" && target.lamports <= 0n) {
     throw new Error("Sweep amount must be greater than zero.");
   }
-
-  // Stage 0: load attestation + verify the recovery is in shape.
-  const att = loadAttestation(recovery.toBase58());
-  if (!att) {
+  if (target.kind === "spl" && target.amount <= 0n) {
+    throw new Error("Sweep amount must be greater than zero.");
+  }
+  if (target.kind === "spl" && (target.decimals < 0 || target.decimals > 18)) {
     throw new Error(
-      "No DKG attestation for this vault on this device. Re-mint via /secure/new (or import the saved attestation).",
+      `Mint decimals out of range (got ${target.decimals}); fetch from the mint account.`,
     );
   }
+
+  // Stage 0: load + cross-validate the cached attestation against
+  // the on-chain Recovery's `dwallet` field. The localStorage entry
+  // is just a CACHE — using it without verifying would let any
+  // localStorage-write attacker (XSS, malicious userscript, dev-tools
+  // tamper) substitute their own pubkey, which would propagate into
+  // PDA derivations + the message bytes Ika signs. Verified loader
+  // throws if the cache is missing, the on-chain row is gone, or the
+  // dwallet pubkey disagrees.
+  const att = await loadAttestationVerified(connection, recovery);
   if (!att.dwalletAddr) {
     throw new Error(
       "Saved attestation is missing the session id. This vault was created before v3d; re-mint via /secure/new.",
@@ -160,9 +236,9 @@ export async function runInAppSweep(params: SweepParams): Promise<SweepResult> {
   const dwalletPubkey = new PublicKey(att.publicKey);
 
   const { account } = await fetchVault(connection, recovery);
-  if (account.threshold !== 1) {
+  if (account.threshold > 1 && !collectAdditionalApprovals) {
     throw new Error(
-      `Sweep currently supports solo (1-of-N) vaults only. Threshold: ${account.threshold}`,
+      `Vault threshold is ${account.threshold}; multi-member sweep requires the page to pass collectAdditionalApprovals to gather the remaining votes.`,
     );
   }
 
@@ -171,18 +247,56 @@ export async function runInAppSweep(params: SweepParams): Promise<SweepResult> {
   // produce on chain, so propose stores the same value the on-chain
   // execute will rebuild and compare against.
   progress("build");
-  const sweepIxs = [transferSol(dwalletPubkey, destination, lamports)];
-  // proposeMsg here is just for digest computation; the actual on-chain
+  const sweepIxs: import("@solana/web3.js").TransactionInstruction[] = [];
+  let intent;
+  if (target.kind === "sol") {
+    sweepIxs.push(transferSol(dwalletPubkey, target.destination, target.lamports));
+    intent = buildSolTransferIntent(
+      dwalletPubkey.toBytes(),
+      target.destination.toBytes(),
+      target.lamports,
+    );
+  } else {
+    if (!target.destinationAtaExists) {
+      sweepIxs.push(
+        createIdempotentAta({
+          payer: dwalletPubkey,
+          ata: target.destinationAta,
+          owner: target.destinationOwner,
+          mint: target.mint,
+          tokenProgramId: target.programId,
+        }),
+      );
+    }
+    sweepIxs.push(
+      transferSplTokenChecked({
+        source: target.sourceAta,
+        mint: target.mint,
+        destination: target.destinationAta,
+        authority: dwalletPubkey,
+        amount: target.amount,
+        decimals: target.decimals,
+        programId: target.programId,
+      }),
+    );
+    intent = buildSplTransferIntent({
+      dwallet: dwalletPubkey.toBytes(),
+      programId: target.programId.toBytes(),
+      mint: target.mint.toBytes(),
+      sourceAta: target.sourceAta.toBytes(),
+      destinationOwner: target.destinationOwner.toBytes(),
+      destinationAta: target.destinationAta.toBytes(),
+      destinationAtaExists: target.destinationAtaExists,
+      amount: target.amount,
+      decimals: target.decimals,
+    });
+  }
+  // proposeMsg here is just for digest sanity; the actual on-chain
   // execute uses the freshly-rebuilt finalMsg below.
   buildSweepMessage({
     feePayer: dwalletPubkey,
     instructions: sweepIxs,
   });
-  const intent = buildSolTransferIntent(
-    dwalletPubkey.toBytes(),
-    destination.toBytes(),
-    lamports,
-  );
   const intentDigest = hashIntents([intent]);
 
   // Stage 2: propose + approve.
@@ -305,6 +419,32 @@ export async function runInAppSweep(params: SweepParams): Promise<SweepResult> {
     );
   }
 
+  // Stage 2b: gather any additional approvals required by the vault's
+  // threshold. After the proposer's vote lands, the proposal carries
+  // `approval_count = 1`. For threshold > 1 the page must collect the
+  // remaining votes (one per credential) before we can execute.
+  if (account.threshold > 1) {
+    const initialCount = await readApprovalCount(connection, proposal);
+    if (initialCount < account.threshold) {
+      progress("collecting-approvals");
+      await collectAdditionalApprovals!({
+        proposal,
+        currentCount: initialCount,
+        threshold: account.threshold,
+      });
+      // Sanity-check the page actually collected enough on chain. If the
+      // user dismissed the picker without finishing, abort with a clean
+      // message rather than letting execute fail with a cryptic on-chain
+      // status error.
+      const finalCount = await readApprovalCount(connection, proposal);
+      if (finalCount < account.threshold) {
+        throw new Error(
+          `Sweep aborted: collected ${finalCount} of ${account.threshold} required approvals.`,
+        );
+      }
+    }
+  }
+
   // Stage 3: execute. Rebuilds the message bytes with a fresh blockhash
   // (so the executor doesn't have to scramble for one between propose
   // and execute) and pulls in all dwallet PDAs so the program's CPI to
@@ -402,6 +542,188 @@ export async function runInAppSweep(params: SweepParams): Promise<SweepResult> {
 
   progress("done");
   return { proposal, proposeSig, executeSig, broadcastSig };
+}
+
+/**
+ * Append one more approval to an open Sweep proposal. Used by the
+ * `collectAdditionalApprovals` callback path when a vault's threshold
+ * is greater than 1 — runInAppSweep proposes + casts the proposer's
+ * vote; the page calls `addSweepApproval` once per remaining member
+ * until the proposal hits STATUS_APPROVED.
+ *
+ * Wallet vs passkey shape mirrors the propose-side logic:
+ *
+ *   - "wallet": SCHEME_SOLANA_ADDRESS credential, the connected wallet
+ *     must match a roster member, single ix in the tx, no precompile.
+ *   - "passkey": one secp256r1 precompile + one approve_ix. The OS
+ *     picker shows every passkey bound to the RP; we ECDSA-recover
+ *     to figure out which roster member signed and reject if it's
+ *     someone not on the roster.
+ */
+export interface AddSweepApprovalParams {
+  connection: Connection;
+  recovery: PublicKey;
+  proposal: PublicKey;
+  /** Pays the fee. Must be a Signer on the tx but doesn't need to be a member. */
+  payer: PublicKey;
+  /** Auth mode for this approval. */
+  authMode: SweepAuthMode;
+  /** Required for authMode === "wallet": the connected wallet must be on the roster. */
+  walletPubkey?: PublicKey;
+  /** RP id for passkey assertions. */
+  rpId?: string;
+  signTransaction: <T extends VersionedTransaction>(tx: T) => Promise<T>;
+}
+
+export interface AddSweepApprovalResult {
+  txSignature: string;
+}
+
+export async function addSweepApproval(
+  params: AddSweepApprovalParams,
+): Promise<AddSweepApprovalResult> {
+  const {
+    connection,
+    recovery,
+    proposal,
+    payer,
+    authMode,
+    walletPubkey,
+    rpId,
+    signTransaction,
+  } = params;
+
+  // We need to know the proposal's index to compute the approve
+  // challenge for passkey mode, plus the recoveryId from the vault.
+  const proposalAccount = await readProposalOrThrow(connection, proposal);
+  const { account: vault } = await fetchVault(connection, recovery);
+
+  if (authMode === "wallet") {
+    if (!walletPubkey) {
+      throw new Error("walletPubkey required when authMode === 'wallet'");
+    }
+    // Verify the wallet IS a roster member; on-chain handler would
+    // reject otherwise but the error is opaque ("NotAMember").
+    const slot = packSolanaMember(walletPubkey);
+    const onRoster = vault.members.some((m) => bytesEqual(m, slot));
+    if (!onRoster) {
+      throw new Error(
+        "Connected wallet isn't on this vault's roster — pick a different credential.",
+      );
+    }
+    // Pre-flight: same member voting twice would fail on chain with a
+    // cryptic "already approved" / dup-PDA error. Catch it client-side
+    // and surface clean copy so the user can pick a different
+    // credential without losing the running sweep.
+    if (await alreadyApproved(connection, proposal, slot)) {
+      throw new Error(
+        "This wallet has already voted on this proposal — pick a different credential.",
+      );
+    }
+    const credential: AuthCredential = {
+      scheme: SCHEME_SOLANA_ADDRESS,
+      pubkey: walletPubkey.toBytes(),
+    };
+    const { ix: approveIx } = buildApproveIx({
+      recovery,
+      proposal,
+      payer,
+      memberSlot: slot,
+      credential,
+    });
+    const sig = await sendBundle(
+      connection,
+      payer,
+      [approveIx],
+      signTransaction,
+      () => undefined,
+      () => undefined,
+    );
+    return { txSignature: sig };
+  }
+
+  // Passkey mode: assertion + ECDSA pubkey-recover + precompile + approve_ix.
+  const recoveryIdBytes = vault.recoveryId.toBytes();
+  const approveC = approveChallenge(
+    recoveryIdBytes,
+    proposalAccount.proposalIndex,
+  );
+  const assertion = await runPasskeySign({ challenge: approveC, rpId });
+  const pub = await pickRosterPubkey(
+    connection,
+    recovery,
+    assertion.candidatePubkeys,
+  );
+  const memberSlot = packMemberSlot(SCHEME_WEBAUTHN, pub);
+  // Same dedup check as the wallet branch.
+  if (await alreadyApproved(connection, proposal, memberSlot)) {
+    throw new Error(
+      "That passkey has already voted on this proposal — tap a different one.",
+    );
+  }
+  const { precompileIx, credential } = assertion.build(pub);
+  const { ix: approveIx } = buildApproveIx({
+    recovery,
+    proposal,
+    payer,
+    memberSlot,
+    credential,
+  });
+  const sig = await sendBundle(
+    connection,
+    payer,
+    [precompileIx, approveIx],
+    signTransaction,
+    () => undefined,
+    () => undefined,
+  );
+  return { txSignature: sig };
+}
+
+/**
+ * True if a roster member with `memberSlot` has already cast an approve
+ * for `proposal`. Reads the per-member Approval PDA — the program writes
+ * one each time a vote lands, so the account existing IS the "voted"
+ * predicate.
+ */
+async function alreadyApproved(
+  connection: Connection,
+  proposal: PublicKey,
+  memberSlot: Uint8Array,
+): Promise<boolean> {
+  const memberIdHashAddr = memberIdHash(memberSlot);
+  const approvalAddr = approvalPda(proposal, memberIdHashAddr);
+  const info = await connection.getAccountInfo(approvalAddr, "confirmed");
+  return !!info && info.data.length > 0;
+}
+
+async function readApprovalCount(
+  connection: Connection,
+  proposal: PublicKey,
+): Promise<number> {
+  const acc = await readProposalOrThrow(connection, proposal);
+  return acc.approvalCount;
+}
+
+async function readProposalOrThrow(
+  connection: Connection,
+  proposal: PublicKey,
+) {
+  const info = await connection.getAccountInfo(proposal, "confirmed");
+  if (!info || info.data.length === 0) {
+    throw new Error(`Proposal account ${proposal.toBase58()} not found`);
+  }
+  // Avoid a circular import by inlining the codec call.
+  const { decodeProposal } = await import("./codec/proposal");
+  return decodeProposal(new Uint8Array(info.data));
+}
+
+function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
 }
 
 /**

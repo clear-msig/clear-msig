@@ -45,6 +45,8 @@ import { Button } from "@/components/retail/Button";
 import { listVaultsForCreator } from "@/lib/ikavery/clearmsig-actions";
 import { type DecodedRecovery } from "@/lib/ikavery/discovery";
 import { loadAttestation } from "@/lib/ikavery/clearmsig-attestations";
+import { listProposals } from "@/lib/ikavery/proposals";
+import { STATUS_ACTIVE, STATUS_APPROVED } from "@/lib/ikavery/constants";
 
 const IKAVERY_GITHUB = "https://github.com/Iamknownasfesal/ikavery";
 const IKA_SITE = "https://ika.xyz";
@@ -366,6 +368,12 @@ function VaultsHero({ vaults, loading, onRefresh, fadeIn }: VaultsHeroProps) {
               aria-hidden="true"
             />
           </button>
+          <Link href="/app/secure/import" className="inline-block">
+            <Button variant="ghost" size="lg">
+              <KeyRound className="h-4 w-4" aria-hidden="true" />
+              Import key
+            </Button>
+          </Link>
           <Link href="/app/secure/new" className="inline-block">
             <Button size="lg">
               <Plus className="h-4 w-4" aria-hidden="true" />
@@ -917,6 +925,27 @@ function VaultCard({ vault }: { vault: DecodedRecovery }) {
       ? (balanceQ.data / 1e9).toFixed(2)
       : null;
 
+  // "Needs action" count — proposals in STATUS_ACTIVE (open for votes)
+  // or STATUS_APPROVED (quorum met, awaiting execute). Skips
+  // STATUS_EXECUTED (already broadcast). Uses the same cache key the
+  // detail page populates so the count matches what the user sees on
+  // click-through and is filled instantly when they navigate back.
+  const proposalsQ = useQuery({
+    queryKey: ["ikavery-proposals", recoveryStr],
+    queryFn: () =>
+      listProposals(connection, vault.recovery, account.proposalCount),
+    enabled: account.proposalCount > 0,
+    staleTime: 30_000,
+  });
+  const pendingCount = useMemo(() => {
+    if (!proposalsQ.data) return 0;
+    return proposalsQ.data.reduce((acc, p) => {
+      if (p.account.status === STATUS_ACTIVE) return acc + 1;
+      if (p.account.status === STATUS_APPROVED) return acc + 1;
+      return acc;
+    }, 0);
+  }, [proposalsQ.data]);
+
   return (
     <li>
       <Link
@@ -943,8 +972,21 @@ function VaultCard({ vault }: { vault: DecodedRecovery }) {
             <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
               Vault
             </span>
-            <span className="mt-1 truncate font-display text-base font-semibold tracking-[-0.01em] text-text-strong">
-              {short}
+            <span className="mt-1 flex items-center gap-2 truncate">
+              <span className="truncate font-display text-base font-semibold tracking-[-0.01em] text-text-strong">
+                {short}
+              </span>
+              {pendingCount > 0 && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-accent/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-accent ring-1 ring-accent/30"
+                  title={`${pendingCount} proposal${pendingCount === 1 ? "" : "s"} need${pendingCount === 1 ? "s" : ""} action`}
+                >
+                  <span className="font-numerals tabular-nums">
+                    {pendingCount}
+                  </span>
+                  pending
+                </span>
+              )}
             </span>
           </div>
 

@@ -138,6 +138,55 @@ export function friendlyError(
     };
   }
 
+  // ── Ika dWallet sig-recovery failure ──────────────────────────
+  // The CLI rejects a broadcast when the Ika-network signature
+  // doesn't recover to the dWallet pubkey stored on the IkaConfig.
+  // Pre-alpha root causes (none user-fixable from the frontend):
+  //
+  //   1. **Byte-exact preimage parity drift** — the on-chain
+  //      `programs/clear-wallet/src/chains/<chain>.rs` and the
+  //      `cli/src/chains/<chain>.rs` must produce IDENTICAL bytes
+  //      for the preimage. A one-byte divergence (off-by-one length
+  //      prefix, wrong endianness, missing field) causes exactly
+  //      this signature-recovery failure. CLAUDE.md flags it as the
+  //      load-bearing invariant; redeploying one side without the
+  //      other regresses everything.
+  //
+  //   2. **Stale MessageApproval reuse** — if the FIRST sign attempt
+  //      stored a bad sig on chain (Ika hiccup), every retry reads
+  //      "MessageApproval already signed — reusing on-chain
+  //      signature" and re-uses the bad sig forever. The CLI has no
+  //      "force fresh sign" path right now.
+  //
+  //   3. **dWallet pubkey encoding mismatch** — the on-chain dWallet
+  //      account stores `public_key` as a length-prefixed byte
+  //      string at offset 38; if the CLI's `parse_dwallet` reads
+  //      different bytes than what the dwallet program writes, the
+  //      "expected" pubkey is wrong. Possible after an Ika dwallet
+  //      program redeploy that changed account layout.
+  //
+  // Earlier copy here floated a "key rotation" theory; per upstream
+  // (Iamknownasfesal / Ika devrel) a real rotation would invalidate
+  // every wallet, not selective per-chain — so this isn't that.
+  if (
+    hay.includes("neither v=0 nor v=1 recovers") ||
+    hay.includes("not over keccak256(preimage)") ||
+    hay.includes("produced by a different key")
+  ) {
+    return {
+      title: "Ika signature didn't match the dWallet's pubkey",
+      body:
+        "This is a pre-alpha bug in the deployed CLI / on-chain program / Ika " +
+        "network — not something you did. The signature Ika returned doesn't " +
+        "recover to the pubkey stored on this wallet's chain binding, which " +
+        "means the preimage builders on the two sides have drifted out of " +
+        "byte-exact parity (or a stale MessageApproval is being reused). " +
+        "Frontend can't fix this; the backend authors need to rebuild + " +
+        "redeploy the CLI and the on-chain program together. Send this stderr " +
+        "to the team along with the dWallet pubkey from the chain binding.",
+    };
+  }
+
   // ── Wallet UX: Phantom rejected our offchain envelope ────────
   // Phantom's signMessage refuses bytes whose first byte looks like a
   // Solana versioned-transaction prefix (0x80 | version). Solana's
@@ -282,11 +331,21 @@ export function friendlyError(
   }
 
   // ── Chain already bound (add-chain dedupe) ────────────────────
+  // Tightened from the earlier matcher: "ikaconfig" alone catches
+  // the success log line (`✓ IkaConfig: <pubkey> → dWallet …`) the
+  // CLI emits BEFORE later stages can fail. When a downstream stage
+  // (DKG / TransferOwnership / sign / broadcast) errors out, the
+  // stderr contains both the success log AND a real error — the
+  // bare-substring match would misfire and tell the user "chain
+  // already bound" when it's actually a different failure entirely.
+  // Anchor on phrases that ONLY appear in the dedupe rejection.
   if (
     hay.includes("already bound") ||
-    hay.includes("ikaconfig") ||
     hay.includes("ika_config already") ||
-    hay.includes("chain already")
+    hay.includes("ikaconfig already") ||
+    hay.includes("chain already") ||
+    hay.includes("already initialized") ||
+    hay.includes("alreadyinuse")
   ) {
     return {
       title: "That chain is already on this wallet",

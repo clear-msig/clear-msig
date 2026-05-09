@@ -37,11 +37,16 @@ import {
   User,
   Vault as VaultIcon,
 } from "lucide-react";
+import { PublicKey } from "@solana/web3.js";
 import { useConnection, useWallet } from "@/lib/wallet";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/retail/Button";
 import { useToast } from "@/components/ui/Toast";
 import {
+  createMultiMemberVault,
   createSoloVault,
+  fetchVault,
+  type CreatePasskeyProgress,
   type CreateVaultStage,
 } from "@/lib/ikavery/clearmsig-actions";
 
@@ -71,16 +76,18 @@ const SHAPES: ThresholdShape[] = [
     label: "2 of 3",
     threshold: 2,
     members: 3,
-    blurb: "You + two devices. Any two sign and you're in. Tolerates losing one.",
-    available: false,
+    blurb:
+      "You + two passkeys. Any two sign and you're in. Tolerates losing one. Two passkey prompts during create.",
+    available: true,
   },
   {
     id: "3of5",
     label: "3 of 5",
     threshold: 3,
     members: 5,
-    blurb: "Five devices, three to recover. Tolerates losing two.",
-    available: false,
+    blurb:
+      "Five members, three to recover. Tolerates losing two. Four passkey prompts during create.",
+    available: true,
   },
 ];
 
@@ -98,11 +105,13 @@ function SecureBuildPage() {
   const { connection } = useConnection();
   const wallet = useWallet();
   const toast = useToast();
+  const queryClient = useQueryClient();
 
   const [stage, setStage] = useState<Stage>("shape");
   const [shape, setShape] = useState<ThresholdShape>(SHAPES[0]!);
   const [resultRecovery, setResultRecovery] = useState<string | null>(null);
   const [resultTxSig, setResultTxSig] = useState<string | null>(null);
+  const [passkeyProgress, setPasskeyProgress] = useState<CreatePasskeyProgress | null>(null);
   const [createSubStage, setCreateSubStage] = useState<CreateVaultStage | null>(
     null,
   );
@@ -122,10 +131,7 @@ function SecureBuildPage() {
 
   const handleConfirm = () => {
     if (!shape.available) {
-      toast.info("Coming soon", {
-        details:
-          "Multi-device vaults land with the device-enrollment flow in v3.",
-      });
+      toast.info("Coming soon");
       return;
     }
     setStage("confirm");
@@ -143,26 +149,75 @@ function SecureBuildPage() {
       });
       return;
     }
-    setCreateSubStage("dkg");
+    // For multi-member shapes, the wizard fires `memberCount - 1`
+    // passkey-create prompts back-to-back BEFORE DKG. Set the initial
+    // sub-stage accordingly so the UI shows "Creating passkey 1 of N"
+    // straight away instead of the DKG copy.
+    setCreateSubStage(shape.members > 1 ? "create-passkey" : "dkg");
+    setPasskeyProgress(null);
     setStage("creating");
     try {
-      const result = await createSoloVault({
-        connection,
-        creator: wallet.publicKey,
-        threshold: shape.threshold,
-        signTransaction: wallet.signTransaction,
-        onProgress: (s) => setCreateSubStage(s),
-      });
+      const result =
+        shape.members === 1
+          ? await createSoloVault({
+              connection,
+              creator: wallet.publicKey,
+              threshold: shape.threshold,
+              signTransaction: wallet.signTransaction,
+              onProgress: (s) => setCreateSubStage(s),
+            })
+          : await createMultiMemberVault({
+              connection,
+              creator: wallet.publicKey,
+              threshold: shape.threshold,
+              memberCount: shape.members,
+              signTransaction: wallet.signTransaction,
+              onProgress: (s) => setCreateSubStage(s),
+              onPasskeyProgress: (p) => setPasskeyProgress(p),
+            });
       setResultRecovery(result.recovery.toBase58());
       setResultTxSig(result.txSignature);
       setCreateSubStage(null);
       setStage("done");
+
+      // Pre-warm the vault detail page so clicking "Open vault" lands
+      // on a populated page instead of the read-vault skeleton. Three
+      // queries to fill, all in parallel:
+      //   - vault account (already fetched once in the create flow,
+      //     but persist into the listing's queryKey shape)
+      //   - dwallet balance (0 lamports — we know this for a brand-new
+      //     dWallet)
+      //   - proposals list (empty — proposalCount is 0)
+      // All best-effort; failures are silent because the destination
+      // page will refetch anyway.
+      const recoveryStr = result.recovery.toBase58();
+      const dwalletStr = new PublicKey(result.dwalletPubkey).toBase58();
+      void Promise.allSettled([
+        queryClient.prefetchQuery({
+          queryKey: ["ikavery-vault", recoveryStr],
+          queryFn: () => fetchVault(connection, result.recovery),
+        }),
+        queryClient.setQueryData(
+          ["ikavery-dwallet-balance", dwalletStr],
+          0,
+        ),
+        queryClient.setQueryData(
+          ["ikavery-proposals", recoveryStr, 0],
+          [],
+        ),
+        // Bust the listing query so the new vault shows up after the
+        // user backs out, rather than waiting for the next focus-refetch.
+        queryClient.invalidateQueries({
+          queryKey: ["ikavery-vaults"],
+        }),
+      ]);
     } catch (e) {
       console.error("[secure/build]", e);
       toast.error("Couldn't build the vault", {
         details: e instanceof Error ? e.message : String(e),
       });
       setCreateSubStage(null);
+      setPasskeyProgress(null);
       setStage("confirm");
     }
   };
@@ -208,7 +263,11 @@ function SecureBuildPage() {
         />
       )}
       {!isBlocked && stage === "creating" && (
-        <CreatingStage reduce={!!reduce} subStage={createSubStage} />
+        <CreatingStage
+          reduce={!!reduce}
+          subStage={createSubStage}
+          passkeyProgress={passkeyProgress}
+        />
       )}
       {stage === "done" && (
         <DoneStage
@@ -644,15 +703,34 @@ function PreviewRow({
 function CreatingStage({
   reduce,
   subStage,
+  passkeyProgress,
 }: {
   reduce: boolean;
   subStage: CreateVaultStage | null;
+  passkeyProgress?: CreatePasskeyProgress | null;
 }) {
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0 }, animate: { opacity: 1 } };
 
+  // Multi-member only: when the engine is in the `create-passkey`
+  // stage, show "Passkey N of M" + which slot we're on. Single label
+  // re-rendered as the index ticks; doesn't add a new stage row.
+  const passkeyLabel =
+    passkeyProgress != null
+      ? `Creating passkey ${passkeyProgress.index} of ${passkeyProgress.total}`
+      : "Creating passkeys";
+  const passkeyDetail =
+    passkeyProgress != null
+      ? "Tap your fingerprint / use your phone — one prompt per slot."
+      : "Each member needs its own credential. Tap through each prompt.";
+
   const STAGES: { id: CreateVaultStage; label: string; detail: string }[] = [
+    {
+      id: "create-passkey",
+      label: passkeyLabel,
+      detail: passkeyDetail,
+    },
     {
       id: "dkg",
       label: "Running DKG",

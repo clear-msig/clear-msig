@@ -1244,7 +1244,14 @@ function SolanaRpcSettingRow() {
   }, []);
 
   const trimmed = draft.trim();
-  const looksValid = /^https?:\/\/[^\s]+$/i.test(trimmed);
+  // Match the validator in `lib/solana/cluster.ts`: HTTPS-only,
+  // localhost exception. Plain HTTP is rejected so a passive network
+  // observer can't manipulate balance / blockhash responses.
+  const httpsOk = /^https:\/\/[^\s]+$/i.test(trimmed);
+  const localhostOk = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/[^\s]*)?$/i.test(
+    trimmed,
+  );
+  const looksValid = httpsOk || localhostOk;
   const hasOverride = trimmed.length > 0 && looksValid;
   const effectiveUrl = solanaClusterRpc;
   const isUsingOverride = effectiveUrl !== solanaClusterDefaultRpc;
@@ -1340,7 +1347,9 @@ function SolanaRpcSettingRow() {
       </div>
       {trimmed.length > 0 && !hasOverride && (
         <p className="mt-2 text-xs text-warning">
-          Must be a valid http(s) URL.
+          Must be an https:// URL (or http://localhost for development).
+          Plain HTTP is rejected so a passive observer can&rsquo;t modify
+          balance / blockhash responses.
         </p>
       )}
     </section>

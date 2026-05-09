@@ -39,9 +39,16 @@ function readEvmRpcOverride(): string | null {
 /// Env-default EVM RPC URL - doesn't see the override. Exposed so
 /// the Settings row can tell the user whether the active value is
 /// theirs or the env default.
+///
+/// 1RPC is currently the front of the public-Sepolia pool because it
+/// (a) ships permissive CORS for browser origins (blastapi blocks
+/// clearsig.xyz, publicnode has been intermittently rate-limiting
+/// us with `ERR_CONNECTION_CLOSED`), (b) has the highest free-tier
+/// limits of the no-API-key options, and (c) doesn't require an
+/// auth header. Rotate via `NEXT_PUBLIC_DESTINATION_RPC_URL` (Vercel
+/// env) or the per-device override in Settings.
 export const destinationRpcDefault =
-  process.env.NEXT_PUBLIC_DESTINATION_RPC_URL ??
-  "https://ethereum-sepolia-rpc.publicnode.com";
+  process.env.NEXT_PUBLIC_DESTINATION_RPC_URL ?? "https://1rpc.io/sepolia";
 
 export const appConfig = {
   backendApiUrl:

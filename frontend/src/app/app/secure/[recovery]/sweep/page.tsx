@@ -22,12 +22,12 @@
 //   - vault threshold = 1
 // Anything else fails fast with a useful message in the toast.
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { useQuery } from "@tanstack/react-query";
-import { PublicKey } from "@solana/web3.js";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Connection, PublicKey } from "@solana/web3.js";
 import {
   ArrowLeft,
   ArrowRight,
@@ -41,13 +41,126 @@ import { PageEyebrow } from "@/components/retail/PageEyebrow";
 import { useToast } from "@/components/ui/Toast";
 import { fetchVault } from "@/lib/ikavery/clearmsig-actions";
 import { loadAttestation } from "@/lib/ikavery/clearmsig-attestations";
-import { buildSweepMessage, transferSol } from "@/lib/ikavery/sweep/message";
 import {
+  buildSweepMessage,
+  createIdempotentAta,
+  deriveAta,
+  prepareSplSweepTarget,
+  transferSol,
+  transferSplTokenChecked,
+  TOKEN_2022_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
+} from "@/lib/ikavery/sweep/message";
+import {
+  addSweepApproval,
   runInAppSweep,
+  type AdditionalApprovalsRequest,
   type SweepAuthMode,
   type SweepStage as ActionStage,
+  type SweepTarget,
 } from "@/lib/ikavery/clearmsig-sweep";
 import { SCHEME_SOLANA_ADDRESS } from "@/lib/ikavery/constants";
+import { decodeProposal } from "@/lib/ikavery/codec/proposal";
+
+interface SplHolding {
+  mint: string;
+  amount: bigint;
+  decimals: number;
+  programId: string;
+  /** Optional symbol derived from a small static list (USDC, USDT…). */
+  symbol?: string;
+}
+
+const KNOWN_DEVNET_SYMBOLS: Record<string, string> = {
+  Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB: "USDT",
+  EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: "USDC",
+};
+
+async function fetchDwalletHoldings(
+  connection: Connection,
+  dwallet: PublicKey,
+): Promise<SplHolding[]> {
+  const out: SplHolding[] = [];
+  for (const programId of [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID]) {
+    const resp = await connection.getParsedTokenAccountsByOwner(
+      dwallet,
+      { programId },
+      "confirmed",
+    );
+    for (const { account } of resp.value) {
+      // `getParsedTokenAccountsByOwner` returns parsed JSON when the
+      // RPC supports it (devnet mainline does). Defensive guard for
+      // raw-data fallback.
+      const parsed = (account.data as { parsed?: { info?: any } }).parsed;
+      const info = parsed?.info;
+      if (!info?.mint || !info?.tokenAmount) continue;
+      const amountStr: string = info.tokenAmount.amount;
+      const decimals: number = info.tokenAmount.decimals;
+      let amount: bigint;
+      try {
+        amount = BigInt(amountStr);
+      } catch {
+        continue;
+      }
+      if (amount <= 0n) continue;
+      const mint: string = info.mint;
+      out.push({
+        mint,
+        amount,
+        decimals,
+        programId: programId.toBase58(),
+        symbol: KNOWN_DEVNET_SYMBOLS[mint],
+      });
+    }
+  }
+  return out;
+}
+
+function formatTokenAmount(amount: bigint, decimals: number): string {
+  if (decimals === 0) return amount.toString();
+  const base = 10n ** BigInt(decimals);
+  const whole = amount / base;
+  const frac = amount % base;
+  const fracStr = frac.toString().padStart(decimals, "0").replace(/0+$/, "");
+  return fracStr ? `${whole}.${fracStr}` : whole.toString();
+}
+
+function parseTokenAmount(input: string, decimals: number): bigint | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  if (!new RegExp(`^\\d+(\\.\\d{0,${decimals}})?$`).test(trimmed)) return null;
+  const [whole, frac = ""] = trimmed.split(".");
+  const fracPadded = (frac + "0".repeat(decimals)).slice(0, decimals);
+  try {
+    const w = BigInt(whole ?? "0");
+    const f = decimals === 0 ? 0n : BigInt(fracPadded || "0");
+    const v = w * 10n ** BigInt(decimals) + f;
+    if (v <= 0n) return null;
+    return v;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Live read of `proposal.approvalCount` — used by the M-of-N picker
+ * after each successful add so the local UI stays in sync with what's
+ * actually on chain (concurrent approvers from other browsers can
+ * push the count past what this tab knows about).
+ */
+async function readLiveApprovalCount(
+  connection: Connection,
+  proposal: PublicKey,
+): Promise<number> {
+  const info = await connection.getAccountInfo(proposal, "confirmed");
+  if (!info || info.data.length === 0) return 0;
+  try {
+    const acc = decodeProposal(new Uint8Array(info.data));
+    return acc.approvalCount;
+  } catch {
+    return 0;
+  }
+}
 
 const LAMPORTS_PER_SOL = 1_000_000_000n;
 
@@ -175,6 +288,7 @@ export default function SweepPageWrapper() {
 
 function SweepPage() {
   const reduce = useReducedMotion();
+  const queryClient = useQueryClient();
   const params = useParams<{ recovery: string }>();
   const { connection } = useConnection();
   const wallet = useWallet();
@@ -237,16 +351,60 @@ function SweepPage() {
 
   const [stage, setStage] = useState<Stage>("compose");
   const [destination, setDestination] = useState("");
-  const [amountSol, setAmountSol] = useState("");
+  const [amountInput, setAmountInput] = useState("");
   const [destinationError, setDestinationError] = useState<string | null>(null);
   const [amountError, setAmountError] = useState<string | null>(null);
   const [previewMessageBytes, setPreviewMessageBytes] =
     useState<Uint8Array | null>(null);
   const [authMode, setAuthMode] = useState<SweepAuthMode>("wallet");
+  /** `null` = SOL; otherwise the SPL mint base58 string (which keys into `holdingsQuery`). */
+  const [assetMint, setAssetMint] = useState<string | null>(null);
+  /** Cached SPL `SweepTarget` once the user clicks Review — re-derived for the actual run. */
+  const [previewSpl, setPreviewSpl] = useState<{
+    mint: string;
+    amount: bigint;
+    decimals: number;
+    symbol?: string;
+  } | null>(null);
+
+  const holdingsQuery = useQuery({
+    queryKey: ["ikavery-dwallet-holdings", dwalletPubkey?.toBase58() ?? "none"],
+    queryFn: async () => {
+      if (!dwalletPubkey) return [];
+      return fetchDwalletHoldings(connection, dwalletPubkey);
+    },
+    enabled: !!dwalletPubkey,
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
+  });
+
+  const selectedHolding = useMemo<SplHolding | null>(() => {
+    if (!assetMint) return null;
+    return holdingsQuery.data?.find((h) => h.mint === assetMint) ?? null;
+  }, [assetMint, holdingsQuery.data]);
+
+  const isSpl = assetMint !== null;
+  const decimals = isSpl ? (selectedHolding?.decimals ?? 0) : 9;
+  const assetSymbol = isSpl
+    ? (selectedHolding?.symbol ?? `${assetMint!.slice(0, 4)}…${assetMint!.slice(-4)}`)
+    : "SOL";
   const [runStage, setRunStage] = useState<ActionStage | null>(null);
   const [proposeSig, setProposeSig] = useState<string | null>(null);
   const [executeSig, setExecuteSig] = useState<string | null>(null);
   const [broadcastSig, setBroadcastSig] = useState<string | null>(null);
+
+  // M-of-N collection state. When the action layer asks the page to
+  // gather more approvals, we render a side-state below the spinner
+  // with a Wallet / Passkey picker. Each click hits the chain via
+  // `addSweepApproval` and bumps `collectCount`. Once it equals the
+  // threshold, `collectResolveRef.current()` lets `runInAppSweep`
+  // continue into execute.
+  const [collectInfo, setCollectInfo] =
+    useState<AdditionalApprovalsRequest | null>(null);
+  const [collectCount, setCollectCount] = useState(0);
+  const [collectBusy, setCollectBusy] = useState(false);
+  const [collectError, setCollectError] = useState<string | null>(null);
+  const collectResolveRef = useRef<(() => void) | null>(null);
 
   // Default authMode based on whether the connected wallet is on the
   // roster. If yes → wallet (one-click). If not (lost-wallet recovery
@@ -282,22 +440,9 @@ function SweepPage() {
     }
   }, [vaultQuery.data, walletIsMember, vaultHasPasskey]);
 
-  const lamports = useMemo<bigint | null>(() => {
-    const trimmed = amountSol.trim();
-    if (!trimmed) return null;
-    if (!/^\d+(\.\d{0,9})?$/.test(trimmed)) return null;
-    const [whole, frac = ""] = trimmed.split(".");
-    const fracPadded = (frac + "000000000").slice(0, 9);
-    try {
-      const w = BigInt(whole ?? "0");
-      const f = BigInt(fracPadded || "0");
-      const v = w * LAMPORTS_PER_SOL + f;
-      if (v <= 0n) return null;
-      return v;
-    } catch {
-      return null;
-    }
-  }, [amountSol]);
+  const baseUnits = useMemo<bigint | null>(() => {
+    return parseTokenAmount(amountInput, decimals);
+  }, [amountInput, decimals]);
 
   const destinationPk = useMemo<PublicKey | null>(() => {
     const trimmed = destination.trim();
@@ -309,15 +454,19 @@ function SweepPage() {
     }
   }, [destination]);
 
-  const handleReview = () => {
+  const handleReview = async () => {
     setDestinationError(null);
     setAmountError(null);
     if (!destinationPk) {
       setDestinationError("Enter a valid Solana address.");
       return;
     }
-    if (!lamports) {
-      setAmountError("Enter an amount in SOL (e.g. 0.5).");
+    if (!baseUnits) {
+      setAmountError(
+        isSpl
+          ? `Enter an amount in ${assetSymbol} (e.g. 1.5).`
+          : "Enter an amount in SOL (e.g. 0.5).",
+      );
       return;
     }
     if (!dwalletPubkey) {
@@ -327,18 +476,65 @@ function SweepPage() {
       });
       return;
     }
+    if (isSpl && !selectedHolding) {
+      toast.error("Token holding not loaded yet");
+      return;
+    }
+    if (isSpl && selectedHolding && baseUnits > selectedHolding.amount) {
+      setAmountError(
+        `Amount exceeds ${assetSymbol} balance (${formatTokenAmount(selectedHolding.amount, selectedHolding.decimals)}).`,
+      );
+      return;
+    }
 
-    const ix = transferSol(dwalletPubkey, destinationPk, lamports);
+    let previewIxs: import("@solana/web3.js").TransactionInstruction[];
+    if (!isSpl) {
+      previewIxs = [transferSol(dwalletPubkey, destinationPk, baseUnits)];
+      setPreviewSpl(null);
+    } else {
+      // Build a representative ix list for the message-size preview.
+      // We deliberately don't probe destination ATA existence here —
+      // that's a network round-trip we'd repeat on Run anyway. Worst
+      // case the preview's byte count is one ix off.
+      const programId = new PublicKey(selectedHolding!.programId);
+      const mintPk = new PublicKey(selectedHolding!.mint);
+      const sourceAta = deriveAta(dwalletPubkey, mintPk, programId);
+      const destinationAta = deriveAta(destinationPk, mintPk, programId);
+      previewIxs = [
+        createIdempotentAta({
+          payer: dwalletPubkey,
+          ata: destinationAta,
+          owner: destinationPk,
+          mint: new PublicKey(selectedHolding!.mint),
+          tokenProgramId: programId,
+        }),
+        transferSplTokenChecked({
+          source: sourceAta,
+          mint: new PublicKey(selectedHolding!.mint),
+          destination: destinationAta,
+          authority: dwalletPubkey,
+          amount: baseUnits,
+          decimals: selectedHolding!.decimals,
+          programId,
+        }),
+      ];
+      setPreviewSpl({
+        mint: selectedHolding!.mint,
+        amount: baseUnits,
+        decimals: selectedHolding!.decimals,
+        symbol: selectedHolding!.symbol,
+      });
+    }
     const { messageBytes } = buildSweepMessage({
       feePayer: dwalletPubkey,
-      instructions: [ix],
+      instructions: previewIxs,
     });
     setPreviewMessageBytes(messageBytes);
     setStage("review");
   };
 
   const handleRun = async () => {
-    if (!destinationPk || !lamports || !recoveryPk) return;
+    if (!destinationPk || !baseUnits || !recoveryPk) return;
     if (!vaultQuery.data) {
       toast.error("Vault not loaded yet");
       return;
@@ -354,32 +550,124 @@ function SweepPage() {
       });
       return;
     }
+    if (!dwalletPubkey) return;
     setRunStage("build");
     setStage("running");
     try {
+      let target: SweepTarget;
+      if (!isSpl) {
+        target = {
+          kind: "sol",
+          destination: destinationPk,
+          lamports: baseUnits,
+        };
+      } else {
+        if (!selectedHolding) throw new Error("Token holding not loaded.");
+        target = await prepareSplSweepTarget({
+          connection,
+          dwallet: dwalletPubkey,
+          mint: new PublicKey(selectedHolding.mint),
+          destinationOwner: destinationPk,
+          amount: baseUnits,
+          tokenProgramId: new PublicKey(selectedHolding.programId),
+          decimals: selectedHolding.decimals,
+        });
+      }
       const result = await runInAppSweep({
         authMode,
         connection,
         recovery: recoveryPk,
         recoveryId: vaultQuery.data.account.recoveryId,
         creator: wallet.publicKey,
-        destination: destinationPk,
-        lamports,
+        target,
         signTransaction: wallet.signTransaction,
         onProgress: (s) => setRunStage(s),
+        collectAdditionalApprovals: async (req) => {
+          setCollectInfo(req);
+          setCollectCount(req.currentCount);
+          setCollectError(null);
+          // Suspend the action-layer until the page-side picker has
+          // gathered enough approvals on chain. The handlers below
+          // resolve `collectResolveRef.current` when count >= threshold.
+          await new Promise<void>((resolve) => {
+            collectResolveRef.current = resolve;
+          });
+          // Clear the picker state once the action layer continues.
+          setCollectInfo(null);
+          collectResolveRef.current = null;
+        },
       });
       setProposeSig(result.proposeSig);
       setExecuteSig(result.executeSig);
       setBroadcastSig(result.broadcastSig);
       setRunStage(null);
       setStage("done");
+      // Invalidate the vault + proposals + balance queries so when the
+      // user backs out to the vault detail, the new sweep / updated
+      // balance show up without waiting for the next 30s refetch.
+      void queryClient.invalidateQueries({
+        queryKey: ["ikavery-vault", recoveryStr],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["ikavery-proposals", recoveryStr],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["ikavery-dwallet-balance"],
+      });
     } catch (e) {
       console.error("[secure/sweep]", e);
       toast.error("Sweep failed", {
         details: e instanceof Error ? e.message : String(e),
       });
       setRunStage(null);
+      setCollectInfo(null);
+      collectResolveRef.current = null;
       setStage("review");
+    }
+  };
+
+  /// Handler the additional-approvals UI calls when the user picks a
+  /// credential to add the next vote. Single-flight: ignored if a
+  /// previous click is still in flight.
+  const handleAddApproval = async (mode: SweepAuthMode) => {
+    if (collectBusy) return;
+    if (!collectInfo || !recoveryPk) return;
+    if (!wallet.publicKey || !wallet.signTransaction) {
+      setCollectError("Connect a wallet first.");
+      return;
+    }
+    setCollectBusy(true);
+    setCollectError(null);
+    try {
+      await addSweepApproval({
+        connection,
+        recovery: recoveryPk,
+        proposal: collectInfo.proposal,
+        payer: wallet.publicKey,
+        authMode: mode,
+        walletPubkey: mode === "wallet" ? wallet.publicKey : undefined,
+        signTransaction: wallet.signTransaction,
+      });
+      // Re-read the on-chain count instead of trusting `collectCount + 1`.
+      // If a different approver landed an approval concurrently (other
+      // browser, other device), the chain may already be at threshold —
+      // we want to resolve and continue to execute, not wait for more
+      // local clicks. fetchVault doesn't help here (it's the proposal,
+      // not the recovery), so go through the proposal codec directly.
+      const liveCount = await readLiveApprovalCount(
+        connection,
+        collectInfo.proposal,
+      );
+      setCollectCount(liveCount);
+      if (liveCount >= collectInfo.threshold) {
+        const resolve = collectResolveRef.current;
+        if (resolve) resolve();
+      }
+    } catch (e) {
+      console.error("[secure/sweep] addApproval", e);
+      setCollectError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCollectBusy(false);
     }
   };
 
@@ -451,13 +739,36 @@ function SweepPage() {
         </PageEyebrow>
       )}
 
-      {!blockedByDisconnect && !blockedByLedger && stage === "compose" && (
+      {!blockedByDisconnect && !blockedByLedger && vaultQuery.isError && (
+        <div className="mx-auto max-w-md rounded-card border border-warning/40 bg-warning/[0.06] p-4 text-sm text-text-soft">
+          <p className="font-medium text-text-strong">
+            Couldn&rsquo;t load this vault.
+          </p>
+          <p className="mt-1">
+            {vaultQuery.error instanceof Error
+              ? vaultQuery.error.message
+              : String(vaultQuery.error)}
+          </p>
+          <button
+            type="button"
+            onClick={() => vaultQuery.refetch()}
+            className="mt-3 inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-[11px] font-medium text-text-soft hover:border-accent hover:text-accent"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {!blockedByDisconnect &&
+        !blockedByLedger &&
+        !vaultQuery.isError &&
+        stage === "compose" && (
         <ComposeStage
           destination={destination}
           setDestination={setDestination}
           destinationError={destinationError}
-          amountSol={amountSol}
-          setAmountSol={setAmountSol}
+          amountInput={amountInput}
+          setAmountInput={setAmountInput}
           amountError={amountError}
           dwalletPubkey={dwalletPubkey?.toBase58() ?? null}
           recoveryShort={`${recoveryStr.slice(0, 4)}…${recoveryStr.slice(-4)}`}
@@ -467,15 +778,29 @@ function SweepPage() {
               ? BigInt(dwalletBalanceQ.data)
               : null
           }
+          assetMint={assetMint}
+          setAssetMint={setAssetMint}
+          assetSymbol={assetSymbol}
+          decimals={decimals}
+          holdings={holdingsQuery.data ?? null}
+          holdingsLoading={holdingsQuery.isLoading}
+          selectedHolding={selectedHolding}
           onMax={() => {
+            if (isSpl) {
+              if (!selectedHolding) return;
+              setAmountInput(
+                formatTokenAmount(selectedHolding.amount, selectedHolding.decimals),
+              );
+              return;
+            }
             if (typeof dwalletBalanceQ.data !== "number") return;
             const balance = BigInt(dwalletBalanceQ.data);
             if (balance <= FEE_RESERVE_LAMPORTS) {
-              setAmountSol("0");
+              setAmountInput("0");
               return;
             }
             const maxLamports = balance - FEE_RESERVE_LAMPORTS;
-            setAmountSol(formatLamportsToSol(maxLamports));
+            setAmountInput(formatLamportsToSol(maxLamports));
           }}
           onContinue={handleReview}
           reduce={!!reduce}
@@ -485,9 +810,19 @@ function SweepPage() {
       {!blockedByDisconnect && !blockedByLedger && stage === "review" && (
         <ReviewStage
           destination={destinationPk?.toBase58() ?? ""}
-          amountSol={amountSol}
+          amountDisplay={`${amountInput} ${assetSymbol}`}
           dwalletPubkey={dwalletPubkey?.toBase58() ?? ""}
           messageBytesLen={previewMessageBytes?.length ?? 0}
+          isSpl={isSpl}
+          willCreateAta={
+            previewSpl !== null &&
+            previewMessageBytes !== null
+            // The compose-stage preview always includes the AtaCreate ix
+            // for size estimation; the actual run only emits it when the
+            // destination ATA doesn't exist. We surface this disclosure
+            // so the user knows the run might cost an extra ~2 KB of
+            // rent + ~5 KB of compute.
+          }
           authMode={authMode}
           setAuthMode={setAuthMode}
           walletIsMember={walletIsMember}
@@ -503,16 +838,29 @@ function SweepPage() {
           subStage={runStage}
           authMode={authMode}
           reduce={!!reduce}
+          collect={
+            collectInfo
+              ? {
+                  count: collectCount,
+                  threshold: collectInfo.threshold,
+                  busy: collectBusy,
+                  error: collectError,
+                  walletEnabled: walletIsMember,
+                  onPick: handleAddApproval,
+                }
+              : null
+          }
         />
       )}
 
       {stage === "done" && (
         <DoneStage
-          amountSol={amountSol}
+          amountDisplay={`${amountInput} ${assetSymbol}`}
           destination={destinationPk?.toBase58() ?? ""}
           proposeSig={proposeSig}
           executeSig={executeSig}
           broadcastSig={broadcastSig}
+          recoveryStr={recoveryStr}
           reduce={!!reduce}
         />
       )}
@@ -524,14 +872,22 @@ interface ComposeStageProps {
   destination: string;
   setDestination: (v: string) => void;
   destinationError: string | null;
-  amountSol: string;
-  setAmountSol: (v: string) => void;
+  amountInput: string;
+  setAmountInput: (v: string) => void;
   amountError: string | null;
   dwalletPubkey: string | null;
   recoveryShort: string;
   loading: boolean;
-  /** Live dWallet balance in lamports. Used for "Max" + helper text. */
+  /** Live dWallet SOL balance in lamports. Used for "Max" + helper text. */
   balanceLamports: bigint | null;
+  /** `null` = SOL; otherwise the picked SPL mint base58. */
+  assetMint: string | null;
+  setAssetMint: (m: string | null) => void;
+  assetSymbol: string;
+  decimals: number;
+  holdings: SplHolding[] | null;
+  holdingsLoading: boolean;
+  selectedHolding: SplHolding | null;
   onMax: () => void;
   onContinue: () => void;
   reduce: boolean;
@@ -541,6 +897,7 @@ function ComposeStage(props: ComposeStageProps) {
   const motionProps = props.reduce
     ? {}
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
+  const isSpl = props.assetMint !== null;
   return (
     <motion.section
       {...motionProps}
@@ -552,12 +909,57 @@ function ComposeStage(props: ComposeStageProps) {
           Sweep funds out
         </h1>
         <p className="mx-auto mt-2 max-w-md text-base text-text-soft">
-          Move SOL from the vault&rsquo;s dWallet to a destination address.
-          Vault {props.recoveryShort}.
+          Move {props.assetSymbol} from the vault&rsquo;s dWallet to a
+          destination address. Vault {props.recoveryShort}.
         </p>
       </PageEyebrow>
 
       <section className="mx-auto w-full max-w-md flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+        {/* Asset picker — SOL is always available; SPL holdings appear
+            when the dWallet owns any token accounts. */}
+        <div className="flex flex-col gap-1.5">
+          <label
+            htmlFor="sweep-asset"
+            className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft"
+          >
+            Asset
+          </label>
+          <select
+            id="sweep-asset"
+            value={props.assetMint ?? ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              props.setAssetMint(v ? v : null);
+              props.setAmountInput("");
+            }}
+            className="rounded-soft border border-border-soft bg-canvas px-3 py-2 text-sm text-text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <option value="">
+              SOL
+              {props.balanceLamports != null
+                ? ` · ${formatLamportsToSol(props.balanceLamports)} available`
+                : ""}
+            </option>
+            {(props.holdings ?? []).map((h) => {
+              const display = h.symbol ?? `${h.mint.slice(0, 4)}…${h.mint.slice(-4)}`;
+              return (
+                <option key={h.mint} value={h.mint}>
+                  {display} · {formatTokenAmount(h.amount, h.decimals)} available
+                </option>
+              );
+            })}
+          </select>
+          {props.holdingsLoading && (
+            <p className="text-[10px] text-text-soft">Reading token balances…</p>
+          )}
+          {!props.holdingsLoading &&
+            (props.holdings == null || props.holdings.length === 0) && (
+              <p className="text-[10px] text-text-soft">
+                No SPL tokens detected on the dWallet — only SOL.
+              </p>
+            )}
+        </div>
+
         <div className="flex flex-col gap-1.5">
           <label
             htmlFor="sweep-destination"
@@ -579,6 +981,12 @@ function ComposeStage(props: ComposeStageProps) {
           {props.destinationError && (
             <p className="text-[11px] text-warning">{props.destinationError}</p>
           )}
+          {isSpl && (
+            <p className="text-[10px] text-text-soft">
+              Sends to the recipient&rsquo;s wallet — we derive their{" "}
+              {props.assetSymbol} ATA and create it on the fly if needed.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -587,11 +995,21 @@ function ComposeStage(props: ComposeStageProps) {
               htmlFor="sweep-amount"
               className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft"
             >
-              Amount (SOL)
+              Amount ({props.assetSymbol})
             </label>
-            {props.balanceLamports != null && (
+            {!isSpl && props.balanceLamports != null && (
               <span className="font-numerals text-[10px] tabular-nums text-text-soft">
                 Balance: {formatLamportsToSol(props.balanceLamports)} SOL
+              </span>
+            )}
+            {isSpl && props.selectedHolding && (
+              <span className="font-numerals text-[10px] tabular-nums text-text-soft">
+                Balance:{" "}
+                {formatTokenAmount(
+                  props.selectedHolding.amount,
+                  props.selectedHolding.decimals,
+                )}{" "}
+                {props.assetSymbol}
               </span>
             )}
           </div>
@@ -600,8 +1018,8 @@ function ComposeStage(props: ComposeStageProps) {
               id="sweep-amount"
               type="text"
               inputMode="decimal"
-              value={props.amountSol}
-              onChange={(e) => props.setAmountSol(e.target.value)}
+              value={props.amountInput}
+              onChange={(e) => props.setAmountInput(e.target.value)}
               placeholder="0.0"
               spellCheck={false}
               autoComplete="off"
@@ -610,14 +1028,20 @@ function ComposeStage(props: ComposeStageProps) {
             <button
               type="button"
               onClick={props.onMax}
-              disabled={props.balanceLamports == null}
+              disabled={
+                isSpl ? !props.selectedHolding : props.balanceLamports == null
+              }
               className={
                 "shrink-0 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft " +
                 "transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent " +
                 "disabled:cursor-not-allowed disabled:opacity-50 " +
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               }
-              title="Use max (balance minus fee reserve)"
+              title={
+                isSpl
+                  ? "Use full token balance"
+                  : "Use max (balance minus fee reserve)"
+              }
             >
               Max
             </button>
@@ -649,9 +1073,11 @@ function ComposeStage(props: ComposeStageProps) {
 
 interface ReviewStageProps {
   destination: string;
-  amountSol: string;
+  amountDisplay: string;
   dwalletPubkey: string;
   messageBytesLen: number;
+  isSpl: boolean;
+  willCreateAta: boolean;
   authMode: SweepAuthMode;
   setAuthMode: (m: SweepAuthMode) => void;
   walletIsMember: boolean;
@@ -683,7 +1109,7 @@ function ReviewStage(props: ReviewStageProps) {
 
       <section className="mx-auto w-full max-w-md rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
         <dl className="flex flex-col gap-3">
-          <Row label="Amount" value={`${props.amountSol} SOL`} mono={false} />
+          <Row label="Amount" value={props.amountDisplay} mono={false} />
           <Row label="From" value={shortPub(props.dwalletPubkey)} title={props.dwalletPubkey} />
           <Row label="To" value={shortPub(props.destination)} title={props.destination} />
           <Row
@@ -691,6 +1117,17 @@ function ReviewStage(props: ReviewStageProps) {
             value={`${props.messageBytesLen} B`}
             mono={false}
           />
+          {props.isSpl && (
+            <Row
+              label="Recipient ATA"
+              value={
+                props.willCreateAta
+                  ? "May be created on the fly"
+                  : "Derived from recipient + mint"
+              }
+              mono={false}
+            />
+          )}
         </dl>
       </section>
 
@@ -805,13 +1242,30 @@ function Row({
   );
 }
 
+interface CollectStateProps {
+  count: number;
+  threshold: number;
+  busy: boolean;
+  error: string | null;
+  /** Disable the Wallet button when the connected wallet isn't on the roster.
+   *  Avoids users tapping it and getting a delayed "not a member" error. */
+  walletEnabled: boolean;
+  onPick: (mode: SweepAuthMode) => void;
+}
+
 interface RunningStageProps {
   subStage: ActionStage | null;
   authMode: SweepAuthMode;
   reduce: boolean;
+  collect: CollectStateProps | null;
 }
 
-function RunningStage({ subStage, authMode, reduce }: RunningStageProps) {
+function RunningStage({
+  subStage,
+  authMode,
+  reduce,
+  collect,
+}: RunningStageProps) {
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
@@ -825,52 +1279,124 @@ function RunningStage({ subStage, authMode, reduce }: RunningStageProps) {
       transition={{ duration: 0.3 }}
       className="flex flex-col items-center gap-6 px-gutter py-16"
     >
-      <Loader2
-        className="h-10 w-10 animate-spin text-accent"
-        strokeWidth={1.5}
-        aria-hidden="true"
-      />
-      <div className="flex flex-col items-center gap-1 text-center">
-        <p className="font-display text-xl font-semibold text-text-strong">
-          {active?.label ?? "Sweeping…"}
-        </p>
-        <p className="max-w-sm text-sm text-text-soft">
-          {active?.detail ?? "Running through the sweep stages."}
-        </p>
-      </div>
-      <ol
-        className="flex items-center gap-1.5"
-        aria-label="sweep progress"
-      >
-        {RUN_STAGES.map((s, i) => {
-          const completed = activeIdx > i;
-          const current = activeIdx === i;
-          return (
-            <li
-              key={s.id}
-              aria-label={s.label}
-              className={
-                "h-1.5 w-6 rounded-full " +
-                (completed
-                  ? "bg-accent"
-                  : current
-                    ? "bg-accent/60"
-                    : "bg-border-soft")
+      {/* When the action layer is paused waiting for additional
+          approvals, show a credential picker instead of the spinner.
+          The page has the live count + threshold; each click on a
+          mode kicks off `addSweepApproval` and bumps the count. */}
+      {collect ? (
+        <>
+          <div className="flex flex-col items-center gap-1 text-center">
+            <p className="font-display text-xl font-semibold text-text-strong">
+              {collect.count} of {collect.threshold} approvals
+            </p>
+            <p className="max-w-sm text-sm text-text-soft">
+              The proposer&rsquo;s vote is in. Add the rest of the quorum
+              by tapping a different credential for each.
+            </p>
+          </div>
+          <div className="flex w-full max-w-md flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => collect.onPick("wallet")}
+              disabled={collect.busy || !collect.walletEnabled}
+              title={
+                collect.walletEnabled
+                  ? undefined
+                  : "Connected wallet isn't on this vault's roster"
               }
-            />
-          );
-        })}
-      </ol>
+              className={
+                "flex w-full min-h-tap items-center justify-center gap-2 rounded-card border border-border-soft bg-surface-raised px-4 py-3 text-sm font-medium text-text-strong shadow-card-rest " +
+                "transition-[border-color,transform] duration-base ease-out-soft " +
+                "hover:-translate-y-0.5 hover:border-accent/40 " +
+                "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:border-border-soft " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+              }
+            >
+              {collect.busy ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : null}
+              Approve as Wallet
+              {!collect.walletEnabled && (
+                <span className="font-mono text-[10px] text-text-soft">
+                  (not on roster)
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => collect.onPick("passkey")}
+              disabled={collect.busy}
+              className={
+                "flex w-full min-h-tap items-center justify-center gap-2 rounded-card border border-border-soft bg-surface-raised px-4 py-3 text-sm font-medium text-text-strong shadow-card-rest " +
+                "transition-[border-color,transform] duration-base ease-out-soft " +
+                "hover:-translate-y-0.5 hover:border-accent/40 " +
+                "disabled:cursor-not-allowed disabled:opacity-50 " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+              }
+            >
+              {collect.busy ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : null}
+              Approve as Passkey
+            </button>
+          </div>
+          {collect.error && (
+            <p className="max-w-md text-center text-[11px] text-warning">
+              {collect.error}
+            </p>
+          )}
+        </>
+      ) : (
+        <>
+          <Loader2
+            className="h-10 w-10 animate-spin text-accent"
+            strokeWidth={1.5}
+            aria-hidden="true"
+          />
+          <div className="flex flex-col items-center gap-1 text-center">
+            <p className="font-display text-xl font-semibold text-text-strong">
+              {active?.label ?? "Sweeping…"}
+            </p>
+            <p className="max-w-sm text-sm text-text-soft">
+              {active?.detail ?? "Running through the sweep stages."}
+            </p>
+          </div>
+          <ol
+            className="flex items-center gap-1.5"
+            aria-label="sweep progress"
+          >
+            {RUN_STAGES.map((s, i) => {
+              const completed = activeIdx > i;
+              const current = activeIdx === i;
+              return (
+                <li
+                  key={s.id}
+                  aria-label={s.label}
+                  className={
+                    "h-1.5 w-6 rounded-full " +
+                    (completed
+                      ? "bg-accent"
+                      : current
+                        ? "bg-accent/60"
+                        : "bg-border-soft")
+                  }
+                />
+              );
+            })}
+          </ol>
+        </>
+      )}
     </motion.section>
   );
 }
 
 interface DoneStageProps {
-  amountSol: string;
+  amountDisplay: string;
   destination: string;
   proposeSig: string | null;
   executeSig: string | null;
   broadcastSig: string | null;
+  recoveryStr: string;
   reduce: boolean;
 }
 
@@ -894,7 +1420,7 @@ function DoneStage(props: DoneStageProps) {
           Funds moved
         </h1>
         <p className="mx-auto mt-2 max-w-md text-base text-text-soft">
-          {props.amountSol} SOL is on its way to{" "}
+          {props.amountDisplay} is on its way to{" "}
           <span className="font-mono text-text-strong">
             {shortPub(props.destination)}
           </span>
@@ -920,6 +1446,18 @@ function DoneStage(props: DoneStageProps) {
           highlight
         />
       </ul>
+
+      <div className="mx-auto flex flex-col items-center gap-2">
+        <Link
+          href={`/app/secure/${encodeURIComponent(props.recoveryStr)}`}
+          className="inline-flex"
+        >
+          <Button size="lg">
+            Back to vault
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </Link>
+      </div>
     </motion.section>
   );
 }

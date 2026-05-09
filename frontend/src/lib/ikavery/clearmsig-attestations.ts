@@ -1,5 +1,8 @@
 "use client";
 
+import type { Connection, PublicKey } from "@solana/web3.js";
+import { decodeRecovery } from "./codec/recovery";
+
 // Local persistence for the per-vault Ika DKG attestation bundle.
 //
 // When a user runs DKG to mint a dWallet for a new Recovery, the
@@ -134,4 +137,69 @@ export function loadAttestation(
 
 export function hasAttestation(recoveryPdaBase58: string): boolean {
   return !!readAll()[recoveryPdaBase58];
+}
+
+/**
+ * Sign-time attestation loader. The persistent localStorage entry is
+ * a CACHE — the canonical source of `dwallet pubkey` is the on-chain
+ * Recovery account, which the Solana validators authenticate. This
+ * function refuses to return an attestation whose `publicKey` doesn't
+ * match `Recovery.dwallet`, defending against the
+ * localStorage-tamper → wrong-dwallet substitution attack (a malicious
+ * userscript / supply-chain compromise / dev-tools tamper that would
+ * otherwise let an attacker swap the dwallet pubkey + downstream PDA
+ * derivations + fee-payer + Ika-signed message bytes).
+ *
+ * Other fields (`attestationData`, `networkSignature`, `networkPubkey`,
+ * `dwalletAddr`) don't need explicit integrity checks here: if any of
+ * them are tampered, the Ika gRPC presign/sign call rejects because
+ * the tampered bundle doesn't identify a valid DKG session, so the
+ * sign step fails before any tx leaves the browser.
+ *
+ * Throws on every failure mode (no cached entry, account not found on
+ * chain, dwallet mismatch). Callers should treat the throw as
+ * fund-impacting and surface a loud error.
+ */
+export async function loadAttestationVerified(
+  connection: Connection,
+  recovery: PublicKey,
+): Promise<AttestationBundle> {
+  const stored = loadAttestation(recovery.toBase58());
+  if (!stored) {
+    throw new Error(
+      "No DKG attestation for this vault on this device. Re-mint via /secure/new (or sign in on the device that created it).",
+    );
+  }
+  if (stored.publicKey.length !== 32) {
+    throw new Error(
+      `Local attestation has wrong dwallet pubkey length (${stored.publicKey.length}b, expected 32b). Refusing to sign.`,
+    );
+  }
+  const info = await connection.getAccountInfo(recovery, "confirmed");
+  if (!info || info.data.length === 0) {
+    throw new Error(
+      `Recovery account ${recovery.toBase58()} not found on chain. Refusing to sign.`,
+    );
+  }
+  let onChainDwallet: Uint8Array;
+  try {
+    const account = decodeRecovery(new Uint8Array(info.data));
+    onChainDwallet = account.dwallet.toBytes();
+  } catch (e) {
+    throw new Error(
+      `Couldn't decode the on-chain Recovery row: ${e instanceof Error ? e.message : String(e)}. Refusing to sign.`,
+    );
+  }
+  if (!bytesEq(stored.publicKey, onChainDwallet)) {
+    throw new Error(
+      "Local attestation's dwallet pubkey doesn't match the on-chain Recovery — your localStorage may have been tampered with. Refusing to sign.",
+    );
+  }
+  return stored;
+}
+
+function bytesEq(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
 }

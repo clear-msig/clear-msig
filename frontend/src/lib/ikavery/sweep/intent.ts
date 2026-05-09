@@ -172,3 +172,53 @@ export function buildSolTransferIntent(
     ],
   };
 }
+
+/**
+ * Convenience builder for the SPL sweep variant. Two ix slots:
+ *
+ *   1. AtaCreateIdempotent — only emitted when the destination ATA
+ *      doesn't exist yet. The ATA program's idempotent path is a
+ *      no-op when the account already exists, so re-broadcasting is
+ *      safe; we still keep the ix conditional because including it
+ *      changes the structural digest, and the on-chain sweep parser
+ *      reproduces our exact ix list.
+ *   2. SplTransferChecked — moves `amount` from `sourceAta` to
+ *      `destinationAta`, authorised by the dWallet.
+ *
+ * Caller is responsible for deriving ATAs and checking destination
+ * existence (`getAccountInfo(destinationAta)`).
+ */
+export function buildSplTransferIntent(params: {
+  dwallet: Uint8Array;
+  programId: Uint8Array;
+  mint: Uint8Array;
+  sourceAta: Uint8Array;
+  destinationOwner: Uint8Array;
+  destinationAta: Uint8Array;
+  destinationAtaExists: boolean;
+  amount: bigint;
+  decimals: number;
+}): SweepIntent {
+  const ixs: SweepIxIntent[] = [];
+  if (!params.destinationAtaExists) {
+    ixs.push({
+      kind: "AtaCreateIdempotent",
+      tokenProgram: params.programId,
+      payer: params.dwallet,
+      ata: params.destinationAta,
+      owner: params.destinationOwner,
+      mint: params.mint,
+    });
+  }
+  ixs.push({
+    kind: "SplTransferChecked",
+    programId: params.programId,
+    source: params.sourceAta,
+    mint: params.mint,
+    destination: params.destinationAta,
+    authority: params.dwallet,
+    amount: params.amount,
+    decimals: params.decimals,
+  });
+  return { feePayer: params.dwallet, ixs };
+}

@@ -50,9 +50,12 @@ export interface SendChainOption {
   status: "ready" | "needs_setup" | "needs_binding" | "coming_soon";
 }
 
-// Send-supported chains today. Bitcoin (chain_kind 2) and Zcash
-// (chain_kind 3) ship as "coming soon" until UTXO management lands.
-const SEND_SUPPORTED: ReadonlySet<number> = new Set([0, 1]);
+// Send-supported chains today. Solana (0), Ethereum (1), and Bitcoin
+// P2WPKH (2). Zcash (chain_kind 3) ships as "coming soon" until the
+// transparent-send flow lands. Bitcoin's send page lives at
+// /send/btc and uses the Esplora UTXO + bech32 helpers in
+// `lib/chain/btc.ts`.
+const SEND_SUPPORTED: ReadonlySet<number> = new Set([0, 1, 2]);
 
 export function useSendChains(walletName: string) {
   const { connection } = useConnection();

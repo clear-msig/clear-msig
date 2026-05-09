@@ -31,6 +31,7 @@ import {
   Connection,
   Keypair,
   PublicKey,
+  SystemProgram,
   TransactionMessage,
   VersionedTransaction,
 } from "@solana/web3.js";
@@ -92,6 +93,26 @@ export interface CreateVaultParams {
    * micro-states instead of a single opaque spinner.
    */
   onProgress?: (stage: CreateVaultStage) => void;
+  /**
+   * Optional import config — bundles a SystemTransfer ix in the same
+   * tx that creates the vault, moving lamports from `keypair` to the
+   * fresh dWallet PDA. Atomic with create_recovery + transfer_authority,
+   * so a partial state (vault exists but funds didn't move) is
+   * impossible. The Keypair is partial-signed locally; the connected
+   * wallet doesn't see the secret key.
+   *
+   * `wipe` is called once `tx.sign(localSigners)` returns — at that
+   * point the keypair's signature is already filled into
+   * `tx.signatures` and the buffer can be scrubbed even if the
+   * downstream submit/confirm steps fail. Callers should still hold a
+   * top-level `wipe` reference (idempotent) to handle aborted flows
+   * where we throw before reaching the inner `tx.sign`.
+   */
+  importFunds?: {
+    keypair: Keypair;
+    lamports: bigint;
+    wipe?: () => void;
+  };
 }
 
 export type CreateVaultStage =
@@ -100,7 +121,12 @@ export type CreateVaultStage =
   | "build"
   | "sign"
   | "submit"
-  | "confirm";
+  | "confirm"
+  // Multi-member only: emitted once per passkey we're about to mint
+  // (with `currentMember` and `totalMembers` available via onProgress's
+  // second arg through extendedProgress, when we add it). The wizard
+  // shows "Creating passkey 1 of 2…" off these.
+  | "create-passkey";
 
 export interface CreateVaultResult {
   /** PDA address of the new Recovery. Use this to look it up later. */
@@ -128,12 +154,23 @@ export async function createSoloVault(
     signTransaction,
     dwalletCurve = DWALLET_CURVE_ED25519,
     onProgress,
+    importFunds,
   } = params;
   const progress = onProgress ?? (() => undefined);
 
   if (threshold !== 1) {
     throw new Error(
       `solo vault must have threshold=1 (got ${threshold}); add devices via enrollment for higher thresholds`,
+    );
+  }
+  if (importFunds && importFunds.lamports <= 0n) {
+    throw new Error(
+      `importFunds.lamports must be positive (got ${importFunds.lamports})`,
+    );
+  }
+  if (importFunds && importFunds.keypair.publicKey.equals(creator)) {
+    throw new Error(
+      "Imported key matches the connected wallet — that's a self-transfer (use 'Build a vault' instead).",
     );
   }
 
@@ -183,18 +220,54 @@ export async function createSoloVault(
     newAuthority: cpiAuthority,
   });
 
+  // Optional import-funds ix. SystemProgram.transfer from the imported
+  // key (signs locally below) to the dWallet PDA. Bundled in the same
+  // tx as create+transfer so partial state ("vault exists but funds
+  // didn't move") is impossible. The connected wallet pays fees;
+  // importFunds.keypair signs only this single ix.
+  const ixs = [createIx, transferIx];
+  if (importFunds) {
+    ixs.push(
+      SystemProgram.transfer({
+        fromPubkey: importFunds.keypair.publicKey,
+        toPubkey: dwalletAccountPda,
+        lamports: importFunds.lamports,
+      }),
+    );
+  }
+
   const { blockhash, lastValidBlockHeight } =
     await connection.getLatestBlockhash("confirmed");
   const message = new TransactionMessage({
     payerKey: creator,
     recentBlockhash: blockhash,
-    instructions: [createIx, transferIx],
+    instructions: ixs,
   }).compileToV0Message();
   const tx = new VersionedTransaction(message);
 
-  // Sign the recoveryId slot first - that's the throwaway keypair
-  // we generated above.
-  tx.sign([recoveryIdKeypair]);
+  // Partial-sign the recoveryId slot (always) + the imported key slot
+  // (when importing). Both are local-only signers; the connected
+  // wallet popup signs everything else after.
+  const localSigners = importFunds
+    ? [recoveryIdKeypair, importFunds.keypair]
+    : [recoveryIdKeypair];
+  tx.sign(localSigners);
+
+  // Wipe the imported key's secret buffer the moment `tx.sign`
+  // returns. The 64-byte signature is already inside `tx.signatures`
+  // (Solana validators verify against `messageBytes`, not the secret),
+  // so the keypair object isn't needed for any downstream step. Doing
+  // this here — inside the action layer — guarantees the wipe runs
+  // even if the page unmounts mid-flight (Dynamic-popup cancel,
+  // browser tab close, etc). The page's outer wipe is still kept as
+  // a belt-and-braces idempotent safety net.
+  if (importFunds?.wipe) {
+    try {
+      importFunds.wipe();
+    } catch {
+      /* idempotent — outer caller will retry on cleanup */
+    }
+  }
 
   // Stage 3: hand off to the user's wallet for the creator signature.
   progress("sign");
@@ -216,6 +289,185 @@ export async function createSoloVault(
   // flow can read it. Best-effort - if localStorage is blocked, the
   // vault still works; sweep will surface a clean "no attestation"
   // error and prompt re-DKG.
+  saveAttestation(recovery.toBase58(), {
+    attestationData: dkg.attestationData,
+    networkSignature: dkg.networkSignature,
+    networkPubkey: dkg.networkPubkey,
+    publicKey: dkg.publicKey,
+    dwalletAddr: dkg.dwalletAddr,
+  });
+
+  return {
+    recovery,
+    recoveryId: recoveryIdKeypair.publicKey,
+    txSignature: sig,
+    dwalletPubkey: dkg.publicKey,
+  };
+}
+
+/** Per-passkey progress info — caller renders "Passkey N of M". */
+export interface CreatePasskeyProgress {
+  index: number;
+  total: number;
+}
+
+export interface CreateMultiMemberVaultParams
+  extends Omit<CreateVaultParams, "onProgress"> {
+  /**
+   * Total member count: includes the connected Solana wallet at slot 0
+   * plus `memberCount - 1` passkeys we'll register during create.
+   */
+  memberCount: number;
+  /** RP id for the passkey enrollments. Defaults to window.location.hostname. */
+  rpId?: string;
+  /** Stage progress (top-level). */
+  onProgress?: (stage: CreateVaultStage) => void;
+  /** Per-passkey progress (only fires during the create-passkey stage). */
+  onPasskeyProgress?: (info: CreatePasskeyProgress) => void;
+}
+
+/**
+ * Build, sign, and submit a `create_recovery` for an M-of-N vault. The
+ * connected wallet sits at slot 0; we enroll `memberCount - 1` passkeys
+ * back-to-back BEFORE the on-chain tx so all members fit in the same
+ * `create_recovery` payload (no roster_change ceremony needed
+ * afterward).
+ *
+ * The user sees `memberCount - 1` OS passkey prompts, then DKG, then
+ * one wallet popup — same end state as solo+enroll+enroll+threshold but
+ * collapsed into one flow.
+ *
+ * Throws on partial failure: if a passkey enrollment fails halfway,
+ * we abort. Any prior passkeys are orphaned in the OS keychain (no
+ * vault references them yet) — harmless.
+ */
+export async function createMultiMemberVault(
+  params: CreateMultiMemberVaultParams,
+): Promise<CreateVaultResult> {
+  const {
+    connection,
+    creator,
+    threshold,
+    memberCount,
+    signTransaction,
+    dwalletCurve = DWALLET_CURVE_ED25519,
+    rpId,
+    onProgress,
+    onPasskeyProgress,
+  } = params;
+  const progress = onProgress ?? (() => undefined);
+  const passkeyProgress = onPasskeyProgress ?? (() => undefined);
+
+  if (memberCount < 2) {
+    throw new Error(
+      `createMultiMemberVault: memberCount must be >= 2 (got ${memberCount}); use createSoloVault for 1-of-1`,
+    );
+  }
+  if (threshold < 1 || threshold > memberCount) {
+    throw new Error(
+      `createMultiMemberVault: threshold must be in 1..${memberCount}, got ${threshold}`,
+    );
+  }
+  if (memberCount > 8) {
+    throw new Error(
+      `createMultiMemberVault: memberCount ${memberCount} > MAX_MEMBERS (8)`,
+    );
+  }
+
+  // Stage 1: enroll passkeys for slots 1..memberCount-1. We do this
+  // BEFORE DKG so a failed enrollment costs nothing on chain or in the
+  // network. Each enrollment shows its own OS prompt; the wizard
+  // surfaces "Creating passkey N of M" copy off the per-passkey
+  // progress callback.
+  const passkeyCount = memberCount - 1;
+  const passkeyPubkeys: Uint8Array[] = [];
+  const { registerPasskey } = await import("./passkey/registration");
+  for (let i = 0; i < passkeyCount; i++) {
+    progress("create-passkey");
+    passkeyProgress({ index: i + 1, total: passkeyCount });
+    // Each enrollment needs a unique userId so the OS doesn't dedupe
+    // them as the same credential. We tag each with a slot byte.
+    const userId = new Uint8Array(33);
+    userId.set(creator.toBytes(), 0);
+    userId[32] = i & 0xff;
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const reg = await registerPasskey({
+      rpName: "Clear · Secure",
+      userId,
+      userName: `${creator.toBase58().slice(0, 4)}…${creator.toBase58().slice(-4)} · slot ${i + 1}`,
+      userDisplayName: `Passkey ${i + 1} of ${passkeyCount} for new vault`,
+      challenge,
+      // No authenticatorAttachment — let the OS surface every option,
+      // same fix that unblocked older Macs.
+      rpId,
+    });
+    passkeyPubkeys.push(reg.publicKey);
+  }
+
+  // Stage 2: DKG. Returns the dwallet curve pubkey + attestation.
+  progress("dkg");
+  const dkg = await runDkgForCreator(creator);
+
+  // Stage 3: wait for the dwallet PDA to commit on chain. Same pattern
+  // as createSoloVault.
+  progress("wait-dwallet");
+  const { pda: dwalletAccountPda } = dwalletPda(
+    CURVE_CURVE25519,
+    dkg.publicKey,
+  );
+  await waitForAccount(connection, dwalletAccountPda, 25_000);
+
+  // Stage 4: build create_recovery + transfer-ownership. Members:
+  //   slot 0 = connected Solana wallet (SCHEME_SOLANA_ADDRESS)
+  //   slots 1..N-1 = passkeys (SCHEME_WEBAUTHN)
+  progress("build");
+  const { packMemberSlot } = await import("./credential");
+  const { SCHEME_WEBAUTHN } = await import("./constants");
+  const members: Uint8Array[] = [packSolanaMember(creator)];
+  for (const pub of passkeyPubkeys) {
+    members.push(packMemberSlot(SCHEME_WEBAUTHN, pub));
+  }
+
+  const recoveryIdKeypair = Keypair.generate();
+  const { ix: createIx, recovery } = buildCreateRecoveryIx({
+    creator,
+    recoveryId: recoveryIdKeypair.publicKey,
+    dwallet: dkg.publicKey,
+    dwalletCurve,
+    threshold,
+    members,
+  });
+  const { pda: cpiAuthority } = cpiAuthorityPda(IKAVERY_PROGRAM_ID);
+  const transferIx = buildTransferDwalletAuthorityIx({
+    currentAuthority: creator,
+    dwallet: dwalletAccountPda,
+    newAuthority: cpiAuthority,
+  });
+
+  const { blockhash, lastValidBlockHeight } =
+    await connection.getLatestBlockhash("confirmed");
+  const message = new TransactionMessage({
+    payerKey: creator,
+    recentBlockhash: blockhash,
+    instructions: [createIx, transferIx],
+  }).compileToV0Message();
+  const tx = new VersionedTransaction(message);
+  tx.sign([recoveryIdKeypair]);
+
+  progress("sign");
+  const signedTx = await signTransaction(tx);
+
+  progress("submit");
+  const sig = await connection.sendRawTransaction(signedTx.serialize(), {
+    skipPreflight: false,
+    preflightCommitment: "confirmed",
+  });
+  progress("confirm");
+  await connection.confirmTransaction(
+    { signature: sig, blockhash, lastValidBlockHeight },
+    "confirmed",
+  );
+
   saveAttestation(recovery.toBase58(), {
     attestationData: dkg.attestationData,
     networkSignature: dkg.networkSignature,
@@ -254,9 +506,13 @@ async function waitForAccount(
     await new Promise((r) => setTimeout(r, 750));
   }
   throw new Error(
-    `dWallet account ${pubkey.toBase58()} did not appear on chain within ${Math.round(
+    `Ika network is slow today — the dWallet didn't commit within ${Math.round(
       timeoutMs / 1000,
-    )}s${lastError ? ` (last error: ${lastError instanceof Error ? lastError.message : String(lastError)})` : ""}`,
+    )}s. Refresh and click Build again; nothing was lost (you haven't signed a Solana tx yet)${
+      lastError
+        ? ` — last RPC error: ${lastError instanceof Error ? lastError.message : String(lastError)}`
+        : ""
+    }`,
   );
 }
 

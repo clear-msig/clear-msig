@@ -19,7 +19,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
-import { Check, Copy, Download } from "lucide-react";
+import { Check, Copy, Download, RefreshCw } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { findVaultAddress } from "@/lib/msig";
@@ -181,23 +181,50 @@ export default function ReceivePage() {
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       className="mx-auto flex w-full max-w-2xl flex-col gap-6"
     >
-      {/* Compact left-aligned header. */}
-      <header className="flex flex-col gap-1">
-        <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
-          Receive money
-        </h1>
-        <p className="text-xs text-text-soft sm:text-sm">
-          Add funds to{" "}
-          <span className="font-medium text-text-strong">
-            {toDisplayName(name)}
-          </span>
-          .{" "}
-          {hasMultipleChains
-            ? "Pick a chain, then share the address."
-            : "Send SOL to the address below."}{" "}
-          Anyone with the address can fund the wallet, but only members
-          can spend.
-        </p>
+      {/* Compact left-aligned header with a refresh chip — a freshly-
+          added chain takes ~10–30s to commit on chain. The chip lets
+          the user force a reload without waiting for the staleTime
+          window to elapse. */}
+      <header className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
+            Receive money
+          </h1>
+          <p className="text-xs text-text-soft sm:text-sm">
+            Add funds to{" "}
+            <span className="font-medium text-text-strong">
+              {toDisplayName(name)}
+            </span>
+            .{" "}
+            {hasMultipleChains
+              ? "Pick a chain, then share the address."
+              : "Send SOL to the address below."}{" "}
+            Anyone with the address can fund the wallet, but only members
+            can spend.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            void chainsQuery.refetch();
+          }}
+          disabled={chainsQuery.isFetching}
+          aria-label="Refresh chain list"
+          title="Refresh chain list"
+          className={
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-soft bg-surface-raised text-text-soft " +
+            "transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent " +
+            "disabled:cursor-not-allowed disabled:opacity-50 " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          }
+        >
+          <RefreshCw
+            className={
+              "h-4 w-4 " + (chainsQuery.isFetching ? "animate-spin" : "")
+            }
+            aria-hidden="true"
+          />
+        </button>
       </header>
 
       {/* Chain picker - only when more than just Solana is bound. */}
