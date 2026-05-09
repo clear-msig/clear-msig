@@ -59,6 +59,13 @@ const VersionedPresignDataAttestation =
 
 export interface IkaDkgResult {
   publicKey: Uint8Array;
+  /**
+   * 32-byte session identifier — what the CLI calls `dwallet_addr`.
+   * Equals the `session_identifier_preimage` we sent in the request.
+   * Used as `session_identifier_preimage` for subsequent Presign / Sign
+   * calls, and as the `user_pubkey` slot in the IkaConfig record.
+   */
+  dwalletAddr: Uint8Array;
   attestationData: Uint8Array;
   networkSignature: Uint8Array;
   networkPubkey: Uint8Array;
@@ -74,8 +81,13 @@ export interface IkaAttestation {
 export async function ikaDkgWeb(
   senderPubkey: Uint8Array,
 ): Promise<IkaDkgResult> {
+  // Use the sender pubkey as the session-id preimage so the resulting
+  // `dwallet_addr` matches what the CLI produces. Multiple DKGs from
+  // the same sender share a session_identifier but produce distinct
+  // dwallet pubkeys (so distinct dwalletPdas) — fine in practice.
+  const sessionIdentifierPreimage = senderPubkey;
   const data = SignedRequestData.serialize({
-    session_identifier_preimage: Array.from(new Uint8Array(32)),
+    session_identifier_preimage: Array.from(sessionIdentifierPreimage),
     epoch: 1n,
     chain_id: { Solana: true },
     intended_chain_sender: Array.from(senderPubkey),
@@ -114,12 +126,13 @@ export async function ikaDkgWeb(
   const att = resp.Attestation;
   const payload = VersionedDWalletDataAttestation.parse(
     new Uint8Array(att.attestation_data),
-  ) as { V1?: { public_key: number[] } };
+  ) as { V1?: { public_key: number[]; session_identifier: number[] } };
   if (!payload.V1) {
     throw new Error("DKG payload: missing V1 variant");
   }
   return {
     publicKey: new Uint8Array(payload.V1.public_key),
+    dwalletAddr: new Uint8Array(payload.V1.session_identifier),
     attestationData: new Uint8Array(att.attestation_data),
     networkSignature: new Uint8Array(att.network_signature),
     networkPubkey: new Uint8Array(att.network_pubkey),

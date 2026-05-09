@@ -498,9 +498,16 @@ function CreatingStage({
       detail: "Asking the Ika network to mint your dWallet. Usually a few seconds.",
     },
     {
+      id: "wait-dwallet",
+      label: "Activating dWallet",
+      detail:
+        "Waiting for the dWallet account to commit on-chain. Pre-alpha mock signer auto-commits within ~5s.",
+    },
+    {
       id: "build",
       label: "Building transaction",
-      detail: "Encoding the create-recovery instruction with your roster.",
+      detail:
+        "Encoding create-recovery + the dWallet authority handoff to ikavery's CPI authority.",
     },
     {
       id: "sign",
