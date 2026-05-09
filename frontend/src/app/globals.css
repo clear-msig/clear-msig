@@ -262,7 +262,7 @@ body {
   border-radius: 10px !important; /* matches `rounded-soft` */
   min-height: 56px !important; /* matches Button size="lg" */
   padding: 0 1.5rem !important;
-  box-shadow: 0 8px 24px -8px rgba(22, 163, 74, 0.30) !important; /* shadow-accent-rest */
+  box-shadow: 0 4px 10px -4px rgba(22, 163, 74, 0.22) !important; /* shadow-accent-rest */
   transition:
     background-color 250ms cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 250ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -272,7 +272,7 @@ body {
 .wallet-adapter-button:hover {
   background-color: #15803d !important; /* accent-hover */
   color: #ffffff !important;
-  box-shadow: 0 16px 36px -10px rgba(22, 163, 74, 0.40) !important; /* shadow-accent-hover */
+  box-shadow: 0 6px 14px -6px rgba(22, 163, 74, 0.30) !important; /* shadow-accent-hover */
 }
 
 .wallet-adapter-button:active {
