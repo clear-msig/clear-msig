@@ -55,7 +55,7 @@ export function decodeProposal(data: Uint8Array): ProposalAccount {
   const executedBitmap = data[off]!;
   off += 1;
 
-  // Vec<[u8; 32], 8> — 2-byte LE length, then N digests.
+  // Vec<[u8; 32], 8> - 2-byte LE length, then N digests.
   const digestCount = dv.getUint16(off, true);
   off += 2;
   if (digestCount > MAX_BUNDLE_PER_PROPOSAL) {

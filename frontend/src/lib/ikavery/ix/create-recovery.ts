@@ -24,7 +24,7 @@ export interface CreateRecoveryParams {
   recoveryId: PublicKey;
   /**
    * 32-byte dWallet account address. On Solana ika pre-alpha this is just
-   * an opaque handle stored on-chain — the dWallet program owns its
+   * an opaque handle stored on-chain - the dWallet program owns its
    * lifecycle separately.
    */
   dwallet: Uint8Array;

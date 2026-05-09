@@ -1,6 +1,6 @@
 "use client";
 
-// /app/secure — Secure: ikavery-powered personal key recovery, integrated
+// /app/secure - Secure: ikavery-powered personal key recovery, integrated
 // inside clear-msig.
 //
 // What this page does:
@@ -14,20 +14,22 @@
 //   - Always shows the trio of "what you can do" tiles: Build,
 //     Add device (stubbed), Sweep (stubbed). v3 will wire those.
 //
-// Naming note: page label is "Secure" (noun-form, sits next to
-// Settings/Chains in the sidebar). The CTA verb is "Secure your key" /
-// "Build a vault" — verb where verbs belong.
-//
-// Visual treatment: clear-msig's primitives form the base; one nod to
-// ika.xyz / ikavery's voice via the monospace `// NN` numbered
-// eyebrows on the three-step block.
+// Visual treatment:
+//   - Split hero on lg+ (copy left, illustrative mockup right) so the
+//     page lands with a focal product visual instead of just centered
+//     text. Mobile collapses to a single centered column.
+//   - Cards share rhythm with /app/wallet's hub via the same surface
+//     tokens (border-border-soft, bg-surface-raised, shadow-card-rest).
+//   - Three-step "how it works" row uses a continuous accent line
+//     between the tiles so the reader follows the flow.
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useMemo } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useInView, useReducedMotion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
+  Check,
   ExternalLink,
   Fingerprint,
   KeyRound,
@@ -37,8 +39,6 @@ import {
   Vault as VaultIcon,
 } from "lucide-react";
 import { useConnection, useWallet } from "@/lib/wallet";
-import { PageEyebrow } from "@/components/retail/PageEyebrow";
-import { BackToWallets } from "@/components/retail/BackToWallets";
 import { Button } from "@/components/retail/Button";
 import { listVaultsForCreator } from "@/lib/ikavery/clearmsig-actions";
 import { type DecodedRecovery } from "@/lib/ikavery/discovery";
@@ -80,52 +80,86 @@ export default function SecurePage() {
           initial: { opacity: 0, y: 10 },
           animate: { opacity: 1, y: 0 },
           transition: {
-            duration: 0.4,
+            duration: 0.45,
             delay,
             ease: [0.22, 1, 0.36, 1] as const,
           },
         };
 
   return (
-    <motion.div {...fadeIn(0)} className="flex flex-col gap-10">
-      <div className="px-gutter md:hidden">
-        <BackToWallets label="Wallets" />
-      </div>
-
-      <PageEyebrow label="Secure · powered by Ika" align="center">
-        <h1 className="font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          Threshold-signed key custody
-        </h1>
-        <p className="mx-auto mt-3 max-w-xl text-base text-text-soft text-pretty">
-          Place your Solana private key behind a quorum of devices and
-          passkeys. Recover with any threshold you set. Never lose a key.
-          Never trust a single device.
-        </p>
-        <a
-          href={IKA_SITE}
-          target="_blank"
-          rel="noreferrer"
-          className={
-            "mt-5 inline-flex min-h-tap items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-[11px] font-medium text-text-soft " +
-            "transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-          }
+    <motion.div {...fadeIn(0)} className="flex flex-col gap-12 sm:gap-16">
+      {/* ── Hero ─────────────────────────────────────────────────
+       * Split grid: copy on the left, vault illustration on the
+       * right. Stacks vertically on mobile with the illustration
+       * sliding in below the copy. */}
+      <section className="grid grid-cols-1 items-center gap-10 lg:grid-cols-12 lg:gap-12">
+        <motion.div
+          {...fadeIn(0.04)}
+          className="text-center lg:col-span-7 lg:text-left"
         >
-          <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-accent" />
-          Powered by Ika dWallets
-          <ExternalLink className="h-3 w-3" aria-hidden="true" />
-        </a>
-      </PageEyebrow>
+          <span className="inline-flex items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5">
+            <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-accent" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-text-soft">
+              Secure · powered by Ika
+            </span>
+          </span>
+          <h1 className="mt-5 font-display text-display-lg leading-[1] tracking-[-0.03em] text-text-strong text-balance sm:text-display-xl">
+            Threshold-signed
+            <br className="hidden sm:block" />{" "}
+            <span className="text-text-soft">key custody.</span>
+          </h1>
+          <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-text-soft text-pretty lg:mx-0">
+            Place your Solana private key behind a quorum of devices and
+            passkeys. Recover with any threshold you set. Never lose a key.
+            Never trust a single device.
+          </p>
 
-      {/* States:
-          - not connected → "connect first" callout
-          - connected + loading + no cached vaults → skeleton
-          - connected + at least one vault → list + Build another link
-          - connected + zero vaults (after load) → big CTA card
-          - connected + error → red banner with retry */}
-      {!wallet.connected && (
-        <ConnectCallout />
-      )}
+          {/* Hero only carries a primary action when it isn't
+              duplicated by the state block below. Specifically:
+              when the user already has vaults, the state block
+              uses an inline "Build another" link, so the hero
+              gets to own the prominent button. In the not-
+              connected and zero-vault states, the state block's
+              own card carries the CTA - showing one in the hero
+              too would be a double-button. */}
+          <div className="mt-7 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+            {wallet.connected && hasVaults && (
+              <Link href="/app/secure/new" className="inline-block">
+                <Button size="lg">
+                  Build another vault
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              </Link>
+            )}
+            <a
+              href={IKA_SITE}
+              target="_blank"
+              rel="noreferrer"
+              className={
+                "inline-flex min-h-tap items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-[11px] font-medium text-text-soft " +
+                "transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+              }
+            >
+              Powered by Ika dWallets
+              <ExternalLink className="h-3 w-3" aria-hidden="true" />
+            </a>
+          </div>
+        </motion.div>
+
+        <motion.div
+          {...fadeIn(0.12)}
+          className="relative mx-auto w-full max-w-md lg:col-span-5 lg:max-w-none"
+        >
+          <VaultMockup />
+        </motion.div>
+      </section>
+
+      {/* ── State block ──────────────────────────────────────────
+       * vaults list / empty CTA / loading skeleton / error /
+       * not-connected callout. Each state owns its own card so the
+       * page never has a "hole" between hero and the explainer. */}
+      {!wallet.connected && <ConnectCallout />}
       {wallet.connected && vaultsQuery.isLoading && !hasVaults && (
         <VaultListSkeleton />
       )}
@@ -140,8 +174,8 @@ export default function SecurePage() {
         />
       )}
       {hasVaults && (
-        <section>
-          <div className="mb-3 flex items-baseline justify-between">
+        <motion.section {...fadeIn(0.08)}>
+          <div className="mb-4 flex items-baseline justify-between">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
               Your vaults · {vaults.length}
             </p>
@@ -158,76 +192,116 @@ export default function SecurePage() {
               <VaultCard key={v.recovery.toBase58()} vault={v} />
             ))}
           </ul>
-        </section>
-      )}
-      {!hasVaults && wallet.connected && !vaultsQuery.isLoading && !vaultsQuery.isError && (
-        <motion.section
-          {...fadeIn(0.04)}
-          className="rounded-card border border-accent/40 bg-accent/[0.05] p-6 text-center shadow-card-rest sm:p-8"
-        >
-          <span aria-hidden="true" className="mx-auto block h-px w-10 bg-accent" />
-          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
-            First vault
-          </p>
-          <h2 className="mt-2 font-display text-display-xs leading-tight text-text-strong">
-            You don&rsquo;t have a vault yet
-          </h2>
-          <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
-            Pick a threshold, place a key behind it, sweep when you need it
-            back. Three taps to build the first one.
-          </p>
-          <div className="mt-5 flex justify-center">
-            <Link href="/app/secure/new" className="inline-block">
-              <Button size="lg">
-                Secure your key
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            </Link>
-          </div>
         </motion.section>
       )}
+      {!hasVaults &&
+        wallet.connected &&
+        !vaultsQuery.isLoading &&
+        !vaultsQuery.isError && (
+          <motion.section
+            {...fadeIn(0.08)}
+            className="relative overflow-hidden rounded-card border border-accent/40 bg-accent/[0.04] shadow-card-rest"
+          >
+            {/* Soft top-right accent glow - asymmetric, so the card
+                feels lit rather than centred. */}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full"
+              style={{
+                background:
+                  "radial-gradient(circle, var(--clear-accent-glow-rest) 0%, transparent 70%)",
+                filter: "blur(40px)",
+              }}
+            />
+            <div className="relative grid grid-cols-1 gap-5 p-6 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-8 sm:p-8">
+              <div>
+                <span className="inline-flex items-center gap-2">
+                  <span aria-hidden="true" className="block h-px w-8 bg-accent" />
+                  <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
+                    First vault
+                  </span>
+                </span>
+                <h2 className="mt-3 font-display text-display-xs leading-tight tracking-[-0.02em] text-text-strong">
+                  Three taps to your first vault.
+                </h2>
+                <p className="mt-2 max-w-md text-[14px] leading-relaxed text-text-soft">
+                  Pick a threshold, place a key behind it, sweep when you
+                  need it back.
+                </p>
+              </div>
+              <Link href="/app/secure/new" className="inline-block">
+                <Button size="lg">
+                  Secure your key
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              </Link>
+            </div>
+          </motion.section>
+        )}
 
-      {/* Three-step explainer — uses monospace `// NN` numbered
-          eyebrows as the one ikavery / ika.xyz visual cue. */}
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Step
-          n="01"
-          Icon={ShieldCheck}
-          title="Build a vault"
-          body="Pick a threshold. The vault is an Ika 2PC-MPC dWallet under your control."
-          delay={0.04}
-          reduce={!!reduce}
-        />
-        <Step
-          n="02"
-          Icon={Fingerprint}
-          title="Add devices"
-          body="iPhone, MacBook, YubiKey, iPad. Each device holds a share via WebAuthn passkey. (v3)"
-          delay={0.10}
-          reduce={!!reduce}
-          stub
-        />
-        <Step
-          n="03"
-          Icon={KeyRound}
-          title="Sweep when needed"
-          body="Sign a sweep with any threshold. Funds move to your destination wallet. (v3)"
-          delay={0.16}
-          reduce={!!reduce}
-          stub
-        />
+      {/* ── How it works ────────────────────────────────────────
+       * Three-step flow with a continuous accent line connecting
+       * the tiles on lg+. Reads as a journey, not a tile rack. */}
+      <section>
+        <div className="mb-6 flex items-baseline justify-between">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+              How it works
+            </p>
+            <h2 className="mt-1 font-display text-display-xs leading-tight text-text-strong">
+              From key to recovery, in three.
+            </h2>
+          </div>
+        </div>
+        <div className="relative grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {/* Connector line - sits behind the cards on lg+ to thread
+              the three steps. Hidden on mobile where the cards stack. */}
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute left-0 right-0 top-7 hidden h-px bg-gradient-to-r from-transparent via-border-strong to-transparent sm:block"
+          />
+          <Step
+            n="01"
+            Icon={ShieldCheck}
+            title="Build a vault"
+            body="Pick a threshold. The vault is an Ika 2PC-MPC dWallet under your control."
+            delay={0.04}
+            reduce={!!reduce}
+          />
+          <Step
+            n="02"
+            Icon={Fingerprint}
+            title="Add devices"
+            body="iPhone, MacBook, YubiKey. Each device holds a share via WebAuthn passkey."
+            delay={0.10}
+            reduce={!!reduce}
+            stub
+          />
+          <Step
+            n="03"
+            Icon={KeyRound}
+            title="Sweep when needed"
+            body="Sign a sweep with any threshold. Funds move to your destination wallet."
+            delay={0.16}
+            reduce={!!reduce}
+            stub
+          />
+        </div>
       </section>
 
+      {/* Pre-alpha disclosure - kept inline at the bottom so it sits
+          where regulatory copy belongs. Lighter treatment than the
+          previous warning-tinted banner; the icon carries the tone. */}
       <motion.aside
         {...fadeIn(0.20)}
-        className="flex items-start gap-3 rounded-card border border-warning/40 bg-warning/[0.06] p-4 text-sm text-text-soft sm:p-5"
+        className="flex items-start gap-3 rounded-card border border-border-soft bg-surface-raised/60 p-4 text-xs text-text-soft sm:p-5"
       >
         <ShieldAlert
-          className="mt-0.5 h-5 w-5 shrink-0 text-warning"
+          className="mt-0.5 h-4 w-4 shrink-0 text-warning"
           strokeWidth={2}
           aria-hidden="true"
         />
-        <p className="leading-snug">
+        <p className="leading-relaxed">
           <span className="font-medium text-text-strong">
             Pre-alpha. Devnet only.
           </span>{" "}
@@ -247,6 +321,366 @@ export default function SecurePage() {
   );
 }
 
+// ─── Hero illustration ─────────────────────────────────────────────
+//
+// VaultMockup - a stylised product card showing the threshold concept
+// at a glance: a central "vault" tile, three "device share" rows
+// (two signed, one waiting), a threshold pill, and a soft accent
+// glow. Pure presentational; no data, no state.
+
+// ─── Hero illustration ─────────────────────────────────────────────
+//
+// VaultMockup - cycles through a live threshold-signing demo on a
+// ~6.5s loop while in view. Tells the whole product story (idle →
+// signatures land one by one → threshold met → celebration) without
+// the reader having to scan the steps below.
+//
+//   step 0 - idle. 0/3 signed. Vault dim.
+//   step 1 - MacBook Pro signing.
+//   step 2 - MacBook signed, iPhone signing.
+//   step 3 - threshold met (2/3). YubiKey stays "optional", a
+//            "Recovery ready" pill animates in, the vault icon
+//            picks up an extra ring pulse, the card border glows.
+//   → loops back to 0.
+//
+// Continuous: a subtle vertical float on the whole card and a
+// double-ring pulse on the vault icon, both gated by reduced-motion.
+
+const VAULT_SHARES = [
+  { name: "MacBook Pro", kind: "Secure Enclave" },
+  { name: "iPhone 15", kind: "Touch ID passkey" },
+  { name: "YubiKey 5C", kind: "Hardware key" },
+] as const;
+
+const VAULT_THRESHOLD = 2;
+const STEP_HOLD_MS = [1500, 1500, 1500, 2600];
+
+function VaultMockup() {
+  const reduce = useReducedMotion();
+  const ref = useRef<HTMLDivElement | null>(null);
+  const inView = useInView(ref, { amount: 0.35, once: false });
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    if (reduce) {
+      setStep(3);
+      return;
+    }
+    if (!inView) return;
+    const t = setTimeout(
+      () => setStep((s) => (s + 1) % 4),
+      STEP_HOLD_MS[step],
+    );
+    return () => clearTimeout(t);
+  }, [step, inView, reduce]);
+
+  // Per-row state. Step 3 is "threshold met" - the YubiKey row
+  // intentionally stays pending to teach the 2-of-3 model.
+  function rowState(i: number): "pending" | "signing" | "signed" {
+    if (step === 3) return i < VAULT_THRESHOLD ? "signed" : "pending";
+    if (i < step) return "signed";
+    if (i === step) return "signing";
+    return "pending";
+  }
+
+  const signedCount = step === 3 ? VAULT_THRESHOLD : step;
+  const progressPct = (signedCount / VAULT_SHARES.length) * 100;
+  const thresholdMet = signedCount >= VAULT_THRESHOLD;
+
+  // Card float - very gentle Y oscillation while in view. Drives
+  // home that the card is "live", not a static screenshot.
+  const floatAnim = reduce
+    ? {}
+    : {
+        animate: { y: [0, -4, 0] },
+        transition: {
+          duration: 5.5,
+          ease: [0.4, 0, 0.6, 1] as const,
+          repeat: Infinity,
+        },
+      };
+
+  return (
+    <div ref={ref} className="relative">
+      {/* Ambient accent glow - softens further when the threshold
+          is not yet met so the celebration lands harder. */}
+      <motion.div
+        aria-hidden="true"
+        className="pointer-events-none absolute -inset-10 -z-10 rounded-[3rem]"
+        animate={{ opacity: thresholdMet ? 0.85 : 0.45 }}
+        transition={{ duration: 0.8 }}
+        style={{
+          background:
+            "radial-gradient(circle at 30% 25%, var(--clear-accent-glow-rest) 0%, transparent 55%)",
+          filter: "blur(56px)",
+        }}
+      />
+
+      <motion.article
+        {...floatAnim}
+        className="vault-mockup-scan relative overflow-hidden rounded-card border bg-surface-raised shadow-card-rest"
+        style={{
+          // Border picks up the accent when threshold met for an
+          // extra "armed" feel. CSS var so light/dark tokens work.
+          borderColor: thresholdMet
+            ? "color-mix(in srgb, var(--accent) 50%, transparent)"
+            : undefined,
+          transition: "border-color 0.6s ease",
+        }}
+      >
+        {/* ── Header ───────────────────────────────────────────── */}
+        <header className="flex items-center justify-between border-b border-border-soft px-5 py-3 sm:px-6">
+          <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            Vault · live preview
+          </span>
+          {/* Threshold pill - the count remounts on change so the
+              digit pops with a spring. */}
+          <motion.span
+            key={signedCount}
+            initial={{ scale: 0.7, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: "spring", damping: 14, stiffness: 360 }}
+            className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-2 py-0.5 font-numerals text-[11px] font-semibold tabular-nums text-accent"
+          >
+            {signedCount}/{VAULT_SHARES.length}
+          </motion.span>
+        </header>
+
+        <div className="px-5 py-5 sm:px-6 sm:py-6">
+          <div className="flex items-center gap-3">
+            {/* Vault icon with two staggered pulse rings. The rings
+                ride through the icon's ring colour so they pick up
+                whatever the theme is currently using. */}
+            <span className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-accent/[0.08] text-accent ring-1 ring-accent/20">
+              <VaultIcon className="relative h-5 w-5" strokeWidth={1.75} />
+              {!reduce && (
+                <>
+                  <motion.span
+                    aria-hidden="true"
+                    className="absolute inset-0 rounded-xl"
+                    style={{
+                      boxShadow:
+                        "0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent)",
+                    }}
+                    animate={{
+                      scale: [1, 1.45],
+                      opacity: [thresholdMet ? 0.7 : 0.4, 0],
+                    }}
+                    transition={{
+                      duration: thresholdMet ? 1.6 : 2.4,
+                      ease: [0.4, 0, 0.6, 1] as const,
+                      repeat: Infinity,
+                    }}
+                  />
+                  <motion.span
+                    aria-hidden="true"
+                    className="absolute inset-0 rounded-xl"
+                    style={{
+                      boxShadow:
+                        "0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent)",
+                    }}
+                    animate={{
+                      scale: [1, 1.45],
+                      opacity: [thresholdMet ? 0.7 : 0.4, 0],
+                    }}
+                    transition={{
+                      duration: thresholdMet ? 1.6 : 2.4,
+                      ease: [0.4, 0, 0.6, 1] as const,
+                      repeat: Infinity,
+                      delay: thresholdMet ? 0.8 : 1.2,
+                    }}
+                  />
+                </>
+              )}
+            </span>
+            <div className="leading-tight">
+              <p className="font-display text-base font-semibold tracking-[-0.01em] text-text-strong">
+                Treasury vault
+              </p>
+              <p className="mt-0.5 text-[12px] text-text-soft">
+                Solana key under quorum
+              </p>
+            </div>
+          </div>
+
+          {/* Threshold progress bar */}
+          <div className="mt-5">
+            <div className="flex items-baseline justify-between text-[10px] uppercase tracking-[0.18em] text-text-soft">
+              <span className="font-mono">Threshold</span>
+              <span className="font-numerals tabular-nums text-text-strong">
+                {VAULT_THRESHOLD} of {VAULT_SHARES.length}
+              </span>
+            </div>
+            <div className="mt-2 h-[3px] overflow-hidden rounded-full bg-border-soft">
+              <motion.div
+                className="h-full rounded-full bg-accent"
+                initial={{ width: "0%" }}
+                animate={{ width: `${progressPct}%` }}
+                transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] as const }}
+              />
+            </div>
+          </div>
+
+          {/* Share holders */}
+          <p className="mt-6 font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+            Share holders
+          </p>
+          <ul className="mt-3 divide-y divide-border-soft overflow-hidden rounded-xl border border-border-soft">
+            {VAULT_SHARES.map((s, i) => {
+              const state = rowState(i);
+              const dim = state === "pending";
+              return (
+                <motion.li
+                  key={s.name}
+                  animate={{
+                    backgroundColor:
+                      state === "signing"
+                        ? "color-mix(in srgb, var(--accent) 6%, var(--canvas))"
+                        : "var(--canvas)",
+                  }}
+                  transition={{ duration: 0.4 }}
+                  className="flex items-center gap-3 px-3.5 py-3"
+                >
+                  <motion.span
+                    animate={{ opacity: dim ? 0.55 : 1 }}
+                    transition={{ duration: 0.4 }}
+                    className={
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg " +
+                      (state === "signed"
+                        ? "bg-accent text-text-on-accent"
+                        : "border border-border-soft bg-surface-raised text-text-soft")
+                    }
+                  >
+                    {/* Swap icon based on state. AnimatePresence
+                        makes the check pop in with a spring when
+                        the row flips signed. */}
+                    <AnimatePresence mode="wait" initial={false}>
+                      {state === "signed" ? (
+                        <motion.span
+                          key="check"
+                          initial={{ scale: 0, rotate: -12 }}
+                          animate={{ scale: 1, rotate: 0 }}
+                          exit={{ scale: 0 }}
+                          transition={{
+                            type: "spring",
+                            damping: 11,
+                            stiffness: 320,
+                          }}
+                        >
+                          <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                        </motion.span>
+                      ) : (
+                        <motion.span
+                          key="finger"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <Fingerprint
+                            className="h-3.5 w-3.5"
+                            strokeWidth={1.75}
+                          />
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </motion.span>
+
+                  <motion.span
+                    animate={{ opacity: dim ? 0.6 : 1 }}
+                    transition={{ duration: 0.4 }}
+                    className="flex min-w-0 flex-1 flex-col leading-tight"
+                  >
+                    <span className="text-[13px] font-semibold text-text-strong">
+                      {s.name}
+                    </span>
+                    <span className="text-[11px] text-text-soft">
+                      {s.kind}
+                    </span>
+                  </motion.span>
+
+                  <div className="flex items-center">
+                    <AnimatePresence mode="wait" initial={false}>
+                      {state === "pending" && (
+                        <motion.span
+                          key="pending"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-soft"
+                        >
+                          waiting
+                        </motion.span>
+                      )}
+                      {state === "signing" && (
+                        <motion.span
+                          key="signing"
+                          initial={{ opacity: 0, x: 4 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -4 }}
+                          transition={{ duration: 0.25 }}
+                          className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-accent"
+                        >
+                          signing
+                          <span className="inline-flex items-center gap-0.5">
+                            <span className="signing-dot h-1 w-1 rounded-full bg-accent" />
+                            <span className="signing-dot h-1 w-1 rounded-full bg-accent" />
+                            <span className="signing-dot h-1 w-1 rounded-full bg-accent" />
+                          </span>
+                        </motion.span>
+                      )}
+                      {state === "signed" && (
+                        <motion.span
+                          key="signed"
+                          initial={{ opacity: 0, x: 4 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.25 }}
+                          className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent"
+                        >
+                          signed
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </motion.li>
+              );
+            })}
+          </ul>
+
+          {/* Recovery-ready celebration - only when threshold met. */}
+          <div className="mt-5 h-9">
+            <AnimatePresence>
+              {thresholdMet && (
+                <motion.div
+                  key="ready"
+                  initial={{ opacity: 0, y: 6, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.96 }}
+                  transition={{
+                    type: "spring",
+                    damping: 16,
+                    stiffness: 280,
+                  }}
+                  className="inline-flex items-center gap-2 rounded-full border border-accent/35 bg-accent/[0.08] px-3 py-1.5"
+                >
+                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-accent text-text-on-accent">
+                    <Check className="h-2.5 w-2.5" strokeWidth={3.4} />
+                  </span>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-accent">
+                    Recovery ready
+                  </span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      </motion.article>
+    </div>
+  );
+}
+
 interface StepProps {
   n: string;
   Icon: typeof ShieldCheck;
@@ -263,50 +697,62 @@ function Step({ n, Icon, title, body, delay, reduce, stub }: StepProps) {
     : {
         initial: { opacity: 0, y: 12 },
         animate: { opacity: 1, y: 0 },
-        transition: { duration: 0.45, delay, ease: [0.22, 1, 0.36, 1] as const },
+        transition: { duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] as const },
       };
   return (
     <motion.article
       {...motionProps}
-      className={
-        "flex flex-col rounded-card border bg-surface-raised p-5 shadow-card-rest " +
-        (stub ? "border-border-soft opacity-70" : "border-border-soft")
-      }
+      className="relative flex flex-col rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6"
     >
-      <span
-        className={
-          "flex h-9 w-9 items-center justify-center rounded-full " +
-          (stub ? "bg-text-soft/15 text-text-soft" : "bg-accent/10 text-accent")
-        }
-      >
-        <Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-      </span>
-      <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
-        // {n}
-        {stub && <span className="ml-1 text-text-soft">· coming soon</span>}
+      {/* Header row - icon node on the left, optional Coming Soon
+          chip on the right. The chip sits inside the card rather
+          than mangling the eyebrow line, which reads more like a
+          product spec sheet. */}
+      <div className="flex items-start justify-between">
+        <span
+          className={
+            "relative flex h-12 w-12 items-center justify-center rounded-full ring-2 ring-surface-raised " +
+            (stub ? "bg-canvas text-text-soft" : "bg-accent/[0.08] text-accent")
+          }
+        >
+          <Icon className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
+        </span>
+        {stub && (
+          <span className="rounded-full border border-border-soft bg-canvas px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.18em] text-text-soft">
+            Coming soon
+          </span>
+        )}
+      </div>
+
+      <p className="mt-5 font-mono text-[10px] uppercase tracking-[0.22em] text-text-soft">
+        Step {n}
       </p>
-      <h3 className="mt-1 font-display text-base font-semibold text-text-strong">
+      <h3 className="mt-1.5 font-display text-base font-semibold tracking-[-0.01em] text-text-strong">
         {title}
       </h3>
-      <p className="mt-1.5 text-sm text-text-soft text-pretty">{body}</p>
+      <p className="mt-2 text-[13.5px] leading-relaxed text-text-soft text-pretty">
+        {body}
+      </p>
     </motion.article>
   );
 }
 
 function ConnectCallout() {
   return (
-    <section className="rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-        Sign in to continue
-      </p>
-      <h2 className="mt-2 font-display text-display-xs leading-tight text-text-strong">
-        Connect your wallet to see vaults
-      </h2>
-      <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
-        Vaults are anchored to your Solana wallet. Sign in to read your
-        list or build your first one.
-      </p>
-      <div className="mt-5 flex justify-center">
+    <section className="rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
+      <div className="grid grid-cols-1 gap-5 p-6 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-8 sm:p-8">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            Sign in to continue
+          </p>
+          <h2 className="mt-2 font-display text-display-xs leading-tight tracking-[-0.02em] text-text-strong">
+            Connect your wallet to see vaults
+          </h2>
+          <p className="mt-2 max-w-md text-[14px] leading-relaxed text-text-soft">
+            Vaults are anchored to your Solana wallet. Sign in to read your
+            list or build your first one.
+          </p>
+        </div>
         <Link href="/connect?next=/app/secure" className="inline-block">
           <Button size="lg">
             Sign in
@@ -321,7 +767,7 @@ function ConnectCallout() {
 function VaultListSkeleton() {
   return (
     <section>
-      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+      <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
         Reading vaults…
       </p>
       <ul className="flex flex-col gap-2">
@@ -373,43 +819,87 @@ function VaultCard({ vault }: { vault: DecodedRecovery }) {
   const short = `${recoveryStr.slice(0, 4)}…${recoveryStr.slice(-4)}`;
   const memberCount = account.members.length;
   const proposalCount = account.proposalCount;
+  const thresholdPct =
+    (Number(account.threshold) / Math.max(memberCount, 1)) * 100;
+  const sweepLabel = `${proposalCount} sweep${proposalCount === 1 ? "" : "s"}`;
+
   return (
     <li>
       <Link
         href={`/app/secure/${encodeURIComponent(recoveryStr)}`}
         className={
-          "group flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest " +
+          "group block rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest " +
           "transition-[border-color,transform,box-shadow] duration-base ease-out-soft " +
           "hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-card-raised " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
         }
       >
-        <span
-          aria-hidden="true"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent"
-        >
-          <VaultIcon className="h-5 w-5" strokeWidth={1.75} />
-        </span>
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate font-display text-base font-semibold text-text-strong">
-            Vault {short}
+        <div className="flex items-center gap-4">
+          <span
+            aria-hidden="true"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent/[0.08] text-accent ring-1 ring-accent/20"
+          >
+            <VaultIcon className="h-5 w-5" strokeWidth={1.75} />
           </span>
-          <span className="text-[11px] text-text-soft">
-            <span className="font-numerals tabular-nums">
-              {account.threshold}
+
+          {/* Identity column - title + monospace short address as a
+              dedicated subline. More disciplined than running both
+              into one comma-separated string. */}
+          <div className="flex min-w-0 flex-1 flex-col leading-tight">
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+              Vault
             </span>
-            {" of "}
-            <span className="font-numerals tabular-nums">{memberCount}</span>
-            {" members · "}
-            <span className="font-numerals tabular-nums">{proposalCount}</span>
-            {" sweep"}
-            {proposalCount === 1 ? "" : "s"}
+            <span className="mt-1 truncate font-display text-base font-semibold tracking-[-0.01em] text-text-strong">
+              {short}
+            </span>
+          </div>
+
+          {/* Meta cluster - threshold ratio (focal), member + sweep
+              counts beneath as a compact secondary line. Reads as
+              a confidence summary without scanning the row. */}
+          <div className="hidden min-w-0 flex-col items-end leading-tight sm:flex">
+            <span className="font-numerals text-[15px] font-semibold tabular-nums text-text-strong">
+              {account.threshold}
+              <span className="text-text-soft">/</span>
+              {memberCount}
+            </span>
+            <span className="mt-1 text-[10px] uppercase tracking-[0.16em] text-text-soft">
+              {sweepLabel}
+            </span>
+          </div>
+
+          <ArrowRight
+            className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
+            aria-hidden="true"
+          />
+        </div>
+
+        {/* Mobile-only meta row. Desktop carries the same data via
+            the meta cluster above; on mobile we want it inline so
+            the row stays compact. */}
+        <p className="mt-3 text-[11px] text-text-soft sm:hidden">
+          <span className="font-numerals tabular-nums text-text-strong">
+            {account.threshold}
           </span>
-        </span>
-        <ArrowRight
-          className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
-          aria-hidden="true"
-        />
+          {" of "}
+          <span className="font-numerals tabular-nums text-text-strong">
+            {memberCount}
+          </span>
+          {" members · "}
+          <span className="font-numerals tabular-nums">{proposalCount}</span>
+          {" sweep"}
+          {proposalCount === 1 ? "" : "s"}
+        </p>
+
+        {/* Threshold confidence bar - subtle, sits below all content.
+            Width = threshold/members. The eye reads it as "how much
+            of a quorum stands behind this vault" at a glance. */}
+        <div className="mt-4 h-[2px] overflow-hidden rounded-full bg-border-soft">
+          <div
+            className="h-full rounded-full bg-accent"
+            style={{ width: `${thresholdPct}%` }}
+          />
+        </div>
       </Link>
     </li>
   );

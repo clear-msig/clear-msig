@@ -19,7 +19,7 @@ import { proposalPda } from "../pda";
 
 /**
  * The minimum surface a flow helper needs to send a tx. Mirrors web3.js's
- * `confirmTransaction` semantics — accept any commitment string the RPC
+ * `confirmTransaction` semantics - accept any commitment string the RPC
  * understands.
  */
 export interface SendOptions {
@@ -30,11 +30,11 @@ export interface SendOptions {
   extraSigners?: Signer[];
   /** Defaults to "confirmed". */
   commitment?: "processed" | "confirmed" | "finalized";
-  /** Skip preflight simulation — useful when the RPC is finicky. */
+  /** Skip preflight simulation - useful when the RPC is finicky. */
   skipPreflight?: boolean;
   /**
    * Address-lookup tables to compress the v0 message. Required for `propose`
-   * on devnet/mainnet — the per-instruction wire is 47 bytes over the
+   * on devnet/mainnet - the per-instruction wire is 47 bytes over the
    * 1232-byte single-tx cap without ALT compression.
    */
   lookupTables?: AddressLookupTableAccount[];
@@ -67,7 +67,7 @@ async function sendOne(
 
 export interface CreateRecoveryFlowParams
   extends Omit<CreateRecoveryParams, "creator" | "recoveryId"> {
-  /** The creator's keypair — pays for the new Recovery PDA + signs the tx. */
+  /** The creator's keypair - pays for the new Recovery PDA + signs the tx. */
   creator: Signer;
   /**
    * The recovery-id keypair. A throwaway nonce; only its address is stored
@@ -109,7 +109,7 @@ export interface ProposeFlowParams
   proposer: Signer;
   /**
    * Optional override. When omitted, the helper reads `Recovery.proposal_count`
-   * to derive the expected index — saves a hand-roll for the common case.
+   * to derive the expected index - saves a hand-roll for the common case.
    */
   proposalIndex?: number;
 }
@@ -158,7 +158,7 @@ async function defaultProposalIndex(
 export interface ApproveFlowParams
   extends Omit<ApproveParams, "payer"> {
   /**
-   * Approver's keypair — defaults to `payer` if you want both auth and
+   * Approver's keypair - defaults to `payer` if you want both auth and
    * fee-payment in one signer. Pass a separate `feePayer` when sponsoring.
    */
   approver: Signer;
@@ -193,13 +193,13 @@ export async function approveAndConfirm(
 export interface ExecuteFlowParams extends Omit<ExecuteParams, "payer"> {
   /**
    * The signer that pays for the tx. Anyone can fire execute once a proposal
-   * reaches STATUS_APPROVED — no roster membership required.
+   * reaches STATUS_APPROVED - no roster membership required.
    */
   executor: Signer;
 }
 
 /**
- * Build, sign, and confirm an `execute` tx. Returns nothing useful — the
+ * Build, sign, and confirm an `execute` tx. Returns nothing useful - the
  * caller usually wants to read the proposal back to confirm STATUS_EXECUTED.
  */
 export async function executeAndConfirm(

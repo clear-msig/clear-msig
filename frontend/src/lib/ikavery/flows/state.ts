@@ -24,7 +24,7 @@ import {
 
 /**
  * Standalone read helpers around the existing decoders. The SDK doesn't keep
- * a stateful client object — `Connection` is the source of truth and every
+ * a stateful client object - `Connection` is the source of truth and every
  * flow takes it explicitly so callers can pin commitment / RPC per call.
  */
 
@@ -133,7 +133,7 @@ export async function readApproval(
 
 /**
  * Convenience: read the Approval row for a given (proposal, memberSlot)
- * pair. Returns null when the member hasn't voted yet — useful for
+ * pair. Returns null when the member hasn't voted yet - useful for
  * deduping / showing "already approved" UI without re-running the ix.
  */
 export async function readApprovalForMember(

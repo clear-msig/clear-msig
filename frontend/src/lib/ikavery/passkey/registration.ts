@@ -1,18 +1,18 @@
 /**
- * WebAuthn registration driver — runs `navigator.credentials.create` to
+ * WebAuthn registration driver - runs `navigator.credentials.create` to
  * enroll a new passkey on this device, then extracts the data we need
  * to add it to a Recovery's roster:
  *
- *   - `credentialId`  — opaque blob the assertion driver later
+ *   - `credentialId`  - opaque blob the assertion driver later
  *                       references via `allowCredentials`.
- *   - `publicKey`     — 33-byte compressed P-256 pubkey, the form the
+ *   - `publicKey`     - 33-byte compressed P-256 pubkey, the form the
  *                       on-chain `auth/webauthn.rs` expects (matches
  *                       the secp256r1 precompile's input shape).
  *
- * The COSE_Key parsing is short — we only need to handle the EC2 / P-256
+ * The COSE_Key parsing is short - we only need to handle the EC2 / P-256
  * variant the browser produces when we ask for ES256 (algorithm = -7).
  *
- * Browser-only — throws if `navigator.credentials.create` is unavailable.
+ * Browser-only - throws if `navigator.credentials.create` is unavailable.
  */
 
 const COSE_KTY = 1;
@@ -36,11 +36,11 @@ export interface RegistrationParams {
   rpName: string;
   /** Stable id the credential will be bound to. Default: window.location.hostname. */
   rpId?: string;
-  /** User handle that survives across sessions — pairs with credentialId on assertion. */
+  /** User handle that survives across sessions - pairs with credentialId on assertion. */
   userId: Uint8Array;
   /** Display name for the user. e.g. "Treasury vault". Shown in the prompt. */
   userName: string;
-  /** Visible label. e.g. "Treasury vault — primary device". */
+  /** Visible label. e.g. "Treasury vault - primary device". */
   userDisplayName?: string;
   /** Per-create challenge (32 bytes). Browser embeds this in the attestation;
    *  we don't verify on chain (registration ≠ assertion) but it must be present. */
@@ -72,7 +72,7 @@ export async function registerPasskey(
     typeof navigator.credentials.create !== "function"
   ) {
     throw new Error(
-      "WebAuthn is not available — passkey enrollment requires a browser with PublicKeyCredential support.",
+      "WebAuthn is not available - passkey enrollment requires a browser with PublicKeyCredential support.",
     );
   }
   if (params.challenge.length !== 32) {
@@ -159,7 +159,7 @@ export async function registerPasskey(
 
 function toArrayBuffer(view: Uint8Array): ArrayBuffer {
   // structuredClone keeps the original Uint8Array intact (don't pass
-  // `view.buffer` directly — Node's webcrypto may have a SharedArrayBuffer).
+  // `view.buffer` directly - Node's webcrypto may have a SharedArrayBuffer).
   const out = new ArrayBuffer(view.byteLength);
   new Uint8Array(out).set(view);
   return out;

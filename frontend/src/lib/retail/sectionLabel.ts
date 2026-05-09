@@ -33,6 +33,17 @@ export function getSectionLabel(pathname: string): string {
   if (pathname.startsWith("/app/proposals")) return "Request";
   if (pathname.startsWith("/app/intents")) return "Intent";
   if (pathname.startsWith("/app/invitations")) return "Invitation";
+  // Secure (ikavery) flow.
+  if (pathname === "/app/secure") return "Secure";
+  if (pathname === "/app/secure/new") return "New vault";
+  if (pathname.startsWith("/app/secure/")) {
+    // /app/secure/[recovery] and its sub-routes (/enroll, /sweep).
+    const segs = pathname.split("/").filter(Boolean);
+    const sub = segs[3] ?? "";
+    if (sub === "enroll") return "Vault · Enroll";
+    if (sub === "sweep") return "Vault · Sweep";
+    return "Vault";
+  }
   if (pathname.startsWith("/app/wallet/")) {
     const segs = pathname.split("/").filter(Boolean);
     let slug = "";

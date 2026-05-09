@@ -204,13 +204,13 @@ export function useWallet() {
 
   /// Sign a v0 transaction through the active signer. Currently only
   /// the Dynamic Solana wallet path is wired (Ledger transaction
-  /// signing isn't implemented for clear-msig — every clear-msig flow
+  /// signing isn't implemented for clear-msig - every clear-msig flow
   /// signs ed25519 messages, not transactions). The /app/secure
   /// (ikavery vault) flow needs full transaction signing because the
   /// ikavery program is invoked by the user themselves, not via the
   /// shared multisig.
   ///
-  /// Throws when called from a Ledger session — caller should detect
+  /// Throws when called from a Ledger session - caller should detect
   /// `isLedger` and gate accordingly. Throws "no signer" when the
   /// Dynamic Solana wallet isn't ready (e.g. user logged in with email
   /// but the embedded Solana wallet hasn't minted yet).
@@ -253,7 +253,7 @@ export function useWallet() {
     publicKey,
     connected,
     signMessage: connected ? signMessage : undefined,
-    /// v0 transaction signing — currently Dynamic-only. Used by the
+    /// v0 transaction signing - currently Dynamic-only. Used by the
     /// /app/secure (ikavery vault) create flow which sends ix bundles
     /// directly from the user. Returns the same transaction with
     /// the user's signature added. Throws on Ledger sessions.

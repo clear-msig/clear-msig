@@ -1,37 +1,36 @@
 "use client";
 
-// /app/secure/new — wizard for creating a new ikavery vault.
+// /app/secure/new - wizard for creating a new ikavery vault.
 // (Route is /new, not /build, because the frontend's .gitignore
 // has `build/` from a Next.js convention and would have hidden the
 // file. Naming matches /app/wallet/[name]/policies/new.)
 //
-// Three stages, mirroring the existing /welcome create-wallet wizard:
-//   1. shape  — pick a threshold preset (just-me / 2-of-3 / 3-of-5).
-//                The first version only ships threshold=1 (solo). The
-//                multi-member presets are visible but disabled with
-//                "add devices later" copy because real device
-//                enrollment is the v3 lift.
-//   2. confirm — preview card showing what we're about to sign and
-//                the "Build vault" CTA.
-//   3. done    — success state + "Open vault" / "Build another".
+// Three user-facing stages, mirroring the existing /welcome
+// create-wallet wizard:
+//   1. shape    - pick a threshold preset (just-me / 2-of-3 / 3-of-5).
+//   2. confirm  - preview card showing what we're about to sign and
+//                 the "Build vault" CTA.
+//   3. done     - success state + "Open vault" / "Build another".
+//
+// The "creating" sub-stage sits between confirm and done; it's not a
+// user-driven step, just the engine running. The top stage strip
+// folds it into "Confirm" so the user sees three big stages, not
+// four.
 //
 // One signed write: the create_recovery instruction. Two signers in
-// the tx — the user's connected wallet (creator + payer) and a
+// the tx - the user's connected wallet (creator + payer) and a
 // throwaway recoveryId keypair (PDA seed). The throwaway is generated
 // client-side and never referenced again.
-//
-// Why solo only at v2: real multi-member vaults need passkey or
-// secondary wallet enrollment to bind member 1+. That requires the
-// /app/secure/[recovery]/devices flow which lands in v3.
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import {
-  ArrowLeft,
   ArrowRight,
   Check,
+  Copy,
+  ExternalLink,
   Fingerprint,
   Loader2,
   ShieldCheck,
@@ -40,8 +39,6 @@ import {
 } from "lucide-react";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { Button } from "@/components/retail/Button";
-import { BackToWallets } from "@/components/retail/BackToWallets";
-import { PageEyebrow } from "@/components/retail/PageEyebrow";
 import { useToast } from "@/components/ui/Toast";
 import {
   createSoloVault,
@@ -66,8 +63,7 @@ const SHAPES: ThresholdShape[] = [
     label: "Just me",
     threshold: 1,
     members: 1,
-    blurb:
-      "Your connected wallet is the only signer. Add devices later — your vault, your decision.",
+    blurb: "Your connected wallet is the only signer. Add devices later.",
     available: true,
   },
   {
@@ -75,8 +71,7 @@ const SHAPES: ThresholdShape[] = [
     label: "2 of 3",
     threshold: 2,
     members: 3,
-    blurb:
-      "You + two devices. Any two sign and you're in. Tolerates losing one device.",
+    blurb: "You + two devices. Any two sign and you're in. Tolerates losing one.",
     available: false,
   },
   {
@@ -84,8 +79,7 @@ const SHAPES: ThresholdShape[] = [
     label: "3 of 5",
     threshold: 3,
     members: 5,
-    blurb:
-      "Default Ikavery shape. Five devices, three to recover. Tolerates losing two.",
+    blurb: "Five devices, three to recover. Tolerates losing two.",
     available: false,
   },
 ];
@@ -129,7 +123,8 @@ function SecureBuildPage() {
   const handleConfirm = () => {
     if (!shape.available) {
       toast.info("Coming soon", {
-        details: "Multi-device vaults land with the device-enrollment flow in v3.",
+        details:
+          "Multi-device vaults land with the device-enrollment flow in v3.",
       });
       return;
     }
@@ -178,61 +173,24 @@ function SecureBuildPage() {
   // messages in clear-msig today; it'll get vault support in v3.
   const blockedByLedger = wallet.isLedger;
   const blockedByDisconnect = !wallet.connected;
+  const isBlocked = blockedByDisconnect || blockedByLedger;
 
   return (
-    <motion.div {...fadeIn(0)} className="flex flex-col gap-8">
-      <div className="px-gutter md:hidden">
-        <BackToWallets label="Wallets" />
-      </div>
-
-      {stage !== "done" && (
-        <div className="px-gutter">
-          <Link
-            href="/app/secure"
-            className="inline-flex items-center gap-1.5 text-xs text-text-soft hover:text-text-strong"
-          >
-            <ArrowLeft className="h-3 w-3" aria-hidden="true" />
-            Back to Secure
-          </Link>
-        </div>
+    <motion.div
+      {...fadeIn(0)}
+      className="mx-auto flex w-full max-w-2xl flex-col gap-8"
+    >
+      {/* Stage progress strip - hidden when blocked / on done. The
+          done state has its own resolution; the blocked states are
+          terminal screens that don't need the strip. */}
+      {!isBlocked && stage !== "done" && (
+        <StageStrip stage={stage} />
       )}
 
-      {blockedByDisconnect && (
-        <PageEyebrow label="Sign in to continue" align="center">
-          <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
-            Connect a wallet first
-          </h1>
-          <p className="mx-auto mt-2 max-w-md text-base text-text-soft">
-            The vault is anchored to your Solana wallet. Sign in to start
-            building.
-          </p>
-          <Link
-            href="/connect?next=/app/secure/new"
-            className="mt-5 inline-flex"
-          >
-            <Button size="lg">
-              Sign in
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          </Link>
-        </PageEyebrow>
-      )}
+      {blockedByDisconnect && <BlockedDisconnect />}
+      {!blockedByDisconnect && blockedByLedger && <BlockedLedger />}
 
-      {!blockedByDisconnect && blockedByLedger && (
-        <PageEyebrow label="Ledger" align="center">
-          <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
-            Vault flow needs a hot wallet
-          </h1>
-          <p className="mx-auto mt-2 max-w-md text-base text-text-soft">
-            clear-msig&rsquo;s Ledger path only signs ed25519 messages
-            today. The vault create flow needs full transaction signing.
-            Disconnect Ledger and use your Dynamic embedded wallet, then
-            try again. Ledger support for vault is on the v3 list.
-          </p>
-        </PageEyebrow>
-      )}
-
-      {!blockedByDisconnect && !blockedByLedger && stage === "shape" && (
+      {!isBlocked && stage === "shape" && (
         <ShapeStage
           shape={shape}
           setShape={setShape}
@@ -240,7 +198,7 @@ function SecureBuildPage() {
           reduce={!!reduce}
         />
       )}
-      {!blockedByDisconnect && !blockedByLedger && stage === "confirm" && (
+      {!isBlocked && stage === "confirm" && (
         <ConfirmStage
           shape={shape}
           creatorAddress={wallet.publicKey?.toBase58() ?? ""}
@@ -249,7 +207,7 @@ function SecureBuildPage() {
           reduce={!!reduce}
         />
       )}
-      {!blockedByDisconnect && !blockedByLedger && stage === "creating" && (
+      {!isBlocked && stage === "creating" && (
         <CreatingStage reduce={!!reduce} subStage={createSubStage} />
       )}
       {stage === "done" && (
@@ -272,6 +230,89 @@ function SecureBuildPage() {
   );
 }
 
+// ─── Stage progress strip ─────────────────────────────────────────
+//
+// Three pill nodes connected by a thin rail. The active node is
+// filled accent; past nodes carry a check; future nodes are dim.
+// Folds the "creating" sub-stage into "Confirm" so the user sees a
+// 3-step product flow, not 4.
+
+const STRIP_STAGES: { id: Stage | "confirm-or-creating"; label: string }[] = [
+  { id: "shape", label: "Shape" },
+  { id: "confirm-or-creating", label: "Confirm" },
+  { id: "done", label: "Done" },
+];
+
+function StageStrip({ stage }: { stage: Stage }) {
+  const indexFor = (s: Stage) =>
+    s === "shape" ? 0 : s === "done" ? 2 : 1; // confirm + creating both → 1
+  const active = indexFor(stage);
+
+  return (
+    // `justify-center` centres the whole strip regardless of the
+    // page's content width on both mobile and desktop. Each step
+    // sits at its natural width with fixed-width connector rails
+    // between, so the cluster reads as a tight, centred indicator
+    // rather than a full-width stretch bar.
+    <ol
+      aria-label="Wizard progress"
+      className="flex items-center justify-center gap-2 px-gutter sm:gap-3"
+    >
+      {STRIP_STAGES.map((s, i) => {
+        const isActive = i === active;
+        const isDone = i < active;
+        return (
+          <li
+            key={s.id}
+            className="flex items-center gap-2 sm:gap-3"
+            aria-current={isActive ? "step" : undefined}
+          >
+            <span
+              className={
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums " +
+                (isActive
+                  ? "bg-accent text-text-on-accent shadow-card-rest"
+                  : isDone
+                    ? "bg-accent/15 text-accent"
+                    : "border border-border-soft bg-canvas text-text-soft")
+              }
+            >
+              {isDone ? (
+                <Check className="h-3.5 w-3.5" strokeWidth={3} />
+              ) : (
+                i + 1
+              )}
+            </span>
+            <span
+              className={
+                "hidden font-mono text-[10px] uppercase tracking-[0.2em] sm:inline-block " +
+                (isActive || isDone ? "text-text-strong" : "text-text-soft")
+              }
+            >
+              {s.label}
+            </span>
+            {/* Fixed-width connector rail between nodes. Mobile gets
+                a shorter rail so the three nodes still fit on a
+                ~360px viewport; sm+ gets a longer rail for breathing
+                room. Past rails are accent, future are border. */}
+            {i < STRIP_STAGES.length - 1 && (
+              <span
+                aria-hidden="true"
+                className={
+                  "h-px w-8 sm:w-14 " +
+                  (i < active ? "bg-accent/60" : "bg-border-soft")
+                }
+              />
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+// ─── Stage 1 · Shape ─────────────────────────────────────────────
+
 interface ShapeStageProps {
   shape: ThresholdShape;
   setShape: (s: ThresholdShape) => void;
@@ -287,72 +328,101 @@ function ShapeStage({ shape, setShape, onContinue, reduce }: ShapeStageProps) {
     <motion.section
       {...motionProps}
       transition={{ duration: 0.3 }}
-      className="flex flex-col gap-6"
+      className="flex flex-col gap-7"
     >
-      <PageEyebrow label="// 01 · pick a shape" align="center">
-        <h1 className="font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+      <header className="px-gutter text-center">
+        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+          Step 1 · Pick a shape
+        </p>
+        <h1 className="mt-2 font-display text-display-sm leading-[1.05] tracking-[-0.02em] text-text-strong text-balance sm:mt-3">
           How many signers?
         </h1>
-        <p className="mx-auto mt-2 max-w-md text-base text-text-soft">
+        <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-text-soft text-pretty">
           The threshold is how many signers must agree before the vault
           releases the key. Pick the one that fits your situation.
         </p>
-      </PageEyebrow>
+      </header>
 
-      <ul className="flex flex-col gap-2">
+      <ul className="flex flex-col gap-3 px-gutter">
         {SHAPES.map((s) => {
           const selected = s.id === shape.id;
           const disabled = !s.available;
+          const Icon = s.id === "solo" ? User : Fingerprint;
           return (
             <li key={s.id}>
               <button
                 type="button"
                 disabled={disabled}
                 onClick={() => setShape(s)}
+                aria-pressed={selected}
                 className={
-                  "flex w-full items-start gap-3 rounded-card border p-4 text-left " +
-                  "transition-[border-color,background-color,transform] duration-base ease-out-soft " +
+                  "group relative block w-full overflow-hidden rounded-card border p-5 text-left sm:p-6 " +
+                  "transition-[border-color,background-color,transform,box-shadow] duration-base ease-out-soft " +
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
                   (selected
-                    ? "border-accent bg-accent/[0.05] shadow-card-rest"
+                    ? "border-accent bg-accent/[0.04] shadow-card-rest"
                     : disabled
-                      ? "cursor-not-allowed border-border-soft bg-surface-raised/60 opacity-60"
-                      : "border-border-soft bg-surface-raised hover:-translate-y-0.5 hover:border-accent/40")
+                      ? "cursor-not-allowed border-border-soft bg-surface-raised/40 opacity-70"
+                      : "border-border-soft bg-surface-raised hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-card-raised")
                 }
               >
-                <span
-                  aria-hidden="true"
-                  className={
-                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full " +
-                    (selected
-                      ? "bg-accent text-white"
-                      : "bg-accent/10 text-accent")
-                  }
-                >
-                  {s.id === "solo" ? (
-                    <User className="h-4 w-4" strokeWidth={1.75} />
-                  ) : (
-                    <Fingerprint className="h-4 w-4" strokeWidth={1.75} />
-                  )}
-                </span>
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="flex items-center gap-2">
-                    <span className="font-display text-base font-semibold text-text-strong">
+                {/* Selected check badge - sits in the top-right
+                    corner so the card itself can keep its full
+                    typographic hierarchy. Lime ring + canvas
+                    background reads as "this one is locked in". */}
+                {selected && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-full bg-accent text-text-on-accent shadow-card-rest sm:right-5 sm:top-5"
+                  >
+                    <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                  </span>
+                )}
+
+                {/* Disabled badge - same corner slot. Mutually
+                    exclusive with selected (a stub can't be
+                    selected; the button is disabled). */}
+                {disabled && (
+                  <span className="absolute right-4 top-4 rounded-full border border-border-soft bg-canvas px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.2em] text-text-soft sm:right-5 sm:top-5">
+                    Coming soon
+                  </span>
+                )}
+
+                <div className="flex items-start gap-4">
+                  <span
+                    aria-hidden="true"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent/[0.08] text-accent ring-1 ring-accent/20"
+                  >
+                    <Icon className="h-5 w-5" strokeWidth={1.75} />
+                  </span>
+
+                  <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                    <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-soft">
+                      Threshold {s.threshold} of {s.members}
+                    </p>
+                    <p className="mt-1.5 font-display text-lg font-semibold tracking-[-0.015em] text-text-strong">
                       {s.label}
-                    </span>
-                    {disabled && (
-                      <span className="rounded-full border border-border-soft bg-canvas px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-text-soft">
-                        v3
+                    </p>
+                    <p className="mt-2.5 max-w-md text-[13.5px] leading-relaxed text-text-soft text-pretty">
+                      {s.blurb}
+                    </p>
+
+                    {/* Threshold dot pattern - sits under the body
+                        copy, prefixed with a small label so it
+                        reads as a spec line rather than a stray
+                        graphic. */}
+                    <div className="mt-4 inline-flex items-center gap-2">
+                      <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+                        Quorum
                       </span>
-                    )}
-                  </span>
-                  <span className="font-numerals text-[11px] tabular-nums text-text-soft">
-                    threshold {s.threshold} of {s.members}
-                  </span>
-                  <span className="mt-1 text-sm text-text-soft text-pretty">
-                    {s.blurb}
-                  </span>
-                </span>
+                      <ThresholdDots
+                        threshold={s.threshold}
+                        members={s.members}
+                        selected={selected}
+                      />
+                    </div>
+                  </div>
+                </div>
               </button>
             </li>
           );
@@ -361,10 +431,10 @@ function ShapeStage({ shape, setShape, onContinue, reduce }: ShapeStageProps) {
 
       {/* Sticky-bottom CTA on mobile so the Continue button stays
           reachable after picking a shape on a long page. md+ keeps
-          it in flow — the column is short there. */}
+          it in flow - the column is short there. */}
       <div
         className={
-          "-mx-3 sm:mx-0 px-3 sm:px-0 " +
+          "px-gutter " +
           "sticky bottom-[calc(env(safe-area-inset-bottom,0px)+4rem)] z-20 sm:static sm:bottom-auto " +
           "border-t border-border-soft bg-canvas pt-3 sm:border-0 sm:bg-transparent sm:pt-0"
         }
@@ -382,6 +452,39 @@ function ShapeStage({ shape, setShape, onContinue, reduce }: ShapeStageProps) {
     </motion.section>
   );
 }
+
+function ThresholdDots({
+  threshold,
+  members,
+  selected,
+}: {
+  threshold: number;
+  members: number;
+  selected: boolean;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-flex shrink-0 items-center gap-1.5"
+    >
+      {Array.from({ length: members }).map((_, i) => (
+        <span
+          key={i}
+          className={
+            "h-1.5 w-1.5 rounded-full transition-colors duration-base " +
+            (i < threshold
+              ? selected
+                ? "bg-accent"
+                : "bg-accent/70"
+              : "bg-border-soft")
+          }
+        />
+      ))}
+    </span>
+  );
+}
+
+// ─── Stage 2 · Confirm ───────────────────────────────────────────
 
 interface ConfirmStageProps {
   shape: ThresholdShape;
@@ -408,28 +511,83 @@ function ConfirmStage({
     <motion.section
       {...motionProps}
       transition={{ duration: 0.3 }}
-      className="flex flex-col gap-6"
+      className="flex flex-col gap-7"
     >
-      <PageEyebrow label="// 02 · confirm" align="center">
-        <h1 className="font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+      <header className="px-gutter text-center">
+        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+          Step 2 · Confirm
+        </p>
+        <h1 className="mt-2 font-display text-display-sm leading-[1.05] tracking-[-0.02em] text-text-strong text-balance sm:mt-3">
           Build a {shape.threshold}-of-{shape.members} vault
         </h1>
-        <p className="mx-auto mt-2 max-w-md text-base text-text-soft">
-          Your wallet will be asked to sign the transaction that creates
-          the vault on chain.
+        <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-text-soft text-pretty">
+          Your wallet will be asked to sign one transaction. That puts the
+          vault on chain and binds your dWallet to it.
         </p>
-      </PageEyebrow>
+      </header>
 
-      <ul className="flex flex-col gap-2 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-        <PreviewRow label="Threshold" value={`${shape.threshold} of ${shape.members}`} mono />
-        <PreviewRow label="First signer" value={short} mono />
-        <PreviewRow label="Curve" value="ed25519 (Solana)" />
-        <PreviewRow label="Network" value="Solana devnet" />
-      </ul>
+      {/* Receipt-style preview card. Header strip with vault
+          identity + threshold pill, identity row, an at-a-glance
+          quorum visualisation, and a clean key-value spec list. */}
+      <article className="mx-gutter overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
+        <header className="flex items-center justify-between border-b border-border-soft px-5 py-3 sm:px-6">
+          <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            Vault summary
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-2 py-0.5 font-numerals text-[11px] font-semibold tabular-nums text-accent">
+            {shape.threshold}/{shape.members}
+          </span>
+        </header>
+
+        <div className="px-5 py-5 sm:px-6 sm:py-6">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/[0.08] text-accent ring-1 ring-accent/20">
+              <VaultIcon className="h-5 w-5" strokeWidth={1.75} />
+            </span>
+            <div className="leading-tight">
+              <p className="font-display text-base font-semibold tracking-[-0.01em] text-text-strong">
+                {shape.label}
+              </p>
+              <p className="mt-0.5 text-[12px] text-text-soft">
+                Solana key under quorum
+              </p>
+            </div>
+          </div>
+
+          {/* Quorum visualisation - mirrors the shape card so the
+              user sees the same dots they tapped, now confirmed. */}
+          <div className="mt-5 flex items-center gap-3 rounded-xl border border-border-soft bg-canvas px-3.5 py-3">
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+              Quorum
+            </span>
+            <ThresholdDots
+              threshold={shape.threshold}
+              members={shape.members}
+              selected
+            />
+            <span className="ml-auto font-numerals text-[12px] font-semibold tabular-nums text-text-strong">
+              {shape.threshold} of {shape.members}
+            </span>
+          </div>
+
+          {/* Spec list - eyebrow-style labels, value column right-
+              aligned via flex-justify-between within each row. */}
+          <ul className="mt-4 divide-y divide-border-soft border-y border-border-soft">
+            <PreviewRow label="First signer" value={short} mono />
+            <PreviewRow label="Curve" value="ed25519 (Solana)" />
+            <PreviewRow label="Network" value="Solana devnet" />
+          </ul>
+
+          <p className="mt-5 text-[12px] leading-relaxed text-text-soft">
+            Add additional devices and set a sweep destination after the
+            vault is live.
+          </p>
+        </div>
+      </article>
 
       <div
         className={
-          "-mx-3 sm:mx-0 px-3 sm:px-0 " +
+          "flex flex-col gap-3 px-gutter " +
           "sticky bottom-[calc(env(safe-area-inset-bottom,0px)+4rem)] z-20 sm:static sm:bottom-auto " +
           "border-t border-border-soft bg-canvas pt-3 sm:border-0 sm:bg-transparent sm:pt-0"
         }
@@ -441,9 +599,9 @@ function ConfirmStage({
         <button
           type="button"
           onClick={onBack}
-          className="mt-3 inline-flex w-full items-center justify-center text-sm text-text-soft hover:text-text-strong"
+          className="inline-flex w-full items-center justify-center text-sm text-text-soft transition-colors duration-base hover:text-text-strong"
         >
-          Back
+          Back to shape
         </button>
       </div>
     </motion.section>
@@ -460,14 +618,14 @@ function PreviewRow({
   mono?: boolean;
 }) {
   return (
-    <li className="flex items-baseline justify-between gap-3 border-b border-border-soft py-2 last:border-0">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+    <li className="flex items-baseline justify-between gap-3 py-2.5">
+      <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
         {label}
       </span>
       <span
         className={
           (mono ? "font-mono " : "font-display ") +
-          "text-sm text-text-strong"
+          "text-[13px] font-medium text-text-strong"
         }
       >
         {value}
@@ -475,6 +633,13 @@ function PreviewRow({
     </li>
   );
 }
+
+// ─── Stage 2.5 · Creating ────────────────────────────────────────
+//
+// Renders the engine's sub-stages as a checklist: completed steps
+// show a check, the active step shows a spinner, future steps show
+// a faint dot. Reads as a familiar "things-are-happening" surface
+// instead of a single opaque spinner.
 
 function CreatingStage({
   reduce,
@@ -487,21 +652,18 @@ function CreatingStage({
     ? {}
     : { initial: { opacity: 0 }, animate: { opacity: 1 } };
 
-  // Map the engine sub-stages to user-facing copy. Each step is a
-  // discrete network round-trip, so showing the live one helps a
-  // user reason about "should this be taking this long" rather
-  // than staring at an opaque spinner.
   const STAGES: { id: CreateVaultStage; label: string; detail: string }[] = [
     {
       id: "dkg",
       label: "Running DKG",
-      detail: "Asking the Ika network to mint your dWallet. Usually a few seconds.",
+      detail:
+        "Asking the Ika network to mint your dWallet. Usually a few seconds.",
     },
     {
       id: "wait-dwallet",
       label: "Activating dWallet",
       detail:
-        "Waiting for the dWallet account to commit on-chain. Pre-alpha mock signer auto-commits within ~5s.",
+        "Waiting for the dWallet account to commit on-chain. Mock signer auto-commits within ~5s.",
     },
     {
       id: "build",
@@ -512,7 +674,7 @@ function CreatingStage({
     {
       id: "sign",
       label: "Waiting for your signature",
-      detail: "Confirm in your wallet popup. Cancel there if you change your mind.",
+      detail: "Confirm in your wallet popup. Cancel there to bail out.",
     },
     {
       id: "submit",
@@ -522,7 +684,7 @@ function CreatingStage({
     {
       id: "confirm",
       label: "Waiting for confirmation",
-      detail: "The vault is on chain — just waiting for the slot to finalize.",
+      detail: "The vault is on chain - just waiting for the slot to finalize.",
     },
   ];
   const activeIdx = subStage ? STAGES.findIndex((s) => s.id === subStage) : 0;
@@ -532,42 +694,85 @@ function CreatingStage({
     <motion.section
       {...motionProps}
       transition={{ duration: 0.3 }}
-      className="flex flex-col items-center gap-6 py-12 text-center"
+      className="flex flex-col gap-7 px-gutter"
     >
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">
-        <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
-      </div>
-      <PageEyebrow label={`// ${(activeIdx + 1).toString().padStart(2, "0")} · ${activeStep.id}`} align="center">
-        <p className="font-display text-display-xs text-text-strong">
-          {activeStep.label}
+      <header className="text-center">
+        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+          Building your vault
         </p>
-        <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
+        <h1 className="mt-2 font-display text-display-sm leading-[1.05] tracking-[-0.02em] text-text-strong text-balance sm:mt-3">
+          {activeStep.label}
+        </h1>
+        <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-text-soft text-pretty">
           {activeStep.detail}
         </p>
-      </PageEyebrow>
+      </header>
 
-      {/* Mini-progress: 5 dots, the active one accent, prior ones
-          accent (past), future ones text-soft. Helps the user see
-          how far through the flow they are. */}
-      <ol className="flex items-center gap-2" aria-label="Progress">
-        {STAGES.map((s, i) => (
-          <li
-            key={s.id}
-            aria-current={i === activeIdx ? "step" : undefined}
-            className={
-              "h-1.5 rounded-full transition-colors duration-base " +
-              (i < activeIdx
-                ? "w-6 bg-accent"
-                : i === activeIdx
-                  ? "w-10 bg-accent"
-                  : "w-6 bg-border-soft")
-            }
-          />
-        ))}
+      <ol className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
+        {STAGES.map((s, i) => {
+          const isActive = i === activeIdx;
+          const isDone = i < activeIdx;
+          const isLast = i === STAGES.length - 1;
+          return (
+            <li
+              key={s.id}
+              aria-current={isActive ? "step" : undefined}
+              className="relative flex items-start gap-3 pb-3 last:pb-0"
+            >
+              {/* Connector rail between dots. Past rails are accent
+                  to show momentum; future rails fade. Sits behind
+                  the dots so they punch through. */}
+              {!isLast && (
+                <span
+                  aria-hidden="true"
+                  className={
+                    "absolute left-3 top-6 -z-0 h-[calc(100%-1rem)] w-px " +
+                    (isDone ? "bg-accent/50" : "bg-border-soft")
+                  }
+                />
+              )}
+              <span
+                className={
+                  "relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ring-2 ring-surface-raised " +
+                  (isDone
+                    ? "bg-accent text-text-on-accent"
+                    : isActive
+                      ? "bg-accent/15 text-accent"
+                      : "border border-border-soft bg-canvas text-text-soft")
+                }
+              >
+                {isDone ? (
+                  <Check className="h-3 w-3" strokeWidth={3} />
+                ) : isActive ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <span
+                    aria-hidden="true"
+                    className="h-1.5 w-1.5 rounded-full bg-text-soft/40"
+                  />
+                )}
+              </span>
+              <span
+                className={
+                  "min-h-6 self-center text-[13px] font-medium " +
+                  (isActive
+                    ? "text-text-strong"
+                    : isDone
+                      ? "text-text-soft"
+                      : "text-text-soft/70")
+                }
+              >
+                {s.label}
+              </span>
+            </li>
+          );
+        })}
       </ol>
     </motion.section>
   );
 }
+
+// ─── Stage 3 · Done ──────────────────────────────────────────────
 
 function DoneStage({
   recoveryAddress,
@@ -589,60 +794,162 @@ function DoneStage({
     <motion.section
       {...motionProps}
       transition={{ duration: 0.4 }}
-      className="flex flex-col items-center gap-6 text-center"
+      className="flex flex-col gap-7 px-gutter"
     >
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-white shadow-accent-rest">
-        <Check className="h-8 w-8" strokeWidth={2.5} aria-hidden="true" />
-      </div>
-      <PageEyebrow label="// 03 · done" align="center">
-        <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
-          Vault is live
-        </h1>
-        <p className="mx-auto mt-2 max-w-md text-base text-text-soft">
-          Your key is now under threshold custody. Open it to add devices
-          or set up a sweep destination.
-        </p>
-      </PageEyebrow>
+      <article className="relative overflow-hidden rounded-card border border-accent/40 bg-accent/[0.04] p-6 shadow-card-rest sm:p-8">
+        {/* Soft top-right glow for the celebration. */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full"
+          style={{
+            background:
+              "radial-gradient(circle, var(--clear-accent-glow-rest) 0%, transparent 70%)",
+            filter: "blur(40px)",
+          }}
+        />
 
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        <Button size="lg" onClick={onOpen}>
+        <div className="relative flex flex-col items-center text-center sm:flex-row sm:items-start sm:gap-5 sm:text-left">
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-accent text-text-on-accent shadow-accent-rest">
+            <Check className="h-7 w-7" strokeWidth={2.5} aria-hidden="true" />
+          </span>
+          <div className="mt-4 sm:mt-0">
+            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
+              Vault is live
+            </p>
+            <h1 className="mt-2 font-display text-display-sm leading-[1.05] tracking-[-0.02em] text-text-strong">
+              Your key is under quorum
+            </h1>
+            <p className="mt-2 max-w-md text-[14px] leading-relaxed text-text-soft">
+              Open the vault to add devices or wire a sweep destination.
+            </p>
+          </div>
+        </div>
+      </article>
+
+      {/* Result details - copyable recovery address + explorer link. */}
+      {recoveryAddress && (
+        <ResultRow
+          label="Recovery address"
+          value={recoveryAddress}
+          copyable
+        />
+      )}
+      {txSignature && (
+        <a
+          href={`https://explorer.solana.com/tx/${txSignature}?cluster=devnet`}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent transition-colors duration-base hover:text-accent-hover"
+        >
+          View transaction on Solana Explorer
+          <ExternalLink className="h-3 w-3" aria-hidden="true" />
+        </a>
+      )}
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <Button size="lg" fullWidth onClick={onOpen}>
           <VaultIcon className="h-4 w-4" aria-hidden="true" />
           Open vault
         </Button>
         <button
           type="button"
           onClick={onBuildAnother}
-          className="inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-4 py-2 text-sm font-medium text-text-soft hover:border-accent hover:text-accent"
+          className="inline-flex min-h-tap items-center justify-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-5 py-2.5 text-sm font-medium text-text-soft transition-colors duration-base hover:border-accent hover:text-accent sm:flex-1"
         >
           <ShieldCheck className="h-4 w-4" aria-hidden="true" />
           Build another
         </button>
       </div>
-
-      {(recoveryAddress || txSignature) && (
-        <ul className="mt-2 flex flex-col gap-1 text-[11px] text-text-soft">
-          {recoveryAddress && (
-            <li>
-              <span className="text-text-soft">Recovery:</span>{" "}
-              <span className="font-mono text-text-strong">
-                {recoveryAddress}
-              </span>
-            </li>
-          )}
-          {txSignature && (
-            <li>
-              <a
-                href={`https://explorer.solana.com/tx/${txSignature}?cluster=devnet`}
-                target="_blank"
-                rel="noreferrer"
-                className="text-accent hover:text-accent-hover"
-              >
-                View tx on Solana Explorer →
-              </a>
-            </li>
-          )}
-        </ul>
-      )}
     </motion.section>
+  );
+}
+
+function ResultRow({
+  label,
+  value,
+  copyable,
+}: {
+  label: string;
+  value: string;
+  copyable?: boolean;
+}) {
+  const toast = useToast();
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success("Copied");
+    } catch {
+      toast.error("Couldn't copy");
+    }
+  };
+  return (
+    <div className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
+      <div className="flex min-w-0 flex-1 flex-col leading-tight">
+        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+          {label}
+        </span>
+        <span className="mt-1 truncate font-mono text-[12px] text-text-strong">
+          {value}
+        </span>
+      </div>
+      {copyable && (
+        <button
+          type="button"
+          onClick={onCopy}
+          aria-label={`Copy ${label}`}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border-soft bg-canvas text-text-soft transition-colors duration-base hover:border-accent hover:text-accent"
+        >
+          <Copy className="h-3.5 w-3.5" strokeWidth={2} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── Blocked screens ─────────────────────────────────────────────
+
+function BlockedDisconnect() {
+  return (
+    <section className="mx-gutter rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-8">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-8">
+        <div className="text-center sm:text-left">
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            Sign in to continue
+          </p>
+          <h1 className="mt-2 font-display text-display-xs leading-tight tracking-[-0.02em] text-text-strong">
+            Connect a wallet first
+          </h1>
+          <p className="mt-2 max-w-md text-[14px] leading-relaxed text-text-soft">
+            The vault is anchored to your Solana wallet. Sign in to start
+            building.
+          </p>
+        </div>
+        <Link href="/connect?next=/app/secure/new" className="inline-block">
+          <Button size="lg">
+            Sign in
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function BlockedLedger() {
+  return (
+    <section className="mx-gutter rounded-card border border-warning/40 bg-warning/[0.06] p-6 shadow-card-rest sm:p-8">
+      <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-warning">
+        Ledger not supported yet
+      </p>
+      <h1 className="mt-2 font-display text-display-xs leading-tight tracking-[-0.02em] text-text-strong">
+        Vault flow needs a hot wallet
+      </h1>
+      <p className="mt-3 max-w-md text-[14px] leading-relaxed text-text-soft">
+        clear-msig&rsquo;s Ledger path only signs ed25519 messages today.
+        The vault create flow needs full transaction signing. Disconnect
+        Ledger and use your Dynamic embedded wallet, then try again.
+        Ledger support for vault is on the v3 list.
+      </p>
+    </section>
   );
 }

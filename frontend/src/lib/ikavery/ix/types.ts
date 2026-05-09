@@ -10,16 +10,16 @@ import {
  * On-the-wire credential bundle. The on-chain handler verifies it covers a
  * specific per-op challenge digest:
  *
- * - `SCHEME_ED25519` / `SCHEME_SECP256R1` — signature lives in a precompile
+ * - `SCHEME_ED25519` / `SCHEME_SECP256R1` - signature lives in a precompile
  *   ix earlier in the same tx; the program reads it via the instructions
  *   sysvar. `signature` here is unused (zero-padded on the wire).
- * - `SCHEME_SECP256K1` — inline 65-byte (r||s||recovery_id) ECDSA signature
+ * - `SCHEME_SECP256K1` - inline 65-byte (r||s||recovery_id) ECDSA signature
  *   over `keccak256(eth-prefix(challenge))`; the program runs the
  *   `secp256k1_recover` syscall to pull the pubkey out.
- * - `SCHEME_WEBAUTHN` — `clientDataJson` carries the assertion's JSON; the
+ * - `SCHEME_WEBAUTHN` - `clientDataJson` carries the assertion's JSON; the
  *   precompile ix earlier in the same tx covers
  *   `authenticator_data || sha256(client_data_json)`.
- * - `SCHEME_SOLANA_ADDRESS` — no precompile needed; the program checks that
+ * - `SCHEME_SOLANA_ADDRESS` - no precompile needed; the program checks that
  *   the credential's pubkey matches a Solana Signer in the same tx.
  */
 export interface AuthCredential {

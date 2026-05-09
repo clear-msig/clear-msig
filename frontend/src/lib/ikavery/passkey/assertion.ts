@@ -1,5 +1,5 @@
 /**
- * WebAuthn assertion driver — runs `navigator.credentials.get` for a per-op
+ * WebAuthn assertion driver - runs `navigator.credentials.get` for a per-op
  * challenge and packages the result into the secp256r1 precompile ix +
  * `AuthCredential` the on-chain program expects.
  *
@@ -16,7 +16,7 @@
  */
 
 import { sha256 } from "@noble/hashes/sha256";
-// Vendored locally — see lib/ikavery/_core_helpers.ts for the
+// Vendored locally - see lib/ikavery/_core_helpers.ts for the
 // rationale (upstream package's workspace:* dep doesn't resolve via
 // npm). Same `derSigToCompactRaw64` exported by ikavery-core.
 import { derSigToCompactRaw64 } from "../_core_helpers";
@@ -33,7 +33,7 @@ export interface RunAssertionParams {
   publicKey: Uint8Array;
   /** 32-byte per-op challenge built via the `challenges` module. */
   challenge: Uint8Array;
-  /** RP id the credential was bound to. Optional — browser defaults to origin. */
+  /** RP id the credential was bound to. Optional - browser defaults to origin. */
   rpId?: string;
   /** Forwarded to `navigator.credentials.get` to allow async cancellation. */
   signal?: AbortSignal;
@@ -58,7 +58,7 @@ export interface AssertionResult {
  * Run a WebAuthn assertion for `challenge` and produce the precompile ix +
  * credential bundle the on-chain program will pair with it.
  *
- * Browser-only — throws if `navigator.credentials` is unavailable.
+ * Browser-only - throws if `navigator.credentials` is unavailable.
  */
 export async function runWebAuthnAssertion(
   params: RunAssertionParams,
@@ -69,7 +69,7 @@ export async function runWebAuthnAssertion(
     typeof navigator.credentials.get !== "function"
   ) {
     throw new Error(
-      "WebAuthn is not available in this environment — passkey flows require a browser with PublicKeyCredential support.",
+      "WebAuthn is not available in this environment - passkey flows require a browser with PublicKeyCredential support.",
     );
   }
   if (params.challenge.length !== 32) {
@@ -107,7 +107,7 @@ export async function runWebAuthnAssertion(
   const authenticatorData = new Uint8Array(response.authenticatorData);
   const derSignature = new Uint8Array(response.signature);
 
-  // Sanity check — the browser embeds the challenge into clientDataJSON,
+  // Sanity check - the browser embeds the challenge into clientDataJSON,
   // and the on-chain webauthn parser does a substring match for the same
   // `"challenge":"<b64url>"` we're about to send. If those disagree the
   // tx will fail; better to catch it here.
@@ -178,7 +178,7 @@ function expectChallengeInClientData(
   const needle = `"challenge":"${base64UrlEncode32(challenge)}"`;
   if (!text.includes(needle)) {
     throw new Error(
-      "WebAuthn clientDataJSON did not embed the requested challenge — assertion would fail on-chain.",
+      "WebAuthn clientDataJSON did not embed the requested challenge - assertion would fail on-chain.",
     );
   }
 }

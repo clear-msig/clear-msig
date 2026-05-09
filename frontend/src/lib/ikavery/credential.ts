@@ -32,7 +32,7 @@ export function idLenForScheme(scheme: number): number {
 }
 
 /**
- * Pack a credential into the on-chain `MemberSlot` byte layout —
+ * Pack a credential into the on-chain `MemberSlot` byte layout -
  * `[scheme, ...pubkey_or_address, ...zero_pad]` of length `MEMBER_SLOT_LEN`.
  */
 export function packMemberSlot(

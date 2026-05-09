@@ -1,7 +1,7 @@
 "use client";
 
 // Config knobs for the Ika integration. Read once at module load and
-// memoised — the values don't change between page loads. Override
+// memoised - the values don't change between page loads. Override
 // via NEXT_PUBLIC_* env vars at deploy time.
 
 /**

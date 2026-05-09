@@ -10,7 +10,7 @@
 //   1. Build the create-recovery ix via the SDK.
 //   2. Compose a v0 transaction.
 //   3. Sign the recoveryId slot locally (it's a fresh Keypair the user
-//      will never reference again — pure nonce material).
+//      will never reference again - pure nonce material).
 //   4. Hand the partially-signed tx to the user's Dynamic wallet for
 //      the creator signature.
 //   5. Submit + confirm.
@@ -59,7 +59,7 @@ export const DWALLET_CURVE_ED25519 = 2;
  *
  * One gRPC-Web fetch round-trip to
  * `pre-alpha-dev-1.ika.ika-network.net`. Returns inside a few hundred
- * ms on a normal connection. Mock signer pre-alpha — the user
+ * ms on a normal connection. Mock signer pre-alpha - the user
  * signature in the request is zero-filled and the network does the
  * crypto on its own.
  */
@@ -71,12 +71,12 @@ export async function runDkgForCreator(
 
 export interface CreateVaultParams {
   connection: Connection;
-  /** Connected wallet pubkey — pays rent + becomes member 0. */
+  /** Connected wallet pubkey - pays rent + becomes member 0. */
   creator: PublicKey;
   /** Approval threshold (1..=members.length). */
   threshold: number;
   /**
-   * Sign callback — Dynamic's signTransaction wrapped from useWallet().
+   * Sign callback - Dynamic's signTransaction wrapped from useWallet().
    * Receives the partially-signed tx (recoveryId slot already filled),
    * returns the same tx with the user's signature added.
    */
@@ -157,9 +157,9 @@ export async function createSoloVault(
   await waitForAccount(connection, dwalletAccountPda, 25_000);
 
   // Stage 2: build the on-chain bundle.
-  //   • create_recovery — stores the dwallet pubkey on the Recovery
+  //   • create_recovery - stores the dwallet pubkey on the Recovery
   //     row, member 0 is the connected Solana wallet.
-  //   • TransferOwnership — hands the dWallet's authority from the
+  //   • TransferOwnership - hands the dWallet's authority from the
   //     creator (initial authority after DKG) to ikavery's CPI
   //     authority PDA, so future execute paths can issue
   //     MessageApproval CPIs without an extra user signature.
@@ -192,7 +192,7 @@ export async function createSoloVault(
   }).compileToV0Message();
   const tx = new VersionedTransaction(message);
 
-  // Sign the recoveryId slot first — that's the throwaway keypair
+  // Sign the recoveryId slot first - that's the throwaway keypair
   // we generated above.
   tx.sign([recoveryIdKeypair]);
 
@@ -213,7 +213,7 @@ export async function createSoloVault(
   );
 
   // Persist the attestation against this recovery PDA so the v3 sweep
-  // flow can read it. Best-effort — if localStorage is blocked, the
+  // flow can read it. Best-effort - if localStorage is blocked, the
   // vault still works; sweep will surface a clean "no attestation"
   // error and prompt re-DKG.
   saveAttestation(recovery.toBase58(), {

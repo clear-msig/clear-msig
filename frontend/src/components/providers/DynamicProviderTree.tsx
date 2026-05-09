@@ -7,7 +7,7 @@
 // ships on /privacy, /security, /, etc.
 //
 // 2026-05-08: dropped WaaS-EVM and WaaS-Sui connectors. clear-msig's
-// user-facing chain is Solana — ETH/BTC/Zcash transfers are signed
+// user-facing chain is Solana - ETH/BTC/Zcash transfers are signed
 // by the user's existing Solana key via Ika dWallets, so users never
 // connect with an EVM account. Sui isn't a destination chain at all.
 // Removing the two unused connector packages trims hundreds of KB

@@ -21,7 +21,7 @@ import clsx from "clsx";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronLeft, ScanLine, Settings } from "lucide-react";
+import { ChevronLeft, ScanLine, Settings, ShieldCheck } from "lucide-react";
 import { useWallet } from "@/lib/wallet";
 import { useOnboarding } from "@/lib/hooks/useOnboarding";
 import { BrandMark } from "@/components/retail/BrandMark";
@@ -64,6 +64,10 @@ export function HeaderBar() {
   const showBrandPill = !inApp || !connected;
   const showScan = isSendRoute(pathname);
   const showSettings = inAppConnected && pathname.startsWith("/app/account");
+  // Secure shortcut: only on the Home page so the icon doesn't
+  // clutter every screen. Tapping deep-links into /app/secure
+  // (the recovery hub).
+  const showSecure = inAppConnected && isHome;
   const pageTitle = inAppConnected
     ? isHome
       ? "Welcome back"
@@ -136,12 +140,54 @@ export function HeaderBar() {
         </Link>
       )}
 
+      {/* HOME title - left edge, mobile only. Renders BEFORE the
+          right cluster so the greeting hugs the leading edge while
+          the right cluster's `ml-auto` pushes the action icons all
+          the way to the trailing edge. The two ends never overlap. */}
+      {showTitle && isHome && (
+        <motion.h1
+          initial={{ opacity: 0, y: -3 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          className="flex items-center gap-2 md:hidden"
+        >
+          <span className="flex h-6 w-6 items-center justify-center text-accent drop-shadow-[0_0_6px_rgba(204,255,0,0.5)]">
+            <BrandMark size={22} />
+          </span>
+          <span className="text-lg font-semibold tracking-tight text-text-strong">
+            Welcome back
+          </span>
+        </motion.h1>
+      )}
+
+      {/* OFF-HOME title - absolutely-centered text. Stays
+          geometrically centered regardless of how wide the back /
+          right clusters are, the way iOS / Android navbars do it.
+          pointer-events-none lets clicks fall through to the
+          back/scan/settings buttons. */}
+      {showTitle && !isHome && (
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center md:hidden">
+          <motion.h1
+            key={pageTitle}
+            initial={{ opacity: 0, y: -3 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+            className="max-w-[55vw] truncate text-base font-semibold tracking-tight text-text-strong"
+          >
+            {pageTitle}
+          </motion.h1>
+        </div>
+      )}
+
       {/* Right-side action cluster. Only renders when there's at
-          least one action to show (Scan on send routes; Settings on
-          the Account page). ml-auto pushes the cluster to the
-          opposite edge from the title/back. */}
+          least one action to show:
+            • Scan      - on send routes
+            • Settings  - on the Account page
+            • Secure    - on the Home page only (recovery hub)
+          ml-auto pushes the cluster to the trailing edge, opposite
+          the title / back button on the leading edge. */}
       <AnimatePresence>
-        {inAppConnected && (showScan || showSettings) && (
+        {inAppConnected && (showScan || showSettings || showSecure) && (
           <motion.div
             initial={{ opacity: 0, x: 8 }}
             animate={{ opacity: 1, x: 0 }}
@@ -165,6 +211,23 @@ export function HeaderBar() {
                   <ScanLine size={18} />
                 </motion.button>
               )}
+              {showSecure && (
+                <motion.div
+                  key="secure"
+                  initial={{ opacity: 0, scale: 0.92 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.92 }}
+                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  <Link
+                    href="/app/secure"
+                    aria-label="Secure (recovery)"
+                    className={MOBILE_HEADER_BTN}
+                  >
+                    <ShieldCheck size={18} />
+                  </Link>
+                </motion.div>
+              )}
               {showSettings && (
                 <motion.div
                   key="settings"
@@ -186,45 +249,6 @@ export function HeaderBar() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Page title - two layouts:
-          • HOME: left-aligned brand mark + "Welcome back" so the
-            landing reads like a personal greeting. Sits in the
-            normal flex flow next to (where) the back button would
-            otherwise be. Bigger text so the greeting carries weight.
-          • OTHER /app/* PAGES: absolutely-centered text. Stays
-            geometrically centered regardless of how wide the back/
-            right clusters are, the way iOS / Android navbars do it.
-            pointer-events-none on the overlay lets clicks fall
-            through to the back/scan/settings buttons. */}
-      {showTitle && isHome && (
-        <motion.h1
-          initial={{ opacity: 0, y: -3 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          className="flex items-center gap-2 md:hidden"
-        >
-          <span className="flex h-6 w-6 items-center justify-center text-accent drop-shadow-[0_0_6px_rgba(204,255,0,0.5)]">
-            <BrandMark size={22} />
-          </span>
-          <span className="text-lg font-semibold tracking-tight text-text-strong">
-            Welcome back
-          </span>
-        </motion.h1>
-      )}
-      {showTitle && !isHome && (
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center md:hidden">
-          <motion.h1
-            key={pageTitle}
-            initial={{ opacity: 0, y: -3 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-            className="max-w-[55vw] truncate text-base font-semibold tracking-tight text-text-strong"
-          >
-            {pageTitle}
-          </motion.h1>
-        </div>
-      )}
     </header>
   );
 }

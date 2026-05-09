@@ -5,7 +5,7 @@ import {
   MEMBER_SLOT_LEN,
 } from "../constants";
 
-/** Decoded `Recovery` account — the shared root of an ikavery vault. */
+/** Decoded `Recovery` account - the shared root of an ikavery vault. */
 export interface RecoveryAccount {
   recoveryId: PublicKey;
   creator: PublicKey;
@@ -19,7 +19,7 @@ export interface RecoveryAccount {
   rosterChangeCount: number;
   enrollmentCount: number;
   /**
-   * Active member set. Each entry is a 34-byte `MemberSlot` —
+   * Active member set. Each entry is a 34-byte `MemberSlot` -
    * `[scheme_byte, ...pubkey_or_address, ...zero_pad]`.
    */
   members: Uint8Array[];
@@ -57,7 +57,7 @@ export function decodeRecovery(data: Uint8Array): RecoveryAccount {
   const enrollmentCount = dv.getUint32(off, true);
   off += 4;
 
-  // Vec<MemberSlot, 16> — 2-byte LE length, then N slots.
+  // Vec<MemberSlot, 16> - 2-byte LE length, then N slots.
   const memberCount = dv.getUint16(off, true);
   off += 2;
   if (memberCount > MAX_MEMBERS) {

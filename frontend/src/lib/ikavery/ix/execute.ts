@@ -17,7 +17,7 @@ export interface ExecuteParams {
   proposal: PublicKey;
   /**
    * Anyone can fire `execute` once the proposal is `STATUS_APPROVED` and
-   * the rebuilt intent digest matches. The signer is just a sponsor — no
+   * the rebuilt intent digest matches. The signer is just a sponsor - no
    * roster membership required.
    */
   payer: PublicKey;
@@ -28,7 +28,7 @@ export interface ExecuteParams {
    */
   txIndex: number;
   /**
-   * Freshly-rebuilt sweep message for `txIndex` — the program re-parses
+   * Freshly-rebuilt sweep message for `txIndex` - the program re-parses
    * these bytes and checks their structural digest matches
    * `proposal.intent_digests[tx_index]`. Lets the executor refresh the
    * recent blockhash without redirecting funds.

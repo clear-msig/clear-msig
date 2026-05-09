@@ -14,8 +14,8 @@ import {
  * program can move it back.
  *
  * Account layout (dWallet program, direct mode):
- *   [0] current_authority — read-only Signer (the Solana ed25519 pubkey)
- *   [1] dwallet           — writable, program-owned
+ *   [0] current_authority - read-only Signer (the Solana ed25519 pubkey)
+ *   [1] dwallet           - writable, program-owned
  *
  * Data: [disc=24, ...new_authority(32 bytes)] = 33 bytes total.
  */

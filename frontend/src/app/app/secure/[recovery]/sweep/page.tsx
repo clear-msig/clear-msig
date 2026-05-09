@@ -37,7 +37,6 @@ import {
 } from "lucide-react";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { Button } from "@/components/retail/Button";
-import { BackToWallets } from "@/components/retail/BackToWallets";
 import { PageEyebrow } from "@/components/retail/PageEyebrow";
 import { useToast } from "@/components/ui/Toast";
 import { fetchVault } from "@/lib/ikavery/clearmsig-actions";
@@ -218,7 +217,7 @@ function SweepPage() {
     if (!dwalletPubkey) {
       toast.error("dWallet attestation missing", {
         details:
-          "v3a saves the dWallet pubkey to local storage on create. If you signed in on a fresh browser, the sweep needs that data — re-mint via /secure/new for now.",
+          "v3a saves the dWallet pubkey to local storage on create. If you signed in on a fresh browser, the sweep needs that data - re-mint via /secure/new for now.",
       });
       return;
     }
@@ -302,10 +301,6 @@ function SweepPage() {
 
   return (
     <motion.div {...fadeIn(0)} className="flex flex-col gap-8">
-      <div className="px-gutter md:hidden">
-        <BackToWallets label="Wallets" />
-      </div>
-
       <div className="px-gutter">
         <Link
           href={`/app/secure/${encodeURIComponent(recoveryStr)}`}

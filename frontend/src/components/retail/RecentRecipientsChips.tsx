@@ -1,6 +1,6 @@
 "use client";
 
-// Recent recipients — Cash-App-style stacked list of the last few
+// Recent recipients - Cash-App-style stacked list of the last few
 // people this wallet sent to on a given chain. Each row shows
 // avatar + name (or short address) + relative time + amount, and
 // fills the recipient input with the full address on tap.
@@ -69,7 +69,7 @@ function RecipientRow({
   recipient: RecentRecipient;
   onPick: (address: string) => void;
 }) {
-  // Try contact lookup first — case-insensitive for EVM, exact for
+  // Try contact lookup first - case-insensitive for EVM, exact for
   // Solana. Falls back to the short address as the heading when no
   // contact match exists.
   const contact =

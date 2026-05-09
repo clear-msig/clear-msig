@@ -8,15 +8,15 @@ import {
 
 const ZERO_BLOCKHASH = "11111111111111111111111111111111";
 
-/** Token-kegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA — original SPL Token program. */
+/** Token-kegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA - original SPL Token program. */
 export const TOKEN_PROGRAM_ID = new PublicKey(
   "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
 );
-/** TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb — Token-2022 program. */
+/** TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb - Token-2022 program. */
 export const TOKEN_2022_PROGRAM_ID = new PublicKey(
   "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
 );
-/** ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL — ATA program. */
+/** ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL - ATA program. */
 export const ATA_PROGRAM_ID = new PublicKey(
   "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
 );
@@ -31,12 +31,12 @@ export const ATA_IX_CREATE_IDEMPOTENT = 1;
  * compute-budget ixs are excluded from the intent so the executor can
  * refresh them without redirecting funds.
  *
- * The blockhash is just a parser placeholder at propose time — by execute
+ * The blockhash is just a parser placeholder at propose time - by execute
  * time the broadcaster pulls a fresh one and rebuilds the message bytes.
  */
 export interface BuildSweepMessageParams {
   /**
-   * Fee payer of the sweep tx (NOT the proposer of the on-chain proposal —
+   * Fee payer of the sweep tx (NOT the proposer of the on-chain proposal -
    * the program never reads the fee payer at propose time, only the
    * structural intent). Typically the dWallet account itself, since that's
    * what holds the funds being swept.
@@ -49,7 +49,7 @@ export interface BuildSweepMessageParams {
    */
   instructions: import("@solana/web3.js").TransactionInstruction[];
   /**
-   * Recent blockhash. Optional — defaults to the all-1s placeholder, which
+   * Recent blockhash. Optional - defaults to the all-1s placeholder, which
    * is sufficient for propose-time intent extraction.
    */
   recentBlockhash?: string;
@@ -90,17 +90,17 @@ export function transferSol(
 }
 
 export interface TransferSplCheckedParams {
-  /** dWallet's ATA — source of the tokens. */
+  /** dWallet's ATA - source of the tokens. */
   source: PublicKey;
   /** Token mint. Echoed in the on-chain intent for replay protection. */
   mint: PublicKey;
   /** Destination ATA. */
   destination: PublicKey;
-  /** Owner of the source ATA — typically the dWallet account. */
+  /** Owner of the source ATA - typically the dWallet account. */
   authority: PublicKey;
   /** Amount in mint base units. */
   amount: number | bigint;
-  /** Mint decimals — must match `mint`'s on-chain `decimals` field. */
+  /** Mint decimals - must match `mint`'s on-chain `decimals` field. */
   decimals: number;
   /** Token program. Defaults to the original SPL Token program. */
   programId?: PublicKey;
@@ -137,7 +137,7 @@ export function transferSplTokenChecked(
 export interface CreateIdempotentAtaParams {
   /** Pays for the new ATA's rent (typically the dWallet itself). */
   payer: PublicKey;
-  /** ATA address — derive externally with `getAssociatedTokenAddressSync`. */
+  /** ATA address - derive externally with `getAssociatedTokenAddressSync`. */
   ata: PublicKey;
   /** Wallet that will own the ATA. */
   owner: PublicKey;
@@ -148,7 +148,7 @@ export interface CreateIdempotentAtaParams {
 }
 
 /**
- * Associated Token Account program — `CreateIdempotent` (disc 1). Creates the
+ * Associated Token Account program - `CreateIdempotent` (disc 1). Creates the
  * destination ATA on-the-fly as part of the sweep when the recipient hasn't
  * touched the mint before; idempotent so re-broadcasting is safe.
  */
@@ -187,7 +187,7 @@ export interface CloseSplAccountParams {
 
 /**
  * SPL Token `CloseAccount` (disc 9). Reclaims the ATA's rent into
- * `destination`. Account must be empty — the caller's responsibility.
+ * `destination`. Account must be empty - the caller's responsibility.
  */
 export function closeSplAccount(
   params: CloseSplAccountParams,

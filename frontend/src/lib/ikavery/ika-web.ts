@@ -10,7 +10,7 @@
 //      `PresignForDWallet`, which the pre-alpha network rejects for
 //      Curve25519 with "only for imported ECDSA keys". So we drive
 //      `submitTransaction` directly.
-//   2. Ika is a single mock signer pre-alpha — distributed-MPC
+//   2. Ika is a single mock signer pre-alpha - distributed-MPC
 //      properties don't yet apply. The "user signature" is a zero-
 //      filled mock; the network does the math.
 //
@@ -60,7 +60,7 @@ const VersionedPresignDataAttestation =
 export interface IkaDkgResult {
   publicKey: Uint8Array;
   /**
-   * 32-byte session identifier — what the CLI calls `dwallet_addr`.
+   * 32-byte session identifier - what the CLI calls `dwallet_addr`.
    * Equals the `session_identifier_preimage` we sent in the request.
    * Used as `session_identifier_preimage` for subsequent Presign / Sign
    * calls, and as the `user_pubkey` slot in the IkaConfig record.
@@ -84,7 +84,7 @@ export async function ikaDkgWeb(
   // Use the sender pubkey as the session-id preimage so the resulting
   // `dwallet_addr` matches what the CLI produces. Multiple DKGs from
   // the same sender share a session_identifier but produce distinct
-  // dwallet pubkeys (so distinct dwalletPdas) — fine in practice.
+  // dwallet pubkeys (so distinct dwalletPdas) - fine in practice.
   const sessionIdentifierPreimage = senderPubkey;
   const data = SignedRequestData.serialize({
     session_identifier_preimage: Array.from(sessionIdentifierPreimage),
@@ -140,7 +140,7 @@ export async function ikaDkgWeb(
 }
 
 /**
- * Presign + sign over a Curve25519/EdDSA dWallet — the path the recover
+ * Presign + sign over a Curve25519/EdDSA dWallet - the path the recover
  * flow walks. Returns the 64-byte EdDSA signature ready to splice into
  * the v0 sweep tx.
  */
@@ -280,7 +280,7 @@ async function submit(
       accept: "application/grpc-web+proto",
       "x-grpc-web": "1",
     },
-    // Cast through ArrayBuffer — TypeScript's `BodyInit` rejects the
+    // Cast through ArrayBuffer - TypeScript's `BodyInit` rejects the
     // typed-array form even though browsers accept it.
     body: framed.buffer.slice(
       framed.byteOffset,
@@ -355,7 +355,7 @@ function readFrames(buf: Uint8Array): {
 
 // ─── minimal proto3 encode/decode ────────────────────────────────────
 //
-// The two messages we touch are dead simple — bytes-only — so a full
+// The two messages we touch are dead simple - bytes-only - so a full
 // proto runtime would be overkill.
 
 function encodeUserSignedRequest(
