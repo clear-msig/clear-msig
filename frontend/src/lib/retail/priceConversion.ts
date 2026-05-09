@@ -1,18 +1,15 @@
 "use client";
 
-// USD price conversion - single swap point for a real oracle.
+// USD price conversion.
 //
-// The cross-chain spending budget needs to compare apples to apples.
-// "5 SOL" and "0.001 BTC" are different sizes; only when both land
-// on dollars can we sum them and check against a weekly cap.
-//
-// **This is a stub.** The numbers are static demo prices, hand-set
-// for the pre-alpha demo. They WILL be wrong against the live
-// market - anyone reading "$200/SOL" should treat it as a sketch,
-// not a quote. When the network is live, swap `quotePerWhole()` for
-// a Pyth read, a CoinGecko fetch, or whatever oracle ships in the
-// price feeds workstream. Every consumer in the app reads through
-// this single function so the swap is a one-line change.
+// Live prices come from CoinGecko via `useLivePrices()` (mounted at
+// the app root) which writes into the `_LIVE_PRICES_USD` map below.
+// Until the first fetch resolves, `quotePerWhole()` falls back to a
+// static map of conservative demo numbers so the budget UI doesn't
+// flash "$0" on first paint. Every consumer in the app reads through
+// `quotePerWhole()` / `lamportsToUsd()` / `lamportsToFiat()` — the
+// swap to a different oracle (Pyth, Chainlink) is a one-file change
+// inside `priceFeed.ts`.
 //
 // Tickers are upper-case three-letter strings matching ChainMeta.ticker
 // (so "SOL", "ETH", "BTC", "ZEC", "USDC"). Unknown tickers return
@@ -25,13 +22,37 @@
 // so a budget cap of "$1,000" doesn't drift when the user switches
 // display currencies.
 
+/// Static fallback used until the live feed lands its first response
+/// (typically <1s on app load). Numbers are intentionally conservative
+/// so a stale budget chip never overstates the user's headroom.
 const STATIC_PRICES_USD: Readonly<Record<string, number>> = {
-  SOL: 200,
-  ETH: 3500,
+  SOL: 150,
+  ETH: 3000,
   BTC: 90000,
   ZEC: 30,
   USDC: 1,
 };
+
+/// Mutable map populated by `priceFeed.ts::useLivePrices()`. Module-
+/// scoped on purpose — `quotePerWhole` is a sync function consumed
+/// from many call sites that don't (and shouldn't) know about hooks.
+const _LIVE_PRICES_USD = new Map<string, number>();
+
+/// Internal — called by the live-prices hook on each successful
+/// fetch. Exported (underscore-prefixed) so `priceFeed.ts` can write
+/// without exposing a generic mutator to the rest of the app.
+export function _setLivePrice(ticker: string, usdPerWhole: number): void {
+  if (!Number.isFinite(usdPerWhole) || usdPerWhole < 0) return;
+  _LIVE_PRICES_USD.set(ticker.toUpperCase(), usdPerWhole);
+}
+
+/// Snapshot for debug surfaces (Settings → "live prices"). Returns a
+/// fresh object so callers can't mutate the live map.
+export function _snapshotLivePrices(): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [k, v] of _LIVE_PRICES_USD) out[k] = v;
+  return out;
+}
 
 // Static USD→fiat cross rates. As with the spot prices above,
 // these are demo numbers - wired to the same oracle whenever a
@@ -108,17 +129,25 @@ export function subscribeDisplayCurrency(cb: () => void): () => void {
 export interface PriceQuote {
   /// USD per one whole token (1 SOL, 1 ETH, etc).
   usdPerWhole: number;
-  /// Marker so callers can render "demo price" UI affordances.
-  source: "demo";
+  /// "live" once `useLivePrices()` has populated this ticker;
+  /// "fallback" while we're using the static demo number.
+  source: "live" | "fallback";
 }
 
-/// Lookup the current USD price per whole unit. Returns null when
-/// the ticker isn't in our known set (e.g. an exotic SPL the wallet
-/// happens to hold) - callers decide whether to fall through.
+/// Lookup the current USD price per whole unit. Prefers the live
+/// CoinGecko-fed map; falls back to the static demo number until the
+/// first fetch resolves. Returns null only when the ticker isn't in
+/// either map (e.g. an exotic SPL the wallet happens to hold) —
+/// callers decide whether to fall through.
 export function quotePerWhole(ticker: string): PriceQuote | null {
-  const usd = STATIC_PRICES_USD[ticker.toUpperCase()];
-  if (typeof usd !== "number") return null;
-  return { usdPerWhole: usd, source: "demo" };
+  const upper = ticker.toUpperCase();
+  const live = _LIVE_PRICES_USD.get(upper);
+  if (typeof live === "number") {
+    return { usdPerWhole: live, source: "live" };
+  }
+  const fallback = STATIC_PRICES_USD[upper];
+  if (typeof fallback !== "number") return null;
+  return { usdPerWhole: fallback, source: "fallback" };
 }
 
 /// Convert a chain-native bigint amount (lamports, wei, satoshis)

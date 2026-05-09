@@ -20,7 +20,15 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import { Connection, PublicKey } from "@solana/web3.js";
-import { ArrowLeft, Check, Copy, ExternalLink, Plus, QrCode } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  Copy,
+  ExternalLink,
+  Plus,
+  QrCode,
+  RefreshCw,
+} from "lucide-react";
 import { addressUrlForChainKind } from "@/lib/explorer";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { findVaultAddress } from "@/lib/msig";
@@ -104,17 +112,42 @@ export default function ChainsPage() {
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       className="flex flex-col gap-6"
     >
-      <header className="flex flex-col gap-1">
-        <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
-          Chains
-        </h1>
-        <p className="text-xs text-text-soft sm:text-sm">
-          Networks{" "}
-          <span className="font-medium text-text-strong">
-            {toDisplayName(name)}
-          </span>{" "}
-          can send on. Adding a chain takes about 30 seconds.
-        </p>
+      <header className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
+            Chains
+          </h1>
+          <p className="text-xs text-text-soft sm:text-sm">
+            Networks{" "}
+            <span className="font-medium text-text-strong">
+              {toDisplayName(name)}
+            </span>{" "}
+            can send on. Adding a chain usually takes 10–30 seconds — tap
+            refresh if a freshly-added chain hasn&rsquo;t shown up yet.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            void bindingsQuery.refetch();
+          }}
+          disabled={bindingsQuery.isFetching}
+          aria-label="Refresh chains list"
+          title="Refresh chains list"
+          className={
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-soft bg-surface-raised text-text-soft " +
+            "transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent " +
+            "disabled:cursor-not-allowed disabled:opacity-50 " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          }
+        >
+          <RefreshCw
+            className={
+              "h-4 w-4 " + (bindingsQuery.isFetching ? "animate-spin" : "")
+            }
+            aria-hidden="true"
+          />
+        </button>
       </header>
 
       {/* Already bound */}

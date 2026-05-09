@@ -19,7 +19,12 @@ export function useWalletChains(walletName: string) {
     queryKey: ["wallet-chains-api", walletName],
     queryFn: () => backendApi.listWalletChains(walletName),
     enabled: walletName.trim().length > 0,
-    staleTime: 30_000,
+    // Was 30s — that meant a freshly-added chain could sit invisible
+    // for half a minute even after the on-chain ix landed. 10s gives
+    // a snappier "just added" experience without hammering the
+    // backend on every focus event.
+    staleTime: 10_000,
+    refetchOnWindowFocus: true,
   });
 }
 

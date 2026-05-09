@@ -21,6 +21,7 @@ import dynamic from "next/dynamic";
 import { ToastProvider } from "@/components/ui/Toast";
 import { validateConfig } from "@/lib/config";
 import { applyTheme, getStoredTheme, watchSystemTheme } from "@/lib/security/theme";
+import { LivePricesProvider } from "@/lib/retail/priceFeed";
 
 // Dynamic Labs SDK + connectors + LedgerProvider live in their own
 // chunk so the initial layout bundle doesn't ship them. We render a
@@ -104,6 +105,10 @@ export function AppProviders({ children }: Props) {
 
   return (
     <QueryClientProvider client={queryClient}>
+      {/* Mounts the CoinGecko price subscription once for the whole
+          tree — every `quotePerWhole()` consumer reads from the live
+          map populated by this hook. Renders nothing. */}
+      <LivePricesProvider />
       <DynamicProviderTree environmentId={environmentId ?? ""}>
         <ToastProvider>{children}</ToastProvider>
       </DynamicProviderTree>
