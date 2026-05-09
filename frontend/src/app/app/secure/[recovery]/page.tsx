@@ -32,6 +32,7 @@ import {
   Fingerprint,
   KeyRound,
   Loader2,
+  Lock,
   RefreshCw,
   ShieldAlert,
 } from "lucide-react";
@@ -331,6 +332,22 @@ function SecureRecoveryPage() {
               body="Authorise a transfer of funds from the dWallet to a destination wallet, signed by your threshold."
               cta="Open"
             />
+            {/* Threshold-bump card. Only shown once the vault has more
+                than one member (no quorum to bump on a 1-of-1) and the
+                threshold is still 1 (this commit's bundled bump only
+                works for that case). The page itself surfaces the same
+                gate copy if the user navigates manually. */}
+            {vault.account.members.length > 1 &&
+              vault.account.threshold === 1 && (
+                <ActionCard
+                  href={`/app/secure/${encodeURIComponent(recoveryStr)}/threshold`}
+                  Icon={Lock}
+                  eyebrow="// 06 · roster"
+                  title="Lock down"
+                  body={`Today any 1 of ${vault.account.members.length} can sign. Bump the threshold so multiple devices must agree.`}
+                  cta="Open"
+                />
+              )}
           </section>
 
           <motion.aside
