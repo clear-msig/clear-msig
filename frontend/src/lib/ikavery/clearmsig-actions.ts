@@ -254,9 +254,13 @@ async function waitForAccount(
     await new Promise((r) => setTimeout(r, 750));
   }
   throw new Error(
-    `dWallet account ${pubkey.toBase58()} did not appear on chain within ${Math.round(
+    `Ika network is slow today — the dWallet didn't commit within ${Math.round(
       timeoutMs / 1000,
-    )}s${lastError ? ` (last error: ${lastError instanceof Error ? lastError.message : String(lastError)})` : ""}`,
+    )}s. Refresh and click Build again; nothing was lost (you haven't signed a Solana tx yet)${
+      lastError
+        ? ` — last RPC error: ${lastError instanceof Error ? lastError.message : String(lastError)}`
+        : ""
+    }`,
   );
 }
 

@@ -145,7 +145,6 @@ export async function bumpThresholdSimple(
   progress("build");
 
   const rosterChangeIndex = account.rosterChangeCount;
-  const recoveryIdBytes = recoveryId.toBytes();
 
   // Payload: no add/remove, threshold-only change. The on-chain hash
   // helper (`auth::challenges::roster_change_payload`) hashes
@@ -170,10 +169,6 @@ export async function bumpThresholdSimple(
     additionApproverOnlyBitmap: 0,
     newThreshold,
   });
-  // Staging defines `staging` PDA; propose & execute reference the
-  // same one.
-  void recoveryIdBytes; // (silences unused-var warning when not in passkey branch)
-
   const { ix: proposeIx, rosterChange } = buildProposeRosterChangeIx({
     recovery,
     recoveryId,

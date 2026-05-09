@@ -26,8 +26,8 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { useQuery } from "@tanstack/react-query";
-import { PublicKey } from "@solana/web3.js";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Connection, PublicKey } from "@solana/web3.js";
 import {
   ArrowLeft,
   ArrowRight,
@@ -50,6 +50,27 @@ import {
   type SweepStage as ActionStage,
 } from "@/lib/ikavery/clearmsig-sweep";
 import { SCHEME_SOLANA_ADDRESS } from "@/lib/ikavery/constants";
+import { decodeProposal } from "@/lib/ikavery/codec/proposal";
+
+/**
+ * Live read of `proposal.approvalCount` — used by the M-of-N picker
+ * after each successful add so the local UI stays in sync with what's
+ * actually on chain (concurrent approvers from other browsers can
+ * push the count past what this tab knows about).
+ */
+async function readLiveApprovalCount(
+  connection: Connection,
+  proposal: PublicKey,
+): Promise<number> {
+  const info = await connection.getAccountInfo(proposal, "confirmed");
+  if (!info || info.data.length === 0) return 0;
+  try {
+    const acc = decodeProposal(new Uint8Array(info.data));
+    return acc.approvalCount;
+  } catch {
+    return 0;
+  }
+}
 
 const LAMPORTS_PER_SOL = 1_000_000_000n;
 
@@ -177,6 +198,7 @@ export default function SweepPageWrapper() {
 
 function SweepPage() {
   const reduce = useReducedMotion();
+  const queryClient = useQueryClient();
   const params = useParams<{ recovery: string }>();
   const { connection } = useConnection();
   const wallet = useWallet();
@@ -402,6 +424,18 @@ function SweepPage() {
       setBroadcastSig(result.broadcastSig);
       setRunStage(null);
       setStage("done");
+      // Invalidate the vault + proposals + balance queries so when the
+      // user backs out to the vault detail, the new sweep / updated
+      // balance show up without waiting for the next 30s refetch.
+      void queryClient.invalidateQueries({
+        queryKey: ["ikavery-vault", recoveryStr],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["ikavery-proposals", recoveryStr],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["ikavery-dwallet-balance"],
+      });
     } catch (e) {
       console.error("[secure/sweep]", e);
       toast.error("Sweep failed", {
@@ -436,9 +470,18 @@ function SweepPage() {
         walletPubkey: mode === "wallet" ? wallet.publicKey : undefined,
         signTransaction: wallet.signTransaction,
       });
-      const next = collectCount + 1;
-      setCollectCount(next);
-      if (next >= collectInfo.threshold) {
+      // Re-read the on-chain count instead of trusting `collectCount + 1`.
+      // If a different approver landed an approval concurrently (other
+      // browser, other device), the chain may already be at threshold —
+      // we want to resolve and continue to execute, not wait for more
+      // local clicks. fetchVault doesn't help here (it's the proposal,
+      // not the recovery), so go through the proposal codec directly.
+      const liveCount = await readLiveApprovalCount(
+        connection,
+        collectInfo.proposal,
+      );
+      setCollectCount(liveCount);
+      if (liveCount >= collectInfo.threshold) {
         const resolve = collectResolveRef.current;
         if (resolve) resolve();
       }
@@ -518,7 +561,30 @@ function SweepPage() {
         </PageEyebrow>
       )}
 
-      {!blockedByDisconnect && !blockedByLedger && stage === "compose" && (
+      {!blockedByDisconnect && !blockedByLedger && vaultQuery.isError && (
+        <div className="mx-auto max-w-md rounded-card border border-warning/40 bg-warning/[0.06] p-4 text-sm text-text-soft">
+          <p className="font-medium text-text-strong">
+            Couldn&rsquo;t load this vault.
+          </p>
+          <p className="mt-1">
+            {vaultQuery.error instanceof Error
+              ? vaultQuery.error.message
+              : String(vaultQuery.error)}
+          </p>
+          <button
+            type="button"
+            onClick={() => vaultQuery.refetch()}
+            className="mt-3 inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-[11px] font-medium text-text-soft hover:border-accent hover:text-accent"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {!blockedByDisconnect &&
+        !blockedByLedger &&
+        !vaultQuery.isError &&
+        stage === "compose" && (
         <ComposeStage
           destination={destination}
           setDestination={setDestination}
@@ -577,6 +643,7 @@ function SweepPage() {
                   threshold: collectInfo.threshold,
                   busy: collectBusy,
                   error: collectError,
+                  walletEnabled: walletIsMember,
                   onPick: handleAddApproval,
                 }
               : null
@@ -591,6 +658,7 @@ function SweepPage() {
           proposeSig={proposeSig}
           executeSig={executeSig}
           broadcastSig={broadcastSig}
+          recoveryStr={recoveryStr}
           reduce={!!reduce}
         />
       )}
@@ -888,6 +956,9 @@ interface CollectStateProps {
   threshold: number;
   busy: boolean;
   error: string | null;
+  /** Disable the Wallet button when the connected wallet isn't on the roster.
+   *  Avoids users tapping it and getting a delayed "not a member" error. */
+  walletEnabled: boolean;
   onPick: (mode: SweepAuthMode) => void;
 }
 
@@ -936,12 +1007,17 @@ function RunningStage({
             <button
               type="button"
               onClick={() => collect.onPick("wallet")}
-              disabled={collect.busy}
+              disabled={collect.busy || !collect.walletEnabled}
+              title={
+                collect.walletEnabled
+                  ? undefined
+                  : "Connected wallet isn't on this vault's roster"
+              }
               className={
                 "flex w-full min-h-tap items-center justify-center gap-2 rounded-card border border-border-soft bg-surface-raised px-4 py-3 text-sm font-medium text-text-strong shadow-card-rest " +
                 "transition-[border-color,transform] duration-base ease-out-soft " +
                 "hover:-translate-y-0.5 hover:border-accent/40 " +
-                "disabled:cursor-not-allowed disabled:opacity-50 " +
+                "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:border-border-soft " +
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
               }
             >
@@ -949,6 +1025,11 @@ function RunningStage({
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               ) : null}
               Approve as Wallet
+              {!collect.walletEnabled && (
+                <span className="font-mono text-[10px] text-text-soft">
+                  (not on roster)
+                </span>
+              )}
             </button>
             <button
               type="button"
@@ -1024,6 +1105,7 @@ interface DoneStageProps {
   proposeSig: string | null;
   executeSig: string | null;
   broadcastSig: string | null;
+  recoveryStr: string;
   reduce: boolean;
 }
 
@@ -1073,6 +1155,18 @@ function DoneStage(props: DoneStageProps) {
           highlight
         />
       </ul>
+
+      <div className="mx-auto flex flex-col items-center gap-2">
+        <Link
+          href={`/app/secure/${encodeURIComponent(props.recoveryStr)}`}
+          className="inline-flex"
+        >
+          <Button size="lg">
+            Back to vault
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </Link>
+      </div>
     </motion.section>
   );
 }

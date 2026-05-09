@@ -47,6 +47,7 @@ import {
   dwalletPda,
   messageApprovalPda,
 } from "./dwallet/pdas";
+import { approvalPda, memberIdHash } from "./pda";
 import { buildSweepMessage, transferSol } from "./sweep/message";
 import { buildSolTransferIntent, hashIntents } from "./sweep/intent";
 import { fetchVault } from "./clearmsig-actions";
@@ -515,7 +516,16 @@ export async function addSweepApproval(
     const onRoster = vault.members.some((m) => bytesEqual(m, slot));
     if (!onRoster) {
       throw new Error(
-        "Connected wallet isn't on this vault's roster — pick a different one or switch to Passkey.",
+        "Connected wallet isn't on this vault's roster — pick a different credential.",
+      );
+    }
+    // Pre-flight: same member voting twice would fail on chain with a
+    // cryptic "already approved" / dup-PDA error. Catch it client-side
+    // and surface clean copy so the user can pick a different
+    // credential without losing the running sweep.
+    if (await alreadyApproved(connection, proposal, slot)) {
+      throw new Error(
+        "This wallet has already voted on this proposal — pick a different credential.",
       );
     }
     const credential: AuthCredential = {
@@ -552,8 +562,14 @@ export async function addSweepApproval(
     recovery,
     assertion.candidatePubkeys,
   );
-  const { precompileIx, credential } = assertion.build(pub);
   const memberSlot = packMemberSlot(SCHEME_WEBAUTHN, pub);
+  // Same dedup check as the wallet branch.
+  if (await alreadyApproved(connection, proposal, memberSlot)) {
+    throw new Error(
+      "That passkey has already voted on this proposal — tap a different one.",
+    );
+  }
+  const { precompileIx, credential } = assertion.build(pub);
   const { ix: approveIx } = buildApproveIx({
     recovery,
     proposal,
@@ -570,6 +586,23 @@ export async function addSweepApproval(
     () => undefined,
   );
   return { txSignature: sig };
+}
+
+/**
+ * True if a roster member with `memberSlot` has already cast an approve
+ * for `proposal`. Reads the per-member Approval PDA — the program writes
+ * one each time a vote lands, so the account existing IS the "voted"
+ * predicate.
+ */
+async function alreadyApproved(
+  connection: Connection,
+  proposal: PublicKey,
+  memberSlot: Uint8Array,
+): Promise<boolean> {
+  const memberIdHashAddr = memberIdHash(memberSlot);
+  const approvalAddr = approvalPda(proposal, memberIdHashAddr);
+  const info = await connection.getAccountInfo(approvalAddr, "confirmed");
+  return !!info && info.data.length > 0;
 }
 
 async function readApprovalCount(

@@ -21,7 +21,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
 import { PublicKey } from "@solana/web3.js";
 import {
@@ -138,6 +138,7 @@ export default function EnrollDevicePageWrapper() {
 function EnrollDevicePage() {
   const reduce = useReducedMotion();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const params = useParams<{ recovery: string }>();
   const { connection } = useConnection();
   const wallet = useWallet();
@@ -278,6 +279,11 @@ function EnrollDevicePage() {
       setTxSig(result.txSignature);
       setSubStage(null);
       setStage("done");
+      // Refresh the vault detail so when the user backs out, the new
+      // member shows up in the roster + member-count stat.
+      void queryClient.invalidateQueries({
+        queryKey: ["ikavery-vault", recoveryStr],
+      });
     } catch (e) {
       console.error("[secure/enroll]", e);
       toast.error("Couldn't enroll the device", {
@@ -345,18 +351,41 @@ function EnrollDevicePage() {
         </PageEyebrow>
       )}
 
-      {!blockedByDisconnect && !blockedByLedger && stage === "intro" && (
-        <IntroStage
-          onContinue={handleEnroll}
-          loading={vaultQuery.isLoading}
-          recoveryShort={`${recoveryStr.slice(0, 4)}…${recoveryStr.slice(-4)}`}
-          authMode={authMode}
-          setAuthMode={setAuthMode}
-          walletIsMember={walletIsMember}
-          vaultHasPasskey={vaultHasPasskey}
-          reduce={!!reduce}
-        />
+      {!blockedByDisconnect && !blockedByLedger && vaultQuery.isError && (
+        <div className="mx-auto max-w-md rounded-card border border-warning/40 bg-warning/[0.06] p-4 text-sm text-text-soft">
+          <p className="font-medium text-text-strong">
+            Couldn&rsquo;t load this vault.
+          </p>
+          <p className="mt-1">
+            {vaultQuery.error instanceof Error
+              ? vaultQuery.error.message
+              : String(vaultQuery.error)}
+          </p>
+          <button
+            type="button"
+            onClick={() => vaultQuery.refetch()}
+            className="mt-3 inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-[11px] font-medium text-text-soft hover:border-accent hover:text-accent"
+          >
+            Retry
+          </button>
+        </div>
       )}
+
+      {!blockedByDisconnect &&
+        !blockedByLedger &&
+        !vaultQuery.isError &&
+        stage === "intro" && (
+          <IntroStage
+            onContinue={handleEnroll}
+            loading={vaultQuery.isLoading}
+            recoveryShort={`${recoveryStr.slice(0, 4)}…${recoveryStr.slice(-4)}`}
+            authMode={authMode}
+            setAuthMode={setAuthMode}
+            walletIsMember={walletIsMember}
+            vaultHasPasskey={vaultHasPasskey}
+            reduce={!!reduce}
+          />
+        )}
 
       {!blockedByDisconnect && !blockedByLedger && stage === "enrolling" && (
         <EnrollingStage

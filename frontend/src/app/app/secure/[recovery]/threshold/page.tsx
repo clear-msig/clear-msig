@@ -19,7 +19,7 @@ import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PublicKey } from "@solana/web3.js";
 import {
   ArrowLeft,
@@ -77,6 +77,7 @@ export default function ThresholdPageWrapper() {
 function ThresholdPage() {
   const reduce = useReducedMotion();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const params = useParams<{ recovery: string }>();
   const { connection } = useConnection();
   const wallet = useWallet();
@@ -164,6 +165,11 @@ function ThresholdPage() {
       setTxSig(result.txSignature);
       setRunStage(null);
       setStage("done");
+      // Refresh the vault detail so the new threshold + roster_change_count
+      // show up when the user navigates back.
+      void queryClient.invalidateQueries({
+        queryKey: ["ikavery-vault", recoveryStr],
+      });
     } catch (e) {
       console.error("[secure/threshold]", e);
       toast.error("Couldn't bump threshold", {
@@ -245,6 +251,26 @@ function ThresholdPage() {
         <div className="flex items-center justify-center gap-2 py-8 text-sm text-text-soft">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           Reading vault state…
+        </div>
+      )}
+
+      {!blockedByDisconnect && !blockedByLedger && vaultQuery.isError && (
+        <div className="mx-auto max-w-md rounded-card border border-warning/40 bg-warning/[0.06] p-4 text-sm text-text-soft">
+          <p className="font-medium text-text-strong">
+            Couldn&rsquo;t load this vault.
+          </p>
+          <p className="mt-1">
+            {vaultQuery.error instanceof Error
+              ? vaultQuery.error.message
+              : String(vaultQuery.error)}
+          </p>
+          <button
+            type="button"
+            onClick={() => vaultQuery.refetch()}
+            className="mt-3 inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-[11px] font-medium text-text-soft hover:border-accent hover:text-accent"
+          >
+            Retry
+          </button>
         </div>
       )}
 
