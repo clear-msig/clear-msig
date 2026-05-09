@@ -1,4 +1,5 @@
 import {
+  type Connection,
   MessageV0,
   PublicKey,
   SystemProgram,
@@ -206,3 +207,114 @@ export function closeSplAccount(
 
 /** Re-export the v0 type for callers building messages by hand. */
 export type SweepMessageV0 = MessageV0;
+
+/**
+ * Derive the Associated Token Account address for `owner` + `mint`.
+ *
+ * Mirrors `@solana/spl-token`'s `getAssociatedTokenAddressSync` so we
+ * don't have to take the dep just for one PDA. Seeds (in order):
+ *   - owner pubkey
+ *   - token program id (Token or Token-2022)
+ *   - mint pubkey
+ * with the ATA program id as the program seed.
+ */
+export function deriveAta(
+  owner: PublicKey,
+  mint: PublicKey,
+  tokenProgramId: PublicKey = TOKEN_PROGRAM_ID,
+): PublicKey {
+  const [pda] = PublicKey.findProgramAddressSync(
+    [owner.toBuffer(), tokenProgramId.toBuffer(), mint.toBuffer()],
+    ATA_PROGRAM_ID,
+  );
+  return pda;
+}
+
+/**
+ * Read a SPL mint's `decimals` from chain. The on-chain TransferChecked
+ * instruction rejects mismatched decimals, so the page must pass the
+ * exact value — fetching here once per mint is cheap.
+ */
+export async function fetchMintDecimals(
+  connection: Connection,
+  mint: PublicKey,
+): Promise<number> {
+  const info = await connection.getAccountInfo(mint, "confirmed");
+  if (!info) {
+    throw new Error(`Mint ${mint.toBase58()} not found on chain.`);
+  }
+  // Mint layout: ...32 bytes mint_authority option / supply (8) +
+  // decimals(1) at offset 44 for SPL Token; Token-2022 has the same
+  // base layout for the first 82 bytes.
+  if (info.data.length < 45) {
+    throw new Error(
+      `Mint ${mint.toBase58()} too small (${info.data.length} bytes); not a Mint account.`,
+    );
+  }
+  return info.data[44]!;
+}
+
+export interface PrepareSplSweepTargetParams {
+  connection: Connection;
+  /** dWallet that holds the tokens (also the source ATA owner). */
+  dwallet: PublicKey;
+  /** Mint of the token being moved. */
+  mint: PublicKey;
+  /** Recipient wallet (NOT the ATA). */
+  destinationOwner: PublicKey;
+  /** Amount in mint base units. */
+  amount: bigint;
+  /** Token program backing the mint. Defaults to legacy SPL Token. */
+  tokenProgramId?: PublicKey;
+  /**
+   * Pre-fetched decimals. If omitted we fetch from chain. Useful for
+   * pages that already pulled the mint info to render a balance table.
+   */
+  decimals?: number;
+}
+
+/**
+ * Prepare an SPL `SweepTarget` ready to feed to `runInAppSweep`.
+ * Derives source + destination ATAs, fetches mint decimals if needed,
+ * and probes destination ATA existence so the resulting target carries
+ * an accurate `destinationAtaExists` flag (drives whether the sweep
+ * emits an `AtaCreateIdempotent` ix and changes the structural digest).
+ */
+export async function prepareSplSweepTarget(
+  params: PrepareSplSweepTargetParams,
+): Promise<{
+  kind: "spl";
+  programId: PublicKey;
+  mint: PublicKey;
+  decimals: number;
+  sourceAta: PublicKey;
+  destinationOwner: PublicKey;
+  destinationAta: PublicKey;
+  destinationAtaExists: boolean;
+  amount: bigint;
+}> {
+  const programId = params.tokenProgramId ?? TOKEN_PROGRAM_ID;
+  const decimals =
+    params.decimals ?? (await fetchMintDecimals(params.connection, params.mint));
+  const sourceAta = deriveAta(params.dwallet, params.mint, programId);
+  const destinationAta = deriveAta(
+    params.destinationOwner,
+    params.mint,
+    programId,
+  );
+  const destinationInfo = await params.connection.getAccountInfo(
+    destinationAta,
+    "confirmed",
+  );
+  return {
+    kind: "spl",
+    programId,
+    mint: params.mint,
+    decimals,
+    sourceAta,
+    destinationOwner: params.destinationOwner,
+    destinationAta,
+    destinationAtaExists: destinationInfo !== null,
+    amount: params.amount,
+  };
+}

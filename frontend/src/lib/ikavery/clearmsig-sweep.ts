@@ -48,8 +48,17 @@ import {
   messageApprovalPda,
 } from "./dwallet/pdas";
 import { approvalPda, memberIdHash } from "./pda";
-import { buildSweepMessage, transferSol } from "./sweep/message";
-import { buildSolTransferIntent, hashIntents } from "./sweep/intent";
+import {
+  buildSweepMessage,
+  createIdempotentAta,
+  transferSol,
+  transferSplTokenChecked,
+} from "./sweep/message";
+import {
+  buildSolTransferIntent,
+  buildSplTransferIntent,
+  hashIntents,
+} from "./sweep/intent";
 import { fetchVault } from "./clearmsig-actions";
 import { loadAttestation } from "./clearmsig-attestations";
 import { ikaPresignAndSignCurve25519 } from "./ika-web";
@@ -97,6 +106,44 @@ export interface AdditionalApprovalsRequest {
  */
 export type SweepAuthMode = "wallet" | "passkey";
 
+/**
+ * What the sweep is moving. The sweep machinery is asset-agnostic
+ * past the ix-list / intent-builder boundary; this discriminated
+ * union lets the page describe the target and the action layer
+ * builds the right ixs + structural digest.
+ */
+export type SweepTarget =
+  | {
+      kind: "sol";
+      /** Recipient wallet. */
+      destination: PublicKey;
+      /** Lamports to move from the dWallet. */
+      lamports: bigint;
+    }
+  | {
+      kind: "spl";
+      /** Token program backing the mint (Token or Token-2022). */
+      programId: PublicKey;
+      /** Mint of the token being moved. */
+      mint: PublicKey;
+      /** Mint decimals — must match the on-chain `decimals` field. */
+      decimals: number;
+      /** dWallet's source ATA (where the tokens live today). */
+      sourceAta: PublicKey;
+      /** Recipient wallet (NOT the destination ATA). */
+      destinationOwner: PublicKey;
+      /** Recipient's ATA — derived from `destinationOwner` + `mint`. */
+      destinationAta: PublicKey;
+      /**
+       * Whether the destination ATA already exists. When false, the
+       * sweep emits an `AtaCreateIdempotent` ix before the transfer.
+       * Caller computes this via `getAccountInfo(destinationAta)`.
+       */
+      destinationAtaExists: boolean;
+      /** Amount in mint base units. */
+      amount: bigint;
+    };
+
 export interface SweepParams {
   connection: Connection;
   recovery: PublicKey;
@@ -104,10 +151,8 @@ export interface SweepParams {
   /** Connected wallet — pays fees on every leg. Must be a member only
    *  when authMode === "wallet". */
   creator: PublicKey;
-  /** Destination for the sweep — receives the lamports. */
-  destination: PublicKey;
-  /** Lamports to move from the dWallet. */
-  lamports: bigint;
+  /** What's being moved. */
+  target: SweepTarget;
   /** Sign callback — Dynamic's signTransaction wrapped from useWallet(). */
   signTransaction: <T extends VersionedTransaction>(tx: T) => Promise<T>;
   /** Auth mode — defaults to "wallet" so legacy callers stay unchanged. */
@@ -153,8 +198,7 @@ export async function runInAppSweep(params: SweepParams): Promise<SweepResult> {
     recovery,
     recoveryId,
     creator,
-    destination,
-    lamports,
+    target,
     signTransaction,
     authMode = "wallet",
     rpId,
@@ -163,8 +207,16 @@ export async function runInAppSweep(params: SweepParams): Promise<SweepResult> {
   } = params;
   const progress = onProgress ?? (() => undefined);
 
-  if (lamports <= 0n) {
+  if (target.kind === "sol" && target.lamports <= 0n) {
     throw new Error("Sweep amount must be greater than zero.");
+  }
+  if (target.kind === "spl" && target.amount <= 0n) {
+    throw new Error("Sweep amount must be greater than zero.");
+  }
+  if (target.kind === "spl" && (target.decimals < 0 || target.decimals > 18)) {
+    throw new Error(
+      `Mint decimals out of range (got ${target.decimals}); fetch from the mint account.`,
+    );
   }
 
   // Stage 0: load attestation + verify the recovery is in shape.
@@ -193,18 +245,56 @@ export async function runInAppSweep(params: SweepParams): Promise<SweepResult> {
   // produce on chain, so propose stores the same value the on-chain
   // execute will rebuild and compare against.
   progress("build");
-  const sweepIxs = [transferSol(dwalletPubkey, destination, lamports)];
-  // proposeMsg here is just for digest computation; the actual on-chain
+  const sweepIxs: import("@solana/web3.js").TransactionInstruction[] = [];
+  let intent;
+  if (target.kind === "sol") {
+    sweepIxs.push(transferSol(dwalletPubkey, target.destination, target.lamports));
+    intent = buildSolTransferIntent(
+      dwalletPubkey.toBytes(),
+      target.destination.toBytes(),
+      target.lamports,
+    );
+  } else {
+    if (!target.destinationAtaExists) {
+      sweepIxs.push(
+        createIdempotentAta({
+          payer: dwalletPubkey,
+          ata: target.destinationAta,
+          owner: target.destinationOwner,
+          mint: target.mint,
+          tokenProgramId: target.programId,
+        }),
+      );
+    }
+    sweepIxs.push(
+      transferSplTokenChecked({
+        source: target.sourceAta,
+        mint: target.mint,
+        destination: target.destinationAta,
+        authority: dwalletPubkey,
+        amount: target.amount,
+        decimals: target.decimals,
+        programId: target.programId,
+      }),
+    );
+    intent = buildSplTransferIntent({
+      dwallet: dwalletPubkey.toBytes(),
+      programId: target.programId.toBytes(),
+      mint: target.mint.toBytes(),
+      sourceAta: target.sourceAta.toBytes(),
+      destinationOwner: target.destinationOwner.toBytes(),
+      destinationAta: target.destinationAta.toBytes(),
+      destinationAtaExists: target.destinationAtaExists,
+      amount: target.amount,
+      decimals: target.decimals,
+    });
+  }
+  // proposeMsg here is just for digest sanity; the actual on-chain
   // execute uses the freshly-rebuilt finalMsg below.
   buildSweepMessage({
     feePayer: dwalletPubkey,
     instructions: sweepIxs,
   });
-  const intent = buildSolTransferIntent(
-    dwalletPubkey.toBytes(),
-    destination.toBytes(),
-    lamports,
-  );
   const intentDigest = hashIntents([intent]);
 
   // Stage 2: propose + approve.
