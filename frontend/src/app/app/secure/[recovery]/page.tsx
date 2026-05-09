@@ -20,15 +20,19 @@ import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { PublicKey } from "@solana/web3.js";
+import { QRCodeSVG } from "qrcode.react";
 import {
   ArrowLeft,
   ArrowRight,
+  ArrowUpRight,
   Check,
   Copy,
+  Download,
   ExternalLink,
   Fingerprint,
   KeyRound,
   Loader2,
+  RefreshCw,
   ShieldAlert,
 } from "lucide-react";
 import { useState } from "react";
@@ -209,30 +213,25 @@ function SecureRecoveryPage() {
 
       {vault && (
         <>
-          {/* Balance card sits above the stat grid because it's the
-              one number a user will check on every visit (do I have
-              anything to sweep?). The stat grid stays the secondary
-              row underneath. */}
+          {/* Balance card + actions. The one number a user will check
+              on every visit ("do I have anything to sweep?") plus the
+              two actions they're going to take from this page —
+              Receive (fund the dWallet) and Sweep (move funds out).
+              The receive QR is collapsed by default so the page
+              doesn't feel front-loaded. */}
           {dwalletPubkey && (
-            <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex flex-col gap-0.5">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-                    dWallet balance
-                  </p>
-                  <p className="font-mono text-[11px] text-text-soft">
-                    {`${dwalletPubkey.toBase58().slice(0, 4)}…${dwalletPubkey.toBase58().slice(-4)}`}
-                  </p>
-                </div>
-                <p className="font-numerals text-2xl font-semibold tabular-nums text-text-strong">
-                  {dwalletBalance.isLoading
-                    ? "…"
-                    : typeof dwalletBalance.data === "number"
-                      ? `${(dwalletBalance.data / 1e9).toFixed(4)} SOL`
-                      : "—"}
-                </p>
-              </div>
-            </section>
+            <BalancePanel
+              dwallet={dwalletPubkey}
+              balanceLamports={
+                typeof dwalletBalance.data === "number"
+                  ? dwalletBalance.data
+                  : null
+              }
+              loading={dwalletBalance.isLoading}
+              onRefresh={() => void dwalletBalance.refetch()}
+              refreshing={dwalletBalance.isFetching && !dwalletBalance.isLoading}
+              recoveryStr={recoveryStr}
+            />
           )}
 
           <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -322,6 +321,153 @@ function SecureRecoveryPage() {
         </>
       )}
     </motion.div>
+  );
+}
+
+interface BalancePanelProps {
+  dwallet: PublicKey;
+  balanceLamports: number | null;
+  loading: boolean;
+  refreshing: boolean;
+  onRefresh: () => void;
+  recoveryStr: string;
+}
+
+function BalancePanel({
+  dwallet,
+  balanceLamports,
+  loading,
+  refreshing,
+  onRefresh,
+  recoveryStr,
+}: BalancePanelProps) {
+  const [showReceive, setShowReceive] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const address = dwallet.toBase58();
+  const balanceSol =
+    balanceLamports != null
+      ? (balanceLamports / 1e9).toFixed(4)
+      : null;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      /* clipboard blocked — silent */
+    }
+  };
+
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
+      <div className="flex flex-wrap items-end justify-between gap-3 p-5">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+            dWallet balance
+          </p>
+          <p className="font-mono text-[11px] text-text-soft">
+            {`${address.slice(0, 4)}…${address.slice(-4)}`}
+          </p>
+        </div>
+        <p className="flex items-baseline gap-1.5 font-numerals text-2xl font-semibold tabular-nums text-text-strong">
+          {loading ? "…" : balanceSol != null ? balanceSol : "—"}
+          <span className="font-display text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+            SOL
+          </span>
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={loading || refreshing}
+            aria-label="Refresh balance"
+            title="Refresh balance"
+            className={
+              "ml-1 inline-flex h-7 w-7 items-center justify-center rounded-soft text-text-soft " +
+              "transition-colors duration-base ease-out-soft hover:bg-canvas hover:text-text-strong " +
+              "disabled:cursor-not-allowed disabled:opacity-50 " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            }
+          >
+            <RefreshCw
+              className={"h-3.5 w-3.5 " + (refreshing ? "animate-spin" : "")}
+              aria-hidden="true"
+            />
+          </button>
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-px overflow-hidden border-t border-border-soft bg-border-soft">
+        <button
+          type="button"
+          onClick={() => setShowReceive((v) => !v)}
+          aria-expanded={showReceive}
+          className={
+            "group flex min-h-tap items-center justify-center gap-2 bg-surface-raised px-4 py-3 text-sm font-medium text-text-strong " +
+            "transition-colors duration-base ease-out-soft hover:bg-canvas " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+          }
+        >
+          <Download className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+          {showReceive ? "Hide" : "Receive"}
+        </button>
+        <Link
+          href={`/app/secure/${encodeURIComponent(recoveryStr)}/sweep`}
+          className={
+            "group flex min-h-tap items-center justify-center gap-2 bg-surface-raised px-4 py-3 text-sm font-medium text-accent " +
+            "transition-colors duration-base ease-out-soft hover:bg-accent/[0.06] " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+          }
+        >
+          <ArrowUpRight className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+          Sweep
+        </Link>
+      </div>
+
+      {showReceive && (
+        <div className="flex flex-col items-center gap-3 border-t border-border-soft p-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+            Send SOL here to fund the vault
+          </p>
+          <div className="rounded-soft bg-white p-3 shadow-card-rest">
+            <QRCodeSVG
+              value={address}
+              size={168}
+              level="M"
+              marginSize={0}
+              aria-label={`QR code for the dWallet address`}
+            />
+          </div>
+          <p className="break-all rounded-soft border border-border-soft bg-canvas px-3 py-2 text-center font-mono text-[11px] leading-relaxed text-text-strong">
+            {address}
+          </p>
+          <button
+            type="button"
+            onClick={handleCopy}
+            className={
+              "inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-[11px] font-medium text-text-soft " +
+              "transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            }
+          >
+            {copied ? (
+              <>
+                <Check className="h-3 w-3 text-accent" aria-hidden="true" />
+                <span className="text-accent">Copied</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-3 w-3" aria-hidden="true" />
+                Copy address
+              </>
+            )}
+          </button>
+          <p className="text-center text-[11px] text-text-soft">
+            Devnet only · funds sent here will only sweep with this vault&rsquo;s
+            roster
+          </p>
+        </div>
+      )}
+    </section>
   );
 }
 
