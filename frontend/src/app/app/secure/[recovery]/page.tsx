@@ -22,6 +22,7 @@ import { useQuery } from "@tanstack/react-query";
 import { PublicKey } from "@solana/web3.js";
 import {
   ArrowLeft,
+  ArrowRight,
   Check,
   Copy,
   ExternalLink,
@@ -216,24 +217,27 @@ function SecureRecoveryPage() {
             </ul>
           </section>
 
-          {/* Action cards — Add device + Sweep, both stubbed.
-              Each links to solana.ikavery.com so the user can try
-              the action upstream while the in-app flow is being
-              built. The card design mirrors the empty-state CTA on
-              /app/secure: accent rule + caps eyebrow + headline +
-              detail + outbound link. */}
+          {/* Action cards — Add device wired in v3b, Sweep wired in
+              v3c (propose only; execute defers to upstream until the
+              Ika dWallet on-chain coordinator binding lands). The
+              card design mirrors the empty-state CTA on /app/secure:
+              accent rule + caps eyebrow + headline + detail. */}
           <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <ActionStub
+            <ActionCard
+              href={`/app/secure/${encodeURIComponent(recoveryStr)}/enroll`}
               Icon={Fingerprint}
               eyebrow="// 04 · device"
-              title="Add a device"
-              body="Enroll a passkey from your phone, laptop, or YubiKey to expand the quorum. Coming in v3."
+              title="Add a passkey"
+              body="Enroll a Touch ID, Face ID, or security key on this device. One signature, on-chain in seconds."
+              cta="Enroll"
             />
-            <ActionStub
+            <ActionCard
+              href={`/app/secure/${encodeURIComponent(recoveryStr)}/sweep`}
               Icon={KeyRound}
               eyebrow="// 05 · sweep"
               title="Sweep funds"
-              body="Move funds out of the vault to a destination wallet, signed by your threshold. Coming in v3."
+              body="Authorise a transfer of funds from the dWallet to a destination wallet, signed by your threshold."
+              cta="Open"
             />
           </section>
 
@@ -375,26 +379,28 @@ function MemberRow({ index, slot, isUser }: MemberRowProps) {
   );
 }
 
-function ActionStub({
+function ActionCard({
+  href,
   Icon,
   eyebrow,
   title,
   body,
+  cta,
 }: {
+  href: string;
   Icon: typeof Fingerprint;
   eyebrow: string;
   title: string;
   body: string;
+  cta: string;
 }) {
   return (
-    <a
-      href={IKAVERY_LIVE}
-      target="_blank"
-      rel="noreferrer"
+    <Link
+      href={href}
       className={
-        "group flex flex-col rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest opacity-90 " +
-        "transition-[border-color,opacity,transform] duration-base ease-out-soft " +
-        "hover:-translate-y-0.5 hover:border-accent/40 hover:opacity-100 " +
+        "group flex flex-col rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest " +
+        "transition-[border-color,box-shadow,transform] duration-base ease-out-soft " +
+        "hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-card-raised " +
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
       }
     >
@@ -409,10 +415,13 @@ function ActionStub({
       </h3>
       <p className="mt-1.5 text-sm text-text-soft text-pretty">{body}</p>
       <span className="mt-3 inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-accent">
-        Try upstream
-        <ExternalLink className="h-3 w-3" aria-hidden="true" />
+        {cta}
+        <ArrowRight
+          className="h-3 w-3 transition-transform duration-base ease-out-soft group-hover:translate-x-0.5"
+          aria-hidden="true"
+        />
       </span>
-    </a>
+    </Link>
   );
 }
 
