@@ -40,6 +40,14 @@ import { listAllRecoveries, type DecodedRecovery } from "./discovery";
 import { decodeRecovery } from "./codec/recovery";
 import { ikaDkgWeb, type IkaDkgResult } from "./ika-web";
 import { saveAttestation } from "./clearmsig-attestations";
+import {
+  cpiAuthorityPda,
+  dwalletPda,
+  IKA_DWALLET_PROGRAM_ID,
+  CURVE_CURVE25519,
+} from "./dwallet";
+import { buildTransferDwalletAuthorityIx } from "./dwallet/transfer-authority";
+import { IKAVERY_PROGRAM_ID } from "./constants";
 
 /** Curve tag stored on chain alongside the dWallet handle. 2 = ed25519. */
 export const DWALLET_CURVE_ED25519 = 2;
@@ -86,7 +94,13 @@ export interface CreateVaultParams {
   onProgress?: (stage: CreateVaultStage) => void;
 }
 
-export type CreateVaultStage = "dkg" | "build" | "sign" | "submit" | "confirm";
+export type CreateVaultStage =
+  | "dkg"
+  | "wait-dwallet"
+  | "build"
+  | "sign"
+  | "submit"
+  | "confirm";
 
 export interface CreateVaultResult {
   /** PDA address of the new Recovery. Use this to look it up later. */
@@ -130,13 +144,31 @@ export async function createSoloVault(
   progress("dkg");
   const dkg = await runDkgForCreator(creator);
 
-  // Stage 2: build the create_recovery ix with the real dwallet
-  // pubkey. Member 0 is the connected Solana wallet.
+  // Stage 1b: wait for the dWallet account to appear on the Ika
+  // dWallet program. The pre-alpha mock signer auto-commits the row
+  // within a few seconds of DKG. We need it to exist before the
+  // TransferOwnership ix in the next step can move authority over to
+  // ikavery's CPI authority PDA.
+  progress("wait-dwallet");
+  const { pda: dwalletAccountPda } = dwalletPda(
+    CURVE_CURVE25519,
+    dkg.publicKey,
+  );
+  await waitForAccount(connection, dwalletAccountPda, 25_000);
+
+  // Stage 2: build the on-chain bundle.
+  //   • create_recovery — stores the dwallet pubkey on the Recovery
+  //     row, member 0 is the connected Solana wallet.
+  //   • TransferOwnership — hands the dWallet's authority from the
+  //     creator (initial authority after DKG) to ikavery's CPI
+  //     authority PDA, so future execute paths can issue
+  //     MessageApproval CPIs without an extra user signature.
+  // Both go in one tx so the user signs once.
   progress("build");
   const members = [packSolanaMember(creator)];
   const recoveryIdKeypair = Keypair.generate();
 
-  const { ix, recovery } = buildCreateRecoveryIx({
+  const { ix: createIx, recovery } = buildCreateRecoveryIx({
     creator,
     recoveryId: recoveryIdKeypair.publicKey,
     dwallet: dkg.publicKey,
@@ -144,13 +176,19 @@ export async function createSoloVault(
     threshold,
     members,
   });
+  const { pda: cpiAuthority } = cpiAuthorityPda(IKAVERY_PROGRAM_ID);
+  const transferIx = buildTransferDwalletAuthorityIx({
+    currentAuthority: creator,
+    dwallet: dwalletAccountPda,
+    newAuthority: cpiAuthority,
+  });
 
   const { blockhash, lastValidBlockHeight } =
     await connection.getLatestBlockhash("confirmed");
   const message = new TransactionMessage({
     payerKey: creator,
     recentBlockhash: blockhash,
-    instructions: [ix],
+    instructions: [createIx, transferIx],
   }).compileToV0Message();
   const tx = new VersionedTransaction(message);
 
@@ -183,6 +221,7 @@ export async function createSoloVault(
     networkSignature: dkg.networkSignature,
     networkPubkey: dkg.networkPubkey,
     publicKey: dkg.publicKey,
+    dwalletAddr: dkg.dwalletAddr,
   });
 
   return {
@@ -191,6 +230,34 @@ export async function createSoloVault(
     txSignature: sig,
     dwalletPubkey: dkg.publicKey,
   };
+}
+
+/**
+ * Poll until `pubkey` exists on chain or `timeoutMs` elapses. The Ika
+ * pre-alpha mock signer auto-commits the dWallet account within a few
+ * seconds of DKG; this helper just waits for that to land.
+ */
+async function waitForAccount(
+  connection: Connection,
+  pubkey: PublicKey,
+  timeoutMs: number,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let lastError: unknown = null;
+  while (Date.now() < deadline) {
+    try {
+      const info = await connection.getAccountInfo(pubkey, "confirmed");
+      if (info && info.data.length > 0) return;
+    } catch (e) {
+      lastError = e;
+    }
+    await new Promise((r) => setTimeout(r, 750));
+  }
+  throw new Error(
+    `dWallet account ${pubkey.toBase58()} did not appear on chain within ${Math.round(
+      timeoutMs / 1000,
+    )}s${lastError ? ` (last error: ${lastError instanceof Error ? lastError.message : String(lastError)})` : ""}`,
+  );
 }
 
 /**

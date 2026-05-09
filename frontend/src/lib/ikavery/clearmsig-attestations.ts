@@ -28,6 +28,13 @@ interface StoredAttestation {
   /** dWallet pubkey hex (32 bytes) — kept for sanity-checking the
    *  on-chain Recovery row matches. */
   publicKey: string;
+  /**
+   * 32-byte session identifier returned from DKG (= what the CLI calls
+   * `dwallet_addr`). Required as `session_identifier_preimage` for the
+   * Presign / Sign gRPC calls. Optional in the stored shape so older
+   * v3a entries — written before this field existed — still load.
+   */
+  dwalletAddr?: string;
   ts: number;
 }
 
@@ -82,6 +89,12 @@ export interface AttestationBundle {
   networkSignature: Uint8Array;
   networkPubkey: Uint8Array;
   publicKey: Uint8Array;
+  /**
+   * Session identifier from the V1 DKG attestation. v3a entries written
+   * before this field existed return undefined; the sweep flow falls
+   * back to a re-DKG prompt in that case.
+   */
+  dwalletAddr?: Uint8Array;
 }
 
 export function saveAttestation(
@@ -94,6 +107,7 @@ export function saveAttestation(
     networkSignature: bytesToHex(bundle.networkSignature),
     networkPubkey: bytesToHex(bundle.networkPubkey),
     publicKey: bytesToHex(bundle.publicKey),
+    dwalletAddr: bundle.dwalletAddr ? bytesToHex(bundle.dwalletAddr) : undefined,
     ts: Date.now(),
   };
   writeAll(all);
@@ -111,6 +125,7 @@ export function loadAttestation(
       networkSignature: hexToBytes(stored.networkSignature),
       networkPubkey: hexToBytes(stored.networkPubkey),
       publicKey: hexToBytes(stored.publicKey),
+      dwalletAddr: stored.dwalletAddr ? hexToBytes(stored.dwalletAddr) : undefined,
     };
   } catch {
     return null;
