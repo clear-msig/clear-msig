@@ -202,10 +202,62 @@ export function useWallet() {
     await handleLogOut();
   }, [handleLogOut, ledger]);
 
+  /// Sign a v0 transaction through the active signer. Currently only
+  /// the Dynamic Solana wallet path is wired (Ledger transaction
+  /// signing isn't implemented for clear-msig — every clear-msig flow
+  /// signs ed25519 messages, not transactions). The /app/secure
+  /// (ikavery vault) flow needs full transaction signing because the
+  /// ikavery program is invoked by the user themselves, not via the
+  /// shared multisig.
+  ///
+  /// Throws when called from a Ledger session — caller should detect
+  /// `isLedger` and gate accordingly. Throws "no signer" when the
+  /// Dynamic Solana wallet isn't ready (e.g. user logged in with email
+  /// but the embedded Solana wallet hasn't minted yet).
+  const signTransaction = useCallback(
+    async <T extends import("@solana/web3.js").Transaction | import("@solana/web3.js").VersionedTransaction>(
+      transaction: T,
+    ): Promise<T> => {
+      if (ledger.session) {
+        throw new Error(
+          "Ledger transaction signing isn't supported yet. Disconnect Ledger and use your Dynamic wallet.",
+        );
+      }
+      if (!solanaWallet) {
+        throw new Error("Connect a wallet before signing");
+      }
+      // Dynamic's SolanaWallet exposes getSigner() which returns an
+      // object implementing ISolana with signTransaction<T>. Same call
+      // path the SolanaWalletConnector uses internally.
+      const getter = (
+        solanaWallet as unknown as {
+          getSigner: () => Promise<{
+            signTransaction: <U extends import("@solana/web3.js").Transaction | import("@solana/web3.js").VersionedTransaction>(
+              tx: U,
+            ) => Promise<U>;
+          }>;
+        }
+      ).getSigner;
+      if (typeof getter !== "function") {
+        throw new Error(
+          "This Solana wallet connector does not expose getSigner()",
+        );
+      }
+      const signer = await getter.call(solanaWallet);
+      return signer.signTransaction(transaction);
+    },
+    [solanaWallet, ledger.session],
+  );
+
   return {
     publicKey,
     connected,
     signMessage: connected ? signMessage : undefined,
+    /// v0 transaction signing — currently Dynamic-only. Used by the
+    /// /app/secure (ikavery vault) create flow which sends ix bundles
+    /// directly from the user. Returns the same transaction with
+    /// the user's signature added. Throws on Ledger sessions.
+    signTransaction: connected ? signTransaction : undefined,
     disconnect,
     /// True while the Dynamic SDK is still booting. wallet-adapter
     /// called this `connecting`; the gate uses it to avoid bouncing

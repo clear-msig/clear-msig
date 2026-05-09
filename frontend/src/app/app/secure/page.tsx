@@ -1,49 +1,73 @@
 "use client";
 
-// /app/secure — Secure: discovery surface for ikavery, a sister
-// project on Ika dWallets that handles t-of-N personal key recovery.
+// /app/secure — Secure: ikavery-powered personal key recovery, integrated
+// inside clear-msig.
 //
-// Naming note: the destination is "Secure" (noun-form-of-verb,
-// sits naturally next to Settings/Chains in the sidebar). The
-// CTA verb is "Secure your key" — verb where verbs belong.
+// What this page does:
+//   - Reads the user's existing vaults via listVaultsForCreator (fast,
+//     one getProgramAccounts call).
+//   - When the user has none: shows the explainer + build-a-vault CTA
+//     (the v1 promo is now the empty state).
+//   - When the user has some: renders a list of vault cards with
+//     threshold + member count + status, and tucks the explainer
+//     beneath as background.
+//   - Always shows the trio of "what you can do" tiles: Build,
+//     Add device (stubbed), Sweep (stubbed). v3 will wire those.
 //
-// clear-msig is "shared spending"; ikavery is "personal vault" —
-// same MPC foundation, distinct user goal. This page is a v1
-// promo / hand-off: a clear explainer + one CTA out to
-// solana.ikavery.com (the live demo). v2 (deferred) embeds the
-// @fesal-packages/ikavery-solana-sdk and runs the import + recover
-// flows inside clear-msig.
+// Naming note: page label is "Secure" (noun-form, sits next to
+// Settings/Chains in the sidebar). The CTA verb is "Secure your key" /
+// "Build a vault" — verb where verbs belong.
 //
-// Visual treatment: clear-msig's primitives (accent rule + caps
-// eyebrow + green accent + canvas/surface palette) form the base.
-// One nod to ikavery's voice: monospace `// NN` numbered eyebrows
-// on the three-step block, mirroring ika.xyz / ikavery's own
-// numbered-section style. Plus a "Powered by Ika" pill in the
-// Hero that links to ika.xyz.
-//
-// Copy is direct, benefit-first, low jargon — same voice as the
-// landing page's "Why Clear" panel.
+// Visual treatment: clear-msig's primitives form the base; one nod to
+// ika.xyz / ikavery's voice via the monospace `// NN` numbered
+// eyebrows on the three-step block.
 
 import Link from "next/link";
+import { useMemo } from "react";
 import { motion, useReducedMotion } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
   ExternalLink,
   Fingerprint,
   KeyRound,
+  Plus,
   ShieldAlert,
   ShieldCheck,
+  Vault as VaultIcon,
 } from "lucide-react";
+import { useConnection, useWallet } from "@/lib/wallet";
 import { PageEyebrow } from "@/components/retail/PageEyebrow";
 import { BackToWallets } from "@/components/retail/BackToWallets";
 import { Button } from "@/components/retail/Button";
+import { listVaultsForCreator } from "@/lib/ikavery/clearmsig-actions";
+import { type DecodedRecovery } from "@/lib/ikavery/discovery";
 
-const IKAVERY_LIVE = "https://solana.ikavery.com";
 const IKAVERY_GITHUB = "https://github.com/Iamknownasfesal/ikavery";
 const IKA_SITE = "https://ika.xyz";
 
-export default function VaultPage() {
+export default function SecurePage() {
   const reduce = useReducedMotion();
+  const { connection } = useConnection();
+  const wallet = useWallet();
+  const creator = wallet.publicKey;
+  const creatorB58 = creator?.toBase58() ?? "";
+
+  // listVaultsForCreator hits getProgramAccounts; cache + pause when
+  // the user isn't connected so we don't spam the RPC.
+  const vaultsQuery = useQuery({
+    queryKey: ["ikavery-vaults", creatorB58],
+    queryFn: () => {
+      if (!creator) return Promise.resolve<DecodedRecovery[]>([]);
+      return listVaultsForCreator(connection, creator);
+    },
+    enabled: !!creator && wallet.connected,
+    staleTime: 30_000,
+  });
+
+  const vaults = vaultsQuery.data ?? [];
+  const hasVaults = vaults.length > 0;
+
   const fadeIn = (delay = 0) =>
     reduce
       ? {}
@@ -58,13 +82,7 @@ export default function VaultPage() {
         };
 
   return (
-    <motion.div
-      {...fadeIn(0)}
-      className="flex flex-col gap-10"
-    >
-      {/* Mobile back chip — Vault is a top-level workspace route
-          and StickyTopBar is hidden on mobile, so without this
-          the only way back is BottomNav. */}
+    <motion.div {...fadeIn(0)} className="flex flex-col gap-10">
       <div className="px-gutter md:hidden">
         <BackToWallets label="Wallets" />
       </div>
@@ -75,11 +93,8 @@ export default function VaultPage() {
         </h1>
         <p className="mx-auto mt-3 max-w-xl text-base text-text-soft text-pretty">
           Place your Solana private key behind a quorum of devices and
-          passkeys. Recover with any{" "}
-          <span className="font-numerals font-semibold text-text-strong">
-            3 of 5
-          </span>
-          . Never lose a key. Never trust a single device.
+          passkeys. Recover with any threshold you set. Never lose a key.
+          Never trust a single device.
         </p>
         <a
           href={IKA_SITE}
@@ -97,16 +112,66 @@ export default function VaultPage() {
         </a>
       </PageEyebrow>
 
-      {/* Three-step block — the only place in the app that uses
-          the monospace `// NN` numbered eyebrow. That single
-          stylistic nod makes the page read as part of the Ika
-          family inside clear-msig. */}
+      {/* My vaults — only renders when the user has at least one.
+          Empty state rolls into the three-step explainer below. */}
+      {hasVaults && (
+        <section>
+          <div className="mb-3 flex items-baseline justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              Your vaults · {vaults.length}
+            </p>
+            <Link
+              href="/app/secure/new"
+              className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:text-accent-hover"
+            >
+              <Plus className="h-3 w-3" />
+              Build another
+            </Link>
+          </div>
+          <ul className="flex flex-col gap-2">
+            {vaults.map((v) => (
+              <VaultCard key={v.recovery.toBase58()} vault={v} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* Empty-state CTA: only when the user has no vaults yet. */}
+      {!hasVaults && wallet.connected && !vaultsQuery.isLoading && (
+        <motion.section
+          {...fadeIn(0.04)}
+          className="rounded-card border border-accent/40 bg-accent/[0.05] p-6 text-center shadow-card-rest sm:p-8"
+        >
+          <span aria-hidden="true" className="mx-auto block h-px w-10 bg-accent" />
+          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
+            First vault
+          </p>
+          <h2 className="mt-2 font-display text-display-xs leading-tight text-text-strong">
+            You don&rsquo;t have a vault yet
+          </h2>
+          <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
+            Pick a threshold, place a key behind it, sweep when you need it
+            back. Three taps to build the first one.
+          </p>
+          <div className="mt-5 flex justify-center">
+            <Link href="/app/secure/new" className="inline-block">
+              <Button size="lg">
+                Secure your key
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </Link>
+          </div>
+        </motion.section>
+      )}
+
+      {/* Three-step explainer — uses monospace `// NN` numbered
+          eyebrows as the one ikavery / ika.xyz visual cue. */}
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Step
           n="01"
           Icon={ShieldCheck}
           title="Build a vault"
-          body="Pick a threshold (3 of 5 is the default). The vault is an Ika 2PC-MPC dWallet under your control."
+          body="Pick a threshold. The vault is an Ika 2PC-MPC dWallet under your control."
           delay={0.04}
           reduce={!!reduce}
         />
@@ -114,24 +179,22 @@ export default function VaultPage() {
           n="02"
           Icon={Fingerprint}
           title="Add devices"
-          body="iPhone, MacBook, YubiKey, iPad, Apple Watch. Each device holds a share via WebAuthn passkey."
+          body="iPhone, MacBook, YubiKey, iPad. Each device holds a share via WebAuthn passkey. (v3)"
           delay={0.10}
           reduce={!!reduce}
+          stub
         />
         <Step
           n="03"
           Icon={KeyRound}
-          title="Import your key"
-          body="Your private key is sealed inside the dWallet. Recover by signing a sweep with any threshold."
+          title="Sweep when needed"
+          body="Sign a sweep with any threshold. Funds move to your destination wallet. (v3)"
           delay={0.16}
           reduce={!!reduce}
+          stub
         />
       </section>
 
-      {/* Pre-alpha disclaimer — ikavery itself is explicit about
-          this on its landing, and we should be too. Sits before the
-          CTA so a user reads it in the right order: "here's the
-          warning → here's the open button". */}
       <motion.aside
         {...fadeIn(0.20)}
         className="flex items-start gap-3 rounded-card border border-warning/40 bg-warning/[0.06] p-4 text-sm text-text-soft sm:p-5"
@@ -145,7 +208,7 @@ export default function VaultPage() {
           <span className="font-medium text-text-strong">
             Pre-alpha. Devnet only.
           </span>{" "}
-          Vault is a proof of concept by{" "}
+          Secure is built on{" "}
           <a
             href={IKAVERY_GITHUB}
             target="_blank"
@@ -154,47 +217,9 @@ export default function VaultPage() {
           >
             ikavery
           </a>
-          . Don&rsquo;t import a key that holds real funds.
+          . Don&rsquo;t store a key that holds real funds.
         </p>
       </motion.aside>
-
-      {/* Primary CTA — opens solana.ikavery.com in a new tab.
-          v1 hands off to the upstream demo since the SDK isn't
-          embedded here yet. Card is accent-tinted so it reads as
-          the answer to everything above. */}
-      <motion.section
-        {...fadeIn(0.24)}
-        className="rounded-card border border-accent/40 bg-accent/[0.05] p-6 text-center shadow-card-rest sm:p-8"
-      >
-        <span aria-hidden="true" className="mx-auto block h-px w-10 bg-accent" />
-        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
-          Try it now
-        </p>
-        <h2 className="mt-2 font-display text-display-xs leading-tight text-text-strong">
-          Secure your key on Solana devnet
-        </h2>
-        <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
-          The flow lives at{" "}
-          <span className="font-mono text-text-strong">solana.ikavery.com</span>
-          . Connect, build a vault, sweep when you need to.
-        </p>
-        <div className="mt-5 flex justify-center">
-          <a
-            href={IKAVERY_LIVE}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-block"
-          >
-            <Button size="lg">
-              Secure your key
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          </a>
-        </div>
-        <p className="mt-3 text-[11px] text-text-soft">
-          Opens in a new tab.
-        </p>
-      </motion.section>
     </motion.div>
   );
 }
@@ -206,9 +231,10 @@ interface StepProps {
   body: string;
   delay: number;
   reduce: boolean;
+  stub?: boolean;
 }
 
-function Step({ n, Icon, title, body, delay, reduce }: StepProps) {
+function Step({ n, Icon, title, body, delay, reduce, stub }: StepProps) {
   const motionProps = reduce
     ? {}
     : {
@@ -219,22 +245,75 @@ function Step({ n, Icon, title, body, delay, reduce }: StepProps) {
   return (
     <motion.article
       {...motionProps}
-      className="flex flex-col rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
+      className={
+        "flex flex-col rounded-card border bg-surface-raised p-5 shadow-card-rest " +
+        (stub ? "border-border-soft opacity-70" : "border-border-soft")
+      }
     >
-      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/10 text-accent">
+      <span
+        className={
+          "flex h-9 w-9 items-center justify-center rounded-full " +
+          (stub ? "bg-text-soft/15 text-text-soft" : "bg-accent/10 text-accent")
+        }
+      >
         <Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
       </span>
-      {/* Monospace numbered eyebrow — the one ikavery / ika.xyz
-          stylistic nod. Different from the rest of the app's caps
-          eyebrow on purpose; it signals "powered by Ika" without a
-          logo. */}
       <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
         // {n}
+        {stub && <span className="ml-1 text-text-soft">· coming soon</span>}
       </p>
       <h3 className="mt-1 font-display text-base font-semibold text-text-strong">
         {title}
       </h3>
       <p className="mt-1.5 text-sm text-text-soft text-pretty">{body}</p>
     </motion.article>
+  );
+}
+
+function VaultCard({ vault }: { vault: DecodedRecovery }) {
+  const { account } = vault;
+  const recoveryStr = vault.recovery.toBase58();
+  const short = `${recoveryStr.slice(0, 4)}…${recoveryStr.slice(-4)}`;
+  const memberCount = account.members.length;
+  const proposalCount = account.proposalCount;
+  return (
+    <li>
+      <Link
+        href={`/app/secure/${encodeURIComponent(recoveryStr)}`}
+        className={
+          "group flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest " +
+          "transition-[border-color,transform,box-shadow] duration-base ease-out-soft " +
+          "hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-card-raised " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+        }
+      >
+        <span
+          aria-hidden="true"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent"
+        >
+          <VaultIcon className="h-5 w-5" strokeWidth={1.75} />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate font-display text-base font-semibold text-text-strong">
+            Vault {short}
+          </span>
+          <span className="text-[11px] text-text-soft">
+            <span className="font-numerals tabular-nums">
+              {account.threshold}
+            </span>
+            {" of "}
+            <span className="font-numerals tabular-nums">{memberCount}</span>
+            {" members · "}
+            <span className="font-numerals tabular-nums">{proposalCount}</span>
+            {" sweep"}
+            {proposalCount === 1 ? "" : "s"}
+          </span>
+        </span>
+        <ArrowRight
+          className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
+          aria-hidden="true"
+        />
+      </Link>
+    </li>
   );
 }
