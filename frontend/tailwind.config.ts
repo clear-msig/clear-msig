@@ -204,8 +204,8 @@ const config: Config = {
           "inset 0 1px 0 var(--clear-card-rim-top), inset 0 -1px 0 var(--clear-card-rim-bottom), 0 1px 2px var(--clear-card-shadow-close), 0 8px 16px -2px var(--clear-card-shadow-mid), 0 16px 32px -4px var(--clear-card-shadow-far)",
         "card-raised":
           "inset 0 1px 0 var(--clear-card-rim-top-raised), inset 0 -1px 0 var(--clear-card-rim-bottom-raised), 0 2px 4px var(--clear-card-shadow-close-raised), 0 12px 24px -2px var(--clear-card-shadow-mid-raised), 0 28px 56px -8px var(--clear-card-shadow-far-raised)",
-        "accent-rest": "0 8px 24px -8px var(--clear-accent-glow-rest)",
-        "accent-hover": "0 16px 36px -10px var(--clear-accent-glow-hover)",
+        "accent-rest": "0 4px 10px -4px var(--clear-accent-glow-rest)",
+        "accent-hover": "0 6px 14px -6px var(--clear-accent-glow-hover)",
 
         // ── Legacy ────────────────────────────────────────────────
         glow: "0 10px 30px -10px rgba(204, 255, 0, 0.30)",
