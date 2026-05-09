@@ -30,16 +30,19 @@
 import { appConfig, EVM_RPC_OVERRIDE_STORAGE_KEY, destinationRpcDefault } from "@/lib/config";
 
 /// Public Sepolia RPCs ordered by historical reliability + free-tier
-/// generosity. PublicNode is intentionally first because it's our
-/// current default; the rest are independent providers so a single
-/// outage doesn't take everything down. Add more here as we collect
-/// real-world reliability data.
+/// generosity. 1RPC is intentionally first because it's the new
+/// default (publicnode has been throwing `ERR_CONNECTION_CLOSED` in
+/// production, blastapi blocks clearsig.xyz at the CORS layer). The
+/// rest are independent providers so a single outage doesn't take
+/// everything down. Add more here as we collect real-world reliability
+/// data.
 const PUBLIC_SEPOLIA_FALLBACKS: readonly string[] = [
-  "https://ethereum-sepolia-rpc.publicnode.com",
-  "https://eth-sepolia.public.blastapi.io",
   "https://1rpc.io/sepolia",
   "https://sepolia.gateway.tenderly.co",
   "https://rpc.ankr.com/eth_sepolia",
+  "https://ethereum-sepolia.api.onfinality.io/public",
+  "https://ethereum-sepolia-rpc.publicnode.com",
+  "https://eth-sepolia.public.blastapi.io",
 ];
 
 function readOverrideFromStorage(): string | null {
