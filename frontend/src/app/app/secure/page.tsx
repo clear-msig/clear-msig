@@ -368,6 +368,12 @@ function VaultsHero({ vaults, loading, onRefresh, fadeIn }: VaultsHeroProps) {
               aria-hidden="true"
             />
           </button>
+          <Link href="/app/secure/import" className="inline-block">
+            <Button variant="ghost" size="lg">
+              <KeyRound className="h-4 w-4" aria-hidden="true" />
+              Import key
+            </Button>
+          </Link>
           <Link href="/app/secure/new" className="inline-block">
             <Button size="lg">
               <Plus className="h-4 w-4" aria-hidden="true" />

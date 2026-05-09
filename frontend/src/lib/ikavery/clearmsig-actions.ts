@@ -31,6 +31,7 @@ import {
   Connection,
   Keypair,
   PublicKey,
+  SystemProgram,
   TransactionMessage,
   VersionedTransaction,
 } from "@solana/web3.js";
@@ -92,6 +93,19 @@ export interface CreateVaultParams {
    * micro-states instead of a single opaque spinner.
    */
   onProgress?: (stage: CreateVaultStage) => void;
+  /**
+   * Optional import config — bundles a SystemTransfer ix in the same
+   * tx that creates the vault, moving lamports from `keypair` to the
+   * fresh dWallet PDA. Atomic with create_recovery + transfer_authority,
+   * so a partial state (vault exists but funds didn't move) is
+   * impossible. The Keypair is partial-signed locally; the connected
+   * wallet doesn't see the secret key. Caller is responsible for
+   * wiping the Keypair after this function resolves.
+   */
+  importFunds?: {
+    keypair: Keypair;
+    lamports: bigint;
+  };
 }
 
 export type CreateVaultStage =
@@ -133,12 +147,23 @@ export async function createSoloVault(
     signTransaction,
     dwalletCurve = DWALLET_CURVE_ED25519,
     onProgress,
+    importFunds,
   } = params;
   const progress = onProgress ?? (() => undefined);
 
   if (threshold !== 1) {
     throw new Error(
       `solo vault must have threshold=1 (got ${threshold}); add devices via enrollment for higher thresholds`,
+    );
+  }
+  if (importFunds && importFunds.lamports <= 0n) {
+    throw new Error(
+      `importFunds.lamports must be positive (got ${importFunds.lamports})`,
+    );
+  }
+  if (importFunds && importFunds.keypair.publicKey.equals(creator)) {
+    throw new Error(
+      "Imported key matches the connected wallet — that's a self-transfer (use 'Build a vault' instead).",
     );
   }
 
@@ -188,18 +213,38 @@ export async function createSoloVault(
     newAuthority: cpiAuthority,
   });
 
+  // Optional import-funds ix. SystemProgram.transfer from the imported
+  // key (signs locally below) to the dWallet PDA. Bundled in the same
+  // tx as create+transfer so partial state ("vault exists but funds
+  // didn't move") is impossible. The connected wallet pays fees;
+  // importFunds.keypair signs only this single ix.
+  const ixs = [createIx, transferIx];
+  if (importFunds) {
+    ixs.push(
+      SystemProgram.transfer({
+        fromPubkey: importFunds.keypair.publicKey,
+        toPubkey: dwalletAccountPda,
+        lamports: importFunds.lamports,
+      }),
+    );
+  }
+
   const { blockhash, lastValidBlockHeight } =
     await connection.getLatestBlockhash("confirmed");
   const message = new TransactionMessage({
     payerKey: creator,
     recentBlockhash: blockhash,
-    instructions: [createIx, transferIx],
+    instructions: ixs,
   }).compileToV0Message();
   const tx = new VersionedTransaction(message);
 
-  // Sign the recoveryId slot first - that's the throwaway keypair
-  // we generated above.
-  tx.sign([recoveryIdKeypair]);
+  // Partial-sign the recoveryId slot (always) + the imported key slot
+  // (when importing). Both are local-only signers; the connected
+  // wallet popup signs everything else after.
+  const localSigners = importFunds
+    ? [recoveryIdKeypair, importFunds.keypair]
+    : [recoveryIdKeypair];
+  tx.sign(localSigners);
 
   // Stage 3: hand off to the user's wallet for the creator signature.
   progress("sign");
