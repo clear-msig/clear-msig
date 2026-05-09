@@ -32,12 +32,14 @@ import {
   Contact as ContactIcon,
   Home,
   Layers,
-  LogOut,
+  Plus,
+  Search,
   Settings,
   ShieldCheck,
   UserCircle2,
   type LucideIcon,
 } from "lucide-react";
+import { openCommandPalette } from "@/components/layout/CommandPalette";
 import { BrandMark } from "@/components/retail/BrandMark";
 import clsx from "clsx";
 import {
@@ -113,6 +115,13 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
         onToggle={sidebar?.toggleExpanded}
       />
 
+      {/* Workspace actions - global Search trigger + New shared
+          wallet CTA. Lives near the top so the user's first instinct
+          ("I want to find or create something") is reachable in
+          two pixels. Moved here from the desktop top header so the
+          header can own the wallet-connection state instead. */}
+      <WorkspaceActions expanded={expanded} onNavigate={onNavigate} />
+
       {/* Primary navigation - the four cross-cutting destinations a
           user can reach without drilling into a specific wallet. The
           desktop top header is dedicated to back-navigation, so this
@@ -176,16 +185,10 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
           expanded ? "gap-1 pt-4" : "items-center gap-2 pt-3",
         )}
       >
-        {wallet.connected && address && (
-          <ConnectedAsPill
-            address={address}
-            expanded={expanded}
-            onDisconnect={() => {
-              wallet.disconnect();
-              onNavigate?.();
-            }}
-          />
-        )}
+        {/* Connect / Disconnect moved to the desktop top header so
+            it sits at eye level instead of buried in the sidebar
+            footer. The bottom group now holds rail-mode discovery
+            entries (Secure, Chains) only. */}
         {/* Secure - rail-mode discovery for the ikavery companion
             product. Always visible (not wallet-scoped) so users can
             jump to /app/secure from any /app/* route. Expanded mode
@@ -360,69 +363,91 @@ function PrimaryNav({
   );
 }
 
-function ConnectedAsPill({
-  address,
-  expanded,
-  onDisconnect,
-}: {
-  address: string;
-  expanded: boolean;
-  onDisconnect: () => void;
-}) {
-  const grad = avatarGradient(address);
-  const short = `${address.slice(0, 4)}…${address.slice(-4)}`;
+// ─── Workspace actions ────────────────────────────────────────────
+//
+// Global Search trigger (opens the ⌘K command palette) + New shared
+// wallet CTA. Sits between the BrandRow and the PrimaryNav so the
+// user's first two clicks ("find" or "create") are always one step
+// away regardless of which page they're on.
 
-  // Rail mode: just the avatar dot + a small disconnect hover state.
+function WorkspaceActions({
+  expanded,
+  onNavigate,
+}: {
+  expanded: boolean;
+  onNavigate?: () => void;
+}) {
+  const handleSearch = () => {
+    openCommandPalette();
+  };
+
   if (!expanded) {
+    // Rail mode - icon-only column, same hit-target spec as PrimaryNav.
     return (
-      <button
-        type="button"
-        onClick={onDisconnect}
-        aria-label={`Disconnect ${short}`}
-        title={`${short} · click to disconnect`}
-        className={clsx(
-          "flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br shadow-sm",
-          "transition-transform duration-base ease-out-soft hover:scale-105 active:scale-95",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
-          grad.from,
-          grad.to,
-        )}
-      >
-        <span className="block h-1.5 w-1.5 rounded-full bg-white/90" />
-      </button>
+      <div className="flex flex-col items-center gap-1.5">
+        <button
+          type="button"
+          onClick={handleSearch}
+          aria-label="Search"
+          title="Search (⌘K)"
+          className={clsx(
+            "flex h-10 w-10 items-center justify-center rounded-soft border border-border-soft text-text-soft",
+            "transition-colors duration-base ease-out-soft hover:border-border-strong hover:bg-glass-mid hover:text-text-strong",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+          )}
+        >
+          <Search size={14} aria-hidden="true" />
+        </button>
+        <Link
+          href="/app/wallet/new"
+          onClick={onNavigate}
+          aria-label="New shared wallet"
+          title="New shared wallet"
+          className={clsx(
+            "flex h-10 w-10 items-center justify-center rounded-soft bg-accent text-text-on-accent shadow-accent-rest",
+            "transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
+            "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+          )}
+        >
+          <Plus size={14} aria-hidden="true" />
+        </Link>
+      </div>
     );
   }
 
   return (
-    <div className="group/pill relative">
-      <div className="flex items-center gap-2.5 rounded-xl border border-border-soft bg-glass-soft px-2.5 py-2 text-xs backdrop-blur-md transition-colors duration-base ease-out-soft group-hover/pill:bg-glass-mid">
-        <span
-          className={clsx(
-            "flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-white shadow-sm",
-            grad.from,
-            grad.to,
-          )}
-          aria-hidden="true"
-        >
-          <span className="block h-1.5 w-1.5 rounded-full bg-white/90" />
-        </span>
-        <span className="flex min-w-0 flex-1 flex-col leading-tight">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            Connected
-          </span>
-          <span className="truncate font-mono text-[11px] text-text-strong">
-            {short}
-          </span>
-        </span>
-        <button
-          type="button"
-          onClick={onDisconnect}
-          aria-label="Disconnect wallet"
-          className="rounded-md p-1 text-text-soft transition-colors duration-base ease-out-soft hover:bg-danger/10 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-        >
-          <LogOut size={13} />
-        </button>
-      </div>
+    <div className="flex flex-col gap-1.5">
+      <button
+        type="button"
+        onClick={handleSearch}
+        aria-label="Search (⌘K)"
+        className={clsx(
+          "group inline-flex items-center gap-2 rounded-soft border border-border-soft bg-glass-soft px-3 py-2 text-xs text-text-soft",
+          "transition-colors duration-base ease-out-soft hover:border-border-strong hover:bg-glass-mid hover:text-text-strong",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+        )}
+      >
+        <Search size={13} aria-hidden="true" />
+        <span className="flex-1 text-left">Search</span>
+        <kbd className="rounded border border-border-soft bg-glass-soft px-1.5 py-0.5 font-mono text-[10px] text-text-soft">
+          ⌘K
+        </kbd>
+      </button>
+      <Link
+        href="/app/wallet/new"
+        onClick={onNavigate}
+        aria-label="New shared wallet"
+        className={clsx(
+          "inline-flex items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest",
+          "transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
+          "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+        )}
+      >
+        <Plus size={13} aria-hidden="true" />
+        New shared wallet
+      </Link>
     </div>
   );
 }
@@ -561,7 +586,7 @@ function SidebarOrgLink({
 }) {
   const onChainName = membership.wallet_name ?? "";
   const href = onChainName ? `/app/wallet/${encodeURIComponent(onChainName)}` : "#";
-  const active = onChainName && pathname.startsWith(href);
+  const active = !!onChainName && pathname.startsWith(href);
 
   if (!onChainName) return null;
 

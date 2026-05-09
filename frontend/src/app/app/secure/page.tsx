@@ -34,6 +34,7 @@ import {
   Fingerprint,
   KeyRound,
   Plus,
+  RefreshCw,
   ShieldAlert,
   ShieldCheck,
   Vault as VaultIcon,
@@ -88,214 +89,192 @@ export default function SecurePage() {
           },
         };
 
+  // Two layout paths so returning users land directly on their
+  // vaults (no marketing hero / illustration to scroll past) and
+  // first-time users still get the explainer + onboarding flow.
+  const showVaultsFirst = wallet.connected && hasVaults;
+
   return (
-    <motion.div {...fadeIn(0)} className="flex flex-col gap-12 sm:gap-16">
-      {/* ── Hero ─────────────────────────────────────────────────
-       * Split grid: copy on the left, vault illustration on the
-       * right. Stacks vertically on mobile with the illustration
-       * sliding in below the copy. */}
-      <section className="grid grid-cols-1 items-center gap-10 lg:grid-cols-12 lg:gap-12">
-        <motion.div
-          {...fadeIn(0.04)}
-          className="text-center lg:col-span-7 lg:text-left"
-        >
-          <span className="inline-flex items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5">
-            <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-accent" />
-            <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-text-soft">
-              Secure · powered by Ika
-            </span>
-          </span>
-          <h1 className="mt-5 font-display text-display-lg leading-[1] tracking-[-0.03em] text-text-strong text-balance sm:text-display-xl">
-            Threshold-signed
-            <br className="hidden sm:block" />{" "}
-            <span className="text-text-soft">key custody.</span>
-          </h1>
-          <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-text-soft text-pretty lg:mx-0">
-            Place your Solana private key behind a quorum of devices and
-            passkeys. Recover with any threshold you set. Never lose a key.
-            Never trust a single device.
-          </p>
-
-          {/* Hero only carries a primary action when it isn't
-              duplicated by the state block below. Specifically:
-              when the user already has vaults, the state block
-              uses an inline "Build another" link, so the hero
-              gets to own the prominent button. In the not-
-              connected and zero-vault states, the state block's
-              own card carries the CTA - showing one in the hero
-              too would be a double-button. */}
-          <div className="mt-7 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
-            {wallet.connected && hasVaults && (
-              <Link href="/app/secure/new" className="inline-block">
-                <Button size="lg">
-                  Build another vault
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Button>
-              </Link>
-            )}
-            <a
-              href={IKA_SITE}
-              target="_blank"
-              rel="noreferrer"
-              className={
-                "inline-flex min-h-tap items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-[11px] font-medium text-text-soft " +
-                "transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent " +
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-              }
-            >
-              Powered by Ika dWallets
-              <ExternalLink className="h-3 w-3" aria-hidden="true" />
-            </a>
-          </div>
-        </motion.div>
-
-        <motion.div
-          {...fadeIn(0.12)}
-          className="relative mx-auto w-full max-w-md lg:col-span-5 lg:max-w-none"
-        >
-          <VaultMockup />
-        </motion.div>
-      </section>
-
-      {/* ── State block ──────────────────────────────────────────
-       * vaults list / empty CTA / loading skeleton / error /
-       * not-connected callout. Each state owns its own card so the
-       * page never has a "hole" between hero and the explainer. */}
-      {!wallet.connected && <ConnectCallout />}
-      {wallet.connected && vaultsQuery.isLoading && !hasVaults && (
-        <VaultListSkeleton />
-      )}
-      {wallet.connected && vaultsQuery.isError && (
-        <ErrorCallout
-          message={
-            vaultsQuery.error instanceof Error
-              ? vaultsQuery.error.message
-              : String(vaultsQuery.error)
-          }
-          onRetry={() => vaultsQuery.refetch()}
+    <motion.div
+      {...fadeIn(0)}
+      className="flex flex-col gap-10 sm:gap-12"
+    >
+      {showVaultsFirst ? (
+        <VaultsHero
+          vaults={vaults}
+          loading={vaultsQuery.isFetching && !vaultsQuery.isLoading}
+          onRefresh={() => void vaultsQuery.refetch()}
+          fadeIn={fadeIn}
         />
-      )}
-      {hasVaults && (
-        <motion.section {...fadeIn(0.08)}>
-          <div className="mb-4 flex items-baseline justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Your vaults · {vaults.length}
-            </p>
-            <Link
-              href="/app/secure/new"
-              className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:text-accent-hover"
+      ) : (
+        <>
+          {/* ── Marketing hero ──────────────────────────────────
+           * Only renders for first-time users (zero vaults / not
+           * connected). Returning users see VaultsHero above. */}
+          <section className="grid grid-cols-1 items-center gap-10 lg:grid-cols-12 lg:gap-12">
+            <motion.div
+              {...fadeIn(0.04)}
+              className="text-center lg:col-span-7 lg:text-left"
             >
-              <Plus className="h-3 w-3" />
-              Build another
-            </Link>
-          </div>
-          <ul className="flex flex-col gap-2">
-            {vaults.map((v) => (
-              <VaultCard key={v.recovery.toBase58()} vault={v} />
-            ))}
-          </ul>
-        </motion.section>
-      )}
-      {!hasVaults &&
-        wallet.connected &&
-        !vaultsQuery.isLoading &&
-        !vaultsQuery.isError && (
-          <motion.section
-            {...fadeIn(0.08)}
-            className="relative overflow-hidden rounded-card border border-accent/40 bg-accent/[0.04] shadow-card-rest"
-          >
-            {/* Soft top-right accent glow - asymmetric, so the card
-                feels lit rather than centred. */}
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full"
-              style={{
-                background:
-                  "radial-gradient(circle, var(--clear-accent-glow-rest) 0%, transparent 70%)",
-                filter: "blur(40px)",
-              }}
-            />
-            <div className="relative grid grid-cols-1 gap-5 p-6 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-8 sm:p-8">
-              <div>
-                <span className="inline-flex items-center gap-2">
-                  <span aria-hidden="true" className="block h-px w-8 bg-accent" />
-                  <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
-                    First vault
-                  </span>
+              <span className="inline-flex items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5">
+                <span
+                  aria-hidden="true"
+                  className="h-1.5 w-1.5 rounded-full bg-accent"
+                />
+                <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-text-soft">
+                  Secure · powered by Ika
                 </span>
-                <h2 className="mt-3 font-display text-display-xs leading-tight tracking-[-0.02em] text-text-strong">
-                  Three taps to your first vault.
-                </h2>
-                <p className="mt-2 max-w-md text-[14px] leading-relaxed text-text-soft">
-                  Pick a threshold, place a key behind it, sweep when you
-                  need it back.
-                </p>
+              </span>
+              <h1 className="mt-5 font-display text-display-lg leading-[1] tracking-[-0.03em] text-text-strong text-balance sm:text-display-xl">
+                Threshold-signed
+                <br className="hidden sm:block" />{" "}
+                <span className="text-text-soft">key custody.</span>
+              </h1>
+              <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-text-soft text-pretty lg:mx-0">
+                Place your Solana private key behind a quorum of devices
+                and passkeys. Recover with any threshold you set. Never
+                lose a key. Never trust a single device.
+              </p>
+
+              <div className="mt-7 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+                <a
+                  href={IKA_SITE}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={
+                    "inline-flex min-h-tap items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-[11px] font-medium text-text-soft " +
+                    "transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent " +
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+                  }
+                >
+                  Powered by Ika dWallets
+                  <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                </a>
               </div>
-              <Link href="/app/secure/new" className="inline-block">
-                <Button size="lg">
-                  Secure your key
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Button>
-              </Link>
+            </motion.div>
+
+            <motion.div
+              {...fadeIn(0.12)}
+              className="relative mx-auto w-full max-w-md lg:col-span-5 lg:max-w-none"
+            >
+              <VaultMockup />
+            </motion.div>
+          </section>
+
+          {/* State block - empty CTA, loader, error, or sign-in. */}
+          {!wallet.connected && <ConnectCallout />}
+          {wallet.connected && vaultsQuery.isLoading && (
+            <VaultListSkeleton />
+          )}
+          {wallet.connected && vaultsQuery.isError && (
+            <ErrorCallout
+              message={
+                vaultsQuery.error instanceof Error
+                  ? vaultsQuery.error.message
+                  : String(vaultsQuery.error)
+              }
+              onRetry={() => vaultsQuery.refetch()}
+            />
+          )}
+          {!hasVaults &&
+            wallet.connected &&
+            !vaultsQuery.isLoading &&
+            !vaultsQuery.isError && (
+              <motion.section
+                {...fadeIn(0.08)}
+                className="relative overflow-hidden rounded-card border border-accent/40 bg-accent/[0.04] shadow-card-rest"
+              >
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full"
+                  style={{
+                    background:
+                      "radial-gradient(circle, var(--clear-accent-glow-rest) 0%, transparent 70%)",
+                    filter: "blur(40px)",
+                  }}
+                />
+                <div className="relative grid grid-cols-1 gap-5 p-6 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-8 sm:p-8">
+                  <div>
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        aria-hidden="true"
+                        className="block h-px w-8 bg-accent"
+                      />
+                      <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
+                        First vault
+                      </span>
+                    </span>
+                    <h2 className="mt-3 font-display text-display-xs leading-tight tracking-[-0.02em] text-text-strong">
+                      Three taps to your first vault.
+                    </h2>
+                    <p className="mt-2 max-w-md text-[14px] leading-relaxed text-text-soft">
+                      Pick a threshold, place a key behind it, sweep
+                      when you need it back.
+                    </p>
+                  </div>
+                  <Link href="/app/secure/new" className="inline-block">
+                    <Button size="lg">
+                      Secure your key
+                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  </Link>
+                </div>
+              </motion.section>
+            )}
+
+          {/* How it works - explainer for first-time users only.
+              Returning users (showVaultsFirst) skip this entirely so
+              the page focuses on their vaults. */}
+          <section>
+            <div className="mb-6 flex items-baseline justify-between">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+                  How it works
+                </p>
+                <h2 className="mt-1 font-display text-display-xs leading-tight text-text-strong">
+                  From key to recovery, in three.
+                </h2>
+              </div>
             </div>
-          </motion.section>
-        )}
+            <div className="relative grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute left-0 right-0 top-7 hidden h-px bg-gradient-to-r from-transparent via-border-strong to-transparent sm:block"
+              />
+              <Step
+                n="01"
+                Icon={ShieldCheck}
+                title="Build a vault"
+                body="Pick a threshold. The vault is an Ika 2PC-MPC dWallet under your control."
+                delay={0.04}
+                reduce={!!reduce}
+              />
+              <Step
+                n="02"
+                Icon={Fingerprint}
+                title="Add devices"
+                body="iPhone, MacBook, YubiKey. Each device holds a share via WebAuthn passkey."
+                delay={0.1}
+                reduce={!!reduce}
+                stub
+              />
+              <Step
+                n="03"
+                Icon={KeyRound}
+                title="Sweep when needed"
+                body="Sign a sweep with any threshold. Funds move to your destination wallet."
+                delay={0.16}
+                reduce={!!reduce}
+                stub
+              />
+            </div>
+          </section>
+        </>
+      )}
 
-      {/* ── How it works ────────────────────────────────────────
-       * Three-step flow with a continuous accent line connecting
-       * the tiles on lg+. Reads as a journey, not a tile rack. */}
-      <section>
-        <div className="mb-6 flex items-baseline justify-between">
-          <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              How it works
-            </p>
-            <h2 className="mt-1 font-display text-display-xs leading-tight text-text-strong">
-              From key to recovery, in three.
-            </h2>
-          </div>
-        </div>
-        <div className="relative grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {/* Connector line - sits behind the cards on lg+ to thread
-              the three steps. Hidden on mobile where the cards stack. */}
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute left-0 right-0 top-7 hidden h-px bg-gradient-to-r from-transparent via-border-strong to-transparent sm:block"
-          />
-          <Step
-            n="01"
-            Icon={ShieldCheck}
-            title="Build a vault"
-            body="Pick a threshold. The vault is an Ika 2PC-MPC dWallet under your control."
-            delay={0.04}
-            reduce={!!reduce}
-          />
-          <Step
-            n="02"
-            Icon={Fingerprint}
-            title="Add devices"
-            body="iPhone, MacBook, YubiKey. Each device holds a share via WebAuthn passkey."
-            delay={0.10}
-            reduce={!!reduce}
-            stub
-          />
-          <Step
-            n="03"
-            Icon={KeyRound}
-            title="Sweep when needed"
-            body="Sign a sweep with any threshold. Funds move to your destination wallet."
-            delay={0.16}
-            reduce={!!reduce}
-            stub
-          />
-        </div>
-      </section>
-
-      {/* Pre-alpha disclosure - kept inline at the bottom so it sits
-          where regulatory copy belongs. Lighter treatment than the
-          previous warning-tinted banner; the icon carries the tone. */}
+      {/* Pre-alpha disclosure - rendered on every state. */}
       <motion.aside
-        {...fadeIn(0.20)}
+        {...fadeIn(0.2)}
         className="flex items-start gap-3 rounded-card border border-border-soft bg-surface-raised/60 p-4 text-xs text-text-soft sm:p-5"
       >
         <ShieldAlert
@@ -320,6 +299,88 @@ export default function SecurePage() {
         </p>
       </motion.aside>
     </motion.div>
+  );
+}
+
+// ─── Vault-list-first hero ────────────────────────────────────────
+//
+// What returning users see first when they hit /app/secure. No
+// marketing illustration, no scroll. Compact header with the count,
+// a "Build another" primary CTA, then the vault cards. The "How it
+// works" explainer is intentionally suppressed for this state - if
+// you have vaults, you already know what they are.
+
+interface VaultsHeroProps {
+  vaults: DecodedRecovery[];
+  loading: boolean;
+  onRefresh: () => void;
+  fadeIn: (delay?: number) => Record<string, unknown>;
+}
+
+function VaultsHero({ vaults, loading, onRefresh, fadeIn }: VaultsHeroProps) {
+  const count = vaults.length;
+  return (
+    <>
+      <motion.header
+        {...fadeIn(0.04)}
+        className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between sm:gap-6"
+      >
+        <div className="min-w-0">
+          <span className="inline-flex items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5">
+            <span
+              aria-hidden="true"
+              className="h-1.5 w-1.5 rounded-full bg-accent"
+            />
+            <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-text-soft">
+              Secure · powered by Ika
+            </span>
+          </span>
+          <h1 className="mt-4 font-display text-display-md leading-[1.02] tracking-[-0.03em] text-text-strong sm:text-display-lg">
+            Your vaults
+          </h1>
+          <p className="mt-2 text-[14px] leading-relaxed text-text-soft sm:text-[15px]">
+            {count}{" "}
+            {count === 1 ? "vault" : "vaults"} under quorum custody.
+            Tap any to manage members, receive funds, or sweep.
+          </p>
+        </div>
+
+        {/* Action cluster - primary "Build another" + refresh chip.
+            Stacks below the title on mobile, sits on the right on sm+. */}
+        <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={loading}
+            aria-label="Refresh vaults"
+            title="Refresh vaults"
+            className={
+              "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border-soft bg-surface-raised text-text-soft " +
+              "transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent " +
+              "disabled:cursor-not-allowed disabled:opacity-50 " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+            }
+          >
+            <RefreshCw
+              className={"h-4 w-4 " + (loading ? "animate-spin" : "")}
+              aria-hidden="true"
+            />
+          </button>
+          <Link href="/app/secure/new" className="inline-block">
+            <Button size="lg">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Build another
+            </Button>
+          </Link>
+        </div>
+      </motion.header>
+
+      <motion.ul {...fadeIn(0.08)} className="flex flex-col gap-2">
+        {vaults.map((v) => (
+          <VaultCard key={v.recovery.toBase58()} vault={v} />
+        ))}
+      </motion.ul>
+    </>
   );
 }
 

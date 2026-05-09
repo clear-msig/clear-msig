@@ -24,7 +24,7 @@ import {
   Contact,
   Home,
   Plus,
-  UserCircle2,
+  Settings,
   type LucideIcon,
 } from "lucide-react";
 import clsx from "clsx";
@@ -37,7 +37,7 @@ type NavItem = {
   /// Routes that should mark this item active, in addition to `href`.
   /// "Home" stays highlighted while drilled into a wallet or proposal.
   matchPrefixes?: string[];
-  id?: "home" | "activity" | "contacts" | "account";
+  id?: "home" | "activity" | "contacts" | "settings";
 };
 
 const navItems: NavItem[] = [
@@ -66,15 +66,15 @@ const navItems: NavItem[] = [
     Icon: Contact,
   },
   {
-    id: "account",
-    href: "/app/account",
-    label: "Account",
-    Icon: UserCircle2,
-    // Settings is a separate destination reachable from the top-right
-    // header pill - it should NOT light up the Account tab. Otherwise
-    // tapping the Settings header pill on Account would feel like a
-    // no-op (both icons highlighted).
-    matchPrefixes: ["/app/account"],
+    id: "settings",
+    href: "/app/settings",
+    label: "Settings",
+    Icon: Settings,
+    // Account is a separate destination reachable from the top-right
+    // header chip on the Settings page. The Settings tab should NOT
+    // light up while on Account - the two are sibling surfaces, not
+    // one-inside-the-other.
+    matchPrefixes: ["/app/settings"],
   },
 ];
 
