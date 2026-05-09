@@ -237,9 +237,6 @@ export async function runInAppSweep(params: SweepParams): Promise<SweepResult> {
     // --- propose ---
     progress("propose-passkey");
     const bundle = bundleHashFromDigests([intentDigest]);
-    if (!bundle) {
-      throw new Error("Failed to compute propose bundle hash");
-    }
     const proposeC = proposeChallenge(
       recoveryIdBytes,
       bundle,
