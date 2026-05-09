@@ -69,12 +69,19 @@ export type SweepStage =
   | "approve-passkey"
   | "approve-sign"
   | "approve-confirm"
+  | "collecting-approvals"
   | "execute-sign"
   | "execute-confirm"
   | "presign-sign"
   | "broadcast"
   | "broadcast-confirm"
   | "done";
+
+export interface AdditionalApprovalsRequest {
+  proposal: PublicKey;
+  currentCount: number;
+  threshold: number;
+}
 
 /**
  * Auth mode controls who authorises the proposal + approval.
@@ -108,6 +115,19 @@ export interface SweepParams {
   rpId?: string;
   /** Optional progress reporter for the wizard. */
   onProgress?: (stage: SweepStage) => void;
+  /**
+   * Called once after the proposer's first vote lands when the vault's
+   * threshold > 1 and the proposal still needs more approvals. The page
+   * is responsible for collecting the remaining votes (typically by
+   * showing a picker and calling `addSweepApproval` per credential).
+   * Resolve when `proposal.status === STATUS_APPROVED` on chain;
+   * `runInAppSweep` reads the proposal back, verifies the threshold has
+   * been met, and only then proceeds to execute. Throws if the threshold
+   * is greater than 1 and no callback is supplied — that's a misconfig.
+   */
+  collectAdditionalApprovals?: (
+    req: AdditionalApprovalsRequest,
+  ) => Promise<void>;
 }
 
 export interface SweepResult {
@@ -138,6 +158,7 @@ export async function runInAppSweep(params: SweepParams): Promise<SweepResult> {
     authMode = "wallet",
     rpId,
     onProgress,
+    collectAdditionalApprovals,
   } = params;
   const progress = onProgress ?? (() => undefined);
 
@@ -160,9 +181,9 @@ export async function runInAppSweep(params: SweepParams): Promise<SweepResult> {
   const dwalletPubkey = new PublicKey(att.publicKey);
 
   const { account } = await fetchVault(connection, recovery);
-  if (account.threshold !== 1) {
+  if (account.threshold > 1 && !collectAdditionalApprovals) {
     throw new Error(
-      `Sweep currently supports solo (1-of-N) vaults only. Threshold: ${account.threshold}`,
+      `Vault threshold is ${account.threshold}; multi-member sweep requires the page to pass collectAdditionalApprovals to gather the remaining votes.`,
     );
   }
 
@@ -305,6 +326,32 @@ export async function runInAppSweep(params: SweepParams): Promise<SweepResult> {
     );
   }
 
+  // Stage 2b: gather any additional approvals required by the vault's
+  // threshold. After the proposer's vote lands, the proposal carries
+  // `approval_count = 1`. For threshold > 1 the page must collect the
+  // remaining votes (one per credential) before we can execute.
+  if (account.threshold > 1) {
+    const initialCount = await readApprovalCount(connection, proposal);
+    if (initialCount < account.threshold) {
+      progress("collecting-approvals");
+      await collectAdditionalApprovals!({
+        proposal,
+        currentCount: initialCount,
+        threshold: account.threshold,
+      });
+      // Sanity-check the page actually collected enough on chain. If the
+      // user dismissed the picker without finishing, abort with a clean
+      // message rather than letting execute fail with a cryptic on-chain
+      // status error.
+      const finalCount = await readApprovalCount(connection, proposal);
+      if (finalCount < account.threshold) {
+        throw new Error(
+          `Sweep aborted: collected ${finalCount} of ${account.threshold} required approvals.`,
+        );
+      }
+    }
+  }
+
   // Stage 3: execute. Rebuilds the message bytes with a fresh blockhash
   // (so the executor doesn't have to scramble for one between propose
   // and execute) and pulls in all dwallet PDAs so the program's CPI to
@@ -402,6 +449,156 @@ export async function runInAppSweep(params: SweepParams): Promise<SweepResult> {
 
   progress("done");
   return { proposal, proposeSig, executeSig, broadcastSig };
+}
+
+/**
+ * Append one more approval to an open Sweep proposal. Used by the
+ * `collectAdditionalApprovals` callback path when a vault's threshold
+ * is greater than 1 — runInAppSweep proposes + casts the proposer's
+ * vote; the page calls `addSweepApproval` once per remaining member
+ * until the proposal hits STATUS_APPROVED.
+ *
+ * Wallet vs passkey shape mirrors the propose-side logic:
+ *
+ *   - "wallet": SCHEME_SOLANA_ADDRESS credential, the connected wallet
+ *     must match a roster member, single ix in the tx, no precompile.
+ *   - "passkey": one secp256r1 precompile + one approve_ix. The OS
+ *     picker shows every passkey bound to the RP; we ECDSA-recover
+ *     to figure out which roster member signed and reject if it's
+ *     someone not on the roster.
+ */
+export interface AddSweepApprovalParams {
+  connection: Connection;
+  recovery: PublicKey;
+  proposal: PublicKey;
+  /** Pays the fee. Must be a Signer on the tx but doesn't need to be a member. */
+  payer: PublicKey;
+  /** Auth mode for this approval. */
+  authMode: SweepAuthMode;
+  /** Required for authMode === "wallet": the connected wallet must be on the roster. */
+  walletPubkey?: PublicKey;
+  /** RP id for passkey assertions. */
+  rpId?: string;
+  signTransaction: <T extends VersionedTransaction>(tx: T) => Promise<T>;
+}
+
+export interface AddSweepApprovalResult {
+  txSignature: string;
+}
+
+export async function addSweepApproval(
+  params: AddSweepApprovalParams,
+): Promise<AddSweepApprovalResult> {
+  const {
+    connection,
+    recovery,
+    proposal,
+    payer,
+    authMode,
+    walletPubkey,
+    rpId,
+    signTransaction,
+  } = params;
+
+  // We need to know the proposal's index to compute the approve
+  // challenge for passkey mode, plus the recoveryId from the vault.
+  const proposalAccount = await readProposalOrThrow(connection, proposal);
+  const { account: vault } = await fetchVault(connection, recovery);
+
+  if (authMode === "wallet") {
+    if (!walletPubkey) {
+      throw new Error("walletPubkey required when authMode === 'wallet'");
+    }
+    // Verify the wallet IS a roster member; on-chain handler would
+    // reject otherwise but the error is opaque ("NotAMember").
+    const slot = packSolanaMember(walletPubkey);
+    const onRoster = vault.members.some((m) => bytesEqual(m, slot));
+    if (!onRoster) {
+      throw new Error(
+        "Connected wallet isn't on this vault's roster — pick a different one or switch to Passkey.",
+      );
+    }
+    const credential: AuthCredential = {
+      scheme: SCHEME_SOLANA_ADDRESS,
+      pubkey: walletPubkey.toBytes(),
+    };
+    const { ix: approveIx } = buildApproveIx({
+      recovery,
+      proposal,
+      payer,
+      memberSlot: slot,
+      credential,
+    });
+    const sig = await sendBundle(
+      connection,
+      payer,
+      [approveIx],
+      signTransaction,
+      () => undefined,
+      () => undefined,
+    );
+    return { txSignature: sig };
+  }
+
+  // Passkey mode: assertion + ECDSA pubkey-recover + precompile + approve_ix.
+  const recoveryIdBytes = vault.recoveryId.toBytes();
+  const approveC = approveChallenge(
+    recoveryIdBytes,
+    proposalAccount.proposalIndex,
+  );
+  const assertion = await runPasskeySign({ challenge: approveC, rpId });
+  const pub = await pickRosterPubkey(
+    connection,
+    recovery,
+    assertion.candidatePubkeys,
+  );
+  const { precompileIx, credential } = assertion.build(pub);
+  const memberSlot = packMemberSlot(SCHEME_WEBAUTHN, pub);
+  const { ix: approveIx } = buildApproveIx({
+    recovery,
+    proposal,
+    payer,
+    memberSlot,
+    credential,
+  });
+  const sig = await sendBundle(
+    connection,
+    payer,
+    [precompileIx, approveIx],
+    signTransaction,
+    () => undefined,
+    () => undefined,
+  );
+  return { txSignature: sig };
+}
+
+async function readApprovalCount(
+  connection: Connection,
+  proposal: PublicKey,
+): Promise<number> {
+  const acc = await readProposalOrThrow(connection, proposal);
+  return acc.approvalCount;
+}
+
+async function readProposalOrThrow(
+  connection: Connection,
+  proposal: PublicKey,
+) {
+  const info = await connection.getAccountInfo(proposal, "confirmed");
+  if (!info || info.data.length === 0) {
+    throw new Error(`Proposal account ${proposal.toBase58()} not found`);
+  }
+  // Avoid a circular import by inlining the codec call.
+  const { decodeProposal } = await import("./codec/proposal");
+  return decodeProposal(new Uint8Array(info.data));
+}
+
+function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
 }
 
 /**

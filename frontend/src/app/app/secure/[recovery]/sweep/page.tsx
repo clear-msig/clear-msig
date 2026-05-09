@@ -22,7 +22,7 @@
 //   - vault threshold = 1
 // Anything else fails fast with a useful message in the toast.
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
@@ -43,7 +43,9 @@ import { fetchVault } from "@/lib/ikavery/clearmsig-actions";
 import { loadAttestation } from "@/lib/ikavery/clearmsig-attestations";
 import { buildSweepMessage, transferSol } from "@/lib/ikavery/sweep/message";
 import {
+  addSweepApproval,
   runInAppSweep,
+  type AdditionalApprovalsRequest,
   type SweepAuthMode,
   type SweepStage as ActionStage,
 } from "@/lib/ikavery/clearmsig-sweep";
@@ -248,6 +250,19 @@ function SweepPage() {
   const [executeSig, setExecuteSig] = useState<string | null>(null);
   const [broadcastSig, setBroadcastSig] = useState<string | null>(null);
 
+  // M-of-N collection state. When the action layer asks the page to
+  // gather more approvals, we render a side-state below the spinner
+  // with a Wallet / Passkey picker. Each click hits the chain via
+  // `addSweepApproval` and bumps `collectCount`. Once it equals the
+  // threshold, `collectResolveRef.current()` lets `runInAppSweep`
+  // continue into execute.
+  const [collectInfo, setCollectInfo] =
+    useState<AdditionalApprovalsRequest | null>(null);
+  const [collectCount, setCollectCount] = useState(0);
+  const [collectBusy, setCollectBusy] = useState(false);
+  const [collectError, setCollectError] = useState<string | null>(null);
+  const collectResolveRef = useRef<(() => void) | null>(null);
+
   // Default authMode based on whether the connected wallet is on the
   // roster. If yes → wallet (one-click). If not (lost-wallet recovery
   // case) → passkey, since the wallet sign credential wouldn't match
@@ -367,6 +382,20 @@ function SweepPage() {
         lamports,
         signTransaction: wallet.signTransaction,
         onProgress: (s) => setRunStage(s),
+        collectAdditionalApprovals: async (req) => {
+          setCollectInfo(req);
+          setCollectCount(req.currentCount);
+          setCollectError(null);
+          // Suspend the action-layer until the page-side picker has
+          // gathered enough approvals on chain. The handlers below
+          // resolve `collectResolveRef.current` when count >= threshold.
+          await new Promise<void>((resolve) => {
+            collectResolveRef.current = resolve;
+          });
+          // Clear the picker state once the action layer continues.
+          setCollectInfo(null);
+          collectResolveRef.current = null;
+        },
       });
       setProposeSig(result.proposeSig);
       setExecuteSig(result.executeSig);
@@ -379,7 +408,45 @@ function SweepPage() {
         details: e instanceof Error ? e.message : String(e),
       });
       setRunStage(null);
+      setCollectInfo(null);
+      collectResolveRef.current = null;
       setStage("review");
+    }
+  };
+
+  /// Handler the additional-approvals UI calls when the user picks a
+  /// credential to add the next vote. Single-flight: ignored if a
+  /// previous click is still in flight.
+  const handleAddApproval = async (mode: SweepAuthMode) => {
+    if (collectBusy) return;
+    if (!collectInfo || !recoveryPk) return;
+    if (!wallet.publicKey || !wallet.signTransaction) {
+      setCollectError("Connect a wallet first.");
+      return;
+    }
+    setCollectBusy(true);
+    setCollectError(null);
+    try {
+      await addSweepApproval({
+        connection,
+        recovery: recoveryPk,
+        proposal: collectInfo.proposal,
+        payer: wallet.publicKey,
+        authMode: mode,
+        walletPubkey: mode === "wallet" ? wallet.publicKey : undefined,
+        signTransaction: wallet.signTransaction,
+      });
+      const next = collectCount + 1;
+      setCollectCount(next);
+      if (next >= collectInfo.threshold) {
+        const resolve = collectResolveRef.current;
+        if (resolve) resolve();
+      }
+    } catch (e) {
+      console.error("[secure/sweep] addApproval", e);
+      setCollectError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCollectBusy(false);
     }
   };
 
@@ -503,6 +570,17 @@ function SweepPage() {
           subStage={runStage}
           authMode={authMode}
           reduce={!!reduce}
+          collect={
+            collectInfo
+              ? {
+                  count: collectCount,
+                  threshold: collectInfo.threshold,
+                  busy: collectBusy,
+                  error: collectError,
+                  onPick: handleAddApproval,
+                }
+              : null
+          }
         />
       )}
 
@@ -805,13 +883,27 @@ function Row({
   );
 }
 
+interface CollectStateProps {
+  count: number;
+  threshold: number;
+  busy: boolean;
+  error: string | null;
+  onPick: (mode: SweepAuthMode) => void;
+}
+
 interface RunningStageProps {
   subStage: ActionStage | null;
   authMode: SweepAuthMode;
   reduce: boolean;
+  collect: CollectStateProps | null;
 }
 
-function RunningStage({ subStage, authMode, reduce }: RunningStageProps) {
+function RunningStage({
+  subStage,
+  authMode,
+  reduce,
+  collect,
+}: RunningStageProps) {
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
@@ -825,42 +917,103 @@ function RunningStage({ subStage, authMode, reduce }: RunningStageProps) {
       transition={{ duration: 0.3 }}
       className="flex flex-col items-center gap-6 px-gutter py-16"
     >
-      <Loader2
-        className="h-10 w-10 animate-spin text-accent"
-        strokeWidth={1.5}
-        aria-hidden="true"
-      />
-      <div className="flex flex-col items-center gap-1 text-center">
-        <p className="font-display text-xl font-semibold text-text-strong">
-          {active?.label ?? "Sweeping…"}
-        </p>
-        <p className="max-w-sm text-sm text-text-soft">
-          {active?.detail ?? "Running through the sweep stages."}
-        </p>
-      </div>
-      <ol
-        className="flex items-center gap-1.5"
-        aria-label="sweep progress"
-      >
-        {RUN_STAGES.map((s, i) => {
-          const completed = activeIdx > i;
-          const current = activeIdx === i;
-          return (
-            <li
-              key={s.id}
-              aria-label={s.label}
+      {/* When the action layer is paused waiting for additional
+          approvals, show a credential picker instead of the spinner.
+          The page has the live count + threshold; each click on a
+          mode kicks off `addSweepApproval` and bumps the count. */}
+      {collect ? (
+        <>
+          <div className="flex flex-col items-center gap-1 text-center">
+            <p className="font-display text-xl font-semibold text-text-strong">
+              {collect.count} of {collect.threshold} approvals
+            </p>
+            <p className="max-w-sm text-sm text-text-soft">
+              The proposer&rsquo;s vote is in. Add the rest of the quorum
+              by tapping a different credential for each.
+            </p>
+          </div>
+          <div className="flex w-full max-w-md flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => collect.onPick("wallet")}
+              disabled={collect.busy}
               className={
-                "h-1.5 w-6 rounded-full " +
-                (completed
-                  ? "bg-accent"
-                  : current
-                    ? "bg-accent/60"
-                    : "bg-border-soft")
+                "flex w-full min-h-tap items-center justify-center gap-2 rounded-card border border-border-soft bg-surface-raised px-4 py-3 text-sm font-medium text-text-strong shadow-card-rest " +
+                "transition-[border-color,transform] duration-base ease-out-soft " +
+                "hover:-translate-y-0.5 hover:border-accent/40 " +
+                "disabled:cursor-not-allowed disabled:opacity-50 " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
               }
-            />
-          );
-        })}
-      </ol>
+            >
+              {collect.busy ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : null}
+              Approve as Wallet
+            </button>
+            <button
+              type="button"
+              onClick={() => collect.onPick("passkey")}
+              disabled={collect.busy}
+              className={
+                "flex w-full min-h-tap items-center justify-center gap-2 rounded-card border border-border-soft bg-surface-raised px-4 py-3 text-sm font-medium text-text-strong shadow-card-rest " +
+                "transition-[border-color,transform] duration-base ease-out-soft " +
+                "hover:-translate-y-0.5 hover:border-accent/40 " +
+                "disabled:cursor-not-allowed disabled:opacity-50 " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+              }
+            >
+              {collect.busy ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : null}
+              Approve as Passkey
+            </button>
+          </div>
+          {collect.error && (
+            <p className="max-w-md text-center text-[11px] text-warning">
+              {collect.error}
+            </p>
+          )}
+        </>
+      ) : (
+        <>
+          <Loader2
+            className="h-10 w-10 animate-spin text-accent"
+            strokeWidth={1.5}
+            aria-hidden="true"
+          />
+          <div className="flex flex-col items-center gap-1 text-center">
+            <p className="font-display text-xl font-semibold text-text-strong">
+              {active?.label ?? "Sweeping…"}
+            </p>
+            <p className="max-w-sm text-sm text-text-soft">
+              {active?.detail ?? "Running through the sweep stages."}
+            </p>
+          </div>
+          <ol
+            className="flex items-center gap-1.5"
+            aria-label="sweep progress"
+          >
+            {RUN_STAGES.map((s, i) => {
+              const completed = activeIdx > i;
+              const current = activeIdx === i;
+              return (
+                <li
+                  key={s.id}
+                  aria-label={s.label}
+                  className={
+                    "h-1.5 w-6 rounded-full " +
+                    (completed
+                      ? "bg-accent"
+                      : current
+                        ? "bg-accent/60"
+                        : "bg-border-soft")
+                  }
+                />
+              );
+            })}
+          </ol>
+        </>
+      )}
     </motion.section>
   );
 }
