@@ -39,22 +39,28 @@ import { useToast } from "@/components/ui/Toast";
 import { fetchVault } from "@/lib/ikavery/clearmsig-actions";
 import {
   enrollPasskeyForVault,
+  type EnrollAuthMode,
   type EnrollDeviceStage,
 } from "@/lib/ikavery/clearmsig-enrollment";
 import { registerPasskey } from "@/lib/ikavery/passkey/registration";
 import { loadAttestation } from "@/lib/ikavery/clearmsig-attestations";
+import { SCHEME_SOLANA_ADDRESS } from "@/lib/ikavery/constants";
 
 type Stage = "intro" | "enrolling" | "done";
 
-const ENROLL_STAGES: {
-  id: EnrollDeviceStage | "create-passkey";
+type SubStage = EnrollDeviceStage | "create-passkey";
+
+interface EnrollStageInfo {
+  id: SubStage;
   label: string;
   detail: string;
-}[] = [
+}
+
+const WALLET_ENROLL_STAGES: EnrollStageInfo[] = [
   {
     id: "create-passkey",
     label: "Creating passkey",
-    detail: "Touch ID / Face ID prompt - confirm to mint a new credential.",
+    detail: "Touch ID / Face ID prompt — confirm to mint a new credential.",
   },
   {
     id: "build",
@@ -75,6 +81,49 @@ const ENROLL_STAGES: {
     id: "confirm",
     label: "Waiting for confirmation",
     detail: "Solana confirms the new device is now on the roster.",
+  },
+];
+
+const PASSKEY_ENROLL_STAGES: EnrollStageInfo[] = [
+  {
+    id: "create-passkey",
+    label: "Creating new passkey",
+    detail: "Touch ID / Face ID prompt — confirm to mint a new credential.",
+  },
+  {
+    id: "propose-passkey",
+    label: "Tap an existing passkey · propose",
+    detail: "Authorising the enrollment proposal with a roster passkey.",
+  },
+  {
+    id: "sign",
+    label: "Sign propose tx",
+    detail: "Confirm in your wallet — pays fees, doesn't authorise.",
+  },
+  {
+    id: "submit",
+    label: "Submitting propose",
+    detail: "Recording the proposal on Solana.",
+  },
+  {
+    id: "confirm",
+    label: "Awaiting propose confirmation",
+    detail: "Solana confirms the proposal is on chain.",
+  },
+  {
+    id: "approve-passkey",
+    label: "Tap an existing passkey · approve",
+    detail: "Same passkey signs the approval challenge.",
+  },
+  {
+    id: "approve-sign",
+    label: "Sign approve tx",
+    detail: "Confirm in your wallet — bundles approve + execute.",
+  },
+  {
+    id: "approve-confirm",
+    label: "Awaiting approve confirmation",
+    detail: "Roster updated; new device is in.",
   },
 ];
 
@@ -121,11 +170,40 @@ function EnrollDevicePage() {
   });
 
   const [stage, setStage] = useState<Stage>("intro");
-  const [subStage, setSubStage] = useState<
-    EnrollDeviceStage | "create-passkey" | null
-  >(null);
+  const [subStage, setSubStage] = useState<SubStage | null>(null);
+  const [authMode, setAuthMode] = useState<EnrollAuthMode>("wallet");
   const [credentialIdHex, setCredentialIdHex] = useState<string | null>(null);
   const [txSig, setTxSig] = useState<string | null>(null);
+
+  // Detect whether the connected wallet is on the roster. If not, the
+  // page silently switches to passkey auth — that's the lost-wallet
+  // recovery / "borrowed gas wallet" case.
+  const walletIsMember = useMemo(() => {
+    if (!wallet.publicKey || !vaultQuery.data) return false;
+    const myBytes = wallet.publicKey.toBytes();
+    return vaultQuery.data.account.members.some((slot) => {
+      if (slot[0] !== SCHEME_SOLANA_ADDRESS) return false;
+      if (slot.length < 33) return false;
+      for (let i = 0; i < 32; i++) {
+        if (slot[1 + i] !== myBytes[i]) return false;
+      }
+      return true;
+    });
+  }, [wallet.publicKey, vaultQuery.data]);
+
+  const vaultHasPasskey = useMemo(() => {
+    if (!vaultQuery.data) return false;
+    return vaultQuery.data.account.members.some((slot) => slot[0] === 3);
+  }, [vaultQuery.data]);
+
+  useEffect(() => {
+    if (!vaultQuery.data) return;
+    if (!walletIsMember && vaultHasPasskey) {
+      setAuthMode("passkey");
+    } else if (walletIsMember) {
+      setAuthMode("wallet");
+    }
+  }, [vaultQuery.data, walletIsMember, vaultHasPasskey]);
 
   const fadeIn = (delay = 0) =>
     reduce
@@ -185,6 +263,7 @@ function EnrollDevicePage() {
         att?.publicKey ?? new Uint8Array(32);
 
       const result = await enrollPasskeyForVault({
+        authMode,
         connection,
         recovery: recoveryPk,
         recoveryId: vaultQuery.data.account.recoveryId,
@@ -271,12 +350,20 @@ function EnrollDevicePage() {
           onContinue={handleEnroll}
           loading={vaultQuery.isLoading}
           recoveryShort={`${recoveryStr.slice(0, 4)}…${recoveryStr.slice(-4)}`}
+          authMode={authMode}
+          setAuthMode={setAuthMode}
+          walletIsMember={walletIsMember}
+          vaultHasPasskey={vaultHasPasskey}
           reduce={!!reduce}
         />
       )}
 
       {!blockedByDisconnect && !blockedByLedger && stage === "enrolling" && (
-        <EnrollingStage subStage={subStage} reduce={!!reduce} />
+        <EnrollingStage
+          subStage={subStage}
+          authMode={authMode}
+          reduce={!!reduce}
+        />
       )}
 
       {stage === "done" && (
@@ -297,10 +384,23 @@ interface IntroStageProps {
   onContinue: () => void;
   loading: boolean;
   recoveryShort: string;
+  authMode: EnrollAuthMode;
+  setAuthMode: (m: EnrollAuthMode) => void;
+  walletIsMember: boolean;
+  vaultHasPasskey: boolean;
   reduce: boolean;
 }
 
-function IntroStage({ onContinue, loading, recoveryShort, reduce }: IntroStageProps) {
+function IntroStage({
+  onContinue,
+  loading,
+  recoveryShort,
+  authMode,
+  setAuthMode,
+  walletIsMember,
+  vaultHasPasskey,
+  reduce,
+}: IntroStageProps) {
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
@@ -341,12 +441,59 @@ function IntroStage({ onContinue, loading, recoveryShort, reduce }: IntroStagePr
             aria-hidden="true"
           />
           <span className="text-sm text-text-soft">
-            <span className="font-medium text-text-strong">One signature.</span>{" "}
-            propose + approve + execute travel in a single transaction -
-            you sign once, and the new device is live.
+            {authMode === "wallet" ? (
+              <>
+                <span className="font-medium text-text-strong">
+                  One signature.
+                </span>{" "}
+                propose + approve + execute travel in a single transaction —
+                you sign once, and the new device is live.
+              </>
+            ) : (
+              <>
+                <span className="font-medium text-text-strong">
+                  Two passkey taps.
+                </span>{" "}
+                an existing passkey authorises propose, then approve. The
+                connected wallet pays fees but doesn&rsquo;t need to be a
+                roster member.
+              </>
+            )}
           </span>
         </li>
       </ul>
+
+      {/* Auth picker — shown only when both options are viable. If
+          the connected wallet isn't on the roster the page silently
+          uses passkey. If the vault has no enrolled passkey yet,
+          wallet is the only option. */}
+      {walletIsMember && vaultHasPasskey && (
+        <section className="mx-auto w-full max-w-md flex flex-col gap-2 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+            Authorise as
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <AuthOption
+              active={authMode === "wallet"}
+              onClick={() => setAuthMode("wallet")}
+              label="Wallet"
+              detail="One-tap. Single tx."
+            />
+            <AuthOption
+              active={authMode === "passkey"}
+              onClick={() => setAuthMode("passkey")}
+              label="Existing passkey"
+              detail="Two passkey taps."
+            />
+          </div>
+        </section>
+      )}
+      {!walletIsMember && authMode === "passkey" && (
+        <p className="mx-auto max-w-md text-center text-[11px] text-text-soft">
+          Connected wallet isn&rsquo;t on this vault&rsquo;s roster — enrolling
+          via an existing passkey.
+        </p>
+      )}
 
       <div className="flex flex-col items-center gap-2">
         <Button size="lg" onClick={onContinue} disabled={loading}>
@@ -370,15 +517,55 @@ function IntroStage({ onContinue, loading, recoveryShort, reduce }: IntroStagePr
   );
 }
 
+function AuthOption({
+  active,
+  onClick,
+  label,
+  detail,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  detail: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "flex flex-col items-start gap-1 rounded-soft border bg-canvas px-3 py-3 text-left " +
+        "transition-[border-color,background-color] duration-base ease-out-soft " +
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent " +
+        (active
+          ? "border-accent bg-accent/[0.05]"
+          : "border-border-soft hover:border-accent/40")
+      }
+    >
+      <span
+        className={
+          "text-sm font-semibold " +
+          (active ? "text-accent" : "text-text-strong")
+        }
+      >
+        {label}
+      </span>
+      <span className="text-[11px] text-text-soft">{detail}</span>
+    </button>
+  );
+}
+
 interface EnrollingStageProps {
-  subStage: EnrollDeviceStage | "create-passkey" | null;
+  subStage: SubStage | null;
+  authMode: EnrollAuthMode;
   reduce: boolean;
 }
 
-function EnrollingStage({ subStage, reduce }: EnrollingStageProps) {
+function EnrollingStage({ subStage, authMode, reduce }: EnrollingStageProps) {
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
+  const ENROLL_STAGES =
+    authMode === "passkey" ? PASSKEY_ENROLL_STAGES : WALLET_ENROLL_STAGES;
   const activeIndex = ENROLL_STAGES.findIndex((s) => s.id === subStage);
   const active = activeIndex >= 0 ? ENROLL_STAGES[activeIndex] : null;
   return (

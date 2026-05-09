@@ -31,8 +31,11 @@ import bs58 from "bs58";
 import { buildProposeIx } from "./ix/propose";
 import { buildApproveIx } from "./ix/approve";
 import { buildExecuteIx } from "./ix/execute";
-import { packSolanaMember } from "./credential";
-import { SCHEME_SOLANA_ADDRESS } from "./constants";
+import { packMemberSlot, packSolanaMember } from "./credential";
+import {
+  SCHEME_SOLANA_ADDRESS,
+  SCHEME_WEBAUTHN,
+} from "./constants";
 import {
   CURVE_CURVE25519,
   IKA_DWALLET_PROGRAM_ID,
@@ -51,11 +54,21 @@ import { loadAttestation } from "./clearmsig-attestations";
 import { ikaPresignAndSignCurve25519 } from "./ika-web";
 import { IKAVERY_PROGRAM_ID } from "./constants";
 import type { AuthCredential } from "./ix/types";
+import {
+  bundleHashFromDigests,
+  proposeChallenge,
+  approveChallenge,
+} from "./passkey/challenges";
+import { runPasskeySign } from "./passkey/sign";
 
 export type SweepStage =
   | "build"
+  | "propose-passkey"
   | "propose-approve-sign"
   | "propose-approve-confirm"
+  | "approve-passkey"
+  | "approve-sign"
+  | "approve-confirm"
   | "execute-sign"
   | "execute-confirm"
   | "presign-sign"
@@ -63,11 +76,25 @@ export type SweepStage =
   | "broadcast-confirm"
   | "done";
 
+/**
+ * Auth mode controls who authorises the proposal + approval.
+ *
+ *   - "wallet": the connected Solana wallet (must be a member). One
+ *     signed tx covers propose + approve. Same flow shipped in v3e.
+ *   - "passkey": the user picks a passkey via the OS picker; we run
+ *     two assertions (one for propose, one for approve) and bundle
+ *     each with its secp256r1 precompile. Two passkey taps + two
+ *     wallet popups. The connected wallet pays fees but doesn't need
+ *     to be a member — this is the lost-wallet recovery path.
+ */
+export type SweepAuthMode = "wallet" | "passkey";
+
 export interface SweepParams {
   connection: Connection;
   recovery: PublicKey;
   recoveryId: PublicKey;
-  /** Connected wallet — pays fees + signs as member 0. */
+  /** Connected wallet — pays fees on every leg. Must be a member only
+   *  when authMode === "wallet". */
   creator: PublicKey;
   /** Destination for the sweep — receives the lamports. */
   destination: PublicKey;
@@ -75,6 +102,10 @@ export interface SweepParams {
   lamports: bigint;
   /** Sign callback — Dynamic's signTransaction wrapped from useWallet(). */
   signTransaction: <T extends VersionedTransaction>(tx: T) => Promise<T>;
+  /** Auth mode — defaults to "wallet" so legacy callers stay unchanged. */
+  authMode?: SweepAuthMode;
+  /** Optional RP id for passkey assertions. Defaults to window.location.hostname. */
+  rpId?: string;
   /** Optional progress reporter for the wizard. */
   onProgress?: (stage: SweepStage) => void;
 }
@@ -104,6 +135,8 @@ export async function runInAppSweep(params: SweepParams): Promise<SweepResult> {
     destination,
     lamports,
     signTransaction,
+    authMode = "wallet",
+    rpId,
     onProgress,
   } = params;
   const progress = onProgress ?? (() => undefined);
@@ -139,7 +172,9 @@ export async function runInAppSweep(params: SweepParams): Promise<SweepResult> {
   // execute will rebuild and compare against.
   progress("build");
   const sweepIxs = [transferSol(dwalletPubkey, destination, lamports)];
-  const proposeMsg = buildSweepMessage({
+  // proposeMsg here is just for digest computation; the actual on-chain
+  // execute uses the freshly-rebuilt finalMsg below.
+  buildSweepMessage({
     feePayer: dwalletPubkey,
     instructions: sweepIxs,
   });
@@ -150,41 +185,125 @@ export async function runInAppSweep(params: SweepParams): Promise<SweepResult> {
   );
   const intentDigest = hashIntents([intent]);
 
-  // Member 0 is the connected Solana wallet — credential for both
-  // propose and approve is SCHEME_SOLANA_ADDRESS (no inline sig; the
-  // on-chain handler matches the credential's pubkey to a tx Signer).
-  const credential: AuthCredential = {
-    scheme: SCHEME_SOLANA_ADDRESS,
-    pubkey: creator.toBytes(),
-  };
-  const memberSlot = packSolanaMember(creator);
+  // Stage 2: propose + approve.
+  const proposalIndex = account.proposalCount;
+  const recoveryIdBytes = recoveryId.toBytes();
+  let proposeSig: string;
+  let proposal: PublicKey;
 
-  // Stage 2: propose + approve in one user-signed tx.
-  const { ix: proposeIx, proposal } = buildProposeIx({
-    recovery,
-    recoveryId,
-    proposalIndex: account.proposalCount,
-    proposer: creator,
-    intentDigests: [intentDigest],
-    userPubkey: dwalletPubkey.toBytes(),
-    signatureScheme: SIG_SCHEME_EDDSA_SHA512,
-    credential,
-  });
-  const { ix: approveIx } = buildApproveIx({
-    recovery,
-    proposal,
-    payer: creator,
-    memberSlot,
-    credential,
-  });
-  const proposeSig = await sendBundle(
-    connection,
-    creator,
-    [proposeIx, approveIx],
-    signTransaction,
-    () => progress("propose-approve-sign"),
-    () => progress("propose-approve-confirm"),
-  );
+  if (authMode === "wallet") {
+    // Wallet mode: SCHEME_SOLANA_ADDRESS for both propose and approve;
+    // the on-chain handler matches the credential's pubkey to a tx
+    // Signer, so no inline signature needed and we can bundle in one tx.
+    const credential: AuthCredential = {
+      scheme: SCHEME_SOLANA_ADDRESS,
+      pubkey: creator.toBytes(),
+    };
+    const memberSlot = packSolanaMember(creator);
+    const built = buildProposeIx({
+      recovery,
+      recoveryId,
+      proposalIndex,
+      proposer: creator,
+      intentDigests: [intentDigest],
+      userPubkey: dwalletPubkey.toBytes(),
+      signatureScheme: SIG_SCHEME_EDDSA_SHA512,
+      credential,
+    });
+    proposal = built.proposal;
+    const { ix: approveIx } = buildApproveIx({
+      recovery,
+      proposal,
+      payer: creator,
+      memberSlot,
+      credential,
+    });
+    proposeSig = await sendBundle(
+      connection,
+      creator,
+      [built.ix, approveIx],
+      signTransaction,
+      () => progress("propose-approve-sign"),
+      () => progress("propose-approve-confirm"),
+    );
+  } else {
+    // Passkey mode. Two separate user-signed txs because each carries
+    // its own secp256r1 precompile + assertion challenge:
+    //   tx A: [precompile-for-propose, propose]   ← passkey tap A
+    //   tx B: [precompile-for-approve, approve]   ← passkey tap B
+    // Both txs are signed by the connected wallet (fee payer); the
+    // wallet doesn't need to be a roster member.
+
+    // --- propose ---
+    progress("propose-passkey");
+    const bundle = bundleHashFromDigests([intentDigest]);
+    const proposeC = proposeChallenge(
+      recoveryIdBytes,
+      bundle,
+      proposalIndex,
+    );
+    const proposeAssertion = await runPasskeySign({
+      challenge: proposeC,
+      rpId,
+    });
+    const proposePub = await pickRosterPubkey(
+      connection,
+      recovery,
+      proposeAssertion.candidatePubkeys,
+    );
+    const { precompileIx: proposePrecompile, credential: proposeCred } =
+      proposeAssertion.build(proposePub);
+    const built = buildProposeIx({
+      recovery,
+      recoveryId,
+      proposalIndex,
+      proposer: creator,
+      intentDigests: [intentDigest],
+      userPubkey: dwalletPubkey.toBytes(),
+      signatureScheme: SIG_SCHEME_EDDSA_SHA512,
+      credential: proposeCred,
+    });
+    proposal = built.proposal;
+    proposeSig = await sendBundle(
+      connection,
+      creator,
+      [proposePrecompile, built.ix],
+      signTransaction,
+      () => progress("propose-approve-sign"),
+      () => progress("propose-approve-confirm"),
+    );
+
+    // --- approve ---
+    progress("approve-passkey");
+    const approveC = approveChallenge(recoveryIdBytes, proposalIndex);
+    const approveAssertion = await runPasskeySign({
+      challenge: approveC,
+      rpId,
+    });
+    const approvePub = await pickRosterPubkey(
+      connection,
+      recovery,
+      approveAssertion.candidatePubkeys,
+    );
+    const { precompileIx: approvePrecompile, credential: approveCred } =
+      approveAssertion.build(approvePub);
+    const approveMemberSlot = packMemberSlot(SCHEME_WEBAUTHN, approvePub);
+    const { ix: approveIx } = buildApproveIx({
+      recovery,
+      proposal,
+      payer: creator,
+      memberSlot: approveMemberSlot,
+      credential: approveCred,
+    });
+    await sendBundle(
+      connection,
+      creator,
+      [approvePrecompile, approveIx],
+      signTransaction,
+      () => progress("approve-sign"),
+      () => progress("approve-confirm"),
+    );
+  }
 
   // Stage 3: execute. Rebuilds the message bytes with a fresh blockhash
   // (so the executor doesn't have to scramble for one between propose
@@ -283,6 +402,37 @@ export async function runInAppSweep(params: SweepParams): Promise<SweepResult> {
 
   progress("done");
   return { proposal, proposeSig, executeSig, broadcastSig };
+}
+
+/**
+ * Match each ECDSA-recovered candidate against the on-chain roster's
+ * SCHEME_WEBAUTHN slots and return the one that's actually a member.
+ * Throws if neither candidate matches — that means the user picked a
+ * passkey that isn't enrolled in this vault.
+ */
+async function pickRosterPubkey(
+  connection: Connection,
+  recovery: PublicKey,
+  candidates: Uint8Array[],
+): Promise<Uint8Array> {
+  const { account } = await fetchVault(connection, recovery);
+  for (const cand of candidates) {
+    const slot = packMemberSlot(SCHEME_WEBAUTHN, cand);
+    for (const memberSlot of account.members) {
+      if (memberSlot.length !== slot.length) continue;
+      let eq = true;
+      for (let i = 0; i < slot.length; i++) {
+        if (memberSlot[i] !== slot[i]) {
+          eq = false;
+          break;
+        }
+      }
+      if (eq) return cand;
+    }
+  }
+  throw new Error(
+    "The passkey you picked isn't on this vault's roster. Pick a passkey that's enrolled here, or use Wallet sign instead.",
+  );
 }
 
 async function sendBundle(

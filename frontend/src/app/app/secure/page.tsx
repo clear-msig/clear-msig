@@ -23,7 +23,7 @@
 //   - Three-step "how it works" row uses a continuous accent line
 //     between the tiles so the reader follows the flow.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion, useInView, useReducedMotion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
@@ -38,10 +38,12 @@ import {
   ShieldCheck,
   Vault as VaultIcon,
 } from "lucide-react";
+import { PublicKey } from "@solana/web3.js";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { Button } from "@/components/retail/Button";
 import { listVaultsForCreator } from "@/lib/ikavery/clearmsig-actions";
 import { type DecodedRecovery } from "@/lib/ikavery/discovery";
+import { loadAttestation } from "@/lib/ikavery/clearmsig-attestations";
 
 const IKAVERY_GITHUB = "https://github.com/Iamknownasfesal/ikavery";
 const IKA_SITE = "https://ika.xyz";
@@ -814,6 +816,7 @@ function ErrorCallout({
 }
 
 function VaultCard({ vault }: { vault: DecodedRecovery }) {
+  const { connection } = useConnection();
   const { account } = vault;
   const recoveryStr = vault.recovery.toBase58();
   const short = `${recoveryStr.slice(0, 4)}…${recoveryStr.slice(-4)}`;
@@ -822,6 +825,36 @@ function VaultCard({ vault }: { vault: DecodedRecovery }) {
   const thresholdPct =
     (Number(account.threshold) / Math.max(memberCount, 1)) * 100;
   const sweepLabel = `${proposalCount} sweep${proposalCount === 1 ? "" : "s"}`;
+
+  // Each card surfaces its dWallet's live SOL balance so the user
+  // can pick "the one with funds" at a glance instead of clicking
+  // through. The dWallet pubkey is read from localStorage (saved at
+  // create time); cards for vaults made on a different device will
+  // simply omit the balance, which is fine — the listing still
+  // works as a navigation surface.
+  const dwalletPubkey = useMemo(() => {
+    const att = loadAttestation(recoveryStr);
+    if (!att) return null;
+    try {
+      return new PublicKey(att.publicKey);
+    } catch {
+      return null;
+    }
+  }, [recoveryStr]);
+
+  const balanceQ = useQuery({
+    queryKey: ["ikavery-vault-balance", dwalletPubkey?.toBase58() ?? "none"],
+    queryFn: async () => {
+      if (!dwalletPubkey) return null;
+      return connection.getBalance(dwalletPubkey, "confirmed");
+    },
+    enabled: !!dwalletPubkey,
+    staleTime: 15_000,
+  });
+  const balanceSol =
+    typeof balanceQ.data === "number"
+      ? (balanceQ.data / 1e9).toFixed(2)
+      : null;
 
   return (
     <li>
@@ -864,7 +897,17 @@ function VaultCard({ vault }: { vault: DecodedRecovery }) {
               {memberCount}
             </span>
             <span className="mt-1 text-[10px] uppercase tracking-[0.16em] text-text-soft">
-              {sweepLabel}
+              {balanceSol != null ? (
+                <>
+                  <span className="font-numerals tabular-nums normal-case tracking-normal text-text-strong">
+                    {balanceSol}
+                  </span>
+                  {" SOL · "}
+                  {sweepLabel}
+                </>
+              ) : (
+                sweepLabel
+              )}
             </span>
           </div>
 
@@ -889,6 +932,15 @@ function VaultCard({ vault }: { vault: DecodedRecovery }) {
           <span className="font-numerals tabular-nums">{proposalCount}</span>
           {" sweep"}
           {proposalCount === 1 ? "" : "s"}
+          {balanceSol != null && (
+            <>
+              {" · "}
+              <span className="font-numerals tabular-nums text-text-strong">
+                {balanceSol}
+              </span>
+              {" SOL"}
+            </>
+          )}
         </p>
 
         {/* Threshold confidence bar - subtle, sits below all content.
