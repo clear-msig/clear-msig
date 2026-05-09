@@ -1,6 +1,6 @@
 "use client";
 
-// /app/secure/[recovery] — vault detail.
+// /app/secure/[recovery] - vault detail.
 //
 // Read-only view of a single Recovery account: threshold, members,
 // proposal counters, dwallet handle. Members are rendered as a
@@ -34,7 +34,6 @@ import {
 import { useState } from "react";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { PageEyebrow } from "@/components/retail/PageEyebrow";
-import { BackToWallets } from "@/components/retail/BackToWallets";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { fetchVault } from "@/lib/ikavery/clearmsig-actions";
 import {
@@ -104,9 +103,6 @@ function SecureRecoveryPage() {
   if (!recoveryPk) {
     return (
       <div className="flex flex-col gap-6">
-        <div className="px-gutter md:hidden">
-          <BackToWallets label="Wallets" />
-        </div>
         <div className="px-gutter">
           <Link
             href="/app/secure"
@@ -126,10 +122,6 @@ function SecureRecoveryPage() {
 
   return (
     <motion.div {...fadeIn(0)} className="flex flex-col gap-8">
-      <div className="px-gutter md:hidden">
-        <BackToWallets label="Wallets" />
-      </div>
-
       <div className="px-gutter">
         <Link
           href="/app/secure"
@@ -217,7 +209,7 @@ function SecureRecoveryPage() {
             </ul>
           </section>
 
-          {/* Action cards — Add device wired in v3b, Sweep wired in
+          {/* Action cards - Add device wired in v3b, Sweep wired in
               v3c (propose only; execute defers to upstream until the
               Ika dWallet on-chain coordinator binding lands). The
               card design mirrors the empty-state CTA on /app/secure:
@@ -329,7 +321,7 @@ function MemberRow({ index, slot, isUser }: MemberRowProps) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
     } catch {
-      /* clipboard blocked — silent */
+      /* clipboard blocked - silent */
     }
   };
   return (
@@ -441,7 +433,7 @@ function CopyAddressPill({ address }: { address: string }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
     } catch {
-      /* clipboard blocked — silent */
+      /* clipboard blocked - silent */
     }
   };
   return (

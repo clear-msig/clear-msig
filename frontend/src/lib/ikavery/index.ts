@@ -20,7 +20,7 @@ export * from "./pda";
 // Instruction builders
 export * from "./ix";
 
-// Passkey / WebAuthn auth — challenge derivation, secp256r1 precompile ix
+// Passkey / WebAuthn auth - challenge derivation, secp256r1 precompile ix
 // builder, and `navigator.credentials.get` driver. Browser-only consumers
 // import from here; Node-side helpers (challenges) work in any environment.
 export * as passkey from "./passkey";

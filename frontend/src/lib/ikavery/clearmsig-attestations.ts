@@ -5,7 +5,7 @@
 // When a user runs DKG to mint a dWallet for a new Recovery, the
 // network returns three byte arrays: `attestation_data`,
 // `network_signature`, `network_pubkey`. The on-chain Recovery row
-// only stores the dWallet's 32-byte public key — the rest of the
+// only stores the dWallet's 32-byte public key - the rest of the
 // attestation is required at SIGN time (sweep + roster change +
 // enrollment), and there's no on-chain slot for it.
 //
@@ -25,14 +25,14 @@ interface StoredAttestation {
   attestationData: string; // hex
   networkSignature: string;
   networkPubkey: string;
-  /** dWallet pubkey hex (32 bytes) — kept for sanity-checking the
+  /** dWallet pubkey hex (32 bytes) - kept for sanity-checking the
    *  on-chain Recovery row matches. */
   publicKey: string;
   /**
    * 32-byte session identifier returned from DKG (= what the CLI calls
    * `dwallet_addr`). Required as `session_identifier_preimage` for the
    * Presign / Sign gRPC calls. Optional in the stored shape so older
-   * v3a entries — written before this field existed — still load.
+   * v3a entries - written before this field existed - still load.
    */
   dwalletAddr?: string;
   ts: number;
@@ -62,7 +62,7 @@ function writeAll(next: StoredAttestationMap): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   } catch {
-    /* localStorage full / blocked — silent. v3 sweep will fail with
+    /* localStorage full / blocked - silent. v3 sweep will fail with
      * "no attestation" rather than corrupting other state. */
   }
 }

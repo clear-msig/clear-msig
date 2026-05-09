@@ -469,19 +469,44 @@ body {
 }
 
 /* Signing-state typing dots - three lime dots that pulse one
- * after the other, used by the bento approvals card to make the
- * "Ada is signing..." row read as live without driving a JS
- * animation loop. Selectors target the three sibling dots inside
- * the same parent via :nth-child to stagger phase. */
+ * after the other. Used by the landing bento "Ada is signing..."
+ * row and by the /app/secure VaultMockup. Generalised (no
+ * `.landing-shell` scope) so it works on any surface. */
 @keyframes signing-dot-pulse {
   0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
   30% { opacity: 1; transform: translateY(-2px); }
 }
-.landing-shell .signing-dot {
+.signing-dot {
   animation: signing-dot-pulse 1.3s ease-in-out infinite;
 }
-.landing-shell .signing-dot:nth-child(2) { animation-delay: 0.18s; }
-.landing-shell .signing-dot:nth-child(3) { animation-delay: 0.36s; }
+.signing-dot:nth-child(2) { animation-delay: 0.18s; }
+.signing-dot:nth-child(3) { animation-delay: 0.36s; }
+
+/* VaultMockup one-shot scan line - sweeps across the card on
+ * entry, then disappears. The accent value is read from the
+ * theme so the line tints correctly in light + dark modes. */
+@keyframes vault-mockup-scan-sweep {
+  0% { transform: translateX(-100%); opacity: 0; }
+  10% { opacity: 0.55; }
+  85% { opacity: 0.55; }
+  100% { transform: translateX(180%); opacity: 0; }
+}
+.vault-mockup-scan::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  width: 38%;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--accent) 18%, transparent) 50%,
+    transparent 70%
+  );
+  animation: vault-mockup-scan-sweep 2.4s cubic-bezier(0.22, 1, 0.36, 1) 0.5s 1
+    forwards;
+  opacity: 0;
+}
 
 /* Continuous lime glow on the signed amount. Subtle text-shadow
  * pulse keeps the focal number alive without distracting from
@@ -528,9 +553,10 @@ body {
   .landing-shell .lime-dot,
   .landing-shell .glow-drift,
   .landing-shell .orb-rotating,
-  .landing-shell .signing-dot,
   .landing-shell .amount-glow { animation: none !important; }
-  .landing-shell .receipt-scan::after { display: none; }
+  .signing-dot { animation: none !important; }
+  .landing-shell .receipt-scan::after,
+  .vault-mockup-scan::after { display: none; }
 }
 
 /* ── @media print ─────────────────────────────────────────────────

@@ -56,7 +56,7 @@ export function decodeRosterChangeProposal(
   const status = data[off]!;
   off += 1;
 
-  // Two Vec<MemberSlot, 16> — each prefixed by its own 2-byte length.
+  // Two Vec<MemberSlot, 16> - each prefixed by its own 2-byte length.
   const additions = readMemberVec(data, dv, off);
   off = additions.next;
   const removals = readMemberVec(data, dv, off);

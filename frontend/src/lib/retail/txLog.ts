@@ -154,7 +154,7 @@ export function listAttempts(walletName: string, limit?: number): TxAttempt[] {
 /// rows lack `recipientFull` and we can't pre-fill the input from
 /// a truncated display. Caller decides the limit.
 /// Each row carries the most recent successful send to that
-/// recipient. Used by the Cash-App-style recents list — avatar +
+/// recipient. Used by the Cash-App-style recents list - avatar +
 /// name (looked up via contacts in the consumer) + "Sent X SOL"
 /// subtitle. `amountDisplay` is the same string the user saw on
 /// the Sent screen, kept verbatim so the recents row reads as a

@@ -14,7 +14,7 @@ const u16le = (n: number): Buffer => {
 };
 
 /**
- * Pack `(curve, pubkey)` into the on-chain dWallet seed payload —
+ * Pack `(curve, pubkey)` into the on-chain dWallet seed payload -
  * `curve_u16_le || pubkey_bytes`. Same bytes the Rust SDK builds via
  * `DWalletPdaSeeds::new`.
  */
@@ -31,7 +31,7 @@ export function packDwalletSeedPayload(
 /**
  * Solana caps each PDA seed at 32 bytes (`MAX_SEED_LEN`), so the dWallet
  * program splits its `(curve || pubkey)` payload into 32-byte chunks. A
- * Curve25519 dWallet has a 34-byte payload — first 32 bytes, then 2 bytes.
+ * Curve25519 dWallet has a 34-byte payload - first 32 bytes, then 2 bytes.
  */
 function chunkSeed(payload: Buffer): Buffer[] {
   const chunks: Buffer[] = [];
@@ -42,7 +42,7 @@ function chunkSeed(payload: Buffer): Buffer[] {
 }
 
 /**
- * dWallet PDA on the dWallet program — seeds are `["dwallet", ...chunks]`
+ * dWallet PDA on the dWallet program - seeds are `["dwallet", ...chunks]`
  * where the chunks come from `pack_dwallet_seed_payload(curve, pubkey)`
  * split into 32-byte slices.
  */
@@ -60,7 +60,7 @@ export function dwalletPda(
 }
 
 /**
- * MessageApproval PDA — sits *under* the dWallet's seed prefix:
+ * MessageApproval PDA - sits *under* the dWallet's seed prefix:
  *   ["dwallet", ...chunks(curve||pubkey), "message_approval",
  *     scheme_u16_le, message_digest, [optional metadata_digest]]
  *
@@ -91,7 +91,7 @@ export function messageApprovalPda(
   return { pda, bump };
 }
 
-/** Singleton `DWalletCoordinator` PDA — stores the current epoch. */
+/** Singleton `DWalletCoordinator` PDA - stores the current epoch. */
 export function coordinatorPda(): { pda: PublicKey; bump: number } {
   const [pda, bump] = PublicKey.findProgramAddressSync(
     [SEED_DWALLET_COORDINATOR],
@@ -101,7 +101,7 @@ export function coordinatorPda(): { pda: PublicKey; bump: number } {
 }
 
 /**
- * CPI authority PDA on a calling program — `["__ika_cpi_authority"]`. The
+ * CPI authority PDA on a calling program - `["__ika_cpi_authority"]`. The
  * dWallet program checks the signer is this PDA before letting a caller
  * program issue a `MessageApproval` on its behalf.
  */

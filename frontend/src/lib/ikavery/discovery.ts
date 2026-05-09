@@ -95,7 +95,7 @@ export async function listAllRecoveries(
         account: decodeRecovery(r.account.data),
       });
     } catch {
-      // Skip unparseable rows — likely an older layout version, harmless
+      // Skip unparseable rows - likely an older layout version, harmless
       // for discovery purposes.
     }
   }
@@ -163,7 +163,7 @@ export interface DiscoveredTokenAccount {
 /**
  * List every non-empty SPL token account owned by `owner`. Walks both the
  * original Token program and Token-2022 because either can hold balances on
- * the dWallet pubkey. Only accounts with `amount > 0` are returned — empty
+ * the dWallet pubkey. Only accounts with `amount > 0` are returned - empty
  * (0-balance) ATAs would still occupy a tx slot in the sweep but contribute
  * nothing, so callers should filter them out anyway.
  */

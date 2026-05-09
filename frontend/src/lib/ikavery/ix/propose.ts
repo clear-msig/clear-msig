@@ -21,7 +21,7 @@ import { type AuthCredential, credentialArgs } from "./types";
 export interface ProposeParams {
   /** Recovery PDA (derived from the original `recoveryId`). */
   recovery: PublicKey;
-  /** The original `recoveryId` keypair's public address — needed for PDA derivation. */
+  /** The original `recoveryId` keypair's public address - needed for PDA derivation. */
   recoveryId: PublicKey;
   /**
    * Monotonically-increasing index. Must equal the current

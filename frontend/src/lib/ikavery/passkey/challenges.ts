@@ -1,5 +1,5 @@
 /**
- * Operation-bound challenge construction — TS port of
+ * Operation-bound challenge construction - TS port of
  * `solana/packages/program/src/auth/challenges.rs`. Every recovery
  * instruction that requires member authorisation gates on a credential
  * signing one of these well-known SHA-256 digests. Wire format matches
@@ -58,7 +58,7 @@ export function bundleHash(messages: Uint8Array[]): Uint8Array {
  * the on-chain `auth::challenges::bundle_hash_from_digests` so propose
  * callers can hash the bundle without the raw message bytes.
  *
- * `sha256(n_le || digest_0 || ... || digest_{n-1})` — equal to `bundleHash`
+ * `sha256(n_le || digest_0 || ... || digest_{n-1})` - equal to `bundleHash`
  * when each `digest_i = sha256(msg_i)`.
  */
 export function bundleHashFromDigests(digests: Uint8Array[]): Uint8Array {

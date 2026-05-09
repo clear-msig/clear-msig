@@ -65,7 +65,7 @@ export function enrollmentPda(recovery: PublicKey, index: number): PublicKey {
 /**
  * `member_id` slot for a credential is `[scheme, ...pubkey_or_address_bytes]`.
  * For approval PDAs we need its sha256 over the canonical id (scheme tag +
- * active pubkey, no trailing zero pad) — same bytes the program hashes via
+ * active pubkey, no trailing zero pad) - same bytes the program hashes via
  * `slot_id(slot)` before checking the supplied `member_id` UncheckedAccount.
  */
 export function memberIdHash(memberSlot: Uint8Array): PublicKey {

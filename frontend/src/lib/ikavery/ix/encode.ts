@@ -4,7 +4,7 @@
  * The on-chain handler reads ix args via Quasar's `#[instruction]` macro,
  * which pointer-casts a `repr(C)` zeropod struct over the data buffer.
  * Primitives are stored little-endian, fixed arrays inline. There's no
- * length prefix on `[u8; N]` — sizes are baked into the schema.
+ * length prefix on `[u8; N]` - sizes are baked into the schema.
  */
 
 export function writeU8(out: Uint8Array, off: number, v: number): number {

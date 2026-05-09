@@ -28,7 +28,7 @@ export interface ApproveParams {
   payer: PublicKey;
   /**
    * Member-id slot of the approver (the canonical `[scheme, pubkey]` form
-   * — `packMemberSlot` / `packSolanaMember` produce these). Used to
+   * - `packMemberSlot` / `packSolanaMember` produce these). Used to
    * compute the `member_id_hash` UncheckedAccount address that the program
    * uses as the Approval PDA's per-credential discriminator seed.
    */

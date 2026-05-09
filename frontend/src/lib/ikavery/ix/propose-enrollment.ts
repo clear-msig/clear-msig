@@ -26,7 +26,7 @@ export interface ProposeEnrollmentParams {
   /** New member's `MemberSlot`. Pre-packed via `packMemberSlot`. */
   newMember: Uint8Array;
   /**
-   * 32-byte encryption-key address — opaque on Solana ika pre-alpha (no
+   * 32-byte encryption-key address - opaque on Solana ika pre-alpha (no
    * re-encrypt CPI yet). Stored on the EnrollmentProposal so the future
    * mainnet path can fire CPI from the same data.
    */

@@ -44,14 +44,9 @@ import {
   fetchOnchainMemberships,
   type OnchainMembership,
 } from "@/lib/memberships/client";
-import {
-  useRecentActivity,
-  type RecentActivityRow,
-} from "@/lib/hooks/useRecentActivity";
+import { useRecentActivity } from "@/lib/hooks/useRecentActivity";
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
-import { friendlyStatus } from "@/lib/retail/labels";
 import { toDisplayName } from "@/lib/retail/walletNames";
-import { relativeTime } from "@/lib/util/relativeTime";
 import { avatarGradient } from "@/lib/retail/avatar";
 import { gradientFor } from "@/lib/retail/walletAppearance";
 import { useSidebar } from "@/components/providers/SidebarProvider";
@@ -167,34 +162,7 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
         </SidebarSection>
       )}
 
-      {/* Recent activity. Hidden in rail mode - text-only rows don't
-          translate to a meaningful icon and stacking would just create
-          dead space. */}
-      {expanded && (
-        <SidebarSection
-          label="Recent"
-          count={recent.rows.length}
-          loading={recent.loading}
-          expanded={expanded}
-        >
-          {recent.rows.length === 0 && !recent.loading ? (
-            <p className="px-2 text-[11px] text-text-soft">Nothing here yet.</p>
-          ) : (
-            <ul className="flex flex-col gap-0.5">
-              {recent.rows.map((r) => (
-                <SidebarActivityRow
-                  key={r.proposalPda}
-                  row={r}
-                  pathname={pathname}
-                  onNavigate={onNavigate}
-                />
-              ))}
-            </ul>
-          )}
-        </SidebarSection>
-      )}
-
-      {/* Secure promo card — discovery surface for the ikavery
+      {/* Secure promo card - discovery surface for the ikavery
           companion product. Expanded mode only; rail mode uses the
           dedicated icon in the bottom group below so the entry never
           disappears when the sidebar collapses. */}
@@ -229,8 +197,8 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
           <Link
             href="/app/secure"
             onClick={onNavigate}
-            aria-label="Secure — quorum-gated key recovery"
-            title="Secure — quorum-gated key recovery"
+            aria-label="Secure - quorum-gated key recovery"
+            title="Secure - quorum-gated key recovery"
             className={clsx(
               "inline-flex h-10 w-10 items-center justify-center rounded-soft border transition-colors duration-base ease-out-soft",
               pathname === "/app/secure" || pathname.startsWith("/app/secure/")
@@ -544,12 +512,10 @@ function SidebarSection({
   );
 }
 
-// Promoted "Secure" card — the discovery surface for ikavery
-// (a sister project on Ika dWallets that does t-of-N personal key
-// recovery). Replaced the old "Recent" sidebar section, which
-// duplicated the wallet hub's Activity tab. Renders only in
-// expanded sidebar mode; rail mode collapses it (the bottom-group
-// Secure icon stays visible). Active when on /app/secure.
+// Compact "Secure" entry - icon + single label, matching the
+// PrimaryNav row style. Clicking it navigates to /app/secure where
+// the recovery flow begins. Pure UI swap from the previous promo
+// card; routing target is unchanged.
 function SecurePromoCard({
   pathname,
   onNavigate,
@@ -563,79 +529,20 @@ function SecurePromoCard({
     <Link
       href={href}
       onClick={onNavigate}
-      aria-label="Secure — quorum-gated key recovery, powered by Ika"
+      aria-current={active ? "page" : undefined}
+      aria-label="Secure"
       className={clsx(
-        "group relative flex flex-col gap-1 overflow-hidden rounded-xl border bg-surface-raised p-3 transition-colors duration-base ease-out-soft",
+        "group relative inline-flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-medium",
+        "transition-colors duration-base ease-out-soft",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
         active
-          ? "border-accent/60"
-          : "border-border-soft hover:border-accent/40",
+          ? "bg-accent/10 text-accent"
+          : "text-text-soft hover:bg-glass-mid hover:text-text-strong",
       )}
     >
-      {/* Decorative accent rule + monospace eyebrow — nod to
-          ika.xyz / ikavery's numbered-section voice without
-          breaking clear-msig's eyebrow standard elsewhere. */}
-      <span aria-hidden="true" className="block h-px w-8 bg-accent" />
-      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
-        // 01 · secure
-      </p>
-      <p className="text-sm font-semibold text-text-strong">
-        Quorum-gated key recovery
-      </p>
-      <p className="text-[11px] leading-snug text-text-soft">
-        Place your Solana key under t-of-N. Powered by Ika.
-      </p>
-      <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-accent">
-        Open
-        <ChevronsRight className="h-3 w-3" aria-hidden="true" />
-      </span>
+      <ShieldCheck size={14} className="shrink-0" aria-hidden="true" />
+      <span className="flex-1 truncate">Secure</span>
     </Link>
-  );
-}
-
-// Sidebar row for the "Recent" activity section — one Proposal per
-// row, links into /app/wallet/<name>/proposal/<index>. Wallet name
-// + friendly status + relative time. Compact (text-[11px]) to fit
-// three rows above the bottom group without the sidebar feeling
-// crowded.
-function SidebarActivityRow({
-  row,
-  pathname,
-  onNavigate,
-}: {
-  row: RecentActivityRow;
-  pathname: string;
-  onNavigate?: () => void;
-}) {
-  const href = `/app/wallet/${encodeURIComponent(row.walletName)}/proposal/${row.proposalIndex.toString()}`;
-  const active = pathname.startsWith(href);
-  return (
-    <li>
-      <Link
-        href={href}
-        onClick={onNavigate}
-        className={clsx(
-          "group flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] transition-colors duration-base ease-out-soft",
-          active
-            ? "bg-accent/10 text-accent"
-            : "text-text-soft hover:bg-glass-mid hover:text-text-strong",
-        )}
-      >
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate font-medium">
-            {toDisplayName(row.walletName)}
-          </span>
-          <span className="flex items-center gap-1.5 text-[10px] text-text-soft">
-            <span>{friendlyStatus(row.status, row.intentTemplate)}</span>
-            {row.proposedAt > 0n && (
-              <>
-                <span aria-hidden="true" className="text-text-soft">·</span>
-                <span>{relativeTime(row.proposedAt)}</span>
-              </>
-            )}
-          </span>
-        </span>
-      </Link>
-    </li>
   );
 }
 

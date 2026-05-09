@@ -1,12 +1,12 @@
 "use client";
 
-// /app/secure/[recovery]/sweep — sweep composition wizard.
+// /app/secure/[recovery]/sweep - sweep composition wizard.
 //
 // What ships in v3c:
 //   - Three-stage flow: compose (form) → review (preview card) →
 //     handoff (explainer + upstream link + saved intent).
 //   - Builds the SOL transfer message client-side from the dWallet
-//     pubkey saved in v3a (loadAttestation) — destination + amount in
+//     pubkey saved in v3a (loadAttestation) - destination + amount in
 //     SOL, validated via base58 + numeric parse.
 //   - Saves the composed intent to localStorage so v3d's in-app
 //     execute path can pick it up without a re-prompt.
@@ -41,7 +41,6 @@ import {
 } from "lucide-react";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { Button } from "@/components/retail/Button";
-import { BackToWallets } from "@/components/retail/BackToWallets";
 import { PageEyebrow } from "@/components/retail/PageEyebrow";
 import { useToast } from "@/components/ui/Toast";
 import { fetchVault } from "@/lib/ikavery/clearmsig-actions";
@@ -165,7 +164,7 @@ function SweepPage() {
     if (!dwalletPubkey) {
       toast.error("dWallet attestation missing", {
         details:
-          "v3a saves the dWallet pubkey to local storage on create. If you signed in on a fresh browser, the sweep needs that data — re-mint via /secure/new for now.",
+          "v3a saves the dWallet pubkey to local storage on create. If you signed in on a fresh browser, the sweep needs that data - re-mint via /secure/new for now.",
       });
       return;
     }
@@ -193,7 +192,7 @@ function SweepPage() {
       all.push(intent);
       window.localStorage.setItem(SWEEP_INTENTS_KEY, JSON.stringify(all));
     } catch {
-      /* localStorage blocked — silent. The intent is still in the URL
+      /* localStorage blocked - silent. The intent is still in the URL
        * the user can copy. */
     }
     setStage("handoff");
@@ -224,10 +223,6 @@ function SweepPage() {
 
   return (
     <motion.div {...fadeIn(0)} className="flex flex-col gap-8">
-      <div className="px-gutter md:hidden">
-        <BackToWallets label="Wallets" />
-      </div>
-
       <div className="px-gutter">
         <Link
           href={`/app/secure/${encodeURIComponent(recoveryStr)}`}
@@ -549,7 +544,7 @@ function HandoffStage(props: HandoffStageProps) {
         <p className="leading-snug">
           <span className="font-medium text-text-strong">v3c limitation.</span>{" "}
           The on-chain execute path needs the dWallet&rsquo;s authority
-          transferred to ikavery&rsquo;s CPI authority — a one-time
+          transferred to ikavery&rsquo;s CPI authority - a one-time
           activation step landing in v3d. Until then, run the sweep
           upstream with the same credentials. The composed intent is on
           this device for the in-app flow when it lands.

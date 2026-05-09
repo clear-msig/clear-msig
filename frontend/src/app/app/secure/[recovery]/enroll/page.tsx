@@ -1,18 +1,18 @@
 "use client";
 
-// /app/secure/[recovery]/enroll — passkey enrollment wizard.
+// /app/secure/[recovery]/enroll - passkey enrollment wizard.
 //
 // Adds a new passkey to an existing solo Recovery's roster. Three
 // stages:
 //
-//   1. intro    — explain what a passkey adds (an extra signer,
+//   1. intro    - explain what a passkey adds (an extra signer,
 //                 device-bound) and the v3 limits (solo today, the
 //                 wizard fails fast on multi-member vaults).
-//   2. enrolling — call navigator.credentials.create to mint a new
+//   2. enrolling - call navigator.credentials.create to mint a new
 //                 passkey on this device, then submit the on-chain
 //                 propose+approve+execute bundle in one user
 //                 signature. Live progress dots track the stage.
-//   3. done     — success state with the new credential id and a
+//   3. done     - success state with the new credential id and a
 //                 link back to the vault detail.
 //
 // One signed transaction, one passkey-create prompt. No round-trips
@@ -34,7 +34,6 @@ import {
 } from "lucide-react";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { Button } from "@/components/retail/Button";
-import { BackToWallets } from "@/components/retail/BackToWallets";
 import { PageEyebrow } from "@/components/retail/PageEyebrow";
 import { useToast } from "@/components/ui/Toast";
 import { fetchVault } from "@/lib/ikavery/clearmsig-actions";
@@ -55,7 +54,7 @@ const ENROLL_STAGES: {
   {
     id: "create-passkey",
     label: "Creating passkey",
-    detail: "Touch ID / Face ID prompt — confirm to mint a new credential.",
+    detail: "Touch ID / Face ID prompt - confirm to mint a new credential.",
   },
   {
     id: "build",
@@ -157,7 +156,7 @@ function EnrollDevicePage() {
     if (vaultQuery.data.account.threshold !== 1) {
       toast.error("Solo vaults only at v3a", {
         details:
-          "Multi-member enrollment needs every existing member to sign the proposal — that flow lands in v3b.",
+          "Multi-member enrollment needs every existing member to sign the proposal - that flow lands in v3b.",
       });
       return;
     }
@@ -178,7 +177,7 @@ function EnrollDevicePage() {
       });
 
       // Encryption-key address. The pre-alpha program stores it but
-      // doesn't enforce it — re-encrypt CPI lands at mainnet. Using the
+      // doesn't enforce it - re-encrypt CPI lands at mainnet. Using the
       // saved DKG dwallet pubkey keeps the field meaningful for the
       // forthcoming sweep flow.
       const att = loadAttestation(recoveryStr);
@@ -223,10 +222,6 @@ function EnrollDevicePage() {
 
   return (
     <motion.div {...fadeIn(0)} className="flex flex-col gap-8">
-      <div className="px-gutter md:hidden">
-        <BackToWallets label="Wallets" />
-      </div>
-
       {stage !== "done" && (
         <div className="px-gutter">
           <Link
@@ -320,7 +315,7 @@ function IntroStage({ onContinue, loading, recoveryShort, reduce }: IntroStagePr
           Add a passkey
         </h1>
         <p className="mx-auto mt-2 max-w-md text-base text-text-soft">
-          A passkey is a device-bound signer — Touch ID, Face ID, or a
+          A passkey is a device-bound signer - Touch ID, Face ID, or a
           security key. Once enrolled it joins the roster of vault{" "}
           <span className="font-mono text-text-strong">{recoveryShort}</span>.
         </p>
@@ -347,7 +342,7 @@ function IntroStage({ onContinue, loading, recoveryShort, reduce }: IntroStagePr
           />
           <span className="text-sm text-text-soft">
             <span className="font-medium text-text-strong">One signature.</span>{" "}
-            propose + approve + execute travel in a single transaction —
+            propose + approve + execute travel in a single transaction -
             you sign once, and the new device is live.
           </span>
         </li>
@@ -445,7 +440,7 @@ function DoneStage({ credentialIdHex, txSig, onContinue, reduce }: DoneStageProp
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
   const credShort = credentialIdHex
     ? `${credentialIdHex.slice(0, 4)}…${credentialIdHex.slice(-4)}`
-    : "—";
+    : "-";
   return (
     <motion.section
       {...motionProps}
