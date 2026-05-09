@@ -2,20 +2,23 @@
 
 // /app/secure/[recovery]/threshold — bump the vault's approval threshold.
 //
-// One question, one click. The user picks a new threshold (2..N where
-// N = current member count) and signs one Solana tx that bundles
-// stage_roster_change_payload + propose + approve + execute. After
-// confirm, the vault is M-of-N.
+// Two auth modes:
+//   - Wallet (default when connected wallet is a roster member): one
+//     bundled tx covers stage + propose + approve + execute.
+//   - Passkey (default when wallet ISN'T a member, but the vault has
+//     a passkey): two passkey taps + two wallet popups, splitting the
+//     work into propose-tx then approve+execute-tx so each carries
+//     its own secp256r1 precompile + assertion.
 //
 // Pre-conditions enforced upfront so the user never gets a surprise
 // at sign time:
 //   - vault has ≥ 2 members (no quorum to change otherwise)
 //   - current threshold === 1 (this commit's bundled path; higher
 //     thresholds need multi-member coordination, follow-up)
-//   - connected wallet IS a roster member (Solana scheme)
 //   - new threshold differs from current
+//   - in wallet mode: connected wallet is on the roster
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
@@ -25,6 +28,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  Fingerprint,
   Loader2,
   ShieldCheck,
 } from "lucide-react";
@@ -36,35 +40,81 @@ import { useToast } from "@/components/ui/Toast";
 import { fetchVault } from "@/lib/ikavery/clearmsig-actions";
 import {
   bumpThresholdSimple,
+  type BumpAuthMode,
   type BumpThresholdStage,
 } from "@/lib/ikavery/clearmsig-roster";
-import { SCHEME_SOLANA_ADDRESS } from "@/lib/ikavery/constants";
+import { SCHEME_SOLANA_ADDRESS, SCHEME_WEBAUTHN } from "@/lib/ikavery/constants";
 
 type Stage = "intro" | "running" | "done";
 
-const RUN_STAGES: { id: BumpThresholdStage; label: string; detail: string }[] =
-  [
-    {
-      id: "build",
-      label: "Building bundle",
-      detail: "Packing stage + propose + approve + execute into one tx.",
-    },
-    {
-      id: "sign",
-      label: "Sign in your wallet",
-      detail: "One signature authorises the threshold change.",
-    },
-    {
-      id: "submit",
-      label: "Submitting on Solana",
-      detail: "Recording the roster change.",
-    },
-    {
-      id: "confirm",
-      label: "Waiting for confirmation",
-      detail: "Solana commits the new threshold.",
-    },
-  ];
+const WALLET_RUN_STAGES: {
+  id: BumpThresholdStage;
+  label: string;
+  detail: string;
+}[] = [
+  {
+    id: "build",
+    label: "Building bundle",
+    detail: "Packing stage + propose + approve + execute into one tx.",
+  },
+  {
+    id: "sign",
+    label: "Sign in your wallet",
+    detail: "One signature authorises the threshold change.",
+  },
+  {
+    id: "submit",
+    label: "Submitting on Solana",
+    detail: "Recording the roster change.",
+  },
+  {
+    id: "confirm",
+    label: "Waiting for confirmation",
+    detail: "Solana commits the new threshold.",
+  },
+];
+
+const PASSKEY_RUN_STAGES: {
+  id: BumpThresholdStage;
+  label: string;
+  detail: string;
+}[] = [
+  {
+    id: "propose-passkey",
+    label: "Tap your passkey",
+    detail: "Authorise the propose challenge.",
+  },
+  {
+    id: "sign",
+    label: "Sign propose tx",
+    detail: "Confirm the propose tx in your wallet.",
+  },
+  {
+    id: "submit",
+    label: "Submitting propose",
+    detail: "Recording the proposal on Solana.",
+  },
+  {
+    id: "confirm",
+    label: "Confirming propose",
+    detail: "Solana commits the proposal.",
+  },
+  {
+    id: "approve-passkey",
+    label: "Tap your passkey again",
+    detail: "Authorise the approve challenge.",
+  },
+  {
+    id: "approve-sign",
+    label: "Sign approve + execute tx",
+    detail: "Confirm the approve + execute tx in your wallet.",
+  },
+  {
+    id: "approve-confirm",
+    label: "Finalising",
+    detail: "Solana commits the new threshold.",
+  },
+];
 
 export default function ThresholdPageWrapper() {
   return (
@@ -133,6 +183,49 @@ function ThresholdPage() {
     });
   }, [wallet.publicKey, vaultQuery.data]);
 
+  const vaultHasPasskey = useMemo(() => {
+    if (!vaultQuery.data) return false;
+    return vaultQuery.data.account.members.some(
+      (slot) => slot[0] === SCHEME_WEBAUTHN,
+    );
+  }, [vaultQuery.data]);
+
+  const [authMode, setAuthMode] = useState<BumpAuthMode>("wallet");
+
+  // Pin authMode once vault loads — passkey if wallet isn't a member,
+  // wallet otherwise. The user can flip after; this just picks a sane
+  // default based on what's actually available on chain.
+  useEffect(() => {
+    if (!vaultQuery.data) return;
+    if (!walletIsMember && vaultHasPasskey) {
+      setAuthMode("passkey");
+    } else if (walletIsMember) {
+      setAuthMode("wallet");
+    }
+  }, [vaultQuery.data, walletIsMember, vaultHasPasskey]);
+
+  // Pre-flight WebAuthn capability check so the user gets a clear
+  // message at page load instead of a hung passkey prompt.
+  const [webauthnState, setWebauthnState] = useState<
+    | null
+    | { ok: true }
+    | { ok: false; reason: "insecure" | "unavailable" }
+  >(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const insecure =
+      typeof window.isSecureContext === "boolean" && !window.isSecureContext;
+    if (insecure) {
+      setWebauthnState({ ok: false, reason: "insecure" });
+      return;
+    }
+    const hasApi =
+      typeof navigator !== "undefined" &&
+      !!navigator.credentials &&
+      typeof navigator.credentials.get === "function";
+    setWebauthnState(hasApi ? { ok: true } : { ok: false, reason: "unavailable" });
+  }, []);
+
   const [stage, setStage] = useState<Stage>("intro");
   const [runStage, setRunStage] = useState<BumpThresholdStage | null>(null);
   const [txSig, setTxSig] = useState<string | null>(null);
@@ -150,7 +243,16 @@ function ThresholdPage() {
       });
       return;
     }
-    setRunStage("build");
+    if (authMode === "passkey" && webauthnState?.ok === false) {
+      toast.error("Passkey unavailable", {
+        details:
+          webauthnState.reason === "insecure"
+            ? "Reload over HTTPS and try again."
+            : "This browser doesn't expose WebAuthn — try Chrome / Safari / Edge in a normal tab.",
+      });
+      return;
+    }
+    setRunStage(authMode === "passkey" ? "propose-passkey" : "build");
     setStage("running");
     try {
       const result = await bumpThresholdSimple({
@@ -159,6 +261,7 @@ function ThresholdPage() {
         recoveryId: vaultQuery.data.account.recoveryId,
         creator: wallet.publicKey,
         newThreshold,
+        authMode,
         signTransaction: wallet.signTransaction,
         onProgress: (s) => setRunStage(s),
       });
@@ -206,8 +309,13 @@ function ThresholdPage() {
   const blockedByMembers = !!vaultQuery.data && memberCount < 2;
   const blockedByThreshold =
     !!vaultQuery.data && currentThreshold !== 1;
+  // Wallet not a member AND vault has no passkey to fall back to →
+  // there is genuinely nothing the user can do here.
   const blockedByNotMember =
-    !!vaultQuery.data && wallet.connected && !walletIsMember;
+    !!vaultQuery.data &&
+    wallet.connected &&
+    !walletIsMember &&
+    !vaultHasPasskey;
 
   return (
     <motion.div {...fadeIn(0)} className="flex flex-col gap-8">
@@ -310,7 +418,7 @@ function ThresholdPage() {
           <BlockedNote
             eyebrow="Not a member"
             title="Switch to a roster wallet"
-            body="The connected wallet isn't on this vault's roster. Switch wallets to one that is, or wait for the passkey-bump flow."
+            body="The connected wallet isn't on this vault's roster, and the vault has no enrolled passkey to authorise with instead. Switch wallets, or enroll a passkey from the vault page first."
           />
         )}
 
@@ -329,12 +437,19 @@ function ThresholdPage() {
             minNew={minNew}
             maxNew={maxNew}
             recoveryShort={`${recoveryStr.slice(0, 4)}…${recoveryStr.slice(-4)}`}
+            authMode={authMode}
+            setAuthMode={setAuthMode}
+            walletIsMember={walletIsMember}
+            vaultHasPasskey={vaultHasPasskey}
+            webauthnState={webauthnState}
             onContinue={handleRun}
             reduce={!!reduce}
           />
         )}
 
-      {stage === "running" && <RunningStage subStage={runStage} reduce={!!reduce} />}
+      {stage === "running" && (
+        <RunningStage subStage={runStage} authMode={authMode} reduce={!!reduce} />
+      )}
 
       {stage === "done" && (
         <DoneStage
@@ -359,6 +474,14 @@ interface IntroStageProps {
   minNew: number;
   maxNew: number;
   recoveryShort: string;
+  authMode: BumpAuthMode;
+  setAuthMode: (m: BumpAuthMode) => void;
+  walletIsMember: boolean;
+  vaultHasPasskey: boolean;
+  webauthnState:
+    | null
+    | { ok: true }
+    | { ok: false; reason: "insecure" | "unavailable" };
   onContinue: () => void;
   reduce: boolean;
 }
@@ -371,6 +494,11 @@ function IntroStage({
   minNew,
   maxNew,
   recoveryShort,
+  authMode,
+  setAuthMode,
+  walletIsMember,
+  vaultHasPasskey,
+  webauthnState,
   onContinue,
   reduce,
 }: IntroStageProps) {
@@ -436,33 +564,130 @@ function IntroStage({
         </div>
       </section>
 
+      {/* Auth picker — shown only when both options are viable. If
+          the wallet isn't a roster member but the vault has a passkey,
+          we silently use passkey. If only wallet is viable, no picker. */}
+      {walletIsMember && vaultHasPasskey && (
+        <section className="mx-auto w-full max-w-md flex flex-col gap-2 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+            Authorise as
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <AuthOption
+              active={authMode === "wallet"}
+              onClick={() => setAuthMode("wallet")}
+              label="Wallet"
+              detail="One-tap. Single tx."
+            />
+            <AuthOption
+              active={authMode === "passkey"}
+              onClick={() => setAuthMode("passkey")}
+              label="Existing passkey"
+              detail="Two passkey taps."
+            />
+          </div>
+        </section>
+      )}
+      {!walletIsMember && authMode === "passkey" && (
+        <p className="mx-auto max-w-md text-center text-[11px] text-text-soft">
+          Connected wallet isn&rsquo;t on this vault&rsquo;s roster — bumping
+          via an existing passkey.
+        </p>
+      )}
+
+      {/* Pre-flight WebAuthn warning, only relevant in passkey mode. */}
+      {authMode === "passkey" && webauthnState && !webauthnState.ok && (
+        <aside className="mx-auto flex max-w-md items-start gap-3 rounded-card border border-warning/40 bg-warning/[0.06] p-4 text-sm text-text-soft">
+          <ShieldCheck
+            className="mt-0.5 h-5 w-5 shrink-0 text-warning"
+            strokeWidth={2}
+            aria-hidden="true"
+          />
+          <p className="leading-snug">
+            <span className="font-medium text-text-strong">
+              Passkeys aren&rsquo;t available here.
+            </span>{" "}
+            {webauthnState.reason === "insecure"
+              ? "WebAuthn requires HTTPS. Reload the page over https:// (or localhost) and try again."
+              : "Your browser doesn't expose passkey support — try Chrome / Safari / Edge in a normal tab. Webview-embedded browsers (Twitter, Instagram, in-app) often disable WebAuthn."}
+          </p>
+        </aside>
+      )}
+
       <div className="mx-auto flex flex-col items-center gap-2">
-        <Button size="lg" onClick={onContinue}>
-          Lock to {newThreshold} of {memberCount}
-          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        <Button
+          size="lg"
+          onClick={onContinue}
+          disabled={authMode === "passkey" && webauthnState?.ok === false}
+        >
+          {authMode === "passkey" ? (
+            <>
+              <Fingerprint className="h-4 w-4" aria-hidden="true" />
+              Lock to {newThreshold} of {memberCount}
+            </>
+          ) : (
+            <>
+              Lock to {newThreshold} of {memberCount}
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </>
+          )}
         </Button>
         <p className="text-[11px] text-text-soft">
-          One signature in your wallet. One Solana tx. Reversible later via
-          another roster change.
+          {authMode === "passkey"
+            ? "Two passkey taps + two wallet popups. Reversible later via another roster change."
+            : "One signature in your wallet. One Solana tx. Reversible later via another roster change."}
         </p>
       </div>
     </motion.section>
   );
 }
 
+function AuthOption({
+  active,
+  onClick,
+  label,
+  detail,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  detail: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "flex flex-col items-start gap-1 rounded-soft border bg-canvas px-3 py-3 text-left " +
+        "transition-[border-color,background-color] duration-base ease-out-soft " +
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent " +
+        (active
+          ? "border-accent bg-accent/[0.05]"
+          : "border-border-soft hover:border-accent/40")
+      }
+    >
+      <span className="font-display text-sm font-semibold text-text-strong">
+        {label}
+      </span>
+      <span className="text-[11px] text-text-soft">{detail}</span>
+    </button>
+  );
+}
+
 interface RunningStageProps {
   subStage: BumpThresholdStage | null;
+  authMode: BumpAuthMode;
   reduce: boolean;
 }
 
-function RunningStage({ subStage, reduce }: RunningStageProps) {
+function RunningStage({ subStage, authMode, reduce }: RunningStageProps) {
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
-  const activeIdx = subStage
-    ? RUN_STAGES.findIndex((s) => s.id === subStage)
-    : 0;
-  const active = activeIdx >= 0 ? RUN_STAGES[activeIdx] : RUN_STAGES[0]!;
+  const stages =
+    authMode === "passkey" ? PASSKEY_RUN_STAGES : WALLET_RUN_STAGES;
+  const activeIdx = subStage ? stages.findIndex((s) => s.id === subStage) : 0;
+  const active = activeIdx >= 0 ? stages[activeIdx] : stages[0]!;
   return (
     <motion.section
       {...motionProps}
@@ -483,7 +708,7 @@ function RunningStage({ subStage, reduce }: RunningStageProps) {
         </p>
       </div>
       <ol className="flex items-center gap-1.5" aria-label="bump progress">
-        {RUN_STAGES.map((s, i) => {
+        {stages.map((s, i) => {
           const completed = activeIdx > i;
           const current = activeIdx === i;
           return (

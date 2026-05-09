@@ -26,16 +26,22 @@
 //     SCHEME_SOLANA_ADDRESS is verified via the tx signer list).
 //   - All four ixs fit in one tx, one user popup.
 //
-// Why this commit ships wallet-mode only: passkey-mode would need
-// precompile + WebAuthn assertions for both the propose challenge and
-// the approve challenge — two passkey taps + two separate txs (the
-// way the sweep flow handles it). Worth doing, but the wallet-mode
-// case covers the common path "I have my wallet, lock down my own
-// vault" cleanly. Passkey bump is a follow-up.
+// Two auth modes, mirroring sweep + enroll:
+//
+//   "wallet"  — connected Solana wallet IS a roster member. The
+//               credential is SCHEME_SOLANA_ADDRESS (no inline sig)
+//               so all four ixs ride in ONE user-signed tx.
+//   "passkey" — connected wallet pays fees but isn't a member; an
+//               existing passkey on this device is. Two split txs
+//               with secp256r1 precompiles for the propose and
+//               approve challenges. Two passkey taps + two wallet
+//               popups. This is the "lost wallet, lock down via
+//               passkey" path.
 
 import {
   Connection,
   PublicKey,
+  type TransactionInstruction,
   TransactionMessage,
   VersionedTransaction,
 } from "@solana/web3.js";
@@ -44,28 +50,47 @@ import { buildStageRosterChangePayloadIx } from "./ix/stage-roster-change";
 import { buildProposeRosterChangeIx } from "./ix/propose-roster-change";
 import { buildApproveRosterChangeIx } from "./ix/approve-roster-change";
 import { buildExecuteRosterChangeIx } from "./ix/execute-roster-change";
-import { packSolanaMember } from "./credential";
-import { SCHEME_SOLANA_ADDRESS, MAX_MEMBERS } from "./constants";
+import { packMemberSlot, packSolanaMember } from "./credential";
+import {
+  SCHEME_SOLANA_ADDRESS,
+  SCHEME_WEBAUTHN,
+  MAX_MEMBERS,
+} from "./constants";
 import { fetchVault } from "./clearmsig-actions";
-import { rosterChangePayloadHash } from "./passkey/challenges";
+import {
+  rosterChangePayloadHash,
+  rosterChangeProposeChallenge,
+  rosterChangeApproveChallenge,
+} from "./passkey/challenges";
+import { runPasskeySign } from "./passkey/sign";
 import type { AuthCredential } from "./ix/types";
+
+export type BumpAuthMode = "wallet" | "passkey";
 
 export type BumpThresholdStage =
   | "build"
+  | "propose-passkey"
   | "sign"
   | "submit"
   | "confirm"
+  | "approve-passkey"
+  | "approve-sign"
+  | "approve-confirm"
   | "done";
 
 export interface BumpThresholdParams {
   connection: Connection;
   recovery: PublicKey;
   recoveryId: PublicKey;
-  /** Connected Solana wallet — must be a roster member. Pays fees + auths. */
+  /** Connected Solana wallet — pays fees on every leg. Roster member only when authMode === "wallet". */
   creator: PublicKey;
   /** New threshold. Must be 1..members.length and != current threshold. */
   newThreshold: number;
   signTransaction: <T extends VersionedTransaction>(tx: T) => Promise<T>;
+  /** Defaults to "wallet" so legacy callers stay unchanged. */
+  authMode?: BumpAuthMode;
+  /** RP id for passkey assertions. Defaults to window.location.hostname. */
+  rpId?: string;
   onProgress?: (stage: BumpThresholdStage) => void;
 }
 
@@ -99,6 +124,8 @@ export async function bumpThresholdSimple(
     newThreshold,
     signTransaction,
     onProgress,
+    authMode = "wallet",
+    rpId,
   } = params;
   const progress = onProgress ?? (() => undefined);
 
@@ -128,23 +155,24 @@ export async function bumpThresholdSimple(
     );
   }
 
-  // Verify the connected wallet IS the (single) member that will both
-  // propose and approve. On-chain the credential→member match is by
-  // pubkey within the tx Signer set; checking client-side gives a
-  // clearer error before the user pays for a sim that will fail.
+  // Wallet mode requires the connected wallet to BE the member that
+  // proposes + approves. Passkey mode bypasses the check because the
+  // connected wallet only pays fees there — the actual auth comes
+  // from a passkey assertion at sign time.
   const creatorSlot = packSolanaMember(creator);
-  const onRoster = account.members.some((m) =>
-    bytesEqual(m, creatorSlot),
-  );
-  if (!onRoster) {
-    throw new Error(
-      "Connected wallet isn't on this vault's roster. Switch to a wallet member, or use the passkey-bump flow once it lands.",
-    );
+  if (authMode === "wallet") {
+    const onRoster = account.members.some((m) => bytesEqual(m, creatorSlot));
+    if (!onRoster) {
+      throw new Error(
+        "Connected wallet isn't on this vault's roster. Switch wallets, or pick Passkey instead.",
+      );
+    }
   }
 
   progress("build");
 
   const rosterChangeIndex = account.rosterChangeCount;
+  const recoveryIdBytes = recoveryId.toBytes();
 
   // Payload: no add/remove, threshold-only change. The on-chain hash
   // helper (`auth::challenges::roster_change_payload`) hashes
@@ -153,11 +181,6 @@ export async function bumpThresholdSimple(
   // bump-only path we leave additions empty so there's nothing
   // unauthenticated in the staging payload anyway.
   const payloadHash = rosterChangePayloadHash([], newThreshold, true);
-
-  const credential: AuthCredential = {
-    scheme: SCHEME_SOLANA_ADDRESS,
-    pubkey: creator.toBytes(),
-  };
 
   const { ix: stageIx } = buildStageRosterChangePayloadIx({
     recovery,
@@ -169,55 +192,196 @@ export async function bumpThresholdSimple(
     additionApproverOnlyBitmap: 0,
     newThreshold,
   });
-  const { ix: proposeIx, rosterChange } = buildProposeRosterChangeIx({
-    recovery,
-    recoveryId,
-    rosterChangeIndex,
-    payer: creator,
-    payloadHash,
-    credential,
-  });
 
-  const { ix: approveIx } = buildApproveRosterChangeIx({
-    recovery,
-    rosterChange,
-    payer: creator,
-    memberSlot: creatorSlot,
-    credential,
-  });
+  let rosterChange: PublicKey;
+  let txSignature: string;
 
-  const executeIx = buildExecuteRosterChangeIx({
-    recovery,
-    rosterChange,
-    payer: creator,
-  });
+  if (authMode === "wallet") {
+    // Wallet mode: SCHEME_SOLANA_ADDRESS for both propose and approve;
+    // matching by tx Signer set means no inline sig needed and we can
+    // bundle stage+propose+approve+execute in ONE user-signed tx.
+    const credential: AuthCredential = {
+      scheme: SCHEME_SOLANA_ADDRESS,
+      pubkey: creator.toBytes(),
+    };
+    const { ix: proposeIx, rosterChange: proposalAccount } =
+      buildProposeRosterChangeIx({
+        recovery,
+        recoveryId,
+        rosterChangeIndex,
+        payer: creator,
+        payloadHash,
+        credential,
+      });
+    rosterChange = proposalAccount;
+    const { ix: approveIx } = buildApproveRosterChangeIx({
+      recovery,
+      rosterChange,
+      payer: creator,
+      memberSlot: creatorSlot,
+      credential,
+    });
+    const executeIx = buildExecuteRosterChangeIx({
+      recovery,
+      rosterChange,
+      payer: creator,
+    });
 
+    txSignature = await sendBundle(
+      connection,
+      creator,
+      [stageIx, proposeIx, approveIx, executeIx],
+      signTransaction,
+      () => progress("sign"),
+      () => progress("submit"),
+      () => progress("confirm"),
+    );
+  } else {
+    // Passkey mode. Two separate user-signed txs because each carries
+    // its own secp256r1 precompile + assertion challenge:
+    //   tx A: [stage_payload, precompile-for-propose, propose]   ← passkey tap A
+    //   tx B: [precompile-for-approve, approve, execute]         ← passkey tap B
+    // Both txs are paid for by the connected wallet (fee payer); the
+    // wallet doesn't need to be a roster member.
+
+    // --- propose ---
+    progress("propose-passkey");
+    const proposeC = rosterChangeProposeChallenge(
+      recoveryIdBytes,
+      payloadHash,
+      rosterChangeIndex,
+    );
+    const proposeAssertion = await runPasskeySign({
+      challenge: proposeC,
+      rpId,
+    });
+    const proposePub = pickRosterPubkey(
+      account.members,
+      proposeAssertion.candidatePubkeys,
+    );
+    const { precompileIx: proposePrecompile, credential: proposeCred } =
+      proposeAssertion.build(proposePub);
+
+    const { ix: proposeIx, rosterChange: proposalAccount } =
+      buildProposeRosterChangeIx({
+        recovery,
+        recoveryId,
+        rosterChangeIndex,
+        payer: creator,
+        payloadHash,
+        credential: proposeCred,
+      });
+    rosterChange = proposalAccount;
+
+    await sendBundle(
+      connection,
+      creator,
+      [stageIx, proposePrecompile, proposeIx],
+      signTransaction,
+      () => progress("sign"),
+      () => progress("submit"),
+      () => progress("confirm"),
+    );
+
+    // --- approve + execute ---
+    progress("approve-passkey");
+    const approveC = rosterChangeApproveChallenge(
+      recoveryIdBytes,
+      rosterChangeIndex,
+    );
+    const approveAssertion = await runPasskeySign({
+      challenge: approveC,
+      rpId,
+    });
+    const approvePub = pickRosterPubkey(
+      account.members,
+      approveAssertion.candidatePubkeys,
+    );
+    const { precompileIx: approvePrecompile, credential: approveCred } =
+      approveAssertion.build(approvePub);
+    const approverMemberSlot = packMemberSlot(SCHEME_WEBAUTHN, approvePub);
+
+    const { ix: approveIx } = buildApproveRosterChangeIx({
+      recovery,
+      rosterChange,
+      payer: creator,
+      memberSlot: approverMemberSlot,
+      credential: approveCred,
+    });
+    const executeIx = buildExecuteRosterChangeIx({
+      recovery,
+      rosterChange,
+      payer: creator,
+    });
+
+    txSignature = await sendBundle(
+      connection,
+      creator,
+      [approvePrecompile, approveIx, executeIx],
+      signTransaction,
+      () => progress("approve-sign"),
+      () => progress("approve-confirm"),
+      () => progress("approve-confirm"),
+    );
+  }
+
+  progress("done");
+  return { rosterChange, txSignature };
+}
+
+function pickRosterPubkey(
+  members: Uint8Array[],
+  candidates: Uint8Array[],
+): Uint8Array {
+  for (const cand of candidates) {
+    const slot = packMemberSlot(SCHEME_WEBAUTHN, cand);
+    for (const memberSlot of members) {
+      if (memberSlot.length !== slot.length) continue;
+      let eq = true;
+      for (let i = 0; i < slot.length; i++) {
+        if (memberSlot[i] !== slot[i]) {
+          eq = false;
+          break;
+        }
+      }
+      if (eq) return cand;
+    }
+  }
+  throw new Error(
+    "The passkey you picked isn't on this vault's roster. Pick a passkey that's enrolled here, or use Wallet sign instead.",
+  );
+}
+
+async function sendBundle(
+  connection: Connection,
+  payer: PublicKey,
+  ixs: TransactionInstruction[],
+  signTransaction: <T extends VersionedTransaction>(tx: T) => Promise<T>,
+  onSign: () => void,
+  onSubmit: () => void,
+  onConfirm: () => void,
+): Promise<string> {
   const { blockhash, lastValidBlockHeight } =
     await connection.getLatestBlockhash("confirmed");
   const message = new TransactionMessage({
-    payerKey: creator,
+    payerKey: payer,
     recentBlockhash: blockhash,
-    instructions: [stageIx, proposeIx, approveIx, executeIx],
+    instructions: ixs,
   }).compileToV0Message();
   const tx = new VersionedTransaction(message);
-
-  progress("sign");
+  onSign();
   const signed = await signTransaction(tx);
-
-  progress("submit");
+  onSubmit();
   const sig = await connection.sendRawTransaction(signed.serialize(), {
     skipPreflight: false,
     preflightCommitment: "confirmed",
   });
-
-  progress("confirm");
+  onConfirm();
   await connection.confirmTransaction(
     { signature: sig, blockhash, lastValidBlockHeight },
     "confirmed",
   );
-
-  progress("done");
-  return { rosterChange, txSignature: sig };
+  return sig;
 }
 
 function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
