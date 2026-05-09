@@ -556,7 +556,7 @@ function FirstVisitCard() {
             add friends after.
           </p>
         </div>
-        <Link href="/welcome">
+        <Link href="/app/wallet/new">
           <Button size="lg">
             Create your first wallet
             <ArrowRight className="h-4 w-4" aria-hidden="true" />

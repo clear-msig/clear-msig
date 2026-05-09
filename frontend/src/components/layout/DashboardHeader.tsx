@@ -134,7 +134,7 @@ export function DashboardHeader() {
           </kbd>
         </button>
         <Link
-          href="/welcome"
+          href="/app/wallet/new"
           aria-label="New shared wallet"
           className={clsx(
             "inline-flex items-center gap-1.5 rounded-soft bg-accent px-3 py-1.5 text-xs font-medium text-text-on-accent shadow-accent-rest",
