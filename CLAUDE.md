@@ -267,6 +267,36 @@ Wrong offsets silently corrupt dashboard data for any wallet with a custom inten
 - Solana intents need a durable nonce account with authority set to the dWallet pubkey, otherwise `ika_sign` builds a preimage that won't broadcast.
 - Ika is a single mock signer pre-alpha — don't write code that assumes distributed-MPC properties (e.g. signer-set rotation, threshold MPC reshares).
 
+## Tested-working surfaces — do not break these
+
+These code paths are confirmed working end-to-end on devnet/testnet and have real broadcast evidence on chain. Treat them as load-bearing. Before changing any of them, read the existing implementation fully — they encode bug fixes that took multiple iterations to land. If a future failure looks like one of these, **suspect environment / wallet state first**, not the code.
+
+| Surface | Status | Load-bearing files (do not "tidy") |
+|---|---|---|
+| **Solana send** (Curve25519, EdDSA) | Live, tested | `cli/src/chains/solana_broadcast.rs`, `programs/clear-wallet/src/chains/solana_dwallet.rs` |
+| **Bitcoin P2WPKH send** (testnet3) | Live, broadcast confirmed at `mempool.space/testnet` | `cli/src/chains/bitcoin.rs::pick_verifying_combination` (multi-digest probe + LE-scalar fallback), `programs/clear-wallet/src/chains/bitcoin.rs` |
+| **EVM 1559 send** (Sepolia) | Live on **fresh wallets** (per-chain attestation) | `cli/src/chains/evm.rs::recover_v` (LE→BE scalar auto-correction, commit `92250a0`), `programs/clear-wallet/src/chains/evm.rs` |
+| **Per-chain DKG attestation files** | Required for all secp256k1 chains | `cli/src/ika.rs::save_attestation` / `load_attestation` (writes `<wallet>__c<chain_kind>.json`, falls back to legacy `<wallet>.json`) — call sites at `cli/src/commands/wallet.rs:335` and `cli/src/commands/proposal.rs::execute_via_ika` |
+| **Backend intent-filename validation** | Required for addIntent flow | `backend-api/src/main.rs::ensure_intent_filename` — accepts `examples/intents/<name>.json` prefix (frontend hard-codes it); strict basename rules on the leaf |
+| **Frontend BTC network detection** | Auto-picks testnet3 vs signet | `frontend/src/lib/chain/btc.ts::detectBitcoinNetwork` (probes both Esplora endpoints) |
+| **Secure vault create / list / enroll / sweep** | All four wizards live | `frontend/src/app/app/secure/{new,[recovery],[recovery]/enroll,[recovery]/sweep}/page.tsx`, `frontend/src/lib/ikavery/clearmsig-actions.ts` |
+| **Frontend `signDescriptor` integrity check** | Defends against backend payload substitution | `frontend/src/lib/hooks/useSignWithWallet.ts`, `frontend/src/lib/msig/verify.ts` (rebuilds signable bytes locally + byte-compares before opening wallet popup) |
+
+Common failure modes that are NOT bugs in the above:
+
+- "ETH sign returns MessageApproval-not-found" on a wallet where another secp256k1 chain (BTC, Zcash) was bound LATER → user is on a wallet with the legacy single-attestation file. **Fix is to use a fresh wallet**, not to change the code. The per-chain split landed in commit `ccacf99`.
+- "BTC broadcast rejected with mempool-script-verify-flag-failed" → the multi-digest probe in `pick_verifying_combination` will report which digest Ika is signing in stderr. Don't replace the probe; extend it if a new digest case shows up.
+- "ETH stderr says neither v=0 nor v=1 recovers" → `recover_v` already tries canonical AND byte-reversed scalars (commit `92250a0`). If both fail, the failure is real (preimage drift / wrong key) — file with full diagnostics, do not paper over by adding more byte permutations.
+
+## Investigation discipline
+
+When a sign / broadcast fails:
+
+1. **Read the relevant code first.** The bug is almost certainly in this repo, not upstream Ika. Confirmed pattern from this codebase: every sign-failure that initially looked like an upstream bug turned out to be a local issue (per-chain attestation overwrite, LE-scalar encoding, prev_txid endianness, missing rpc_url forwarding). **Don't draft outbound messages to upstream devrel until you've ruled out local causes by reading the code.**
+2. **Probe on-chain state directly** before acting on a theory. Esplora REST, `solana account` decode, dWallet account inspection. The data is cheap to fetch and pins down hypotheses.
+3. **Match recommended action to the actual evidence.** "Recreate the wallet" is destructive. Recommend it only when on-chain state confirms it; never as a guess.
+4. **Don't attribute behavior to "upstream rotation" / "key change" / "secp256k1 broken"** unless there is direct evidence — these have all been false alarms in the past.
+
 ## Reference docs in this repo
 
 - `README.md` — user-facing intro, supported chains table, quick start
