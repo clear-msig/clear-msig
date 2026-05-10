@@ -118,6 +118,20 @@ const nextConfig = {
       },
     ];
   },
+  // Local-dev proxy for the deployed backend on Fly.io. The browser
+  // sees a same-origin /backend/* request, Next.js forwards it to
+  // clear-msig-backend.fly.dev, and CORS never enters the picture.
+  // Activated by setting NEXT_PUBLIC_BACKEND_API_URL=/backend in
+  // .env.local. In production NEXT_PUBLIC_BACKEND_API_URL points
+  // straight at the Fly app and this rewrite is unused.
+  async rewrites() {
+    return [
+      {
+        source: "/backend/:path*",
+        destination: "https://clear-msig-backend.fly.dev/:path*",
+      },
+    ];
+  },
 };
 
 export default nextConfig;

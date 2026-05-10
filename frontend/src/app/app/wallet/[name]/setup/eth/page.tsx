@@ -43,9 +43,6 @@ import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useToast } from "@/components/ui/Toast";
-import { Breadcrumb } from "@/components/retail/Breadcrumb";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
-import { BackToWallets } from "@/components/retail/BackToWallets";
 import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import {
@@ -251,99 +248,101 @@ export default function SetupEthPage() {
         animate: { opacity: 1, y: 0 },
       };
 
+  const walletDisplay = toDisplayName(name);
+
   return (
-    <main className="relative flex min-h-screen flex-col bg-canvas">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 overflow-hidden"
+    <div className="mx-auto flex w-full max-w-lg flex-col lg:max-w-3xl">
+      <motion.section
+        {...motionProps}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        className="flex flex-col gap-5"
       >
-        <div className="absolute -left-32 -top-16 h-[55vh] w-[80vw] max-w-[640px] rounded-full bg-accent/[0.06] blur-3xl" />
-      </div>
-
-      <StickyTopBar offset="header">
-        <Breadcrumb
-          segments={[
-            { label: "Wallets", href: "/app/wallet" },
-            { label: toDisplayName(name), href: `/app/wallet/${encodeURIComponent(name)}` },
-            { label: "Enable Ethereum" },
-          ]}
-        />
-      </StickyTopBar>
-      {/* Mobile-only back chip - see /send for rationale. */}
-      <div className="px-gutter pt-2 md:hidden">
-        <BackToWallets />
-      </div>
-
-      <div className="relative z-10 flex flex-1 items-center justify-center px-gutter py-10">
-        <motion.section
-          {...motionProps}
-          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          className="w-full max-w-md"
-        >
-          {showDone ? (
-            <div className="flex flex-col items-center text-center">
-              <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-accent text-text-on-accent shadow-accent-rest">
-                <Check className="h-8 w-8" strokeWidth={2.5} />
+        {showDone ? (
+          <div className="flex flex-col gap-4">
+            <div className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-text-on-accent shadow-accent-rest">
+                  <Check className="h-5 w-5" strokeWidth={2.5} />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+                    Ethereum sending enabled
+                  </p>
+                  <p className="mt-0.5 truncate text-xs text-text-soft">
+                    Spending rule is live on chain. No money has moved yet.
+                  </p>
+                </div>
               </div>
-              <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
-                <span className="text-accent">{toHeadingName(name)}</span> can send Ethereum
-              </h1>
-              <p className="mt-3 max-w-sm text-base text-text-soft">
-                Spending rule is on chain. Ethereum sends now route through
-                this wallet. No money has moved yet.
+              <p className="mt-5 font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
+                <span className="text-accent">{toHeadingName(name)}</span> can
+                send Ethereum
               </p>
-              <div className="mt-8 w-full">
-                <NextStepCard
-                  title={`What do you want to do in ${toDisplayName(name)}?`}
-                  options={[
-                    {
-                      label: "Send your first ETH request",
-                      hint: "Pick a recipient, enter an amount, sign once.",
-                      href: `/app/wallet/${encodeURIComponent(name)}/send/eth`,
-                      primary: true,
-                      icon: Send,
-                    },
-                    {
-                      label: "Invite someone",
-                      hint: "Friend, teammate, or board member.",
-                      href: `/app/wallet/${encodeURIComponent(name)}/members/add`,
-                      icon: UserPlus,
-                    },
-                    {
-                      label: `Back to ${toDisplayName(name)}`,
-                      href: `/app/wallet/${encodeURIComponent(name)}`,
-                      icon: Wallet,
-                    },
-                  ]}
-                />
-              </div>
+              <p className="mt-1.5 text-sm text-text-soft">
+                Pick a recipient, enter an amount, sign once.
+              </p>
             </div>
-          ) : (
-          <div className="flex flex-col items-center text-center">
-            {ethMeta && (
-              <div className="mb-6">
-                <ChainBadge chain={ethMeta} size="lg" />
+            <NextStepCard
+              title={`What do you want to do in ${walletDisplay}?`}
+              options={[
+                {
+                  label: "Send your first ETH request",
+                  hint: "Pick a recipient, enter an amount, sign once.",
+                  href: `/app/wallet/${encodeURIComponent(name)}/send/eth`,
+                  primary: true,
+                  icon: Send,
+                },
+                {
+                  label: "Invite someone",
+                  hint: "Friend, teammate, or board member.",
+                  href: `/app/wallet/${encodeURIComponent(name)}/members/add`,
+                  icon: UserPlus,
+                },
+                {
+                  label: `Back to ${walletDisplay}`,
+                  href: `/app/wallet/${encodeURIComponent(name)}`,
+                  icon: Wallet,
+                },
+              ]}
+            />
+          </div>
+        ) : (
+          <>
+            {/* Compact left-aligned header — matches /send and the
+                rest of the redesigned workspace pages. Chain badge
+                inline + mono eyebrow + display title + "From {wallet}"
+                on the right. */}
+            <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+              <div className="flex items-center gap-3">
+                {ethMeta ? <ChainBadge chain={ethMeta} size="md" /> : null}
+                <div className="flex flex-col gap-0.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+                    Setup · Ethereum
+                  </p>
+                  <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
+                    Enable Ethereum sending
+                  </h1>
+                </div>
               </div>
-            )}
-            <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-            <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Ethereum setup
-            </p>
-            <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-              Enable Ethereum sending in <span className="text-accent">{toHeadingName(name)}</span>
-            </h1>
-            <p className="mt-3 max-w-sm text-base text-text-soft">
-              Adds a spending rule for Ethereum so {toDisplayName(name)} can
-              move ETH on the Sepolia testnet. One quick setup; the rule
-              is signed by you and lives on chain.
+              <p className="text-xs text-text-soft sm:text-sm">
+                For{" "}
+                <span className="font-medium text-text-strong">
+                  {walletDisplay}
+                </span>
+              </p>
+            </header>
+
+            <p className="text-sm leading-relaxed text-text-soft">
+              Adds a spending rule for Ethereum so {walletDisplay} can move ETH
+              on the Sepolia testnet. One quick setup; the rule is signed by
+              you and lives on chain.
             </p>
 
             {needsBinding && (
-              <div className="mt-6 w-full rounded-card border border-warning/30 bg-warning/5 p-4 text-left">
-                <p className="text-sm font-medium text-text-strong">
+              <div className="rounded-card border border-warning/30 bg-warning/5 p-5 shadow-card-rest">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
                   Bind Ethereum first
                 </p>
-                <p className="mt-1 text-xs text-text-soft">
+                <p className="mt-2 text-sm text-text-strong">
                   This wallet does not have an Ethereum address yet. Add
                   Ethereum on the chains page (about 30 seconds) and come
                   back here.
@@ -351,20 +350,20 @@ export default function SetupEthPage() {
                 <Link
                   href={`/app/wallet/${encodeURIComponent(name)}/chains/add`}
                   className={
-                    "mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-accent " +
-                    "rounded-soft px-2 py-1 transition-colors duration-base ease-out-soft hover:text-accent-hover " +
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-warning/5"
+                    "mt-3 inline-flex items-center gap-1.5 rounded-soft bg-accent px-3.5 py-2 text-sm font-medium text-text-on-accent shadow-accent-rest " +
+                    "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] " +
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
                   }
                 >
                   Add Ethereum
-                  <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                 </Link>
               </div>
             )}
 
             {!needsBinding && (
               <>
-                <div className="mt-6 w-full rounded-card border border-border-soft bg-surface-raised p-5 text-left shadow-card-rest">
+                <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
                     What this enables
                   </p>
@@ -379,12 +378,17 @@ export default function SetupEthPage() {
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                      Your wallet&rsquo;s ETH address: {ethAddress ? shortEvmAddress(ethAddress) : "(spinning up)"}.
+                      Your wallet&rsquo;s ETH address:{" "}
+                      <span className="font-mono text-xs text-text-soft">
+                        {ethAddress
+                          ? shortEvmAddress(ethAddress)
+                          : "(spinning up)"}
+                      </span>
                     </li>
                   </ul>
                 </div>
 
-                <div className="mt-4 w-full rounded-card border border-border-soft bg-surface-raised p-5 text-left shadow-card-rest">
+                <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
                     When approvals are in
                   </p>
@@ -404,11 +408,11 @@ export default function SetupEthPage() {
                   </div>
                 </div>
 
-                <div className="mt-6 w-full flex flex-col gap-3">
+                <div className="flex flex-col gap-3">
                   <SignPayloadPreview
-                    action={`Enable Ethereum sending in ${toDisplayName(name)}`}
+                    action={`Enable Ethereum sending in ${walletDisplay}`}
                     details={[
-                      { label: "Wallet", value: toDisplayName(name) },
+                      { label: "Wallet", value: walletDisplay },
                       { label: "Chain", value: "Ethereum (Sepolia)" },
                       ethAddress
                         ? {
@@ -426,21 +430,21 @@ export default function SetupEthPage() {
                       },
                     ]}
                   />
-                  <WalletPopupNarration
-                    action="enable Ethereum sending"
-                  />
+                  <WalletPopupNarration action="enable Ethereum sending" />
                 </div>
 
                 <Button
                   size="lg"
                   fullWidth
-                  className="mt-3"
                   onClick={() => setup.mutate()}
                   disabled={setup.isPending || !ethBinding}
                 >
                   {setup.isPending ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                      <Loader2
+                        className="h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
                       Setting up
                     </>
                   ) : (
@@ -452,11 +456,10 @@ export default function SetupEthPage() {
                 </Button>
               </>
             )}
-          </div>
-          )}
-        </motion.section>
-      </div>
-    </main>
+          </>
+        )}
+      </motion.section>
+    </div>
   );
 }
 

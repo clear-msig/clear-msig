@@ -659,7 +659,7 @@ function BrandRow({
           expanded ? "gap-2 px-1 py-1" : "p-1",
         )}
       >
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/15 text-accent shadow-[0_0_16px_rgba(204, 255, 0,0.25)] ring-1 ring-accent/30">
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl text-accent">
           <BrandMark size={20} />
         </div>
         {expanded && (

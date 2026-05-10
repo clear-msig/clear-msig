@@ -57,6 +57,7 @@ import {
   type ReceiptDetail,
 } from "@/components/retail/SendReceipt";
 import { UsdHint } from "@/components/retail/UsdHint";
+import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { chainByKind } from "@/lib/retail/chains";
@@ -522,23 +523,35 @@ function BitcoinSendPage() {
     !blockedByDisconnect && !blockedByLedger && !isLoading && btcBinding && btcIntent;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-lg flex-col lg:max-w-3xl">
       <motion.section
         {...motionProps}
         transition={{ duration: 0.3 }}
-        className="mx-auto flex w-full max-w-md flex-col gap-6 px-gutter"
+        className="flex w-full flex-col gap-5"
       >
-        <header className="flex flex-col items-center gap-3 text-center">
-          {btcMeta && <ChainBadge chain={btcMeta} size="lg" />}
-          <div>
-            <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
-              Send Bitcoin
-            </h1>
-            <p className="mt-1 text-sm text-text-soft">
-              From {walletDisplay} on {btcNetwork}.
-            </p>
+        {/* Compact left-aligned header — matches SOL + ETH /send. */}
+        <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+          <div className="flex items-center gap-3">
+            {btcMeta ? <ChainBadge chain={btcMeta} size="md" /> : null}
+            <div className="flex flex-col gap-0.5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+                Send · Bitcoin
+              </p>
+              <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
+                Send BTC
+              </h1>
+            </div>
           </div>
+          <p className="text-xs text-text-soft sm:text-sm">
+            From{" "}
+            <span className="font-medium text-text-strong">
+              {walletDisplay}
+            </span>
+            <span className="ml-1 text-text-soft/70">· {btcNetwork}</span>
+          </p>
         </header>
+
+        <SendChainPicker walletName={name} activeKind={BTC_CHAIN_KIND} />
 
         {blockedByDisconnect && (
           <BlockedNote
