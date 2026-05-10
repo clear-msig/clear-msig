@@ -76,6 +76,7 @@ import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
+import { InfoTip } from "@/components/retail/InfoTip";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import {
   SendReceipt,
@@ -706,13 +707,59 @@ function ComposeStage({
         Send a token instead (USDC, DAI, …)
       </Link>
 
-      <div className="flex flex-col gap-3">
-        <Field
-          label="Amount"
-          hint={amount.trim() && !amountValid ? "Must be a positive number." : undefined}
+      {/* Compose grid — Amount + Recipient sit side-by-side on lg+
+          and merge into one bordered card on mobile. Same shell as
+          SOL /send and BTC /send/btc. */}
+      <div
+        className={
+          "flex flex-col gap-5 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest " +
+          "lg:grid lg:grid-cols-2 lg:items-start lg:gap-5 " +
+          "lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none"
+        }
+      >
+        {/* Amount card — eyebrow + Use max pill, underline-style
+            input, balance line as plain text. Card chrome only at
+            lg+; mobile uses the parent wrapper's chrome. */}
+        <section
+          className={
+            "flex flex-col gap-3 " +
+            "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-5 lg:shadow-card-rest"
+          }
         >
-          <div className="flex items-baseline gap-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              Amount
+            </p>
+            {typeof walletBalanceWei === "bigint" &&
+              walletBalanceWei > 0n && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const max =
+                      walletBalanceWei > gasReserveWei
+                        ? walletBalanceWei - gasReserveWei
+                        : 0n;
+                    setAmount(weiToEth(max, 12));
+                  }}
+                  className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent transition-colors duration-base ease-out-soft hover:bg-accent/15"
+                >
+                  Use max
+                </button>
+              )}
+          </div>
+          <label htmlFor="send-eth-amount-input" className="sr-only">
+            Amount in ETH
+          </label>
+          <div
+            className={
+              "flex items-baseline gap-3 border-b border-glass-soft pb-3 " +
+              "transition-colors duration-base ease-out-soft " +
+              "focus-within:border-glass-strong"
+            }
+          >
             <input
+              id="send-eth-amount-input"
               type="text"
               inputMode="decimal"
               value={amount}
@@ -725,66 +772,45 @@ function ComposeStage({
                     : `${whole.slice(0, 12)}.${frac.slice(0, 18)}`;
                 setAmount(next);
               }}
-              placeholder="0.05"
-              // font-numerals tabular-nums for column-aligned digits.
-              // Same treatment as the SOL send page - every financial
-              // amount input shares this typography.
-              className={
-                "flex-1 rounded-card border border-border-soft bg-surface-raised px-4 py-3 font-numerals text-2xl font-semibold text-text-strong tabular-nums outline-none " +
-                "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-                "focus:border-accent focus:shadow-accent-rest"
-              }
+              placeholder="0"
+              autoFocus
+              maxLength={20}
+              aria-label="Amount in ETH"
+              className="min-w-0 flex-1 bg-transparent font-numerals text-3xl font-semibold tracking-tight text-text-strong tabular-nums outline-none placeholder:text-text-soft/50 sm:text-4xl"
             />
-            <span className="font-display text-sm font-semibold uppercase tracking-[0.24em] text-text-soft">
+            <span
+              aria-hidden="true"
+              className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft sm:text-lg"
+            >
               ETH
             </span>
           </div>
-          {/* Live wallet balance + insufficient-balance gate.
-              Same chip-pill treatment as the SOL send page -
-              balance + Max sit as one group, font-numerals on
-              the value for tabular alignment. */}
-          <div className="mt-2 inline-flex min-h-tap items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-2 text-xs">
-            <span className="text-text-soft">Wallet has</span>
-            <span className="font-numerals font-semibold text-text-strong tabular-nums">
+          <p className="text-xs text-text-soft">
+            <span>Wallet has </span>
+            <span className="font-numerals font-medium text-text-strong tabular-nums">
               {balanceLoading
                 ? "…"
                 : typeof walletBalanceWei === "bigint"
                   ? weiToEth(walletBalanceWei)
                   : "-"}
             </span>
-            <span className="text-text-soft">ETH</span>
+            <span> ETH</span>
             {typeof walletBalanceWei === "bigint" &&
               walletBalanceWei > 0n && (
                 <UsdHint
                   amount={walletBalanceWei}
                   smallestPerWhole={1_000_000_000_000_000_000n}
                   ticker="ETH"
-                  variant="plain"
-                  className="text-text-soft"
                 />
               )}
-            {typeof walletBalanceWei === "bigint" &&
-              walletBalanceWei > 0n && (
-                <>
-                  <span aria-hidden="true" className="h-3 w-px bg-border-soft" />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const max =
-                        walletBalanceWei > gasReserveWei
-                          ? walletBalanceWei - gasReserveWei
-                          : 0n;
-                      setAmount(weiToEth(max, 12));
-                    }}
-                    className="-mr-2 inline-flex min-h-tap min-w-tap items-center justify-center rounded-full px-3 text-[11px] font-semibold uppercase tracking-wider text-accent transition-colors hover:bg-accent/10"
-                  >
-                    Max
-                  </button>
-                </>
-              )}
-          </div>
+            {amount.trim() && !amountValid && (
+              <span className="ml-1.5 text-warning">
+                Must be a positive number.
+              </span>
+            )}
+          </p>
           {insufficientBalance && walletBalanceWei !== null && (
-            <p className="mt-2 rounded-soft border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-text-strong">
+            <p className="rounded-soft border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-text-strong">
               <span className="font-medium">Insufficient balance.</span>{" "}
               You have {weiToEth(walletBalanceWei)} ETH
               <UsdHint
@@ -792,89 +818,101 @@ function ComposeStage({
                 smallestPerWhole={1_000_000_000_000_000_000n}
                 ticker="ETH"
               />
-              {" "}- need at least{" "}
-              {weiToEth(amountWei + gasReserveWei)} ETH including ~
-              {weiToEth(gasReserveWei)} for gas. Top up the wallet&rsquo;s
-              Sepolia address from a faucet
+              {" "}— need at least {weiToEth(amountWei + gasReserveWei)} ETH
+              including ~{weiToEth(gasReserveWei)} for gas. Top up the
+              wallet&rsquo;s Sepolia address from a faucet
               {walletEthAddress ? ` (${shortEvmAddress(walletEthAddress)})` : ""}
               .
             </p>
           )}
-        </Field>
+        </section>
 
-        <RecentRecipientsChips
-          walletName={walletName}
-          chainKind={ETH_CHAIN_KIND}
-          onPick={(addr) => setRecipient(addr)}
-        />
-
-        <Field
-          label="Recipient"
-          hint={
-            recipient.trim() && !recipientValid && !ensResolving && ensFailed
-              ? "Couldn’t resolve that ENS name. Paste a 0x address instead."
-              : recipient.trim() && !recipientValid && !ensResolving
-                ? "Must be a 0x… 42-character Ethereum address or a .eth name."
-                : undefined
+        {/* Recipient + Note card — same merged-mobile / split-lg+
+            treatment as Amount above. */}
+        <section
+          className={
+            "flex flex-col gap-3 " +
+            "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-5 lg:shadow-card-rest"
           }
         >
-          <div className="flex items-stretch gap-2">
+          <Field
+            label="To"
+            hint={
+              recipient.trim() && !recipientValid && !ensResolving && ensFailed
+                ? "Couldn’t resolve that ENS name. Paste a 0x address instead."
+                : recipient.trim() && !recipientValid && !ensResolving
+                  ? "Must be a 0x… 42-character Ethereum address or a .eth name."
+                  : undefined
+            }
+          >
+            <div className="flex items-stretch gap-2">
+              <input
+                type="text"
+                value={recipient}
+                onChange={(e) => setRecipient(e.target.value)}
+                placeholder="0x… or vitalik.eth"
+                className={
+                  "flex-1 rounded-card border border-border-soft bg-canvas px-4 py-3 font-mono text-sm text-text-strong outline-none " +
+                  "transition-[border-color,box-shadow] duration-base ease-out-soft " +
+                  "focus:border-accent focus:shadow-accent-rest"
+                }
+              />
+              <QrScanButton
+                ariaLabel="Scan recipient QR"
+                title="Scan a recipient QR"
+                onResult={(v) => setRecipient(parseEvmRecipientFromQr(v))}
+                className={
+                  "shrink-0 inline-flex h-auto items-center justify-center rounded-card border border-border-soft bg-canvas px-3 text-text-soft " +
+                  "transition-[border-color,color,transform] duration-base ease-out-soft " +
+                  "hover:-translate-y-0.5 hover:text-accent " +
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+                }
+              />
+            </div>
+            {ensResolving && (
+              <span className="mt-2 inline-flex items-center gap-1.5 text-xs text-text-soft">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                Resolving {recipient.trim()}…
+              </span>
+            )}
+            {ensName && effectiveRecipient && !ensResolving && (
+              <span className="mt-2 inline-flex items-center gap-1.5 text-xs text-accent">
+                <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                Resolved {ensName} ·{" "}
+                <span className="font-mono text-text-soft">
+                  {shortEvmAddress(effectiveRecipient)}
+                </span>
+              </span>
+            )}
+          </Field>
+
+          <RecentRecipientsChips
+            walletName={walletName}
+            chainKind={ETH_CHAIN_KIND}
+            onPick={(addr) => setRecipient(addr)}
+          />
+
+          <Field label="Note">
             <input
               type="text"
-              value={recipient}
-              onChange={(e) => setRecipient(e.target.value)}
-              placeholder="0x… or vitalik.eth"
+              value={note}
+              onChange={(e) => setNote(e.target.value.slice(0, 80))}
+              placeholder="What's it for? (optional)"
+              maxLength={80}
               className={
-                "flex-1 rounded-card border border-border-soft bg-surface-raised px-4 py-3 font-mono text-sm text-text-strong outline-none " +
+                "w-full rounded-card border border-border-soft bg-canvas px-4 py-3 text-sm text-text-strong outline-none " +
                 "transition-[border-color,box-shadow] duration-base ease-out-soft " +
                 "focus:border-accent focus:shadow-accent-rest"
               }
             />
-            <QrScanButton
-              ariaLabel="Scan recipient QR"
-              title="Scan a recipient QR"
-              onResult={(v) => setRecipient(parseEvmRecipientFromQr(v))}
-              className={
-                "shrink-0 inline-flex h-auto items-center justify-center rounded-card border border-border-soft bg-surface-raised px-3 text-text-soft " +
-                "transition-[border-color,color,transform] duration-base ease-out-soft " +
-                "hover:-translate-y-0.5 hover:text-accent " +
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-              }
-            />
-          </div>
-          {ensResolving && (
-            <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-text-soft">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-              Resolving {recipient.trim()}…
-            </p>
-          )}
-          {ensName && effectiveRecipient && !ensResolving && (
-            <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-accent">
-              <Check className="h-3.5 w-3.5" strokeWidth={3} />
-              Resolved {ensName} ·{" "}
-              <span className="font-mono text-text-soft">
-                {shortEvmAddress(effectiveRecipient)}
-              </span>
-            </p>
-          )}
-        </Field>
-
-        <Field label="Note (optional)">
-          <input
-            type="text"
-            value={note}
-            onChange={(e) => setNote(e.target.value.slice(0, 80))}
-            placeholder="What's it for?"
-            className={
-              "w-full rounded-card border border-border-soft bg-surface-raised px-4 py-3 text-sm text-text-strong outline-none " +
-              "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-              "focus:border-accent focus:shadow-accent-rest"
-            }
-          />
-        </Field>
+          </Field>
+        </section>
       </div>
 
-      <div className="mt-6 flex flex-col gap-3">
+      {/* Preview + popup narration — info-icon mode so the headline +
+          warning stay visible and the secondary context is one
+          hover/tap away. Same pattern as SOL /send. */}
+      <div className="flex flex-col gap-3">
         <SignPayloadPreview
           action={
             amountValid && recipientValid && effectiveRecipient
@@ -885,29 +923,45 @@ function ComposeStage({
           }
           details={previewDetails}
           warning="Cross-chain send is in alpha. The on-chain Solana sig you give here authorises Ika's dWallet network to broadcast the actual Ethereum tx. If anything is wrong with the EVM-side params, the broadcast fails and the wallet's Solana state stays untouched."
+          collapsibleDetails
         />
-        <WalletPopupNarration action="send this Ethereum request" popups={1} />
+        <WalletPopupNarration
+          action="send this Ethereum request"
+          popups={1}
+          disclaimerBehindInfoTip
+        />
       </div>
 
-      {/* Sticky-bottom CTA on mobile - see SOL send for full
-          rationale. Form is long; without sticky the user scrolls
-          past their typed values to find the button. */}
-      <div
-        className={
-          "mt-3 -mx-3 sm:mx-0 px-3 sm:px-0 " +
-          "sticky bottom-[calc(env(safe-area-inset-bottom,0px)+4rem)] z-20 sm:static sm:bottom-auto " +
-          "border-t border-border-soft bg-canvas pt-3 sm:border-0 sm:bg-transparent sm:pt-0"
-        }
-      >
-        <Button
-          size="lg"
-          fullWidth
-          disabled={!canSubmit}
-          onClick={onSubmit}
+      {/* Action footer — InfoTip-backed approval hint + sticky CTA. */}
+      <div className="flex flex-col gap-3 pt-1">
+        <p className="inline-flex items-center gap-1.5 text-xs text-text-soft">
+          Friends in {walletDisplay} approve before it sends.
+          <InfoTip
+            label="How approvals work"
+            width="md"
+            size="xs"
+            side="start"
+          >
+            <span className="block">
+              When you tap Send, this becomes a proposal in {walletDisplay}.
+              The other approvers in this wallet get a notification and the
+              transfer only goes through once the threshold approves. You can
+              cancel anytime before that.
+            </span>
+          </InfoTip>
+        </p>
+        <div
+          className={
+            "-mx-3 sm:mx-0 px-3 sm:px-0 " +
+            "sticky bottom-[calc(env(safe-area-inset-bottom,0px)+4rem)] z-20 sm:static sm:bottom-auto " +
+            "border-t border-border-soft bg-canvas pt-3 sm:border-0 sm:bg-transparent sm:pt-0"
+          }
         >
-          Send request
-          <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        </Button>
+          <Button size="lg" fullWidth disabled={!canSubmit} onClick={onSubmit}>
+            Send request
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </div>
       </div>
     </div>
   );
