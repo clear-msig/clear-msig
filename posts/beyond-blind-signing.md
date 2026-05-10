@@ -44,7 +44,7 @@ This multisig with a signer count of one is effectively an off-chain signer with
 
 Talk is cheap. Pointing fingers is useless. It's more productive to eliminate footguns by building better software, so I built something.
 
-<link to repo>
+[github.com/clear-msig/clear-msig](https://github.com/clear-msig/clear-msig)
 
 This was also a good chance to try out [Quasar](https://github.com/blueshift-gg/quasar) from @blueshift. If this gets enough interest, maybe we can get it audited, formally verified, and made immutable. If not, maybe another team picks up the idea and puts it into a more complete multisig product.
 
