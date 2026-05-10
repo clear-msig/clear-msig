@@ -58,6 +58,7 @@ import {
 } from "@/components/retail/SendReceipt";
 import { UsdHint } from "@/components/retail/UsdHint";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
+import { InfoTip } from "@/components/retail/InfoTip";
 import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { chainByKind } from "@/lib/retail/chains";
@@ -613,6 +614,7 @@ function BitcoinSendPage() {
             address={dwalletAddress}
             network={btcNetwork}
             sending={send.isPending}
+            walletDisplay={walletDisplay}
             onSend={handleSend}
           />
         )}
@@ -760,111 +762,213 @@ function ComposeForm(props: {
   address: string | null;
   network: BitcoinNetwork;
   sending: boolean;
+  walletDisplay: string;
   onSend: () => void;
 }) {
+  const balanceBtc =
+    props.balanceSats !== null ? formatSats(props.balanceSats) : null;
   return (
-    <section className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-      <div className="flex flex-col gap-1.5">
-        <label
-          htmlFor="btc-destination"
-          className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft"
-        >
-          Recipient
-        </label>
-        <input
-          id="btc-destination"
-          type="text"
-          value={props.destination}
-          onChange={(e) => props.setDestination(e.target.value)}
-          placeholder={
-            props.network === "mainnet" ? "bc1q…" : "tb1q…"
+    <>
+      {/* Compose grid — Amount + Recipient sit side-by-side on lg+
+          and merge into one bordered card on mobile. Same shell as
+          SOL /send and ETH /send/eth. */}
+      <div
+        className={
+          "flex flex-col gap-5 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest " +
+          "lg:grid lg:grid-cols-2 lg:items-start lg:gap-5 " +
+          "lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none"
+        }
+      >
+        {/* Amount card — eyebrow + Use max pill, underline-style
+            input, balance line as plain text. */}
+        <section
+          className={
+            "flex flex-col gap-3 " +
+            "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-5 lg:shadow-card-rest"
           }
-          spellCheck={false}
-          autoCapitalize="off"
-          autoCorrect="off"
-          autoComplete="off"
-          className="rounded-soft border border-border-soft bg-canvas px-3 py-2 font-mono text-sm text-text-strong placeholder:text-text-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-        />
-        {props.destinationError && (
-          <p className="text-[11px] text-warning">{props.destinationError}</p>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-end justify-between gap-2">
-          <label
-            htmlFor="btc-amount"
-            className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft"
-          >
-            Amount (BTC)
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              Amount
+            </p>
+            {props.balanceSats !== null && props.balanceSats > 0n && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  // Reserve a tiny fee floor so the UTXO selector
+                  // can still cover input - amount > 0.
+                  const max =
+                    props.balanceSats! > FEE_RESERVE_SATS
+                      ? props.balanceSats! - FEE_RESERVE_SATS
+                      : 0n;
+                  props.setAmountBtc(formatSats(max));
+                }}
+                className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent transition-colors duration-base ease-out-soft hover:bg-accent/15"
+              >
+                Use max
+              </button>
+            )}
+          </div>
+          <label htmlFor="btc-amount" className="sr-only">
+            Amount in BTC
           </label>
-          {props.balanceSats !== null && (
-            <span className="font-numerals text-[10px] tabular-nums text-text-soft">
-              Balance: {formatSats(props.balanceSats)} BTC
+          <div
+            className={
+              "flex items-baseline gap-3 border-b border-glass-soft pb-3 " +
+              "transition-colors duration-base ease-out-soft " +
+              "focus-within:border-glass-strong"
+            }
+          >
+            <input
+              id="btc-amount"
+              type="text"
+              inputMode="decimal"
+              value={props.amountBtc}
+              onChange={(e) => props.setAmountBtc(e.target.value)}
+              placeholder="0"
+              spellCheck={false}
+              autoComplete="off"
+              maxLength={20}
+              aria-label="Amount in BTC"
+              className="min-w-0 flex-1 bg-transparent font-numerals text-3xl font-semibold tracking-tight text-text-strong tabular-nums outline-none placeholder:text-text-soft/50 sm:text-4xl"
+            />
+            <span
+              aria-hidden="true"
+              className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft sm:text-lg"
+            >
+              BTC
+            </span>
+          </div>
+          <p className="text-xs text-text-soft">
+            <span>Wallet has </span>
+            <span className="font-numerals font-medium text-text-strong tabular-nums">
+              {props.balanceLoading ? "…" : balanceBtc !== null ? balanceBtc : "-"}
+            </span>
+            <span> BTC</span>
+            {props.balanceSats !== null && (
               <UsdHint
                 amount={props.balanceSats}
                 smallestPerWhole={100_000_000n}
                 ticker="BTC"
               />
-            </span>
-          )}
-        </div>
-        <input
-          id="btc-amount"
-          type="text"
-          inputMode="decimal"
-          value={props.amountBtc}
-          onChange={(e) => props.setAmountBtc(e.target.value)}
-          placeholder="0.00"
-          spellCheck={false}
-          autoComplete="off"
-          className="rounded-soft border border-border-soft bg-canvas px-3 py-2 font-numerals text-base tabular-nums text-text-strong placeholder:text-text-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-        />
-        {props.amountError && (
-          <p className="text-[11px] text-warning">{props.amountError}</p>
-        )}
-        {props.selectedUtxo && props.impliedFeeSats !== null && (
-          <div className="rounded-soft border border-border-soft bg-canvas p-2 text-[10px] text-text-soft">
-            <p>
+            )}
+            {props.amountError && (
+              <span className="ml-1.5 text-warning">{props.amountError}</span>
+            )}
+          </p>
+          {props.selectedUtxo && props.impliedFeeSats !== null && (
+            <p className="text-[11px] text-text-soft">
               Using UTXO{" "}
               <span className="font-mono text-text-strong">
                 {props.selectedUtxo.txid.slice(0, 8)}…:{props.selectedUtxo.vout}
               </span>
               {" — "}
-              {formatSats(BigInt(props.selectedUtxo.value))} BTC
+              {formatSats(BigInt(props.selectedUtxo.value))} BTC · implicit fee{" "}
+              {formatSats(props.impliedFeeSats)} BTC
+              <InfoTip
+                label="How the fee is picked"
+                width="md"
+                size="xs"
+                side="end"
+              >
+                <span className="block">
+                  Single-input, single-output P2WPKH transfer. Fee is implicit
+                  (input value − output value); we pick the smallest UTXO that
+                  covers your amount + a {Number(FEE_RESERVE_SATS)} sat fee
+                  floor.
+                </span>
+              </InfoTip>
             </p>
-            <p className="mt-0.5">
-              Implicit fee: {formatSats(props.impliedFeeSats)} BTC
-            </p>
-          </div>
-        )}
+          )}
+        </section>
+
+        {/* Recipient card — same merged-mobile / split-lg+
+            treatment as Amount above. */}
+        <section
+          className={
+            "flex flex-col gap-3 " +
+            "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-5 lg:shadow-card-rest"
+          }
+        >
+          <label
+            htmlFor="btc-destination"
+            className="flex flex-col gap-1"
+          >
+            <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              To
+            </span>
+            <input
+              id="btc-destination"
+              type="text"
+              value={props.destination}
+              onChange={(e) => props.setDestination(e.target.value)}
+              placeholder={props.network === "mainnet" ? "bc1q…" : "tb1q…"}
+              spellCheck={false}
+              autoCapitalize="off"
+              autoCorrect="off"
+              autoComplete="off"
+              className={
+                "w-full rounded-card border border-border-soft bg-canvas px-4 py-3 font-mono text-sm text-text-strong outline-none " +
+                "transition-[border-color,box-shadow] duration-base ease-out-soft " +
+                "focus:border-accent focus:shadow-accent-rest"
+              }
+            />
+            {props.destinationError && (
+              <span className="text-[11px] text-warning" role="alert">
+                {props.destinationError}
+              </span>
+            )}
+          </label>
+        </section>
       </div>
 
-      <Button
-        onClick={props.onSend}
-        disabled={props.sending}
-        fullWidth
-        size="lg"
-      >
-        {props.sending ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Sending…
-          </>
-        ) : (
-          <>
-            <Send className="h-4 w-4" aria-hidden="true" />
-            Send Bitcoin
-          </>
-        )}
-      </Button>
-
-      <p className="text-[10px] text-text-soft">
-        Single-input, single-output P2WPKH transfer. Fee is implicit
-        (input value − output value); we pick the smallest UTXO that
-        covers your amount + a {Number(FEE_RESERVE_SATS)} sat fee floor.
-      </p>
-    </section>
+      {/* Action footer — InfoTip-backed approval hint + sticky CTA. */}
+      <div className="flex flex-col gap-3 pt-1">
+        <p className="inline-flex items-center gap-1.5 text-xs text-text-soft">
+          Friends in {props.walletDisplay} approve before it sends.
+          <InfoTip
+            label="How approvals work"
+            width="md"
+            size="xs"
+            side="start"
+          >
+            <span className="block">
+              When you tap Send, this becomes a proposal in{" "}
+              {props.walletDisplay}. The other approvers in this wallet get a
+              notification and the transfer only goes through once the
+              threshold approves. You can cancel anytime before that.
+            </span>
+          </InfoTip>
+        </p>
+        <div
+          className={
+            "-mx-3 sm:mx-0 px-3 sm:px-0 " +
+            "sticky bottom-[calc(env(safe-area-inset-bottom,0px)+4rem)] z-20 sm:static sm:bottom-auto " +
+            "border-t border-border-soft bg-canvas pt-3 sm:border-0 sm:bg-transparent sm:pt-0"
+          }
+        >
+          <Button
+            onClick={props.onSend}
+            disabled={props.sending}
+            fullWidth
+            size="lg"
+          >
+            {props.sending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Sending…
+              </>
+            ) : (
+              <>
+                <Send className="h-4 w-4" aria-hidden="true" />
+                Send request
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    </>
   );
 }
 
