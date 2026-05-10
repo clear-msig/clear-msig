@@ -4,6 +4,7 @@ import {
   formatSats,
   networkForHrp,
   parseBtcAmount,
+  reverseHex,
   validateBtcDestination,
 } from "@/lib/chain/btc";
 
@@ -155,6 +156,50 @@ describe("formatSats", () => {
   });
   it("preserves precision down to 1 sat", () => {
     expect(formatSats(1n)).toBe("0.00000001");
+  });
+});
+
+// Critical: the BTC send page calls reverseHex on the Esplora-returned
+// txid before stuffing it into the proposal's prev_txid bytes32. Esplora
+// emits display-order (BE, what block explorers show); BIP143 / Bitcoin
+// wire format expects internal order (LE). A regression here would
+// broadcast a tx that references a flipped UTXO id — Bitcoin nodes
+// reject with "UTXO not found" but the dWallet sig is already burned
+// into a MessageApproval account on chain. Worth pinning hard.
+describe("reverseHex", () => {
+  it("flips byte order end-to-end", () => {
+    expect(reverseHex("deadbeef")).toBe("efbeadde");
+  });
+
+  it("is a self-inverse on a 32-byte value", () => {
+    const sample =
+      "11" + "22" + "33" + "44" + "55" + "66" + "77" + "88" +
+      "99" + "aa" + "bb" + "cc" + "dd" + "ee" + "ff" + "00" +
+      "12" + "34" + "56" + "78" + "9a" + "bc" + "de" + "f0" +
+      "01" + "02" + "03" + "04" + "fe" + "fd" + "fc" + "fb";
+    expect(sample.length).toBe(64);
+    expect(reverseHex(reverseHex(sample))).toBe(sample);
+  });
+
+  it("preserves byte count", () => {
+    expect(reverseHex("a".repeat(64)).length).toBe(64);
+  });
+
+  it("rejects odd-length input (would silently slice a nibble otherwise)", () => {
+    expect(() => reverseHex("abc")).toThrow();
+  });
+
+  it("matches a known Bitcoin txid round-trip", () => {
+    // Real signet txid in display order:
+    //   8a99fcedf6c2ad9bdfb1a23b6e60024b6da12c9e1f4d27a47db58c9b1a9ad1e3
+    // Internal byte order (what BIP143 wants) reverses each byte:
+    const display =
+      "8a99fcedf6c2ad9bdfb1a23b6e60024b6da12c9e1f4d27a47db58c9b1a9ad1e3";
+    const internal = reverseHex(display);
+    expect(internal).toBe(
+      "e3d19a1a9b8cb57da4274d1f9e2ca16d4b02606e3ba2b1df9badc2f6edfc998a",
+    );
+    expect(reverseHex(internal)).toBe(display);
   });
 });
 

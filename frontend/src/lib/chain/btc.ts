@@ -434,6 +434,24 @@ export function formatSats(sats: bigint): string {
 }
 
 /**
+ * Reverse a hex string byte-by-byte. Used to flip a Bitcoin txid
+ * between display order (Esplora's response, what block explorers
+ * show) and internal byte order (what BIP143 / wire format expects).
+ * Asserts even length so a mistyped odd-length hex doesn't silently
+ * slice off a nibble.
+ */
+export function reverseHex(hex: string): string {
+  if (hex.length % 2 !== 0) {
+    throw new Error(`reverseHex: odd-length hex (${hex.length} chars)`);
+  }
+  const out: string[] = [];
+  for (let i = hex.length; i > 0; i -= 2) {
+    out.push(hex.slice(i - 2, i));
+  }
+  return out.join("");
+}
+
+/**
  * Parse a user-entered BTC amount (e.g. "0.001", "0.5") to sats.
  * Returns null on malformed input or zero/negative values.
  */

@@ -67,11 +67,13 @@ import { appConfig } from "@/lib/config";
 import {
   DEFAULT_BITCOIN_NETWORK,
   decodeSegwitAddress,
+  esploraBaseUrl,
   fetchBitcoinBalance,
   fetchBitcoinUtxos,
   formatSats,
   mempoolSpaceTxUrl,
   parseBtcAmount,
+  reverseHex,
   validateBtcDestination,
   type BitcoinNetwork,
   type EsploraUtxo,
@@ -334,10 +336,25 @@ function BitcoinSendPage() {
       const dest = validateBtcDestination(destination, btcNetwork);
       if (!dest.ok) throw new Error(dest.reason);
 
+      // Bitcoin txids round-trip in TWO byte orders:
+      //   - Esplora / block explorers / `mempool.space` return them in
+      //     DISPLAY order (the human-readable BE hex you'd paste into
+      //     a search box).
+      //   - Bitcoin's internal wire format (BIP143 prev_outpoint, OP_…
+      //     anything that goes into a sighash) uses INTERNAL order
+      //     (LE — display-reversed).
+      // The on-chain BIP143 builder
+      // (`programs/clear-wallet/src/chains/bitcoin.rs:44`) is explicit
+      // about wanting internal byte order. We reverse the Esplora hex
+      // before stuffing it into the bytes32 param so the sighash
+      // computed on chain references the same UTXO Bitcoin's
+      // mempool will look up at broadcast time.
+      const prevTxidInternal = reverseHex(selectedUtxo.txid);
+
       const dry = await backendApi.prepare.createProposal(name, {
         intent_index: btcIntent.intentIndex,
         params: [
-          `prev_txid=0x${selectedUtxo.txid}`,
+          `prev_txid=0x${prevTxidInternal}`,
           `prev_vout=${selectedUtxo.vout}`,
           `prev_amount_sats=${selectedUtxo.value}`,
           `sender_pkh=0x${senderPkhHex}`,
@@ -376,10 +393,16 @@ function BitcoinSendPage() {
         broadcast: true,
         dwallet_program: appConfig.preAlpha.dwalletProgramId,
         grpc_url: appConfig.preAlpha.grpcUrl,
-        // No `rpc_url` for BTC — the CLI defaults to mempool.space's
-        // Esplora endpoint per network, matching what the intent
-        // template specifies. Could be overridden later if we add a
-        // BTC-specific override in Settings.
+        // BTC needs an ESPLORA URL (POST /tx), not a JSON-RPC URL.
+        // The backend's `default_destination_rpc_url` is set up for
+        // EVM (publicnode.com / 1RPC etc) — using that for BTC would
+        // POST `eth_sendRawTransaction` JSON to mempool.space's
+        // `/tx` endpoint and 400 immediately. We pass the
+        // network-specific mempool.space Esplora URL explicitly so
+        // the CLI's `cli/src/chains/bitcoin.rs::broadcast_tx`
+        // adapter hits the right endpoint regardless of whatever
+        // EVM default the backend env carries.
+        rpc_url: esploraBaseUrl(btcNetwork),
       });
       const broadcast = (executed as { broadcast?: BroadcastResultLike })
         ?.broadcast;
