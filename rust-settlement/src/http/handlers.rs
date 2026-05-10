@@ -287,7 +287,7 @@ pub async fn initialize_payment(
     // for the receipt, so we synthesise a deterministic placeholder
     // from the user identifier. Operators can override per-deploy by
     // exposing a richer auth layer later.
-    let user_email: String = format!("{user_id}@clear-msig.app");
+    let user_email: String = format!("{user_id}@clearsig.xyz");
 
     let callback_url = state.config.ramp_frontend_callback_url.as_deref();
 

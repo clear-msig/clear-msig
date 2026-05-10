@@ -4,7 +4,7 @@
 
 | | |
 |---|---|
-| 🌐 Live demo | **[clear-msig.vercel.app](https://clear-msig.vercel.app)** |
+| 🌐 Live demo | **[clearsig.xyz](https://clearsig.xyz)** |
 | 🎬 Demo video | _coming soon — Colosseum submission_ |
 | 📦 GitHub | [clear-msig/clear-msig](https://github.com/clear-msig/clear-msig) |
 | 🔗 Program ID (devnet) | [`ahVmthS8EwXMpckBQdxGeHmbFghxoqKBaFjSCizcvFL`](https://explorer.solana.com/address/ahVmthS8EwXMpckBQdxGeHmbFghxoqKBaFjSCizcvFL?cluster=devnet) |

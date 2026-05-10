@@ -261,7 +261,7 @@ Per Colosseum's stated requirements + observed past-winner patterns:
 
 ### Operational
 - [ ] Fly machines stay warm during judging week (set `min_machines_running = 1` in fly.toml; trades a few cents/day for reliability).
-- [ ] Vercel domain stable. Custom domain (`clearmsig.app`?) is a credibility upgrade if the team has 30 minutes.
+- [x] Custom domain live at `clearsig.xyz` (Vercel + Fly CORS allowlist updated).
 - [ ] Email + handle of one team member listed on the submission form for judge questions.
 
 ---
