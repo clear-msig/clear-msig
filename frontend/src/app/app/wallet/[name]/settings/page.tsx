@@ -19,7 +19,6 @@ import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
 import {
-  ArrowLeft,
   ArrowRight,
   Globe,
   ShieldCheck,
@@ -29,10 +28,7 @@ import { useConnection } from "@/lib/wallet";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { IntentType } from "@/lib/msig";
-import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
-import { Breadcrumb } from "@/components/retail/Breadcrumb";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
-import { BackToWallets } from "@/components/retail/BackToWallets";
+import { toDisplayName } from "@/lib/retail/walletNames";
 
 interface SettingItem {
   href: string;
@@ -126,41 +122,39 @@ export default function WalletSettingsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <StickyTopBar offset="header">
-        <Breadcrumb
-          segments={[
-            { label: "Wallets", href: "/app/wallet" },
-            {
-              label: display,
-              href: `/app/wallet/${encoded}`,
-            },
-            { label: "Settings" },
-          ]}
-        />
-      </StickyTopBar>
-      {/* Mobile-only back chip - see /send for rationale. */}
-      <div className="px-gutter pt-2 md:hidden">
-        <BackToWallets />
-      </div>
-
-      <motion.section
+      {/* Page header strip - mono eyebrow + display title, identity
+          anchored by the wallet icon disc. Back navigation lives on
+          the global header bar (mobile + desktop), so no inline
+          breadcrumb / back chip on this page. */}
+      <motion.header
         initial={reduce ? false : { opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="flex flex-col items-center text-center"
+        className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4"
       >
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">
-          <WalletIcon className="h-5 w-5" strokeWidth={1.75} />
+        <div className="flex min-w-0 items-center gap-4">
+          <span
+            aria-hidden="true"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent sm:h-14 sm:w-14"
+          >
+            <WalletIcon className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={1.75} />
+          </span>
+          <div className="flex min-w-0 flex-col">
+            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+              Settings · {display}
+            </p>
+            <h1 className="mt-1.5 truncate font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
+              Wallet controls
+            </h1>
+          </div>
         </div>
-        <h1 className="hidden md:block mt-4 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          <span className="text-accent">{toHeadingName(name)}</span> settings
-        </h1>
-        <p className="mt-2 max-w-md text-base text-text-soft">
-          Everything per-wallet lives here: rules, limits, allowlists,
-          chains. Each section is signed by the wallet's approvers when
-          it changes.
-        </p>
-      </motion.section>
+      </motion.header>
+
+      <p className="max-w-2xl text-sm text-text-soft sm:text-base">
+        Everything per-wallet lives here: rules, limits, allowlists, chains.
+        Each section is signed by the wallet&rsquo;s approvers when it
+        changes.
+      </p>
 
       <ul className="flex flex-col gap-2">
         {items.map((it) => (
@@ -202,17 +196,6 @@ export default function WalletSettingsPage() {
         ))}
       </ul>
 
-      <Link
-        href={`/app/wallet/${encoded}`}
-        className={
-          "self-center inline-flex items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft " +
-          "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-        }
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Back to {display}
-      </Link>
     </div>
   );
 }

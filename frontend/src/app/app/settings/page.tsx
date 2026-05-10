@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/retail/Button";
 import { BrandSelect } from "@/components/retail/BrandSelect";
+import { InfoTip } from "@/components/retail/InfoTip";
 import { useActionNotifications } from "@/lib/hooks/useActionNotifications";
 import { useInstallPrompt } from "@/lib/hooks/useInstallPrompt";
 import {
@@ -1169,15 +1170,17 @@ function ThemeSettingRow() {
     setMode(next);
     setStoredTheme(next);
   };
-  const options: { id: ThemeMode; label: string; Icon: typeof Sun }[] = [
-    { id: "light", label: "Light", Icon: Sun },
-    { id: "system", label: "System", Icon: Monitor },
-    { id: "dark", label: "Dark", Icon: Moon },
-  ];
+
   return (
-    <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+    <section className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest">
+      {/* Header strip - mono eyebrow + display title, the same
+          pattern the workspace pages use. The icon disc reflects
+          the active mode so the card itself previews the choice. */}
+      <header className="flex items-center gap-3">
+        <span
+          aria-hidden="true"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent"
+        >
           {mode === "light" ? (
             <Sun className="h-5 w-5" strokeWidth={1.75} />
           ) : mode === "dark" ? (
@@ -1185,40 +1188,139 @@ function ThemeSettingRow() {
           ) : (
             <Monitor className="h-5 w-5" strokeWidth={1.75} />
           )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-text-strong">Theme</p>
-          <p className="mt-0.5 text-xs text-text-soft">
-            Light, dark, or follow your OS. Smooth transition; saved on
-            this device.
+        </span>
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            Appearance
+          </p>
+          <p className="mt-1 font-display text-lg leading-tight text-text-strong">
+            Theme
           </p>
         </div>
+      </header>
+
+      {/* Three big preview tiles - each shows a tiny mockup of a
+          card surface in that mode (sky band + card with content +
+          accent dot). The active tile gets the accent ring + a
+          check badge in its corner so the choice reads at a
+          glance. Tiles are tap-targets ≥80px tall on mobile. */}
+      <div role="radiogroup" aria-label="Theme" className="mt-5 grid grid-cols-3 gap-3">
+        <ThemeTile
+          id="light"
+          label="Light"
+          Icon={Sun}
+          active={mode === "light"}
+          onSelect={set}
+          preview={
+            <div className="h-full w-full rounded-[6px] bg-[#f6f7f9] p-1.5">
+              <div className="h-1 w-3/4 rounded-full bg-[#0a0e16]/15" />
+              <div className="mt-1 flex items-center gap-1 rounded-[4px] bg-white p-1 shadow-[0_1px_2px_rgba(15,23,42,0.06)]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#4d7c0f]" />
+                <div className="h-0.5 flex-1 rounded-full bg-[#0a0e16]/25" />
+              </div>
+              <div className="mt-1 h-0.5 w-1/2 rounded-full bg-[#0a0e16]/15" />
+            </div>
+          }
+        />
+        <ThemeTile
+          id="system"
+          label="System"
+          Icon={Monitor}
+          active={mode === "system"}
+          onSelect={set}
+          preview={
+            <div className="grid h-full w-full grid-cols-2 overflow-hidden rounded-[6px]">
+              <div className="bg-[#f6f7f9] p-1.5">
+                <div className="h-1 w-3/4 rounded-full bg-[#0a0e16]/15" />
+                <div className="mt-1 h-1 w-1/2 rounded-full bg-[#4d7c0f]" />
+              </div>
+              <div className="bg-[#0a0a0a] p-1.5">
+                <div className="h-1 w-3/4 rounded-full bg-white/15" />
+                <div className="mt-1 h-1 w-1/2 rounded-full bg-[#ccff00]" />
+              </div>
+            </div>
+          }
+        />
+        <ThemeTile
+          id="dark"
+          label="Dark"
+          Icon={Moon}
+          active={mode === "dark"}
+          onSelect={set}
+          preview={
+            <div className="h-full w-full rounded-[6px] bg-[#0a0a0a] p-1.5">
+              <div className="h-1 w-3/4 rounded-full bg-white/15" />
+              <div className="mt-1 flex items-center gap-1 rounded-[4px] bg-[#131316] p-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#ccff00]" />
+                <div className="h-0.5 flex-1 rounded-full bg-white/25" />
+              </div>
+              <div className="mt-1 h-0.5 w-1/2 rounded-full bg-white/15" />
+            </div>
+          }
+        />
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        {options.map(({ id, label, Icon }) => {
-          const active = mode === id;
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => set(id)}
-              aria-pressed={active}
-              className={clsx(
-                "inline-flex items-center justify-center gap-1.5 rounded-soft border px-3 py-2 text-xs font-medium",
-                "transition-[border-color,background-color,color,transform] duration-base ease-out-soft",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
-                active
-                  ? "border-accent bg-accent/[0.08] text-accent"
-                  : "border-border-soft bg-canvas text-text-soft hover:border-border-strong hover:text-text-strong",
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
-              {label}
-            </button>
-          );
-        })}
-      </div>
+
+      <p className="mt-4 text-[11px] text-text-soft">
+        Saved on this device. Changes fade in over ~220ms.
+      </p>
     </section>
+  );
+}
+
+function ThemeTile({
+  id,
+  label,
+  Icon,
+  active,
+  onSelect,
+  preview,
+}: {
+  id: ThemeMode;
+  label: string;
+  Icon: typeof Sun;
+  active: boolean;
+  onSelect: (m: ThemeMode) => void;
+  preview: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={active}
+      onClick={() => onSelect(id)}
+      className={clsx(
+        "group relative flex flex-col items-stretch gap-2 rounded-card border bg-canvas p-2.5 text-left",
+        "transition-[border-color,background-color,transform,box-shadow] duration-base ease-out-soft",
+        "hover:-translate-y-0.5",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+        active
+          ? "border-accent shadow-accent-rest"
+          : "border-border-soft hover:border-border-strong",
+      )}
+    >
+      {/* Mini preview swatch - aspect-square keeps the proportions
+          tidy across the 3-up grid regardless of column width. */}
+      <div className="relative aspect-square w-full overflow-hidden rounded-soft border border-border-soft/40">
+        {preview}
+        {active && (
+          <span
+            aria-hidden="true"
+            className="absolute right-1 top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-accent text-text-on-accent shadow-sm"
+          >
+            <Check className="h-2.5 w-2.5" strokeWidth={3} />
+          </span>
+        )}
+      </div>
+      <span
+        className={clsx(
+          "inline-flex items-center justify-center gap-1.5 text-[11px] font-medium",
+          active ? "text-text-strong" : "text-text-soft group-hover:text-text-strong",
+        )}
+      >
+        <Icon className="h-3 w-3" strokeWidth={2} aria-hidden="true" />
+        {label}
+      </span>
+    </button>
   );
 }
 
@@ -1281,26 +1383,53 @@ function SolanaRpcSettingRow() {
 
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+      {/* Title row - explainer copy lives behind the info icon to
+          keep the section compact. The active-URL chip below is
+          the only status info that always shows. */}
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
           <Wifi className="h-5 w-5" strokeWidth={1.75} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-text-strong">
+          <p className="inline-flex items-center gap-1.5 text-sm font-medium text-text-strong">
             Solana RPC URL
-          </p>
-          <p className="mt-0.5 text-xs text-text-soft">
-            Override the default with your own RPC (Helius, QuickNode,
-            Triton). Saved on this device only.
+            <InfoTip
+              label="About the Solana RPC override"
+              title="Solana RPC URL"
+              width="md"
+              size="xs"
+            >
+              <span className="block">
+                Override the default with your own RPC (Helius, QuickNode,
+                Triton). Saved on this device only.
+              </span>
+            </InfoTip>
           </p>
         </div>
+        <span
+          className={
+            "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.18em] " +
+            (isUsingOverride
+              ? "border-accent/40 bg-accent/10 text-accent"
+              : "border-border-soft bg-canvas text-text-soft")
+          }
+        >
+          {isUsingOverride ? "Override" : "Default"}
+        </span>
       </div>
-      <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-        Currently using {isUsingOverride ? "override" : "default"}
+
+      {/* Active URL - one-line truncated, full URL behind tooltip. */}
+      <p className="mt-3 inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-soft">
+        <span className="truncate font-mono text-text-strong" title={effectiveUrl}>
+          {effectiveUrl}
+        </span>
+        <InfoTip label="Show full RPC URL" title="Active Solana RPC" width="md" size="xs">
+          <span className="block break-all font-mono text-[11px] text-text-strong">
+            {effectiveUrl}
+          </span>
+        </InfoTip>
       </p>
-      <p className="mt-1 break-all font-mono text-[11px] text-text-strong">
-        {effectiveUrl}
-      </p>
+
       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
         <input
           type="url"
@@ -1309,9 +1438,8 @@ function SolanaRpcSettingRow() {
           placeholder="https://your-rpc.example.com"
           spellCheck={false}
           className={
-            "min-w-0 flex-1 rounded-soft border border-border-soft bg-canvas px-3 py-2 font-mono text-xs text-text-strong outline-none " +
-            "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-            "focus:border-accent focus:shadow-accent-rest"
+            "min-w-0 flex-1 rounded-soft border border-glass-soft bg-canvas px-3 py-2 font-mono text-xs text-text-strong outline-none " +
+            "transition-colors duration-base ease-out-soft focus:border-glass-strong"
           }
         />
         <div className="flex shrink-0 gap-2">
@@ -1346,10 +1474,20 @@ function SolanaRpcSettingRow() {
         </div>
       </div>
       {trimmed.length > 0 && !hasOverride && (
-        <p className="mt-2 text-xs text-warning">
-          Must be an https:// URL (or http://localhost for development).
-          Plain HTTP is rejected so a passive observer can&rsquo;t modify
-          balance / blockhash responses.
+        <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-warning">
+          Use https:// (or http://localhost for dev).
+          <InfoTip
+            label="Why HTTPS only"
+            title="Why HTTPS only"
+            width="md"
+            size="xs"
+          >
+            <span className="block">
+              Plain HTTP is rejected so a passive observer can&rsquo;t modify
+              balance / blockhash responses while you&rsquo;re reading from
+              the RPC.
+            </span>
+          </InfoTip>
         </p>
       )}
     </section>
@@ -1519,27 +1657,54 @@ function EvmRpcSettingRow() {
 
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+      {/* Title row - explainer copy lives behind the info icon to
+          keep the section compact. The active-URL chip below is
+          the only status info that always shows. */}
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
           <Wifi className="h-5 w-5" strokeWidth={1.75} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-text-strong">
+          <p className="inline-flex items-center gap-1.5 text-sm font-medium text-text-strong">
             EVM destination RPC URL
-          </p>
-          <p className="mt-0.5 text-xs text-text-soft">
-            Used for ETH/ERC-20 reads (balance, gas, holdings) and the
-            Ika broadcast leg. Override when the public Sepolia RPC is
-            rate-limited.
+            <InfoTip
+              label="About the EVM RPC override"
+              title="EVM destination RPC URL"
+              width="md"
+              size="xs"
+            >
+              <span className="block">
+                Used for ETH / ERC-20 reads (balance, gas, holdings) and the
+                Ika broadcast leg. Override when the public Sepolia RPC is
+                rate-limited.
+              </span>
+            </InfoTip>
           </p>
         </div>
+        <span
+          className={
+            "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.18em] " +
+            (isUsingOverride
+              ? "border-accent/40 bg-accent/10 text-accent"
+              : "border-border-soft bg-canvas text-text-soft")
+          }
+        >
+          {isUsingOverride ? "Override" : "Default"}
+        </span>
       </div>
-      <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-        Currently using {isUsingOverride ? "override" : "default"}
+
+      {/* Active URL - one-line truncated, full URL behind tooltip. */}
+      <p className="mt-3 inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-soft">
+        <span className="truncate font-mono text-text-strong" title={effectiveUrl}>
+          {effectiveUrl}
+        </span>
+        <InfoTip label="Show full RPC URL" title="Active EVM RPC" width="md" size="xs">
+          <span className="block break-all font-mono text-[11px] text-text-strong">
+            {effectiveUrl}
+          </span>
+        </InfoTip>
       </p>
-      <p className="mt-1 break-all font-mono text-[11px] text-text-strong">
-        {effectiveUrl}
-      </p>
+
       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
         <input
           type="url"
@@ -1548,9 +1713,8 @@ function EvmRpcSettingRow() {
           placeholder="https://your-evm-rpc.example.com"
           spellCheck={false}
           className={
-            "min-w-0 flex-1 rounded-soft border border-border-soft bg-canvas px-3 py-2 font-mono text-xs text-text-strong outline-none " +
-            "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-            "focus:border-accent focus:shadow-accent-rest"
+            "min-w-0 flex-1 rounded-soft border border-glass-soft bg-canvas px-3 py-2 font-mono text-xs text-text-strong outline-none " +
+            "transition-colors duration-base ease-out-soft focus:border-glass-strong"
           }
         />
         <div className="flex shrink-0 gap-2">

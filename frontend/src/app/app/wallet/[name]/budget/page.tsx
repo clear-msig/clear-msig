@@ -29,9 +29,6 @@ import {
   Wallet as WalletIcon,
   Zap,
 } from "lucide-react";
-import { Breadcrumb } from "@/components/retail/Breadcrumb";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
-import { BackToWallets } from "@/components/retail/BackToWallets";
 import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { useToast } from "@/components/ui/Toast";
@@ -191,43 +188,41 @@ export default function BudgetPage() {
     router.push(`/app/wallet/${encodeURIComponent(name)}`);
   };
 
+  const display = toDisplayName(name);
+
   return (
     <div className="flex flex-col gap-6">
-      <StickyTopBar offset="header">
-        <Breadcrumb
-          segments={[
-            { label: "Wallets", href: "/app/wallet" },
-            { label: toDisplayName(name), href: `/app/wallet/${encodeURIComponent(name)}` },
-            { label: "Spending policy" },
-          ]}
-        />
-      </StickyTopBar>
-      {/* Mobile-only back chip - see /send for rationale. */}
-      <div className="px-gutter pt-2 md:hidden">
-        <BackToWallets />
-      </div>
-
-      <motion.section
+      {/* Page header strip - mono eyebrow + display title, identity
+          anchored by the wallet disc. Back navigation lives on the
+          global header bar (mobile + desktop). */}
+      <motion.header
         {...motionProps}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="flex flex-col items-center text-center"
+        className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4"
       >
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">
-          <WalletIcon className="h-6 w-6" strokeWidth={1.75} />
+        <div className="flex min-w-0 items-center gap-4">
+          <span
+            aria-hidden="true"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent sm:h-14 sm:w-14"
+          >
+            <WalletIcon className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={1.75} />
+          </span>
+          <div className="flex min-w-0 flex-col">
+            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+              Spending policy · {display}
+            </p>
+            <h1 className="mt-1.5 truncate font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
+              How much can {display} spend?
+            </h1>
+          </div>
         </div>
-        <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-          Spending policy
-        </p>
-        <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          How much can {name} spend?
-        </h1>
-        <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
-          One wallet-wide weekly cap, plus optional per-chain caps and a
-          daily send-count limit. Sends inside the policy fly through;
-          sends that would push past it get a heads-up before signing.
-        </p>
-      </motion.section>
+      </motion.header>
+
+      <p className="max-w-2xl text-sm text-text-soft sm:text-base">
+        One wallet-wide weekly cap, plus optional per-chain caps and a
+        daily send-count limit. Sends inside the policy fly through;
+        sends that would push past it get a heads-up before signing.
+      </p>
 
       <CurrentUsageCard name={name} usage={usage} />
 

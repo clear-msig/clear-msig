@@ -62,6 +62,7 @@ import {
   SignPayloadPreview,
   type SignPayloadDetail,
 } from "@/components/retail/SignPayloadPreview";
+import { InfoTip } from "@/components/retail/InfoTip";
 import { NextStepCard } from "@/components/retail/NextStepCard";
 import { QuickSendInput } from "@/components/retail/QuickSendInput";
 import { txUrl as solanaTxUrl } from "@/lib/explorer";
@@ -1067,15 +1068,34 @@ function ComposeStage({
       {/* Compose grid - Amount + Recipient sit side-by-side on lg+
           so desktop users see both inputs at once. Stacks single-
           column on smaller screens. `items-start` keeps the cards
-          at their natural heights instead of stretching to match. */}
-      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+          at their natural heights instead of stretching to match.
+
+          Mobile: the wrapper itself becomes the bordered card so
+          Amount + Recipient read as one merged form, not two
+          stacked cards. lg+: the wrapper sheds its card styling and
+          each region restores its own card chrome (the original
+          two-card desktop layout). */}
+      <div
+        className={
+          "flex flex-col gap-5 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest " +
+          "lg:grid lg:grid-cols-2 lg:items-start lg:gap-5 " +
+          "lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none"
+        }
+      >
 
       {/* Amount card - proper bordered card with a section eyebrow.
           The number stays the most prominent pixel on the page, but
           it now sits inside a clear container instead of floating
           centered. Balance + Max live as a footer row inside the
-          same card - they're scoped to the amount, not the page. */}
-      <section className="flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+          same card - they're scoped to the amount, not the page.
+          Card chrome only applies at lg+; on mobile the parent
+          already provides the bordered container. */}
+      <section
+        className={
+          "flex flex-col gap-3 " +
+          "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-5 lg:shadow-card-rest"
+        }
+      >
         <div className="flex items-center justify-between">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
             Amount
@@ -1101,7 +1121,13 @@ function ComposeStage({
         <label htmlFor="send-amount-input" className="sr-only">
           Amount in SOL
         </label>
-        <div className="flex items-baseline gap-3 border-b border-border-soft pb-3">
+        <div
+          className={
+            "flex items-baseline gap-3 border-b border-glass-soft pb-3 " +
+            "transition-colors duration-base ease-out-soft " +
+            "focus-within:border-glass-strong"
+          }
+        >
           <input
             id="send-amount-input"
             type="text"
@@ -1119,7 +1145,7 @@ function ComposeStage({
             autoFocus
             maxLength={20}
             aria-label="Amount in SOL"
-            className="min-w-0 flex-1 bg-transparent font-numerals text-3xl font-semibold tracking-tight text-text-strong caret-accent tabular-nums outline-none placeholder:text-text-soft/50 sm:text-4xl"
+            className="min-w-0 flex-1 bg-transparent font-numerals text-3xl font-semibold tracking-tight text-text-strong tabular-nums outline-none placeholder:text-text-soft/50 sm:text-4xl"
           />
           <span
             aria-hidden="true"
@@ -1158,9 +1184,15 @@ function ComposeStage({
           )}
       </section>
 
-      {/* Recipient + Note card */}
-      <section className="flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-        <div className="flex items-end gap-2">
+      {/* Recipient + Note card. Same merged-on-mobile / split-on-lg+
+          treatment as the Amount section above. */}
+      <section
+        className={
+          "flex flex-col gap-3 " +
+          "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-5 lg:shadow-card-rest"
+        }
+      >
+        <div className="flex items-stretch gap-2">
           <div className="min-w-0 flex-1">
             <Field
               label="To"
@@ -1192,7 +1224,6 @@ function ComposeStage({
           onSaveContact={onSaveNewContact}
         />
 
-        <div className="h-px bg-border-soft" />
         <Field
           label="Note"
           value={note}
@@ -1203,7 +1234,7 @@ function ComposeStage({
         />
       </section>
 
-      </div>{/* end Amount + Recipient grid */}
+      </div>{/* end Amount + Recipient wrapper (merged-card mobile, split lg+) */}
 
       <BudgetHint
         budgetUsage={budgetUsage}
@@ -1213,7 +1244,9 @@ function ComposeStage({
 
       {/* Preview + popup narration. Lives just above the CTA so the
           user reads the action they're about to authorize before
-          they click Send. */}
+          they click Send. Both blocks render in their compact
+          "details behind an info icon" mode - the headline + warning
+          stay visible, secondary context is one hover/tap away. */}
       <div className="flex flex-col gap-3">
         <SignPayloadPreview
           action={
@@ -1243,8 +1276,9 @@ function ComposeStage({
             pendingUsd,
             budgetUsage,
           })}
+          collapsibleDetails
         />
-        <WalletPopupNarration action="send this request" />
+        <WalletPopupNarration action="send this request" disclaimerBehindInfoTip />
       </div>
 
       {/* Action footer - primary Send CTA + secondary "Send to many"
@@ -1252,8 +1286,21 @@ function ComposeStage({
           area + BottomNav); inline on sm+ where the page scrolls
           inside the workspace shell. */}
       <div className="flex flex-col gap-3 pt-1">
-        <p className="text-xs text-text-soft">
-          Friends in {walletDisplay} will be asked to approve before it sends.
+        <p className="inline-flex items-center gap-1.5 text-xs text-text-soft">
+          Friends in {walletDisplay} approve before it sends.
+          <InfoTip
+            label="How approvals work"
+            width="md"
+            size="xs"
+            side="start"
+          >
+            <span className="block">
+              When you tap Send, this becomes a proposal in {walletDisplay}.
+              The other approvers in this wallet get a notification and the
+              transfer only goes through once the threshold approves. You can
+              cancel anytime before that.
+            </span>
+          </InfoTip>
         </p>
         <div
           className={
@@ -1311,12 +1358,12 @@ function RecipientStatus({
   onSaveContact: (name: string, address: string) => void;
 }) {
   if (resolved.kind === "empty") {
-    return (
-      <p className="-mt-1 text-xs text-text-soft">
-        Type a contact name, a .sol domain, or paste a Solana wallet
-        address.
-      </p>
-    );
+    // Empty-state hint moved into the To field's info icon. Rendering
+    // it inline used to nudge the layout every time the user cleared
+    // the field, and on a quiet send view it pulled focus the wrong
+    // way. Keep the row hidden so the page stays still when there's
+    // nothing to say.
+    return null;
   }
   if (resolved.kind === "resolving") {
     return (
@@ -1413,12 +1460,14 @@ function PastedAddressNotice({
                 autoFocus
                 maxLength={40}
                 className={
-                  // min-h-tap so the input is comfortable to tap on
-                  // mobile. Was py-1.5 (~24px) which the parity audit
-                  // flagged as below HIG.
-                  "flex-1 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs text-text-strong min-h-tap " +
+                  // Hairline border using the theme-aware glass
+                  // tokens, matching the To / Note fields above.
+                  // No accent halo - the enclosing warning-tinted
+                  // card already provides plenty of context.
+                  "flex-1 rounded-soft border border-glass-soft bg-surface-raised px-3 py-2 text-xs text-text-strong min-h-tap " +
                   "outline-none placeholder:text-text-soft/60 " +
-                  "focus:border-accent"
+                  "transition-colors duration-base ease-out-soft " +
+                  "focus:border-glass-strong"
                 }
               />
               <button
@@ -1473,11 +1522,23 @@ function Field({
   maxLength,
 }: FieldProps) {
   return (
-    <label className="flex items-center gap-3">
-      <span className="inline-flex min-w-[64px] shrink-0 items-baseline whitespace-nowrap text-xs font-medium uppercase tracking-wide text-text-soft">
+    // Near-invisible hairline border. Uses the theme-aware glass
+    // tokens (4% white-on-dark / 4% dark-on-light at rest, 8% on
+    // focus) so the input reads as part of the parent card rather
+    // than a stamped form element. The focus state deepens
+    // slightly - no halo, no accent tint - so it stays subtle but
+    // keyboard-discoverable.
+    <label
+      className={
+        "flex items-center gap-3 rounded-soft border border-glass-soft px-3.5 py-2.5 " +
+        "transition-colors duration-base ease-out-soft " +
+        "focus-within:border-glass-strong"
+      }
+    >
+      <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.2em] text-text-soft">
         {label}
         {optional && (
-          <span className="ml-1 normal-case tracking-normal text-text-soft/60">
+          <span className="font-normal normal-case tracking-normal text-text-soft/60">
             (opt)
           </span>
         )}
@@ -1490,7 +1551,7 @@ function Field({
         maxLength={maxLength}
         spellCheck={false}
         className={
-          "min-w-0 flex-1 bg-transparent py-1.5 text-base text-text-strong outline-none " +
+          "min-w-0 flex-1 bg-transparent text-base text-text-strong outline-none " +
           "placeholder:text-text-soft/60"
         }
       />
@@ -1755,10 +1816,33 @@ function BudgetHint({
   const remaining = cap - budgetUsage.spentUsd;
   const wouldExceed = pendingUsd > remaining;
   if (!wouldExceed) {
+    // Pass-state used to render as a full text line ("✓ Fits within
+    // $X left…"). On a polished send view that single nice-to-know
+    // ate a row of vertical space without informing the decision -
+    // the hard signal is the over-cap warning below, not the all-
+    // clear. Tucked into a discreet inline chip so the page stays
+    // calm when nothing is wrong.
     return (
-      <p className="mt-4 text-center text-xs text-text-soft">
-        ✓ Fits within {formatUsd(remaining)} left in {walletDisplay}&rsquo;s
-        weekly cap.
+      <p className="mt-4 inline-flex items-center gap-1.5 text-[11px] text-text-soft">
+        <span
+          className="h-1.5 w-1.5 rounded-full bg-accent/70"
+          aria-hidden="true"
+        />
+        Within {walletDisplay}&rsquo;s weekly cap
+        <InfoTip
+          label="Weekly cap detail"
+          width="md"
+          size="xs"
+          side="start"
+        >
+          <span className="block">
+            <span className="font-medium text-text-strong">
+              {formatUsd(remaining)} left
+            </span>{" "}
+            in {walletDisplay}&rsquo;s {formatUsd(cap)} weekly cap. Friends
+            still need to approve every send; the cap is a guide today.
+          </span>
+        </InfoTip>
       </p>
     );
   }

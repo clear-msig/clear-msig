@@ -28,6 +28,7 @@ import {
   X,
 } from "lucide-react";
 import { BadgePill } from "@/components/retail/BadgePill";
+import { BrandSelect } from "@/components/retail/BrandSelect";
 import { Button } from "@/components/retail/Button";
 import { useToast } from "@/components/ui/Toast";
 import { encryptStatus } from "@/lib/encrypt/client";
@@ -448,27 +449,27 @@ function AssetEditor({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <label className="flex items-center gap-2 text-xs text-text-soft">
-        Chain
-        <select
-          value={condition.chainKind ?? "any"}
-          onChange={(e) =>
+      <div className="flex items-center gap-2 text-xs text-text-soft">
+        <span className="shrink-0">Chain</span>
+        <BrandSelect
+          ariaLabel="Chain"
+          value={condition.chainKind === null || condition.chainKind === undefined ? "any" : String(condition.chainKind)}
+          onChange={(v) =>
             onChange({
               ...condition,
-              chainKind:
-                e.target.value === "any" ? null : parseInt(e.target.value, 10),
+              chainKind: v === "any" ? null : parseInt(v, 10),
             })
           }
-          className="rounded-soft border border-border-soft bg-surface-raised px-2 py-1 text-xs text-text-strong"
-        >
-          <option value="any">Any chain</option>
-          <option value="0">Solana</option>
-          <option value="1">Ethereum</option>
-          <option value="4">Ethereum (ERC-20)</option>
-          <option value="2">Bitcoin</option>
-          <option value="3">Zcash</option>
-        </select>
-      </label>
+          options={[
+            { value: "any", label: "Any chain" },
+            { value: "0", label: "Solana" },
+            { value: "1", label: "Ethereum" },
+            { value: "4", label: "Ethereum (ERC-20)" },
+            { value: "2", label: "Bitcoin" },
+            { value: "3", label: "Zcash" },
+          ]}
+        />
+      </div>
       {condition.chainKind === 4 && (
         <label className="flex flex-col gap-1 text-xs text-text-soft">
           Token contract (optional)
@@ -497,22 +498,23 @@ function RecipientEditor({
   const text = (condition.addresses ?? []).join("\n");
   return (
     <div className="flex flex-col gap-2">
-      <label className="flex items-center gap-2 text-xs text-text-soft">
-        Mode
-        <select
+      <div className="flex items-center gap-2 text-xs text-text-soft">
+        <span className="shrink-0">Mode</span>
+        <BrandSelect
+          ariaLabel="Recipient mode"
           value={condition.mode}
-          onChange={(e) =>
+          onChange={(v) =>
             onChange({
               ...condition,
-              mode: e.target.value as "allowlist" | "blocklist",
+              mode: v as "allowlist" | "blocklist",
             })
           }
-          className="rounded-soft border border-border-soft bg-surface-raised px-2 py-1 text-xs text-text-strong"
-        >
-          <option value="allowlist">Allowlist</option>
-          <option value="blocklist">Blocklist</option>
-        </select>
-      </label>
+          options={[
+            { value: "allowlist", label: "Allowlist" },
+            { value: "blocklist", label: "Blocklist" },
+          ]}
+        />
+      </div>
       <label className="flex flex-col gap-1 text-xs text-text-soft">
         Addresses (one per line)
         <textarea
@@ -638,22 +640,23 @@ function TimeWindowEditor({
             className={inputClass}
           />
         </label>
-        <label className="flex flex-col gap-1 text-xs text-text-soft">
-          Match
-          <select
+        <div className="flex flex-col gap-1 text-xs text-text-soft">
+          <span>Match</span>
+          <BrandSelect
+            ariaLabel="Time window match"
             value={condition.match}
-            onChange={(e) =>
+            onChange={(v) =>
               onChange({
                 ...condition,
-                match: e.target.value as "inside" | "outside",
+                match: v as "inside" | "outside",
               })
             }
-            className="rounded-soft border border-border-soft bg-surface-raised px-2 py-1 text-xs text-text-strong"
-          >
-            <option value="inside">Inside window</option>
-            <option value="outside">Outside window</option>
-          </select>
-        </label>
+            options={[
+              { value: "inside", label: "Inside window" },
+              { value: "outside", label: "Outside window" },
+            ]}
+          />
+        </div>
       </div>
       <div className="flex flex-wrap gap-1.5">
         {days.map((d, i) => {
@@ -712,23 +715,24 @@ function VelocityEditor({
           className={inputClass}
         />
       </label>
-      <label className="flex flex-col gap-1 text-xs text-text-soft">
-        Window
-        <select
-          value={condition.windowDays}
-          onChange={(e) =>
+      <div className="flex flex-col gap-1 text-xs text-text-soft">
+        <span>Window</span>
+        <BrandSelect
+          ariaLabel="Velocity window"
+          value={String(condition.windowDays)}
+          onChange={(v) =>
             onChange({
               ...condition,
-              windowDays: parseInt(e.target.value, 10) as 1 | 7 | 30,
+              windowDays: parseInt(v, 10) as 1 | 7 | 30,
             })
           }
-          className="rounded-soft border border-border-soft bg-surface-raised px-2 py-1 text-xs text-text-strong"
-        >
-          <option value="1">Daily</option>
-          <option value="7">Weekly</option>
-          <option value="30">Monthly</option>
-        </select>
-      </label>
+          options={[
+            { value: "1", label: "Daily" },
+            { value: "7", label: "Weekly" },
+            { value: "30", label: "Monthly" },
+          ]}
+        />
+      </div>
     </div>
   );
 }

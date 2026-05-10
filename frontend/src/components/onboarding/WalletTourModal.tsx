@@ -136,16 +136,30 @@ export function WalletTourModal() {
             exit={{ opacity: 0, scale: 0.96, y: 12 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
             // Three-region layout: sticky header + scrollable body +
-            // sticky footer. max-h-[calc(100dvh-6rem)] reserves 3rem
-            // top + 3rem bottom (covers the floating mobile header
-            // pill / safe-area / BottomNav even on landscape phones).
-            // overflow-hidden on the wrapper + flex-col with a
-            // flex-1 overflow-y-auto body keeps the chrome regions
-            // pinned while long copy scrolls inside.
+            // sticky footer. overflow-hidden on the wrapper +
+            // flex-col with a flex-1 overflow-y-auto body keeps the
+            // chrome regions pinned while long copy scrolls inside.
+            //
+            // Positioning differs by viewport so the modal is always
+            // fully visible:
+            //  - Mobile: top-anchored below the floating HeaderBar
+            //    pill (safe-area-top + ~4rem clearance), full width
+            //    minus a small gutter, max-height capped to leave
+            //    room for BottomNav + safe-area-bottom + breathing.
+            //    Centering vertically on a small phone could push
+            //    the modal off-screen when content is taller than
+            //    the gap; anchoring to the top guarantees it never
+            //    does.
+            //  - Desktop: centered horizontally + vertically with a
+            //    fixed 440px width.
             className={clsx(
-              "fixed left-1/2 top-1/2 z-[251] -translate-x-1/2 -translate-y-1/2",
-              "flex w-[min(calc(100vw-1.5rem),440px)] max-h-[calc(100dvh-6rem)] flex-col",
-              "overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-raised",
+              "fixed z-[251] flex flex-col overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-raised",
+              // Mobile - top-anchored, full-width with gutter
+              "inset-x-3 top-[calc(env(safe-area-inset-top,0px)+4rem)]",
+              "max-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-9rem)]",
+              // Desktop - centered, fixed width, generous max-height
+              "sm:inset-x-auto sm:left-1/2 sm:top-1/2 sm:w-[440px] sm:-translate-x-1/2 sm:-translate-y-1/2",
+              "sm:max-h-[calc(100dvh-6rem)]",
             )}
           >
             {/* ── Header (sticky region) ────────────────────────── */}
