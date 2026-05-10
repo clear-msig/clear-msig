@@ -21,6 +21,10 @@
 
 import { Connection, PublicKey } from "@solana/web3.js";
 import type { ChainBindingResponse } from "@/lib/api/types";
+import {
+  detectBitcoinNetwork,
+  fetchBitcoinBalance,
+} from "@/lib/chain/btc";
 
 export interface ChainBalance {
   /// Smallest-unit balance (lamports / wei / sats). `null` when the
@@ -57,16 +61,25 @@ export async function fetchChainBalance(
       return { raw: wei, address: addr };
     }
     case 2: {
+      // Pre-alpha is testnet/signet across the board. Prefer the
+      // testnet address when available (always populated by the
+      // backend in pre-alpha) so balance polls hit mempool.space's
+      // testnet/signet endpoint, not mainnet (where the dWallet has
+      // no UTXOs and the user would see "0 BTC" forever).
       const addr =
-        binding.btc_p2wpkh_mainnet ?? binding.btc_p2wpkh_testnet ?? null;
+        binding.btc_p2wpkh_testnet ?? binding.btc_p2wpkh_mainnet ?? null;
       if (!addr) return null;
-      const isTestnet = !!binding.btc_p2wpkh_testnet && !binding.btc_p2wpkh_mainnet;
-      const sats = await fetchBitcoinBalance(addr, isTestnet);
+      // `tb` HRP is shared between testnet3 and signet — probe both to
+      // find which one the user actually funded. detectBitcoinNetwork
+      // short-circuits to "testnet" when both probes are empty, so a
+      // fresh wallet still resolves to a sensible default.
+      const network = await detectBitcoinNetwork(addr);
+      const sats = await fetchBitcoinBalance(addr, network);
       return { raw: sats, address: addr };
     }
     case 3: {
       const addr =
-        binding.zcash_t_addr_mainnet ?? binding.zcash_t_addr_testnet ?? null;
+        binding.zcash_t_addr_testnet ?? binding.zcash_t_addr_mainnet ?? null;
       if (!addr) return null;
       // Zcash: no widely-available public REST today. Surface
       // address but null balance so the UI renders "-".
@@ -102,41 +115,6 @@ async function fetchEvmBalance(rpcUrl: string, address: string): Promise<bigint>
   }
   // result is "0x" + hex wei
   return BigInt(json.result);
-}
-
-// ── Bitcoin balance (mempool.space / Esplora) ─────────────────────
-
-async function fetchBitcoinBalance(
-  address: string,
-  testnet: boolean,
-): Promise<bigint> {
-  const base = testnet
-    ? "https://mempool.space/testnet/api"
-    : "https://mempool.space/api";
-  const res = await fetch(`${base}/address/${address}`, {
-    method: "GET",
-    headers: { accept: "application/json" },
-  });
-  if (!res.ok) {
-    throw new Error(`mempool.space HTTP ${res.status}`);
-  }
-  // Esplora /address response shape:
-  // {
-  //   chain_stats: { funded_txo_sum, spent_txo_sum, ... },
-  //   mempool_stats: { funded_txo_sum, spent_txo_sum, ... }
-  // }
-  const json: {
-    chain_stats?: { funded_txo_sum?: number; spent_txo_sum?: number };
-    mempool_stats?: { funded_txo_sum?: number; spent_txo_sum?: number };
-  } = await res.json();
-  const confirmed =
-    BigInt(json.chain_stats?.funded_txo_sum ?? 0) -
-    BigInt(json.chain_stats?.spent_txo_sum ?? 0);
-  const pending =
-    BigInt(json.mempool_stats?.funded_txo_sum ?? 0) -
-    BigInt(json.mempool_stats?.spent_txo_sum ?? 0);
-  // Show confirmed + pending so the user sees the value en-route.
-  return confirmed + pending;
 }
 
 /// Format a smallest-unit balance for display using the chain's

@@ -45,6 +45,7 @@ import {
   ExternalLink,
   Loader2,
   Send,
+  X,
 } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -52,6 +53,7 @@ import { IntentType } from "@/lib/msig";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
 import { backendApi } from "@/lib/api/endpoints";
+import { BackendApiError } from "@/lib/api/client";
 import { friendlyError } from "@/lib/api/errors";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
@@ -67,11 +69,14 @@ import { appConfig } from "@/lib/config";
 import {
   DEFAULT_BITCOIN_NETWORK,
   decodeSegwitAddress,
+  detectBitcoinNetwork,
+  esploraBaseUrl,
   fetchBitcoinBalance,
   fetchBitcoinUtxos,
   formatSats,
   mempoolSpaceTxUrl,
   parseBtcAmount,
+  reverseHex,
   validateBtcDestination,
   type BitcoinNetwork,
   type EsploraUtxo,
@@ -143,19 +148,35 @@ function BitcoinSendPage() {
     );
   }, [chainsQuery.data]);
 
-  // The chain binding's `network` field would be the source of truth
-  // once the backend exposes it; for now we sniff from whichever
-  // address Esplora returns. Mainnet bindings have a `bc1` address
-  // in `btc_p2wpkh_mainnet`; everything else is signet/testnet.
-  const btcNetwork: BitcoinNetwork = useMemo(() => {
-    if (!btcBinding) return DEFAULT_BITCOIN_NETWORK;
-    if (btcBinding.btc_p2wpkh_mainnet) return "mainnet";
-    return DEFAULT_BITCOIN_NETWORK; // signet / testnet share `tb`
-  }, [btcBinding]);
-
   const dwalletAddress = useMemo(() => {
     return btcBinding ? chainAddress(btcBinding) : null;
   }, [btcBinding]);
+
+  // Pre-alpha runs against Solana DEVNET + Ika's mock signer, so
+  // every BTC binding here is testnet-class (the backend returns
+  // both `btc_p2wpkh_mainnet` and `btc_p2wpkh_testnet` for the same
+  // HASH160; chainAddress already prefers the tb-HRP form). The `tb`
+  // HRP is shared between testnet3 and signet though, so we have to
+  // probe both Esplora endpoints to find which one actually has the
+  // user's UTXOs. Default `testnet` while the probe runs so the page
+  // can render skeletons; the network query swaps in once it lands.
+  const networkQuery = useQuery({
+    queryKey: ["btc-network-detect", dwalletAddress ?? "none"],
+    queryFn: () =>
+      dwalletAddress
+        ? detectBitcoinNetwork(dwalletAddress)
+        : DEFAULT_BITCOIN_NETWORK,
+    enabled: !!dwalletAddress,
+    // The detection is essentially "what faucet did the user use?" —
+    // it doesn't change after the first funded UTXO lands, so we can
+    // cache aggressively. 5 min is long enough to not re-probe on
+    // every focus, short enough to pick up a switch if the user
+    // suddenly funds the other chain.
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const btcNetwork: BitcoinNetwork =
+    networkQuery.data ?? DEFAULT_BITCOIN_NETWORK;
 
   // sender_pkh: HASH160(dwallet pubkey) = the witness program of the
   // dWallet's own P2WPKH address. We extract by decoding the address
@@ -209,6 +230,20 @@ function BitcoinSendPage() {
     to: string;
     txid: string | null;
     explorerUrl: string | null;
+  } | null>(null);
+  // Inline error banner state. The toast version was too easy to miss
+  // (auto-dismisses, no copy of the underlying CLI stderr) — this lets
+  // users actually see the real error and take action without
+  // re-clicking Send.
+  const [sendError, setSendError] = useState<{
+    title: string;
+    body: string;
+    /// Raw CLI stderr from the BackendApiError payload, if present.
+    /// Surfaced behind a "Show technical details" expander.
+    stderr?: string;
+    /// The proposal address from the failed attempt, if we got that
+    /// far. Helps with on-chain forensics.
+    proposalAddress?: string;
   } | null>(null);
 
   const sendAmountSats = useMemo<bigint | null>(
@@ -334,10 +369,25 @@ function BitcoinSendPage() {
       const dest = validateBtcDestination(destination, btcNetwork);
       if (!dest.ok) throw new Error(dest.reason);
 
+      // Bitcoin txids round-trip in TWO byte orders:
+      //   - Esplora / block explorers / `mempool.space` return them in
+      //     DISPLAY order (the human-readable BE hex you'd paste into
+      //     a search box).
+      //   - Bitcoin's internal wire format (BIP143 prev_outpoint, OP_…
+      //     anything that goes into a sighash) uses INTERNAL order
+      //     (LE — display-reversed).
+      // The on-chain BIP143 builder
+      // (`programs/clear-wallet/src/chains/bitcoin.rs:44`) is explicit
+      // about wanting internal byte order. We reverse the Esplora hex
+      // before stuffing it into the bytes32 param so the sighash
+      // computed on chain references the same UTXO Bitcoin's
+      // mempool will look up at broadcast time.
+      const prevTxidInternal = reverseHex(selectedUtxo.txid);
+
       const dry = await backendApi.prepare.createProposal(name, {
         intent_index: btcIntent.intentIndex,
         params: [
-          `prev_txid=0x${selectedUtxo.txid}`,
+          `prev_txid=0x${prevTxidInternal}`,
           `prev_vout=${selectedUtxo.vout}`,
           `prev_amount_sats=${selectedUtxo.value}`,
           `sender_pkh=0x${senderPkhHex}`,
@@ -376,10 +426,16 @@ function BitcoinSendPage() {
         broadcast: true,
         dwallet_program: appConfig.preAlpha.dwalletProgramId,
         grpc_url: appConfig.preAlpha.grpcUrl,
-        // No `rpc_url` for BTC — the CLI defaults to mempool.space's
-        // Esplora endpoint per network, matching what the intent
-        // template specifies. Could be overridden later if we add a
-        // BTC-specific override in Settings.
+        // BTC needs an ESPLORA URL (POST /tx), not a JSON-RPC URL.
+        // The backend's `default_destination_rpc_url` is set up for
+        // EVM (publicnode.com / 1RPC etc) — using that for BTC would
+        // POST `eth_sendRawTransaction` JSON to mempool.space's
+        // `/tx` endpoint and 400 immediately. We pass the
+        // network-specific mempool.space Esplora URL explicitly so
+        // the CLI's `cli/src/chains/bitcoin.rs::broadcast_tx`
+        // adapter hits the right endpoint regardless of whatever
+        // EVM default the backend env carries.
+        rpc_url: esploraBaseUrl(btcNetwork),
       });
       const broadcast = (executed as { broadcast?: BroadcastResultLike })
         ?.broadcast;
@@ -402,14 +458,32 @@ function BitcoinSendPage() {
         queryKey: ["btc-utxos", dwalletAddress ?? "none", btcNetwork],
       });
     },
-    onError: (err) => {
+    onError: (err, _vars, _ctx) => {
       console.error("[send-btc]", err);
       const fe = friendlyError(err, "send");
+      // Toast still fires (matches the rest of the app's send flows),
+      // but the inline banner is the durable surface for the stderr —
+      // a 5-second toast wasn't enough to read or copy the underlying
+      // CLI message before it disappeared. Pull stderr off
+      // BackendApiError directly.
+      const stderr =
+        err instanceof BackendApiError
+          ? (err.payload?.stderr ?? undefined)
+          : undefined;
+      setSendError({
+        title: fe.title,
+        body: fe.body ?? "",
+        stderr,
+      });
       toast.error(fe.title, { details: fe.body });
     },
   });
 
   const handleSend = () => {
+    // Clear any prior error banner — a fresh attempt deserves a clean
+    // canvas; leftover stderr from a previous failure would confuse
+    // the picture if THIS one succeeds.
+    setSendError(null);
     setDestinationError(null);
     setAmountError(null);
     if (!destination.trim()) {
@@ -522,6 +596,19 @@ function BitcoinSendPage() {
             onSetup={() => setupIntent.mutate()}
             busy={setupIntent.isPending}
             reduce={!!reduce}
+          />
+        )}
+        {ready && !sentLabel && sendError && (
+          <SendErrorBanner
+            error={sendError}
+            onReset={() => {
+              setSendError(null);
+              setDestination("");
+              setAmountBtc("");
+              setDestinationError(null);
+              setAmountError(null);
+            }}
+            onDismiss={() => setSendError(null)}
           />
         )}
         {ready && !sentLabel && (
@@ -834,6 +921,89 @@ function SentCard({
         </Button>
       </div>
     </section>
+  );
+}
+
+// ─── error banner ─────────────────────────────────────────────────
+//
+// Persistent inline banner shown when a send mutation fails. Replaces
+// the ephemeral toast as the primary surface for the diagnostic so
+// users can:
+//   - Read the friendly title + body without it auto-dismissing.
+//   - Expand "Show technical details" to see the raw CLI stderr —
+//     critical for forwarding to upstream (e.g. the Ika devrel
+//     thread when the secp256k1 sign path fails on BTC + ETH).
+//   - "Start fresh attempt" clears destination/amount/UI errors so
+//     a retry isn't polluted by stale form state. (Note: the failed
+//     proposal stays on chain; framework-level proposal cleanup is
+//     broken in this Quasar version — see CLAUDE.md "Known issues".
+//     Hitting Send again with different params will create a NEW
+//     proposal, which is what we want here.)
+
+function SendErrorBanner({
+  error,
+  onReset,
+  onDismiss,
+}: {
+  error: { title: string; body: string; stderr?: string };
+  onReset: () => void;
+  onDismiss: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div
+      role="alert"
+      className="rounded-2xl border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-text-strong"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1">
+          <p className="font-semibold">{error.title}</p>
+          <p className="mt-1 text-text-soft">{error.body}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="-mr-1 -mt-1 rounded-md p-1 text-text-soft hover:text-text-strong"
+          aria-label="Dismiss error"
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </div>
+      {error.stderr && (
+        <details
+          className="mt-3 text-xs"
+          open={expanded}
+          onToggle={(e) => setExpanded((e.target as HTMLDetailsElement).open)}
+        >
+          <summary className="cursor-pointer text-text-soft hover:text-text-strong">
+            Show technical details
+          </summary>
+          <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-black/30 p-3 font-mono text-[11px] leading-relaxed text-text-soft">
+            {error.stderr.trim()}
+          </pre>
+        </details>
+      )}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Button variant="ghost" size="sm" onClick={onReset}>
+          Start fresh attempt
+        </Button>
+        {error.stderr && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              void navigator.clipboard
+                .writeText(error.stderr ?? "")
+                .catch(() => {
+                  // ignore clipboard rejection (Safari permissions etc.)
+                });
+            }}
+          >
+            Copy details
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }
 

@@ -168,6 +168,12 @@ export function friendlyError(
   // Earlier copy here floated a "key rotation" theory; per upstream
   // (Iamknownasfesal / Ika devrel) a real rotation would invalidate
   // every wallet, not selective per-chain — so this isn't that.
+  // ── ETH recover_v failure after BOTH canonical AND byte-reversed
+  //    passes (cli/src/chains/evm.rs::recover_v). The auto-correction
+  //    landed in commit 92250a0; this matcher only fires when even
+  //    the reversed-byte fallback didn't recover the dWallet pubkey,
+  //    which means the failure is real (preimage drift, key mismatch,
+  //    or sig over a different message) — not just LE encoding. ────
   if (
     hay.includes("neither v=0 nor v=1 recovers") ||
     hay.includes("not over keccak256(preimage)") ||
@@ -176,14 +182,37 @@ export function friendlyError(
     return {
       title: "Ika signature didn't match the dWallet's pubkey",
       body:
-        "This is a pre-alpha bug in the deployed CLI / on-chain program / Ika " +
-        "network — not something you did. The signature Ika returned doesn't " +
-        "recover to the pubkey stored on this wallet's chain binding, which " +
-        "means the preimage builders on the two sides have drifted out of " +
-        "byte-exact parity (or a stale MessageApproval is being reused). " +
-        "Frontend can't fix this; the backend authors need to rebuild + " +
-        "redeploy the CLI and the on-chain program together. Send this stderr " +
-        "to the team along with the dWallet pubkey from the chain binding.",
+        "The CLI tried both canonical and byte-reversed scalars and neither " +
+        "recovered to the pubkey on this wallet's Ethereum binding. That " +
+        "rules out the common LE-encoding bug we already auto-correct for; " +
+        "this is a deeper mismatch — preimage drift, wrong key, or a sig " +
+        "produced over a different message. Copy the technical details and " +
+        "send to the team for byte-by-byte bisection.",
+    };
+  }
+
+  // ── Bitcoin script-verify rejection. Mostly the LE-scalar case
+  //    (Ika's mock signer emits little-endian sometimes); the CLI
+  //    auto-corrects in cli/src/chains/bitcoin.rs::pick_canonical_or_reversed
+  //    as of commit 98484ca, so a fresh retry of the SAME proposal
+  //    will usually succeed without any new signing roundtrip — the
+  //    fix swaps byte order at broadcast time. If users still hit
+  //    this matcher post-98484ca, the failure is the BTC equivalent
+  //    of the ETH "neither pass recovers" case above (real preimage
+  //    drift / key mismatch). ─────────────────────────────────────
+  if (
+    hay.includes("mempool-script-verify-flag-failed") ||
+    hay.includes("signature must be zero for failed check") ||
+    hay.includes("non-mandatory-script-verify-flag")
+  ) {
+    return {
+      title: "Bitcoin rejected this transaction's signature",
+      body:
+        "Bitcoin's mempool refused the witness sig. The CLI auto-corrects " +
+        "the most common cause (Ika emitting little-endian scalars) at " +
+        "broadcast time, so retrying the same proposal often succeeds. If " +
+        "the retry shows this same error, the sig didn't verify in either " +
+        "byte order — copy the technical details and send to the team.",
     };
   }
 

@@ -614,7 +614,7 @@ fn execute_via_ika(
         // Load the DKG attestation saved during `wallet add-chain` and use its
         // session_identifier as the dwallet_addr — this must match the value
         // the mock stored the key under during DKG.
-        let dwallet_attestation = ika::load_attestation(_wallet_name)
+        let dwallet_attestation = ika::load_attestation(_wallet_name, chain_kind)
             .with_context(|| "failed to load dWallet attestation")?;
         let dwallet_addr_bytes = {
             let versioned: VersionedDWalletDataAttestation =

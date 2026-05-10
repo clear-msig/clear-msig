@@ -56,8 +56,13 @@
 
 use crate::chains::BroadcastResult;
 use crate::error::*;
-use k256::ecdsa::Signature as K256Signature;
+use crate::ika::{keccak256, sha256d};
+use k256::ecdsa::{
+    signature::hazmat::PrehashVerifier, Signature as K256Signature,
+    VerifyingKey as K256VerifyingKey,
+};
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 
 /// Inputs needed to assemble the segwit transaction body. Anything not
 /// recoverable from the BIP143 preimage hash tree (which commits to
@@ -76,6 +81,7 @@ pub struct SpendInputs {
 /// the raw signed tx hex on success.
 pub fn assemble_and_broadcast(
     inputs: SpendInputs,
+    preimage: &[u8],
     r: &[u8; 32],
     s: &[u8; 32],
     dwallet_pubkey_compressed: &[u8],
@@ -87,7 +93,38 @@ pub fn assemble_and_broadcast(
             dwallet_pubkey_compressed.len()
         ));
     }
-    let der_sig = der_encode_signature(r, s)?;
+
+    // Pick whichever (digest, (r, s) byte order) combination actually
+    // verifies against the dWallet pubkey. We try multiple candidate
+    // digests because Ika's pre-alpha mock signer has been observed
+    // applying different hashes than the protocol's stated scheme:
+    //
+    //   1. `sha256d(preimage)` — what BIP143 says we should sign,
+    //      and what `DWalletSignatureScheme::EcdsaDoubleSha256`
+    //      claims Ika should be applying.
+    //   2. `sha256(preimage)` — single SHA-256, in case Ika's mock
+    //      backend short-circuits to one round.
+    //   3. `keccak256(preimage)` — same hash the EVM path uses; if
+    //      Ika dispatches all secp256k1 schemes through the same
+    //      hashing code regardless of the requested scheme, the
+    //      sig would actually be over keccak256.
+    //
+    // For each digest we also try (r, s) in canonical big-endian and
+    // byte-reversed order (the LE-scalar bug 92250a0 fixed for EVM).
+    //
+    // The first combination that verifies wins; we DER-encode using
+    // the (r, s) that worked, and Bitcoin's CHECKSIG will be happy.
+    // A loud stderr line names which combination won so the upstream
+    // bug stays visible — silently auto-correcting forever lets
+    // bugs ossify.
+    let chosen = pick_verifying_combination(
+        preimage,
+        r,
+        s,
+        dwallet_pubkey_compressed,
+    )?;
+
+    let der_sig = der_encode_signature(&chosen.r, &chosen.s)?;
     let mut sig_with_hashtype = Vec::with_capacity(der_sig.len() + 1);
     sig_with_hashtype.extend_from_slice(&der_sig);
     sig_with_hashtype.push(SIGHASH_ALL);
@@ -143,6 +180,170 @@ fn der_encode_signature(r: &[u8; 32], s: &[u8; 32]) -> Result<Vec<u8>> {
         .map_err(|e| anyhow!("invalid (r, s) for DER encoding: {e}"))?;
     let normalized = sig.normalize_s().unwrap_or(sig);
     Ok(normalized.to_der().as_bytes().to_vec())
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Endianness fallback (mirrors EVM's `recover_v` LE-correction)
+// ────────────────────────────────────────────────────────────────────────────
+
+/// `(r, s)` bytes that actually verified for the BIP143 sighash. Same
+/// shape as EVM's `RecoveredSignature` minus the `v` (Bitcoin sigs
+/// aren't recoverable — we have the pubkey embedded in the witness).
+struct ChosenScalars {
+    r: [u8; 32],
+    s: [u8; 32],
+}
+
+/// Try every plausible (digest, byte-order) combination until one
+/// verifies against the dWallet pubkey. Returns the (r, s) bytes we
+/// should DER-encode into the witness — these may differ from the
+/// input scalars when Ika's mock signer emitted little-endian.
+///
+/// Background: the BTC sighash should be `sha256d(preimage)` per
+/// BIP143, and the upstream signature scheme we request is
+/// `DWalletSignatureScheme::EcdsaDoubleSha256`. In practice we've
+/// seen the live mock backend produce signatures that don't verify
+/// against `sha256d(preimage)` even with byte-reversed scalars —
+/// suggesting the mock is hashing differently than the protocol
+/// claims. Rather than block forever waiting for upstream to fix,
+/// we exhaustively try the digests Ika might plausibly be using.
+///
+/// Combinations attempted (8 total):
+///   - digest = sha256d(preimage)         × {canonical (r,s), reversed (r,s)}
+///   - digest = sha256(preimage)          × {canonical (r,s), reversed (r,s)}
+///   - digest = keccak256(preimage)       × {canonical (r,s), reversed (r,s)}
+///   - digest = preimage truncated to 32  × {canonical (r,s), reversed (r,s)}
+///       (covers "Ika is signing the message bytes directly without
+///       hashing" — only meaningful when preimage is ≥ 32 bytes)
+///
+/// Whichever passes wins; we ALWAYS DER-encode the recovered (r, s)
+/// (low-s normalized) into a Bitcoin witness — Bitcoin nodes
+/// recompute `sha256d(preimage)` themselves and verify with that, so
+/// what matters from THEIR perspective is that the (r, s) we emit is
+/// a valid signature over `sha256d(preimage)`. If Ika signed a
+/// different digest, the sig won't pass Bitcoin's check no matter
+/// what byte order we use — those cases will still fail at broadcast
+/// time, but at least we'll know exactly which digest was signed.
+///
+/// Note: only the sha256d-canonical case yields a Bitcoin-broadcastable
+/// sig. The other passes are diagnostic — if one of them verifies, we
+/// log what Ika is actually doing so it can be filed upstream, but the
+/// broadcast still fails because Bitcoin won't accept a sig over
+/// keccak256(preimage) or sha256(preimage). We continue and let
+/// Esplora reject so the operator sees the real diagnostic.
+fn pick_verifying_combination(
+    preimage: &[u8],
+    r: &[u8; 32],
+    s: &[u8; 32],
+    expected_pubkey_compressed: &[u8],
+) -> Result<ChosenScalars> {
+    let vk = K256VerifyingKey::from_sec1_bytes(expected_pubkey_compressed)
+        .map_err(|e| anyhow!("invalid SEC1 dWallet pubkey: {e}"))?;
+
+    let bip143_digest = sha256d(preimage);
+    let single_sha256: [u8; 32] = Sha256::digest(preimage).into();
+    let keccak_digest = keccak256(preimage);
+
+    let try_verify = |digest: &[u8; 32], r: &[u8; 32], s: &[u8; 32]| -> bool {
+        let Ok(sig) = K256Signature::from_scalars(*r, *s) else {
+            return false;
+        };
+        if vk.verify_prehash(digest, &sig).is_ok() {
+            return true;
+        }
+        if let Some(norm) = sig.normalize_s() {
+            if vk.verify_prehash(digest, &norm).is_ok() {
+                return true;
+            }
+        }
+        false
+    };
+
+    let mut r_rev = *r;
+    let mut s_rev = *s;
+    r_rev.reverse();
+    s_rev.reverse();
+
+    // Only the BIP143 sha256d digest produces a Bitcoin-broadcastable
+    // sig. Try it first in both byte orders.
+    if try_verify(&bip143_digest, r, s) {
+        return Ok(ChosenScalars { r: *r, s: *s });
+    }
+    if try_verify(&bip143_digest, &r_rev, &s_rev) {
+        eprintln!(
+            "⚠ [btc-verify] sig over sha256d(preimage) verified with \
+             reversed-byte scalars. Ika emitted little-endian r,s; \
+             auto-correcting for this broadcast."
+        );
+        return Ok(ChosenScalars { r: r_rev, s: s_rev });
+    }
+
+    // Diagnostic passes — if any pass, we know what Ika actually
+    // signed, but the broadcast will still fail because Bitcoin
+    // recomputes sha256d itself. The error message names the digest
+    // so the bug is filable.
+    let mut diagnostic = String::new();
+    let mut probe = |label: &str, digest: &[u8; 32]| {
+        if try_verify(digest, r, s) {
+            diagnostic.push_str(&format!(
+                "  - sig DID verify against {label} (canonical r,s) — \
+                 Ika is signing {label}, not sha256d(preimage).\n"
+            ));
+        }
+        if try_verify(digest, &r_rev, &s_rev) {
+            diagnostic.push_str(&format!(
+                "  - sig DID verify against {label} (REVERSED r,s) — \
+                 Ika is signing {label} AND emitting little-endian \
+                 scalars.\n"
+            ));
+        }
+    };
+    probe("sha256(preimage)", &single_sha256);
+    probe("keccak256(preimage)", &keccak_digest);
+    if preimage.len() >= 32 {
+        let mut head = [0u8; 32];
+        head.copy_from_slice(&preimage[..32]);
+        probe("preimage[..32] (no hash)", &head);
+    }
+
+    let extra = if diagnostic.is_empty() {
+        "  - no diagnostic digest matched. The signature is over a \
+         message we don't know how to compute — most likely a \
+         dWallet pubkey mismatch (signed with a different key) or \
+         Ika applied a personalized hash we haven't accounted for.\n"
+            .to_string()
+    } else {
+        diagnostic
+    };
+
+    Err(anyhow!(
+        "ECDSA sig didn't verify against the dWallet pubkey for the BIP143 \
+         sighash (sha256d(preimage)) in either canonical or byte-reversed \
+         form. Diagnostic probes against alternate digests:\n{}\n\
+         preimage_len:    {} bytes\n\
+         sha256d:         0x{}\n\
+         sha256:          0x{}\n\
+         keccak256:       0x{}\n\
+         r (as given):    0x{}\n\
+         s (as given):    0x{}\n\
+         expected_pubkey: 0x{}",
+        extra,
+        preimage.len(),
+        hex_lower(&bip143_digest),
+        hex_lower(&single_sha256),
+        hex_lower(&keccak_digest),
+        hex_lower(r),
+        hex_lower(s),
+        hex_lower(expected_pubkey_compressed),
+    ))
+}
+
+fn hex_lower(b: &[u8]) -> String {
+    let mut s = String::with_capacity(b.len() * 2);
+    for byte in b {
+        s.push_str(&format!("{byte:02x}"));
+    }
+    s
 }
 
 // ────────────────────────────────────────────────────────────────────────────

@@ -149,6 +149,7 @@ pub fn broadcast_signed_tx(
                     send_amount_sats,
                     lock_time,
                 },
+                preimage,
                 &r,
                 &s,
                 dwallet_pubkey_compressed,

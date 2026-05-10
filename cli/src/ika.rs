@@ -160,33 +160,96 @@ fn attestation_dir() -> std::path::PathBuf {
     home.join(".config/clear-msig/attestations")
 }
 
-/// Save a DKG attestation to disk keyed by wallet name.
+/// Save a DKG attestation to disk keyed by `(wallet, chain_kind)`.
+///
+/// Each `wallet add-chain` runs DKG and produces a fresh dWallet with
+/// its own pubkey. Storing all per-chain attestations under one
+/// `<wallet>.json` file (the previous behavior) caused later
+/// addChains to silently OVERWRITE earlier ones — so on a wallet
+/// with both BTC and ETH bound, whichever was added LAST is what
+/// `load_attestation` would return for both chains' sends. The
+/// non-current chain's `proposal execute` would then hand Ika's
+/// gRPC the wrong dWallet pubkey, and Ika would fail to find the
+/// MessageApproval PDA (it derives the seed from the pubkey in
+/// the attestation, which doesn't match what the on-chain
+/// `ika_sign` instruction wrote against the correct chain's
+/// dWallet pubkey).
+///
+/// We now save to `<wallet>__c<chain_kind>.json`. Old wallets that
+/// still have a single `<wallet>.json` file work via the legacy
+/// fallback in `load_attestation` below — but the moment any chain
+/// is re-bound under the new code, that chain gets a chain-specific
+/// file and is no longer affected by the overwrite bug.
+///
+/// We also continue writing the legacy `<wallet>.json` path so a
+/// brief downgrade to the old CLI binary doesn't lose access; the
+/// content there will be the most recently bound chain's
+/// attestation, same as the old behavior.
 pub fn save_attestation(
     wallet_name: &str,
+    chain_kind: u8,
     attestation: &NetworkSignedAttestation,
 ) -> Result<()> {
     let dir = attestation_dir();
     std::fs::create_dir_all(&dir)?;
-    let path = dir.join(format!("{wallet_name}.json"));
     let json = serde_json::json!({
         "attestation_data": hex_encode_bytes(&attestation.attestation_data),
         "network_signature": hex_encode_bytes(&attestation.network_signature),
         "network_pubkey": hex_encode_bytes(&attestation.network_pubkey),
         "epoch": attestation.epoch,
     });
-    std::fs::write(&path, serde_json::to_string_pretty(&json)?)?;
+    let payload = serde_json::to_string_pretty(&json)?;
+
+    let chain_path = dir.join(format!("{wallet_name}__c{chain_kind}.json"));
+    std::fs::write(&chain_path, &payload)?;
+
+    let legacy_path = dir.join(format!("{wallet_name}.json"));
+    std::fs::write(&legacy_path, &payload)?;
     Ok(())
 }
 
-/// Load a previously saved DKG attestation for a wallet.
-pub fn load_attestation(wallet_name: &str) -> Result<NetworkSignedAttestation> {
-    let path = attestation_dir().join(format!("{wallet_name}.json"));
+/// Load a previously saved DKG attestation for `(wallet, chain_kind)`.
+/// Tries the chain-specific path first; falls back to the legacy
+/// `<wallet>.json` for wallets bound before the per-chain split.
+///
+/// The fallback is "best effort" — if the legacy file holds a
+/// different chain's attestation (the historical overwrite bug),
+/// the gRPC sign will still fail with "MessageApproval PDA not
+/// found". In that case the user has to re-bind the chain (which
+/// writes a fresh chain-specific file under the new code) or
+/// create a new wallet.
+pub fn load_attestation(
+    wallet_name: &str,
+    chain_kind: u8,
+) -> Result<NetworkSignedAttestation> {
+    let dir = attestation_dir();
+    let chain_path = dir.join(format!("{wallet_name}__c{chain_kind}.json"));
+    let legacy_path = dir.join(format!("{wallet_name}.json"));
+
+    let (path, used_legacy) = if chain_path.exists() {
+        (chain_path, false)
+    } else if legacy_path.exists() {
+        (legacy_path, true)
+    } else {
+        return Err(anyhow!(
+            "no saved attestation for wallet '{wallet_name}' chain_kind={chain_kind} \
+             at {} (also checked legacy {}); re-run `wallet add-chain` to generate one",
+            dir.join(format!("{wallet_name}__c{chain_kind}.json")).display(),
+            dir.join(format!("{wallet_name}.json")).display(),
+        ));
+    };
+
+    if used_legacy {
+        eprintln!(
+            "⚠ [attestation] using legacy {wallet_name}.json (no per-chain file \
+             yet for chain_kind={chain_kind}). If this fails, the legacy file \
+             holds another chain's attestation — re-bind chain_kind={chain_kind} \
+             to write a chain-specific file."
+        );
+    }
+
     let data = std::fs::read_to_string(&path)
-        .with_context(|| format!(
-            "no saved attestation for wallet '{wallet_name}' at {}; \
-             re-run `wallet add-chain` to generate one",
-            path.display()
-        ))?;
+        .with_context(|| format!("reading attestation at {}", path.display()))?;
     let json: serde_json::Value = serde_json::from_str(&data)?;
     Ok(NetworkSignedAttestation {
         attestation_data: hex_decode_field(&json, "attestation_data")?,

@@ -878,28 +878,48 @@ fn ensure_non_empty(value: &str, field: &str) -> Result<(), ApiError> {
 /// templates the CLI is expected to load.
 ///
 /// Rules:
-///   - Must end in `.json`.
-///   - Allowed chars: `[A-Za-z0-9._-]` only (no `/`, no `..`, no
-///     whitespace, no shell metacharacters).
-///   - Length capped at 64 bytes.
-///   - Must not be `.` or `..` or start with a `.` (hidden files).
+///   - Optionally prefixed with `examples/intents/` — the canonical
+///     location of the bundled intent templates the frontend sends.
+///   - Basename (after the optional prefix) must end in `.json`.
+///   - Basename allowed chars: `[A-Za-z0-9._-]` only — no shell
+///     metacharacters, no whitespace, no further path separators.
+///   - Total length capped at 80 bytes (room for the 17-char prefix
+///     + a 63-char basename).
+///   - Basename must not be `.` or `..` or start with a `.`.
+///
+/// SEC-3's earlier basename-only rule rejected the existing
+/// frontend payload `examples/intents/btc_transfer.json` and broke
+/// every addIntent call. We loosen to a fixed prefix (still
+/// untouched by the user — the frontend hard-codes it), and keep
+/// the basename validation strict so a file-existence oracle / read
+/// leak via stderr can't be smuggled through.
 fn ensure_intent_filename(value: &str, field: &str) -> Result<(), ApiError> {
+    const ALLOWED_PREFIX: &str = "examples/intents/";
+
     let trimmed = value.trim();
     if trimmed.is_empty() {
         return Err(ApiError::BadRequest(format!("{field} must not be empty")));
     }
-    if trimmed.len() > 64 {
+    if trimmed.len() > 80 {
         return Err(ApiError::BadRequest(format!("{field} too long")));
     }
-    if !trimmed.ends_with(".json") {
+
+    let basename = trimmed.strip_prefix(ALLOWED_PREFIX).unwrap_or(trimmed);
+    if basename.is_empty() {
+        return Err(ApiError::BadRequest(format!("{field} must not be empty")));
+    }
+    if basename.len() > 63 {
+        return Err(ApiError::BadRequest(format!("{field} basename too long")));
+    }
+    if !basename.ends_with(".json") {
         return Err(ApiError::BadRequest(format!(
             "{field} must end in .json"
         )));
     }
-    if trimmed.starts_with('.') || trimmed.contains("..") {
+    if basename.starts_with('.') || basename.contains("..") {
         return Err(ApiError::BadRequest(format!("{field} not permitted")));
     }
-    if !trimmed
+    if !basename
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-')
     {
