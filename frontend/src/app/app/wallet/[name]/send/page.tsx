@@ -15,7 +15,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -261,7 +261,6 @@ export default function SendPageWrapper() {
 }
 
 function SendPage() {
-  const router = useRouter();
   const params = useSearchParams();
   const route = useParams<{ name: string }>();
   const reduce = useReducedMotion();
