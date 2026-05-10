@@ -187,6 +187,34 @@ export function friendlyError(
     };
   }
 
+  // ── Bitcoin script-verify rejection (same root cause as the ETH
+  //    recover_v failure above — Ika's secp256k1 sign path returns a
+  //    signature that doesn't validate against the dWallet pubkey
+  //    for the BIP143 sighash). Bitcoin nodes report this as
+  //    "mempool-script-verify-flag-failed" / "Signature must be zero
+  //    for failed CHECK(MULTI)SIG operation". Witness assembly is
+  //    fine on our side (DER-encoded, low-s normalized, sighash byte
+  //    appended, compressed pubkey is the actual dWallet key — if the
+  //    pubkey were wrong, Bitcoin would emit "Witness program hash
+  //    mismatch" instead, which is a different code path). ─────────
+  if (
+    hay.includes("mempool-script-verify-flag-failed") ||
+    hay.includes("signature must be zero for failed check") ||
+    hay.includes("non-mandatory-script-verify-flag")
+  ) {
+    return {
+      title: "Bitcoin rejected this transaction's signature",
+      body:
+        "Ika returned a signature that Bitcoin's mempool refused to accept " +
+        "as valid for this dWallet. Same upstream issue we've reported on " +
+        "the Ethereum send path — the secp256k1 sign in Ika's pre-alpha " +
+        "doesn't yet produce signatures that verify against the dWallet's " +
+        "stored pubkey. ETH and BTC both rely on this code path; SOL " +
+        "(Curve25519) is unaffected. Reported to Ika devrel; not fixable " +
+        "in this app.",
+    };
+  }
+
   // ── Wallet UX: Phantom rejected our offchain envelope ────────
   // Phantom's signMessage refuses bytes whose first byte looks like a
   // Solana versioned-transaction prefix (0x80 | version). Solana's
