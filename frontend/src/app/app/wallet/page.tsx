@@ -59,6 +59,7 @@ import {
 import { formatBalance } from "@/lib/retail/format";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
+import { UsdHint } from "@/components/retail/UsdHint";
 
 export default function WalletDashboard() {
   const wallet = useWallet();
@@ -300,6 +301,7 @@ function StatsRow({
       <BalanceHeroCard
         amount={totalBalance.amount}
         unit={totalBalance.ticker}
+        totalLamports={totalLamports}
         walletCount={wallets.length}
         loading={balanceLoading}
       />
@@ -342,11 +344,13 @@ function StatsRow({
 function BalanceHeroCard({
   amount,
   unit,
+  totalLamports,
   walletCount,
   loading,
 }: {
   amount: string;
   unit: string;
+  totalLamports: number;
   walletCount: number;
   loading: boolean;
 }) {
@@ -418,14 +422,25 @@ function BalanceHeroCard({
         {loading ? (
           <div className="mt-5 h-12 w-44 animate-pulse rounded bg-border-soft/80 sm:h-14 sm:w-56" />
         ) : (
-          <p className="mt-5 flex items-baseline gap-2">
-            <span className="font-numerals text-4xl font-semibold leading-none tracking-tight text-text-strong tabular-nums sm:text-5xl">
-              {amount}
-            </span>
-            <span className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft sm:text-lg">
-              {unit}
-            </span>
-          </p>
+          <>
+            <p className="mt-5 flex items-baseline gap-2">
+              <span className="font-numerals text-4xl font-semibold leading-none tracking-tight text-text-strong tabular-nums sm:text-5xl">
+                {amount}
+              </span>
+              <span className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft sm:text-lg">
+                {unit}
+              </span>
+            </p>
+            <p className="mt-2 text-xs text-text-soft sm:text-sm">
+              <UsdHint
+                amount={BigInt(Math.round(totalLamports))}
+                smallestPerWhole={1_000_000_000n}
+                ticker="SOL"
+                variant="plain"
+                className="font-numerals tabular-nums"
+              />
+            </p>
+          </>
         )}
 
         {/* Bottom hairline + brand caption - credit-card style.
@@ -709,6 +724,14 @@ function WalletCard({
                 <span className="font-display text-[11px] font-semibold uppercase tracking-[0.16em] text-text-soft">
                   {balance?.ticker ?? "SOL"}
                 </span>
+                {balanceLamports !== null && balanceLamports > 0 && (
+                  <UsdHint
+                    amount={BigInt(Math.round(balanceLamports))}
+                    smallestPerWhole={1_000_000_000n}
+                    ticker="SOL"
+                    className="text-[11px] text-text-soft tabular-nums"
+                  />
+                )}
               </p>
             )}
           </div>

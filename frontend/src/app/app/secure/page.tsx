@@ -42,6 +42,7 @@ import {
 import { PublicKey } from "@solana/web3.js";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { Button } from "@/components/retail/Button";
+import { UsdHint } from "@/components/retail/UsdHint";
 import { listVaultsForCreator } from "@/lib/ikavery/clearmsig-actions";
 import { type DecodedRecovery } from "@/lib/ikavery/discovery";
 import { loadAttestation } from "@/lib/ikavery/clearmsig-attestations";
@@ -1012,6 +1013,15 @@ function VaultCard({ vault }: { vault: DecodedRecovery }) {
                 sweepLabel
               )}
             </span>
+            {typeof balanceQ.data === "number" && balanceQ.data > 0 && (
+              <UsdHint
+                amount={BigInt(Math.round(balanceQ.data))}
+                smallestPerWhole={1_000_000_000n}
+                ticker="SOL"
+                variant="plain"
+                className="mt-0.5 text-[10px] tabular-nums text-text-soft"
+              />
+            )}
           </div>
 
           <ArrowRight
@@ -1042,6 +1052,13 @@ function VaultCard({ vault }: { vault: DecodedRecovery }) {
                 {balanceSol}
               </span>
               {" SOL"}
+              {typeof balanceQ.data === "number" && balanceQ.data > 0 && (
+                <UsdHint
+                  amount={BigInt(Math.round(balanceQ.data))}
+                  smallestPerWhole={1_000_000_000n}
+                  ticker="SOL"
+                />
+              )}
             </>
           )}
         </p>

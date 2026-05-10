@@ -35,18 +35,11 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  ArrowRight,
-  Check,
-  ExternalLink,
-  Loader2,
-  Send,
-  X,
-} from "lucide-react";
+import { ArrowRight, Loader2, Send, X } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { IntentType } from "@/lib/msig";
@@ -59,9 +52,11 @@ import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useToast } from "@/components/ui/Toast";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
-import { Breadcrumb } from "@/components/retail/Breadcrumb";
-import { BackToWallets } from "@/components/retail/BackToWallets";
+import {
+  SendReceipt,
+  type ReceiptDetail,
+} from "@/components/retail/SendReceipt";
+import { UsdHint } from "@/components/retail/UsdHint";
 import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { chainByKind } from "@/lib/retail/chains";
@@ -112,7 +107,6 @@ function BitcoinSendPage() {
       return params?.name ?? "";
     }
   }, [params?.name]);
-  const router = useRouter();
   const reduce = useReducedMotion();
   const wallet = useWallet();
   const { connection } = useConnection();
@@ -529,26 +523,6 @@ function BitcoinSendPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <StickyTopBar offset="header">
-        <Breadcrumb
-          segments={[
-            { label: "Wallets", href: "/app/wallet" },
-            {
-              label: walletDisplay,
-              href: `/app/wallet/${encodeURIComponent(name)}`,
-            },
-            {
-              label: "Send",
-              href: `/app/wallet/${encodeURIComponent(name)}/send`,
-            },
-            { label: "Bitcoin" },
-          ]}
-        />
-      </StickyTopBar>
-      <div className="px-gutter pt-2 md:hidden">
-        <BackToWallets />
-      </div>
-
       <motion.section
         {...motionProps}
         transition={{ duration: 0.3 }}
@@ -632,16 +606,14 @@ function BitcoinSendPage() {
         {sentLabel && (
           <SentCard
             sent={sentLabel}
+            walletDisplay={walletDisplay}
+            walletName={name}
+            network={btcNetwork}
             onAnother={() => {
               setSentLabel(null);
               setDestination("");
               setAmountBtc("");
             }}
-            onBack={() =>
-              router.push(
-                `/app/wallet/${encodeURIComponent(name)}`,
-              )
-            }
           />
         )}
       </motion.section>
@@ -735,6 +707,11 @@ function NeedsSetup({
           {balanceSats !== null && (
             <p className="mt-2 font-numerals text-[11px] tabular-nums text-text-soft">
               Balance: {formatSats(balanceSats)} BTC
+              <UsdHint
+                amount={balanceSats}
+                smallestPerWhole={100_000_000n}
+                ticker="BTC"
+              />
             </p>
           )}
         </div>
@@ -811,6 +788,11 @@ function ComposeForm(props: {
           {props.balanceSats !== null && (
             <span className="font-numerals text-[10px] tabular-nums text-text-soft">
               Balance: {formatSats(props.balanceSats)} BTC
+              <UsdHint
+                amount={props.balanceSats}
+                smallestPerWhole={100_000_000n}
+                ticker="BTC"
+              />
             </span>
           )}
         </div>
@@ -875,8 +857,10 @@ function ComposeForm(props: {
 
 function SentCard({
   sent,
+  walletDisplay,
+  walletName,
+  network,
   onAnother,
-  onBack,
 }: {
   sent: {
     amountBtc: string;
@@ -884,44 +868,56 @@ function SentCard({
     txid: string | null;
     explorerUrl: string | null;
   };
+  walletDisplay: string;
+  walletName: string;
+  network: string;
   onAnother: () => void;
-  onBack: () => void;
 }) {
+  const networkLabel =
+    network === "mainnet" ? "Bitcoin" : `Bitcoin ${network}`;
+  const details: ReceiptDetail[] = [
+    { label: "From", value: walletDisplay },
+    { label: "Network", value: networkLabel },
+  ];
+  if (sent.txid) {
+    details.push({
+      label: "Tx id",
+      value: shortHash(sent.txid),
+      mono: true,
+      copyText: sent.txid,
+    });
+  }
   return (
-    <section className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-      <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
-        <Check className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
-      </div>
-      <div className="text-center">
-        <p className="font-display text-lg font-semibold text-text-strong">
-          {sent.amountBtc} BTC sent
-        </p>
-        <p className="mt-1 text-sm text-text-soft">
-          To <span className="font-mono">{sent.to}</span>
-        </p>
-      </div>
-      {sent.explorerUrl && (
-        <a
-          href={sent.explorerUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center justify-center gap-1.5 self-center rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-[11px] font-medium text-text-soft hover:border-accent hover:text-accent"
-        >
-          View on mempool.space
-          <ExternalLink className="h-3 w-3" aria-hidden="true" />
-        </a>
-      )}
-      <div className="flex flex-col gap-2">
-        <Button onClick={onAnother} fullWidth variant="ghost">
-          Send another
-        </Button>
-        <Button onClick={onBack} fullWidth>
-          Back to wallet
-          <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        </Button>
-      </div>
-    </section>
+    <SendReceipt
+      status="confirmed"
+      statusLabel={`Broadcast on ${networkLabel}`}
+      amount={sent.amountBtc}
+      ticker="BTC"
+      recipientLabel={sent.to}
+      details={details}
+      explorerHref={sent.explorerUrl}
+      explorerLabel="mempool.space"
+      actions={[
+        {
+          label: "Send another",
+          hint: "Same wallet, different recipient.",
+          onClick: onAnother,
+          primary: true,
+          icon: ArrowRight,
+        },
+        {
+          label: "View activity",
+          hint: "See approvals coming in.",
+          href: `/app/wallet/${encodeURIComponent(walletName)}`,
+        },
+      ]}
+    />
   );
+}
+
+function shortHash(s: string): string {
+  if (s.length <= 16) return s;
+  return `${s.slice(0, 8)}…${s.slice(-6)}`;
 }
 
 // ─── error banner ─────────────────────────────────────────────────

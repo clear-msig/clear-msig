@@ -16,7 +16,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
@@ -71,7 +71,6 @@ export default function BatchSendPageWrapper() {
 }
 
 function BatchSendPage() {
-  const router = useRouter();
   const params = useSearchParams();
   const route = useParams<{ name: string }>();
   const reduce = useReducedMotion();
@@ -235,12 +234,6 @@ function BatchSendPage() {
                 >
                   Enable sending
                   <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-                </Link>
-                <Link
-                  href={`/app/wallet/${encodeURIComponent(walletName)}`}
-                  className="inline-flex items-center rounded-soft border border-border-soft bg-surface-raised px-3.5 py-2 text-sm font-medium text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
-                >
-                  Back to {walletDisplay}
                 </Link>
               </div>
             </div>
@@ -730,69 +723,74 @@ function DoneStage({
   const walletDisplay = toDisplayName(walletName);
   if (!progress) return null;
   const allSucceeded = progress.failed === 0;
+  const heading = allSucceeded ? "Batch sent" : "Batch finished with issues";
   return (
-    <div className="flex flex-col items-center text-center">
-      <div
-        className={
-          "flex h-16 w-16 items-center justify-center rounded-full " +
-          (allSucceeded
-            ? "bg-accent text-text-on-accent shadow-accent-rest"
-            : "bg-warning/10 text-warning")
-        }
-      >
-        <Check className="h-8 w-8" strokeWidth={2.5} aria-hidden="true" />
-      </div>
-      <h1 className="mt-6 font-display text-display-sm leading-[1.05] text-text-strong">
-        {allSucceeded
-          ? `Sent ${progress.succeeded} of ${progress.total}`
-          : `Sent ${progress.succeeded} of ${progress.total}. ${progress.failed} need another look`}
-      </h1>
-      <p className="mt-2 max-w-sm text-base text-text-soft">
-        {allSucceeded
-          ? `Each request is waiting for your friends to approve. Track them on ${walletDisplay}'s page.`
-          : "Some rows didn't go through. Review the list below, then retry just those."}
-      </p>
+    <div className="flex flex-col gap-4">
+      <div className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest">
+        <div className="flex items-center gap-3">
+          <span
+            aria-hidden="true"
+            className={
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-full " +
+              (allSucceeded
+                ? "bg-accent text-text-on-accent shadow-accent-rest"
+                : "bg-warning/10 text-warning ring-1 ring-warning/30")
+            }
+          >
+            <Check className="h-5 w-5" strokeWidth={2.5} />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              {heading}
+            </p>
+            <p className="mt-0.5 truncate text-xs text-text-soft">
+              From {walletDisplay} · awaiting approvals from your friends
+            </p>
+          </div>
+        </div>
 
-      {!allSucceeded && progress.failures.length > 0 && (
-        <ul className="mt-6 w-full divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised text-left shadow-card-rest">
-          {progress.failures.map((f, i) => (
-            <li
-              key={i}
-              className="flex items-center justify-between gap-3 px-4 py-3"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-text-strong">
-                  {f.row.label}
-                </p>
-                <p className="truncate text-xs text-text-soft">{f.message}</p>
-              </div>
-              <span className="shrink-0 text-xs font-medium text-warning">
-                Failed
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+        <p className="mt-5 inline-flex items-baseline gap-2">
+          <span className="font-numerals text-3xl font-semibold leading-none tracking-tight text-text-strong tabular-nums sm:text-4xl">
+            {progress.succeeded}
+          </span>
+          <span className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft">
+            of {progress.total} sent
+          </span>
+        </p>
+        <p className="mt-1.5 text-sm text-text-soft">
+          {allSucceeded
+            ? "Every row landed. Friends can now approve the batch together."
+            : `${progress.failed} row${progress.failed === 1 ? "" : "s"} didn't go through. Review the list below and retry just those.`}
+        </p>
 
-      <div className="mt-6 flex w-full flex-col gap-2 sm:flex-row">
-        <Link
-          href={`/app/wallet/${encodeURIComponent(walletName)}`}
-          className="flex-1"
-        >
-          <Button size="lg" fullWidth>
-            Back to {walletDisplay}
-          </Button>
-        </Link>
-        <Button
-          size="lg"
-          variant="ghost"
-          fullWidth
-          onClick={onSendAnother}
-          className="flex-1"
-        >
-          Send another batch
-        </Button>
+        {!allSucceeded && progress.failures.length > 0 && (
+          <ul className="mt-5 divide-y divide-border-soft rounded-soft border border-border-soft bg-canvas text-left">
+            {progress.failures.map((f, i) => (
+              <li
+                key={i}
+                className="flex items-center justify-between gap-3 px-3 py-2.5"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-text-strong">
+                    {f.row.label}
+                  </p>
+                  <p className="truncate text-xs text-text-soft">
+                    {f.message}
+                  </p>
+                </div>
+                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.16em] text-warning">
+                  Failed
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
+
+      <Button size="lg" fullWidth variant="ghost" onClick={onSendAnother}>
+        Send another batch
+        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+      </Button>
     </div>
   );
 }

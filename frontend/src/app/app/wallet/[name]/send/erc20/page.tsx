@@ -26,12 +26,11 @@
 
 import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Check, Home, List as ListIcon, Loader2, ShieldAlert } from "lucide-react";
-import { NextStepCard } from "@/components/retail/NextStepCard";
+import { ArrowRight, Check, List as ListIcon, Loader2, ShieldAlert } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import {
@@ -62,13 +61,15 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
-import { BackToWallets } from "@/components/retail/BackToWallets";
-import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import { RecentRecipientsChips } from "@/components/retail/RecentRecipientsChips";
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
 import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
+import {
+  SendReceipt,
+  type ReceiptDetail,
+} from "@/components/retail/SendReceipt";
+import { UsdHint } from "@/components/retail/UsdHint";
 import {
   SignPayloadPreview,
   type SignPayloadDetail,
@@ -91,7 +92,6 @@ export default function SendErc20PageWrapper() {
 }
 
 function SendErc20Page() {
-  const router = useRouter();
   const params = useSearchParams();
   const route = useParams<{ name: string }>();
   const reduce = useReducedMotion();
@@ -404,7 +404,6 @@ function SendErc20Page() {
           href: `/app/wallet/${encodeURIComponent(walletName)}/chains/add`,
           label: "Add Ethereum",
         }}
-        walletName={walletName}
       />
     );
   }
@@ -417,32 +416,12 @@ function SendErc20Page() {
           href: `/app/wallet/${encodeURIComponent(walletName)}/setup/erc20`,
           label: "Enable ERC-20 sending",
         }}
-        walletName={walletName}
       />
     );
   }
 
   return (
     <div className="flex flex-col">
-      <StickyTopBar offset="header">
-        <Breadcrumb
-          segments={[
-            { label: "Wallets", href: "/app/wallet" },
-            {
-              label: walletDisplay || "Wallet",
-              href: walletName
-                ? `/app/wallet/${encodeURIComponent(walletName)}`
-                : "/app/wallet",
-            },
-            { label: "Send ERC-20" },
-          ]}
-        />
-      </StickyTopBar>
-      {/* Mobile-only back chip - see /send for rationale. */}
-      <div className="px-gutter pt-2">
-        <BackToWallets />
-      </div>
-
       <div className="flex flex-1 justify-center pt-6">
         <motion.section
           {...motionProps}
@@ -497,11 +476,7 @@ function SendErc20Page() {
               explorerUrl={sentLabel.explorerUrl}
               explorerLabel={sentLabel.explorerLabel}
               walletName={walletName}
-              onBack={() =>
-                router.push(
-                  `/app/wallet/${encodeURIComponent(walletName)}`,
-                )
-              }
+              walletDisplay={walletDisplay || "your shared wallet"}
               reduce={!!reduce}
             />
           )}
@@ -711,6 +686,17 @@ function ComposeStage({
             {typeof walletBalance === "bigint" &&
               walletBalance > 0n &&
               metadata && (
+                <UsdHint
+                  amount={walletBalance}
+                  smallestPerWhole={10n ** BigInt(metadata.decimals)}
+                  ticker={metadata.symbol}
+                  variant="plain"
+                  className="text-text-soft"
+                />
+              )}
+            {typeof walletBalance === "bigint" &&
+              walletBalance > 0n &&
+              metadata && (
                 <>
                   <span aria-hidden="true" className="h-3 w-px bg-border-soft" />
                   <button
@@ -875,7 +861,7 @@ function SentStage({
   explorerUrl,
   explorerLabel,
   walletName,
-  onBack,
+  walletDisplay,
   reduce,
 }: {
   amount: string;
@@ -884,79 +870,41 @@ function SentStage({
   explorerUrl: string | null;
   explorerLabel: string;
   walletName: string;
-  onBack: () => void;
+  walletDisplay: string;
   reduce: boolean;
 }) {
-  const motionProps = reduce
-    ? { initial: false as const, animate: { opacity: 1 } }
-    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  const details: ReceiptDetail[] = [
+    { label: "From", value: walletDisplay },
+    { label: "Network", value: "Sepolia" },
+    { label: "Token", value: symbol },
+  ];
   return (
-    <motion.div
-      {...motionProps}
-      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col items-center text-center"
-    >
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">
-        <Check className="h-6 w-6" strokeWidth={3} aria-hidden="true" />
-      </div>
-      <h1 className="mt-4 font-display text-display-sm leading-[1.05] text-text-strong">
-        Sent {amount} {symbol}
-      </h1>
-      <p className="mt-2 text-sm text-text-soft">
-        to <span className="font-mono text-text-strong">{to}</span>
-      </p>
-      {explorerUrl ? (
-        <a
-          href={explorerUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={
-            "mt-5 inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3.5 py-1.5 text-xs font-medium text-text-soft " +
-            "transition-[border-color,color,transform] duration-base ease-out-soft " +
-            "hover:-translate-y-0.5 hover:text-accent " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-          }
-        >
-          View on {explorerLabel}
-        </a>
-      ) : null}
-      {/* Three-option NextStepCard mirrors the SOL + ETH send
-          patterns. The previous "Back to {wallet}" sole CTA dropped
-          the explorer link the moment a user tapped it. */}
-      <div className="mt-8 w-full">
-        <NextStepCard
-          title={`Anything else from ${toDisplayName(walletName) || "this wallet"}?`}
-          options={[
-            {
-              label: "Send another token",
-              hint: "Same wallet, pick a different token.",
-              href: `/app/wallet/${encodeURIComponent(walletName)}/send/erc20`,
-              primary: true,
-              icon: ArrowRight,
-            },
-            {
-              label: "View activity",
-              hint: "See approvals coming in.",
-              href: `/app/wallet/${encodeURIComponent(walletName)}`,
-              icon: ListIcon,
-            },
-            {
-              label: "Back to home",
-              href: "/app/wallet",
-              icon: Home,
-            },
-          ]}
-        />
-      </div>
-
-      <button
-        type="button"
-        onClick={onBack}
-        className="mt-4 text-xs text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
-      >
-        Or, dismiss this and stay here
-      </button>
-    </motion.div>
+    <SendReceipt
+      status="confirmed"
+      statusLabel="Broadcast on Sepolia via Ika"
+      amount={amount}
+      ticker={symbol}
+      recipientLabel={to}
+      details={details}
+      explorerHref={explorerUrl}
+      explorerLabel={explorerLabel}
+      actions={[
+        {
+          label: "Send another token",
+          hint: "Same wallet, pick a different token.",
+          href: `/app/wallet/${encodeURIComponent(walletName)}/send/erc20`,
+          primary: true,
+          icon: ArrowRight,
+        },
+        {
+          label: "View activity",
+          hint: "See approvals coming in.",
+          href: `/app/wallet/${encodeURIComponent(walletName)}`,
+          icon: ListIcon,
+        },
+      ]}
+      reduce={reduce}
+    />
   );
 }
 
@@ -966,47 +914,27 @@ function PreFlightCard({
   title,
   body,
   cta,
-  walletName,
 }: {
   title: string;
   body: string;
   cta: { href: string; label: string };
-  walletName: string;
 }) {
-  const walletDisplay = toDisplayName(walletName);
   return (
-    <div className="flex flex-col">
-      <StickyTopBar offset="header">
-        <Breadcrumb
-          segments={[
-            { label: "Wallets", href: "/app/wallet" },
-            {
-              label: walletDisplay || "Wallet",
-              href: walletName
-                ? `/app/wallet/${encodeURIComponent(walletName)}`
-                : "/app/wallet",
-            },
-            { label: "Send ERC-20" },
-          ]}
-        />
-      </StickyTopBar>
-
-      <div className="flex flex-1 items-center justify-center px-gutter py-10">
-        <div className="w-full max-w-md rounded-card border border-warning/30 bg-warning/5 p-6 text-center shadow-card-rest">
-          <div className="flex justify-center text-warning">
-            <ShieldAlert className="h-8 w-8" aria-hidden="true" />
-          </div>
-          <h2 className="mt-3 font-display text-display-xs text-text-strong">
-            {title}
-          </h2>
-          <p className="mt-2 text-sm text-text-soft">{body}</p>
-          <Link href={cta.href} className="mt-4 inline-block">
-            <Button size="md">
-              {cta.label}
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          </Link>
+    <div className="flex flex-1 items-center justify-center px-gutter py-10">
+      <div className="w-full max-w-md rounded-card border border-warning/30 bg-warning/5 p-6 text-center shadow-card-rest">
+        <div className="flex justify-center text-warning">
+          <ShieldAlert className="h-8 w-8" aria-hidden="true" />
         </div>
+        <h2 className="mt-3 font-display text-display-xs text-text-strong">
+          {title}
+        </h2>
+        <p className="mt-2 text-sm text-text-soft">{body}</p>
+        <Link href={cta.href} className="mt-4 inline-block">
+          <Button size="md">
+            {cta.label}
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </Link>
       </div>
     </div>
   );

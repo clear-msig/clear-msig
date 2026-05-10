@@ -31,20 +31,18 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   Check,
-  Home,
   List as ListIcon,
   Loader2,
   Send,
   ShieldAlert,
 } from "lucide-react";
-import { NextStepCard } from "@/components/retail/NextStepCard";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import {
@@ -78,10 +76,12 @@ import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
-import { BackToWallets } from "@/components/retail/BackToWallets";
-import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
+import {
+  SendReceipt,
+  type ReceiptDetail,
+} from "@/components/retail/SendReceipt";
+import { UsdHint } from "@/components/retail/UsdHint";
 import {
   SignPayloadPreview,
   type SignPayloadDetail,
@@ -121,7 +121,6 @@ export default function SendEthPageWrapper() {
 }
 
 function SendEthPage() {
-  const router = useRouter();
   const params = useSearchParams();
   const route = useParams<{ name: string }>();
   const reduce = useReducedMotion();
@@ -504,7 +503,6 @@ function SendEthPage() {
           href: `/app/wallet/${encodeURIComponent(walletName)}/chains/add`,
           label: "Add Ethereum",
         }}
-        walletName={walletName}
       />
     );
   }
@@ -517,32 +515,12 @@ function SendEthPage() {
           href: `/app/wallet/${encodeURIComponent(walletName)}/setup/eth`,
           label: "Enable Ethereum sending",
         }}
-        walletName={walletName}
       />
     );
   }
 
   return (
     <div className="flex flex-col">
-      <StickyTopBar offset="header">
-        <Breadcrumb
-          segments={[
-            { label: "Wallets", href: "/app/wallet" },
-            {
-              label: walletDisplay || "Wallet",
-              href: walletName
-                ? `/app/wallet/${encodeURIComponent(walletName)}`
-                : "/app/wallet",
-            },
-            { label: "Send ETH" },
-          ]}
-        />
-      </StickyTopBar>
-      {/* Mobile-only back chip - see /send for rationale. */}
-      <div className="px-gutter pt-2">
-        <BackToWallets />
-      </div>
-
       <div className="flex flex-1 justify-center pt-6">
         <motion.section
           {...motionProps}
@@ -592,13 +570,7 @@ function SendEthPage() {
               explorerUrl={sentLabel.explorerUrl}
               explorerLabel={sentLabel.explorerLabel}
               walletName={walletName}
-              onDone={() =>
-                router.push(
-                  walletName
-                    ? `/app/wallet/${encodeURIComponent(walletName)}`
-                    : "/app/wallet",
-                )
-              }
+              walletDisplay={walletDisplay || "your shared wallet"}
               reduce={!!reduce}
             />
           )}
@@ -771,6 +743,16 @@ function ComposeStage({
             <span className="text-text-soft">ETH</span>
             {typeof walletBalanceWei === "bigint" &&
               walletBalanceWei > 0n && (
+                <UsdHint
+                  amount={walletBalanceWei}
+                  smallestPerWhole={1_000_000_000_000_000_000n}
+                  ticker="ETH"
+                  variant="plain"
+                  className="text-text-soft"
+                />
+              )}
+            {typeof walletBalanceWei === "bigint" &&
+              walletBalanceWei > 0n && (
                 <>
                   <span aria-hidden="true" className="h-3 w-px bg-border-soft" />
                   <button
@@ -792,7 +774,13 @@ function ComposeStage({
           {insufficientBalance && walletBalanceWei !== null && (
             <p className="mt-2 rounded-soft border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-text-strong">
               <span className="font-medium">Insufficient balance.</span>{" "}
-              You have {weiToEth(walletBalanceWei)} ETH - need at least{" "}
+              You have {weiToEth(walletBalanceWei)} ETH
+              <UsdHint
+                amount={walletBalanceWei}
+                smallestPerWhole={1_000_000_000_000_000_000n}
+                ticker="ETH"
+              />
+              {" "}- need at least{" "}
               {weiToEth(amountWei + gasReserveWei)} ETH including ~
               {weiToEth(gasReserveWei)} for gas. Top up the wallet&rsquo;s
               Sepolia address from a faucet
@@ -963,7 +951,7 @@ interface SentStageProps {
   explorerUrl: string | null;
   explorerLabel: string;
   walletName: string;
-  onDone: () => void;
+  walletDisplay: string;
   reduce: boolean;
 }
 
@@ -973,78 +961,40 @@ function SentStage({
   explorerUrl,
   explorerLabel,
   walletName,
-  onDone,
+  walletDisplay,
   reduce,
 }: SentStageProps) {
-  const walletDisplay = toDisplayName(walletName);
+  const details: ReceiptDetail[] = [
+    { label: "From", value: walletDisplay },
+    { label: "Network", value: "Sepolia" },
+  ];
   return (
-    <div className="flex flex-col items-center text-center">
-      <motion.div
-        initial={reduce ? false : { scale: 0.5, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: "spring", damping: 18, stiffness: 220 }}
-        className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-accent text-text-on-accent shadow-accent-rest"
-      >
-        <Check className="h-10 w-10" strokeWidth={2.5} />
-      </motion.div>
-      <h2 className="font-display text-display-sm text-text-strong">
-        {amount} ETH on the way to {to}
-      </h2>
-      <p className="mt-2 text-sm text-text-soft">
-        Approved + broadcast through Ika. Watch for it on Sepolia.
-      </p>
-      {explorerUrl && (
-        <a
-          href={explorerUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-4 inline-flex items-center gap-1.5 rounded-pill border border-border-soft bg-surface-raised px-4 py-2 text-xs font-medium text-text-strong transition hover:text-accent"
-        >
-          View on {explorerLabel}
-          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-        </a>
-      )}
-
-      {/* Three-option NextStepCard mirrors the SOL send pattern. The
-          previous "Back to {wallet}" sole CTA dropped the explorer
-          link the moment a user tapped it; users would lose the txid
-          and have to dig it out of activity once propagation caught
-          up. NextStepCard keeps them on this success state with
-          better choices. */}
-      <div className="mt-8 w-full">
-        <NextStepCard
-          title={`Anything else from ${walletDisplay}?`}
-          options={[
-            {
-              label: "Send another request",
-              hint: "Same wallet, different recipient.",
-              href: `/app/wallet/${encodeURIComponent(walletName)}/send/eth`,
-              primary: true,
-              icon: ArrowRight,
-            },
-            {
-              label: "View activity",
-              hint: "See approvals coming in.",
-              href: `/app/wallet/${encodeURIComponent(walletName)}`,
-              icon: ListIcon,
-            },
-            {
-              label: "Back to home",
-              href: "/app/wallet",
-              icon: Home,
-            },
-          ]}
-        />
-      </div>
-
-      <button
-        type="button"
-        onClick={onDone}
-        className="mt-4 text-xs text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
-      >
-        Or, dismiss this and stay here
-      </button>
-    </div>
+    <SendReceipt
+      status="confirmed"
+      statusLabel="Broadcast on Sepolia via Ika"
+      amount={amount}
+      ticker="ETH"
+      recipientLabel={to}
+      details={details}
+      explorerHref={explorerUrl}
+      explorerLabel={explorerLabel}
+      actions={[
+        {
+          label: "Send another",
+          hint: "Same wallet, different recipient.",
+          href: `/app/wallet/${encodeURIComponent(walletName)}/send/eth`,
+          primary: true,
+          icon: ArrowRight,
+        },
+        {
+          label: "View activity",
+          hint: "See approvals coming in.",
+          href: `/app/wallet/${encodeURIComponent(walletName)}`,
+          icon: ListIcon,
+        },
+      ]}
+      reduce={reduce}
+    />
   );
 }
 
@@ -1054,45 +1004,27 @@ function PreFlightCard({
   title,
   body,
   cta,
-  walletName,
 }: {
   title: string;
   body: string;
   cta: { href: string; label: string };
-  walletName: string;
 }) {
   return (
-    <div className="flex flex-col">
-      <StickyTopBar offset="header">
-        <Breadcrumb
-          segments={[
-            { label: "Wallets", href: "/app/wallet" },
-            {
-              label: toDisplayName(walletName) || "Wallet",
-              href: walletName
-                ? `/app/wallet/${encodeURIComponent(walletName)}`
-                : "/app/wallet",
-            },
-            { label: "Send ETH" },
-          ]}
-        />
-      </StickyTopBar>
-      <div className="flex flex-1 items-center justify-center pt-6">
-        <div className="w-full max-w-md text-center">
-          <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-warning/10 text-warning">
-            <ShieldAlert className="h-6 w-6" strokeWidth={1.75} />
-          </div>
-          <h1 className="font-display text-display-xs text-text-strong text-balance">
-            {title}
-          </h1>
-          <p className="mt-2 text-base text-text-soft">{body}</p>
-          <Link href={cta.href} className="mt-6 inline-block w-full">
-            <Button size="lg" fullWidth>
-              {cta.label}
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          </Link>
+    <div className="flex flex-1 items-center justify-center pt-6">
+      <div className="w-full max-w-md text-center">
+        <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-warning/10 text-warning">
+          <ShieldAlert className="h-6 w-6" strokeWidth={1.75} />
         </div>
+        <h1 className="font-display text-display-xs text-text-strong text-balance">
+          {title}
+        </h1>
+        <p className="mt-2 text-base text-text-soft">{body}</p>
+        <Link href={cta.href} className="mt-6 inline-block w-full">
+          <Button size="lg" fullWidth>
+            {cta.label}
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </Link>
       </div>
     </div>
   );

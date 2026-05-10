@@ -39,6 +39,7 @@ import {
 import { useState } from "react";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
+import { UsdHint } from "@/components/retail/UsdHint";
 import { fetchVault } from "@/lib/ikavery/clearmsig-actions";
 import { loadAttestation } from "@/lib/ikavery/clearmsig-attestations";
 import { listProposals, type ProposalEntry } from "@/lib/ikavery/proposals";
@@ -440,30 +441,41 @@ function BalancePanel({
             {`${address.slice(0, 4)}…${address.slice(-4)}`}
           </p>
         </div>
-        <p className="flex items-baseline gap-1.5 font-numerals text-2xl font-semibold tabular-nums text-text-strong">
-          {loading ? "…" : balanceSol != null ? balanceSol : "—"}
-          <span className="font-display text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
-            SOL
-          </span>
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={loading || refreshing}
-            aria-label="Refresh balance"
-            title="Refresh balance"
-            className={
-              "ml-1 inline-flex h-7 w-7 items-center justify-center rounded-soft text-text-soft " +
-              "transition-colors duration-base ease-out-soft hover:bg-canvas hover:text-text-strong " +
-              "disabled:cursor-not-allowed disabled:opacity-50 " +
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-            }
-          >
-            <RefreshCw
-              className={"h-3.5 w-3.5 " + (refreshing ? "animate-spin" : "")}
-              aria-hidden="true"
+        <div className="flex flex-col items-end gap-0.5">
+          <p className="flex items-baseline gap-1.5 font-numerals text-2xl font-semibold tabular-nums text-text-strong">
+            {loading ? "…" : balanceSol != null ? balanceSol : "—"}
+            <span className="font-display text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+              SOL
+            </span>
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={loading || refreshing}
+              aria-label="Refresh balance"
+              title="Refresh balance"
+              className={
+                "ml-1 inline-flex h-7 w-7 items-center justify-center rounded-soft text-text-soft " +
+                "transition-colors duration-base ease-out-soft hover:bg-canvas hover:text-text-strong " +
+                "disabled:cursor-not-allowed disabled:opacity-50 " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              }
+            >
+              <RefreshCw
+                className={"h-3.5 w-3.5 " + (refreshing ? "animate-spin" : "")}
+                aria-hidden="true"
+              />
+            </button>
+          </p>
+          {balanceLamports != null && balanceLamports > 0 && (
+            <UsdHint
+              amount={BigInt(Math.round(balanceLamports))}
+              smallestPerWhole={1_000_000_000n}
+              ticker="SOL"
+              variant="plain"
+              className="font-numerals text-[11px] tabular-nums text-text-soft"
             />
-          </button>
-        </p>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-px overflow-hidden border-t border-border-soft bg-border-soft">

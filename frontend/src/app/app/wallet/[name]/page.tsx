@@ -75,6 +75,7 @@ import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { useWalletPortfolio } from "@/lib/hooks/useWalletPortfolio";
 import { formatUsd } from "@/lib/retail/priceConversion";
 import { useDisplayCurrency } from "@/lib/hooks/useDisplayCurrency";
+import { UsdHint } from "@/components/retail/UsdHint";
 import { CHAIN_CATALOG as CHAIN_CATALOG_REF } from "@/lib/retail/chains";
 
 export default function WalletDetailPage() {
@@ -751,6 +752,7 @@ function Hero({
           <PortfolioPanel
             walletName={name}
             fallbackBalance={balance}
+            fallbackBalanceLamports={balanceLamports}
             loadingFallback={loadingBalance}
           />
 
@@ -834,10 +836,12 @@ function HeroActionTile({
 function PortfolioPanel({
   walletName,
   fallbackBalance,
+  fallbackBalanceLamports,
   loadingFallback,
 }: {
   walletName: string;
   fallbackBalance: { amount: string; ticker: string } | null;
+  fallbackBalanceLamports: number | null;
   loadingFallback: boolean;
 }) {
   const portfolio = useWalletPortfolio(walletName);
@@ -860,14 +864,25 @@ function PortfolioPanel({
         {loadingFallback ? (
           <div className="h-11 w-56 animate-pulse rounded bg-border-soft" />
         ) : (
-          <p className="flex items-baseline gap-2">
-            <span className="font-numerals text-display-sm font-semibold leading-none tracking-[-0.02em] text-text-strong tabular-nums">
-              {fallbackBalance ? fallbackBalance.amount : "0"}
-            </span>
-            <span className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-text-soft">
-              {fallbackBalance?.ticker ?? "SOL"}
-            </span>
-          </p>
+          <>
+            <p className="flex items-baseline gap-2">
+              <span className="font-numerals text-display-sm font-semibold leading-none tracking-[-0.02em] text-text-strong tabular-nums">
+                {fallbackBalance ? fallbackBalance.amount : "0"}
+              </span>
+              <span className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-text-soft">
+                {fallbackBalance?.ticker ?? "SOL"}
+              </span>
+            </p>
+            {fallbackBalanceLamports !== null && fallbackBalanceLamports > 0 && (
+              <UsdHint
+                amount={BigInt(Math.round(fallbackBalanceLamports))}
+                smallestPerWhole={1_000_000_000n}
+                ticker={fallbackBalance?.ticker ?? "SOL"}
+                variant="plain"
+                className="font-numerals text-xs tabular-nums text-text-soft"
+              />
+            )}
+          </>
         )}
       </div>
     );
@@ -1109,6 +1124,11 @@ function Erc20HoldingsSection({
                 </p>
                 <p className="mt-0.5 truncate text-xs tabular-nums text-text-soft">
                   {display} {h.symbol}
+                  <UsdHint
+                    amount={h.rawBalance}
+                    smallestPerWhole={10n ** BigInt(h.decimals)}
+                    ticker={h.symbol}
+                  />
                 </p>
               </div>
               <Link
