@@ -334,9 +334,10 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
                 // for the gRPC Sign request later.
                 ika::save_attestation(
                     &wallet_name,
+                    chain_kind,
                     &dkg_result.attestation,
                 )?;
-                eprintln!("✓ Attestation saved");
+                eprintln!("✓ Attestation saved (chain_kind={chain_kind})");
 
                 (dkg_result.dwallet_addr, dkg_result.public_key)
             };
