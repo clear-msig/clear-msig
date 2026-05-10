@@ -18,8 +18,31 @@
 // route is unconfigured), nothing renders.
 
 import { useState } from "react";
-import { Sparkles, X } from "lucide-react";
+import { X } from "lucide-react";
 import { BrandLoader } from "@/components/retail/BrandLoader";
+
+// Universal AI sparkle - two four-pointed stars, the smaller one
+// offset. The de facto "this is AI" glyph used by Apple Intelligence,
+// Google Gemini, and the Anthropic Claude marks. Inline so we don't
+// pull a one-off icon dep, and so we can tune the secondary star's
+// opacity to match the surrounding tone.
+function AiSparkle({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M11 2.5c.55 4.4 1.55 5.4 5.95 5.95-4.4.55-5.4 1.55-5.95 5.95-.55-4.4-1.55-5.4-5.95-5.95 4.4-.55 5.4-1.55 5.95-5.95Z" />
+      <path
+        d="M18 13c.3 2.4.8 2.9 3.2 3.2-2.4.3-2.9.8-3.2 3.2-.3-2.4-.8-2.9-3.2-3.2 2.4-.3 2.9-.8 3.2-3.2Z"
+        opacity="0.7"
+      />
+    </svg>
+  );
+}
 
 interface QuickSendParse {
   recipientText?: string;
@@ -86,11 +109,12 @@ export function QuickSendInput({ contactNames, onParsed }: QuickSendInputProps) 
   return (
     <div className="rounded-card border border-accent/30 bg-accent/[0.04] p-3 shadow-card-rest">
       <div className="flex items-center gap-2">
-        <Sparkles
-          className="h-4 w-4 shrink-0 text-accent"
-          strokeWidth={2}
+        <span
           aria-hidden="true"
-        />
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent"
+        >
+          <AiSparkle className="h-4 w-4" />
+        </span>
         <input
           value={text}
           onChange={(e) => {

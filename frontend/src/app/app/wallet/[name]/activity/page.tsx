@@ -16,7 +16,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Download, Search } from "lucide-react";
+import { ArrowRight, Download, Inbox, Search } from "lucide-react";
 import { useRecentActivity } from "@/lib/hooks/useRecentActivity";
 import { useUserIntents } from "@/lib/hooks/useUserIntents";
 import { useTxAttempts } from "@/lib/hooks/useTxAttempts";
@@ -29,9 +29,7 @@ import {
   buildActivityCsv,
   downloadActivityCsv,
 } from "@/lib/retail/exportActivity";
-import { Breadcrumb } from "@/components/retail/Breadcrumb";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
-import { BackToWallets } from "@/components/retail/BackToWallets";
+import { BrandSelect } from "@/components/retail/BrandSelect";
 
 type StatusFilter = "all" | "active" | "approved" | "executed" | "cancelled";
 type ChainFilter = "all" | "0" | "1" | "2" | "3" | "4";
@@ -123,49 +121,63 @@ export default function WalletActivityPage() {
   const loading = recent.loading || intents.loading;
 
   return (
-    <div className="flex flex-col gap-4">
-      <StickyTopBar offset="header">
-        <Breadcrumb
-          segments={[
-            { label: "Wallets", href: "/app/wallet" },
-            {
-              label: walletDisplay || "Wallet",
-              href: `/app/wallet/${encodeURIComponent(name)}`,
-            },
-            { label: "Activity" },
-          ]}
-        />
-      </StickyTopBar>
-      {/* Mobile-only back chip - see /send for rationale. */}
-      <div className="px-gutter pt-2 md:hidden">
-        <BackToWallets />
-      </div>
+    <div className="flex flex-col gap-6">
+      {/* Page header strip - mono eyebrow + display title with the
+          wallet name in the eyebrow. Back navigation lives on the
+          global header bar (mobile + desktop), so no inline back
+          chip / breadcrumb on this page. */}
+      <motion.header
+        {...motionProps}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4"
+      >
+        <div className="flex min-w-0 items-center gap-4">
+          <span
+            aria-hidden="true"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent sm:h-14 sm:w-14"
+          >
+            <Inbox className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={1.75} />
+          </span>
+          <div className="flex min-w-0 flex-col">
+            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+              Activity · {walletDisplay || "Wallet"}
+            </p>
+            <h1 className="mt-1.5 truncate font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
+              Recent proposals
+            </h1>
+          </div>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+          {loading ? (
+            "Loading…"
+          ) : (
+            <>
+              <span className="font-numerals tabular-nums text-text-strong">
+                {filtered.length}
+              </span>
+              <span aria-hidden="true">/</span>
+              <span className="font-numerals tabular-nums">
+                {allRows.length}
+              </span>
+              <span>{allRows.length === 1 ? "request" : "requests"}</span>
+            </>
+          )}
+        </span>
+      </motion.header>
 
       <motion.section
         {...motionProps}
-        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: 0.22, delay: 0.04, ease: [0.22, 1, 0.36, 1] }}
         className="flex flex-col gap-3"
       >
-        <header className="flex items-baseline justify-between gap-3">
-          <div className="flex flex-col">
-            <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-            <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Wallet activity
-            </p>
-            <h1 className="hidden md:block mt-2 font-display text-display-xs leading-tight text-text-strong">
-              Activity
-            </h1>
-          </div>
-          <p className="font-numerals text-xs text-text-soft tabular-nums">
-            {loading
-              ? "Loading…"
-              : `${filtered.length} of ${allRows.length} request${allRows.length === 1 ? "" : "s"}`}
-          </p>
-        </header>
-
-        {/* Filter bar */}
-        <div className="flex flex-col gap-2 rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest">
-          <div className="flex items-center gap-2">
+        {/* Filter bar - search + brand-styled dropdowns + export. */}
+        <div className="flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+          <label
+            className={
+              "flex items-center gap-2 rounded-soft border border-glass-soft px-3 py-2 " +
+              "transition-colors duration-base ease-out-soft focus-within:border-glass-strong"
+            }
+          >
             <Search
               className="h-3.5 w-3.5 shrink-0 text-text-soft"
               aria-hidden="true"
@@ -175,45 +187,51 @@ export default function WalletActivityPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search proposal address or type"
-              className={
-                "min-w-0 flex-1 rounded-soft border border-border-soft bg-canvas px-2.5 py-1.5 text-xs text-text-strong outline-none " +
-                "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-                "focus:border-accent focus:shadow-accent-rest"
-              }
+              className="min-w-0 flex-1 bg-transparent text-xs text-text-strong outline-none placeholder:text-text-soft/60"
             />
-          </div>
+          </label>
           <div className="flex flex-wrap items-center gap-2">
-            <FilterSelect
-              label="Status"
-              value={statusFilter}
-              onChange={(v) => setStatusFilter(v as StatusFilter)}
-              options={[
-                { value: "all", label: "All statuses" },
-                { value: "active", label: "Waiting for approval" },
-                { value: "approved", label: "Ready to send" },
-                { value: "executed", label: "Sent" },
-                { value: "cancelled", label: "Cancelled" },
-              ]}
-            />
-            <FilterSelect
-              label="Chain"
-              value={chainFilter}
-              onChange={(v) => setChainFilter(v as ChainFilter)}
-              options={[
-                { value: "all", label: "All chains" },
-                { value: "0", label: "Solana" },
-                { value: "1", label: "Ethereum" },
-                { value: "4", label: "Ethereum (ERC-20)" },
-                { value: "2", label: "Bitcoin" },
-                { value: "3", label: "Zcash" },
-              ]}
-            />
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+                Status
+              </span>
+              <BrandSelect
+                ariaLabel="Status filter"
+                value={statusFilter}
+                onChange={(v) => setStatusFilter(v as StatusFilter)}
+                options={[
+                  { value: "all", label: "All statuses" },
+                  { value: "active", label: "Waiting for approval" },
+                  { value: "approved", label: "Ready to send" },
+                  { value: "executed", label: "Sent" },
+                  { value: "cancelled", label: "Cancelled" },
+                ]}
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+                Chain
+              </span>
+              <BrandSelect
+                ariaLabel="Chain filter"
+                value={chainFilter}
+                onChange={(v) => setChainFilter(v as ChainFilter)}
+                options={[
+                  { value: "all", label: "All chains" },
+                  { value: "0", label: "Solana" },
+                  { value: "1", label: "Ethereum" },
+                  { value: "4", label: "Ethereum (ERC-20)" },
+                  { value: "2", label: "Bitcoin" },
+                  { value: "3", label: "Zcash" },
+                ]}
+              />
+            </div>
             <button
               type="button"
               onClick={handleExport}
               disabled={filtered.length === 0}
               className={
-                "ml-auto inline-flex min-h-tap items-center justify-center gap-1 rounded-full border border-border-soft bg-canvas px-3 py-2 text-[11px] font-medium text-text-soft " +
+                "ml-auto inline-flex min-h-tap items-center justify-center gap-1.5 rounded-full border border-border-soft bg-canvas px-3 py-2 text-[11px] font-medium text-text-soft " +
                 "transition-[border-color,color,transform] duration-base ease-out-soft " +
                 "hover:-translate-y-0.5 hover:text-accent " +
                 "disabled:cursor-not-allowed disabled:opacity-50 " +
@@ -305,17 +323,6 @@ export default function WalletActivityPage() {
           </ul>
         )}
 
-        <Link
-          href={`/app/wallet/${encodeURIComponent(name)}`}
-          className={
-            "mt-2 inline-flex w-fit items-center gap-1.5 rounded-soft px-2 py-1 text-xs text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-          }
-        >
-          <ArrowLeft className="h-3 w-3" aria-hidden="true" />
-          Back to {walletDisplay || "wallet"}
-        </Link>
       </motion.section>
     </div>
   );
@@ -338,35 +345,3 @@ function statusForFilter(f: StatusFilter): ProposalStatus {
   }
 }
 
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <label className="inline-flex items-center gap-1.5 text-[11px] text-text-soft">
-      <span className="uppercase tracking-[0.24em]">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={
-          "rounded-soft border border-border-soft bg-canvas px-2 py-1 text-xs font-medium text-text-strong outline-none " +
-          "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-          "focus:border-accent focus:shadow-accent-rest"
-        }
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}

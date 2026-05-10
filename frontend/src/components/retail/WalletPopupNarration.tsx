@@ -27,6 +27,7 @@
 
 import { ShieldCheck } from "lucide-react";
 import { useWallet } from "@/lib/wallet";
+import { InfoTip } from "./InfoTip";
 
 interface WalletPopupNarrationProps {
   /// Verb-phrase the wallet will be confirming. Lowercased so it
@@ -45,6 +46,10 @@ interface WalletPopupNarrationProps {
   /// Default false. Use only on surfaces that already have their own
   /// honest narration (e.g. the welcome confirm step).
   hideHexDisclaimer?: boolean;
+  /// Move the hex / Ledger disclaimer footer into an info-icon tooltip
+  /// instead of rendering it inline. Trims vertical space on dense
+  /// surfaces (e.g. /send) without dropping the disclaimer entirely.
+  disclaimerBehindInfoTip?: boolean;
 }
 
 export function WalletPopupNarration({
@@ -53,6 +58,7 @@ export function WalletPopupNarration({
   note,
   compact = false,
   hideHexDisclaimer = false,
+  disclaimerBehindInfoTip = false,
 }: WalletPopupNarrationProps) {
   const { isLedger } = useWallet();
   const popupCopy = isLedger
@@ -66,6 +72,24 @@ export function WalletPopupNarration({
     note ??
     "Nothing leaves your account. This just sets up the rules on chain.";
   const showFooter = !compact && !hideHexDisclaimer;
+  const disclaimer = isLedger ? (
+    <>
+      <span className="font-medium text-text-strong">
+        Read it before approving.
+      </span>{" "}
+      Your Ledger displays the exact message it&rsquo;s about to sign.
+      If anything looks off, cancel on the device.
+    </>
+  ) : (
+    <>
+      <span className="font-medium text-text-strong">Heads up.</span>{" "}
+      Solana software wallets show technical-looking text instead of a
+      friendly summary in the signing prompt. That is the message your
+      wallet is signing for you. It is normal.
+    </>
+  );
+  const showInlineFooter = showFooter && !disclaimerBehindInfoTip;
+  const showInlineTip = showFooter && disclaimerBehindInfoTip;
   return (
     <div
       role="note"
@@ -82,7 +106,7 @@ export function WalletPopupNarration({
         strokeWidth={2}
         aria-hidden="true"
       />
-      <div className="leading-snug">
+      <div className="min-w-0 flex-1 leading-snug">
         <p>
           <span className="font-medium text-text-strong">{popupCopy}</span>{" "}
           {isLedger ? (
@@ -109,27 +133,26 @@ export function WalletPopupNarration({
             </>
           )}
           {trailing}
+          {showInlineTip && (
+            <>
+              {" "}
+              <InfoTip
+                label={
+                  isLedger
+                    ? "Why your Ledger shows that message"
+                    : "Why your wallet shows technical text"
+                }
+                width="md"
+                size="xs"
+                side="end"
+              >
+                <span className="block">{disclaimer}</span>
+              </InfoTip>
+            </>
+          )}
         </p>
-        {showFooter && (
-          <p className="mt-2 text-text-soft">
-            {isLedger ? (
-              <>
-                <span className="font-medium text-text-strong">
-                  Read it before approving.
-                </span>{" "}
-                Your Ledger displays the exact message it&rsquo;s about
-                to sign. If anything looks off, cancel on the device.
-              </>
-            ) : (
-              <>
-                <span className="font-medium text-text-strong">Heads up.</span>{" "}
-                Solana software wallets show technical-looking text
-                instead of a friendly summary in the signing prompt.
-                That is the message your wallet is signing for you. It
-                is normal.
-              </>
-            )}
-          </p>
+        {showInlineFooter && (
+          <p className="mt-2 text-text-soft">{disclaimer}</p>
         )}
       </div>
     </div>

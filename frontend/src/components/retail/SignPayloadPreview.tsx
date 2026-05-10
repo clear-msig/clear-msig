@@ -25,6 +25,7 @@
 // should consciously absorb before signing.
 
 import { Eye } from "lucide-react";
+import { InfoTip } from "./InfoTip";
 
 export interface SignPayloadDetail {
   label: string;
@@ -41,13 +42,22 @@ interface SignPayloadPreviewProps {
   details?: SignPayloadDetail[];
   /// Optional warning footer for high-stakes actions.
   warning?: string;
+  /// When true, the detail rows render behind an info icon next to
+  /// the headline instead of inline below it. Use on dense surfaces
+  /// (e.g. /send) where the rows duplicate context the user has
+  /// already keyed in. Headline + warning stay visible regardless.
+  collapsibleDetails?: boolean;
 }
 
 export function SignPayloadPreview({
   action,
   details,
   warning,
+  collapsibleDetails = false,
 }: SignPayloadPreviewProps) {
+  const hasDetails = !!details && details.length > 0;
+  const showInline = hasDetails && !collapsibleDetails;
+  const showInTip = hasDetails && collapsibleDetails;
   return (
     <section
       aria-label="What you are about to sign"
@@ -73,15 +83,53 @@ export function SignPayloadPreview({
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
             What you are about to sign
           </p>
-          <p className="mt-1 font-display text-base font-semibold leading-snug text-text-strong">
-            {action}
-          </p>
+          <div className="mt-1 flex items-start gap-1.5">
+            <p className="font-display text-base font-semibold leading-snug text-text-strong">
+              {action}
+            </p>
+            {showInTip && (
+              <InfoTip
+                label="See signing details"
+                width="md"
+                side="end"
+                className="mt-0.5"
+              >
+                <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+                  Signing details
+                </span>
+                <span className="mt-2 block divide-y divide-border-soft">
+                  {details!.map((d) => (
+                    <span
+                      key={d.label}
+                      className="flex items-baseline justify-between gap-3 py-1.5 first:pt-0 last:pb-0"
+                    >
+                      <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-soft">
+                        {d.label}
+                      </span>
+                      <span
+                        className={
+                          "text-right text-xs leading-snug " +
+                          (d.emphasis === "mono"
+                            ? "font-mono text-text-strong"
+                            : d.emphasis === "amount"
+                              ? "font-display font-semibold text-accent"
+                              : "text-text-strong")
+                        }
+                      >
+                        {d.value}
+                      </span>
+                    </span>
+                  ))}
+                </span>
+              </InfoTip>
+            )}
+          </div>
         </div>
       </header>
 
-      {details && details.length > 0 && (
+      {showInline && (
         <dl className="mt-3 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-          {details.map((d) => (
+          {details!.map((d) => (
             <div
               key={d.label}
               // Stacked label-over-value so long values ("Just you

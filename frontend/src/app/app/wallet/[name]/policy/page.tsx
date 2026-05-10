@@ -25,9 +25,6 @@ import {
   UserCheck,
   Wallet as WalletIcon,
 } from "lucide-react";
-import { Breadcrumb } from "@/components/retail/Breadcrumb";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
-import { BackToWallets } from "@/components/retail/BackToWallets";
 import { Button } from "@/components/retail/Button";
 import { useToast } from "@/components/ui/Toast";
 import { useContacts } from "@/lib/hooks/useContacts";
@@ -58,43 +55,47 @@ export default function PolicyPage() {
     ? {}
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
 
+  const display = toDisplayName(name);
+
   return (
     <div className="flex flex-col gap-6">
-      <StickyTopBar offset="header">
-        <Breadcrumb
-          segments={[
-            { label: "Wallets", href: "/app/wallet" },
-            { label: toDisplayName(name), href: `/app/wallet/${encodeURIComponent(name)}` },
-            { label: "Policy" },
-          ]}
-        />
-      </StickyTopBar>
-      {/* Mobile-only back chip - see /send for rationale. */}
-      <div className="px-gutter pt-2 md:hidden">
-        <BackToWallets />
-      </div>
-
-      <motion.section
+      {/* Page header strip - mono eyebrow + display title, identity
+          anchored by the wallet disc. Back navigation lives on the
+          global header bar (mobile + desktop). */}
+      <motion.header
         {...motionProps}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest sm:p-8"
+        className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4"
       >
-        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-          Spending policy
-        </p>
-        <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          How {toDisplayName(name)} controls money
-        </h1>
-        <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
-          Layers of guardrails on top of your wallet's threshold rules.
-          Recipients you allow, hours you allow, caps per person, caps
-          per week. Each guardrail blocks before signing.
-        </p>
-        <span className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft">
-          <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-          Encryption-ready · pre-alpha
-        </span>
-      </motion.section>
+        <div className="flex min-w-0 items-center gap-4">
+          <span
+            aria-hidden="true"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent sm:h-14 sm:w-14"
+          >
+            <WalletIcon className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={1.75} />
+          </span>
+          <div className="flex min-w-0 flex-col">
+            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+              Spending policy · {display}
+            </p>
+            <h1 className="mt-1.5 truncate font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
+              How {display} controls money
+            </h1>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-[11px] font-medium text-text-soft">
+            <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
+            Encryption-ready · pre-alpha
+          </span>
+        </div>
+      </motion.header>
+
+      <p className="max-w-2xl text-sm text-text-soft sm:text-base">
+        Layers of guardrails on top of your wallet&rsquo;s threshold rules.
+        Recipients you allow, hours you allow, caps per person, caps per
+        week. Each guardrail blocks before signing.
+      </p>
 
       <AllowlistCard walletName={name} />
       <TimeWindowCard walletName={name} />

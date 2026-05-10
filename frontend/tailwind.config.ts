@@ -57,14 +57,18 @@ const config: Config = {
         "surface-soft": "#52525b",
 
         // Brand pivot 2026-05-08: accent is now lime (Obsidian & Lime
-        // identity). Black text reads on solid lime; white reads on
-        // translucent lime overlays. The Button primary swaps to
-        // text-on-accent for the new contrast pairing.
-        accent: "#ccff00",
-        "accent-hover": "#d8ff33",
-        "accent-bright": "#e0ff66",
+        // identity) in dark mode. Light mode swaps in a deeper
+        // emerald-green via the --clear-accent CSS variable so the
+        // brand colour actually reads on white surfaces - lime on
+        // white is invisible. Defaults are the dark-mode values so
+        // standalone class previews (Storybook, etc) still render
+        // correctly without a theme attribute. text-on-accent flips
+        // black↔white in lockstep so button contrast stays correct.
+        accent: "var(--clear-accent, #ccff00)",
+        "accent-hover": "var(--clear-accent-hover, #d8ff33)",
+        "accent-bright": "var(--clear-accent-bright, #e0ff66)",
         "accent-emerald": "#10b981",
-        "text-on-accent": "#000000",
+        "text-on-accent": "var(--clear-text-on-accent, #000000)",
 
         "text-primary": "#18181b",
         "text-on-dark": "#ffffff",

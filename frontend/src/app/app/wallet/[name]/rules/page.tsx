@@ -19,7 +19,6 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowLeft,
   Check,
   Clock,
   Loader2,
@@ -34,12 +33,9 @@ import {
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { IntentType, type IntentAccount } from "@/lib/msig";
-import { Breadcrumb } from "@/components/retail/Breadcrumb";
-import { StickyTopBar } from "@/components/retail/StickyTopBar";
-import { BackToWallets } from "@/components/retail/BackToWallets";
 import { Button } from "@/components/retail/Button";
 import { friendlyIntentLabel } from "@/lib/retail/labels";
-import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
+import { toDisplayName } from "@/lib/retail/walletNames";
 import { encryptStatus } from "@/lib/encrypt/client";
 import {
   templateFileForChainKind,
@@ -110,51 +106,54 @@ export default function RulesPage() {
 
   const status = encryptStatus();
 
+  const display = toDisplayName(name);
+
   return (
     <div className="flex flex-col gap-6">
-      <StickyTopBar offset="header">
-        <Breadcrumb
-          segments={[
-            { label: "Wallets", href: "/app/wallet" },
-            { label: toDisplayName(name), href: `/app/wallet/${encodeURIComponent(name)}` },
-            { label: "Spending rules" },
-          ]}
-        />
-      </StickyTopBar>
-      {/* Mobile-only back chip - see /send for rationale. */}
-      <div className="px-gutter pt-2 md:hidden">
-        <BackToWallets />
-      </div>
-
-      <motion.section
+      {/* Page header strip - mono eyebrow + display title, identity
+          anchored by the shield disc. Back navigation lives on the
+          global header bar (mobile + desktop). */}
+      <motion.header
         {...motionProps}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest sm:p-8"
+        className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4"
       >
-        <span aria-hidden="true" className="mx-auto block h-px w-10 bg-accent" />
-        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-          Spending rules
-        </p>
-        <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          How <span className="text-accent">{toHeadingName(name)}</span> spends
-        </h1>
-        <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
-          Each rule is one way money can leave this wallet. They
-          decide who can use it, how many friends approve, and how
-          long the wait is before it ships.
-        </p>
-        <Link
-          href="/privacy"
-          className={
-            "mt-4 inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:text-accent " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-          }
-        >
-          <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-          Encryption-ready · pre-alpha
-        </Link>
-      </motion.section>
+        <div className="flex min-w-0 items-center gap-4">
+          <span
+            aria-hidden="true"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent sm:h-14 sm:w-14"
+          >
+            <ShieldCheck className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={1.75} />
+          </span>
+          <div className="flex min-w-0 flex-col">
+            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+              Spending rules · {display}
+            </p>
+            <h1 className="mt-1.5 truncate font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
+              How {display} spends
+            </h1>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/privacy"
+            className={
+              "inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-[11px] font-medium text-text-soft " +
+              "transition-[border-color,color,transform] duration-base ease-out-soft hover:-translate-y-0.5 hover:border-accent/40 hover:text-text-strong " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+            }
+          >
+            <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
+            Encryption-ready · pre-alpha
+          </Link>
+        </div>
+      </motion.header>
+
+      <p className="max-w-2xl text-sm text-text-soft sm:text-base">
+        Each rule is one way money can leave this wallet. They decide who
+        can use it, how many friends approve, and how long the wait is
+        before it ships.
+      </p>
 
       {intentsQuery.isLoading ? (
         <div className="flex flex-col gap-3">

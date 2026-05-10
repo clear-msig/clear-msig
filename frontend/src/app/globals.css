@@ -54,6 +54,17 @@
   --clear-card-shadow-mid-raised: rgba(0, 0, 0, 0.45);
   --clear-card-shadow-far-raised: rgba(0, 0, 0, 0.6);
 
+  /* Accent - lime in dark mode (Obsidian & Lime brand). The same
+     identity in light mode would render as invisible yellow on
+     white surfaces, so light mode swaps in a deeper emerald-green
+     (the legacy brand-green) that still reads as the same family
+     but actually shows. text-on-accent flips from black to white
+     to keep button contrast. */
+  --clear-accent: #ccff00;
+  --clear-accent-hover: #d8ff33;
+  --clear-accent-bright: #e0ff66;
+  --clear-text-on-accent: #000000;
+
   /* Accent glows */
   --clear-accent-glow-rest: rgba(204, 255, 0, 0.14);
   --clear-accent-glow-hover: rgba(204, 255, 0, 0.22);
@@ -114,10 +125,22 @@
   --clear-card-shadow-mid-raised: rgba(15, 23, 42, 0.10);
   --clear-card-shadow-far-raised: rgba(15, 23, 42, 0.14);
 
-  /* Accent glows slightly stronger on light so the lime still reads.
-     #ccff00 on white is hard to see at low opacity - bump it. */
-  --clear-accent-glow-rest: rgba(204, 255, 0, 0.28);
-  --clear-accent-glow-hover: rgba(204, 255, 0, 0.40);
+  /* Accent - the darkest lime in the #ccff00 family that still
+     hits AA contrast on white. Stays visibly the same brand colour
+     as the dark-mode lime (yellow-green tint, not emerald), just
+     dropped down the lightness axis so primary text / buttons /
+     borders read on light surfaces. text-on-accent flips to white
+     because the dark lime needs a white foreground. */
+  --clear-accent: #4d7c0f;
+  --clear-accent-hover: #3f6212;
+  --clear-accent-bright: #65a30d;
+  --clear-text-on-accent: #ffffff;
+
+  /* Accent glows - lime tint at higher opacity so the bloom is
+     visible against white. Matches the dark-mode glow shape but
+     uses the darker lime base. */
+  --clear-accent-glow-rest: rgba(77, 124, 15, 0.20);
+  --clear-accent-glow-hover: rgba(77, 124, 15, 0.32);
 
   /* Body backdrop - soft warm white with quieter brand blooms. */
   --clear-body-bg-image:
@@ -183,6 +206,18 @@ body {
   outline: 2px solid #16a34a;
   outline-offset: 2px;
   border-radius: 4px;
+}
+
+/* Text-entry fields opt out of the global green focus ring. They
+   already render their own focus indicator via the wrapping
+   label's `focus-within:border-glass-strong` border-color change,
+   and the bright accent outline reads as harsh on a fielded input
+   that already sits inside a bordered frame. Buttons and links
+   keep the brand-coloured ring above. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
 }
 
 /* Reduced motion: disable non-essential decorative animations. Critical
