@@ -145,15 +145,18 @@ function BitcoinSendPage() {
     );
   }, [chainsQuery.data]);
 
-  // The chain binding's `network` field would be the source of truth
-  // once the backend exposes it; for now we sniff from whichever
-  // address Esplora returns. Mainnet bindings have a `bc1` address
-  // in `btc_p2wpkh_mainnet`; everything else is signet/testnet.
+  // Pre-alpha runs against Solana DEVNET + Ika's mock signer, so
+  // *every* chain binding here is a testnet/signet binding regardless
+  // of which address fields the backend happens to populate. The
+  // backend currently returns BOTH `btc_p2wpkh_mainnet` and
+  // `btc_p2wpkh_testnet` fields (same underlying HASH160, different
+  // bech32 HRP), so picking by "is mainnet field populated?" was
+  // always picking mainnet — and dispatching the send to mempool.space
+  // mainnet, where the dWallet has no UTXOs and no real sig path.
+  // Force signet until the backend exposes a real network field.
   const btcNetwork: BitcoinNetwork = useMemo(() => {
-    if (!btcBinding) return DEFAULT_BITCOIN_NETWORK;
-    if (btcBinding.btc_p2wpkh_mainnet) return "mainnet";
-    return DEFAULT_BITCOIN_NETWORK; // signet / testnet share `tb`
-  }, [btcBinding]);
+    return DEFAULT_BITCOIN_NETWORK;
+  }, []);
 
   const dwalletAddress = useMemo(() => {
     return btcBinding ? chainAddress(btcBinding) : null;

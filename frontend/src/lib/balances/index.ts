@@ -57,16 +57,21 @@ export async function fetchChainBalance(
       return { raw: wei, address: addr };
     }
     case 2: {
+      // Pre-alpha is testnet/signet across the board. Prefer the
+      // testnet address when available (always populated by the
+      // backend in pre-alpha) so balance polls hit mempool.space's
+      // signet endpoint, not mainnet (where the dWallet has no
+      // UTXOs and the user would see "0 BTC" forever).
       const addr =
-        binding.btc_p2wpkh_mainnet ?? binding.btc_p2wpkh_testnet ?? null;
+        binding.btc_p2wpkh_testnet ?? binding.btc_p2wpkh_mainnet ?? null;
       if (!addr) return null;
-      const isTestnet = !!binding.btc_p2wpkh_testnet && !binding.btc_p2wpkh_mainnet;
+      const isTestnet = !!binding.btc_p2wpkh_testnet;
       const sats = await fetchBitcoinBalance(addr, isTestnet);
       return { raw: sats, address: addr };
     }
     case 3: {
       const addr =
-        binding.zcash_t_addr_mainnet ?? binding.zcash_t_addr_testnet ?? null;
+        binding.zcash_t_addr_testnet ?? binding.zcash_t_addr_mainnet ?? null;
       if (!addr) return null;
       // Zcash: no widely-available public REST today. Surface
       // address but null balance so the UI renders "-".
