@@ -208,6 +208,18 @@ body {
   border-radius: 4px;
 }
 
+/* Kill the iOS / Android default tap-highlight flash. Browsers
+   draw a translucent rectangle around any tapped link / button /
+   role="button" element by default, and it reads as a stray border
+   in our otherwise calm UI. We replace it with our own hover /
+   active states (per-component scale, color shifts) which are
+   already wired everywhere. Touch users get the visual feedback
+   from those states; keyboard users still get :focus-visible
+   above. */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Text-entry fields opt out of the global green focus ring. They
    already render their own focus indicator via the wrapping
    label's `focus-within:border-glass-strong` border-color change,
