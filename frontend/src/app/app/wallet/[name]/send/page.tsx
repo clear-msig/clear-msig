@@ -23,7 +23,6 @@ import {
   ArrowRight,
   Check,
   Copy,
-  Home,
   List as ListIcon,
   Loader2,
   ShieldAlert,
@@ -63,8 +62,12 @@ import {
   type SignPayloadDetail,
 } from "@/components/retail/SignPayloadPreview";
 import { InfoTip } from "@/components/retail/InfoTip";
-import { NextStepCard } from "@/components/retail/NextStepCard";
+import {
+  SendReceipt,
+  type ReceiptDetail,
+} from "@/components/retail/SendReceipt";
 import { QuickSendInput } from "@/components/retail/QuickSendInput";
+import { UsdHint } from "@/components/retail/UsdHint";
 import { txUrl as solanaTxUrl } from "@/lib/explorer";
 import { recordAttempt } from "@/lib/retail/txLog";
 import { resolveSnsName, looksLikeSnsName } from "@/lib/chain/sns";
@@ -871,7 +874,7 @@ function SendPage() {
                 spending rule yet. Enable sending. Once that&rsquo;s
                 done, you can come back and send anything you want.
               </p>
-              <div className="mt-4 flex justify-center gap-2">
+              <div className="mt-4 flex justify-center">
                 <Link
                   href={`/app/wallet/${encodeURIComponent(walletName)}/setup`}
                   className={
@@ -881,12 +884,6 @@ function SendPage() {
                 >
                   Enable sending
                   <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-                </Link>
-                <Link
-                  href={`/app/wallet/${encodeURIComponent(walletName)}`}
-                  className="inline-flex items-center rounded-soft border border-border-soft bg-surface-raised px-3.5 py-2 text-sm font-medium text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
-                >
-                  Back to {walletDisplay}
                 </Link>
               </div>
             </div>
@@ -938,15 +935,9 @@ function SendPage() {
             <SentStage
               amountDisplay={sentAmountDisplay}
               recipientDisplay={sentRecipientDisplay}
-              walletName={walletDisplay || "your shared wallet"}
+              walletName={walletName}
+              walletDisplay={walletDisplay || "your shared wallet"}
               executedTxid={executedTxid}
-              onDone={() =>
-                router.push(
-                  walletName
-                    ? `/app/wallet/${encodeURIComponent(walletName)}`
-                    : "/app/wallet",
-                )
-              }
               reduce={!!reduce}
             />
           )}
@@ -1164,6 +1155,13 @@ function ComposeStage({
                 : "-"}
           </span>
           <span> SOL</span>
+          {typeof vaultBalanceLamports === "bigint" && (
+            <UsdHint
+              amount={vaultBalanceLamports}
+              smallestPerWhole={1_000_000_000n}
+              ticker="SOL"
+            />
+          )}
           {amount && (
             <>
               <span aria-hidden="true" className="mx-1.5">
@@ -1177,8 +1175,13 @@ function ComposeStage({
           typeof vaultBalanceLamports === "bigint" && (
             <p className="rounded-soft border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-text-strong">
               <span className="font-medium">Insufficient balance.</span>{" "}
-              {walletDisplay} has {formatLamports(vaultBalanceLamports)} SOL -
-              need at least the amount plus a small reserve for the
+              {walletDisplay} has {formatLamports(vaultBalanceLamports)} SOL
+              <UsdHint
+                amount={vaultBalanceLamports}
+                smallestPerWhole={1_000_000_000n}
+                ticker="SOL"
+              />
+              {" "}- need at least the amount plus a small reserve for the
               on-chain fee. Top up from Receive or a faucet.
             </p>
           )}
@@ -1664,13 +1667,13 @@ interface SentStageProps {
   amountDisplay: string;
   recipientDisplay: string;
   walletName: string;
+  walletDisplay: string;
   /// Solana tx signature when the proposal was executed inline
   /// (auto-approve or sole-approver path). When null, the proposal
-  /// is on chain awaiting other signers - the copy reflects that
-  /// distinction so users don't think their friends already moved
-  /// money when they didn't.
+  /// is on chain awaiting other signers - the receipt's status pill
+  /// + copy reflect the distinction so users don't think their
+  /// friends already moved money when they didn't.
   executedTxid: string | null;
-  onDone: () => void;
   reduce: boolean;
 }
 
@@ -1678,110 +1681,53 @@ function SentStage({
   amountDisplay,
   recipientDisplay,
   walletName,
+  walletDisplay,
   executedTxid,
-  onDone,
   reduce,
 }: SentStageProps) {
-  const walletDisplay = toDisplayName(walletName);
-  const motionProps = reduce
-    ? { initial: false as const, animate: { opacity: 1 } }
-    : {
-        initial: { opacity: 0, y: 16 },
-        animate: { opacity: 1, y: 0 },
-      };
+  const details: ReceiptDetail[] = [
+    { label: "From", value: walletDisplay },
+    { label: "Network", value: "Solana" },
+  ];
+  if (executedTxid) {
+    details.push({
+      label: "Reference",
+      value: shortAddress(executedTxid),
+      mono: true,
+      copyText: executedTxid,
+    });
+  }
   return (
-    <motion.section
-      {...motionProps}
-      transition={STAGE_TRANSITION}
-      className="flex flex-col items-center text-center"
-    >
-      <motion.div
-        initial={reduce ? false : { scale: 0.6, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{
-          type: "spring",
-          damping: 18,
-          stiffness: 240,
-          delay: 0.05,
-        }}
-        className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-accent text-text-on-accent shadow-accent-rest"
-      >
-        <Check className="h-10 w-10" strokeWidth={2.5} />
-      </motion.div>
-
-      <h1 className="hidden md:block font-display text-display-sm leading-[1.05] text-text-strong">
-        {executedTxid ? "Sent" : "Request created"}
-      </h1>
-      <p className="mt-3 max-w-sm text-base text-text-soft">
-        {executedTxid ? (
-          <>
-            {amountDisplay} SOL on the way to{" "}
-            <span className="font-medium text-text-strong">
-              {recipientDisplay}
-            </span>
-            . Confirmed on Solana.
-          </>
-        ) : (
-          <>
-            {amountDisplay} SOL to{" "}
-            <span className="font-medium text-text-strong">
-              {recipientDisplay}
-            </span>{" "}
-            is waiting on your friends in{" "}
-            <span className="font-medium text-text-strong">
-              {walletDisplay}
-            </span>
-            .
-          </>
-        )}
-      </p>
-
-      {executedTxid && (
-        <a
-          href={solanaTxUrl(executedTxid)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-4 inline-flex items-center gap-1.5 rounded-pill border border-border-soft bg-surface-raised px-4 py-2 text-xs font-medium text-text-strong transition hover:text-accent"
-        >
-          View on Solana Explorer
-          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-        </a>
-      )}
-
-      <div className="mt-8 w-full">
-        <NextStepCard
-          title={`Anything else from ${walletDisplay}?`}
-          options={[
-            {
-              label: "Send another request",
-              hint: "Same wallet, different recipient.",
-              href: `/app/wallet/${encodeURIComponent(walletName)}/send`,
-              primary: true,
-              icon: ArrowRight,
-            },
-            {
-              label: "View activity",
-              hint: "See approvals coming in.",
-              href: `/app/wallet/${encodeURIComponent(walletName)}`,
-              icon: ListIcon,
-            },
-            {
-              label: "Back to home",
-              href: "/app/wallet",
-              icon: Home,
-            },
-          ]}
-        />
-      </div>
-
-      <button
-        type="button"
-        onClick={onDone}
-        className="mt-4 text-xs text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
-      >
-        Or, dismiss this and stay here
-      </button>
-    </motion.section>
+    <SendReceipt
+      status={executedTxid ? "confirmed" : "pending"}
+      statusLabel={
+        executedTxid
+          ? "Broadcast on Solana"
+          : `Awaiting approvals in ${walletDisplay}`
+      }
+      amount={amountDisplay}
+      ticker="SOL"
+      recipientLabel={recipientDisplay}
+      details={details}
+      explorerHref={executedTxid ? solanaTxUrl(executedTxid) : null}
+      explorerLabel="Solana Explorer"
+      actions={[
+        {
+          label: "Send another",
+          hint: "Same wallet, different recipient.",
+          href: `/app/wallet/${encodeURIComponent(walletName)}/send`,
+          primary: true,
+          icon: ArrowRight,
+        },
+        {
+          label: "View activity",
+          hint: "See approvals coming in.",
+          href: `/app/wallet/${encodeURIComponent(walletName)}`,
+          icon: ListIcon,
+        },
+      ]}
+      reduce={reduce}
+    />
   );
 }
 

@@ -72,6 +72,7 @@ import { useConnection, useWallet } from "@/lib/wallet";
 import { Button } from "@/components/retail/Button";
 import { BackToWallets } from "@/components/retail/BackToWallets";
 import { PageEyebrow } from "@/components/retail/PageEyebrow";
+import { UsdHint } from "@/components/retail/UsdHint";
 import { useToast } from "@/components/ui/Toast";
 import {
   createSoloVault,
@@ -718,6 +719,13 @@ function ComposeStage(props: ComposeStageProps) {
                   : props.balanceLamports != null
                     ? `${formatLamportsToSol(props.balanceLamports)} SOL`
                     : "unknown"}
+                {props.balanceLamports != null && (
+                  <UsdHint
+                    amount={props.balanceLamports}
+                    smallestPerWhole={1_000_000_000n}
+                    ticker="SOL"
+                  />
+                )}
               </span>
             </div>
           )}
@@ -744,6 +752,11 @@ function ComposeStage(props: ComposeStageProps) {
               {props.balanceLamports != null && (
                 <span className="font-numerals text-[10px] tabular-nums text-text-soft">
                   Balance: {formatLamportsToSol(props.balanceLamports)} SOL
+                  <UsdHint
+                    amount={props.balanceLamports}
+                    smallestPerWhole={1_000_000_000n}
+                    ticker="SOL"
+                  />
                 </span>
               )}
             </div>

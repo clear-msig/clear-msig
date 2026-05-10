@@ -47,6 +47,7 @@ import {
 } from "@/lib/hooks/useWalletChains";
 import type { ChainBindingResponse } from "@/lib/api/types";
 import { fetchChainBalance, formatChainBalance } from "@/lib/balances";
+import { UsdHint } from "@/components/retail/UsdHint";
 
 export default function ChainsPage() {
   const params = useParams<{ name: string }>();
@@ -351,6 +352,15 @@ function ActiveChainRow({
                   </span>
                 )}
               </span>
+              {balanceQuery.data !== undefined && balanceQuery.data !== null && (
+                <UsdHint
+                  amount={balanceQuery.data}
+                  smallestPerWhole={chain.smallestPerWhole}
+                  ticker={chain.ticker}
+                  variant="plain"
+                  className="text-[11px] tabular-nums text-text-soft"
+                />
+              )}
               {isLowBalance && (
                 <span
                   className="inline-flex items-center gap-0.5 text-[10px] font-semibold uppercase tracking-wide text-warning"

@@ -38,6 +38,7 @@ import {
 import { useConnection, useWallet } from "@/lib/wallet";
 import { Button } from "@/components/retail/Button";
 import { PageEyebrow } from "@/components/retail/PageEyebrow";
+import { UsdHint } from "@/components/retail/UsdHint";
 import { useToast } from "@/components/ui/Toast";
 import { fetchVault } from "@/lib/ikavery/clearmsig-actions";
 import { loadAttestation } from "@/lib/ikavery/clearmsig-attestations";
@@ -1000,6 +1001,11 @@ function ComposeStage(props: ComposeStageProps) {
             {!isSpl && props.balanceLamports != null && (
               <span className="font-numerals text-[10px] tabular-nums text-text-soft">
                 Balance: {formatLamportsToSol(props.balanceLamports)} SOL
+                <UsdHint
+                  amount={props.balanceLamports}
+                  smallestPerWhole={1_000_000_000n}
+                  ticker="SOL"
+                />
               </span>
             )}
             {isSpl && props.selectedHolding && (
@@ -1010,6 +1016,13 @@ function ComposeStage(props: ComposeStageProps) {
                   props.selectedHolding.decimals,
                 )}{" "}
                 {props.assetSymbol}
+                <UsdHint
+                  amount={props.selectedHolding.amount}
+                  smallestPerWhole={
+                    10n ** BigInt(props.selectedHolding.decimals)
+                  }
+                  ticker={props.assetSymbol}
+                />
               </span>
             )}
           </div>
