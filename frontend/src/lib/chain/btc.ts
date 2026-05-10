@@ -116,10 +116,20 @@ function isLikelyBitcoinTestnetAddress(addr: string): boolean {
 
 export type BitcoinNetwork = "mainnet" | "testnet" | "signet" | "regtest";
 
-/// Default network for v1 — signet has free faucets, stable fees,
-/// and the on-chain `programs/clear-wallet/src/chains/bitcoin.rs`
-/// is most-tested against it.
-export const DEFAULT_BITCOIN_NETWORK: BitcoinNetwork = "signet";
+/// Default network for v1 — **testnet3**.
+///
+/// We previously defaulted to signet (free faucets, stable fees) but
+/// the wider faucet ecosystem in 2026 still leans testnet3, so users
+/// who hit "Get testnet BTC" from any of the canonical faucets land
+/// on testnet3 by default. The on-chain BIP143 preimage builder
+/// (`programs/clear-wallet/src/chains/bitcoin.rs`) is network-agnostic
+/// — it just hashes raw bytes — so the network choice is purely a
+/// matter of which Esplora endpoint we read from / broadcast to.
+///
+/// Note that `tb1q...` addresses are valid on BOTH testnet3 and
+/// signet (they share the bech32 HRP). `validateBtcDestination`
+/// collapses the ambiguity.
+export const DEFAULT_BITCOIN_NETWORK: BitcoinNetwork = "testnet";
 
 /// mempool.space's Esplora base URL per network. Matches the CLI's
 /// default in `cli/src/chains/bitcoin.rs` so a tx broadcast via the
@@ -169,6 +179,57 @@ export function mempoolSpaceAddressUrl(
     case "regtest":
       return `http://localhost:3002/address/${address}`;
   }
+}
+
+/**
+ * Probe testnet3 + signet to find which one actually has UTXOs for
+ * the dWallet's address. The two share the bech32 `tb` HRP so we
+ * can't tell from the address alone which faucet the user hit.
+ *
+ * Strategy:
+ *   1. Probe testnet3 first (broader faucet ecosystem in 2026).
+ *   2. If `funded_txo_count > 0` there, return "testnet".
+ *   3. Otherwise probe signet. If that has UTXOs, return "signet".
+ *   4. If both are empty (fresh wallet), return "testnet" — the
+ *      Receive page's tb-HRP address is fundable by any tb faucet,
+ *      so testnet is the safer default for "next step is fund me".
+ *
+ * Mainnet `bc` HRP short-circuits before probing — only here for
+ * type completeness; `chainAddress` already filters out mainnet
+ * addresses in pre-alpha.
+ */
+export async function detectBitcoinNetwork(
+  address: string,
+): Promise<BitcoinNetwork> {
+  if (!address) return DEFAULT_BITCOIN_NETWORK;
+  const lower = address.toLowerCase();
+  if (lower.startsWith("bc1")) return "mainnet";
+  if (lower.startsWith("bcrt1")) return "regtest";
+  if (!lower.startsWith("tb1")) return DEFAULT_BITCOIN_NETWORK;
+
+  const probes: BitcoinNetwork[] = ["testnet", "signet"];
+  for (const net of probes) {
+    try {
+      const url = `${esploraBaseUrl(net)}/address/${encodeURIComponent(address)}`;
+      const r = await fetch(url, {
+        method: "GET",
+        headers: { accept: "application/json" },
+        credentials: "omit",
+      });
+      if (!r.ok) continue;
+      const j = (await r.json()) as {
+        chain_stats?: { funded_txo_count?: number };
+        mempool_stats?: { funded_txo_count?: number };
+      };
+      const funded =
+        (j.chain_stats?.funded_txo_count ?? 0) +
+        (j.mempool_stats?.funded_txo_count ?? 0);
+      if (funded > 0) return net;
+    } catch {
+      // ignore network errors; try the next probe
+    }
+  }
+  return DEFAULT_BITCOIN_NETWORK;
 }
 
 // ─── Esplora — balance + UTXOs ────────────────────────────────────
@@ -352,9 +413,10 @@ export function networkForHrp(hrp: string): BitcoinNetwork | null {
     case "bc":
       return "mainnet";
     case "tb":
-      // tb is shared between testnet and signet; we collapse both to
-      // the wallet's expected network in `validateBtcDestination`.
-      return "signet";
+      // tb is shared between testnet3 and signet; collapse to the
+      // pre-alpha default. `validateBtcDestination` accepts the other
+      // direction too via its symmetric tb-HRP fallback.
+      return "testnet";
     case "bcrt":
       return "regtest";
     default:

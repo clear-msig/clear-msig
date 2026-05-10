@@ -67,6 +67,7 @@ import { appConfig } from "@/lib/config";
 import {
   DEFAULT_BITCOIN_NETWORK,
   decodeSegwitAddress,
+  detectBitcoinNetwork,
   esploraBaseUrl,
   fetchBitcoinBalance,
   fetchBitcoinUtxos,
@@ -145,22 +146,35 @@ function BitcoinSendPage() {
     );
   }, [chainsQuery.data]);
 
-  // Pre-alpha runs against Solana DEVNET + Ika's mock signer, so
-  // *every* chain binding here is a testnet/signet binding regardless
-  // of which address fields the backend happens to populate. The
-  // backend currently returns BOTH `btc_p2wpkh_mainnet` and
-  // `btc_p2wpkh_testnet` fields (same underlying HASH160, different
-  // bech32 HRP), so picking by "is mainnet field populated?" was
-  // always picking mainnet — and dispatching the send to mempool.space
-  // mainnet, where the dWallet has no UTXOs and no real sig path.
-  // Force signet until the backend exposes a real network field.
-  const btcNetwork: BitcoinNetwork = useMemo(() => {
-    return DEFAULT_BITCOIN_NETWORK;
-  }, []);
-
   const dwalletAddress = useMemo(() => {
     return btcBinding ? chainAddress(btcBinding) : null;
   }, [btcBinding]);
+
+  // Pre-alpha runs against Solana DEVNET + Ika's mock signer, so
+  // every BTC binding here is testnet-class (the backend returns
+  // both `btc_p2wpkh_mainnet` and `btc_p2wpkh_testnet` for the same
+  // HASH160; chainAddress already prefers the tb-HRP form). The `tb`
+  // HRP is shared between testnet3 and signet though, so we have to
+  // probe both Esplora endpoints to find which one actually has the
+  // user's UTXOs. Default `testnet` while the probe runs so the page
+  // can render skeletons; the network query swaps in once it lands.
+  const networkQuery = useQuery({
+    queryKey: ["btc-network-detect", dwalletAddress ?? "none"],
+    queryFn: () =>
+      dwalletAddress
+        ? detectBitcoinNetwork(dwalletAddress)
+        : DEFAULT_BITCOIN_NETWORK,
+    enabled: !!dwalletAddress,
+    // The detection is essentially "what faucet did the user use?" —
+    // it doesn't change after the first funded UTXO lands, so we can
+    // cache aggressively. 5 min is long enough to not re-probe on
+    // every focus, short enough to pick up a switch if the user
+    // suddenly funds the other chain.
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const btcNetwork: BitcoinNetwork =
+    networkQuery.data ?? DEFAULT_BITCOIN_NETWORK;
 
   // sender_pkh: HASH160(dwallet pubkey) = the witness program of the
   // dWallet's own P2WPKH address. We extract by decoding the address

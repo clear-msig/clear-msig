@@ -132,8 +132,12 @@ describe("networkForHrp", () => {
   it("maps bc → mainnet", () => {
     expect(networkForHrp("bc")).toBe("mainnet");
   });
-  it("maps tb → signet (default for ambiguous)", () => {
-    expect(networkForHrp("tb")).toBe("signet");
+  it("maps tb → testnet (default for ambiguous)", () => {
+    // tb HRP is shared between testnet3 and signet. We collapse to
+    // the pre-alpha default (testnet3 — broader faucet ecosystem in
+    // 2026); validateBtcDestination accepts the other direction via
+    // its symmetric tb-HRP fallback.
+    expect(networkForHrp("tb")).toBe("testnet");
   });
   it("maps bcrt → regtest", () => {
     expect(networkForHrp("bcrt")).toBe("regtest");
