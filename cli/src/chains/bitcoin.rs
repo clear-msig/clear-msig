@@ -56,7 +56,11 @@
 
 use crate::chains::BroadcastResult;
 use crate::error::*;
-use k256::ecdsa::Signature as K256Signature;
+use crate::ika::sha256d;
+use k256::ecdsa::{
+    signature::hazmat::PrehashVerifier, Signature as K256Signature,
+    VerifyingKey as K256VerifyingKey,
+};
 use serde::Deserialize;
 
 /// Inputs needed to assemble the segwit transaction body. Anything not
@@ -76,6 +80,7 @@ pub struct SpendInputs {
 /// the raw signed tx hex on success.
 pub fn assemble_and_broadcast(
     inputs: SpendInputs,
+    preimage: &[u8],
     r: &[u8; 32],
     s: &[u8; 32],
     dwallet_pubkey_compressed: &[u8],
@@ -87,7 +92,26 @@ pub fn assemble_and_broadcast(
             dwallet_pubkey_compressed.len()
         ));
     }
-    let der_sig = der_encode_signature(r, s)?;
+
+    // Pick whichever (r, s) byte order actually verifies against the
+    // dWallet pubkey for the BIP143 sighash. Mirrors the EVM
+    // recover_v fix (commit 92250a0): Ika's pre-alpha mock signer
+    // has been observed emitting little-endian scalars, which
+    // canonical big-endian DER encoding would broadcast as a
+    // permanently-invalid sig — Bitcoin nodes reject with
+    // `mempool-script-verify-flag-failed (Signature must be zero
+    // for failed CHECK(MULTI)SIG operation)`. The EVM fix landed
+    // for the EIP-1559 path 3 days ago but not for BTC; this
+    // closes the same gap on the Bitcoin side.
+    let digest = sha256d(preimage);
+    let chosen = pick_canonical_or_reversed(
+        &digest,
+        r,
+        s,
+        dwallet_pubkey_compressed,
+    )?;
+
+    let der_sig = der_encode_signature(&chosen.r, &chosen.s)?;
     let mut sig_with_hashtype = Vec::with_capacity(der_sig.len() + 1);
     sig_with_hashtype.extend_from_slice(&der_sig);
     sig_with_hashtype.push(SIGHASH_ALL);
@@ -143,6 +167,112 @@ fn der_encode_signature(r: &[u8; 32], s: &[u8; 32]) -> Result<Vec<u8>> {
         .map_err(|e| anyhow!("invalid (r, s) for DER encoding: {e}"))?;
     let normalized = sig.normalize_s().unwrap_or(sig);
     Ok(normalized.to_der().as_bytes().to_vec())
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Endianness fallback (mirrors EVM's `recover_v` LE-correction)
+// ────────────────────────────────────────────────────────────────────────────
+
+/// `(r, s)` bytes that actually verified for the BIP143 sighash. Same
+/// shape as EVM's `RecoveredSignature` minus the `v` (Bitcoin sigs
+/// aren't recoverable — we have the pubkey embedded in the witness).
+struct ChosenScalars {
+    r: [u8; 32],
+    s: [u8; 32],
+}
+
+/// Try ECDSA-verify the BIP143 sighash with `(r, s)` as given. If the
+/// canonical pass fails, retry with each scalar byte-reversed and use
+/// the LE→BE corrected bytes in the witness. Returns the (r, s) that
+/// actually verified.
+///
+/// Why this exists: the Ika pre-alpha mock signer has been observed
+/// emitting little-endian scalars in some sessions. The EVM path
+/// already auto-corrects (cli/src/chains/evm.rs::recover_v); the BTC
+/// path didn't, so a mock-signer LE response broadcast a sig that
+/// CHECKSIG rejects every time. Caught in the wild today via:
+///
+///   "mempool-script-verify-flag-failed (Signature must be zero for
+///    failed CHECK(MULTI)SIG operation), input 0 of …"
+///
+/// HASH160 matched (otherwise we'd see "Witness program hash mismatch"
+/// instead), so the witness pubkey is fine — only the sig was bad.
+///
+/// Loud stderr warning when the reversed path wins so operators see
+/// the upstream encoding bug without it being silent. Mirrors EVM's
+/// warning copy verbatim except for the chain name.
+fn pick_canonical_or_reversed(
+    digest: &[u8; 32],
+    r: &[u8; 32],
+    s: &[u8; 32],
+    expected_pubkey_compressed: &[u8],
+) -> Result<ChosenScalars> {
+    let vk = K256VerifyingKey::from_sec1_bytes(expected_pubkey_compressed)
+        .map_err(|e| anyhow!("invalid SEC1 dWallet pubkey: {e}"))?;
+
+    let try_verify = |r: &[u8; 32], s: &[u8; 32]| -> bool {
+        let Ok(sig) = K256Signature::from_scalars(*r, *s) else {
+            return false;
+        };
+        // Bitcoin / k256 will accept either low-s or high-s for
+        // verification (consensus is permissive); strict-low-s is
+        // a relay policy enforced at DER encode time, not here.
+        // We try the original sig AND its low-s normalization since
+        // some signers may emit the high-s form even when the low-s
+        // is canonical.
+        if vk.verify_prehash(digest, &sig).is_ok() {
+            return true;
+        }
+        if let Some(norm) = sig.normalize_s() {
+            if vk.verify_prehash(digest, &norm).is_ok() {
+                return true;
+            }
+        }
+        false
+    };
+
+    // Pass 1: canonical big-endian, as given.
+    if try_verify(r, s) {
+        return Ok(ChosenScalars { r: *r, s: *s });
+    }
+
+    // Pass 2: byte-reversed (the LE-from-Ika case).
+    let mut r_rev = *r;
+    let mut s_rev = *s;
+    r_rev.reverse();
+    s_rev.reverse();
+    if try_verify(&r_rev, &s_rev) {
+        eprintln!(
+            "⚠ [btc-verify] canonical sig didn't verify against the dWallet \
+             pubkey for the BIP143 sighash; reversed-byte scalars verified. \
+             Upstream signer is emitting little-endian r,s — auto-correcting \
+             for this broadcast. File against the producer."
+        );
+        return Ok(ChosenScalars { r: r_rev, s: s_rev });
+    }
+
+    Err(anyhow!(
+        "ECDSA sig didn't verify against the dWallet pubkey for the BIP143 \
+         sighash, in either canonical or byte-reversed form. The signature \
+         is not over sha256d(preimage), or it was produced by a different \
+         key.\n\n\
+         digest:          0x{}\n\
+         r (as given):    0x{}\n\
+         s (as given):    0x{}\n\
+         expected_pubkey: 0x{}",
+        hex_lower(digest),
+        hex_lower(r),
+        hex_lower(s),
+        hex_lower(expected_pubkey_compressed),
+    ))
+}
+
+fn hex_lower(b: &[u8]) -> String {
+    let mut s = String::with_capacity(b.len() * 2);
+    for byte in b {
+        s.push_str(&format!("{byte:02x}"));
+    }
+    s
 }
 
 // ────────────────────────────────────────────────────────────────────────────
