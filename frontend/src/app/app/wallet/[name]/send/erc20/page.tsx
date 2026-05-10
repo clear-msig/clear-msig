@@ -59,6 +59,7 @@ import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
+import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
@@ -421,12 +422,12 @@ function SendErc20Page() {
   }
 
   return (
-    <div className="flex flex-col">
-      <div className="flex flex-1 justify-center pt-6">
+    <div className="mx-auto flex w-full max-w-lg flex-col lg:max-w-3xl">
+      <div className="flex flex-1 flex-col">
         <motion.section
           {...motionProps}
           transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          className="w-full max-w-lg"
+          className="w-full"
         >
           {stage === "compose" && (
             <SendChainPicker
@@ -583,19 +584,27 @@ function ComposeStage({
   }
 
   return (
-    <div className="flex flex-col">
-      <div className="flex flex-col items-center text-center">
-        {ethMeta && <ChainBadge chain={ethMeta} size="lg" />}
-        <span aria-hidden="true" className="mt-4 block h-px w-10 bg-accent" />
-        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-          Send · ERC-20 token
+    <div className="flex flex-col gap-5">
+      {/* Compact left-aligned header — matches SOL / ETH / BTC /send. */}
+      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+        <div className="flex items-center gap-3">
+          {ethMeta ? <ChainBadge chain={ethMeta} size="md" /> : null}
+          <div className="flex flex-col gap-0.5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              Send · ERC-20 token
+            </p>
+            <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
+              Send a token
+            </h1>
+          </div>
+        </div>
+        <p className="text-xs text-text-soft sm:text-sm">
+          From{" "}
+          <span className="font-medium text-text-strong">{walletDisplay}</span>
         </p>
-        <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          Send a token from <span className="text-accent">{walletDisplay}</span>
-        </h1>
-      </div>
+      </header>
 
-      <div className="mt-6 flex flex-col gap-3">
+      <div className="flex flex-col gap-3">
         <Field
           label="Token contract"
           hint={
@@ -837,18 +846,19 @@ function SendingStage({ reduce }: { reduce: boolean }) {
     ? { initial: false as const, animate: { opacity: 1 } }
     : { initial: { opacity: 0 }, animate: { opacity: 1 } };
   return (
-    <motion.div
+    <motion.section
       {...motionProps}
       transition={{ duration: 0.2 }}
-      className="flex flex-col items-center justify-center gap-3 py-16 text-center"
+      className="flex flex-col items-center text-center"
     >
-      <Loader2 className="h-6 w-6 animate-spin text-accent" aria-hidden="true" />
-      <p className="text-sm font-medium text-text-strong">Sending request…</p>
-      <p className="max-w-xs text-xs text-text-soft">
-        Signing on Solana, then dWallet signs the ERC-20 transfer and
-        broadcasts it on Sepolia.
+      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-raised shadow-card-rest">
+        <BrandLoader size={32} label="Sending token request" />
+      </div>
+      <p className="mt-5 text-base text-text-strong">Sending token request…</p>
+      <p className="mt-1 text-xs text-text-soft">
+        Signing on Solana, then handing off to Ika to broadcast on Sepolia.
       </p>
-    </motion.div>
+    </motion.section>
   );
 }
 

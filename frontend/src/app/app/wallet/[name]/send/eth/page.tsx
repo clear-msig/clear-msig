@@ -520,12 +520,12 @@ function SendEthPage() {
   }
 
   return (
-    <div className="flex flex-col">
-      <div className="flex flex-1 justify-center pt-6">
+    <div className="mx-auto flex w-full max-w-lg flex-col lg:max-w-3xl">
+      <div className="flex flex-1 flex-col">
         <motion.section
           {...motionProps}
           transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          className="w-full max-w-lg"
+          className="w-full"
         >
           {stage === "compose" && (
             <SendChainPicker walletName={walletName} activeKind={ETH_CHAIN_KIND} />
@@ -671,30 +671,42 @@ function ComposeStage({
   }
 
   return (
-    <div className="flex flex-col">
-      <div className="flex flex-col items-center text-center">
-        {ethMeta && <ChainBadge chain={ethMeta} size="lg" />}
-        <span aria-hidden="true" className="mt-4 block h-px w-10 bg-accent" />
-        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-          Send · Ethereum
+    <div className="flex flex-col gap-5">
+      {/* Compact left-aligned header — matches SOL /send. Chain badge
+          inline with eyebrow + display title; "From {wallet}" sits on
+          the right edge so the network identity is unmistakable
+          without burning vertical space. */}
+      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+        <div className="flex items-center gap-3">
+          {ethMeta ? <ChainBadge chain={ethMeta} size="md" /> : null}
+          <div className="flex flex-col gap-0.5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              Send · Ethereum
+            </p>
+            <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
+              Send ETH
+            </h1>
+          </div>
+        </div>
+        <p className="text-xs text-text-soft sm:text-sm">
+          From{" "}
+          <span className="font-medium text-text-strong">{walletDisplay}</span>
         </p>
-        <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          Send ETH from <span className="text-accent">{walletDisplay}</span>
-        </h1>
-        <Link
-          href={`/app/wallet/${encodeURIComponent(walletName)}/send/erc20`}
-          className={
-            "mt-3 inline-flex min-h-tap items-center justify-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-4 py-2 text-xs font-medium text-text-soft " +
-            "transition-[border-color,color,transform] duration-base ease-out-soft " +
-            "hover:-translate-y-0.5 hover:text-accent " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-          }
-        >
-          Send a token instead (USDC, DAI, …)
-        </Link>
-      </div>
+      </header>
 
-      <div className="mt-6 flex flex-col gap-3">
+      <Link
+        href={`/app/wallet/${encodeURIComponent(walletName)}/send/erc20`}
+        className={
+          "inline-flex min-h-tap w-fit items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-4 py-2 text-xs font-medium text-text-soft " +
+          "transition-[border-color,color,transform] duration-base ease-out-soft " +
+          "hover:-translate-y-0.5 hover:text-accent " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+        }
+      >
+        Send a token instead (USDC, DAI, …)
+      </Link>
+
+      <div className="flex flex-col gap-3">
         <Field
           label="Amount"
           hint={amount.trim() && !amountValid ? "Must be a positive number." : undefined}
@@ -925,23 +937,22 @@ function Field({ label, hint, children }: FieldProps) {
 
 function SendingStage({ reduce }: { reduce: boolean }) {
   const motionProps = reduce
-    ? {}
-    : { initial: { opacity: 0, scale: 0.96 }, animate: { opacity: 1, scale: 1 } };
+    ? { initial: false as const, animate: { opacity: 1 } }
+    : { initial: { opacity: 0 }, animate: { opacity: 1 } };
   return (
-    <motion.div
+    <motion.section
       {...motionProps}
-      transition={{ duration: 0.35 }}
+      transition={{ duration: 0.2 }}
       className="flex flex-col items-center text-center"
     >
-      <BrandLoader size={48} label="Sending Ethereum request" />
-      <h2 className="mt-5 font-display text-display-xs text-text-strong">
-        Talking to Ethereum
-      </h2>
-      <p className="mt-1 text-sm text-text-soft">
-        Building the request, signing on Solana, then handing off to
-        Ika&rsquo;s dWallet network to broadcast on Sepolia.
+      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-raised shadow-card-rest">
+        <BrandLoader size={32} label="Sending Ethereum request" />
+      </div>
+      <p className="mt-5 text-base text-text-strong">Talking to Ethereum…</p>
+      <p className="mt-1 text-xs text-text-soft">
+        Signing on Solana, then handing off to Ika to broadcast on Sepolia.
       </p>
-    </motion.div>
+    </motion.section>
   );
 }
 
@@ -1010,17 +1021,17 @@ function PreFlightCard({
   cta: { href: string; label: string };
 }) {
   return (
-    <div className="flex flex-1 items-center justify-center pt-6">
-      <div className="w-full max-w-md text-center">
-        <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-warning/10 text-warning">
-          <ShieldAlert className="h-6 w-6" strokeWidth={1.75} />
+    <div className="flex flex-1 items-center justify-center px-gutter py-10">
+      <div className="w-full max-w-md rounded-card border border-warning/30 bg-warning/5 p-6 text-center shadow-card-rest">
+        <div className="flex justify-center text-warning">
+          <ShieldAlert className="h-8 w-8" aria-hidden="true" />
         </div>
-        <h1 className="font-display text-display-xs text-text-strong text-balance">
+        <h2 className="mt-3 font-display text-display-xs text-text-strong">
           {title}
-        </h1>
-        <p className="mt-2 text-base text-text-soft">{body}</p>
-        <Link href={cta.href} className="mt-6 inline-block w-full">
-          <Button size="lg" fullWidth>
+        </h2>
+        <p className="mt-2 text-sm text-text-soft">{body}</p>
+        <Link href={cta.href} className="mt-4 inline-block">
+          <Button size="md">
             {cta.label}
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Button>
