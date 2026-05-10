@@ -259,7 +259,6 @@ export default function SecurePage() {
                 body="iPhone, MacBook, YubiKey. Each device holds a share via WebAuthn passkey."
                 delay={0.1}
                 reduce={!!reduce}
-                stub
               />
               <Step
                 n="03"
@@ -268,7 +267,6 @@ export default function SecurePage() {
                 body="Sign a sweep with any threshold. Funds move to your destination wallet."
                 delay={0.16}
                 reduce={!!reduce}
-                stub
               />
             </div>
           </section>
