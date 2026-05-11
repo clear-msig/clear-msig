@@ -22,9 +22,9 @@
 // throwaway recoveryId keypair (PDA seed). The throwaway is generated
 // client-side and never referenced again.
 
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
@@ -107,8 +107,24 @@ function SecureBuildPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
 
-  const [stage, setStage] = useState<Stage>("shape");
-  const [shape, setShape] = useState<ThresholdShape>(SHAPES[0]!);
+  // Preselect the threshold shape when the user lands here from
+  // /app/wallet/new's "Recover" branch (?preselect=solo|2of3|3of5).
+  // When set, we skip the in-page shape picker and jump straight to
+  // the confirm step — the user already made that choice on the
+  // unified wallet-create entry. See Fesal feedback 2026-05-11.
+  const searchParams = useSearchParams();
+  const preselectedShape = useMemo<ThresholdShape | null>(() => {
+    const id = searchParams?.get("preselect");
+    if (!id) return null;
+    return SHAPES.find((s) => s.id === id) ?? null;
+  }, [searchParams]);
+
+  const [stage, setStage] = useState<Stage>(
+    preselectedShape ? "confirm" : "shape",
+  );
+  const [shape, setShape] = useState<ThresholdShape>(
+    preselectedShape ?? SHAPES[0]!,
+  );
   const [resultRecovery, setResultRecovery] = useState<string | null>(null);
   const [resultTxSig, setResultTxSig] = useState<string | null>(null);
   const [passkeyProgress, setPasskeyProgress] = useState<CreatePasskeyProgress | null>(null);
