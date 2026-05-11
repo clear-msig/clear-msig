@@ -242,11 +242,11 @@ function mapTransportError(err: unknown): LedgerError {
 // returns. Documented in Ledger's @ledgerhq/errors and the
 // upstream solana-app source. Mapping notes:
 //
-//   0x6982  Security status not satisfied — device is locked. The user
+//   0x6982  Security status not satisfied. Device is locked. The user
 //           sees a black screen and we want to send them to "unlock the
 //           device and try again", not a vague error.
-//   0x6985  Conditions of use not satisfied — user pressed Reject.
-//   0x6808  BLIND_SIGNATURE_REQUIRED — message format the device won't
+//   0x6985  Conditions of use not satisfied. User pressed Reject.
+//   0x6808  BLIND_SIGNATURE_REQUIRED. Message format the device won't
 //           render in clear-sign mode. Show the user how to enable
 //           blind signing instead of throwing them under the bus.
 //   0x6d00  / 0x6d02 / 0x6e00  Wrong app open / app not running /

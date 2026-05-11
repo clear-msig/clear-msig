@@ -106,7 +106,7 @@ export function AppProviders({ children }: Props) {
   return (
     <QueryClientProvider client={queryClient}>
       {/* Mounts the CoinGecko price subscription once for the whole
-          tree — every `quotePerWhole()` consumer reads from the live
+          tree. Every `quotePerWhole()` consumer reads from the live
           map populated by this hook. Renders nothing. */}
       <LivePricesProvider />
       <DynamicProviderTree environmentId={environmentId ?? ""}>

@@ -1,13 +1,13 @@
 "use client";
 
-// /app/secure/[recovery]/sweep — full in-app sweep wizard (v3e).
+// /app/secure/[recovery]/sweep. Full in-app sweep wizard (v3e).
 //
 // Three stages:
-//   1. compose  — destination address + SOL amount.
-//   2. review   — preview card (from / to / amount / message size).
-//   3. running  — runs propose+approve → execute → presign+sign →
+//   1. compose . Destination address + SOL amount.
+//   2. review  . Preview card (from / to / amount / message size).
+//   3. running . Runs propose+approve → execute → presign+sign →
 //                 broadcast in sequence, with live progress dots.
-//   4. done     — explorer pills for the proposal, execute, and the
+//   4. done    . Explorer pills for the proposal, execute, and the
 //                 actual sweep broadcast.
 //
 // Two user popups: one for the propose+approve bundle, one for the
@@ -144,7 +144,7 @@ function parseTokenAmount(input: string, decimals: number): bigint | null {
 }
 
 /**
- * Live read of `proposal.approvalCount` — used by the M-of-N picker
+ * Live read of `proposal.approvalCount`. Used by the M-of-N picker
  * after each successful add so the local UI stays in sync with what's
  * actually on chain (concurrent approvers from other browsers can
  * push the count past what this tab knows about).
@@ -230,7 +230,7 @@ const PASSKEY_RUN_STAGES: RunStageInfo[] = [
   {
     id: "propose-approve-sign",
     label: "Sign propose tx",
-    detail: "Confirm in your wallet — pays fees, doesn't authorise.",
+    detail: "Confirm in your wallet. Pays fees, doesn't authorise.",
   },
   {
     id: "propose-approve-confirm",
@@ -245,7 +245,7 @@ const PASSKEY_RUN_STAGES: RunStageInfo[] = [
   {
     id: "approve-sign",
     label: "Sign approve tx",
-    detail: "Confirm in your wallet — pays fees again.",
+    detail: "Confirm in your wallet. Pays fees again.",
   },
   {
     id: "approve-confirm",
@@ -360,7 +360,7 @@ function SweepPage() {
   const [authMode, setAuthMode] = useState<SweepAuthMode>("wallet");
   /** `null` = SOL; otherwise the SPL mint base58 string (which keys into `holdingsQuery`). */
   const [assetMint, setAssetMint] = useState<string | null>(null);
-  /** Cached SPL `SweepTarget` once the user clicks Review — re-derived for the actual run. */
+  /** Cached SPL `SweepTarget` once the user clicks Review. Re-derived for the actual run. */
   const [previewSpl, setPreviewSpl] = useState<{
     mint: string;
     amount: bigint;
@@ -430,7 +430,7 @@ function SweepPage() {
     return vaultQuery.data.account.members.some((slot) => slot[0] === 3);
   }, [vaultQuery.data]);
 
-  // Pin authMode once vault loads — passkey if wallet isn't a member
+  // Pin authMode once vault loads. Passkey if wallet isn't a member
   // and a passkey exists; otherwise wallet.
   useEffect(() => {
     if (!vaultQuery.data) return;
@@ -494,7 +494,7 @@ function SweepPage() {
       setPreviewSpl(null);
     } else {
       // Build a representative ix list for the message-size preview.
-      // We deliberately don't probe destination ATA existence here —
+      // We deliberately don't probe destination ATA existence here ,
       // that's a network round-trip we'd repeat on Run anyway. Worst
       // case the preview's byte count is one ix off.
       const programId = new PublicKey(selectedHolding!.programId);
@@ -651,7 +651,7 @@ function SweepPage() {
       });
       // Re-read the on-chain count instead of trusting `collectCount + 1`.
       // If a different approver landed an approval concurrently (other
-      // browser, other device), the chain may already be at threshold —
+      // browser, other device), the chain may already be at threshold ,
       // we want to resolve and continue to execute, not wait for more
       // local clicks. fetchVault doesn't help here (it's the proposal,
       // not the recovery), so go through the proposal codec directly.
@@ -916,7 +916,7 @@ function ComposeStage(props: ComposeStageProps) {
       </PageEyebrow>
 
       <section className="mx-auto w-full max-w-md flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-        {/* Asset picker — SOL is always available; SPL holdings appear
+        {/* Asset picker. SOL is always available; SPL holdings appear
             when the dWallet owns any token accounts. */}
         <div className="flex flex-col gap-1.5">
           <label
@@ -956,7 +956,7 @@ function ComposeStage(props: ComposeStageProps) {
           {!props.holdingsLoading &&
             (props.holdings == null || props.holdings.length === 0) && (
               <p className="text-[10px] text-text-soft">
-                No SPL tokens detected on the dWallet — only SOL.
+                No SPL tokens detected on the dWallet. Only SOL.
               </p>
             )}
         </div>
@@ -984,7 +984,7 @@ function ComposeStage(props: ComposeStageProps) {
           )}
           {isSpl && (
             <p className="text-[10px] text-text-soft">
-              Sends to the recipient&rsquo;s wallet — we derive their{" "}
+              Sends to the recipient&rsquo;s wallet. We derive their{" "}
               {props.assetSymbol} ATA and create it on the fly if needed.
             </p>
           )}
@@ -1144,7 +1144,7 @@ function ReviewStage(props: ReviewStageProps) {
         </dl>
       </section>
 
-      {/* Auth picker — only shown when both options are viable. If the
+      {/* Auth picker. Only shown when both options are viable. If the
           connected wallet isn't on the roster (lost-wallet recovery),
           passkey is the only option and the picker hides. If the vault
           has no passkey members, wallet is the only option. */}
@@ -1171,7 +1171,7 @@ function ReviewStage(props: ReviewStageProps) {
       )}
       {!showPicker && props.authMode === "passkey" && (
         <p className="mx-auto max-w-md text-center text-[11px] text-text-soft">
-          Connected wallet isn&rsquo;t on this vault&rsquo;s roster — sweeping
+          Connected wallet isn&rsquo;t on this vault&rsquo;s roster. Sweeping
           via enrolled passkey.
         </p>
       )}
@@ -1527,7 +1527,7 @@ function shortPub(p: string): string {
 /**
  * Format `lamports` as a SOL string, trimming trailing zeros down to
  * 4 decimal places minimum. Used for the balance helper text and the
- * "Max" button population — both display contexts, never parsed back.
+ * "Max" button population. Both display contexts, never parsed back.
  */
 function formatLamportsToSol(lamports: bigint): string {
   const whole = lamports / LAMPORTS_PER_SOL;

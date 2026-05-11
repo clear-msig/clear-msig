@@ -659,8 +659,8 @@ function BrandRow({
           expanded ? "gap-2 px-1 py-1" : "p-1",
         )}
       >
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl text-accent">
-          <BrandMark size={20} />
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl">
+          <BrandMark size={18} />
         </div>
         {expanded && (
           <span className="font-display text-base font-semibold tracking-tight text-text-strong">

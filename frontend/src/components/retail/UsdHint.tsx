@@ -5,18 +5,18 @@
 // Renders "≈ $185" using the existing priceConversion library. Live
 // CoinGecko-fed numbers when available (LivePricesProvider mounts at
 // app root), static demo numbers as fallback while the first fetch
-// is in flight. Respects the user's display-currency pref — toggling
+// is in flight. Respects the user's display-currency pref. Toggling
 // USD → EUR in Settings reflows every hint without a reload.
 //
 // Returns null when the ticker isn't priced in either map so a stray
-// SPL never paints as a misleading "$0" — callers can layout against
+// SPL never paints as a misleading "$0". Callers can layout against
 // that absence (no extra separator, no empty span).
 //
 // Two layout variants:
-//   inline (default) — " · ≈ $185" with a leading separator so the
-//                      hint sits next to the token amount on the same
-//                      line.
-//   plain            — "≈ $185" no separator. For stacked layouts
+//   inline (default): " · ≈ $185" with a leading separator so the
+//                     hint sits next to the token amount on the same
+//                     line.
+//   plain:            "≈ $185" no separator. For stacked layouts
 //                      where the parent positions the hint on its
 //                      own line.
 
@@ -28,7 +28,7 @@ import { useDisplayCurrency } from "@/lib/hooks/useDisplayCurrency";
 
 interface UsdHintProps {
   /// Chain-native bigint amount (lamports / wei / sats / token base
-  /// units). Pass 0n to opt out — the component renders nothing.
+  /// units). Pass 0n to opt out. The component renders nothing.
   amount: bigint;
   /// Smallest unit per whole token. 10^9 for SOL, 10^18 for ETH,
   /// 10^8 for BTC, 10^decimals for SPL / ERC-20 tokens.

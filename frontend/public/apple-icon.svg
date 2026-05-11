@@ -1,5 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" fill="none" role="img" aria-label="Clear">
   <rect width="180" height="180" rx="40" fill="#0c0c0c"/>
-  <circle cx="68" cy="90" r="32" stroke="#ccff00" stroke-width="13" fill="none"/>
-  <circle cx="112" cy="90" r="32" stroke="#ccff00" stroke-width="13" fill="none"/>
+  <!-- Outer C arc, white, open to the right -->
+  <path d="M126 46 A48 48 0 1 0 126 134" stroke="#ffffff" stroke-width="10" stroke-linecap="round" fill="none"/>
+  <!-- Middle C arc -->
+  <path d="M114 65 A29 29 0 1 0 114 115" stroke="#ffffff" stroke-width="10" stroke-linecap="round" fill="none"/>
+  <!-- Inner dot -->
+  <circle cx="90" cy="90" r="7.5" fill="#ffffff"/>
+  <!-- Lime accent: short arc on outer ring, bottom-left -->
+  <path d="M42 90 A48 48 0 0 0 63.4 131.5" stroke="#ccff00" stroke-width="10" stroke-linecap="round" fill="none"/>
 </svg>

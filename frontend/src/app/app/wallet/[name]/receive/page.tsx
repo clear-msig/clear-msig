@@ -181,7 +181,7 @@ export default function ReceivePage() {
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       className="mx-auto flex w-full max-w-2xl flex-col gap-6"
     >
-      {/* Compact left-aligned header with a refresh chip — a freshly-
+      {/* Compact left-aligned header with a refresh chip. A freshly-
           added chain takes ~10–30s to commit on chain. The chip lets
           the user force a reload without waiting for the staleTime
           window to elapse. */}

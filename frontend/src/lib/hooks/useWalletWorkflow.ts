@@ -69,9 +69,9 @@ export function useWalletWorkflow(walletName: string) {
     onSuccess: async () => {
       // The chain list lives in TWO query keys with different
       // sources of truth:
-      //   - "wallet-chains" — read on chain via this hook's
+      //   - "wallet-chains": read on chain via this hook's
       //     `chainsQuery` (Solana RPC `getProgramAccounts`).
-      //   - "wallet-chains-api" — read via `useWalletChains` which
+      //   - "wallet-chains-api": read via `useWalletChains` which
       //     hits backend-api `GET /wallets/{name}/chains`.
       // Pages mix both (Receive uses the API key; the wallet detail
       // uses the on-chain key). Invalidate BOTH so the new chain

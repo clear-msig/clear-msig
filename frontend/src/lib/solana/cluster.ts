@@ -42,7 +42,7 @@ function readOverrideFromStorage(): string | null {
     const v = window.localStorage.getItem(RPC_OVERRIDE_STORAGE_KEY);
     if (typeof v !== "string") return null;
     const trimmed = v.trim();
-    // Reject anything that isn't HTTPS — except localhost / 127.0.0.1
+    // Reject anything that isn't HTTPS, except localhost / 127.0.0.1
     // for local development. Plain HTTP RPCs let a passive network
     // observer modify `getBalance` / `getAccountInfo` / `getRecentBlockhash`
     // responses on the wire, manipulating both the balance display the
@@ -56,7 +56,7 @@ function readOverrideFromStorage(): string | null {
     if (httpsOk || localhostOk) return trimmed;
     if (typeof console !== "undefined") {
       console.warn(
-        "[solana-rpc] localStorage override rejected — only https:// or http://localhost are honoured. Falling back to env default.",
+        "[solana-rpc] localStorage override rejected. Only https:// or http://localhost are honoured. Falling back to env default.",
       );
     }
     return null;

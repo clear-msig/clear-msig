@@ -103,7 +103,7 @@ export default function ChainsPage() {
     return { bound, available };
   }, [bindingsQuery.data]);
 
-  // Detect legacy multi-dWallet wallets — wallets bound BEFORE the
+  // Detect legacy multi-dWallet wallets. Wallets bound BEFORE the
   // BYO secp256k1 sharing fix landed (84878e8), which have 2+
   // separate dWallets for the secp256k1 chain family (ETH / BTC /
   // Zcash / ERC-20). The Ika pre-alpha mock signer's per-dWallet
@@ -147,7 +147,7 @@ export default function ChainsPage() {
             <span className="font-medium text-text-strong">
               {toDisplayName(name)}
             </span>{" "}
-            can send on. Adding a chain usually takes 10–30 seconds — tap
+            can send on. Adding a chain usually takes 10–30 seconds. Tap
             refresh if a freshly-added chain hasn&rsquo;t shown up yet.
           </p>
         </div>
@@ -177,7 +177,7 @@ export default function ChainsPage() {
 
       {/* Legacy multi-dWallet warning. Only renders when this wallet
           has 2+ secp256k1 dWallets bound separately (the old
-          pre-BYO-fix state). Read-only — auto-migration would risk
+          pre-BYO-fix state). Read-only. Auto-migration would risk
           stranding funds at the abandoned dWallet address. */}
       {hasLegacyMultiDwallet && (
         <aside
@@ -192,7 +192,7 @@ export default function ChainsPage() {
             Ika dWallet, which can trip the &ldquo;neither v=0 nor
             v=1 recovers&rdquo; failure on send because of the Ika
             pre-alpha mock signer&rsquo;s per-DKG state. For
-            reliable sends, create a fresh wallet — new wallets
+            reliable sends, create a fresh wallet. New wallets
             share one dWallet across every secp256k1 chain. Funds
             in this wallet stay where they are; this is just a
             heads-up.

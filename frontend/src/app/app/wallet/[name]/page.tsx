@@ -640,8 +640,8 @@ function Hero({
       className="flex flex-col gap-5"
     >
       {/* ── Page header strip ───────────────────────────────────
-          Mirrors the secure / account / wizard headers — mono
-          eyebrow + display-sm title + chips row — so the workspace
+          Mirrors the secure / account / wizard headers. Mono
+          eyebrow + display-sm title + chips row. So the workspace
           reads as one product surface. Avatar disc anchors the
           identity inline; chips on the trailing edge surface
           members + pending approvals at a glance. */}

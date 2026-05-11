@@ -116,14 +116,14 @@ function isLikelyBitcoinTestnetAddress(addr: string): boolean {
 
 export type BitcoinNetwork = "mainnet" | "testnet" | "signet" | "regtest";
 
-/// Default network for v1 — **testnet3**.
+/// Default network for v1. **testnet3**.
 ///
 /// We previously defaulted to signet (free faucets, stable fees) but
 /// the wider faucet ecosystem in 2026 still leans testnet3, so users
 /// who hit "Get testnet BTC" from any of the canonical faucets land
 /// on testnet3 by default. The on-chain BIP143 preimage builder
 /// (`programs/clear-wallet/src/chains/bitcoin.rs`) is network-agnostic
-/// — it just hashes raw bytes — so the network choice is purely a
+///. It just hashes raw bytes. So the network choice is purely a
 /// matter of which Esplora endpoint we read from / broadcast to.
 ///
 /// Note that `tb1q...` addresses are valid on BOTH testnet3 and
@@ -190,11 +190,11 @@ export function mempoolSpaceAddressUrl(
  *   1. Probe testnet3 first (broader faucet ecosystem in 2026).
  *   2. If `funded_txo_count > 0` there, return "testnet".
  *   3. Otherwise probe signet. If that has UTXOs, return "signet".
- *   4. If both are empty (fresh wallet), return "testnet" — the
+ *   4. If both are empty (fresh wallet), return "testnet". The
  *      Receive page's tb-HRP address is fundable by any tb faucet,
  *      so testnet is the safer default for "next step is fund me".
  *
- * Mainnet `bc` HRP short-circuits before probing — only here for
+ * Mainnet `bc` HRP short-circuits before probing. Only here for
  * type completeness; `chainAddress` already filters out mainnet
  * addresses in pre-alpha.
  */
@@ -232,7 +232,7 @@ export async function detectBitcoinNetwork(
   return DEFAULT_BITCOIN_NETWORK;
 }
 
-// ─── Esplora — balance + UTXOs ────────────────────────────────────
+// ─── Esplora. Balance + UTXOs ────────────────────────────────────
 
 export interface EsploraUtxo {
   txid: string;
@@ -369,7 +369,7 @@ export interface DecodedSegwit {
   hrp: string;
   /** 0 for P2WPKH/P2WSH; 1+ for taproot. v1 send rejects non-zero. */
   version: number;
-  /** Witness program — 20 bytes for P2WPKH, 32 bytes for P2WSH/taproot. */
+  /** Witness program. 20 bytes for P2WPKH, 32 bytes for P2WSH/taproot. */
   program: Uint8Array;
 }
 
@@ -431,7 +431,7 @@ export type ValidateBtcResult =
 /**
  * Validate a destination address against the wallet's network. On
  * success returns the 20-byte pkh ready to feed into the BTC intent's
- * `recipient_pkh` param. Refuses non-v0 (no taproot output yet — the
+ * `recipient_pkh` param. Refuses non-v0 (no taproot output yet. The
  * on-chain program only knows P2WPKH).
  */
 export function validateBtcDestination(
@@ -446,7 +446,7 @@ export function validateBtcDestination(
   if (!decoded) {
     return {
       ok: false,
-      reason: "Invalid bech32 address — check for typos or copy-paste errors.",
+      reason: "Invalid bech32 address. Check for typos or copy-paste errors.",
     };
   }
   if (decoded.version !== 0) {

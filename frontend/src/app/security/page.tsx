@@ -116,7 +116,7 @@ export default function SecurityPage() {
             <InfoCard
               Icon={ShieldCheck}
               title="Read the destination before signing"
-              body="Every send shows the recipient's short address right above the wallet popup. If that address looks wrong, cancel. Contacts can be edited on this device — the address is the truth, the name is the convenience."
+              body="Every send shows the recipient's short address right above the wallet popup. If that address looks wrong, cancel. Contacts can be edited on this device. The address is the truth, the name is the convenience."
             />
           </div>
         </motion.section>

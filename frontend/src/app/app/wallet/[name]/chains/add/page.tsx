@@ -79,14 +79,14 @@ function AddChainPage() {
   // Read the wallet's current chain bindings so we can hide already-
   // bound chains from the picker. Without this, a user who already
   // bound (say) Ethereum sees it offered again, taps it, runs a
-  // second DKG, and the IkaConfig PDA gets overwritten — which on
+  // second DKG, and the IkaConfig PDA gets overwritten. Which on
   // some program builds re-points the chain binding at a brand-new
   // dWallet. Old proposals against the previous dWallet's
   // MessageApproval PDAs then can't be re-executed. Better to hide
   // the option entirely.
   //
   // ERC-20 (kind 4) is intentionally NOT considered bound by the
-  // base Ethereum binding here — they share the dWallet but ERC-20
+  // base Ethereum binding here. They share the dWallet but ERC-20
   // setup writes its own Intent. We don't offer kind 4 in the picker
   // at all (it's not in CHAIN_CATALOG as a separate bindable entry).
   const chainsQuery = useWalletChains(walletName);
@@ -118,7 +118,7 @@ function AddChainPage() {
     if (dest) {
       router.replace(dest);
     } else {
-      // No specific destination — drop them back to the picker, which
+      // No specific destination. Drop them back to the picker, which
       // will now show only the still-addable chains.
       setSelected(null);
       setStage("pick");
@@ -131,7 +131,7 @@ function AddChainPage() {
     walletName,
   ]);
 
-  // Existing secp256k1 dWallet detection — the "ETH-after-BTC breaks"
+  // Existing secp256k1 dWallet detection. The "ETH-after-BTC breaks"
   // workaround.
   //
   // Background: each `wallet add-chain` runs a fresh DKG on Ika and
@@ -147,7 +147,7 @@ function AddChainPage() {
   // Ika supports a fully sound alternative we already plumb through
   // the CLI: BIND THE SAME DWALLET UNDER MULTIPLE chain_kinds.
   // secp256k1 is the shared curve for ETH (1), BTC (2), Zcash (3),
-  // ERC-20 (4) — one keypair, four signing schemes (each with its
+  // ERC-20 (4). One keypair, four signing schemes (each with its
   // own digest). The CLI flag is `--existing-dwallet-pubkey
   // <hex33> [--existing-dwallet-addr <hex32>]` and the on-chain
   // `bind_dwallet` handler accepts re-binding the same dWallet
@@ -183,7 +183,7 @@ function AddChainPage() {
   //
   // The danger: `existingSecp256k1Binding` above filters partial
   // bindings out, so the bind would silently fall through to
-  // DKG-fresh — exactly the regression the BYO commit (84878e8)
+  // DKG-fresh. Exactly the regression the BYO commit (84878e8)
   // was meant to prevent. Detect this case explicitly so we can
   // refuse the bind with a clear "wait a moment" instead of
   // silently producing a second dWallet.
@@ -247,7 +247,7 @@ function AddChainPage() {
 
     // H1: Don't kick off the bind while we still don't know the
     // wallet's existing chain bindings. `existingSecp256k1Binding`
-    // depends on `chainsQuery.data` — if the query is still loading
+    // depends on `chainsQuery.data`. If the query is still loading
     // / errored, that lookup is `undefined`, the BYO branch
     // wouldn't fire, and we'd silently run a fresh DKG (creating a
     // second dWallet, reintroducing the ETH-after-BTC bug).
@@ -454,7 +454,7 @@ function ConfirmStage({
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       className="flex flex-col gap-6"
     >
-      {/* Header strip — chain badge + eyebrow + display title.
+      {/* Header strip. Chain badge + eyebrow + display title.
           Left-aligned to match the rest of the workspace. */}
       <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div className="flex min-w-0 items-center gap-4">
@@ -477,7 +477,7 @@ function ConfirmStage({
         {chain.description}
       </p>
 
-      {/* What happens next — card with refined header strip. */}
+      {/* What happens next. Card with refined header strip. */}
       <section className="overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
         <header className="border-b border-border-soft px-5 py-3 sm:px-6">
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
@@ -600,7 +600,7 @@ function BindingStage({
       transition={{ duration: 0.25 }}
       className="flex flex-col gap-6"
     >
-      {/* Header strip — chain badge + eyebrow + display title. */}
+      {/* Header strip. Chain badge + eyebrow + display title. */}
       <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div className="flex min-w-0 items-center gap-4">
           <div className="relative shrink-0">
@@ -710,7 +710,7 @@ function DoneStage({
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       className="flex flex-col gap-6"
     >
-      {/* Header strip — success chip + eyebrow + display title. */}
+      {/* Header strip. Success chip + eyebrow + display title. */}
       <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div className="flex min-w-0 items-center gap-4">
           <motion.div

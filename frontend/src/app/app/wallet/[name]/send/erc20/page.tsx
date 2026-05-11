@@ -599,7 +599,7 @@ function ComposeStage({
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Compact left-aligned header — matches SOL / ETH / BTC /send. */}
+      {/* Compact left-aligned header. Matches SOL / ETH / BTC /send. */}
       <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div className="flex items-center gap-3">
           {ethMeta ? <ChainBadge chain={ethMeta} size="md" /> : null}

@@ -40,14 +40,17 @@ import {
   LandingBackToTop,
   LandingScrollProgress,
 } from "@/components/landing/LandingScrollUI";
+import { PricingSection } from "@/components/landing/PricingSection";
+import { SecureSection } from "@/components/landing/SecureSection";
 import { BrandMark } from "@/components/retail/BrandMark";
+import { ClearCMark } from "@/components/landing/ClearCMark";
 import { CHAINS } from "@/components/landing/ChainLogos";
 import { HowItWorksDiagram } from "@/components/landing/HowItWorksDiagram";
 
 // Auto-redirect for already-authenticated users is now lazy-loaded
 // in a separate async chunk so the marketing landing can render
 // without pulling the Dynamic SDK into its initial bundle. Returning
-// signed-in users still get bounced to /app/wallet — just a fraction
+// signed-in users still get bounced to /app/wallet. Just a fraction
 // of a second after first paint instead of synchronously at mount.
 // First-time visitors never pay the cost.
 const AutoRedirectIsland = nextDynamic(
@@ -113,6 +116,10 @@ export default function HomePage() {
         <WhyClear fadeIn={fadeIn} />
 
         <Methodology fadeIn={fadeIn} />
+
+        <SecureSection />
+
+        <PricingSection />
 
         <Footer fadeIn={fadeIn} />
       </main>
@@ -262,8 +269,8 @@ function HeroMockup() {
               lights + jargon "proposal · #042" of the old mockup. */}
           <div className="relative flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#ccff00] text-black shadow-[0_0_12px_rgba(204, 255, 0,0.16)]">
-                <BrandMark size={18} />
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#ccff00] text-black shadow-[0_0_12px_rgba(204,255,0,0.16)]">
+                <ClearCMark size={20} variant="on-light" />
               </span>
               <div className="leading-tight">
                 <div className="text-[13px] font-semibold text-white">Family pot</div>
@@ -894,7 +901,6 @@ function WhyClear({ fadeIn }: { fadeIn: FadeInFn }) {
       {/* Centered section header. Bigger, more confident. */}
       <motion.div {...fadeIn(0)} className="mx-auto mb-12 max-w-3xl text-center sm:mb-16">
         <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5">
-          <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00]" />
           <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-white/65">
             why clearsig
           </span>
@@ -1127,7 +1133,6 @@ function Footer({ fadeIn }: { fadeIn: FadeInFn }) {
       {/* CTA stack */}
       <div className="relative mx-auto max-w-3xl text-center">
         <motion.div {...fadeIn(0)} className="flex items-center justify-center gap-2">
-          <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00]" />
           <span className="font-mono-tech text-[10px] uppercase tracking-[0.32em] text-white/60">
             Ready when you are
           </span>
@@ -1158,7 +1163,7 @@ function Footer({ fadeIn }: { fadeIn: FadeInFn }) {
         <div>
           <div className="flex items-center gap-3">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#ccff00] text-black">
-              <BrandMark size={18} />
+              <ClearCMark size={18} variant="on-light" />
             </span>
             <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-white/60">
               clearsig

@@ -7,7 +7,7 @@
 // Until the first fetch resolves, `quotePerWhole()` falls back to a
 // static map of conservative demo numbers so the budget UI doesn't
 // flash "$0" on first paint. Every consumer in the app reads through
-// `quotePerWhole()` / `lamportsToUsd()` / `lamportsToFiat()` — the
+// `quotePerWhole()` / `lamportsToUsd()` / `lamportsToFiat()`. The
 // swap to a different oracle (Pyth, Chainlink) is a one-file change
 // inside `priceFeed.ts`.
 //
@@ -34,11 +34,11 @@ const STATIC_PRICES_USD: Readonly<Record<string, number>> = {
 };
 
 /// Mutable map populated by `priceFeed.ts::useLivePrices()`. Module-
-/// scoped on purpose — `quotePerWhole` is a sync function consumed
+/// scoped on purpose. `quotePerWhole` is a sync function consumed
 /// from many call sites that don't (and shouldn't) know about hooks.
 const _LIVE_PRICES_USD = new Map<string, number>();
 
-/// Internal — called by the live-prices hook on each successful
+/// Internal. Called by the live-prices hook on each successful
 /// fetch. Exported (underscore-prefixed) so `priceFeed.ts` can write
 /// without exposing a generic mutator to the rest of the app.
 export function _setLivePrice(ticker: string, usdPerWhole: number): void {
@@ -137,8 +137,8 @@ export interface PriceQuote {
 /// Lookup the current USD price per whole unit. Prefers the live
 /// CoinGecko-fed map; falls back to the static demo number until the
 /// first fetch resolves. Returns null only when the ticker isn't in
-/// either map (e.g. an exotic SPL the wallet happens to hold) —
-/// callers decide whether to fall through.
+/// either map (e.g. an exotic SPL the wallet happens to hold).
+/// Callers decide whether to fall through.
 export function quotePerWhole(ticker: string): PriceQuote | null {
   const upper = ticker.toUpperCase();
   const live = _LIVE_PRICES_USD.get(upper);

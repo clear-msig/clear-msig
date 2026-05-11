@@ -185,9 +185,9 @@ function SecureBuildPage() {
       // queries to fill, all in parallel:
       //   - vault account (already fetched once in the create flow,
       //     but persist into the listing's queryKey shape)
-      //   - dwallet balance (0 lamports — we know this for a brand-new
+      //   - dwallet balance (0 lamports. We know this for a brand-new
       //     dWallet)
-      //   - proposals list (empty — proposalCount is 0)
+      //   - proposals list (empty. ProposalCount is 0)
       // All best-effort; failures are silent because the destination
       // page will refetch anyway.
       const recoveryStr = result.recovery.toBase58();
@@ -722,7 +722,7 @@ function CreatingStage({
       : "Creating passkeys";
   const passkeyDetail =
     passkeyProgress != null
-      ? "Tap your fingerprint / use your phone — one prompt per slot."
+      ? "Tap your fingerprint / use your phone. One prompt per slot."
       : "Each member needs its own credential. Tap through each prompt.";
 
   const STAGES: { id: CreateVaultStage; label: string; detail: string }[] = [

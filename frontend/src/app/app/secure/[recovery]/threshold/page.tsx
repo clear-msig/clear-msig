@@ -1,6 +1,6 @@
 "use client";
 
-// /app/secure/[recovery]/threshold — bump the vault's approval threshold.
+// /app/secure/[recovery]/threshold. Bump the vault's approval threshold.
 //
 // Two auth modes:
 //   - Wallet (default when connected wallet is a roster member): one
@@ -180,7 +180,7 @@ function ThresholdPage() {
   const maxNew = memberCount;
   // Default to a balanced majority. For 2 members → 2-of-2. For 3 → 2-of-3.
   // For 5 → 3-of-5. Pattern: ceil(N/2) + 1 for odd, N/2 + 1 for even
-  // (collapses to "majority + 1" — the one Ikavery's docs call out as
+  // (collapses to "majority + 1". The one Ikavery's docs call out as
   // the recommended secure default).
   const defaultNew = Math.max(2, Math.floor(memberCount / 2) + 1);
   const [newThreshold, setNewThreshold] = useState(defaultNew);
@@ -207,7 +207,7 @@ function ThresholdPage() {
 
   const [authMode, setAuthMode] = useState<BumpAuthMode>("wallet");
 
-  // Pin authMode once vault loads — passkey if wallet isn't a member,
+  // Pin authMode once vault loads. Passkey if wallet isn't a member,
   // wallet otherwise. The user can flip after; this just picks a sane
   // default based on what's actually available on chain.
   useEffect(() => {
@@ -263,7 +263,7 @@ function ThresholdPage() {
         details:
           webauthnState.reason === "insecure"
             ? "Reload over HTTPS and try again."
-            : "This browser doesn't expose WebAuthn — try Chrome / Safari / Edge in a normal tab.",
+            : "This browser doesn't expose WebAuthn. Try Chrome / Safari / Edge in a normal tab.",
       });
       return;
     }
@@ -420,7 +420,7 @@ function ThresholdPage() {
           <BlockedNote
             eyebrow="Already locked down"
             title={`Vault is ${currentThreshold} of ${memberCount}`}
-            body="This commit's bundled bump only works on 1-of-N vaults. Bumping further (or back to 1) needs multi-member sign coordination — follow-up."
+            body="This commit's bundled bump only works on 1-of-N vaults. Bumping further (or back to 1) needs multi-member sign coordination. Follow-up."
           />
         )}
 
@@ -579,7 +579,7 @@ function IntroStage({
         </div>
       </section>
 
-      {/* Auth picker — shown only when both options are viable. If
+      {/* Auth picker. Shown only when both options are viable. If
           the wallet isn't a roster member but the vault has a passkey,
           we silently use passkey. If only wallet is viable, no picker. */}
       {walletIsMember && vaultHasPasskey && (
@@ -605,7 +605,7 @@ function IntroStage({
       )}
       {!walletIsMember && authMode === "passkey" && (
         <p className="mx-auto max-w-md text-center text-[11px] text-text-soft">
-          Connected wallet isn&rsquo;t on this vault&rsquo;s roster — bumping
+          Connected wallet isn&rsquo;t on this vault&rsquo;s roster. Bumping
           via an existing passkey.
         </p>
       )}
@@ -624,7 +624,7 @@ function IntroStage({
             </span>{" "}
             {webauthnState.reason === "insecure"
               ? "WebAuthn requires HTTPS. Reload the page over https:// (or localhost) and try again."
-              : "Your browser doesn't expose passkey support — try Chrome / Safari / Edge in a normal tab. Webview-embedded browsers (Twitter, Instagram, in-app) often disable WebAuthn."}
+              : "Your browser doesn't expose passkey support. Try Chrome / Safari / Edge in a normal tab. Webview-embedded browsers (Twitter, Instagram, in-app) often disable WebAuthn."}
           </p>
         </aside>
       )}

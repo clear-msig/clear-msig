@@ -5,7 +5,7 @@
 // Fetches CoinGecko's `/simple/price` endpoint for the chains we
 // support, writes the numbers into the module-scoped
 // `_LIVE_PRICES_USD` map in `priceConversion.ts`, and refreshes every
-// 60 seconds (CoinGecko's free tier permits 30 req/min — well within
+// 60 seconds (CoinGecko's free tier permits 30 req/min, well within
 // budget). Mounted once at the app root via `<LivePricesProvider/>`
 // so every `quotePerWhole()` consumer in the app reads live numbers
 // without each page having to wire its own fetch.
@@ -18,7 +18,7 @@
 //
 // Failure mode: if the fetch errors (rate-limit, transient outage),
 // React Query retries with backoff and the UI keeps using whatever
-// price was last seen — or the static fallback if no fetch ever
+// price was last seen, or the static fallback if no fetch ever
 // succeeded. We never block render on the price feed.
 
 import { useEffect } from "react";
@@ -27,8 +27,8 @@ import { _setLivePrice } from "./priceConversion";
 
 /// CoinGecko `id` → app ticker. Adding a chain means adding its
 /// CoinGecko id here; the fetch picks it up automatically. The id
-/// is the slug from `https://api.coingecko.com/api/v3/coins/list` —
-/// e.g. Solana = "solana", Bitcoin = "bitcoin", USDC = "usd-coin".
+/// is the slug from `https://api.coingecko.com/api/v3/coins/list`.
+/// E.g. Solana = "solana", Bitcoin = "bitcoin", USDC = "usd-coin".
 const COINGECKO_IDS: Readonly<Record<string, string>> = {
   solana: "SOL",
   ethereum: "ETH",

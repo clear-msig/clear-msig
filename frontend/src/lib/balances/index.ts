@@ -69,7 +69,7 @@ export async function fetchChainBalance(
       const addr =
         binding.btc_p2wpkh_testnet ?? binding.btc_p2wpkh_mainnet ?? null;
       if (!addr) return null;
-      // `tb` HRP is shared between testnet3 and signet — probe both to
+      // `tb` HRP is shared between testnet3 and signet. Probe both to
       // find which one the user actually funded. detectBitcoinNetwork
       // short-circuits to "testnet" when both probes are empty, so a
       // fresh wallet still resolves to a sensible default.
