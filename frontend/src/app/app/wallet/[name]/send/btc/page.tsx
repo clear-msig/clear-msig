@@ -1049,8 +1049,8 @@ function shortHash(s: string): string {
 //   - "Start fresh attempt" clears destination/amount/UI errors so
 //     a retry isn't polluted by stale form state. (Note: the failed
 //     proposal stays on chain; framework-level proposal cleanup is
-//     broken in this Quasar version — see CLAUDE.md "Known issues".
-//     Hitting Send again with different params will create a NEW
+//     broken in this Quasar version. Hitting Send again with
+//     different params will create a NEW
 //     proposal, which is what we want here.)
 
 function SendErrorBanner({
