@@ -18,7 +18,14 @@ import clsx from "clsx";
 import { motion, useReducedMotion } from "framer-motion";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useConnection, useWallet } from "@/lib/wallet";
-import { ArrowRight, Loader2, ShieldCheck, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  KeyRound,
+  Loader2,
+  ShieldCheck,
+  Sparkles,
+  Users,
+} from "lucide-react";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
@@ -91,6 +98,18 @@ export default function NewWalletPage() {
   const isBrokenSigner = wallet.signerIssue !== null;
   const signerIssue = wallet.signerIssue;
   const me = wallet.publicKey?.toBase58() ?? "";
+
+  // Unified product entry: clear-msig is now the single create flow
+  // for both shared wallets (the classic multisig) and personal
+  // recovery vaults (Secure, but rebranded as a shape of clear-msig).
+  // Default = null so the user picks intent first; once chosen, the
+  // shared-wallet branch reveals the existing shape picker + name
+  // form, and the recovery branch routes to /app/secure/new (which
+  // is structurally identical — same Ika dWallet substrate, just a
+  // simpler enrollment flow). Same substrate, two product surfaces;
+  // one entry. See Fesal feedback 2026-05-11.
+  type Purpose = "share" | "recover";
+  const [purpose, setPurpose] = useState<Purpose | null>(null);
 
   const [shape, setShape] = useState<ShapeId>("family");
   const [name, setName] = useState("");
@@ -224,19 +243,182 @@ export default function NewWalletPage() {
       className="mx-auto flex w-full max-w-xl flex-col gap-6"
     >
       {/* Compact header - h1 hidden on mobile (the floating header
-          pill carries the title). Subtitle always visible. */}
+          pill carries the title). Subtitle adapts to purpose. */}
       <header className="flex flex-col gap-1">
         <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
-          New shared wallet
+          {purpose === "share"
+            ? "New shared wallet"
+            : purpose === "recover"
+              ? "New recovery vault"
+              : "Create a wallet"}
         </h1>
         <p className="text-xs text-text-soft sm:text-sm">
-          Name it, pick who it&rsquo;s for. You can invite friends after.
+          {purpose === "share"
+            ? "Name it, pick who it’s for. You can invite friends after."
+            : purpose === null
+              ? "One engine, two shapes. Pick the one that fits."
+              : "Set a threshold and enroll your devices."}
         </p>
       </header>
 
       <UnsupportedSignerBanner title="You won't be able to finish creating a wallet with this sign-in" />
 
-      {/* Form card */}
+      {/* Purpose picker — first step in the unified flow. Both routes
+          create an Ika dWallet under the same on-chain program; what
+          differs is the lifecycle (propose/approve/execute audit
+          trail for shared wallets, enroll/sweep for personal
+          recovery). Shown only when no purpose chosen yet. */}
+      {purpose === null && (
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setPurpose("share")}
+            className={clsx(
+              "group flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 text-left",
+              "transition-[border-color,background-color,transform] duration-base ease-out-soft",
+              "hover:-translate-y-px hover:border-accent/40 hover:bg-accent/5",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+            )}
+          >
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent ring-1 ring-accent/20">
+              <Users className="h-5 w-5" strokeWidth={1.75} />
+            </span>
+            <div className="flex flex-col gap-1">
+              <p className="font-display text-base font-semibold leading-tight text-text-strong">
+                Share with people
+              </p>
+              <p className="text-xs text-text-soft">
+                A wallet your group decides on together. Approvals,
+                allowance rules, audit trail. Friends, family, team.
+              </p>
+            </div>
+            <span className="mt-auto inline-flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">
+              Continue <ArrowRight className="h-3 w-3" strokeWidth={2.5} />
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setPurpose("recover")}
+            className={clsx(
+              "group flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 text-left",
+              "transition-[border-color,background-color,transform] duration-base ease-out-soft",
+              "hover:-translate-y-px hover:border-accent/40 hover:bg-accent/5",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+            )}
+          >
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent ring-1 ring-accent/20">
+              <KeyRound className="h-5 w-5" strokeWidth={1.75} />
+            </span>
+            <div className="flex flex-col gap-1">
+              <p className="font-display text-base font-semibold leading-tight text-text-strong">
+                Recover my own key
+              </p>
+              <p className="text-xs text-text-soft">
+                A wallet just for you, with devices and passkeys as
+                signers. Lose one, recover with the rest. No seed
+                phrase to write down.
+              </p>
+            </div>
+            <span className="mt-auto inline-flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">
+              Continue <ArrowRight className="h-3 w-3" strokeWidth={2.5} />
+            </span>
+          </button>
+        </section>
+      )}
+
+      {/* Recover branch — inline threshold picker. Mirrors the shapes
+          /app/secure/new offers (solo / 2-of-3 / 3-of-5), but the
+          selection happens HERE in the unified clear-msig flow.
+          Clicking a shape routes to /app/secure/new with a
+          ?preselect=<id> param; that page reads the param and skips
+          straight to its confirm step, so the experience reads as
+          one continuous flow with no double-pick. */}
+      {purpose === "recover" && (
+        <section className="flex flex-col gap-4">
+          <button
+            type="button"
+            onClick={() => setPurpose(null)}
+            className="self-start font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-text-soft hover:text-text-strong"
+          >
+            ← Pick a different shape
+          </button>
+
+          <div className="rounded-card border border-border-soft bg-surface-raised p-5 sm:p-6">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
+              Threshold
+            </p>
+            <p className="mt-1 text-xs text-text-soft">
+              How many of your devices have to sign before funds move?
+              Higher = safer if a device is lost, more taps when you
+              recover.
+            </p>
+
+            <div className="mt-4 flex flex-col gap-3">
+              {(
+                [
+                  {
+                    id: "solo",
+                    label: "Just me",
+                    sub: "1 of 1 — only your current device. Fast to set up; lose the device, lose the key.",
+                  },
+                  {
+                    id: "2of3",
+                    label: "2 of 3",
+                    sub: "You + two passkeys. Any two sign. Tolerates losing one. Two passkey prompts during create.",
+                  },
+                  {
+                    id: "3of5",
+                    label: "3 of 5",
+                    sub: "Five members, three to recover. Tolerates losing two. Four passkey prompts during create.",
+                  },
+                ] as const
+              ).map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() =>
+                    router.push(
+                      `/app/secure/new?preselect=${encodeURIComponent(s.id)}`,
+                    )
+                  }
+                  className={clsx(
+                    "group flex items-start justify-between gap-3 rounded-soft border border-border-soft bg-canvas p-4 text-left",
+                    "transition-[border-color,background-color,transform] duration-base ease-out-soft",
+                    "hover:-translate-y-px hover:border-accent/40 hover:bg-accent/5",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+                  )}
+                >
+                  <div className="flex flex-col gap-1">
+                    <p className="font-display text-sm font-semibold leading-tight text-text-strong">
+                      {s.label}
+                    </p>
+                    <p className="text-xs text-text-soft">{s.sub}</p>
+                  </div>
+                  <ArrowRight
+                    className="mt-1 h-4 w-4 shrink-0 text-text-soft transition-colors duration-base ease-out-soft group-hover:text-accent"
+                    aria-hidden="true"
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Existing shared-wallet form. Rendered only after the user
+          picks the "Share with people" purpose. The "Recover my own
+          key" path bounces to /app/secure/new before we get here. */}
+      {purpose === "share" && (
+        <button
+          type="button"
+          onClick={() => setPurpose(null)}
+          className="self-start font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-text-soft hover:text-text-strong"
+        >
+          ← Pick a different shape
+        </button>
+      )}
+      {purpose === "share" && (
       <section className="flex flex-col gap-5 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
         {/* Name */}
         <div className="flex flex-col gap-2">
@@ -362,6 +544,7 @@ export default function NewWalletPage() {
           </p>
         )}
       </section>
+      )}
 
       {/* Quiet exit - back to the wallet hub. Sits below the form so
           the page CTA is always the obvious next step. */}

@@ -185,12 +185,13 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
             )}
           </SidebarSection>
 
-          {/* Secure promo card - discovery surface for the ikavery
-              companion product. Expanded mode only; rail mode uses
-              the dedicated icon in the bottom group below. */}
-          {expanded && (
-            <SecurePromoCard pathname={pathname} onNavigate={onNavigate} />
-          )}
+          {/* Secure sidebar entry removed — Secure is no longer a
+              separate top-level brand. Personal recovery is now a
+              shape inside the unified "Create a wallet" flow
+              (/app/wallet/new). The /app/secure/* routes still work
+              for direct links, but they don't get a sidebar entry
+              that would suggest they're a second product. See Fesal
+              feedback 2026-05-11 + option (a) collapse. */}
         </>
       )}
 
@@ -204,29 +205,10 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
             it sits at eye level instead of buried in the sidebar
             footer. The bottom group now holds rail-mode discovery
             entries (Secure, Chains) only. */}
-        {/* Secure - rail-mode discovery for the ikavery companion
-            product. Always visible (not wallet-scoped) so users can
-            jump to /app/secure from any /app/* route. Expanded mode
-            uses the SecurePromoCard above; this icon takes over once
-            the sidebar collapses so the entry never disappears. The
-            accent ring + bg make it read as "special" next to the
-            neutral Chains icon below. */}
-        {!expanded && (
-          <Link
-            href="/app/secure"
-            onClick={onNavigate}
-            aria-label="Secure - quorum-gated key recovery"
-            title="Secure - quorum-gated key recovery"
-            className={clsx(
-              "inline-flex h-10 w-10 items-center justify-center rounded-soft border transition-colors duration-base ease-out-soft",
-              pathname === "/app/secure" || pathname.startsWith("/app/secure/")
-                ? "border-accent/60 bg-accent/15 text-accent"
-                : "border-accent/30 bg-accent/[0.06] text-accent hover:border-accent/60 hover:bg-accent/15",
-            )}
-          >
-            <ShieldCheck size={16} className="shrink-0" />
-          </Link>
-        )}
+        {/* Rail-mode Secure icon also removed — see the matching
+            note on the expanded-mode SecurePromoCard above. Personal
+            recovery is now a shape inside the unified wallet-create
+            flow, not a separate top-level destination. */}
         {/* Chains used to live here as a wallet-scoped shortcut.
             It now lives inside WalletScopedSidebar's sub-nav so the
             entry is part of the wallet's own layout, not bolted on

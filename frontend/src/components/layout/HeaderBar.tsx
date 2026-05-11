@@ -68,10 +68,12 @@ export function HeaderBar() {
   // moved into the bottom nav, so Account becomes the
   // companion surface reachable from the Settings page header.
   const showAccount = inAppConnected && pathname.startsWith("/app/settings");
-  // Secure shortcut: only on the Home page so the icon doesn't
-  // clutter every screen. Tapping deep-links into /app/secure
-  // (the recovery hub).
-  const showSecure = inAppConnected && isHome;
+  // Secure shortcut removed — Secure is no longer a separate
+  // top-level destination. Personal recovery now lives as a shape
+  // inside the unified wallet-create flow (/app/wallet/new). The
+  // /app/secure/* routes still work for deep links. See Fesal
+  // feedback 2026-05-11.
+  const showSecure = false;
   const pageTitle = inAppConnected
     ? isHome
       ? "Welcome back"

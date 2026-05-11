@@ -438,6 +438,21 @@ export default function WelcomePage() {
                       <ArrowRight className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
                     </button>
                   </div>
+
+                  {/* Unified-product secondary path. Personal recovery
+                      is the other shape this engine supports — same
+                      Ika dWallet substrate, simpler enrollment flow.
+                      Surfaced as a low-emphasis link so the primary
+                      "shared wallet" flow stays the loud thing on
+                      this page, but visitors who came here looking
+                      for a recovery vault aren't dead-ended.
+                      See Fesal feedback 2026-05-11. */}
+                  <Link
+                    href="/app/secure/new"
+                    className="mt-6 inline-flex items-center gap-1.5 self-start font-mono-tech text-[11px] uppercase tracking-[0.24em] text-white/40 transition-colors duration-200 hover:text-white/80"
+                  >
+                    Or setting up to recover your own key →
+                  </Link>
                 </motion.section>
               )}
 
