@@ -148,7 +148,7 @@ export function friendlyError(
   //      `cli/src/chains/<chain>.rs` must produce IDENTICAL bytes
   //      for the preimage. A one-byte divergence (off-by-one length
   //      prefix, wrong endianness, missing field) causes exactly
-  //      this signature-recovery failure. CLAUDE.md flags it as the
+  //      this signature-recovery failure. This parity is the
   //      load-bearing invariant; redeploying one side without the
   //      other regresses everything.
   //
