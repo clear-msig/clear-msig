@@ -933,6 +933,48 @@ function ComposeForm(props: {
         </section>
       </div>
 
+      {/* High-fee warning. Single-input/single-output design means
+          (UTXO value − send amount) becomes the miner fee — there is
+          NO change output yet. If the user picks an amount much
+          smaller than their chosen UTXO, they'll burn the
+          difference. We promote this from the quiet line beneath
+          the amount to a real banner once the burn would be more
+          than ~5× the fee floor (= 5000 sats, ~$0.50 at $20k BTC).
+          Below that threshold the burn is in normal-fee territory
+          and the quieter UTXO note is enough.
+
+          Real fix is a change output on both sides of the BIP143
+          builder (CLI + on-chain). That's a redeploy + parity
+          tests, deferred. Until then, the "Use max" button + this
+          banner are the safe-path nudges. */}
+      {props.selectedUtxo &&
+        props.impliedFeeSats !== null &&
+        props.impliedFeeSats > 5_000n && (
+          <div
+            role="alert"
+            className="mt-1 flex flex-col gap-2 rounded-card border border-warning/40 bg-warning/[0.08] p-3 text-xs text-text-strong"
+          >
+            <p className="font-semibold">
+              Heads up: {formatSats(props.impliedFeeSats)} BTC will
+              go to the miner as fee.
+            </p>
+            <p className="text-text-soft">
+              Bitcoin sends here use a single-input, single-output
+              transaction — there&rsquo;s no change output yet, so
+              every sat in your chosen UTXO that isn&rsquo;t the
+              send amount becomes the fee. The smallest UTXO that
+              covers your amount is{" "}
+              {formatSats(BigInt(props.selectedUtxo.value))} BTC.
+              Tap{" "}
+              <span className="font-mono text-text-strong">
+                Use max
+              </span>{" "}
+              above to send (UTXO − {Number(FEE_RESERVE_SATS)} sats)
+              and minimize the burn.
+            </p>
+          </div>
+        )}
+
       {/* Action footer — InfoTip-backed approval hint + sticky CTA. */}
       <div className="flex flex-col gap-3 pt-1">
         <p className="inline-flex items-center gap-1.5 text-xs text-text-soft">
