@@ -28,11 +28,12 @@ export function middleware(request: NextRequest) {
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https:",
     // Local dev fallback for http://127.0.0.1:* + http://localhost:*
-    // matches next.config.ts. Without this, dev fetches to the
-    // backend at http://127.0.0.1:8080 trip the report-only CSP
-    // (noisy console but not actually blocking) — the enforcing
-    // policy in next.config.ts is the one that needs to allow it.
-    "connect-src 'self' https: wss: http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*",
+    // matches next.config.ts. Production gets the strict policy
+    // (HTTPS-only) so localhost can't appear in any deployed
+    // response. See next.config.ts for the rationale.
+    process.env.NODE_ENV === "production"
+      ? "connect-src 'self' https: wss:"
+      : "connect-src 'self' https: wss: http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*",
     "frame-src 'self' https:",
     "frame-ancestors 'none'",
     "base-uri 'self'",

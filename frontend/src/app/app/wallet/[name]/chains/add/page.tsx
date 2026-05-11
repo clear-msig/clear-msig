@@ -175,6 +175,26 @@ function AddChainPage() {
     );
   }, [chainsQuery.data]);
 
+  // "Partial" binding: an IkaConfig exists for a secp256k1 chain but
+  // the dWallet account itself hasn't been decoded yet (no
+  // secp256k1_pubkey_hex, or no user_pubkey_hex). This happens when
+  // a prior addChain just committed but the dWallet account on chain
+  // is still being read by the backend's enrichment step.
+  //
+  // The danger: `existingSecp256k1Binding` above filters partial
+  // bindings out, so the bind would silently fall through to
+  // DKG-fresh — exactly the regression the BYO commit (84878e8)
+  // was meant to prevent. Detect this case explicitly so we can
+  // refuse the bind with a clear "wait a moment" instead of
+  // silently producing a second dWallet.
+  const hasPartialSecp256k1Binding = useMemo(() => {
+    return (chainsQuery.data?.chains ?? []).some(
+      (b) =>
+        SECP256K1_KINDS.has(b.chain_kind) &&
+        (!b.secp256k1_pubkey_hex || !b.user_pubkey_hex),
+    );
+  }, [chainsQuery.data]);
+
   const bind = useMutation({
     mutationFn: async () => {
       if (!selected) throw new Error("Pick a chain first");
@@ -224,6 +244,43 @@ function AddChainPage() {
 
   const startBind = () => {
     if (!selected) return;
+
+    // H1: Don't kick off the bind while we still don't know the
+    // wallet's existing chain bindings. `existingSecp256k1Binding`
+    // depends on `chainsQuery.data` — if the query is still loading
+    // / errored, that lookup is `undefined`, the BYO branch
+    // wouldn't fire, and we'd silently run a fresh DKG (creating a
+    // second dWallet, reintroducing the ETH-after-BTC bug).
+    if (!chainsQuery.isSuccess) {
+      toast.error("Reading wallet state…", {
+        details:
+          "Wait a moment for the wallet's existing chain bindings to load, " +
+          "then try again. (If you bind now, this chain might not share " +
+          "the existing dWallet.)",
+      });
+      return;
+    }
+
+    // H2: Same regression class as H1, just a different trigger.
+    // The IkaConfig PDA for a prior secp256k1 chain exists on chain
+    // but its dWallet account hasn't been decoded yet (e.g. the
+    // backend's enrichment step is mid-flight). We'd fail the
+    // "complete binding" filter on `existingSecp256k1Binding`,
+    // skip the BYO path, and DKG a fresh dWallet. Refuse and tell
+    // the user to retry once the prior binding finalizes.
+    if (
+      SECP256K1_KINDS.has(selected.kind) &&
+      hasPartialSecp256k1Binding
+    ) {
+      toast.error("Prior chain still finalizing", {
+        details:
+          "Another secp256k1 chain on this wallet is mid-bind. Binding " +
+          "now would give this chain a separate dWallet. Tap refresh on " +
+          "the chains page in ~10s and try again.",
+      });
+      return;
+    }
+
     setStage("binding");
     bind.mutate();
   };
