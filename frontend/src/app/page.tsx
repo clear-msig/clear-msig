@@ -269,7 +269,7 @@ function HeroMockup() {
               lights + jargon "proposal · #042" of the old mockup. */}
           <div className="relative flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#ccff00] text-black shadow-[0_0_12px_rgba(204,255,0,0.16)]">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl text-black shadow-[0_0_12px_rgba(204,255,0,0.16)]">
                 <ClearCMark size={20} variant="on-light" />
               </span>
               <div className="leading-tight">
