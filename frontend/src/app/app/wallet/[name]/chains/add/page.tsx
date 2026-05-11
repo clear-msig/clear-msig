@@ -29,6 +29,7 @@ import {
 } from "@/lib/retail/chains";
 import { useToast } from "@/components/ui/Toast";
 import { toDisplayName } from "@/lib/retail/walletNames";
+import { useWalletChains } from "@/lib/hooks/useWalletChains";
 
 type Stage = "pick" | "confirm" | "binding" | "done";
 
@@ -75,18 +76,128 @@ function AddChainPage() {
     initialChain ?? null,
   );
 
-  // Solana is implicit; never offer it as something to add. ERC-20
-  // (kind 4) is folded into the Ethereum binding.
-  const addable = CHAIN_CATALOG.filter((c) => c.kind !== 0);
+  // Read the wallet's current chain bindings so we can hide already-
+  // bound chains from the picker. Without this, a user who already
+  // bound (say) Ethereum sees it offered again, taps it, runs a
+  // second DKG, and the IkaConfig PDA gets overwritten — which on
+  // some program builds re-points the chain binding at a brand-new
+  // dWallet. Old proposals against the previous dWallet's
+  // MessageApproval PDAs then can't be re-executed. Better to hide
+  // the option entirely.
+  //
+  // ERC-20 (kind 4) is intentionally NOT considered bound by the
+  // base Ethereum binding here — they share the dWallet but ERC-20
+  // setup writes its own Intent. We don't offer kind 4 in the picker
+  // at all (it's not in CHAIN_CATALOG as a separate bindable entry).
+  const chainsQuery = useWalletChains(walletName);
+  const boundKinds = useMemo(() => {
+    const s = new Set<number>();
+    for (const b of chainsQuery.data?.chains ?? []) {
+      s.add(b.chain_kind);
+    }
+    return s;
+  }, [chainsQuery.data]);
+
+  // Solana is implicit; never offer it as something to add.
+  // Already-bound chains are removed so the user can't accidentally
+  // re-bind them.
+  const addable = CHAIN_CATALOG.filter(
+    (c) => c.kind !== 0 && !boundKinds.has(c.kind),
+  );
+
+  // If we landed here with `?chain=…` for a chain that's ALREADY
+  // bound (e.g. via a stale deep-link), bounce the user to where they
+  // probably meant to go instead of asking them to re-bind. We wait
+  // for the chains query to settle so we don't bounce on initial
+  // empty data.
+  useEffect(() => {
+    if (!initialChain) return;
+    if (chainsQuery.isLoading) return;
+    if (!boundKinds.has(initialChain.kind)) return;
+    const dest = sendOrSetupPathFor(walletName, initialChain.kind);
+    if (dest) {
+      router.replace(dest);
+    } else {
+      // No specific destination — drop them back to the picker, which
+      // will now show only the still-addable chains.
+      setSelected(null);
+      setStage("pick");
+    }
+  }, [
+    initialChain,
+    chainsQuery.isLoading,
+    boundKinds,
+    router,
+    walletName,
+  ]);
+
+  // Existing secp256k1 dWallet detection — the "ETH-after-BTC breaks"
+  // workaround.
+  //
+  // Background: each `wallet add-chain` runs a fresh DKG on Ika and
+  // produces a new dWallet (new pubkey, new session_id). In the
+  // current pre-alpha Ika mock signer, the multi-dWallet state is
+  // managed such that signing a message for an earlier dWallet
+  // returns a signature that doesn't verify against that dWallet's
+  // stored pubkey once a SECOND DKG has run. The on-chain MA
+  // (which Ika populates synchronously via `approve_message`) ends
+  // up with a "wrong-key" signature and the broadcast fails with
+  // `neither v=0 nor v=1 recovers`.
+  //
+  // Ika supports a fully sound alternative we already plumb through
+  // the CLI: BIND THE SAME DWALLET UNDER MULTIPLE chain_kinds.
+  // secp256k1 is the shared curve for ETH (1), BTC (2), Zcash (3),
+  // ERC-20 (4) — one keypair, four signing schemes (each with its
+  // own digest). The CLI flag is `--existing-dwallet-pubkey
+  // <hex33> [--existing-dwallet-addr <hex32>]` and the on-chain
+  // `bind_dwallet` handler accepts re-binding the same dWallet
+  // under a different chain_kind so long as the DwalletOwnership
+  // PDA's recorded wallet matches.
+  //
+  // So: when the user is adding a secp256k1 chain AND the wallet
+  // already has another secp256k1 chain bound, we pass the existing
+  // dWallet's pubkey and session_id along with the bind request.
+  // Backend forwards both to the CLI, which takes the BYO path
+  // (no DKG, reuse the keyshare). The result is ONE dWallet on
+  // chain serving every secp256k1 send. No "latest DKG wins"
+  // problem because there's only ever one DKG per wallet for the
+  // secp256k1 family.
+  //
+  // Solana stays separate (different curve, Curve25519). The
+  // wallet's SOL binding from create-time is untouched.
+  const SECP256K1_KINDS = new Set([1, 2, 3, 4]);
+  const existingSecp256k1Binding = useMemo(() => {
+    return (chainsQuery.data?.chains ?? []).find(
+      (b) =>
+        SECP256K1_KINDS.has(b.chain_kind) &&
+        !!b.secp256k1_pubkey_hex &&
+        !!b.user_pubkey_hex,
+    );
+  }, [chainsQuery.data]);
 
   const bind = useMutation({
     mutationFn: async () => {
-      if (!selected)
-        throw new Error("Pick a chain first");
+      if (!selected) throw new Error("Pick a chain first");
+
+      // BYO path when adding a secp256k1 chain to a wallet that
+      // already has another secp256k1 binding. See the comment
+      // above this mutation for the rationale.
+      const shouldReuseSecp =
+        SECP256K1_KINDS.has(selected.kind) && !!existingSecp256k1Binding;
+
       // Backend defaults handle the dwallet_program / grpc_url
-      // (env-pinned to Ika pre-alpha). We only need to pass `chain`.
+      // (env-pinned to Ika pre-alpha). We only need to pass `chain`,
+      // plus optionally the existing-dwallet pair on the BYO path.
       return backendApi.addWalletChain(walletName, {
         chain: selected.apiName,
+        ...(shouldReuseSecp && existingSecp256k1Binding
+          ? {
+              existing_dwallet_pubkey:
+                existingSecp256k1Binding.secp256k1_pubkey_hex,
+              existing_dwallet_addr:
+                existingSecp256k1Binding.user_pubkey_hex,
+            }
+          : {}),
       });
     },
     onSuccess: () => {
@@ -123,7 +234,7 @@ function AddChainPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
-      {stage === "pick" && (
+      {stage === "pick" && addable.length > 0 && (
         <PickStage
           walletDisplay={walletDisplay}
           chains={addable}
@@ -131,6 +242,14 @@ function AddChainPage() {
             setSelected(chain);
             setStage("confirm");
           }}
+          motionProps={motionProps}
+        />
+      )}
+
+      {stage === "pick" && addable.length === 0 && !chainsQuery.isLoading && (
+        <AllChainsBoundStage
+          walletName={walletName}
+          walletDisplay={walletDisplay}
           motionProps={motionProps}
         />
       )}
@@ -166,6 +285,24 @@ function AddChainPage() {
       )}
     </div>
   );
+}
+
+// ─── Route helpers ─────────────────────────────────────────────────
+
+/// Where a user should be sent when they try to "add" a chain that
+/// is already bound. Maps chain_kind → the most useful destination:
+/// the send page for that chain. Mirrors `SendChainPicker`'s routing
+/// so the back-pointer behaviour is consistent.
+function sendOrSetupPathFor(walletName: string, kind: number): string | null {
+  const base = `/app/wallet/${encodeURIComponent(walletName)}`;
+  if (kind === 0) return `${base}/send`;
+  if (kind === 1) return `${base}/send/eth`;
+  if (kind === 2) return `${base}/send/btc`;
+  // Zcash (kind 3): no send page yet; drop to chains list so the
+  // user sees the binding instead of being asked to re-bind.
+  if (kind === 3) return `${base}/chains`;
+  if (kind === 4) return `${base}/send/erc20`;
+  return null;
 }
 
 // ─── Pick stage ────────────────────────────────────────────────────
@@ -550,6 +687,52 @@ function DoneStage({
       </p>
 
       <Button size="lg" fullWidth onClick={onContinue}>
+        Back to chains
+        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+      </Button>
+    </motion.section>
+  );
+}
+
+// ─── All-chains-bound stage ────────────────────────────────────────
+//
+// Rendered when every chain in CHAIN_CATALOG (except Solana) is
+// already bound to the wallet. Without this branch the picker would
+// show an empty list and the user could neither pick nor get out
+// usefully. Surfaces the obvious next step instead.
+
+function AllChainsBoundStage({
+  walletName,
+  walletDisplay,
+  motionProps,
+}: {
+  walletName: string;
+  walletDisplay: string;
+  motionProps: Record<string, unknown>;
+}) {
+  return (
+    <motion.section {...motionProps} className="flex flex-col gap-6">
+      <header className="flex flex-col gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          Nothing left to add
+        </p>
+        <h1 className="font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
+          {walletDisplay} is bound to every supported chain
+        </h1>
+        <p className="max-w-xl text-sm text-text-soft sm:text-base">
+          Every chain we support is already connected to this wallet.
+          Head to the chains page to see balances and addresses, or
+          jump straight to a send.
+        </p>
+      </header>
+      <Button
+        size="lg"
+        fullWidth
+        onClick={() => {
+          window.location.href =
+            `/app/wallet/${encodeURIComponent(walletName)}/chains`;
+        }}
+      >
         Back to chains
         <ArrowRight className="h-4 w-4" aria-hidden="true" />
       </Button>

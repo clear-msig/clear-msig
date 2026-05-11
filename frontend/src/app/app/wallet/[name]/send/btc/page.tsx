@@ -337,9 +337,19 @@ function BitcoinSendPage() {
       }
       await backendApi.executeProposal(name, proposal, {});
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });
-      queryClient.invalidateQueries({ queryKey: ["wallet", name] });
+    onSuccess: async () => {
+      // BTC's setup+send live in the same page, so the next render
+      // after this mutation flips us from "needs setup" to "compose".
+      // `invalidateQueries` alone marks queries stale but returns
+      // synchronously — the page would re-render with the still-stale
+      // intents list, briefly show "needs setup" again, and the user
+      // would tap "Enable" a second time before the background
+      // refetch lands. AWAITING the refetch holds us on the success
+      // path until the new BTC intent is actually observable.
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["wallet-intents"] }),
+        queryClient.refetchQueries({ queryKey: ["wallet", name] }),
+      ]);
       toast.success(`${toHeadingName(name)} can now send Bitcoin`);
     },
     onError: (err) => {

@@ -159,6 +159,15 @@ function SendEthPage() {
     },
     enabled: !!walletQuery.data,
     staleTime: 30_000,
+    // Force a fresh fetch every time we land on this page, even if
+    // the cache is technically still fresh. Without this, a user who
+    // just completed /setup/eth navigates here with the old
+    // (pre-setup) intents list in cache — staleTime hasn't elapsed —
+    // and the page renders "Enable Ethereum sending" again because
+    // it doesn't see the just-created EvmTransfer intent. The Solana
+    // RPC propagation race makes the background refetch a moment
+    // later, but the user has already re-clicked Enable by then.
+    refetchOnMount: "always",
   });
   const chainsQuery = useWalletChains(walletName);
 
@@ -182,12 +191,22 @@ function SendEthPage() {
   }, [chainsQuery.data]);
   const walletEthAddress = ethBinding ? chainAddress(ethBinding) : null;
 
-  const allLoaded =
+  // Both isLoading (first fetch) AND isFetching (background refetch
+  // after invalidation / refetchOnMount) gate the "needs setup" UI.
+  // Otherwise a user landing here straight from /setup/eth sees the
+  // pre-setup cache for ~200ms and gets routed back into "Enable"
+  // before the background refetch returns the just-created intent.
+  const allSettled =
     !walletQuery.isLoading &&
     !intentsQuery.isLoading &&
-    !chainsQuery.isLoading;
-  const needsBinding = allLoaded && !ethBinding;
-  const needsIntent = allLoaded && !!ethBinding && !ethIntent;
+    !chainsQuery.isLoading &&
+    !intentsQuery.isFetching &&
+    !chainsQuery.isFetching;
+  const needsBinding = allSettled && !ethBinding;
+  const needsIntent = allSettled && !!ethBinding && !ethIntent;
+  // Keep `allLoaded` as a backwards-compat alias so existing render
+  // logic that uses it for skeleton gating keeps working.
+  const allLoaded = allSettled;
 
   const [stage, setStage] = useState<Stage>("compose");
   // Initial values from URL params so /app/wallet/[name]'s
