@@ -60,7 +60,7 @@ const WALLET_ENROLL_STAGES: EnrollStageInfo[] = [
   {
     id: "create-passkey",
     label: "Creating passkey",
-    detail: "Touch ID / Face ID prompt — confirm to mint a new credential.",
+    detail: "Touch ID / Face ID prompt. Confirm to mint a new credential.",
   },
   {
     id: "build",
@@ -98,7 +98,7 @@ const PASSKEY_ENROLL_STAGES: EnrollStageInfo[] = [
   {
     id: "create-passkey",
     label: "Creating new passkey",
-    detail: "Touch ID / Face ID prompt — confirm to mint a new credential.",
+    detail: "Touch ID / Face ID prompt. Confirm to mint a new credential.",
   },
   {
     id: "propose-passkey",
@@ -108,7 +108,7 @@ const PASSKEY_ENROLL_STAGES: EnrollStageInfo[] = [
   {
     id: "sign",
     label: "Sign propose tx",
-    detail: "Confirm in your wallet — pays fees, doesn't authorise.",
+    detail: "Confirm in your wallet. Pays fees, doesn't authorise.",
   },
   {
     id: "submit",
@@ -128,7 +128,7 @@ const PASSKEY_ENROLL_STAGES: EnrollStageInfo[] = [
   {
     id: "approve-sign",
     label: "Sign approve tx",
-    detail: "Confirm in your wallet — bundles approve + execute.",
+    detail: "Confirm in your wallet. Bundles approve + execute.",
   },
   {
     id: "approve-confirm",
@@ -187,7 +187,7 @@ function EnrollDevicePage() {
   const [txSig, setTxSig] = useState<string | null>(null);
 
   // Detect whether the connected wallet is on the roster. If not, the
-  // page silently switches to passkey auth — that's the lost-wallet
+  // page silently switches to passkey auth. That's the lost-wallet
   // recovery / "borrowed gas wallet" case.
   const walletIsMember = useMemo(() => {
     if (!wallet.publicKey || !vaultQuery.data) return false;
@@ -289,7 +289,7 @@ function EnrollDevicePage() {
         userName: shortAddress(wallet.publicKey.toBase58()),
         userDisplayName: `Passkey for vault ${shortAddress(recoveryStr)}`,
         challenge,
-        // No `authenticatorAttachment` — the OS picks. Forcing
+        // No `authenticatorAttachment`. The OS picks. Forcing
         // "platform" hangs forever on machines without a built-in
         // authenticator (e.g. older Macs without Touch ID), since
         // the browser keeps waiting for one to appear. Leaving it
@@ -542,7 +542,7 @@ function IntroStage({
         </li>
       </ul>
 
-      {/* Auth picker — shown only when both options are viable. If
+      {/* Auth picker. Shown only when both options are viable. If
           the connected wallet isn't on the roster the page silently
           uses passkey. If the vault has no enrolled passkey yet,
           wallet is the only option. */}
@@ -569,7 +569,7 @@ function IntroStage({
       )}
       {!walletIsMember && authMode === "passkey" && (
         <p className="mx-auto max-w-md text-center text-[11px] text-text-soft">
-          Connected wallet isn&rsquo;t on this vault&rsquo;s roster — enrolling
+          Connected wallet isn&rsquo;t on this vault&rsquo;s roster. Enrolling
           via an existing passkey.
         </p>
       )}
@@ -590,7 +590,7 @@ function IntroStage({
             </span>{" "}
             {webauthnState.reason === "insecure"
               ? "WebAuthn requires HTTPS. Reload the page over https:// (or localhost) and try again."
-              : "Your browser doesn't expose passkey support — try Chrome / Safari / Edge in a normal tab. Webview-embedded browsers (Twitter, Instagram, in-app) often disable WebAuthn."}
+              : "Your browser doesn't expose passkey support. Try Chrome / Safari / Edge in a normal tab. Webview-embedded browsers (Twitter, Instagram, in-app) often disable WebAuthn."}
           </p>
         </aside>
       )}

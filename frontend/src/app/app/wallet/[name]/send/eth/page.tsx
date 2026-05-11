@@ -162,7 +162,7 @@ function SendEthPage() {
     // Force a fresh fetch every time we land on this page, even if
     // the cache is technically still fresh. Without this, a user who
     // just completed /setup/eth navigates here with the old
-    // (pre-setup) intents list in cache — staleTime hasn't elapsed —
+    // (pre-setup) intents list in cache. StaleTime hasn't elapsed ,
     // and the page renders "Enable Ethereum sending" again because
     // it doesn't see the just-created EvmTransfer intent. The Solana
     // RPC propagation race makes the background refetch a moment
@@ -692,7 +692,7 @@ function ComposeStage({
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Compact left-aligned header — matches SOL /send. Chain badge
+      {/* Compact left-aligned header. Matches SOL /send. Chain badge
           inline with eyebrow + display title; "From {wallet}" sits on
           the right edge so the network identity is unmistakable
           without burning vertical space. */}
@@ -726,7 +726,7 @@ function ComposeStage({
         Send a token instead (USDC, DAI, …)
       </Link>
 
-      {/* Compose grid — Amount + Recipient sit side-by-side on lg+
+      {/* Compose grid. Amount + Recipient sit side-by-side on lg+
           and merge into one bordered card on mobile. Same shell as
           SOL /send and BTC /send/btc. */}
       <div
@@ -736,7 +736,7 @@ function ComposeStage({
           "lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none"
         }
       >
-        {/* Amount card — eyebrow + Use max pill, underline-style
+        {/* Amount card. Eyebrow + Use max pill, underline-style
             input, balance line as plain text. Card chrome only at
             lg+; mobile uses the parent wrapper's chrome. */}
         <section
@@ -837,7 +837,7 @@ function ComposeStage({
                 smallestPerWhole={1_000_000_000_000_000_000n}
                 ticker="ETH"
               />
-              {" "}— need at least {weiToEth(amountWei + gasReserveWei)} ETH
+              {" "}, need at least {weiToEth(amountWei + gasReserveWei)} ETH
               including ~{weiToEth(gasReserveWei)} for gas. Top up the
               wallet&rsquo;s Sepolia address from a faucet
               {walletEthAddress ? ` (${shortEvmAddress(walletEthAddress)})` : ""}
@@ -846,7 +846,7 @@ function ComposeStage({
           )}
         </section>
 
-        {/* Recipient + Note card — same merged-mobile / split-lg+
+        {/* Recipient + Note card. Same merged-mobile / split-lg+
             treatment as Amount above. */}
         <section
           className={
@@ -928,7 +928,7 @@ function ComposeStage({
         </section>
       </div>
 
-      {/* Preview + popup narration — info-icon mode so the headline +
+      {/* Preview + popup narration. Info-icon mode so the headline +
           warning stay visible and the secondary context is one
           hover/tap away. Same pattern as SOL /send. */}
       <div className="flex flex-col gap-3">
@@ -951,7 +951,7 @@ function ComposeStage({
         />
       </div>
 
-      {/* Action footer — InfoTip-backed approval hint + sticky CTA. */}
+      {/* Action footer. InfoTip-backed approval hint + sticky CTA. */}
       <div className="flex flex-col gap-3 pt-1">
         <p className="inline-flex items-center gap-1.5 text-xs text-text-soft">
           Friends in {walletDisplay} approve before it sends.

@@ -4,7 +4,7 @@
 //
 // Mirrors the eth flow's two halves (`/setup/eth` then `/send/eth`)
 // in a single component because Bitcoin's intent template is fixed
-// (single-input, single-output, no fee param — fee is implicit) and
+// (single-input, single-output, no fee param. Fee is implicit) and
 // the user has no decisions to make at setup time. Showing two pages
 // for "register the intent" + "use the intent" was overhead with no
 // payoff.
@@ -19,7 +19,7 @@
 // Send flow:
 //   1. User enters destination (bech32) + amount.
 //   2. We auto-pick the largest single UTXO that covers the amount + a
-//      conservative fee floor (1000 sats — signet/testnet fees are
+//      conservative fee floor (1000 sats. Signet/testnet fees are
 //      tiny). Single-input, single-output: the fee is implicit
 //      (`prev_amount_sats - send_amount_sats`).
 //   3. Build proposal params, propose+auto-approve, execute with
@@ -30,7 +30,7 @@
 // `cli/src/chains/bitcoin.rs` test path. The wallet's chain binding
 // returns either testnet or mainnet addresses; we read the binding
 // at runtime to decide which network the dWallet is bound to. (For
-// pre-alpha all wallets come up on signet/testnet — `tb` HRP — so
+// pre-alpha all wallets come up on signet/testnet. `tb` HRP. So
 // `validateBtcDestination` accepts both.)
 
 import { useMemo, useState } from "react";
@@ -81,7 +81,7 @@ import {
 
 const BTC_TEMPLATE = "examples/intents/btc_transfer.json";
 const BTC_CHAIN_KIND = 2;
-/// Conservative fee floor — signet/testnet routinely accept ≤200 sats
+/// Conservative fee floor. Signet/testnet routinely accept ≤200 sats
 /// but we leave headroom so a stale Esplora UTXO snapshot doesn't
 /// trigger a "min relay fee not met" rejection on broadcast.
 const FEE_RESERVE_SATS = 1000n;
@@ -163,7 +163,7 @@ function BitcoinSendPage() {
         ? detectBitcoinNetwork(dwalletAddress)
         : DEFAULT_BITCOIN_NETWORK,
     enabled: !!dwalletAddress,
-    // The detection is essentially "what faucet did the user use?" —
+    // The detection is essentially "what faucet did the user use?" ,
     // it doesn't change after the first funded UTXO lands, so we can
     // cache aggressively. 5 min is long enough to not re-probe on
     // every focus, short enough to pick up a switch if the user
@@ -177,7 +177,7 @@ function BitcoinSendPage() {
   // sender_pkh: HASH160(dwallet pubkey) = the witness program of the
   // dWallet's own P2WPKH address. We extract by decoding the address
   // we already have from the binding rather than re-deriving from
-  // the raw pubkey — the backend already did that math on bind.
+  // the raw pubkey. The backend already did that math on bind.
   const senderPkhHex = useMemo<string | null>(() => {
     if (!dwalletAddress) return null;
     const decoded = decodeSegwitAddress(dwalletAddress);
@@ -228,7 +228,7 @@ function BitcoinSendPage() {
     explorerUrl: string | null;
   } | null>(null);
   // Inline error banner state. The toast version was too easy to miss
-  // (auto-dismisses, no copy of the underlying CLI stderr) — this lets
+  // (auto-dismisses, no copy of the underlying CLI stderr). This lets
   // users actually see the real error and take action without
   // re-clicking Send.
   const [sendError, setSendError] = useState<{
@@ -256,7 +256,7 @@ function BitcoinSendPage() {
     const need = sendAmountSats + FEE_RESERVE_SATS;
     // utxos are sorted desc by value; pick the smallest one that
     // covers `need`. Walking from the smallest up wastes less change
-    // (single-input means change isn't returned — every extra sat
+    // (single-input means change isn't returned. Every extra sat
     // becomes the fee).
     const candidates = [...utxosQuery.data].sort((a, b) => a.value - b.value);
     for (const u of candidates) {
@@ -341,7 +341,7 @@ function BitcoinSendPage() {
       // BTC's setup+send live in the same page, so the next render
       // after this mutation flips us from "needs setup" to "compose".
       // `invalidateQueries` alone marks queries stale but returns
-      // synchronously — the page would re-render with the still-stale
+      // synchronously. The page would re-render with the still-stale
       // intents list, briefly show "needs setup" again, and the user
       // would tap "Enable" a second time before the background
       // refetch lands. AWAITING the refetch holds us on the success
@@ -381,7 +381,7 @@ function BitcoinSendPage() {
       //     a search box).
       //   - Bitcoin's internal wire format (BIP143 prev_outpoint, OP_…
       //     anything that goes into a sighash) uses INTERNAL order
-      //     (LE — display-reversed).
+      //     (LE. Display-reversed).
       // The on-chain BIP143 builder
       // (`programs/clear-wallet/src/chains/bitcoin.rs:44`) is explicit
       // about wanting internal byte order. We reverse the Esplora hex
@@ -434,7 +434,7 @@ function BitcoinSendPage() {
         grpc_url: appConfig.preAlpha.grpcUrl,
         // BTC needs an ESPLORA URL (POST /tx), not a JSON-RPC URL.
         // The backend's `default_destination_rpc_url` is set up for
-        // EVM (publicnode.com / 1RPC etc) — using that for BTC would
+        // EVM (publicnode.com / 1RPC etc). Using that for BTC would
         // POST `eth_sendRawTransaction` JSON to mempool.space's
         // `/tx` endpoint and 400 immediately. We pass the
         // network-specific mempool.space Esplora URL explicitly so
@@ -468,7 +468,7 @@ function BitcoinSendPage() {
       console.error("[send-btc]", err);
       const fe = friendlyError(err, "send");
       // Toast still fires (matches the rest of the app's send flows),
-      // but the inline banner is the durable surface for the stderr —
+      // but the inline banner is the durable surface for the stderr ,
       // a 5-second toast wasn't enough to read or copy the underlying
       // CLI message before it disappeared. Pull stderr off
       // BackendApiError directly.
@@ -486,7 +486,7 @@ function BitcoinSendPage() {
   });
 
   const handleSend = () => {
-    // Clear any prior error banner — a fresh attempt deserves a clean
+    // Clear any prior error banner. A fresh attempt deserves a clean
     // canvas; leftover stderr from a previous failure would confuse
     // the picture if THIS one succeeds.
     setSendError(null);
@@ -540,7 +540,7 @@ function BitcoinSendPage() {
         transition={{ duration: 0.3 }}
         className="flex w-full flex-col gap-5"
       >
-        {/* Compact left-aligned header — matches SOL + ETH /send. */}
+        {/* Compact left-aligned header. Matches SOL + ETH /send. */}
         <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
           <div className="flex items-center gap-3">
             {btcMeta ? <ChainBadge chain={btcMeta} size="md" /> : null}
@@ -675,7 +675,7 @@ function NeedsBinding({
     >
       <p className="text-sm text-text-soft">
         This wallet isn&rsquo;t bound to Bitcoin yet. Add the Bitcoin chain
-        first — that runs a one-time Ika DKG so the wallet has a Bitcoin
+        first. That runs a one-time Ika DKG so the wallet has a Bitcoin
         address.
       </p>
       <Link
@@ -779,7 +779,7 @@ function ComposeForm(props: {
     props.balanceSats !== null ? formatSats(props.balanceSats) : null;
   return (
     <>
-      {/* Compose grid — Amount + Recipient sit side-by-side on lg+
+      {/* Compose grid. Amount + Recipient sit side-by-side on lg+
           and merge into one bordered card on mobile. Same shell as
           SOL /send and ETH /send/eth. */}
       <div
@@ -789,7 +789,7 @@ function ComposeForm(props: {
           "lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none"
         }
       >
-        {/* Amount card — eyebrow + Use max pill, underline-style
+        {/* Amount card. Eyebrow + Use max pill, underline-style
             input, balance line as plain text. */}
         <section
           className={
@@ -873,7 +873,7 @@ function ComposeForm(props: {
               <span className="font-mono text-text-strong">
                 {props.selectedUtxo.txid.slice(0, 8)}…:{props.selectedUtxo.vout}
               </span>
-              {" — "}
+              {". "}
               {formatSats(BigInt(props.selectedUtxo.value))} BTC · implicit fee{" "}
               {formatSats(props.impliedFeeSats)} BTC
               <InfoTip
@@ -893,7 +893,7 @@ function ComposeForm(props: {
           )}
         </section>
 
-        {/* Recipient card — same merged-mobile / split-lg+
+        {/* Recipient card. Same merged-mobile / split-lg+
             treatment as Amount above. */}
         <section
           className={
@@ -934,7 +934,7 @@ function ComposeForm(props: {
       </div>
 
       {/* High-fee warning. Single-input/single-output design means
-          (UTXO value − send amount) becomes the miner fee — there is
+          (UTXO value − send amount) becomes the miner fee. There is
           NO change output yet. If the user picks an amount much
           smaller than their chosen UTXO, they'll burn the
           difference. We promote this from the quiet line beneath
@@ -960,7 +960,7 @@ function ComposeForm(props: {
             </p>
             <p className="text-text-soft">
               Bitcoin sends here use a single-input, single-output
-              transaction — there&rsquo;s no change output yet, so
+              transaction. There&rsquo;s no change output yet, so
               every sat in your chosen UTXO that isn&rsquo;t the
               send amount becomes the fee. The smallest UTXO that
               covers your amount is{" "}
@@ -975,7 +975,7 @@ function ComposeForm(props: {
           </div>
         )}
 
-      {/* Action footer — InfoTip-backed approval hint + sticky CTA. */}
+      {/* Action footer. InfoTip-backed approval hint + sticky CTA. */}
       <div className="flex flex-col gap-3 pt-1">
         <p className="inline-flex items-center gap-1.5 text-xs text-text-soft">
           Friends in {props.walletDisplay} approve before it sends.
@@ -1095,7 +1095,7 @@ function shortHash(s: string): string {
 // the ephemeral toast as the primary surface for the diagnostic so
 // users can:
 //   - Read the friendly title + body without it auto-dismissing.
-//   - Expand "Show technical details" to see the raw CLI stderr —
+//   - Expand "Show technical details" to see the raw CLI stderr ,
 //     critical for forwarding to upstream (e.g. the Ika devrel
 //     thread when the secp256k1 sign path fails on BTC + ETH).
 //   - "Start fresh attempt" clears destination/amount/UI errors so

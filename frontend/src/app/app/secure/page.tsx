@@ -898,7 +898,7 @@ function VaultCard({ vault }: { vault: DecodedRecovery }) {
   // can pick "the one with funds" at a glance instead of clicking
   // through. The dWallet pubkey is read from localStorage (saved at
   // create time); cards for vaults made on a different device will
-  // simply omit the balance, which is fine — the listing still
+  // simply omit the balance, which is fine. The listing still
   // works as a navigation surface.
   const dwalletPubkey = useMemo(() => {
     const att = loadAttestation(recoveryStr);
@@ -924,7 +924,7 @@ function VaultCard({ vault }: { vault: DecodedRecovery }) {
       ? (balanceQ.data / 1e9).toFixed(2)
       : null;
 
-  // "Needs action" count — proposals in STATUS_ACTIVE (open for votes)
+  // "Needs action" count. Proposals in STATUS_ACTIVE (open for votes)
   // or STATUS_APPROVED (quorum met, awaiting execute). Skips
   // STATUS_EXECUTED (already broadcast). Uses the same cache key the
   // detail page populates so the count matches what the user sees on

@@ -143,7 +143,7 @@ export function friendlyError(
   // doesn't recover to the dWallet pubkey stored on the IkaConfig.
   // Pre-alpha root causes (none user-fixable from the frontend):
   //
-  //   1. **Byte-exact preimage parity drift** — the on-chain
+  //   1. **Byte-exact preimage parity drift**. The on-chain
   //      `programs/clear-wallet/src/chains/<chain>.rs` and the
   //      `cli/src/chains/<chain>.rs` must produce IDENTICAL bytes
   //      for the preimage. A one-byte divergence (off-by-one length
@@ -152,13 +152,13 @@ export function friendlyError(
   //      load-bearing invariant; redeploying one side without the
   //      other regresses everything.
   //
-  //   2. **Stale MessageApproval reuse** — if the FIRST sign attempt
+  //   2. **Stale MessageApproval reuse**. If the FIRST sign attempt
   //      stored a bad sig on chain (Ika hiccup), every retry reads
-  //      "MessageApproval already signed — reusing on-chain
+  //      "MessageApproval already signed. Reusing on-chain
   //      signature" and re-uses the bad sig forever. The CLI has no
   //      "force fresh sign" path right now.
   //
-  //   3. **dWallet pubkey encoding mismatch** — the on-chain dWallet
+  //   3. **dWallet pubkey encoding mismatch**. The on-chain dWallet
   //      account stores `public_key` as a length-prefixed byte
   //      string at offset 38; if the CLI's `parse_dwallet` reads
   //      different bytes than what the dwallet program writes, the
@@ -167,13 +167,13 @@ export function friendlyError(
   //
   // Earlier copy here floated a "key rotation" theory; per upstream
   // (Iamknownasfesal / Ika devrel) a real rotation would invalidate
-  // every wallet, not selective per-chain — so this isn't that.
+  // every wallet, not selective per-chain. So this isn't that.
   // ── ETH recover_v failure after BOTH canonical AND byte-reversed
   //    passes (cli/src/chains/evm.rs::recover_v). The auto-correction
   //    landed in commit 92250a0; this matcher only fires when even
   //    the reversed-byte fallback didn't recover the dWallet pubkey,
   //    which means the failure is real (preimage drift, key mismatch,
-  //    or sig over a different message) — not just LE encoding. ────
+  //    or sig over a different message). Not just LE encoding. ────
   if (
     hay.includes("neither v=0 nor v=1 recovers") ||
     hay.includes("not over keccak256(preimage)") ||
@@ -185,7 +185,7 @@ export function friendlyError(
         "The CLI tried both canonical and byte-reversed scalars and neither " +
         "recovered to the pubkey on this wallet's Ethereum binding. That " +
         "rules out the common LE-encoding bug we already auto-correct for; " +
-        "this is a deeper mismatch — preimage drift, wrong key, or a sig " +
+        "this is a deeper mismatch. Preimage drift, wrong key, or a sig " +
         "produced over a different message. Copy the technical details and " +
         "send to the team for byte-by-byte bisection.",
     };
@@ -195,7 +195,7 @@ export function friendlyError(
   //    (Ika's mock signer emits little-endian sometimes); the CLI
   //    auto-corrects in cli/src/chains/bitcoin.rs::pick_canonical_or_reversed
   //    as of commit 98484ca, so a fresh retry of the SAME proposal
-  //    will usually succeed without any new signing roundtrip — the
+  //    will usually succeed without any new signing roundtrip. The
   //    fix swaps byte order at broadcast time. If users still hit
   //    this matcher post-98484ca, the failure is the BTC equivalent
   //    of the ETH "neither pass recovers" case above (real preimage
@@ -212,7 +212,7 @@ export function friendlyError(
         "the most common cause (Ika emitting little-endian scalars) at " +
         "broadcast time, so retrying the same proposal often succeeds. If " +
         "the retry shows this same error, the sig didn't verify in either " +
-        "byte order — copy the technical details and send to the team.",
+        "byte order. Copy the technical details and send to the team.",
     };
   }
 
@@ -364,7 +364,7 @@ export function friendlyError(
   // the success log line (`✓ IkaConfig: <pubkey> → dWallet …`) the
   // CLI emits BEFORE later stages can fail. When a downstream stage
   // (DKG / TransferOwnership / sign / broadcast) errors out, the
-  // stderr contains both the success log AND a real error — the
+  // stderr contains both the success log AND a real error. The
   // bare-substring match would misfire and tell the user "chain
   // already bound" when it's actually a different failure entirely.
   // Anchor on phrases that ONLY appear in the dedupe rejection.

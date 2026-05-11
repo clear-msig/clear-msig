@@ -1,6 +1,6 @@
 "use client";
 
-// Interactive cards for /security — Passkey + Ledger.
+// Interactive cards for /security. Passkey + Ledger.
 //
 // These two cards are the only Dynamic-Labs- and LedgerProvider-
 // dependent pieces of the /security page. When they lived inline in
@@ -8,9 +8,9 @@
 // dependencies out of the page's initial chunk, so /security was
 // shipping ~750 kB of Dynamic SDK + Ledger transport that nobody
 // downloaded for the marketing copy above. Pulling them into this
-// separate "use client" module — combined with importing the module
+// separate "use client" module, combined with importing the module
 // via `next/dynamic({ ssr: false, loading: () => null })` in
-// page.tsx — moves the Dynamic chunks behind an async boundary that
+// page.tsx, moves the Dynamic chunks behind an async boundary that
 // only loads after first paint.
 //
 // First-time visitors who land on /security and scroll past the

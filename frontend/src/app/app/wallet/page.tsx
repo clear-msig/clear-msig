@@ -400,8 +400,8 @@ function BalanceHeroCard({
         {/* Brand row - small visible mark + label */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-accent/15 text-accent">
-              <BrandMark size={16} />
+            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-accent/15">
+              <BrandMark size={14} />
             </span>
             <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
               Total balance
@@ -467,13 +467,13 @@ const WATERMARK_GRID: {
   size: number;
   rotate: number;
 }[] = [
-  { top: "-8px", left: "12%", size: 56, rotate: -12 },
-  { top: "20%", left: "62%", size: 44, rotate: 18 },
-  { top: "40%", left: "8%", size: 48, rotate: 24 },
-  { top: "55%", left: "78%", size: 64, rotate: -8 },
-  { top: "70%", left: "32%", size: 52, rotate: 14 },
-  { top: "85%", left: "58%", size: 40, rotate: -22 },
-  { top: "8%", left: "85%", size: 36, rotate: 6 },
+  { top: "-8px", left: "12%", size: 40, rotate: -12 },
+  { top: "20%", left: "62%", size: 32, rotate: 18 },
+  { top: "40%", left: "8%", size: 36, rotate: 24 },
+  { top: "55%", left: "78%", size: 48, rotate: -8 },
+  { top: "70%", left: "32%", size: 40, rotate: 14 },
+  { top: "85%", left: "58%", size: 28, rotate: -22 },
+  { top: "8%", left: "85%", size: 26, rotate: 6 },
 ];
 
 function StatCard({

@@ -82,7 +82,7 @@ describe("parseSolanaSecretKey", () => {
   });
 
   it("rejects input larger than the hard cap (DoS guard)", () => {
-    // 10 KB of "0" — would block JSON.parse if we let it through.
+    // 10 KB of "0". Would block JSON.parse if we let it through.
     const huge = "0".repeat(10_000);
     const r = parseSolanaSecretKey(huge);
     expect(r.ok).toBe(false);
@@ -122,7 +122,7 @@ describe("parseSolanaSecretKey wipe", () => {
     // observe the source bytes (caller no longer holds them), but the
     // Keypair's internal `_keypair.secretKey` buffer should be all
     // zeros so any future signing attempt would fail or sign
-    // garbage — exactly what we want after the import-tx broadcasts.
+    // garbage. Exactly what we want after the import-tx broadcasts.
     const internal = (
       r.keypair as unknown as {
         _keypair?: { secretKey?: Uint8Array };

@@ -22,11 +22,18 @@ import clsx from "clsx";
 import { Menu, X } from "lucide-react";
 import { BrandMark } from "@/components/retail/BrandMark";
 
-const NAV_ITEMS: { href: string; label: string; external?: boolean }[] = [
+const NAV_ITEMS: {
+  href: string;
+  label: string;
+  external?: boolean;
+  tag?: string;
+}[] = [
   { href: "/", label: "Home" },
   { href: "/#bento", label: "Product" },
   { href: "/#why", label: "Why Clear" },
   { href: "/#methodology", label: "How it works" },
+  { href: "/#secure", label: "Secure", tag: "NEW" },
+  { href: "/#pricing", label: "Pricing" },
   { href: "https://github.com/clear-msig/clear-msig", label: "GitHub", external: true },
 ];
 
@@ -146,18 +153,19 @@ export function LandingNav({
             scrolled ? "px-4 py-3 sm:px-10 sm:py-4" : "px-4 py-4 sm:px-10 sm:py-7",
           )}
         >
-        {/* Logo - BrandMark in lime square. Same chrome the wallet
-            header uses for its Clear pill; visual continuity from the
-            marketing surface into the app. The mark renders in black
-            on the lime square (text-black inside currentColor SVG). */}
+        {/* Logo. The new ClearCMark sits directly on the dark nav
+            with its dark arcs flipped to white and the lime accent
+            kept as the brand primary. No surface tile needed. The
+            wordmark sits to the right at sm+. Landing-only at this
+            stage; wider product rollout is pending review. */}
         <Link
           href="/"
           aria-label="Clear home"
           className="group flex items-center gap-3"
           onClick={() => setMenuOpen(false)}
         >
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#ccff00] text-black shadow-[0_0_12px_rgba(204, 255, 0,0.16)] transition-transform duration-300 group-hover:scale-105">
-            <BrandMark size={22} />
+          <span className="inline-flex items-center justify-center transition-transform duration-300 group-hover:scale-105">
+            <BrandMark size={36} />
           </span>
           <span className="hidden font-mono-tech text-[11px] uppercase tracking-[0.28em] text-white/70 sm:block">
             clearsig
@@ -172,9 +180,14 @@ export function LandingNav({
               href={item.href}
               target={item.external ? "_blank" : undefined}
               rel={item.external ? "noreferrer" : undefined}
-              className="rounded-full px-4 py-1.5 text-[13px] text-white/70 transition-colors duration-200 hover:bg-white/[0.06] hover:text-white"
+              className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[13px] text-white/70 transition-colors duration-200 hover:bg-white/[0.06] hover:text-white"
             >
               {item.label}
+              {item.tag && (
+                <span className="rounded-full bg-[#ccff00] px-1.5 py-[1px] font-mono-tech text-[8px] font-bold uppercase tracking-[0.18em] text-black shadow-[0_0_8px_rgba(204,255,0,0.4)]">
+                  {item.tag}
+                </span>
+              )}
             </Link>
           ))}
         </div>
@@ -287,7 +300,14 @@ export function LandingNav({
                       onClick={() => setMenuOpen(false)}
                       className="flex items-center justify-between gap-3 px-5 py-3.5 text-[15px] font-medium text-white/85 transition-colors duration-200 hover:bg-white/[0.05] hover:text-white"
                     >
-                      <span>{item.label}</span>
+                      <span className="inline-flex items-center gap-2">
+                        {item.label}
+                        {item.tag && (
+                          <span className="rounded-full bg-[#ccff00] px-1.5 py-[1px] font-mono-tech text-[8px] font-bold uppercase tracking-[0.18em] text-black shadow-[0_0_8px_rgba(204,255,0,0.4)]">
+                            {item.tag}
+                          </span>
+                        )}
+                      </span>
                       <span className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/30">
                         {item.external ? "↗" : "→"}
                       </span>

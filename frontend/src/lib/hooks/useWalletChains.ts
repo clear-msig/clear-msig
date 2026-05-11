@@ -19,7 +19,7 @@ export function useWalletChains(walletName: string) {
     queryKey: ["wallet-chains-api", walletName],
     queryFn: () => backendApi.listWalletChains(walletName),
     enabled: walletName.trim().length > 0,
-    // Was 30s — that meant a freshly-added chain could sit invisible
+    // Was 30s. That meant a freshly-added chain could sit invisible
     // for half a minute even after the on-chain ix landed. 10s gives
     // a snappier "just added" experience without hammering the
     // backend on every focus event.
@@ -34,8 +34,8 @@ export function useWalletChains(walletName: string) {
 ///
 /// Pre-alpha network preference: we run on Solana DEVNET, Ethereum
 /// SEPOLIA, and Ika's pre-alpha mock signer (`pre-alpha-dev-1.ika.…`).
-/// Showing a mainnet BTC / Zcash address would be actively harmful —
-/// the dWallet's signing path can't produce a sig that real bitcoin
+/// Showing a mainnet BTC / Zcash address would be actively harmful.
+/// The dWallet's signing path can't produce a sig that real bitcoin
 /// nodes would accept (Ika pre-alpha isn't the production signer),
 /// so any user who funds the mainnet address would lose those coins.
 /// We prefer the testnet/signet address and only fall back to mainnet

@@ -9,7 +9,7 @@ import {
 } from "@/lib/chain/btc";
 
 // Reference vectors from BIP173 / BIP350 + real testnet/signet/mainnet
-// addresses. These pin the bech32 / bech32m decode logic — the BTC
+// addresses. These pin the bech32 / bech32m decode logic. The BTC
 // send flow's `recipient_pkh` intent param comes straight out of
 // `decodeSegwitAddress(...).program`, so a regression here would
 // silently send funds to the wrong place.
@@ -134,7 +134,7 @@ describe("networkForHrp", () => {
   });
   it("maps tb → testnet (default for ambiguous)", () => {
     // tb HRP is shared between testnet3 and signet. We collapse to
-    // the pre-alpha default (testnet3 — broader faucet ecosystem in
+    // the pre-alpha default (testnet3. Broader faucet ecosystem in
     // 2026); validateBtcDestination accepts the other direction via
     // its symmetric tb-HRP fallback.
     expect(networkForHrp("tb")).toBe("testnet");
@@ -167,7 +167,7 @@ describe("formatSats", () => {
 // txid before stuffing it into the proposal's prev_txid bytes32. Esplora
 // emits display-order (BE, what block explorers show); BIP143 / Bitcoin
 // wire format expects internal order (LE). A regression here would
-// broadcast a tx that references a flipped UTXO id — Bitcoin nodes
+// broadcast a tx that references a flipped UTXO id. Bitcoin nodes
 // reject with "UTXO not found" but the dWallet sig is already burned
 // into a MessageApproval account on chain. Worth pinning hard.
 describe("reverseHex", () => {

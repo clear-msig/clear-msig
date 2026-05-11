@@ -1,6 +1,6 @@
 // Secret-key parser + wipe helpers for the Secure import flow.
 //
-// Threat model — what this module defends against:
+// Threat model. What this module defends against:
 //   - Bad paste / wrong format. Returns a structured error with copy
 //     the wizard can render inline; never throws or logs raw input.
 //   - Accidental persistence. Callers MUST hold the parsed Keypair in
@@ -16,7 +16,7 @@
 //   - Browser extensions reading <input> values.
 //   - Malicious browser screenshots / screen sharing.
 //   - HTTPS downgrade (the page should pre-flight `isSecureContext`).
-//   - Phishing — user pasting their key into a fake clone of this UI.
+//   - Phishing. User pasting their key into a fake clone of this UI.
 //     The wizard MUST surface a clear warning so the user knows the
 //     authentic origin.
 
@@ -35,7 +35,7 @@ export interface ParseKeyOk {
   keypair: Keypair;
   format: "base58" | "json";
   /**
-   * Best-effort wipe — zeroes both the buffer we decoded into AND the
+   * Best-effort wipe. Zeroes both the buffer we decoded into AND the
    * Keypair's internal `_keypair.secretKey` (modern @solana/web3.js
    * returns a copy from the `.secretKey` getter, so `kp.secretKey.fill(0)`
    * alone wipes the wrong buffer). Call once you no longer need the
@@ -57,11 +57,11 @@ export type ParseKeyResult = ParseKeyOk | ParseKeyErr;
 /**
  * Parse a Solana secret key from raw user-pasted input. Accepts:
  *
- *   - **Base58** — 64-byte secret key encoded as a base58 string. This
+ *   - **Base58**. 64-byte secret key encoded as a base58 string. This
  *     is the format Phantom + Solflare emit on "Export private key".
  *     Decoded length must be exactly 64 (the Ed25519 keypair seed +
  *     pubkey concatenated).
- *   - **JSON** — `[1,2,3,...,64]` array of 64 integers in [0,255].
+ *   - **JSON**. `[1,2,3,...,64]` array of 64 integers in [0,255].
  *     This is the format `solana-keygen new --outfile id.json`
  *     produces.
  *
@@ -73,7 +73,7 @@ export type ParseKeyResult = ParseKeyOk | ParseKeyErr;
  * locally via tweetnacl; no network request.
  */
 /**
- * Hard length cap — legitimate inputs (Phantom/Solflare base58: ~88 chars,
+ * Hard length cap. Legitimate inputs (Phantom/Solflare base58: ~88 chars,
  * solana-keygen JSON: <500 chars) are well under this. Rejecting absurd
  * sizes keeps `JSON.parse` from blocking the main thread on a
  * 100 MB pasted payload before the 64-element check fires.
@@ -85,7 +85,7 @@ export function parseSolanaSecretKey(input: string): ParseKeyResult {
     return {
       ok: false,
       error: "invalid-length",
-      reason: `Input is ${input.length} bytes — way larger than any Solana secret key. Did you paste the wrong thing?`,
+      reason: `Input is ${input.length} bytes. Way larger than any Solana secret key. Did you paste the wrong thing?`,
     };
   }
   const trimmed = input.trim().replace(/^["']|["']$/g, "");
@@ -97,7 +97,7 @@ export function parseSolanaSecretKey(input: string): ParseKeyResult {
     };
   }
 
-  // JSON detection — must start with `[` (after trim). Some wallets
+  // JSON detection. Must start with `[` (after trim). Some wallets
   // pretty-print across lines; JSON.parse handles that.
   if (trimmed.startsWith("[")) {
     let parsed: unknown;
@@ -177,7 +177,7 @@ function buildKeypairResult(
   try {
     keypair = Keypair.fromSecretKey(bytes);
   } catch (e) {
-    // Wipe the bytes we just allocated before bailing — they're a
+    // Wipe the bytes we just allocated before bailing. They're a
     // valid 64-byte buffer that just doesn't match Ed25519's pubkey
     // derivation. Still secret material; still wipe.
     bytes.fill(0);
@@ -199,7 +199,7 @@ function buildKeypairResult(
     try {
       bytes.fill(0);
     } catch {
-      /* readonly buffer — best effort */
+      /* readonly buffer. Best effort */
     }
     try {
       const internal = (
@@ -209,7 +209,7 @@ function buildKeypairResult(
       )._keypair?.secretKey;
       internal?.fill(0);
     } catch {
-      /* @solana/web3.js version mismatch — best effort */
+      /* @solana/web3.js version mismatch. Best effort */
     }
   };
   return { ok: true, keypair, format, wipe };

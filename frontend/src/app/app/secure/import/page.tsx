@@ -1,6 +1,6 @@
 "use client";
 
-// /app/secure/import — bring an existing Solana keypair under
+// /app/secure/import. Bring an existing Solana keypair under
 // quorum protection.
 //
 // Threat model (read this before changing anything):
@@ -9,7 +9,7 @@
 //   key can drain the wallet. Three failure modes we defend against
 //   on this page:
 //
-//     1. Persistence — secret key landing in localStorage / IDB /
+//     1. Persistence. Secret key landing in localStorage / IDB /
 //        analytics / Sentry breadcrumbs. Defenses:
 //        - The <textarea> is uncontrolled (ref-only). The raw text
 //          never enters React state, so it doesn't get serialised
@@ -19,12 +19,12 @@
 //          successful broadcast.
 //        - We use `parseSolanaSecretKey` which never logs the input.
 //
-//     2. Phishing — user pastes their key into a clone of this UI.
+//     2. Phishing. User pastes their key into a clone of this UI.
 //        We can't fully defend, but we put a loud warning + the
 //        canonical origin tag on the intro stage so a screenshot of
 //        the real flow has identifying anchors.
 //
-//     3. Network exfiltration — secret never leaves the browser.
+//     3. Network exfiltration. Secret never leaves the browser.
 //        Defenses:
 //        - The Keypair signs locally via web3.js's `tx.sign([kp])`.
 //        - The connected wallet popup shows the FINAL tx (with the
@@ -39,18 +39,18 @@
 //     - Session screen-sharing / screen recording.
 //
 // UX flow:
-//   intro    — what'll happen + warning copy + connect-wallet gate
-//   compose  — paste key + amount + live address/balance preview
-//   review   — final summary card before sign
-//   creating — atomic tx (DKG → wait dwallet → sign → submit → confirm)
-//   done     — success + explorer + open-vault CTA
+//   intro   . What'll happen + warning copy + connect-wallet gate
+//   compose . Paste key + amount + live address/balance preview
+//   review  . Final summary card before sign
+//   creating. Atomic tx (DKG → wait dwallet → sign → submit → confirm)
+//   done    . Success + explorer + open-vault CTA
 //
 // One Solana tx, three signers (connected wallet pays fees +
 // recovery_id keypair + imported keypair). Three ixs:
 //   1. create_recovery (with `creator` = connected wallet)
 //   2. transfer_dwallet_authority
 //   3. SystemProgram.transfer (imported_key → dwallet PDA)
-// Atomic — if anything fails, no funds move.
+// Atomic. If anything fails, no funds move.
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -156,7 +156,7 @@ function SecureImportPage() {
 
   // ── Parsed-key state (NOT in React state) ─────────────────────────
   // Keypair lives in a ref so React's reconciliation never serialises
-  // it. The derivedAddress is held in state for rendering only — it's
+  // it. The derivedAddress is held in state for rendering only. It's
   // a public pubkey, safe to expose.
   const parsedRef = useRef<ParsedKey | null>(null);
   const [derivedAddress, setDerivedAddress] = useState<string | null>(null);
@@ -240,7 +240,7 @@ function SecureImportPage() {
   const handleSecretChange = () => {
     const v = inputRef.current?.value ?? "";
     if (!v.trim()) {
-      // Empty input — wipe any prior parse, reset preview.
+      // Empty input. Wipe any prior parse, reset preview.
       parsedRef.current?.wipe();
       parsedRef.current = null;
       setDerivedAddress(null);
@@ -259,7 +259,7 @@ function SecureImportPage() {
       setParseError(v.length < 32 ? null : r.reason);
       return;
     }
-    // Replace any prior parse — wipe the old one before overwriting
+    // Replace any prior parse. Wipe the old one before overwriting
     // the ref so we don't leak a previous decode on key change.
     if (
       parsedRef.current &&
@@ -313,9 +313,9 @@ function SecureImportPage() {
     }
     if (isSelfImport) {
       toast.error(
-        "Imported key matches your connected wallet — that's a self-transfer.",
+        "Imported key matches your connected wallet. That's a self-transfer.",
         {
-          details: "Use 'Build a vault' instead — it creates a fresh dWallet without moving funds.",
+          details: "Use 'Build a vault' instead. It creates a fresh dWallet without moving funds.",
         },
       );
       return;
@@ -363,7 +363,7 @@ function SecureImportPage() {
         },
       });
 
-      // Success — clear the paste surface + ref. Action layer already
+      // Success. Clear the paste surface + ref. Action layer already
       // wiped the buffer; this is just bookkeeping (idempotent wipe
       // for ironclad path coverage).
       wipeFn();
@@ -393,7 +393,7 @@ function SecureImportPage() {
       ]);
     } catch (e) {
       console.error("[secure/import]", e);
-      // Don't wipe the keypair on failure — the user might want to
+      // Don't wipe the keypair on failure. The user might want to
       // retry without re-pasting. Wipe-on-unmount still applies.
       toast.error("Couldn't import the wallet", {
         details: e instanceof Error ? e.message : String(e),
@@ -463,7 +463,7 @@ function SecureImportPage() {
           amountError={amountError}
           onMax={() => {
             if (balanceLamports == null) return;
-            // Connected wallet pays fees, NOT the imported key — so we
+            // Connected wallet pays fees, NOT the imported key. So we
             // can transfer the imported key's full balance. The account
             // closes naturally when drained to 0.
             setAmountSol(formatLamportsToSol(balanceLamports));
@@ -554,7 +554,7 @@ function IntroStage({
         <p className="mx-auto mt-2 max-w-md text-base text-text-soft">
           Got an existing Solana wallet with funds? Paste its secret key and
           we&rsquo;ll create a fresh vault, move the SOL in, and wipe the key
-          from memory — all in one atomic Solana transaction.
+          from memory. All in one atomic Solana transaction.
         </p>
       </PageEyebrow>
 
@@ -567,7 +567,7 @@ function IntroStage({
         <FeatureRow
           Icon={Sparkles}
           title="One transaction, atomic"
-          body="Vault creation and the funds move are bundled. If anything fails, nothing happens — no partial state."
+          body="Vault creation and the funds move are bundled. If anything fails, nothing happens. No partial state."
         />
         <FeatureRow
           Icon={KeyRound}
@@ -598,7 +598,7 @@ function IntroStage({
       {!walletConnected && (
         <BlockedNote
           title="Connect a wallet first"
-          body="The new vault needs an owner — your connected Solana wallet becomes member 0 and pays the tx fee."
+          body="The new vault needs an owner. Your connected Solana wallet becomes member 0 and pays the tx fee."
           ctaHref="/connect?next=/app/secure/import"
           ctaLabel="Sign in"
         />
@@ -673,13 +673,13 @@ function ComposeStage(props: ComposeStageProps) {
           >
             Secret key
           </label>
-          {/* Uncontrolled <input type="password"> — the secret never
+          {/* Uncontrolled <input type="password">. The secret never
               enters React state, and `password` is masked across every
               browser (textarea + CSS `text-security:disc` only works
               on WebKit/Blink). Long base58 strings overflow-x naturally;
               JSON arrays still parse because JSON.parse is whitespace
               tolerant.
-              No "Show" toggle by design — verifying via the derived
+              No "Show" toggle by design. Verifying via the derived
               address (rendered below on parse) is safer than echoing
               the secret onto the user's screen. */}
           <input
@@ -735,7 +735,7 @@ function ComposeStage(props: ComposeStageProps) {
               <Link href="/app/secure/new" className="underline">
                 Build a vault
               </Link>{" "}
-              instead — there&rsquo;s nothing to import to itself.
+              instead. There&rsquo;s nothing to import to itself.
             </p>
           )}
         </div>
@@ -852,7 +852,7 @@ function ReviewStage(props: ReviewStageProps) {
         </h1>
         <p className="mx-auto mt-2 max-w-md text-base text-text-soft">
           One Solana tx, three signatures (you, recovery_id, and the
-          imported key — locally). Atomic.
+          imported key. Locally). Atomic.
         </p>
       </PageEyebrow>
 

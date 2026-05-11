@@ -221,7 +221,7 @@ function SecureRecoveryPage() {
         <>
           {/* Balance card + actions. The one number a user will check
               on every visit ("do I have anything to sweep?") plus the
-              two actions they're going to take from this page —
+              two actions they're going to take from this page ,
               Receive (fund the dWallet) and Sweep (move funds out).
               The receive QR is collapsed by default so the page
               doesn't feel front-loaded. */}
@@ -292,7 +292,7 @@ function SecureRecoveryPage() {
           </section>
 
           {/* Recent sweeps. Hidden when there are zero proposals on
-              chain — empty-state noise on a brand-new vault adds
+              chain. Empty-state noise on a brand-new vault adds
               nothing. Shows up to 5 newest, with a status pill. */}
           {proposalCount > 0 && (
             <section>
@@ -344,7 +344,7 @@ function SecureRecoveryPage() {
                 staging-PDA pattern (`stage_roster_change_payload`,
                 disc 10), so any roster-change attempt fails with
                 `InvalidInstructionData` at simulation time.
-                Confirmed by inspecting the deployed ELF — only
+                Confirmed by inspecting the deployed ELF. Only
                 execute_roster_change.rs ships, no
                 stage_roster_change.rs. The action layer
                 (clearmsig-roster.ts) and the threshold page stay
@@ -356,7 +356,7 @@ function SecureRecoveryPage() {
                   Icon={Lock}
                   eyebrow="// 06 · roster"
                   title="Lock down"
-                  body={`Today any 1 of ${vault.account.members.length} can sign. Bumping the threshold needs an upstream program redeploy — coming soon.`}
+                  body={`Today any 1 of ${vault.account.members.length} can sign. Bumping the threshold needs an upstream program redeploy. Coming soon.`}
                   cta="Awaiting redeploy"
                 />
               )}
@@ -426,7 +426,7 @@ function BalancePanel({
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
     } catch {
-      /* clipboard blocked — silent */
+      /* clipboard blocked. Silent */
     }
   };
 
@@ -443,7 +443,7 @@ function BalancePanel({
         </div>
         <div className="flex flex-col items-end gap-0.5">
           <p className="flex items-baseline gap-1.5 font-numerals text-2xl font-semibold tabular-nums text-text-strong">
-            {loading ? "…" : balanceSol != null ? balanceSol : "—"}
+            {loading ? "…" : balanceSol != null ? balanceSol : ","}
             <span className="font-display text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
               SOL
             </span>

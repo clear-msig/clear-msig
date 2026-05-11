@@ -307,7 +307,7 @@ export default function SetupEthPage() {
           </div>
         ) : (
           <>
-            {/* Compact left-aligned header — matches /send and the
+            {/* Compact left-aligned header. Matches /send and the
                 rest of the redesigned workspace pages. Chain badge
                 inline + mono eyebrow + display title + "From {wallet}"
                 on the right. */}
