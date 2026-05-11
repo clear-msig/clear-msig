@@ -100,15 +100,15 @@ export default function NewWalletPage() {
   const me = wallet.publicKey?.toBase58() ?? "";
 
   // Unified product entry: clear-msig is now the single create flow
-  // for both shared wallets (the classic multisig) and personal
-  // recovery vaults (Secure, but rebranded as a shape of clear-msig).
-  // Default = null so the user picks intent first; once chosen, the
-  // shared-wallet branch reveals the existing shape picker + name
-  // form, and the recovery branch routes to /app/secure/new (which
-  // is structurally identical — same Ika dWallet substrate, just a
-  // simpler enrollment flow). Same substrate, two product surfaces;
-  // one entry. See Fesal feedback 2026-05-11.
-  type Purpose = "share" | "recover";
+  // for both shared wallets (the classic multisig) and Secure
+  // personal-key wallets (recovery-capable, single-user). Default =
+  // null so the user picks intent first; once chosen, the shared
+  // branch reveals the existing shape picker + name form, and the
+  // Secure branch routes to /app/secure/new — structurally identical
+  // (same Ika dWallet substrate), just a simpler enrollment flow.
+  // Same substrate, two product surfaces; one entry. See Fesal
+  // feedback 2026-05-11.
+  type Purpose = "share" | "secure";
   const [purpose, setPurpose] = useState<Purpose | null>(null);
 
   const [shape, setShape] = useState<ShapeId>("family");
@@ -248,8 +248,8 @@ export default function NewWalletPage() {
         <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
           {purpose === "share"
             ? "New shared wallet"
-            : purpose === "recover"
-              ? "New recovery vault"
+            : purpose === "secure"
+              ? "Secure your key"
               : "Create a wallet"}
         </h1>
         <p className="text-xs text-text-soft sm:text-sm">
@@ -266,8 +266,8 @@ export default function NewWalletPage() {
       {/* Purpose picker — first step in the unified flow. Both routes
           create an Ika dWallet under the same on-chain program; what
           differs is the lifecycle (propose/approve/execute audit
-          trail for shared wallets, enroll/sweep for personal
-          recovery). Shown only when no purpose chosen yet. */}
+          trail for shared wallets, enroll/sweep for the personal
+          Secure path). Shown only when no purpose chosen yet. */}
       {purpose === null && (
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <button
@@ -299,7 +299,7 @@ export default function NewWalletPage() {
 
           <button
             type="button"
-            onClick={() => setPurpose("recover")}
+            onClick={() => setPurpose("secure")}
             className={clsx(
               "group flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 text-left",
               "transition-[border-color,background-color,transform] duration-base ease-out-soft",
@@ -312,12 +312,12 @@ export default function NewWalletPage() {
             </span>
             <div className="flex flex-col gap-1">
               <p className="font-display text-base font-semibold leading-tight text-text-strong">
-                Recover my own key
+                Secure my key
               </p>
               <p className="text-xs text-text-soft">
-                A wallet just for you, with devices and passkeys as
-                signers. Lose one, recover with the rest. No seed
-                phrase to write down.
+                A wallet just for you, protected by your devices and
+                passkeys. Lose one, sign with the rest. No seed phrase
+                to write down.
               </p>
             </div>
             <span className="mt-auto inline-flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">
@@ -327,14 +327,14 @@ export default function NewWalletPage() {
         </section>
       )}
 
-      {/* Recover branch — inline threshold picker. Mirrors the shapes
+      {/* Secure branch — inline threshold picker. Mirrors the shapes
           /app/secure/new offers (solo / 2-of-3 / 3-of-5), but the
           selection happens HERE in the unified clear-msig flow.
           Clicking a shape routes to /app/secure/new with a
           ?preselect=<id> param; that page reads the param and skips
           straight to its confirm step, so the experience reads as
           one continuous flow with no double-pick. */}
-      {purpose === "recover" && (
+      {purpose === "secure" && (
         <section className="flex flex-col gap-4">
           <button
             type="button"
@@ -407,8 +407,8 @@ export default function NewWalletPage() {
       )}
 
       {/* Existing shared-wallet form. Rendered only after the user
-          picks the "Share with people" purpose. The "Recover my own
-          key" path bounces to /app/secure/new before we get here. */}
+          picks the "Share with people" purpose. The "Secure my key"
+          path bounces to /app/secure/new before we get here. */}
       {purpose === "share" && (
         <button
           type="button"
