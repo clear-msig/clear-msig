@@ -27,7 +27,12 @@ export function middleware(request: NextRequest) {
     "style-src 'self' 'unsafe-inline' https:",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https:",
-    "connect-src 'self' https: wss:",
+    // Local dev fallback for http://127.0.0.1:* + http://localhost:*
+    // matches next.config.ts. Without this, dev fetches to the
+    // backend at http://127.0.0.1:8080 trip the report-only CSP
+    // (noisy console but not actually blocking) — the enforcing
+    // policy in next.config.ts is the one that needs to allow it.
+    "connect-src 'self' https: wss: http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*",
     "frame-src 'self' https:",
     "frame-ancestors 'none'",
     "base-uri 'self'",

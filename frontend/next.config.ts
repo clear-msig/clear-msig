@@ -40,7 +40,15 @@ const SECURITY_HEADERS = [
       "img-src 'self' data: blob: https:",
       "font-src 'self' data: https:",
       // RPC endpoints (Solana + EVM) are env-driven; keep this loose.
-      "connect-src 'self' https: wss:",
+      // For local dev, also permit http://127.0.0.1:* / http://localhost:*
+      // so the dev frontend can reach a `cargo run -p
+      // clear-msig-backend-api` on http://127.0.0.1:8080. Without
+      // this, the browser blocks the fetch with a CSP violation that
+      // surfaces as `TypeError: Failed to fetch` in
+      // lib/api/client.ts — indistinguishable from "backend down".
+      // The HTTPS-only posture stays for any non-localhost host, so
+      // production-served pages (clearsig.xyz) still can't downgrade.
+      "connect-src 'self' https: wss: http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*",
       // Dynamic widget renders embedded iframes for some flows.
       "frame-src 'self' https:",
       "frame-ancestors 'none'",
