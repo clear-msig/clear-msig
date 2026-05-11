@@ -16,6 +16,10 @@ import {
   LandingAtmospherics,
   LandingNav,
 } from "@/components/landing/LandingChrome";
+import {
+  LandingBackToTop,
+  LandingScrollProgress,
+} from "@/components/landing/LandingScrollUI";
 import { encryptStatus, localCiphertextCount } from "@/lib/encrypt/client";
 
 export default function PrivacyPage() {
@@ -46,6 +50,9 @@ export default function PrivacyPage() {
 
   return (
     <div className="landing-shell relative min-h-screen bg-[#0c0c0c] text-[#ebebeb]">
+      <LandingScrollProgress />
+      <LandingBackToTop />
+
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 overflow-hidden"

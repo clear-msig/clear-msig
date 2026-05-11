@@ -400,7 +400,7 @@ function BalanceHeroCard({
         {/* Brand row - small visible mark + label */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-accent/15 text-accent ring-1 ring-accent/30">
+            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-accent/15 text-accent">
               <BrandMark size={16} />
             </span>
             <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">

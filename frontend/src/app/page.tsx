@@ -36,6 +36,10 @@ import {
 } from "lucide-react";
 import nextDynamic from "next/dynamic";
 import { LandingAtmospherics, LandingNav } from "@/components/landing/LandingChrome";
+import {
+  LandingBackToTop,
+  LandingScrollProgress,
+} from "@/components/landing/LandingScrollUI";
 import { BrandMark } from "@/components/retail/BrandMark";
 import { CHAINS } from "@/components/landing/ChainLogos";
 import { HowItWorksDiagram } from "@/components/landing/HowItWorksDiagram";
@@ -80,6 +84,12 @@ export default function HomePage() {
     // positioning works (sticky doesn't survive an overflow:hidden
     // ancestor).
     <div className="landing-shell relative min-h-screen bg-[#0c0c0c] text-[#ebebeb]">
+      {/* Scroll progress strip (lime accent, top of viewport) and a
+          floating back-to-top button. Both are client-only, respect
+          reduced-motion, and stay above the atmospherics layer. */}
+      <LandingScrollProgress />
+      <LandingBackToTop />
+
       {/* Lazy auto-redirect for returning authenticated users.
           Renders null; only exists to host useWalletGate() behind a
           lazy boundary so the Dynamic SDK stays out of the landing's
