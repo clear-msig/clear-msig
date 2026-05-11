@@ -37,3 +37,10 @@ yarn-error.log*
 # Claude Code internal state (per-project)
 .claude/
 .vercel
+
+# Local-only planning / internal docs — keep on disk, don't track.
+/CLAUDE.md
+/COLOSSEUM_PLAN.md
+/CORE_USECASE.md
+/DEPLOYMENTS.md
+/DEVELOPMENT.md
