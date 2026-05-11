@@ -82,7 +82,7 @@ The product is in pre-alpha. Some load-bearing mitigations (FHE-encrypted polici
 
 ### G. Phishing
 
-**Vector.** Look-alike `clear-msig.vercel.app`-style domains. Dynamic auth + the email signup mean a phishing site can mint a real Solana wallet under attacker control while the user thinks they're signing into Clear.
+**Vector.** Look-alike `clearsig.xyz`-style domains. Dynamic auth + the email signup mean a phishing site can mint a real Solana wallet under attacker control while the user thinks they're signing into Clear.
 
 **Mitigation today.**
 - The new `/security` page tells users to bookmark the canonical URL and to close the tab if anything looks off. Linked from settings, so the answer to "is this safe?" has an in-app destination.

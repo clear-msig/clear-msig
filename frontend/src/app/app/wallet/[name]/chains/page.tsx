@@ -103,6 +103,30 @@ export default function ChainsPage() {
     return { bound, available };
   }, [bindingsQuery.data]);
 
+  // Detect legacy multi-dWallet wallets — wallets bound BEFORE the
+  // BYO secp256k1 sharing fix landed (84878e8), which have 2+
+  // separate dWallets for the secp256k1 chain family (ETH / BTC /
+  // Zcash / ERC-20). The Ika pre-alpha mock signer's per-dWallet
+  // state interacts badly with multiple DKGs against the same wallet
+  // (sigs for an earlier dWallet stop verifying once a later DKG
+  // has run), so sends on legacy multi-dWallet wallets can produce
+  // the "neither v=0 nor v=1 recovers" failure.
+  //
+  // No safe auto-migration: each dWallet on chain holds funds
+  // independently. Surfacing as a banner so users with affected
+  // wallets know to create a fresh one for the demo, instead of
+  // hitting the failure mid-send.
+  const SECP256K1_KINDS_LIST = [1, 2, 3, 4];
+  const hasLegacyMultiDwallet = useMemo(() => {
+    const secp256k1Bindings = (bindingsQuery.data?.chains ?? []).filter(
+      (b) => SECP256K1_KINDS_LIST.includes(b.chain_kind),
+    );
+    const distinctDwallets = new Set(
+      secp256k1Bindings.map((b) => b.dwallet).filter(Boolean),
+    );
+    return distinctDwallets.size >= 2;
+  }, [bindingsQuery.data]);
+
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
@@ -150,6 +174,31 @@ export default function ChainsPage() {
           />
         </button>
       </header>
+
+      {/* Legacy multi-dWallet warning. Only renders when this wallet
+          has 2+ secp256k1 dWallets bound separately (the old
+          pre-BYO-fix state). Read-only — auto-migration would risk
+          stranding funds at the abandoned dWallet address. */}
+      {hasLegacyMultiDwallet && (
+        <aside
+          role="alert"
+          className="rounded-card border border-warning/40 bg-warning/[0.08] p-4 text-xs text-text-strong sm:text-sm"
+        >
+          <p className="font-semibold">
+            This wallet has separate dWallets per chain.
+          </p>
+          <p className="mt-1 text-text-soft">
+            Each secp256k1 chain bound below points at a different
+            Ika dWallet, which can trip the &ldquo;neither v=0 nor
+            v=1 recovers&rdquo; failure on send because of the Ika
+            pre-alpha mock signer&rsquo;s per-DKG state. For
+            reliable sends, create a fresh wallet — new wallets
+            share one dWallet across every secp256k1 chain. Funds
+            in this wallet stay where they are; this is just a
+            heads-up.
+          </p>
+        </aside>
+      )}
 
       {/* Already bound */}
       <section>

@@ -34,14 +34,24 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useWalletGate } from "@/lib/hooks/useWalletGate";
+import nextDynamic from "next/dynamic";
 import { LandingAtmospherics, LandingNav } from "@/components/landing/LandingChrome";
 import { BrandMark } from "@/components/retail/BrandMark";
 import { CHAINS } from "@/components/landing/ChainLogos";
 import { HowItWorksDiagram } from "@/components/landing/HowItWorksDiagram";
 
+// Auto-redirect for already-authenticated users is now lazy-loaded
+// in a separate async chunk so the marketing landing can render
+// without pulling the Dynamic SDK into its initial bundle. Returning
+// signed-in users still get bounced to /app/wallet — just a fraction
+// of a second after first paint instead of synchronously at mount.
+// First-time visitors never pay the cost.
+const AutoRedirectIsland = nextDynamic(
+  () => import("@/components/landing/AutoRedirectIsland"),
+  { ssr: false, loading: () => null },
+);
+
 export default function HomePage() {
-  useWalletGate();
   const reduce = useReducedMotion();
 
   // Scroll-reveal factory. Switched from animate-on-mount to
@@ -70,6 +80,12 @@ export default function HomePage() {
     // positioning works (sticky doesn't survive an overflow:hidden
     // ancestor).
     <div className="landing-shell relative min-h-screen bg-[#0c0c0c] text-[#ebebeb]">
+      {/* Lazy auto-redirect for returning authenticated users.
+          Renders null; only exists to host useWalletGate() behind a
+          lazy boundary so the Dynamic SDK stays out of the landing's
+          static bundle. */}
+      <AutoRedirectIsland />
+
       {/* atmospherics live in their own absolute overflow-hidden
           wrapper that sits behind sections (z-0) - so the sticky
           nav can layer above them without clipping. */}

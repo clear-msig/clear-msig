@@ -130,6 +130,11 @@ function SendErc20Page() {
     },
     enabled: !!walletQuery.data,
     staleTime: 30_000,
+    // Force fresh fetch on every mount so users navigating here
+    // straight from /setup/erc20 don't see the pre-setup cache and
+    // get bounced back into "Enable" UI while the background refetch
+    // is still in flight. See the matching note on /send/eth.
+    refetchOnMount: "always",
   });
   const chainsQuery = useWalletChains(walletName);
 
@@ -151,10 +156,19 @@ function SendErc20Page() {
   }, [chainsQuery.data]);
   const walletEthAddress = ethBinding ? chainAddress(ethBinding) : null;
 
-  const allLoaded =
-    !walletQuery.isLoading && !intentsQuery.isLoading && !chainsQuery.isLoading;
-  const needsBinding = allLoaded && !ethBinding;
-  const needsIntent = allLoaded && !!ethBinding && !erc20Intent;
+  // Gate on BOTH isLoading and isFetching so the page doesn't render
+  // "Enable ERC-20 sending" on stale cache while a background refetch
+  // (triggered by refetchOnMount: "always") is still fetching the
+  // post-setup intent list. See the matching note on /send/eth.
+  const allSettled =
+    !walletQuery.isLoading &&
+    !intentsQuery.isLoading &&
+    !chainsQuery.isLoading &&
+    !intentsQuery.isFetching &&
+    !chainsQuery.isFetching;
+  const needsBinding = allSettled && !ethBinding;
+  const needsIntent = allSettled && !!ethBinding && !erc20Intent;
+  const allLoaded = allSettled;
 
   const [stage, setStage] = useState<Stage>("compose");
   const [tokenContract, setTokenContract] = useState(

@@ -1939,8 +1939,8 @@ fn build_runner() -> CliRunner {
 ///
 /// `CLEAR_MSIG_ALLOWED_ORIGIN` is a comma-separated list of exact origins
 /// the backend should accept (e.g.
-/// `https://clear-msig.vercel.app,https://staging.clear-msig.app`). When
-/// set, only those origins can reach the API from a browser tab.
+/// `https://clearsig.xyz,https://www.clearsig.xyz`). When set, only those
+/// origins can reach the API from a browser tab.
 ///
 /// When unset (development), falls back to `CorsLayer::permissive()` so
 /// `npm run dev` against `http://localhost:3001` still works without

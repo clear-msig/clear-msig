@@ -27,7 +27,13 @@ export function middleware(request: NextRequest) {
     "style-src 'self' 'unsafe-inline' https:",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https:",
-    "connect-src 'self' https: wss:",
+    // Local dev fallback for http://127.0.0.1:* + http://localhost:*
+    // matches next.config.ts. Production gets the strict policy
+    // (HTTPS-only) so localhost can't appear in any deployed
+    // response. See next.config.ts for the rationale.
+    process.env.NODE_ENV === "production"
+      ? "connect-src 'self' https: wss:"
+      : "connect-src 'self' https: wss: http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*",
     "frame-src 'self' https:",
     "frame-ancestors 'none'",
     "base-uri 'self'",
