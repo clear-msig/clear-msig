@@ -21,6 +21,10 @@ import {
   LandingAtmospherics,
   LandingNav,
 } from "@/components/landing/LandingChrome";
+import {
+  LandingBackToTop,
+  LandingScrollProgress,
+} from "@/components/landing/LandingScrollUI";
 
 // PasskeyCard + LedgerCard are the only pieces on this page that need
 // Dynamic Labs + the LedgerProvider context. Hosting them in a
@@ -50,6 +54,9 @@ export default function SecurityPage() {
 
   return (
     <div className="landing-shell relative min-h-screen bg-[#0c0c0c] text-[#ebebeb]">
+      <LandingScrollProgress />
+      <LandingBackToTop />
+
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 overflow-hidden"
