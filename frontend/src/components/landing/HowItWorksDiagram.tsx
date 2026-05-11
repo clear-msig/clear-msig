@@ -337,36 +337,19 @@ export function HowItWorksDiagram() {
             y={WALLET.y - 30}
             width="60"
             height="60"
-            rx="14"
+            rx="30"
             fill={`url(#${ID.walletBg})`}
           />
-          {/* Brand mark - two interlocking circles, scaled 1.85x
-              so they fill the larger tile. */}
-          <g
-            transform={`translate(${WALLET.x - 22}, ${WALLET.y - 22}) scale(1.85)`}
-          >
-            <circle
-              cx="9"
-              cy="12"
-              r="5.25"
-              stroke="#0c0c0c"
-              strokeWidth="2.4"
-              fill="none"
-            />
-            <circle
-              cx="15"
-              cy="12"
-              r="5.25"
-              stroke="#0c0c0c"
-              strokeWidth="2.4"
-              fill="none"
-            />
-            <path
-              d="M 12 7.04 A 5.25 5.25 0 0 1 12 16.96 A 5.25 5.25 0 0 1 12 7.04 Z"
-              fill="#0c0c0c"
-              opacity="0.4"
-            />
-          </g>
+          {/* Brand mark - the official C-mark. Light-surface variant
+              (dark arcs) so it reads against the lime tile face. */}
+          <image
+            href="/clearmark-light.svg"
+            x={WALLET.x - 22}
+            y={WALLET.y - 22}
+            width="44"
+            height="44"
+            preserveAspectRatio="xMidYMid meet"
+          />
           {/* Wallet nameplate - sits flush below the tile. Small,
               monospace, all-caps so it reads as a chrome label, not
               extra copy. */}

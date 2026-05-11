@@ -1162,8 +1162,8 @@ function Footer({ fadeIn }: { fadeIn: FadeInFn }) {
       <div className="relative mt-24 grid grid-cols-1 gap-8 border-t border-white/10 pt-8 sm:mt-40 sm:gap-10 sm:pt-10 md:grid-cols-3">
         <div>
           <div className="flex items-center gap-3">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#ccff00] text-black">
-              <ClearCMark size={18} variant="on-light" />
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg">
+              <ClearCMark size={28} variant="on-dark" />
             </span>
             <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-white/60">
               clearsig
