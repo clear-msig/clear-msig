@@ -403,6 +403,43 @@ export default function NewWalletPage() {
               ))}
             </div>
           </div>
+
+          {/* Import path — for users who already have a Solana
+              keypair and want to bring it under quorum protection
+              instead of generating a fresh key. Routes to the
+              dedicated import flow (which handles the secret-key
+              entry with the strict no-persistence threat model in
+              /app/secure/import/page.tsx). Kept as a low-emphasis
+              secondary path so the primary flow stays "create new
+              under threshold". */}
+          <Link
+            href="/app/secure/import"
+            className={clsx(
+              "group flex items-start justify-between gap-3 rounded-soft border border-border-soft bg-canvas p-4",
+              "transition-[border-color,background-color,transform] duration-base ease-out-soft",
+              "hover:-translate-y-px hover:border-accent/40 hover:bg-accent/5",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+            )}
+          >
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent ring-1 ring-accent/20">
+                <KeyRound className="h-4 w-4" strokeWidth={1.75} />
+              </span>
+              <div className="flex flex-col gap-1">
+                <p className="font-display text-sm font-semibold leading-tight text-text-strong">
+                  Already have a Solana key?
+                </p>
+                <p className="text-xs text-text-soft">
+                  Import an existing keypair and bring it under quorum
+                  protection. Solo for now; thresholds coming.
+                </p>
+              </div>
+            </div>
+            <ArrowRight
+              className="mt-1 h-4 w-4 shrink-0 text-text-soft transition-colors duration-base ease-out-soft group-hover:text-accent"
+              aria-hidden="true"
+            />
+          </Link>
         </section>
       )}
 
