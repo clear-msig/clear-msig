@@ -39,6 +39,7 @@ uuid = { version = "1.10", features = ["serde", "v4", "v5"] }
 # resident in the workspace.
 solana-sdk = "2"
 solana-client = "2"
+solana-system-interface = { version = "3", features = ["bincode"] }
 bs58 = "0.5"
 
 # ── Bitcoin treasury signer ────────────────────────────────────────────
