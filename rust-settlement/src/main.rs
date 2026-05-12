@@ -37,10 +37,14 @@ async fn log_requests(request: Request, next: Next) -> Response {
     response
 }
 
-fn build_cors_layer() -> CorsLayer {
+fn build_cors_layer() -> anyhow::Result<CorsLayer> {
     let allowed = std::env::var("RAMP_ALLOWED_ORIGIN")
         .or_else(|_| std::env::var("CLEAR_MSIG_ALLOWED_ORIGIN"))
-        .unwrap_or_default();
+        .map_err(|_| {
+            anyhow::anyhow!(
+                "RAMP_ALLOWED_ORIGIN or CLEAR_MSIG_ALLOWED_ORIGIN is required for settlement CORS"
+            )
+        })?;
     let origins: Vec<HeaderValue> = allowed
         .split(',')
         .map(str::trim)
@@ -55,17 +59,15 @@ fn build_cors_layer() -> CorsLayer {
         .collect();
 
     if origins.is_empty() {
-        tracing::warn!("RAMP_ALLOWED_ORIGIN not set; using permissive CORS");
-        return CorsLayer::new()
-            .allow_origin(Any)
-            .allow_methods(Any)
-            .allow_headers(Any);
+        anyhow::bail!(
+            "RAMP_ALLOWED_ORIGIN or CLEAR_MSIG_ALLOWED_ORIGIN must contain at least one valid origin"
+        );
     }
 
-    CorsLayer::new()
+    Ok(CorsLayer::new()
         .allow_origin(AllowOrigin::list(origins))
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
-        .allow_headers(Any)
+        .allow_headers(Any))
 }
 
 #[tokio::main]
@@ -99,7 +101,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let app = build_router(state)
-        .layer(build_cors_layer())
+        .layer(build_cors_layer()?)
         .layer(axum::middleware::from_fn(log_requests));
 
     let chain_pool = pool.clone();
