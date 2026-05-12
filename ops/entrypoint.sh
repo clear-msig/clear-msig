@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
 #
 # Container entrypoint. Materialises the payer + signer keypairs from base64-
-# encoded env vars (set via Fly secrets) into ephemeral files inside /tmp,
+# encoded env vars (set as platform secrets) into ephemeral files inside /tmp,
 # then exec's the backend-api.
 #
-# Why base64 instead of mounting a volume: Fly secrets are the lowest-friction
-# way to ship credentials. The keypairs we use here are devnet-only and
-# explicitly disposable per the project's pre-alpha disclaimer.
+# Why base64 instead of mounting a secret file: hosted platforms expose env
+# secrets consistently, and the keypairs here are devnet-only and explicitly
+# disposable per the project's pre-alpha disclaimer.
 
 set -euo pipefail
+
+if [[ -n "${PORT:-}" && -z "${BACKEND_API_BIND:-}" ]]; then
+  export BACKEND_API_BIND="0.0.0.0:${PORT}"
+fi
 
 KEYPAIR_PATH="${CLEAR_MSIG_KEYPAIR:-/tmp/payer.json}"
 SIGNER_PATH="${CLEAR_MSIG_SIGNER:-/tmp/signer.json}"
@@ -26,18 +30,18 @@ if [[ -n "${CLEAR_MSIG_SIGNER_BASE64:-}" ]]; then
 fi
 
 if [[ ! -f "${CLEAR_MSIG_KEYPAIR:-}" ]]; then
-  echo "FATAL: payer keypair not present. Set CLEAR_MSIG_KEYPAIR_BASE64 (Fly secret)." >&2
+  echo "FATAL: payer keypair not present. Set CLEAR_MSIG_KEYPAIR_BASE64." >&2
   exit 1
 fi
 
 if [[ ! -f "${CLEAR_MSIG_SIGNER:-}" ]]; then
-  echo "FATAL: signer keypair not present. Set CLEAR_MSIG_SIGNER_BASE64 (Fly secret)." >&2
+  echo "FATAL: signer keypair not present. Set CLEAR_MSIG_SIGNER_BASE64." >&2
   exit 1
 fi
 
 # Persist DKG attestations across redeploys. The CLI saves them to
-# `CLEAR_MSIG_ATTESTATION_DIR` (set in fly.toml to a path on the
-# mounted volume) and re-reads them on every `proposal execute`.
+# `CLEAR_MSIG_ATTESTATION_DIR` (set to a path on the mounted persistent
+# disk/volume) and re-reads them on every `proposal execute`.
 # Without persistence each redeploy bricks every wallet whose chain
 # bindings depend on the attestation files. Create the directory if
 # the volume is freshly mounted.
