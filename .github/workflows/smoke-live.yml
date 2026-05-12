@@ -1,0 +1,37 @@
+name: Smoke live deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend_url:
+        description: "Backend URL"
+        required: true
+        default: "https://clear-msig-backend.onrender.com"
+      frontend_url:
+        description: "Frontend URL"
+        required: true
+        default: "https://clearsig.xyz"
+      address:
+        description: "Optional Solana address for membership lookup"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run smoke test
+        env:
+          BACKEND_URL: ${{ inputs.backend_url }}
+          FRONTEND_URL: ${{ inputs.frontend_url }}
+        run: |
+          if [ -n "${{ inputs.address }}" ]; then
+            ./scripts/smoke-live.sh --address "${{ inputs.address }}"
+          else
+            ./scripts/smoke-live.sh
+          fi
