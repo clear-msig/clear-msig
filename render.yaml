@@ -20,7 +20,6 @@ services:
     dockerContext: .
     healthCheckPath: /health
     numInstances: 1
-    maxShutdownDelaySeconds: 120
     autoDeployTrigger: checksPass
     disk:
       name: clear-msig-data
