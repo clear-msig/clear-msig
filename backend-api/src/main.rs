@@ -15,6 +15,7 @@ use tokio::process::Command;
 use tokio::time::timeout;
 use tower_http::{
     cors::{AllowOrigin, CorsLayer},
+    request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
     trace::TraceLayer,
 };
 use tracing::{error, info};
@@ -68,12 +69,6 @@ impl PreSigned {
             ));
         }
         Ok(())
-    }
-
-    /// A 6-character prefix of the signer pubkey, for structured-log
-    /// correlation without leaking the full identity.
-    fn actor_prefix(&self) -> String {
-        self.signer_pubkey.chars().take(6).collect()
     }
 }
 
@@ -496,12 +491,6 @@ struct OrganizationMembership {
     wallet_creator: Option<String>,
     roles: Vec<String>,
     intent_indexes: Vec<u8>,
-}
-
-#[derive(Deserialize)]
-struct RpcConfigResponse {
-    #[allow(dead_code)]
-    commitment: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -2080,6 +2069,8 @@ async fn main() -> anyhow::Result<()> {
             post(prepare_proposal_cancel),
         )
         .with_state(state)
+        .layer(PropagateRequestIdLayer::x_request_id())
+        .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
         .layer(build_cors_layer())
         .layer(TraceLayer::new_for_http());
 

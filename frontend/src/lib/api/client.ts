@@ -4,11 +4,13 @@ import type { ApiErrorEnvelope } from "@/lib/api/types";
 
 export class BackendApiError extends Error {
   readonly payload?: ApiErrorEnvelope;
+  readonly requestId?: string;
 
-  constructor(message: string, payload?: ApiErrorEnvelope) {
+  constructor(message: string, payload?: ApiErrorEnvelope, requestId?: string) {
     super(message);
     this.name = "BackendApiError";
     this.payload = payload;
+    this.requestId = requestId;
   }
 }
 
@@ -58,10 +60,16 @@ export async function apiRequest<TResponse, TBody = unknown>(
     });
 
     const json = (await parseJsonSafe(response)) as TResponse | ApiErrorEnvelope | null;
+    const requestId = response.headers.get("x-request-id") ?? undefined;
 
     if (!response.ok) {
       const payload = (json ?? undefined) as ApiErrorEnvelope | undefined;
-      throw new BackendApiError(payload?.error ?? `Request failed with status ${response.status}`, payload);
+      const suffix = requestId ? ` [request_id=${requestId}]` : "";
+      throw new BackendApiError(
+        `${payload?.error ?? `Request failed with status ${response.status}`}${suffix}`,
+        payload,
+        requestId,
+      );
     }
 
     return json as TResponse;
