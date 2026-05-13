@@ -52,6 +52,13 @@ import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useToast } from "@/components/ui/Toast";
+import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
+import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
+import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
+import {
+  SignPayloadPreview,
+  type SignPayloadDetail,
+} from "@/components/retail/SignPayloadPreview";
 import {
   SendReceipt,
   type ReceiptDetail,
@@ -63,6 +70,7 @@ import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { chainByKind } from "@/lib/retail/chains";
 import { appConfig } from "@/lib/config";
+import { resolvePolicyEnforcement } from "@/lib/policies/enforce";
 import {
   DEFAULT_BITCOIN_NETWORK,
   decodeSegwitAddress,
@@ -320,6 +328,7 @@ function BitcoinSendPage() {
       if (typeof proposal !== "string" || proposal.length === 0) {
         throw new Error("Backend didn't return a proposal address");
       }
+      const intent = btcIntent;
       const decision = await approveIfNeeded(connection, proposal);
       if (decision.needsApproveSignature) {
         const approveDry = await backendApi.prepare.approveProposal(
@@ -334,6 +343,65 @@ function BitcoinSendPage() {
           ...approveSigned,
           expiry: approveDry.expiry,
         });
+      }
+
+      const policyPlan = await resolvePolicyEnforcement(name, {
+        walletName: name,
+        chainKind: BTC_CHAIN_KIND,
+        recipient: destination,
+        ticker: "BTC",
+        amountDisplay: amountBtc,
+      });
+      if (policyPlan.evaluation?.matched) {
+        if (policyPlan.rule?.action === "require-extra-approvers") {
+          if (!intent) {
+            throw new Error("Bitcoin sending isn't set up for this wallet");
+          }
+          const seen = new Set<string>([signerPk.toBase58()]);
+          const extraApprovers = policyPlan.extraApprovers.filter((addr) => {
+            const normalized = addr.trim();
+            if (!normalized || seen.has(normalized)) return false;
+            seen.add(normalized);
+            return true;
+          });
+          if (extraApprovers.length === 0) {
+            throw new Error(
+              `Policy "${policyPlan.rule.name}" requires extra approvers, but none were configured.`,
+            );
+          }
+          for (const extraApprover of extraApprovers) {
+            if (!intent.approvers.includes(extraApprover)) {
+              throw new Error(
+                `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but that signer is not in the wallet's approver list.`,
+              );
+            }
+            const extraSigner = wallet.pickSigner([extraApprover]);
+            if (!extraSigner) {
+              throw new Error(
+                `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but none of your connected wallets can sign as that approver.`,
+              );
+            }
+            const extraDry = await backendApi.prepare.approveProposal(
+              name,
+              proposal,
+              { actor_pubkey: extraSigner.toBase58() },
+            );
+            const extraSigned = await signDescriptor(extraDry, {
+              preferSigner: extraSigner,
+            });
+            await backendApi.submit.approveProposal(name, proposal, {
+              ...extraSigned,
+              expiry: extraDry.expiry,
+            });
+          }
+        } else if (
+          policyPlan.rule?.action === "require-cooldown" &&
+          policyPlan.extraCooldownSeconds > 0
+        ) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, policyPlan.extraCooldownSeconds * 1000),
+          );
+        }
       }
       await backendApi.executeProposal(name, proposal, {});
     },
@@ -532,6 +600,26 @@ function BitcoinSendPage() {
     !blockedByDisconnect && !blockedByLedger && !isLoading && btcBinding && !btcIntent;
   const ready =
     !blockedByDisconnect && !blockedByLedger && !isLoading && btcBinding && btcIntent;
+  const policyEvaluation = usePolicyEvaluation({
+    walletName: name,
+    chainKind: BTC_CHAIN_KIND,
+    recipient: destination.trim(),
+    ticker: "BTC",
+    amountDisplay: amountBtc,
+    enabled: !!destination.trim() && !!sendAmountSats && !!btcBinding && !!btcIntent,
+  });
+  const policyDenied =
+    policyEvaluation?.matched && policyEvaluation.action === "deny";
+  const canSubmit =
+    !!btcBinding &&
+    !!btcIntent &&
+    !blockedByDisconnect &&
+    !blockedByLedger &&
+    !isLoading &&
+    !!sendAmountSats &&
+    !!selectedUtxo &&
+    !!senderPkhHex &&
+    !policyDenied;
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col lg:max-w-3xl">
@@ -609,6 +697,33 @@ function BitcoinSendPage() {
             onDismiss={() => setSendError(null)}
           />
         )}
+        {ready && !sentLabel && policyEvaluation?.matched && (
+          <PolicyMatchBanner walletName={name} evaluation={policyEvaluation} />
+        )}
+        {ready && !sentLabel && (
+          <div className="flex flex-col gap-3">
+            <SignPayloadPreview
+              action={
+                sendAmountSats && destination.trim()
+                  ? `Send ${amountBtc.trim()} BTC to ${shortBtcAddress(destination.trim())}`
+                  : "Fill in the amount and recipient above"
+              }
+              details={buildBtcPreviewDetails({
+                walletDisplay,
+                destination,
+                amountBtc,
+                selectedUtxo,
+                impliedFeeSats,
+              })}
+              warning={buildBtcWarning({
+                selectedUtxo,
+                impliedFeeSats,
+              })}
+              collapsibleDetails
+            />
+            <WalletPopupNarration action="send this Bitcoin request" disclaimerBehindInfoTip />
+          </div>
+        )}
         {ready && !sentLabel && (
           <ComposeForm
             destination={destination}
@@ -624,6 +739,7 @@ function BitcoinSendPage() {
             address={dwalletAddress}
             network={btcNetwork}
             sending={send.isPending}
+            canSubmit={canSubmit}
             walletDisplay={walletDisplay}
             onSend={handleSend}
           />
@@ -772,6 +888,7 @@ function ComposeForm(props: {
   address: string | null;
   network: BitcoinNetwork;
   sending: boolean;
+  canSubmit: boolean;
   walletDisplay: string;
   onSend: () => void;
 }) {
@@ -1002,7 +1119,7 @@ function ComposeForm(props: {
         >
           <Button
             onClick={props.onSend}
-            disabled={props.sending}
+            disabled={props.sending || !props.canSubmit}
             fullWidth
             size="lg"
           >
@@ -1087,6 +1204,55 @@ function SentCard({
 function shortHash(s: string): string {
   if (s.length <= 16) return s;
   return `${s.slice(0, 8)}…${s.slice(-6)}`;
+}
+
+function buildBtcPreviewDetails(args: {
+  walletDisplay: string;
+  destination: string;
+  amountBtc: string;
+  selectedUtxo: EsploraUtxo | null;
+  impliedFeeSats: bigint | null;
+}): SignPayloadDetail[] {
+  const details: SignPayloadDetail[] = [
+    { label: "From wallet", value: args.walletDisplay },
+    { label: "Network", value: "Bitcoin", },
+  ];
+  const destination = args.destination.trim();
+  if (destination) {
+    details.push({
+      label: "Recipient address",
+      value: shortBtcAddress(destination),
+      emphasis: "mono",
+    });
+  }
+  if (args.amountBtc.trim()) {
+    details.push({
+      label: "Amount",
+      value: `${args.amountBtc.trim()} BTC`,
+      emphasis: "amount",
+    });
+  }
+  if (args.selectedUtxo && args.impliedFeeSats !== null) {
+    details.push({
+      label: "UTXO fee",
+      value: `${formatSats(args.impliedFeeSats)} BTC`,
+    });
+  }
+  return details;
+}
+
+function buildBtcWarning(args: {
+  selectedUtxo: EsploraUtxo | null;
+  impliedFeeSats: bigint | null;
+}): string | undefined {
+  if (
+    args.selectedUtxo &&
+    args.impliedFeeSats !== null &&
+    args.impliedFeeSats > 5_000n
+  ) {
+    return `This send burns ${formatSats(args.impliedFeeSats)} BTC as miner fee because Bitcoin sends here use a single-input, single-output transaction.`;
+  }
+  return undefined;
 }
 
 // ─── error banner ─────────────────────────────────────────────────

@@ -14,7 +14,7 @@
 
 import { formatTimestampBytes } from "@/lib/msig/datetime";
 import { sha256, toHex } from "@/lib/msig/hash";
-import { wrapOffchain } from "@/lib/msig/offchain";
+import { usePlainMessage, wrapOffchain, type MessageFlavor } from "@/lib/msig/offchain";
 import { renderTemplate, type RenderContext } from "@/lib/msig/render";
 
 export const IntentType = {
@@ -54,10 +54,11 @@ export interface SignableIntent extends RenderContext {
 /// Return the offchain-wrapped bytes the wallet signs, plus the human-
 /// readable body (useful for the "what your Ledger will show" preview).
 export function buildSignableMessage(
-  input: BuildMessageInput
+  input: BuildMessageInput,
+  flavor: MessageFlavor = "offchain_v1",
 ): { wrapped: Uint8Array; body: Uint8Array; bodyText: string } {
   const body = buildMessageBody(input);
-  const wrapped = wrapOffchain(body);
+  const wrapped = flavor === "offchain_v1" ? wrapOffchain(body) : usePlainMessage(body);
   return {
     wrapped,
     body,

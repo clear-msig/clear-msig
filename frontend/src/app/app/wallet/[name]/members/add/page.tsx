@@ -335,12 +335,13 @@ export default function AddFriendPage() {
       // the on-chain change is already done; an email failure (SMTP
       // misconfig, throttling) shouldn't block the success toast.
       let emailDelivered = false;
-      if (trimmedEmail && wallet.publicKey && role !== "watcher") {
+      if (trimmedEmail && wallet.publicKey) {
         try {
           await sendOrganizationInvite({
             walletName: name,
             reason: "",
             inviterAddress: wallet.publicKey.toBase58(),
+            role,
             invitee: { address: trimmedAddress, email: trimmedEmail },
           });
           emailDelivered = true;
@@ -755,4 +756,3 @@ function ConfirmCard({
     </motion.div>
   );
 }
-

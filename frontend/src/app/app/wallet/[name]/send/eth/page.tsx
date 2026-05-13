@@ -69,6 +69,7 @@ import { QrScanButton } from "@/components/retail/QrScanButton";
 import { RecentRecipientsChips } from "@/components/retail/RecentRecipientsChips";
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
 import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
+import { resolvePolicyEnforcement } from "@/lib/policies/enforce";
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
@@ -396,6 +397,7 @@ function SendEthPage() {
       if (typeof proposal !== "string" || proposal.length === 0) {
         throw new Error("Backend didn't return a proposal address from submit");
       }
+      const intent = ethIntent.account;
 
       // Old-program fallback: re-sign approve if the propose did not
       // auto-approve. With the upgrade this branch never fires.
@@ -413,6 +415,62 @@ function SendEthPage() {
           ...approveSigned,
           expiry: approveDry.expiry,
         });
+      }
+
+      const policyPlan = await resolvePolicyEnforcement(walletName, {
+        walletName,
+        chainKind: 1,
+        recipient: effectiveRecipient ?? "",
+        ticker: "ETH",
+        amountDisplay: amount,
+      });
+      if (policyPlan.evaluation?.matched) {
+        if (policyPlan.rule?.action === "require-extra-approvers") {
+          const seen = new Set<string>([signerPk.toBase58()]);
+          const extraApprovers = policyPlan.extraApprovers.filter((addr) => {
+            const normalized = addr.trim();
+            if (!normalized || seen.has(normalized)) return false;
+            seen.add(normalized);
+            return true;
+          });
+          if (extraApprovers.length === 0) {
+            throw new Error(
+              `Policy "${policyPlan.rule.name}" requires extra approvers, but none were configured.`,
+            );
+          }
+          for (const extraApprover of extraApprovers) {
+            if (!intent.approvers.includes(extraApprover)) {
+              throw new Error(
+                `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but that signer is not in the wallet's approver list.`,
+              );
+            }
+            const extraSigner = wallet.pickSigner([extraApprover]);
+            if (!extraSigner) {
+              throw new Error(
+                `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but none of your connected wallets can sign as that approver.`,
+              );
+            }
+            const extraDry = await backendApi.prepare.approveProposal(
+              walletName,
+              proposal,
+              { actor_pubkey: extraSigner.toBase58() },
+            );
+            const extraSigned = await signDescriptor(extraDry, {
+              preferSigner: extraSigner,
+            });
+            await backendApi.submit.approveProposal(walletName, proposal, {
+              ...extraSigned,
+              expiry: extraDry.expiry,
+            });
+          }
+        } else if (
+          policyPlan.rule?.action === "require-cooldown" &&
+          policyPlan.extraCooldownSeconds > 0
+        ) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, policyPlan.extraCooldownSeconds * 1000),
+          );
+        }
       }
 
       // 5. Execute with broadcast=true and Ika dWallet params. The

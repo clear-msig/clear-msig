@@ -233,6 +233,8 @@ pub struct DWalletAccount {
     pub curve: u16,
     pub state: u8,
     pub public_key: Vec<u8>,
+    pub created_epoch: u64,
+    pub noa_public_key: String,
 }
 
 /// Read just the dWallet's current authority pubkey (32 bytes at offset 2)
@@ -253,7 +255,7 @@ pub fn parse_dwallet_authority(data: &[u8]) -> Result<solana_sdk::pubkey::Pubkey
 }
 
 pub fn parse_dwallet(data: &[u8]) -> Result<DWalletAccount> {
-    if data.len() < 103 || data[0] != 2 {
+    if data.len() < 145 || data[0] != 2 {
         return Err(anyhow!(
             "not a DWallet account (discriminator={})",
             data.first().unwrap_or(&0)
@@ -266,10 +268,16 @@ pub fn parse_dwallet(data: &[u8]) -> Result<DWalletAccount> {
         return Err(anyhow!("invalid dWallet public_key_len: {public_key_len}"));
     }
     let public_key = data[38..38 + public_key_len].to_vec();
+    let created_epoch = u64::from_le_bytes(data[103..111].try_into().unwrap());
+    let noa_public_key = solana_pubkey::Pubkey::new_from_array(
+        data[111..143].try_into().expect("32 bytes"),
+    ).to_string();
     Ok(DWalletAccount {
         curve,
         state,
         public_key,
+        created_epoch,
+        noa_public_key,
     })
 }
 

@@ -1,10 +1,12 @@
 import type { OrganizationMember } from "@/lib/organizations/types";
+import type { WalletRole } from "@/lib/retail/memberAccess";
 
 type InviteInput = {
   walletName: string;
   reason: string;
   invitee: OrganizationMember;
   inviterAddress: string;
+  role: WalletRole;
 };
 
 async function readJson<T>(response: Response): Promise<T> {

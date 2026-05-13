@@ -8,9 +8,9 @@
 //   - Non-React contexts (init scripts, tests): `getConnection()`
 //     returns a lazy-initialised singleton.
 //
-// `CLEAR_WALLET_PROGRAM_ID` is the deployed program ID. Hard-coded here
-// because it's the same ID every environment points at; if we ever need
-// per-env program IDs, swap to `process.env.NEXT_PUBLIC_CLEAR_WALLET_PROGRAM_ID`.
+// `CLEAR_WALLET_PROGRAM_ID` is the deployed program ID. It defaults to the
+// current fresh devnet migration target, but can be overridden per-env with
+// `NEXT_PUBLIC_CLEAR_WALLET_PROGRAM_ID` when needed.
 
 import { Commitment, Connection, PublicKey } from "@solana/web3.js";
 import { createSolanaConnection } from "@/lib/solana/cluster";
@@ -18,7 +18,8 @@ import { createSolanaConnection } from "@/lib/solana/cluster";
 /// The clear-wallet on-chain program ID. Matches `crate::ID` in
 /// programs/clear-wallet/src/lib.rs.
 export const CLEAR_WALLET_PROGRAM_ID = new PublicKey(
-  "ahVmthS8EwXMpckBQdxGeHmbFghxoqKBaFjSCizcvFL"
+  process.env.NEXT_PUBLIC_CLEAR_WALLET_PROGRAM_ID ??
+    "Abf68HjgGyaCqGtu2W9Tg7Kkz5iJoBvAb8e86M6xTkNJ"
 );
 
 /// Default commitment for all read paths. `confirmed` is the sweet spot

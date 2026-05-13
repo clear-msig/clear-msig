@@ -50,9 +50,8 @@ export class WalletSignError extends Error {
     | "ledger_transport"
     | "ledger_unsupported"
     | "unknown"
-    | "message_mismatch"
-    | "wallet_signed_wrong_bytes"
-    | "phantom_unsupported";
+  | "message_mismatch"
+  | "wallet_signed_wrong_bytes"
   /// Set when `code === "message_mismatch"` - the bytes the backend
   /// asked us to sign did not match the bytes the frontend rebuilt
   /// from chain state. Includes both for debugging.
@@ -82,7 +81,7 @@ export class WalletSignError extends Error {
 /// `descriptor.message_hex` before invoking the wallet. See
 /// `rebuildAndVerifyMessage` and SECURITY.md surface A.
 export function useSignWithWallet() {
-  const { signMessage, publicKey, connected } = useWallet();
+  const { signMessage, publicKey, connected, isPhantomWallet } = useWallet();
   const { connection } = useConnection();
 
   const signBytes = useCallback(
@@ -168,7 +167,11 @@ export function useSignWithWallet() {
     ): Promise<SignedPayload> => {
       let bytes: Uint8Array;
       try {
-        bytes = await rebuildAndVerifyMessage(descriptor, connection);
+        bytes = await rebuildAndVerifyMessage(
+          descriptor,
+          connection,
+          isPhantomWallet ? "plain_v2" : "offchain_v1",
+        );
       } catch (err) {
         if (err instanceof MessageVerificationError) {
           throw new WalletSignError(
@@ -181,7 +184,7 @@ export function useSignWithWallet() {
       }
       return signBytes(bytes, options);
     },
-    [connection, signBytes],
+    [connection, signBytes, isPhantomWallet],
   );
 
   return {
@@ -231,13 +234,6 @@ function classifySignError(err: unknown): WalletSignError {
       m.includes("approval denied")
     ) {
       return new WalletSignError("rejected", err.message);
-    }
-    // Phantom's tx-detection heuristic refuses our offchain envelope
-    // (the spec'd `\xff` magic byte trips it as a versioned-tx prefix).
-    // Surface a typed code so the UI can show "swap to Solflare/Ledger"
-    // copy instead of the raw Phantom error.
-    if (m.includes("cannot sign solana transactions using sign message")) {
-      return new WalletSignError("phantom_unsupported", err.message);
     }
     return new WalletSignError("unknown", err.message);
   }

@@ -126,10 +126,14 @@ export function useWalletPortfolio(walletName: string): WalletPortfolio {
           .filter((b) => b.chain_kind !== 0)
           .map(async (b) => {
             try {
-              const result = await fetchChainBalance(b, {
-                solanaConnection: connection as unknown as Connection,
-                evmRpcUrl: appConfig.preAlpha.destinationRpcUrl,
-              });
+              const result = await withTimeout(
+                fetchChainBalance(b, {
+                  solanaConnection: connection as unknown as Connection,
+                  evmRpcUrl: appConfig.preAlpha.destinationRpcUrl,
+                }),
+                8000,
+                `balance fetch timed out for chain ${b.chain_kind}`,
+              );
               out.set(b.chain_kind, result?.raw ?? null);
             } catch {
               out.set(b.chain_kind, null);
@@ -211,6 +215,28 @@ export function useWalletPortfolio(walletName: string): WalletPortfolio {
     chainsQuery.isLoading,
     otherChainsBalanceQuery.isLoading,
   ]);
+}
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(label));
+    }, ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
 }
 
 // Make `CHAIN_CATALOG` import non-dead - used implicitly via

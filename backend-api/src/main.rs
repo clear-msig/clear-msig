@@ -740,7 +740,8 @@ async fn membership_lookup(
         .await
         .ok()
         .and_then(|cfg| cfg.get("program_id").and_then(|v| v.as_str()).map(ToString::to_string))
-        .unwrap_or_else(|| "ahVmthS8EwXMpckBQdxGeHmbFghxoqKBaFjSCizcvFL".to_string());
+        .or_else(|| std::env::var("CLEAR_MSIG_PROGRAM_ID").ok())
+        .unwrap_or_else(|| "Abf68HjgGyaCqGtu2W9Tg7Kkz5iJoBvAb8e86M6xTkNJ".to_string());
 
     // Two narrow scans instead of one fat one. Filter each by discriminator
     // at offset 0 so the RPC only returns the kind of account we care about.

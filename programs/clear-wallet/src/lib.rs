@@ -17,7 +17,7 @@ pub mod utils;
 #[cfg(test)]
 mod tests;
 
-declare_id!("ahVmthS8EwXMpckBQdxGeHmbFghxoqKBaFjSCizcvFL");
+declare_id!("Abf68HjgGyaCqGtu2W9Tg7Kkz5iJoBvAb8e86M6xTkNJ");
 
 #[program]
 pub mod clear_wallet {

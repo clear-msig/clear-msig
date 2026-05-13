@@ -259,6 +259,56 @@ pub fn load_attestation(
     })
 }
 
+/// Load an attestation from chain state when no local file exists.
+///
+/// This recovers old Fly-era wallets on Render without manual file copy:
+/// the DKG attestation lives in the `DWalletAttestation` PDA, while the
+/// `network_pubkey` and `epoch` come from the dWallet account.
+pub fn load_attestation_from_chain(
+    client: &solana_client::rpc_client::RpcClient,
+    dwallet_program: &Pubkey,
+    dwallet: &Pubkey,
+) -> Result<NetworkSignedAttestation> {
+    let dwallet_data = rpc::fetch_account(client, dwallet)
+        .with_context(|| format!("fetching dWallet account {dwallet}"))?;
+    let dwallet_account = crate::accounts::parse_dwallet(&dwallet_data)?;
+    let curve = dwallet_account.curve;
+    let public_key = dwallet_account.public_key.clone();
+
+    // Re-derive with the chunked seed layout used by the upstream PDA.
+    let mut seeds: Vec<&[u8]> = Vec::new();
+    let payload = pack_dwallet_seed_payload(curve, &public_key);
+    seeds.push(SEED_DWALLET);
+    for chunk in payload.chunks(32) {
+        seeds.push(chunk);
+    }
+    seeds.push(b"attestation");
+    let (attestation_pk, _) = Pubkey::find_program_address(&seeds, dwallet_program);
+
+    let attestation_data = rpc::fetch_account(client, &attestation_pk)
+        .with_context(|| format!("fetching attestation account {attestation_pk}"))?;
+    if attestation_data.len() < 67 || attestation_data[0] != 15 {
+        return Err(anyhow!(
+            "not a DWalletAttestation account (discriminator={})",
+            attestation_data.first().unwrap_or(&0)
+        ));
+    }
+    let network_signature = attestation_data[2..66].to_vec();
+    let attestation_data = attestation_data[67..].to_vec();
+
+    Ok(NetworkSignedAttestation {
+        attestation_data,
+        network_signature,
+        network_pubkey: dwallet_account
+            .noa_public_key
+            .parse::<Pubkey>()
+            .with_context(|| "parsing dWallet noa public key")?
+            .to_bytes()
+            .to_vec(),
+        epoch: dwallet_account.created_epoch,
+    })
+}
+
 fn hex_encode_bytes(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }

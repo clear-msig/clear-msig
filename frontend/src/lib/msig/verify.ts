@@ -35,6 +35,7 @@ import {
   type Action,
 } from "@/lib/msig/message";
 import { parseIntent } from "@/lib/msig/accounts";
+import { unwrapOffchain, type MessageFlavor } from "@/lib/msig/offchain";
 import { fromHex, toHex } from "@/lib/msig/hash";
 import type { DryRunDescriptor } from "@/lib/api/types";
 
@@ -101,6 +102,7 @@ function asAction(descriptorAction: string): Action {
 export async function rebuildAndVerifyMessage(
   descriptor: DryRunDescriptor,
   connection: Connection,
+  flavor: MessageFlavor = "offchain_v1",
 ): Promise<Uint8Array> {
   if (descriptor.proposal_index === undefined || descriptor.proposal_index === null) {
     throw new MessageVerificationError(
@@ -145,17 +147,22 @@ export async function rebuildAndVerifyMessage(
   }
 
   const paramsData = fromHex(descriptor.params_data_hex);
-  const { wrapped } = buildSignableMessage({
+  const { wrapped, body } = buildSignableMessage({
     action,
     expiry: descriptor.expiry,
     walletName: descriptor.wallet_name,
     proposalIndex: descriptor.proposal_index,
     intent: { ...parsed, intentType: parsed.intentType },
     paramsData,
-  });
+  }, flavor);
 
   const expected = fromHex(descriptor.message_hex);
-  if (!equalBytes(wrapped, expected)) {
+  const expectedBody = decodeExpectedBody(expected);
+
+  if (
+    (flavor === "offchain_v1" && !equalBytes(wrapped, expected)) ||
+    (flavor !== "offchain_v1" && !equalBytes(body, expectedBody))
+  ) {
     throw new MessageVerificationError(
       "message_mismatch",
       "Backend-supplied signable message does not match the locally rebuilt bytes. The bytes shown to your wallet would not match the action you confirmed. Aborting.",
@@ -172,4 +179,12 @@ function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
   return diff === 0;
+}
+
+function decodeExpectedBody(expected: Uint8Array): Uint8Array {
+  try {
+    return unwrapOffchain(expected);
+  } catch {
+    return expected;
+  }
 }

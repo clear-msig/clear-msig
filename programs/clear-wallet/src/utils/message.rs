@@ -165,6 +165,29 @@ impl MessageBuilder {
         intent: &Intent<'_>,
         params_data: &[u8],
     ) -> Result<(), ProgramError> {
+        self.len = OFFCHAIN_HEADER_LEN;
+        self.build_message_for_intent_body(ctx, intent, params_data)?;
+        self.finalize()
+    }
+
+    /// Build the same human-readable message body without the Solana
+    /// offchain envelope. Used for Phantom-compatible plain signing.
+    pub fn build_plain_message_for_intent(
+        &mut self,
+        ctx: &MessageContext<'_>,
+        intent: &Intent<'_>,
+        params_data: &[u8],
+    ) -> Result<(), ProgramError> {
+        self.len = 0;
+        self.build_message_for_intent_body(ctx, intent, params_data)
+    }
+
+    fn build_message_for_intent_body(
+        &mut self,
+        ctx: &MessageContext<'_>,
+        intent: &Intent<'_>,
+        params_data: &[u8],
+    ) -> Result<(), ProgramError> {
         use crate::state::intent::IntentType;
         match intent.intent_type {
             IntentType::AddIntent => {
@@ -182,7 +205,7 @@ impl MessageBuilder {
             }
             IntentType::Custom => self.build_custom_message(ctx, intent, params_data)?,
         }
-        self.finalize()
+        Ok(())
     }
 
     // --- Custom intent messages ---

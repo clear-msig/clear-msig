@@ -55,20 +55,22 @@ impl<'info> Approve<'info> {
             WalletError::AlreadyApproved
         );
 
-        let mut msg_buf = MessageBuilder::new();
-        msg_buf.build_message_for_intent(
-            &MessageContext {
-                expiry: args.expiry,
-                action: "approve",
-                wallet_name: self.wallet.name(),
-                proposal_index: self.proposal.proposal_index.get(),
-            },
-            &self.intent,
-            self.proposal.params_data(),
-        )?;
+        let ctx = MessageContext {
+            expiry: args.expiry,
+            action: "approve",
+            wallet_name: self.wallet.name(),
+            proposal_index: self.proposal.proposal_index.get(),
+        };
 
-        brine_ed25519::sig_verify(approver_addr.as_ref(), args.signature, msg_buf.as_bytes())
-            .map_err(|_| WalletError::InvalidSignature)?;
+        let mut msg_buf = MessageBuilder::new();
+        msg_buf.build_message_for_intent(&ctx, &self.intent, self.proposal.params_data())?;
+
+        let v1 = brine_ed25519::sig_verify(approver_addr.as_ref(), args.signature, msg_buf.as_bytes());
+        if v1.is_err() {
+            msg_buf.build_plain_message_for_intent(&ctx, &self.intent, self.proposal.params_data())?;
+            brine_ed25519::sig_verify(approver_addr.as_ref(), args.signature, msg_buf.as_bytes())
+                .map_err(|_| WalletError::InvalidSignature)?;
+        }
 
         self.proposal.set_approval(args.approver_index);
         if self.proposal.approval_count() >= self.intent.approval_threshold {

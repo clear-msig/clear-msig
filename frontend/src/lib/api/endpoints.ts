@@ -34,17 +34,14 @@ export const backendApi = {
 
   // Bootstrap ops (no user signature required . on-chain instructions are
   // payed for and submitted by the relayer's sponsored-gas keypair).
-  // Bootstrap chains multiple ixns + RPC confirms; bump past the 30s
-  // default so a slow first-time devnet round trip doesn't surface as
-  // a misleading timeout. Wrapped in withRetry so a single transient
-  // RPC blip ("blockhash not found", "node is behind") doesn't fail
-  // the whole flow.
+  // Bootstrap create-wallet is intentionally single-shot. It consumes
+  // a brand-new on-chain account slot, so retrying after the first
+  // submit lands can replay the same instruction against an already
+  // initialized PDA and turn a partial success into a hard failure.
   createWallet: (input: CreateWalletInput) =>
-    withRetry(() =>
-      apiRequest<Record<string, unknown>, CreateWalletInput>("/wallets", "POST", input, {
-        timeoutMs: 60_000,
-      }),
-    ),
+    apiRequest<Record<string, unknown>, CreateWalletInput>("/wallets", "POST", input, {
+      timeoutMs: 60_000,
+    }),
   showWallet: (walletName: string) =>
     apiRequest<Record<string, unknown>>(`/wallets/${encodeURIComponent(walletName)}`, "GET"),
   listWalletChains: (walletName: string) =>
@@ -120,60 +117,46 @@ export const backendApi = {
 
   // ── Signed submit routes ─────────────────────────────────────────────
   //
-  // Every submit is wrapped in withRetry: signed payloads bind to a
-  // fixed proposal index + nonce, so retrying targets the same slot.
-  // If the original landed silently, the retry fails fast with an
-  // "already" hint that friendlyError surfaces as "this request has
-  // already been handled". User rejections + rate limits do NOT
-  // retry - see lib/api/retry.ts for the predicate.
+  // These routes consume state that can advance between prepare and
+  // submit (proposal index, intent slots, etc.). They must be single-shot
+  // so a transient backend failure does not resubmit a stale signature
+  // against a newer on-chain slot.
   submit: {
     addIntent: (walletName: string, input: SignedAddIntentInput) =>
-      withRetry(() =>
-        apiRequest<Record<string, unknown>, SignedAddIntentInput>(
-          `/wallets/${encodeURIComponent(walletName)}/intents/add`,
-          "POST",
-          input
-        ),
+      apiRequest<Record<string, unknown>, SignedAddIntentInput>(
+        `/wallets/${encodeURIComponent(walletName)}/intents/add`,
+        "POST",
+        input
       ),
     removeIntent: (walletName: string, input: SignedRemoveIntentInput) =>
-      withRetry(() =>
-        apiRequest<Record<string, unknown>, SignedRemoveIntentInput>(
-          `/wallets/${encodeURIComponent(walletName)}/intents/remove`,
-          "POST",
-          input
-        ),
+      apiRequest<Record<string, unknown>, SignedRemoveIntentInput>(
+        `/wallets/${encodeURIComponent(walletName)}/intents/remove`,
+        "POST",
+        input
       ),
     updateIntent: (walletName: string, input: SignedUpdateIntentInput) =>
-      withRetry(() =>
-        apiRequest<Record<string, unknown>, SignedUpdateIntentInput>(
-          `/wallets/${encodeURIComponent(walletName)}/intents/update`,
-          "POST",
-          input
-        ),
+      apiRequest<Record<string, unknown>, SignedUpdateIntentInput>(
+        `/wallets/${encodeURIComponent(walletName)}/intents/update`,
+        "POST",
+        input
       ),
     createProposal: (walletName: string, input: SignedCreateProposalInput) =>
-      withRetry(() =>
-        apiRequest<Record<string, unknown>, SignedCreateProposalInput>(
-          `/wallets/${encodeURIComponent(walletName)}/proposals`,
-          "POST",
-          input
-        ),
+      apiRequest<Record<string, unknown>, SignedCreateProposalInput>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals`,
+        "POST",
+        input
       ),
     approveProposal: (walletName: string, proposalAddress: string, input: SignedApproveCancelInput) =>
-      withRetry(() =>
-        apiRequest<Record<string, unknown>, SignedApproveCancelInput>(
-          `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/approve`,
-          "POST",
-          input
-        ),
+      apiRequest<Record<string, unknown>, SignedApproveCancelInput>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/approve`,
+        "POST",
+        input
       ),
     cancelProposal: (walletName: string, proposalAddress: string, input: SignedApproveCancelInput) =>
-      withRetry(() =>
-        apiRequest<Record<string, unknown>, SignedApproveCancelInput>(
-          `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/cancel`,
-          "POST",
-          input
-        ),
+      apiRequest<Record<string, unknown>, SignedApproveCancelInput>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/cancel`,
+        "POST",
+        input
       )
   },
 

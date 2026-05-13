@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEPLOY_KEYPAIR="$ROOT_DIR/target/deploy/clear_wallet-keypair.json"
+PAYER_KEYPAIR="${PAYER_KEYPAIR:-$ROOT_DIR/backend-api/keys/payer.json}"
 DEVNET_URL="https://api.devnet.solana.com"
 
 if [[ ! -f "$DEPLOY_KEYPAIR" ]]; then
@@ -12,7 +13,7 @@ if [[ ! -f "$DEPLOY_KEYPAIR" ]]; then
 fi
 
 cd "$ROOT_DIR"
-quasar deploy -u "$DEVNET_URL" --skip-build --program-keypair "$DEPLOY_KEYPAIR"
+quasar deploy -u "$DEVNET_URL" -k "$PAYER_KEYPAIR" --skip-build --program-keypair "$DEPLOY_KEYPAIR"
 
 PROGRAM_ID="$(solana address -k "$DEPLOY_KEYPAIR")"
 echo "Deployed clear-wallet Program ID: $PROGRAM_ID"

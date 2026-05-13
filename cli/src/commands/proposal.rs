@@ -2,6 +2,7 @@ use crate::config::RuntimeConfig;
 use crate::error::*;
 use crate::output::print_json;
 use crate::{accounts, message, params, resolve, rpc};
+use crate::signing::sign_message_with_fallback;
 use clap::Subcommand;
 use solana_sdk::pubkey::Pubkey;
 
@@ -162,6 +163,14 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 &intent_account,
                 &params_data,
             )?;
+            let msg_plain = message::build_plain_message(
+                "propose",
+                expiry_ts,
+                &wallet_account.name,
+                proposal_index,
+                &intent_account,
+                &params_data,
+            )?;
 
             let (proposal_addr, _) = clear_wallet_client::pda::find_proposal_address(
                 &intent_addr,
@@ -188,7 +197,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             }
 
             eprintln!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
-            let signature = config.signer.sign_message(&msg)?;
+            let signature = sign_message_with_fallback(&*config.signer, &msg, &msg_plain)?;
             let proposer_pubkey = config.signer.pubkey();
 
             let payer_pubkey = solana_sdk::signer::Signer::pubkey(&config.payer);
@@ -613,9 +622,19 @@ fn execute_via_ika(
     } else {
         // Load the DKG attestation saved during `wallet add-chain` and use its
         // session_identifier as the dwallet_addr — this must match the value
-        // the mock stored the key under during DKG.
-        let dwallet_attestation = ika::load_attestation(_wallet_name, chain_kind)
-            .with_context(|| "failed to load dWallet attestation")?;
+        // the mock stored the key under during DKG. If the Render disk does
+        // not have the old file, fall back to the on-chain DWalletAttestation
+        // PDA and reconstruct the same payload from chain state.
+        let dwallet_attestation = match ika::load_attestation(_wallet_name, chain_kind) {
+            Ok(att) => att,
+            Err(err) => {
+                eprintln!(
+                    "⚠ local attestation load failed: {err}. Trying on-chain DWalletAttestation PDA."
+                );
+                ika::load_attestation_from_chain(client, &dwallet_program, &dwallet_pk)
+                    .with_context(|| "failed to recover dWallet attestation from chain")?
+            }
+        };
         let dwallet_addr_bytes = {
             let versioned: VersionedDWalletDataAttestation =
                 bcs::from_bytes(&dwallet_attestation.attestation_data)
@@ -913,6 +932,14 @@ fn approve_or_cancel(
         &intent_account,
         &proposal_account.params_data,
     )?;
+    let msg_plain = message::build_plain_message(
+        action,
+        expiry_ts,
+        &wallet_account.name,
+        proposal_account.proposal_index,
+        &intent_account,
+        &proposal_account.params_data,
+    )?;
 
     if config.dry_run {
         crate::output::print_dry_run(&crate::output::DryRunDescriptor {
@@ -931,7 +958,7 @@ fn approve_or_cancel(
     }
 
     eprintln!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
-    let signature = config.signer.sign_message(&msg)?;
+    let signature = sign_message_with_fallback(&*config.signer, &msg, &msg_plain)?;
 
     let ix = if is_approve {
         crate::instructions::approve(
