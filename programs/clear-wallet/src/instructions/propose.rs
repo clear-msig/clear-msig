@@ -62,22 +62,20 @@ impl<'info> Propose<'info> {
             self.intent.validate_param_constraints(args.params_data)?;
         }
 
+        let ctx = MessageContext {
+            expiry: args.expiry,
+            action: "propose",
+            wallet_name: self.wallet.name(),
+            proposal_index,
+        };
+
         let mut msg_buf = MessageBuilder::new();
-        msg_buf.build_message_for_intent(
-            &MessageContext { expiry: args.expiry, action: "propose", wallet_name: self.wallet.name(), proposal_index },
-            &self.intent,
-            args.params_data,
-        )?;
+        msg_buf.build_message_for_intent(&ctx, &self.intent, args.params_data)?;
 
         let v1 = brine_ed25519::sig_verify(args.proposer_pubkey, args.signature, msg_buf.as_bytes());
         if v1.is_err() {
-            let mut plain_buf = MessageBuilder::new();
-            plain_buf.build_plain_message_for_intent(
-                &MessageContext { expiry: args.expiry, action: "propose", wallet_name: self.wallet.name(), proposal_index },
-                &self.intent,
-                args.params_data,
-            )?;
-            brine_ed25519::sig_verify(args.proposer_pubkey, args.signature, plain_buf.as_bytes())
+            msg_buf.build_plain_message_for_intent(&ctx, &self.intent, args.params_data)?;
+            brine_ed25519::sig_verify(args.proposer_pubkey, args.signature, msg_buf.as_bytes())
                 .map_err(|_| WalletError::InvalidSignature)?;
         }
 

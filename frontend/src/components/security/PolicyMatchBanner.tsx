@@ -89,8 +89,7 @@ export function PolicyMatchBanner({ walletName, evaluation }: Props) {
             </p>
             <p className="mt-1 text-text-soft">
               On top of the wallet&rsquo;s usual threshold, this rule
-              requires additional signers before the send can execute.
-              You can still propose now; the extras get pinged.{" "}
+              requires additional signers before the send can execute.{" "}
               <Link
                 href={ruleHref}
                 className="font-medium text-warning hover:text-warning/80"

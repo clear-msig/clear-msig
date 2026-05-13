@@ -78,6 +78,7 @@ import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { chainByKind } from "@/lib/retail/chains";
 import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
+import { resolvePolicyEnforcement } from "@/lib/policies/enforce";
 
 type Stage = "compose" | "sending" | "sent";
 const STAGE_TRANSITION = {
@@ -627,11 +628,11 @@ function SendPage() {
       if (typeof proposal !== "string" || proposal.length === 0) {
         return submitted;
       }
+      const intent = firstIntent.account;
 
       // 4. If the user is also an approver, flip their bit - but
       //    only if propose didn't already do it on chain (program
       //    auto-approves proposer when proposer ∈ approvers).
-      const intent = firstIntent.account;
       const userIsApprover = intent.approvers.includes(me);
       const decision = await approveIfNeeded(connection, proposal);
       if (userIsApprover && decision.needsApproveSignature) {
@@ -655,6 +656,67 @@ function SendPage() {
           // their friends) can approve it later from the inbox.
           console.warn("[send] propose ok but approve step failed", err);
           return submitted;
+        }
+      }
+
+      const policyPlan = await resolvePolicyEnforcement(walletName, {
+        walletName,
+        chainKind: 0,
+        recipient: destination,
+        ticker: "SOL",
+        amountDisplay: amount,
+      });
+      if (policyPlan.evaluation?.matched) {
+        if (policyPlan.rule?.action === "require-extra-approvers") {
+          const alreadyCovered = new Set<string>([me]);
+          const uniqueExtraApprovers = policyPlan.extraApprovers.filter((addr) => {
+            const normalized = addr.trim();
+            if (!normalized || alreadyCovered.has(normalized)) return false;
+            alreadyCovered.add(normalized);
+            return true;
+          });
+
+          if (uniqueExtraApprovers.length === 0) {
+            throw new Error(
+              `Policy "${policyPlan.rule.name}" requires extra approvers, but none were configured.`,
+            );
+          }
+
+          for (const extraApprover of uniqueExtraApprovers) {
+            const extraSigner = wallet.pickSigner([extraApprover]);
+            if (!extraSigner) {
+              throw new Error(
+                `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but none of your connected wallets can sign as that approver.`,
+              );
+            }
+            if (!intent.approvers.includes(extraApprover)) {
+              throw new Error(
+                `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but that signer is not in the wallet's approver list.`,
+              );
+            }
+
+            setPhase("approving");
+            const extraDry = await backendApi.prepare.approveProposal(
+              walletName,
+              proposal,
+              { actor_pubkey: extraSigner.toBase58() },
+            );
+            const extraSigned = await signDescriptor(extraDry, {
+              preferSigner: extraSigner,
+            });
+            await backendApi.submit.approveProposal(walletName, proposal, {
+              ...extraSigned,
+              expiry: extraDry.expiry,
+            });
+          }
+        } else if (
+          policyPlan.rule?.action === "require-cooldown" &&
+          policyPlan.extraCooldownSeconds > 0
+        ) {
+          setPhase("cooldown");
+          await new Promise((resolve) =>
+            setTimeout(resolve, policyPlan.extraCooldownSeconds * 1000),
+          );
         }
       }
 
@@ -1572,6 +1634,7 @@ type SendingPhase =
   | "signing"
   | "submitting"
   | "approving"
+  | "cooldown"
   | "executing";
 
 const PHASE_LABEL: Record<SendingPhase, { primary: string; hint: string }> = {
@@ -1590,6 +1653,10 @@ const PHASE_LABEL: Record<SendingPhase, { primary: string; hint: string }> = {
   approving: {
     primary: "Approving the request",
     hint: "Approve the second prompt in your wallet to flip your bit.",
+  },
+  cooldown: {
+    primary: "Waiting out the policy cooldown",
+    hint: "This policy adds extra wait time before the transfer can execute.",
   },
   executing: {
     primary: "Releasing the funds",
