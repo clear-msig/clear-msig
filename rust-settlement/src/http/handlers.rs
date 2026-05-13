@@ -519,8 +519,10 @@ pub async fn chain_confirm(
     .bind(Uuid::new_v4())
     .bind(payload.intent_id)
     .bind(match payload.chain_family {
+        crate::domain::types::ChainFamily::Solana => "solana",
         crate::domain::types::ChainFamily::Evm => "evm",
-        crate::domain::types::ChainFamily::Sui => "sui",
+        crate::domain::types::ChainFamily::Bitcoin => "bitcoin",
+        crate::domain::types::ChainFamily::Zcash => "zcash",
     })
     .bind(&payload.chain_id)
     .bind(&payload.tx_hash)

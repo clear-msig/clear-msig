@@ -30,8 +30,8 @@ use bitcoin::{
     secp256k1::{All, Message, Secp256k1},
     sighash::{EcdsaSighashType, SighashCache},
     transaction::Version,
-    Address, Amount, Network, OutPoint, PrivateKey, PublicKey, ScriptBuf, Sequence, Transaction,
-    TxIn, TxOut, Witness,
+    Address, Amount, CompressedPublicKey, Network, OutPoint, PrivateKey, PublicKey, ScriptBuf,
+    Sequence, Transaction, TxIn, TxOut, Witness,
 };
 use serde::Deserialize;
 
@@ -94,9 +94,9 @@ impl BitcoinSigner {
                 .map_err(|e| anyhow::anyhow!("TREASURY_BTC_ADDRESS network mismatch: {e}"));
         }
         let pk = self.private_key()?;
-        let pubkey = PublicKey::from_private_key(secp, &pk);
-        Address::p2wpkh(&pubkey.into(), self.network()?)
-            .map_err(|e| anyhow::anyhow!("Failed to derive P2WPKH address: {e}"))
+        let pubkey = CompressedPublicKey::from_private_key(secp, &pk)
+            .map_err(|_| anyhow::anyhow!("Bitcoin treasury key must derive a compressed public key"))?;
+        Ok(Address::p2wpkh(&pubkey, self.network()?))
     }
 
     fn esplora_base(&self) -> anyhow::Result<&str> {

@@ -1,6 +1,7 @@
 #![no_std]
 #![cfg_attr(target_os = "solana", feature(register_tool))]
 #![cfg_attr(target_os = "solana", register_tool(quasar))]
+#![allow(unexpected_cfgs)]
 
 use quasar_lang::prelude::*;
 

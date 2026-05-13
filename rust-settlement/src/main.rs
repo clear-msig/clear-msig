@@ -1,4 +1,9 @@
-use axum::{extract::Request, middleware::Next, response::Response};
+use axum::{
+    extract::Request,
+    http::{HeaderValue, Method},
+    middleware::Next,
+    response::Response,
+};
 use rust_settlement::{
     app_state::AppState,
     config::AppConfig,
@@ -11,7 +16,7 @@ use rust_settlement::{
 };
 use std::net::SocketAddr;
 use std::time::Duration;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use tracing::{error, info};
 
 async fn log_requests(request: Request, next: Next) -> Response {
@@ -30,6 +35,39 @@ async fn log_requests(request: Request, next: Next) -> Response {
     );
 
     response
+}
+
+fn build_cors_layer() -> anyhow::Result<CorsLayer> {
+    let allowed = std::env::var("RAMP_ALLOWED_ORIGIN")
+        .or_else(|_| std::env::var("CLEAR_MSIG_ALLOWED_ORIGIN"))
+        .map_err(|_| {
+            anyhow::anyhow!(
+                "RAMP_ALLOWED_ORIGIN or CLEAR_MSIG_ALLOWED_ORIGIN is required for settlement CORS"
+            )
+        })?;
+    let origins: Vec<HeaderValue> = allowed
+        .split(',')
+        .map(str::trim)
+        .filter(|origin| !origin.is_empty())
+        .filter_map(|origin| match HeaderValue::from_str(origin) {
+            Ok(value) => Some(value),
+            Err(error) => {
+                tracing::warn!(%origin, %error, "Skipping malformed CORS origin");
+                None
+            }
+        })
+        .collect();
+
+    if origins.is_empty() {
+        anyhow::bail!(
+            "RAMP_ALLOWED_ORIGIN or CLEAR_MSIG_ALLOWED_ORIGIN must contain at least one valid origin"
+        );
+    }
+
+    Ok(CorsLayer::new()
+        .allow_origin(AllowOrigin::list(origins))
+        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        .allow_headers(Any))
 }
 
 #[tokio::main]
@@ -62,13 +100,8 @@ async fn main() -> anyhow::Result<()> {
         signer_engine: signer_engine.clone(),
     };
 
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
-
     let app = build_router(state)
-        .layer(cors)
+        .layer(build_cors_layer()?)
         .layer(axum::middleware::from_fn(log_requests));
 
     let chain_pool = pool.clone();

@@ -1,0 +1,50 @@
+# Render Blueprint for the clear-msig backend API.
+#
+# Create from Render Dashboard: New > Blueprint > connect this repo.
+# The service builds the existing Dockerfile, which bundles:
+#   - clear-msig-backend-api
+#   - clear-msig CLI
+#   - examples/intents/*
+#
+# Required secrets are marked sync:false and must be filled in the
+# Render dashboard before the service can boot.
+
+services:
+  - type: web
+    runtime: docker
+    name: clear-msig-backend
+    region: virginia
+    plan: starter
+    branch: main
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    numInstances: 1
+    autoDeployTrigger: checksPass
+    disk:
+      name: clear-msig-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: CLEAR_MSIG_URL
+        value: https://api.devnet.solana.com
+      - key: BACKEND_API_BIND
+        value: 0.0.0.0:10000
+      - key: CLEAR_MSIG_ATTESTATION_DIR
+        value: /data/attestations
+      - key: CLEAR_MSIG_ALLOWED_ORIGIN
+        value: https://clearsig.xyz,https://www.clearsig.xyz
+      - key: RUST_LOG
+        value: info
+      - key: CLEAR_MSIG_KEYPAIR_BASE64
+        sync: false
+      - key: CLEAR_MSIG_SIGNER_BASE64
+        sync: false
+      - key: CLEAR_MSIG_DEFAULT_DWALLET_PROGRAM
+        sync: false
+      - key: CLEAR_MSIG_DEFAULT_GRPC_URL
+        sync: false
+      - key: CLEAR_MSIG_DEFAULT_DEST_RPC_URL
+        sync: false

@@ -85,14 +85,6 @@ pub fn build_tx_message(
     let nonce_account = tx_template;
 
     // SysvarRecentBlockHashes
-    let sysvar: [u8; 32] = [
-        0x06, 0xa7, 0xd5, 0x17, 0x19, 0x2c, 0x56, 0x8e,
-        0xe0, 0x8a, 0x84, 0x5f, 0x73, 0xd2, 0x97, 0x88,
-        0xcf, 0x03, 0x5c, 0x31, 0x45, 0xb2, 0x1a, 0xb3,
-        0x44, 0xd8, 0x06, 0x2e, 0xa9, 0x40, 0x00, 0x00,
-    ];
-    let system_program: [u8; 32] = [0u8; 32];
-
     let mut p = 0;
 
     // Header
@@ -105,8 +97,8 @@ pub fn build_tx_message(
     out[p..p + 32].copy_from_slice(signer_pubkey);    p += 32;
     out[p..p + 32].copy_from_slice(nonce_account);     p += 32;
     out[p..p + 32].copy_from_slice(&destination);      p += 32;
-    out[p..p + 32].copy_from_slice(&sysvar);           p += 32;
-    out[p..p + 32].copy_from_slice(&system_program);   p += 32;
+    out[p..p + 32].copy_from_slice(&SYSVAR_RECENT_BLOCKHASHES); p += 32;
+    out[p..p + 32].copy_from_slice(&SYSTEM_PROGRAM);   p += 32;
 
     // Recent blockhash = nonce value
     out[p..p + 32].copy_from_slice(&nonce_value);      p += 32;

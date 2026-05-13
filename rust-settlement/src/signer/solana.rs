@@ -16,11 +16,12 @@ use async_trait::async_trait;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
+    instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
     signature::{read_keypair_file, Keypair, Signer},
-    system_instruction,
     transaction::Transaction,
 };
+use solana_system_interface::{instruction::SystemInstruction, program};
 
 use crate::config::AppConfig;
 
@@ -61,7 +62,7 @@ impl SolanaSigner {
                     bytes.len()
                 );
             }
-            return Keypair::from_bytes(&bytes)
+            return Keypair::try_from(bytes.as_slice())
                 .map_err(|e| anyhow::anyhow!("Invalid Solana keypair bytes: {e}"));
         }
 
@@ -137,7 +138,14 @@ impl ChainSigner for SolanaSigner {
             .map_err(|e| anyhow::anyhow!("Invalid Solana recipient address: {e}"))?;
 
         let lamports = request.amount_minor as u64;
-        let ix = system_instruction::transfer(&payer.pubkey(), &recipient, lamports);
+        let ix = Instruction::new_with_bincode(
+            Pubkey::new_from_array(program::id().to_bytes()),
+            &SystemInstruction::Transfer { lamports },
+            vec![
+                AccountMeta::new(payer.pubkey(), true),
+                AccountMeta::new(recipient, false),
+            ],
+        );
 
         let recent_blockhash = client.get_latest_blockhash().await?;
         let tx = Transaction::new_signed_with_payer(
