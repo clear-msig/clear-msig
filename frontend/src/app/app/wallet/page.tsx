@@ -43,6 +43,7 @@ import {
 import { useRecentActivity, type RecentActivityRow } from "@/lib/hooks/useRecentActivity";
 import { useActionNeeded, type ActionNeededRow } from "@/lib/hooks/useActionNeeded";
 import { useActionNotifications } from "@/lib/hooks/useActionNotifications";
+import { useNotificationFeed } from "@/lib/hooks/useNotificationFeed";
 import { useBatchApprove } from "@/lib/hooks/useBatchApprove";
 import { listBatches } from "@/lib/hooks/useBatchSend";
 import { findVaultAddress, ProposalStatus } from "@/lib/msig";
@@ -66,6 +67,7 @@ export default function WalletDashboard() {
   const { connection } = useConnection();
   const address = wallet.publicKey?.toBase58() ?? "";
   const reduce = useReducedMotion();
+  const notifications = useNotificationFeed(address);
 
   const memberships = useQuery({
     queryKey: ["my-organizations", address],
@@ -152,6 +154,15 @@ export default function WalletDashboard() {
       {/* Action-first ordering: surface what needs the user above the
           wallet grid so a returning user sees their inbox without
           having to scroll past their cards. */}
+      {notifications.rows.length > 0 && (
+        <NotificationInboxSection
+          rows={notifications.rows}
+          unreadCount={notifications.unreadCount}
+          markAllSeen={notifications.markAllSeen}
+          markSeen={notifications.markSeen}
+          reduce={!!reduce}
+        />
+      )}
       {!isFirstVisit && action.rows.length > 0 && (
         <ActionNeededSection rows={action.rows} reduce={!!reduce} />
       )}
@@ -204,6 +215,78 @@ export default function WalletDashboard() {
         </div>
       )}
     </div>
+  );
+}
+
+function NotificationInboxSection({
+  rows,
+  unreadCount,
+  markAllSeen,
+  markSeen,
+  reduce,
+}: {
+  rows: ReturnType<typeof useNotificationFeed>["rows"];
+  unreadCount: number;
+  markAllSeen: ReturnType<typeof useNotificationFeed>["markAllSeen"];
+  markSeen: ReturnType<typeof useNotificationFeed>["markSeen"];
+  reduce: boolean;
+}) {
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+
+  const visible = rows.slice(0, 6);
+  return (
+    <motion.section
+      {...motionProps}
+      transition={{ duration: 0.2 }}
+      className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
+    >
+      <header className="flex items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-sm font-medium text-text-strong">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent/10 text-accent">
+            <Bell className="h-3.5 w-3.5" strokeWidth={2} />
+          </span>
+          Notifications
+        </h2>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-text-soft">{unreadCount}</span>
+          {unreadCount > 0 && (
+            <BadgePill onClick={markAllSeen}>Mark all seen</BadgePill>
+          )}
+        </div>
+      </header>
+      <ul className="mt-3 flex flex-col divide-y divide-border-soft">
+        {visible.map((row) => (
+          <li key={row.id} className="flex items-start gap-3 py-3">
+            <span
+              className={clsx(
+                "mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full",
+                row.seenAt ? "bg-border-soft" : "bg-accent",
+              )}
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-medium text-text-strong">{row.title}</p>
+                <span className="text-[11px] text-text-soft">
+                  {relativeTime(row.createdAt)}
+                </span>
+              </div>
+              <p className="mt-0.5 text-xs text-text-soft">{row.body}</p>
+              {row.href ? (
+                <Link
+                  href={row.href}
+                  onClick={() => markSeen(row.id)}
+                  className="mt-1 inline-flex text-xs font-medium text-accent hover:text-accent-hover"
+                >
+                  Open
+                </Link>
+              ) : null}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </motion.section>
   );
 }
 
@@ -1435,5 +1518,4 @@ function WatchedWalletsSection({
     </section>
   );
 }
-
 

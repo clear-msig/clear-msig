@@ -3,6 +3,7 @@ import nodemailer from "nodemailer";
 import { buildMultisigInviteEmail } from "@/lib/email/templates/multisigInvite";
 import { assertSameOrigin, clientIp } from "@/lib/api/guard";
 import { checkRateLimit } from "@/lib/api/rateLimit";
+import { isWalletRole, type WalletRole } from "@/lib/retail/memberAccess";
 
 class BadRequestError extends Error {}
 class ConfigError extends Error {}
@@ -68,7 +69,10 @@ export async function POST(request: NextRequest) {
       reason?: string;
       inviterAddress?: string;
       invitee?: { address?: string; email?: string };
+      role?: WalletRole;
     };
+
+    const role = body.role && isWalletRole(body.role) ? body.role : "full";
 
     const walletName = requireField("walletName", body.walletName, LIMITS.walletName);
     const inviterAddress = requireField("inviterAddress", body.inviterAddress, LIMITS.address);
@@ -100,7 +104,8 @@ export async function POST(request: NextRequest) {
       walletName,
       reason,
       inviterAddress,
-      inviteeAddress
+      inviteeAddress,
+      role,
     });
 
     await transporter.sendMail({

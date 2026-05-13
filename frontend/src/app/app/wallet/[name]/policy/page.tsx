@@ -15,12 +15,19 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
+import { useConnection } from "@/lib/wallet";
+import { useQuery } from "@tanstack/react-query";
+import { fetchWalletByName } from "@/lib/chain/wallets";
+import { listIntents } from "@/lib/chain/intents";
+import { IntentType, type IntentAccount } from "@/lib/msig";
 import {
   ArrowRight,
   CalendarClock,
   Check,
   Clock,
   Lock,
+  ShieldCheck,
+  Slash,
   Trash2,
   UserCheck,
   Wallet as WalletIcon,
@@ -39,10 +46,16 @@ import {
   type TimeWindow,
 } from "@/lib/retail/policy";
 import { toDisplayName } from "@/lib/retail/walletNames";
+import {
+  templateFileForChainKind,
+} from "@/lib/hooks/useUpdateTimelock";
+import { useUpdateApprovalThreshold } from "@/lib/hooks/useUpdateApprovalThreshold";
 
 export default function PolicyPage() {
   const params = useParams<{ name: string }>();
+  const { connection } = useConnection();
   const reduce = useReducedMotion();
+  const toast = useToast();
   const name = useMemo(() => {
     try {
       return decodeURIComponent(params?.name ?? "");
@@ -50,6 +63,32 @@ export default function PolicyPage() {
       return params?.name ?? "";
     }
   }, [params?.name]);
+  const walletQuery = useQuery({
+    queryKey: ["wallet", name],
+    queryFn: () => fetchWalletByName(connection, name),
+    enabled: name.length > 0,
+    staleTime: 30_000,
+  });
+  const intentsQuery = useQuery({
+    queryKey: ["wallet-intents", walletQuery.data?.pda.toBase58() ?? null],
+    queryFn: async () => {
+      if (!walletQuery.data) return [];
+      return listIntents(
+        connection,
+        walletQuery.data.pda,
+        walletQuery.data.account.intentIndex,
+      );
+    },
+    enabled: !!walletQuery.data,
+    staleTime: 30_000,
+  });
+  const customIntent = useMemo(
+    () =>
+      (intentsQuery.data ?? []).find(
+        (it) => it.account !== null && it.account.intentType === IntentType.Custom,
+      )?.account ?? null,
+    [intentsQuery.data],
+  );
 
   const motionProps = reduce
     ? {}
@@ -97,6 +136,12 @@ export default function PolicyPage() {
         week. Each guardrail blocks before signing.
       </p>
 
+      <ThresholdCard
+        walletName={name}
+        intent={customIntent}
+        loading={walletQuery.isLoading || intentsQuery.isLoading}
+        reduce={!!reduce}
+      />
       <AllowlistCard walletName={name} />
       <TimeWindowCard walletName={name} />
 
@@ -115,6 +160,111 @@ export default function PolicyPage() {
         />
       </section>
     </div>
+  );
+}
+
+function ThresholdCard({
+  walletName,
+  intent,
+  loading,
+  reduce,
+}: {
+  walletName: string;
+  intent: IntentAccount | null;
+  loading: boolean;
+  reduce: boolean;
+}) {
+  const toast = useToast();
+  const update = useUpdateApprovalThreshold();
+  const motionProps = reduce ? {} : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  const [draft, setDraft] = useState<number>(intent?.approvalThreshold ?? 1);
+
+  useEffect(() => {
+    setDraft(intent?.approvalThreshold ?? 1);
+  }, [intent?.approvalThreshold, walletName]);
+
+  if (loading) {
+    return (
+      <section className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-7">
+        <div className="h-5 w-40 animate-pulse rounded bg-border-soft" />
+        <div className="mt-3 h-4 w-72 animate-pulse rounded bg-border-soft" />
+      </section>
+    );
+  }
+  if (!intent) return null;
+
+  const memberCount = intent.approvers.length;
+  const current = intent.approvalThreshold;
+  const canDecrease = draft > 1;
+  const canIncrease = draft < memberCount;
+
+  const apply = async () => {
+    try {
+      await update.mutateAsync({
+        walletName,
+        intentIndex: intent.intentIndex,
+        newThreshold: draft,
+        templateFile: templateFileForChainKind(intent.chainKind),
+      });
+      toast.success(`Approval quorum set to ${draft} of ${memberCount}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't change quorum");
+    }
+  };
+
+  return (
+    <motion.section
+      {...motionProps}
+      transition={{ duration: 0.2 }}
+      className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-7"
+    >
+      <header className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+          <ShieldCheck className="h-5 w-5" strokeWidth={1.75} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display text-lg leading-tight text-text-strong">
+            Approval quorum
+          </h2>
+          <p className="mt-1 text-sm text-text-soft">
+            Right now this rule uses {current} of {memberCount}. Move it up to
+            2-of-2 or 3-of-3 when you want everyone to sign.
+          </p>
+        </div>
+      </header>
+
+      <div className="mt-5 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setDraft((n) => Math.max(1, n - 1))}
+          disabled={!canDecrease || update.isPending}
+          className="inline-flex h-10 w-10 items-center justify-center rounded-soft border border-border-soft bg-canvas text-text-soft transition-colors hover:text-text-strong disabled:opacity-50"
+          aria-label="Lower quorum"
+        >
+          <Slash className="h-4 w-4" aria-hidden="true" />
+        </button>
+        <div className="min-w-0 rounded-soft border border-border-soft bg-canvas px-4 py-2 text-sm font-medium text-text-strong">
+          {draft} of {memberCount}
+        </div>
+        <button
+          type="button"
+          onClick={() => setDraft((n) => Math.min(memberCount, n + 1))}
+          disabled={!canIncrease || update.isPending}
+          className="inline-flex h-10 w-10 items-center justify-center rounded-soft border border-border-soft bg-canvas text-text-soft transition-colors hover:text-text-strong disabled:opacity-50"
+          aria-label="Raise quorum"
+        >
+          <Check className="h-4 w-4 rotate-45" aria-hidden="true" />
+        </button>
+        <Button onClick={apply} disabled={draft === current || update.isPending}>
+          {update.isPending ? "Updating…" : "Save quorum"}
+        </Button>
+      </div>
+
+      <p className="mt-3 text-xs text-text-soft">
+        This changes the on-chain approval threshold only. It does not
+        remove members or change the timelock.
+      </p>
+    </motion.section>
   );
 }
 

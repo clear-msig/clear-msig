@@ -17,10 +17,17 @@
 // so it doesn't grow unboundedly.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
+import { useRecentActivity } from "@/lib/hooks/useRecentActivity";
+import { fetchOnchainMemberships } from "@/lib/memberships/client";
 import { useWallet } from "@/lib/wallet";
 import { friendlyIntentLabel } from "@/lib/retail/labels";
 import { toDisplayName } from "@/lib/retail/walletNames";
+import {
+  describeRolesRights,
+  describeRolesSummary,
+} from "@/lib/retail/memberAccess";
 import {
   EMAIL_THROTTLE_MS,
   fireNotificationEmail,
@@ -32,6 +39,9 @@ import {
   loadWebhookPrefs,
   shouldFireWebhook,
 } from "@/lib/security/webhookNotifications";
+import {
+  recordNotificationFeed,
+} from "@/lib/security/notificationFeed";
 
 type PermissionState = "default" | "granted" | "denied" | "unsupported";
 
@@ -98,8 +108,15 @@ export interface UseActionNotificationsResult {
 
 export function useActionNotifications(): UseActionNotificationsResult {
   const { rows } = useActionNeeded();
+  const recent = useRecentActivity(Number.POSITIVE_INFINITY);
   const wallet = useWallet();
   const userAddress = wallet.publicKey?.toBase58() ?? "";
+  const memberships = useQuery({
+    queryKey: ["notification-memberships", userAddress],
+    queryFn: () => fetchOnchainMemberships(userAddress),
+    enabled: userAddress.length > 0,
+    staleTime: 30_000,
+  });
 
   const [permission, setPermission] = useState<PermissionState>(() =>
     detectPermission(),
@@ -108,6 +125,10 @@ export function useActionNotifications(): UseActionNotificationsResult {
 
   const seenRef = useRef<Set<string>>(new Set());
   const hydratedRef = useRef(false);
+  const seenProposalRef = useRef<Set<string>>(new Set());
+  const seenMembershipRef = useRef<Map<string, string>>(new Map());
+  const proposalHydratedRef = useRef(false);
+  const membershipHydratedRef = useRef(false);
 
   // Hydrate the seen set on first user load. Re-hydrates when the
   // connected wallet changes - different identities, different
@@ -115,6 +136,11 @@ export function useActionNotifications(): UseActionNotificationsResult {
   useEffect(() => {
     seenRef.current = loadSeen(userAddress);
     hydratedRef.current = true;
+  }, [userAddress]);
+
+  useEffect(() => {
+    seenProposalRef.current = loadProposalSeen(userAddress);
+    seenMembershipRef.current = loadMembershipSeen(userAddress);
   }, [userAddress]);
 
   // Keep the permission state fresh when the user changes it from
@@ -145,6 +171,22 @@ export function useActionNotifications(): UseActionNotificationsResult {
     for (const r of fresh) seen.add(r.proposalPda);
     persistSeen(userAddress, seen);
 
+    // Persist the feed entry regardless of whether browser
+    // notifications are allowed. The in-app inbox should still
+    // show the pending request even on tabs where Notification is
+    // denied or the page is foreground.
+    const FIRE_CAP = 3;
+    const fired = fresh.slice(0, FIRE_CAP);
+    for (const r of fired) {
+      recordNotificationFeed(userAddress, {
+        kind: "pending_approval",
+        walletName: r.walletName,
+        title: `${toDisplayName(r.walletName) || r.walletName} needs your approval`,
+        body: `${friendlyIntentLabel(r.intentTemplate)} · ${r.approvalsCollected}/${r.approverCount} approved`,
+        href: `/app/proposals/${encodeURIComponent(r.proposalPda)}`,
+      });
+    }
+
     if (window.Notification.permission !== "granted") return;
     if (typeof document !== "undefined" && document.visibilityState === "visible") {
       // User's already on the page - no point pinging them. We
@@ -156,8 +198,6 @@ export function useActionNotifications(): UseActionNotificationsResult {
     // Cap how many we fire at once. A flurry of N proposals all at
     // once shouldn't spam - show the first 3 and let the badge
     // handle the rest.
-    const FIRE_CAP = 3;
-    const fired = fresh.slice(0, FIRE_CAP);
     for (const r of fired) {
       try {
         const wallet = toDisplayName(r.walletName) || r.walletName;
@@ -201,6 +241,73 @@ export function useActionNotifications(): UseActionNotificationsResult {
     }
   }, [rows, userAddress]);
 
+  useEffect(() => {
+    if (!userAddress) return;
+    if (!proposalHydratedRef.current) {
+      proposalHydratedRef.current = true;
+      seenProposalRef.current = loadProposalSeen(userAddress);
+      return;
+    }
+    const prev = seenProposalRef.current;
+    const next = new Set(prev);
+    for (const row of recent.allRows) {
+      if (row.status !== 0) continue;
+      if (next.has(row.proposalPda)) continue;
+      next.add(row.proposalPda);
+      recordNotificationFeed(userAddress, {
+        kind: "wallet_request",
+        walletName: row.walletName,
+        title: `${toDisplayName(row.walletName) || row.walletName} has a new request`,
+        body: `${friendlyIntentLabel(row.intentTemplate)} · ${row.approvalBitmap} approvals so far`,
+        href: `/app/proposals/${encodeURIComponent(row.proposalPda)}`,
+      });
+    }
+    seenProposalRef.current = next;
+    persistProposalSeen(userAddress, next);
+  }, [recent.allRows, userAddress]);
+
+  useEffect(() => {
+    if (!userAddress || !memberships.data) return;
+    if (!membershipHydratedRef.current) {
+      membershipHydratedRef.current = true;
+      seenMembershipRef.current = loadMembershipSeen(userAddress);
+      return;
+    }
+    const prev = seenMembershipRef.current;
+    const next = new Map(prev);
+    for (const membership of memberships.data) {
+      const roleLabel = membership.roles.slice().sort().join("|");
+      const prevLabel = prev.get(membership.wallet);
+      if (prevLabel === roleLabel) continue;
+      next.set(membership.wallet, roleLabel);
+      const roleText = `${describeRolesSummary(membership.roles)}. ${describeRolesRights(membership.roles)}`;
+      recordNotificationFeed(userAddress, {
+        kind: "membership_change",
+        walletName: membership.wallet_name || membership.wallet,
+        title: `${toDisplayName(membership.wallet_name || membership.wallet) || membership.wallet} updated your access`,
+        body: roleText,
+        href: `/app/wallet/${encodeURIComponent(membership.wallet_name || membership.wallet)}`,
+      });
+      if (window.Notification.permission === "granted") {
+        try {
+          const n = new window.Notification(
+            `${toDisplayName(membership.wallet_name || membership.wallet) || membership.wallet} access updated`,
+            {
+              body: roleText,
+              icon: "/icon",
+              tag: `${membership.wallet}-${roleLabel}`,
+            },
+          );
+          setTimeout(() => n.close(), 4000);
+        } catch {
+          /* noop */
+        }
+      }
+    }
+    seenMembershipRef.current = next;
+    persistMembershipSeen(userAddress, next);
+  }, [memberships.data, userAddress]);
+
   const request = useCallback(async (): Promise<PermissionState> => {
     if (typeof window === "undefined" || !("Notification" in window)) {
       return "unsupported";
@@ -223,6 +330,74 @@ export function useActionNotifications(): UseActionNotificationsResult {
     request,
     lastFiredAt,
   };
+}
+
+const PROPOSAL_SEEN_KEY = "clear.notif-seen-proposals.v1.";
+const MEMBERSHIP_SEEN_KEY = "clear.notif-seen-memberships.v1.";
+
+function loadProposalSeen(userAddress: string): Set<string> {
+  if (typeof window === "undefined" || !userAddress) return new Set();
+  try {
+    const raw = window.localStorage.getItem(PROPOSAL_SEEN_KEY + userAddress);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((x): x is string => typeof x === "string"));
+  } catch {
+    return new Set();
+  }
+}
+
+function persistProposalSeen(userAddress: string, seen: Set<string>): void {
+  if (typeof window === "undefined" || !userAddress) return;
+  try {
+    window.localStorage.setItem(
+      PROPOSAL_SEEN_KEY + userAddress,
+      JSON.stringify(Array.from(seen).slice(-200)),
+    );
+  } catch {
+    /* noop */
+  }
+}
+
+function loadMembershipSeen(userAddress: string): Map<string, string> {
+  if (typeof window === "undefined" || !userAddress) return new Map();
+  try {
+    const raw = window.localStorage.getItem(MEMBERSHIP_SEEN_KEY + userAddress);
+    if (!raw) return new Map();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Map();
+    const out = new Map<string, string>();
+    for (const row of parsed) {
+      if (
+        row &&
+        typeof row === "object" &&
+        typeof row.wallet === "string" &&
+        typeof row.roles === "string"
+      ) {
+        out.set(row.wallet, row.roles);
+      }
+    }
+    return out;
+  } catch {
+    return new Map();
+  }
+}
+
+function persistMembershipSeen(userAddress: string, seen: Map<string, string>): void {
+  if (typeof window === "undefined" || !userAddress) return;
+  try {
+    const rows = Array.from(seen.entries()).map(([wallet, roles]) => ({
+      wallet,
+      roles,
+    }));
+    window.localStorage.setItem(
+      MEMBERSHIP_SEEN_KEY + userAddress,
+      JSON.stringify(rows.slice(-200)),
+    );
+  } catch {
+    /* noop */
+  }
 }
 
 // Best-effort email send for the first row in a fresh pending

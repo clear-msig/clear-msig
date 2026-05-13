@@ -182,7 +182,7 @@ export default function RulesPage() {
       )}
 
       <Link
-        href={`/app/wallet/${encodeURIComponent(name)}/setup`}
+        href={`/app/wallet/${encodeURIComponent(name)}/policy`}
         className={
           "group inline-flex w-full items-center justify-center gap-2 self-start rounded-card border border-dashed border-border-soft bg-surface-raised px-5 py-4 text-sm font-medium text-text-strong shadow-card-rest " +
           "transition-[transform,box-shadow,border-color] duration-base ease-out-soft " +
@@ -191,7 +191,7 @@ export default function RulesPage() {
         }
       >
         <Plus className="h-4 w-4" aria-hidden="true" />
-        Add another rule
+        Adjust policy
       </Link>
 
       {!status.live && (
