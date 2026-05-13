@@ -157,8 +157,7 @@ export async function rebuildAndVerifyMessage(
   }, flavor);
 
   const expected = fromHex(descriptor.message_hex);
-  const expectedBody =
-    flavor === "offchain_v1" ? unwrapOffchain(expected) : expected;
+  const expectedBody = decodeExpectedBody(expected);
 
   if (
     (flavor === "offchain_v1" && !equalBytes(wrapped, expected)) ||
@@ -180,4 +179,12 @@ function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
   return diff === 0;
+}
+
+function decodeExpectedBody(expected: Uint8Array): Uint8Array {
+  try {
+    return unwrapOffchain(expected);
+  } catch {
+    return expected;
+  }
 }
