@@ -19,7 +19,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
-import { useRecentActivity } from "@/lib/hooks/useRecentActivity";
 import { fetchOnchainMemberships } from "@/lib/memberships/client";
 import { useWallet } from "@/lib/wallet";
 import { friendlyIntentLabel } from "@/lib/retail/labels";
@@ -108,7 +107,6 @@ export interface UseActionNotificationsResult {
 
 export function useActionNotifications(): UseActionNotificationsResult {
   const { rows } = useActionNeeded();
-  const recent = useRecentActivity(Number.POSITIVE_INFINITY);
   const wallet = useWallet();
   const userAddress = wallet.publicKey?.toBase58() ?? "";
   const memberships = useQuery({
@@ -125,9 +123,7 @@ export function useActionNotifications(): UseActionNotificationsResult {
 
   const seenRef = useRef<Set<string>>(new Set());
   const hydratedRef = useRef(false);
-  const seenProposalRef = useRef<Set<string>>(new Set());
   const seenMembershipRef = useRef<Map<string, string>>(new Map());
-  const proposalHydratedRef = useRef(false);
   const membershipHydratedRef = useRef(false);
 
   // Hydrate the seen set on first user load. Re-hydrates when the
@@ -136,11 +132,6 @@ export function useActionNotifications(): UseActionNotificationsResult {
   useEffect(() => {
     seenRef.current = loadSeen(userAddress);
     hydratedRef.current = true;
-  }, [userAddress]);
-
-  useEffect(() => {
-    seenProposalRef.current = loadProposalSeen(userAddress);
-    seenMembershipRef.current = loadMembershipSeen(userAddress);
   }, [userAddress]);
 
   // Keep the permission state fresh when the user changes it from
@@ -242,31 +233,6 @@ export function useActionNotifications(): UseActionNotificationsResult {
   }, [rows, userAddress]);
 
   useEffect(() => {
-    if (!userAddress) return;
-    if (!proposalHydratedRef.current) {
-      proposalHydratedRef.current = true;
-      seenProposalRef.current = loadProposalSeen(userAddress);
-      return;
-    }
-    const prev = seenProposalRef.current;
-    const next = new Set(prev);
-    for (const row of recent.allRows) {
-      if (row.status !== 0) continue;
-      if (next.has(row.proposalPda)) continue;
-      next.add(row.proposalPda);
-      recordNotificationFeed(userAddress, {
-        kind: "wallet_request",
-        walletName: row.walletName,
-        title: `${toDisplayName(row.walletName) || row.walletName} has a new request`,
-        body: `${friendlyIntentLabel(row.intentTemplate)} · ${row.approvalBitmap} approvals so far`,
-        href: `/app/proposals/${encodeURIComponent(row.proposalPda)}`,
-      });
-    }
-    seenProposalRef.current = next;
-    persistProposalSeen(userAddress, next);
-  }, [recent.allRows, userAddress]);
-
-  useEffect(() => {
     if (!userAddress || !memberships.data) return;
     if (!membershipHydratedRef.current) {
       membershipHydratedRef.current = true;
@@ -331,34 +297,7 @@ export function useActionNotifications(): UseActionNotificationsResult {
     lastFiredAt,
   };
 }
-
-const PROPOSAL_SEEN_KEY = "clear.notif-seen-proposals.v1.";
 const MEMBERSHIP_SEEN_KEY = "clear.notif-seen-memberships.v1.";
-
-function loadProposalSeen(userAddress: string): Set<string> {
-  if (typeof window === "undefined" || !userAddress) return new Set();
-  try {
-    const raw = window.localStorage.getItem(PROPOSAL_SEEN_KEY + userAddress);
-    if (!raw) return new Set();
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return new Set();
-    return new Set(parsed.filter((x): x is string => typeof x === "string"));
-  } catch {
-    return new Set();
-  }
-}
-
-function persistProposalSeen(userAddress: string, seen: Set<string>): void {
-  if (typeof window === "undefined" || !userAddress) return;
-  try {
-    window.localStorage.setItem(
-      PROPOSAL_SEEN_KEY + userAddress,
-      JSON.stringify(Array.from(seen).slice(-200)),
-    );
-  } catch {
-    /* noop */
-  }
-}
 
 function loadMembershipSeen(userAddress: string): Map<string, string> {
   if (typeof window === "undefined" || !userAddress) return new Map();
