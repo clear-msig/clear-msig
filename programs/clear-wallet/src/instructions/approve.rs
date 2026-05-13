@@ -67,8 +67,22 @@ impl<'info> Approve<'info> {
             self.proposal.params_data(),
         )?;
 
-        brine_ed25519::sig_verify(approver_addr.as_ref(), args.signature, msg_buf.as_bytes())
-            .map_err(|_| WalletError::InvalidSignature)?;
+        let v1 = brine_ed25519::sig_verify(approver_addr.as_ref(), args.signature, msg_buf.as_bytes());
+        if v1.is_err() {
+            let mut plain_buf = MessageBuilder::new();
+            plain_buf.build_plain_message_for_intent(
+                &MessageContext {
+                    expiry: args.expiry,
+                    action: "approve",
+                    wallet_name: self.wallet.name(),
+                    proposal_index: self.proposal.proposal_index.get(),
+                },
+                &self.intent,
+                self.proposal.params_data(),
+            )?;
+            brine_ed25519::sig_verify(approver_addr.as_ref(), args.signature, plain_buf.as_bytes())
+                .map_err(|_| WalletError::InvalidSignature)?;
+        }
 
         self.proposal.set_approval(args.approver_index);
         if self.proposal.approval_count() >= self.intent.approval_threshold {

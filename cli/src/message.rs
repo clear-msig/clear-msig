@@ -37,6 +37,27 @@ fn suffix(wallet_name: &str, proposal_index: u64) -> String {
     format!(" | wallet: {wallet_name} proposal: {proposal_index}")
 }
 
+/// Build the human-readable message body for any intent type.
+pub fn build_message_body(
+    action: &str, expiry: i64, wallet_name: &str,
+    proposal_index: u64, intent: &IntentAccount, params_data: &[u8],
+) -> Result<Vec<u8>> {
+    let raw = match intent.intent_type {
+        0 => build_add_intent_message(action, expiry, wallet_name, proposal_index, params_data),
+        1 => {
+            if params_data.len() != 1 { return Err(anyhow!("RemoveIntent params must be 1 byte")); }
+            build_remove_intent_message(action, expiry, wallet_name, proposal_index, params_data[0])
+        }
+        2 => {
+            if params_data.len() < 2 { return Err(anyhow!("UpdateIntent params must be >1 byte")); }
+            build_update_intent_message(action, expiry, wallet_name, proposal_index, params_data[0], &params_data[1..])
+        }
+        3 => build_custom_intent_message(action, expiry, wallet_name, proposal_index, intent, params_data)?,
+        _ => return Err(anyhow!("unknown intent type {}", intent.intent_type)),
+    };
+    Ok(raw)
+}
+
 /// Build a message for a meta-intent (AddIntent).
 pub fn build_add_intent_message(
     action: &str, expiry: i64, wallet_name: &str,
@@ -99,24 +120,20 @@ fn wrap_offchain(message: Vec<u8>) -> Vec<u8> {
     out
 }
 
+/// Build the plain human-readable bytes without the offchain envelope.
+pub fn build_plain_message(
+    action: &str, expiry: i64, wallet_name: &str,
+    proposal_index: u64, intent: &IntentAccount, params_data: &[u8],
+) -> Result<Vec<u8>> {
+    build_message_body(action, expiry, wallet_name, proposal_index, intent, params_data)
+}
+
 /// Build message for any intent type, wrapped in Solana offchain message format.
 pub fn build_message(
     action: &str, expiry: i64, wallet_name: &str,
     proposal_index: u64, intent: &IntentAccount, params_data: &[u8],
 ) -> Result<Vec<u8>> {
-    let raw = match intent.intent_type {
-        0 => build_add_intent_message(action, expiry, wallet_name, proposal_index, params_data),
-        1 => {
-            if params_data.len() != 1 { return Err(anyhow!("RemoveIntent params must be 1 byte")); }
-            build_remove_intent_message(action, expiry, wallet_name, proposal_index, params_data[0])
-        }
-        2 => {
-            if params_data.len() < 2 { return Err(anyhow!("UpdateIntent params must be >1 byte")); }
-            build_update_intent_message(action, expiry, wallet_name, proposal_index, params_data[0], &params_data[1..])
-        }
-        3 => build_custom_intent_message(action, expiry, wallet_name, proposal_index, intent, params_data)?,
-        _ => return Err(anyhow!("unknown intent type {}", intent.intent_type)),
-    };
+    let raw = build_message_body(action, expiry, wallet_name, proposal_index, intent, params_data)?;
     Ok(wrap_offchain(raw))
 }
 

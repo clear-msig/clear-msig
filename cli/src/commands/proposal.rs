@@ -2,6 +2,7 @@ use crate::config::RuntimeConfig;
 use crate::error::*;
 use crate::output::print_json;
 use crate::{accounts, message, params, resolve, rpc};
+use crate::signing::sign_message_with_fallback;
 use clap::Subcommand;
 use solana_sdk::pubkey::Pubkey;
 
@@ -162,6 +163,14 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 &intent_account,
                 &params_data,
             )?;
+            let msg_plain = message::build_plain_message(
+                "propose",
+                expiry_ts,
+                &wallet_account.name,
+                proposal_index,
+                &intent_account,
+                &params_data,
+            )?;
 
             let (proposal_addr, _) = clear_wallet_client::pda::find_proposal_address(
                 &intent_addr,
@@ -188,7 +197,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             }
 
             eprintln!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
-            let signature = config.signer.sign_message(&msg)?;
+            let signature = sign_message_with_fallback(&*config.signer, &msg, &msg_plain)?;
             let proposer_pubkey = config.signer.pubkey();
 
             let payer_pubkey = solana_sdk::signer::Signer::pubkey(&config.payer);
@@ -913,6 +922,14 @@ fn approve_or_cancel(
         &intent_account,
         &proposal_account.params_data,
     )?;
+    let msg_plain = message::build_plain_message(
+        action,
+        expiry_ts,
+        &wallet_account.name,
+        proposal_account.proposal_index,
+        &intent_account,
+        &proposal_account.params_data,
+    )?;
 
     if config.dry_run {
         crate::output::print_dry_run(&crate::output::DryRunDescriptor {
@@ -931,7 +948,7 @@ fn approve_or_cancel(
     }
 
     eprintln!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
-    let signature = config.signer.sign_message(&msg)?;
+    let signature = sign_message_with_fallback(&*config.signer, &msg, &msg_plain)?;
 
     let ix = if is_approve {
         crate::instructions::approve(

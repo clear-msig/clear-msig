@@ -65,7 +65,7 @@ export function useWallet() {
   }, [solanaWallet]);
 
   // Detect signers that cannot sign clear-msig's offchain-wrapped
-  // messages. Two known cases:
+  // messages. One known case today:
   //
   //   "waas"    - Dynamic's WaaS-SVM connector. Its signMessage decodes
   //               the input bytes as UTF-8 (Buffer.from(bytes).toString())
@@ -74,18 +74,9 @@ export function useWallet() {
   //               useSignWithWallet (the signature is over different
   //               bytes than we asked for).
   //
-  //   "phantom" - Phantom. Per docs.phantom.com/solana/signing-a-message,
-  //               signMessage only accepts UTF-8 or hex-encoded strings.
-  //               Phantom's transaction-detection heuristic refuses bytes
-  //               starting with `\xff` (interprets it as `0x80 | version`
-  //               versioned-tx prefix) and throws "You cannot sign solana
-  //               transactions using sign message". The offchain-message
-  //               magic prefix the Solana spec mandates IS that `\xff`,
-  //               so Phantom currently rejects every clear-msig payload.
-  //
   // Consumers gate banners and CTAs on `signerIssue` so users see the
   // explanation before the failed sign.
-  const signerIssue = useMemo<"waas" | "phantom" | null>(() => {
+  const signerIssue = useMemo<"waas" | null>(() => {
     if (ledger.session) return null; // Ledger always wins.
     if (!solanaWallet) return null;
     // Duck-type the connector identifier; the SDK's WalletConnector type
@@ -95,9 +86,16 @@ export function useWallet() {
     if (!c) return null;
     const id = (c.key ?? c.overrideKey ?? c.name ?? "").toLowerCase();
     if (/dynamicwaas/.test(id)) return "waas";
-    if (/phantom/.test(id)) return "phantom";
     return null;
   }, [solanaWallet, ledger.session]);
+
+  const walletConnectorKey = useMemo(() => {
+    if (!solanaWallet) return "";
+    const c = (solanaWallet as unknown as { connector?: { key?: string; name?: string; overrideKey?: string } }).connector;
+    if (!c) return "";
+    return (c.key ?? c.overrideKey ?? c.name ?? "").toLowerCase();
+  }, [solanaWallet]);
+  const isPhantomWallet = /phantom/.test(walletConnectorKey);
 
   const isUnsupportedSigner = signerIssue !== null;
 
@@ -285,11 +283,13 @@ export function useWallet() {
     /// Backward-compat alias for `isUnsupportedSigner`. New code should
     /// use `signerIssue` for richer copy.
     isLossySigner: isUnsupportedSigner,
-    /// Discriminator for which incompatibility we hit. `null` means the
-    /// signer works. `<UnsupportedSignerBanner>` switches copy on this
-    /// (Phantom's tx heuristic vs WaaS's UTF-8 corruption are different
-    /// causes and deserve different explanations).
+    /// Discriminator for whether the connected signer can use the
+    /// wrapped offchain path. `null` means the signer works.
     signerIssue,
+    /// True when the active Solana wallet is Phantom. Used to route
+    /// the plain-body v2 signing path without marking the wallet as
+    /// broken in the UI.
+    isPhantomWallet,
     /// The user's Dynamic embedded-wallet pubkey when one is minted,
     /// independent of which signer is active. Used by `pickSigner` to
     /// select the right pubkey when the on-chain approver list

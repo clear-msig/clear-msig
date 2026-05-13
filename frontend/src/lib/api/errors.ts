@@ -216,25 +216,6 @@ export function friendlyError(
     };
   }
 
-  // ── Wallet UX: Phantom rejected our offchain envelope ────────
-  // Phantom's signMessage refuses bytes whose first byte looks like a
-  // Solana versioned-transaction prefix (0x80 | version). Solana's
-  // offchain-message spec mandates `\xff` as that first byte, so every
-  // clear-msig payload trips the heuristic. Until Phantom adds a
-  // documented exemption for the spec'd offchain envelope, the user
-  // needs a different wallet.
-  if (bag.walletErrorCode === "phantom_unsupported") {
-    return {
-      title: "Phantom can't sign clear-msig messages right now",
-      body:
-        "Phantom rejects the standard Solana offchain-message format that " +
-        "clear-msig uses for clear-signing. Sign out and reconnect with " +
-        "Solflare, Backpack, or Coinbase Wallet (same picker, different " +
-        "tile). For hardware-tier security, plug in a Ledger from /security. " +
-        "Your Phantom wallet still receives funds and shows balance fine.",
-    };
-  }
-
   // ── Wallet UX: signer mangled the message bytes ───────────────
   // Caught by local ed25519 verify after signing. Common with the
   // Dynamic WaaS-SVM signer's UTF-8 byte conversion bug; the

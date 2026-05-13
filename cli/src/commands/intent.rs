@@ -2,6 +2,7 @@ use crate::config::RuntimeConfig;
 use crate::error::*;
 use crate::output::{print_dry_run, print_json, DryRunDescriptor};
 use crate::{accounts, message, rpc};
+use crate::signing::sign_message_with_fallback;
 use clap::Subcommand;
 use clear_wallet_client::intent_json::IntentTransactionJson;
 use solana_pubkey::Pubkey;
@@ -183,6 +184,14 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
                 &intent_account,
                 &params_data,
             )?;
+            let msg_plain = message::build_plain_message(
+                "propose",
+                expiry_ts,
+                &wallet_account.name,
+                proposal_index,
+                &intent_account,
+                &params_data,
+            )?;
 
             let (proposal_addr, _) = clear_wallet_client::pda::find_proposal_address(
                 &add_intent_addr,
@@ -209,7 +218,7 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
             }
 
             eprintln!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
-            let signature = config.signer.sign_message(&msg)?;
+            let signature = sign_message_with_fallback(&*config.signer, &msg, &msg_plain)?;
             let proposer_pubkey = config.signer.pubkey();
 
             let payer_pubkey = solana_signer::Signer::pubkey(&config.payer);
@@ -276,6 +285,14 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
                 &intent_account,
                 &params_data,
             )?;
+            let msg_plain = message::build_plain_message(
+                "propose",
+                expiry_ts,
+                &wallet_account.name,
+                proposal_index,
+                &intent_account,
+                &params_data,
+            )?;
 
             let (proposal_addr, _) = clear_wallet_client::pda::find_proposal_address(
                 &remove_intent_addr,
@@ -302,7 +319,7 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
             }
 
             eprintln!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
-            let signature = config.signer.sign_message(&msg)?;
+            let signature = sign_message_with_fallback(&*config.signer, &msg, &msg_plain)?;
             let proposer_pubkey = config.signer.pubkey();
 
             let payer_pubkey = solana_signer::Signer::pubkey(&config.payer);
@@ -426,6 +443,14 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
                 &intent_account,
                 &params_data,
             )?;
+            let msg_plain = message::build_plain_message(
+                "propose",
+                expiry_ts,
+                &wallet_account.name,
+                proposal_index,
+                &intent_account,
+                &params_data,
+            )?;
 
             let (proposal_addr, _) = clear_wallet_client::pda::find_proposal_address(
                 &update_intent_addr,
@@ -452,7 +477,7 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
             }
 
             eprintln!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
-            let signature = config.signer.sign_message(&msg)?;
+            let signature = sign_message_with_fallback(&*config.signer, &msg, &msg_plain)?;
             let proposer_pubkey = config.signer.pubkey();
 
             let payer_pubkey = solana_signer::Signer::pubkey(&config.payer);

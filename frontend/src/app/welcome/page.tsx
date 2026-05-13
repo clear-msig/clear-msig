@@ -589,12 +589,9 @@ export default function WelcomePage() {
                   </button>
                   {isBrokenSigner && (
                     <p className="mt-3 text-center font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/50">
-                      {signerIssue === "phantom"
-                        ? "Phantom can't sign clear-msig messages yet."
-                        : "Email/Google sign-in can't sign Solana yet."}{" "}
-                      Use{" "}
-                      <span className="text-[#ccff00]">Solflare</span>,
-                      Backpack, or a Ledger.
+                      Email/Google sign-in can't sign Solana yet. Use{" "}
+                      <span className="text-[#ccff00]">Solflare</span>, Backpack,
+                      or a Ledger.
                     </p>
                   )}
                 </motion.section>

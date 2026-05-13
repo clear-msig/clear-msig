@@ -573,10 +573,8 @@ export default function NewWalletPage() {
 
         {isBrokenSigner && (
           <p className="text-center text-[11px] uppercase tracking-[0.2em] text-text-soft/80">
-            {signerIssue === "phantom"
-              ? "Phantom can't sign clear-msig messages yet."
-              : "Email/Google sign-in can't sign Solana yet."}{" "}
-            Use <span className="text-accent">Solflare</span>, Backpack, or a
+            Email/Google sign-in can't sign Solana yet. Use{" "}
+            <span className="text-accent">Solflare</span>, Backpack, or a
             Ledger.
           </p>
         )}

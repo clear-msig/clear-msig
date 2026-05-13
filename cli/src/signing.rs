@@ -6,6 +6,20 @@ pub trait MessageSigner {
     fn sign_message(&self, message: &[u8]) -> Result<[u8; 64]>;
 }
 
+/// Try the legacy offchain-wrapped bytes first, then the plain body.
+/// This keeps old wallets and legacy proposals working while Phantom
+/// migrates to the plain-body v2 path.
+pub fn sign_message_with_fallback<S: MessageSigner + ?Sized>(
+    signer: &S,
+    wrapped: &[u8],
+    plain: &[u8],
+) -> Result<[u8; 64]> {
+    match signer.sign_message(wrapped) {
+        Ok(sig) => Ok(sig),
+        Err(_) => signer.sign_message(plain),
+    }
+}
+
 /// A signer whose signature was produced elsewhere — a browser wallet, a
 /// trusted HSM, another process — and handed to the CLI verbatim.
 ///

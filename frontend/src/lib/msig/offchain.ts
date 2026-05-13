@@ -23,6 +23,8 @@ export const OFFCHAIN_HEADER_LEN = 20;
 export const OFFCHAIN_VERSION = 0;
 export const OFFCHAIN_FORMAT_RESTRICTED_ASCII = 0;
 
+export type MessageFlavor = "offchain_v1" | "plain_v2";
+
 /// Maximum body length . bound by the u16 length field in the header.
 export const MAX_OFFCHAIN_BODY_LEN = 0xffff;
 
@@ -43,6 +45,10 @@ export function wrapOffchain(body: Uint8Array): Uint8Array {
   out[19] = (body.length >> 8) & 0xff;
   out.set(body, OFFCHAIN_HEADER_LEN);
   return out;
+}
+
+export function usePlainMessage(body: Uint8Array): Uint8Array {
+  return body.slice();
 }
 
 /// Split a wrapped offchain message back into its body. Primarily used
