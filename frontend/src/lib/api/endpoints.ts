@@ -34,17 +34,14 @@ export const backendApi = {
 
   // Bootstrap ops (no user signature required . on-chain instructions are
   // payed for and submitted by the relayer's sponsored-gas keypair).
-  // Bootstrap chains multiple ixns + RPC confirms; bump past the 30s
-  // default so a slow first-time devnet round trip doesn't surface as
-  // a misleading timeout. Wrapped in withRetry so a single transient
-  // RPC blip ("blockhash not found", "node is behind") doesn't fail
-  // the whole flow.
+  // Bootstrap create-wallet is intentionally single-shot. It consumes
+  // a brand-new on-chain account slot, so retrying after the first
+  // submit lands can replay the same instruction against an already
+  // initialized PDA and turn a partial success into a hard failure.
   createWallet: (input: CreateWalletInput) =>
-    withRetry(() =>
-      apiRequest<Record<string, unknown>, CreateWalletInput>("/wallets", "POST", input, {
-        timeoutMs: 60_000,
-      }),
-    ),
+    apiRequest<Record<string, unknown>, CreateWalletInput>("/wallets", "POST", input, {
+      timeoutMs: 60_000,
+    }),
   showWallet: (walletName: string) =>
     apiRequest<Record<string, unknown>>(`/wallets/${encodeURIComponent(walletName)}`, "GET"),
   listWalletChains: (walletName: string) =>
