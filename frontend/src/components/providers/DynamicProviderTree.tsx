@@ -182,6 +182,12 @@ export default function DynamicProviderTree({ environmentId, children }: Props) 
       DynamicWaasSVMConnectors,
       TurnkeySolanaWalletConnectors,
     ],
+    walletsFilter: (wallets) =>
+      wallets.filter((wallet) => {
+        const key = wallet.key.toLowerCase();
+        const name = wallet.name.toLowerCase();
+        return !key.includes("phantom") && !name.includes("phantom");
+      }),
     initialAuthenticationMode: "connect-only",
     deviceRegistrationModal: { enabled: false },
     // The cssOverrides string remaps every load-bearing
