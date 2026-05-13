@@ -13,6 +13,7 @@ Move the backend API from Fly.io to Render with the root `render.yaml`.
    - `CLEAR_MSIG_DEFAULT_DWALLET_PROGRAM`
    - `CLEAR_MSIG_DEFAULT_GRPC_URL`
    - `CLEAR_MSIG_DEFAULT_DEST_RPC_URL`
+   - `CLEAR_MSIG_PROGRAM_ID` (optional; defaults to the fresh devnet program if omitted)
 4. Keep the persistent disk mounted at `/data`; DKG attestations live in
    `/data/attestations`.
 5. Wait for `/health` to pass.
@@ -26,6 +27,7 @@ After Render is healthy, update the Vercel production env var:
 
 ```text
 NEXT_PUBLIC_BACKEND_API_URL=https://clear-msig-backend.onrender.com
+NEXT_PUBLIC_CLEAR_WALLET_PROGRAM_ID=Abf68HjgGyaCqGtu2W9Tg7Kkz5iJoBvAb8e86M6xTkNJ
 ```
 
 Then redeploy the Vercel frontend.
