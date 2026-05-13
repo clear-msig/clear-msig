@@ -622,9 +622,19 @@ fn execute_via_ika(
     } else {
         // Load the DKG attestation saved during `wallet add-chain` and use its
         // session_identifier as the dwallet_addr — this must match the value
-        // the mock stored the key under during DKG.
-        let dwallet_attestation = ika::load_attestation(_wallet_name, chain_kind)
-            .with_context(|| "failed to load dWallet attestation")?;
+        // the mock stored the key under during DKG. If the Render disk does
+        // not have the old file, fall back to the on-chain DWalletAttestation
+        // PDA and reconstruct the same payload from chain state.
+        let dwallet_attestation = match ika::load_attestation(_wallet_name, chain_kind) {
+            Ok(att) => att,
+            Err(err) => {
+                eprintln!(
+                    "⚠ local attestation load failed: {err}. Trying on-chain DWalletAttestation PDA."
+                );
+                ika::load_attestation_from_chain(client, &dwallet_program, &dwallet_pk)
+                    .with_context(|| "failed to recover dWallet attestation from chain")?
+            }
+        };
         let dwallet_addr_bytes = {
             let versioned: VersionedDWalletDataAttestation =
                 bcs::from_bytes(&dwallet_attestation.attestation_data)
