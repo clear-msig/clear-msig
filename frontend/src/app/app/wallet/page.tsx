@@ -40,7 +40,7 @@ import {
   addWatchedWallet,
   removeWatchedWallet,
 } from "@/lib/retail/watchedWallets";
-import { useRecentActivity, type RecentActivityRow } from "@/lib/hooks/useRecentActivity";
+import { type RecentActivityRow } from "@/lib/hooks/useRecentActivity";
 import { useActionNeeded, type ActionNeededRow } from "@/lib/hooks/useActionNeeded";
 import { useActionNotifications } from "@/lib/hooks/useActionNotifications";
 import { useNotificationFeed } from "@/lib/hooks/useNotificationFeed";
@@ -76,8 +76,8 @@ export default function WalletDashboard() {
     staleTime: 30_000,
   });
 
-  const recent = useRecentActivity(5);
   const action = useActionNeeded();
+  const recent = action.activity;
   const watched = useWatchedWallets();
 
   const wallets = memberships.data ?? [];
@@ -1518,4 +1518,3 @@ function WatchedWalletsSection({
     </section>
   );
 }
-

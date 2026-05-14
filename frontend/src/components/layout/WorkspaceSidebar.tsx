@@ -50,7 +50,6 @@ import {
   fetchOnchainMemberships,
   type OnchainMembership,
 } from "@/lib/memberships/client";
-import { useRecentActivity } from "@/lib/hooks/useRecentActivity";
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { avatarGradient } from "@/lib/retail/avatar";
@@ -82,10 +81,10 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
   });
 
   const memberships = myOrganizationsQuery.data ?? [];
-  const recent = useRecentActivity(3);
   // Used by the Home tab badge in the primary nav. Cheap - derives
   // from queries already mounted higher up the tree.
   const action = useActionNeeded();
+  const recent = action.activity;
   const pendingCount = action.rows.length;
 
   // Pull the active wallet slug out of the path so wallet-scoped

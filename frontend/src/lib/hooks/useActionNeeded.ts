@@ -11,7 +11,10 @@
 
 import { useMemo } from "react";
 import { useWallet } from "@/lib/wallet";
-import { useRecentActivity } from "@/lib/hooks/useRecentActivity";
+import {
+  useRecentActivity,
+  type RecentActivityResult,
+} from "@/lib/hooks/useRecentActivity";
 import { useUserIntents } from "@/lib/hooks/useUserIntents";
 import { ProposalStatus } from "@/lib/msig";
 
@@ -93,5 +96,9 @@ export function useActionNeeded() {
   }, [address, proposals.allRows, intents.rows]);
 
   const loading = proposals.loading || intents.loading;
-  return { rows, loading };
+  return {
+    rows,
+    loading,
+    activity: proposals as RecentActivityResult,
+  };
 }

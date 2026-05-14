@@ -42,7 +42,14 @@ export interface RecentActivityRow {
   intentTemplate: string;
 }
 
-export function useRecentActivity(limit = 5) {
+export interface RecentActivityResult {
+  rows: RecentActivityRow[];
+  allRows: RecentActivityRow[];
+  pendingByWallet: Map<string, number>;
+  loading: boolean;
+}
+
+export function useRecentActivity(limit = 5): RecentActivityResult {
   const wallet = useWallet();
   const { connection } = useConnection();
   const address = wallet.publicKey?.toBase58() ?? "";
