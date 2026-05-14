@@ -50,7 +50,6 @@ import {
   fetchOnchainMemberships,
   type OnchainMembership,
 } from "@/lib/memberships/client";
-import { useRecentActivity } from "@/lib/hooks/useRecentActivity";
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { avatarGradient } from "@/lib/retail/avatar";
@@ -82,10 +81,10 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
   });
 
   const memberships = myOrganizationsQuery.data ?? [];
-  const recent = useRecentActivity(3);
   // Used by the Home tab badge in the primary nav. Cheap - derives
   // from queries already mounted higher up the tree.
   const action = useActionNeeded();
+  const recent = action.activity;
   const pendingCount = action.rows.length;
 
   // Pull the active wallet slug out of the path so wallet-scoped
@@ -442,7 +441,7 @@ function WorkspaceActions({
 // Sub-nav entries map directly to the routes under /app/wallet/[name]/
 // so each link has a real target. Active state matches by
 // pathname.startsWith(href) so deep drill-downs (e.g. /send/eth,
-// /policies/[id]) still highlight the correct top-level entry. The
+// /policy#approvals) still highlight the correct top-level entry. The
 // Overview entry is exact-match only - any sub-route should claim
 // its own tab, not Overview.
 
@@ -454,7 +453,7 @@ const WALLET_SUB_NAV: { sub: string; label: string; Icon: LucideIcon }[] = [
   { sub: "members", label: "Members", Icon: Users },
   { sub: "activity", label: "Activity", Icon: ActivityIcon },
   { sub: "chains", label: "Chains", Icon: Layers },
-  { sub: "policies", label: "Policies", Icon: Shield },
+  { sub: "policy", label: "Policy", Icon: Shield },
   { sub: "settings", label: "Settings", Icon: Settings },
 ];
 
@@ -477,6 +476,9 @@ function WalletScopedSidebar({
   function isActive(sub: string): boolean {
     const href = sub ? `${base}/${sub}` : base;
     if (pathname === href) return true;
+    if (sub === "policy" && pathname.startsWith(`${base}/policies`)) {
+      return true;
+    }
     if (sub) return pathname.startsWith(`${href}/`);
     // Overview is exact-match only - any sub-route owns its own tab.
     return false;

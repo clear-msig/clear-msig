@@ -282,7 +282,7 @@ export default function WalletDetailPage() {
 //
 // Phantom / Rainbow precedent: a wallet detail screen is a vertical
 // dump in two ways - Hero on top, then a tabbed feed below. We
-// already moved primary actions (Send / Receive / Policies) to the
+// already moved primary actions (Send / Receive / Policy) to the
 // Hero tile row; the tabs here own the long-tail of content that
 // previously stacked into 12 sections.
 //
@@ -730,7 +730,7 @@ function Hero({
 
       {/* ── Balance + actions card ──────────────────────────────
           Wallet value as the focal headline; the three primary
-          actions (Send / Receive / Policies) sit underneath as
+          actions (Send / Receive / Policy) sit underneath as
           first-class affordances. A soft accent bloom in the
           top-right lifts the card off the canvas without
           competing with the number. */}
@@ -774,10 +774,10 @@ function Hero({
               hint="Get paid"
             />
             <HeroActionTile
-              href={`/app/wallet/${encoded}/policies`}
+              href={`/app/wallet/${encoded}/policy`}
               icon={<ShieldCheck className="h-5 w-5" strokeWidth={1.75} />}
-              label="Policies"
-              hint="Spending rules"
+              label="Policy"
+              hint="Controls"
             />
           </div>
         </div>
@@ -1232,13 +1232,13 @@ function ChainTxHistorySection({
 // ─── Manage tab actions ────────────────────────────────────────────
 //
 // The Manage tab owns wallet-level configuration and second-tier
-// money flows. Send / Receive / Policies live in the Hero - replicating
+// money flows. Send / Receive / Policy live in the Hero - replicating
 // them here was clutter, so this row is now strictly "things I do less
 // often, but still need":
 //   • Set up sending  - only when the wallet has no intents yet (gates
 //     the entire send flow). Treated as an accent prompt card so it
 //     doesn't read as just another row.
-//   • Configure       - Members / Chains / Policies / Settings
+//   • Configure       - Members / Chains / Policy / Settings
 //   • Money           - Buy with naira / Sell to bank (NGN ↔ crypto)
 //
 // Each row uses the icon + title + description + chevron pattern from
@@ -1309,16 +1309,16 @@ function Actions({
           body="Bind ETH, BTC, or Zcash for multi-chain sending."
         />
         <ActionRow
-          href={`/app/wallet/${encoded}/policies`}
+          href={`/app/wallet/${encoded}/policy`}
           icon={ShieldCheck}
-          title="Policies"
-          body="Approval thresholds and per-friend allowances."
+          title="Policy"
+          body="Approvals, rules, limits, and notifications."
         />
         <ActionRow
           href={`/app/wallet/${encoded}/settings`}
           icon={SettingsIcon}
           title="Wallet settings"
-          body="Rename, weekly budget, intent rules."
+          body="Low-frequency wallet administration."
         />
       </ActionGroup>
 
@@ -2055,4 +2055,3 @@ function BudgetStripe({ name }: { name: string }) {
     </Link>
   );
 }
-

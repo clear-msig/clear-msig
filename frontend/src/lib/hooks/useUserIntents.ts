@@ -39,6 +39,9 @@ export function useUserIntents() {
     queryFn: () => fetchOnchainMemberships(address),
     enabled: address.length > 0,
     staleTime: 30_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
 
   const walletQueries = useQueries({
@@ -78,6 +81,9 @@ export function useUserIntents() {
         },
         enabled: ready,
         staleTime: 15_000,
+        refetchInterval: 30_000,
+        refetchIntervalInBackground: false,
+        refetchOnWindowFocus: true,
       };
     }),
   });

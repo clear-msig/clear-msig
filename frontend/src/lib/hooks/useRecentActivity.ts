@@ -42,7 +42,14 @@ export interface RecentActivityRow {
   intentTemplate: string;
 }
 
-export function useRecentActivity(limit = 5) {
+export interface RecentActivityResult {
+  rows: RecentActivityRow[];
+  allRows: RecentActivityRow[];
+  pendingByWallet: Map<string, number>;
+  loading: boolean;
+}
+
+export function useRecentActivity(limit = 5): RecentActivityResult {
   const wallet = useWallet();
   const { connection } = useConnection();
   const address = wallet.publicKey?.toBase58() ?? "";
@@ -52,6 +59,9 @@ export function useRecentActivity(limit = 5) {
     queryFn: () => fetchOnchainMemberships(address),
     enabled: address.length > 0,
     staleTime: 30_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
 
   // Per-wallet account fetches (cache-shared with the wallet detail
@@ -105,6 +115,7 @@ export function useRecentActivity(limit = 5) {
         // burn O(wallets) RPC per 30s on any tab a user has
         // backgrounded for hours.
         refetchIntervalInBackground: false,
+        refetchOnWindowFocus: true,
       };
     }),
   });

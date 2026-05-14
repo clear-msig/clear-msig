@@ -106,7 +106,7 @@ export interface UseActionNotificationsResult {
 }
 
 export function useActionNotifications(): UseActionNotificationsResult {
-  const { rows } = useActionNeeded();
+  const { rows, activity } = useActionNeeded();
   const wallet = useWallet();
   const userAddress = wallet.publicKey?.toBase58() ?? "";
   const memberships = useQuery({
@@ -114,6 +114,9 @@ export function useActionNotifications(): UseActionNotificationsResult {
     queryFn: () => fetchOnchainMemberships(userAddress),
     enabled: userAddress.length > 0,
     staleTime: 30_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
 
   const [permission, setPermission] = useState<PermissionState>(() =>
@@ -123,16 +126,45 @@ export function useActionNotifications(): UseActionNotificationsResult {
 
   const seenRef = useRef<Set<string>>(new Set());
   const hydratedRef = useRef(false);
+  const seenProposalRef = useRef<Set<string>>(new Set());
   const seenMembershipRef = useRef<Map<string, string>>(new Map());
+  const proposalHydratedRef = useRef(false);
   const membershipHydratedRef = useRef(false);
 
   // Hydrate the seen set on first user load. Re-hydrates when the
   // connected wallet changes - different identities, different
   // pending lists.
   useEffect(() => {
-    seenRef.current = loadSeen(userAddress);
-    hydratedRef.current = true;
+    seenRef.current = userAddress ? loadSeen(userAddress) : new Set();
+    seenProposalRef.current = userAddress ? loadProposalSeen(userAddress) : new Set();
+    seenMembershipRef.current = userAddress ? loadMembershipSeen(userAddress) : new Map();
+    hydratedRef.current = userAddress.length > 0;
+    proposalHydratedRef.current = false;
+    membershipHydratedRef.current = false;
   }, [userAddress]);
+
+  useEffect(() => {
+    if (!userAddress) return;
+    if (!proposalHydratedRef.current) {
+      proposalHydratedRef.current = true;
+    }
+    const prev = seenProposalRef.current;
+    const next = new Set(prev);
+    for (const row of activity.allRows) {
+      if (row.status !== 0) continue;
+      if (next.has(row.proposalPda)) continue;
+      next.add(row.proposalPda);
+      recordNotificationFeed(userAddress, {
+        kind: "wallet_request",
+        walletName: row.walletName,
+        title: `${toDisplayName(row.walletName) || row.walletName} has a new request`,
+        body: `${friendlyIntentLabel(row.intentTemplate)} · ready for review`,
+        href: `/app/proposals/${encodeURIComponent(row.proposalPda)}`,
+      });
+    }
+    seenProposalRef.current = next;
+    persistProposalSeen(userAddress, next);
+  }, [activity.allRows, userAddress]);
 
   // Keep the permission state fresh when the user changes it from
   // browser settings without a reload - Chrome fires no event for
@@ -149,7 +181,6 @@ export function useActionNotifications(): UseActionNotificationsResult {
   useEffect(() => {
     if (!hydratedRef.current) return;
     if (!userAddress) return;
-    if (!("Notification" in window)) return;
 
     const seen = seenRef.current;
     const fresh: typeof rows = [];
@@ -178,6 +209,14 @@ export function useActionNotifications(): UseActionNotificationsResult {
       });
     }
 
+    // Email/webhooks are independent of the browser Notification API.
+    // Fire them as soon as the in-app feed records the fresh row.
+    void maybeFireEmail(fired[0]);
+    for (const r of fired) {
+      void maybeFirePendingWebhook(r);
+    }
+
+    if (!("Notification" in window)) return;
     if (window.Notification.permission !== "granted") return;
     if (typeof document !== "undefined" && document.visibilityState === "visible") {
       // User's already on the page - no point pinging them. We
@@ -216,28 +255,12 @@ export function useActionNotifications(): UseActionNotificationsResult {
       }
     }
     setLastFiredAt(Date.now());
-
-    // Also fire an email for the first new pending row when the
-    // user has opted in. Throttled so a burst of N proposals doesn't
-    // produce N inbox pings - first one wins, the badge handles the
-    // rest.
-    void maybeFireEmail(fired[0]);
-
-    // Webhooks fire one event per fresh row (not throttled to one
-    // like email) - ops tooling wants the full feed, not a sample.
-    // Caller of fireWebhook still respects per-event-type opt-in
-    // and walletScope.
-    for (const r of fired) {
-      void maybeFirePendingWebhook(r);
-    }
   }, [rows, userAddress]);
 
   useEffect(() => {
     if (!userAddress || !memberships.data) return;
     if (!membershipHydratedRef.current) {
       membershipHydratedRef.current = true;
-      seenMembershipRef.current = loadMembershipSeen(userAddress);
-      return;
     }
     const prev = seenMembershipRef.current;
     const next = new Map(prev);
@@ -254,7 +277,7 @@ export function useActionNotifications(): UseActionNotificationsResult {
         body: roleText,
         href: `/app/wallet/${encodeURIComponent(membership.wallet_name || membership.wallet)}`,
       });
-      if (window.Notification.permission === "granted") {
+      if ("Notification" in window && window.Notification.permission === "granted") {
         try {
           const n = new window.Notification(
             `${toDisplayName(membership.wallet_name || membership.wallet) || membership.wallet} access updated`,
@@ -297,7 +320,34 @@ export function useActionNotifications(): UseActionNotificationsResult {
     lastFiredAt,
   };
 }
+
+const PROPOSAL_SEEN_KEY = "clear.notif-seen-proposals.v1.";
 const MEMBERSHIP_SEEN_KEY = "clear.notif-seen-memberships.v1.";
+
+function loadProposalSeen(userAddress: string): Set<string> {
+  if (typeof window === "undefined" || !userAddress) return new Set();
+  try {
+    const raw = window.localStorage.getItem(PROPOSAL_SEEN_KEY + userAddress);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((x): x is string => typeof x === "string"));
+  } catch {
+    return new Set();
+  }
+}
+
+function persistProposalSeen(userAddress: string, seen: Set<string>): void {
+  if (typeof window === "undefined" || !userAddress) return;
+  try {
+    window.localStorage.setItem(
+      PROPOSAL_SEEN_KEY + userAddress,
+      JSON.stringify(Array.from(seen).slice(-200)),
+    );
+  } catch {
+    /* noop */
+  }
+}
 
 function loadMembershipSeen(userAddress: string): Map<string, string> {
   if (typeof window === "undefined" || !userAddress) return new Map();
