@@ -4,6 +4,7 @@ use crate::output::print_json;
 use crate::{accounts, message, params, resolve, rpc};
 use crate::signing::sign_message_with_fallback;
 use clap::Subcommand;
+use ika_dwallet_types::{NetworkSignedAttestation, VersionedDWalletDataAttestation};
 use solana_sdk::pubkey::Pubkey;
 
 #[derive(Subcommand)]
@@ -475,7 +476,6 @@ fn execute_via_ika(
     broadcast: bool,
 ) -> Result<()> {
     use crate::ika;
-    use ika_dwallet_types::VersionedDWalletDataAttestation;
     use std::time::Duration;
 
     let chain_kind = intent_account.chain_kind;
@@ -625,22 +625,50 @@ fn execute_via_ika(
         // the mock stored the key under during DKG. If the Render disk does
         // not have the old file, fall back to the on-chain DWalletAttestation
         // PDA and reconstruct the same payload from chain state.
-        let dwallet_attestation = match ika::load_attestation(_wallet_name, chain_kind) {
-            Ok(att) => att,
+        let local_attestation = ika::load_attestation(_wallet_name, chain_kind);
+        let (dwallet_attestation, dwallet_addr_bytes) = match local_attestation {
+            Ok(att) => match attestation_session_for_binding(
+                &att,
+                &dwallet_account.public_key,
+                &cfg.user_pubkey,
+            ) {
+                Ok(session) => (att, session),
+                Err(err) => {
+                    eprintln!(
+                        "⚠ local attestation does not match the current chain binding: {err}. \
+                         Trying on-chain DWalletAttestation PDA."
+                    );
+                    let chain_att =
+                        ika::load_attestation_from_chain(client, &dwallet_program, &dwallet_pk)
+                            .with_context(|| "failed to recover dWallet attestation from chain")?;
+                    let session = attestation_session_for_binding(
+                        &chain_att,
+                        &dwallet_account.public_key,
+                        &cfg.user_pubkey,
+                    )
+                    .with_context(|| {
+                        "on-chain dWallet attestation does not match the current IkaConfig binding"
+                    })?;
+                    (chain_att, session)
+                }
+            },
             Err(err) => {
                 eprintln!(
                     "⚠ local attestation load failed: {err}. Trying on-chain DWalletAttestation PDA."
                 );
-                ika::load_attestation_from_chain(client, &dwallet_program, &dwallet_pk)
-                    .with_context(|| "failed to recover dWallet attestation from chain")?
+                let chain_att =
+                    ika::load_attestation_from_chain(client, &dwallet_program, &dwallet_pk)
+                        .with_context(|| "failed to recover dWallet attestation from chain")?;
+                let session = attestation_session_for_binding(
+                    &chain_att,
+                    &dwallet_account.public_key,
+                    &cfg.user_pubkey,
+                )
+                .with_context(|| {
+                    "on-chain dWallet attestation does not match the current IkaConfig binding"
+                })?;
+                (chain_att, session)
             }
-        };
-        let dwallet_addr_bytes = {
-            let versioned: VersionedDWalletDataAttestation =
-                bcs::from_bytes(&dwallet_attestation.attestation_data)
-                    .with_context(|| "failed to decode dWallet attestation for session_identifier")?;
-            let VersionedDWalletDataAttestation::V1(data) = versioned;
-            data.session_identifier
         };
 
         let presign_id = ika::presign(config, grpc_url, dwallet_addr_bytes, curve, algo)?;
@@ -765,6 +793,43 @@ fn execute_via_ika(
 
 fn hex_lower(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+fn attestation_session_for_binding(
+    attestation: &NetworkSignedAttestation,
+    expected_public_key: &[u8],
+    expected_session_hex: &str,
+) -> Result<[u8; 32]> {
+    let versioned: VersionedDWalletDataAttestation =
+        bcs::from_bytes(&attestation.attestation_data)
+            .with_context(|| "failed to decode dWallet attestation")?;
+    let VersionedDWalletDataAttestation::V1(data) = versioned;
+
+    if data.public_key != expected_public_key {
+        return Err(anyhow!(
+            "attestation public_key={} but current dWallet public_key={}",
+            hex_lower(&data.public_key),
+            hex_lower(expected_public_key),
+        ));
+    }
+
+    let expected_session = parse_hex_local(expected_session_hex)
+        .with_context(|| "failed to decode IkaConfig.user_pubkey session id")?;
+    if expected_session.len() != 32 {
+        return Err(anyhow!(
+            "IkaConfig.user_pubkey must be 32 bytes, got {}",
+            expected_session.len()
+        ));
+    }
+    if data.session_identifier[..] != expected_session[..] {
+        return Err(anyhow!(
+            "attestation session_identifier={} but IkaConfig.user_pubkey={}",
+            hex_lower(&data.session_identifier),
+            expected_session_hex,
+        ));
+    }
+
+    Ok(data.session_identifier)
 }
 
 /// Build the chain-specific [`crate::chains::BroadcastInputs`] payload from
