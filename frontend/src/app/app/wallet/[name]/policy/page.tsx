@@ -22,15 +22,20 @@ import { listIntents } from "@/lib/chain/intents";
 import { IntentType, type IntentAccount } from "@/lib/msig";
 import {
   ArrowRight,
+  Bell,
   CalendarClock,
   Check,
   Clock,
+  Gauge,
+  ListChecks,
   Lock,
   ShieldCheck,
   Slash,
   Trash2,
   UserCheck,
+  Users,
   Wallet as WalletIcon,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/retail/Button";
 import { useToast } from "@/components/ui/Toast";
@@ -50,6 +55,9 @@ import {
   templateFileForChainKind,
 } from "@/lib/hooks/useUpdateTimelock";
 import { useUpdateApprovalThreshold } from "@/lib/hooks/useUpdateApprovalThreshold";
+import { listPolicies, subscribePolicies } from "@/lib/policies/storage";
+import { getBudget } from "@/lib/retail/spendingBudget";
+import { listAllowances } from "@/lib/retail/allowances";
 
 export default function PolicyPage() {
   const params = useParams<{ name: string }>();
@@ -89,6 +97,28 @@ export default function PolicyPage() {
       )?.account ?? null,
     [intentsQuery.data],
   );
+  const [advancedRuleCount, setAdvancedRuleCount] = useState(0);
+  const [budgetLabel, setBudgetLabel] = useState("Not set");
+  const [allowanceCount, setAllowanceCount] = useState(0);
+
+  useEffect(() => {
+    const refresh = () => {
+      setAdvancedRuleCount(listPolicies(name).length);
+      const budget = getBudget(name);
+      if (!budget) {
+        setBudgetLabel("Not set");
+      } else if (budget.weeklyUsd !== null) {
+        setBudgetLabel(`$${budget.weeklyUsd.toLocaleString()} weekly`);
+      } else if (budget.velocityPerDay) {
+        setBudgetLabel(`${budget.velocityPerDay}/day`);
+      } else {
+        setBudgetLabel("Chain caps set");
+      }
+      setAllowanceCount(listAllowances(name).length);
+    };
+    refresh();
+    return subscribePolicies(refresh);
+  }, [name]);
 
   const motionProps = reduce
     ? {}
@@ -131,10 +161,18 @@ export default function PolicyPage() {
       </motion.header>
 
       <p className="max-w-2xl text-sm text-text-soft sm:text-base">
-        Layers of guardrails on top of your wallet&rsquo;s threshold rules.
-        Recipients you allow, hours you allow, caps per person, caps per
-        week. Each guardrail blocks before signing.
+        One place for who approves, who can request, where money can go,
+        and which limits block a bad send before signing.
       </p>
+
+      <PolicyFlow
+        walletName={name}
+        intent={customIntent}
+        loading={walletQuery.isLoading || intentsQuery.isLoading}
+        advancedRuleCount={advancedRuleCount}
+        budgetLabel={budgetLabel}
+        allowanceCount={allowanceCount}
+      />
 
       <ThresholdCard
         walletName={name}
@@ -148,7 +186,7 @@ export default function PolicyPage() {
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <NavCard
           href={`/app/wallet/${encodeURIComponent(name)}/budget`}
-          icon={WalletIcon}
+          icon={Gauge}
           title="Weekly spending cap"
           body="Wallet-wide and per-chain dollar limits."
         />
@@ -158,8 +196,170 @@ export default function PolicyPage() {
           title="Per-person caps"
           body="How much each friend can move on their own."
         />
+        <NavCard
+          href={`/app/wallet/${encodeURIComponent(name)}/policies`}
+          icon={ListChecks}
+          title="Advanced policy rules"
+          body="Extra allow, deny, review, and cooldown checks."
+        />
+        <NavCard
+          href="/app/settings#notifications"
+          icon={Bell}
+          title="Notification preferences"
+          body="How this device alerts you when approvals wait."
+        />
       </section>
     </div>
+  );
+}
+
+function PolicyFlow({
+  walletName,
+  intent,
+  loading,
+  advancedRuleCount,
+  budgetLabel,
+  allowanceCount,
+}: {
+  walletName: string;
+  intent: IntentAccount | null;
+  loading: boolean;
+  advancedRuleCount: number;
+  budgetLabel: string;
+  allowanceCount: number;
+}) {
+  const encoded = encodeURIComponent(walletName);
+  const approverCount = intent?.approvers.length ?? 0;
+  const threshold = intent
+    ? `${intent.approvalThreshold} of ${approverCount}`
+    : loading
+      ? "Loading"
+      : "Not set";
+  const memberStatus = loading && !intent
+    ? "Loading"
+    : approverCount
+      ? `${approverCount} signer${approverCount === 1 ? "" : "s"}`
+      : "No signers";
+  const timelock =
+    intent && intent.timelockSeconds > 0
+      ? `${Math.round(intent.timelockSeconds / 3600)}h hold`
+      : intent
+        ? "No hold"
+        : "Not set";
+
+  const steps: PolicyStep[] = [
+    {
+      href: "#approvals",
+      Icon: ShieldCheck,
+      label: "Approvals",
+      status: threshold,
+      body: "Required signatures before a request can move.",
+    },
+    {
+      href: `/app/wallet/${encoded}/members`,
+      Icon: Users,
+      label: "Members",
+      status: memberStatus,
+      body: "Invite people and assign request or approval rights.",
+    },
+    {
+      href: `/app/wallet/${encoded}/rules`,
+      Icon: Clock,
+      label: "Spending rule",
+      status: timelock,
+      body: "The on-chain intent that powers sending.",
+    },
+    {
+      href: `/app/wallet/${encoded}/budget`,
+      Icon: Gauge,
+      label: "Limits",
+      status: budgetLabel,
+      body: "Weekly, per-chain, and daily send-count caps.",
+    },
+    {
+      href: `/app/wallet/${encoded}/allowances`,
+      Icon: UserCheck,
+      label: "Per-person caps",
+      status: allowanceCount ? `${allowanceCount} set` : "Not set",
+      body: "Individual spending limits for each member.",
+    },
+    {
+      href: `/app/wallet/${encoded}/policies`,
+      Icon: ListChecks,
+      label: "Advanced rules",
+      status: advancedRuleCount ? `${advancedRuleCount} active` : "None",
+      body: "Extra checks for recipients, amounts, and review.",
+    },
+  ];
+
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-display text-lg leading-tight text-text-strong">
+            Policy flow
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm text-text-soft">
+            Configure this wallet in order: members, approvals, spending
+            rule, limits, then optional advanced rules.
+          </p>
+        </div>
+        <Link
+          href={`/app/wallet/${encoded}/settings`}
+          className="inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-3 py-2 text-[11px] font-medium text-text-soft transition-colors hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+        >
+          Wallet settings
+        </Link>
+      </div>
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {steps.map((step) => (
+          <PolicyStepCard key={step.label} step={step} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+interface PolicyStep {
+  href: string;
+  Icon: LucideIcon;
+  label: string;
+  status: string;
+  body: string;
+}
+
+function PolicyStepCard({ step }: { step: PolicyStep }) {
+  const { href, Icon, label, status, body } = step;
+  return (
+    <Link
+      href={href}
+      className={
+        "group flex min-h-[116px] flex-col justify-between rounded-card border border-border-soft bg-canvas p-4 " +
+        "transition-[border-color,transform,box-shadow] duration-base ease-out-soft hover:-translate-y-0.5 hover:shadow-card-rest " +
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+      }
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+          <Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate text-sm font-medium text-text-strong">
+              {label}
+            </p>
+            <ArrowRight
+              className="h-3.5 w-3.5 shrink-0 text-text-soft transition-transform group-hover:translate-x-0.5 group-hover:text-accent"
+              aria-hidden="true"
+            />
+          </div>
+          <p className="mt-1 text-xs text-text-soft">{body}</p>
+        </div>
+      </div>
+      <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+        {status}
+      </p>
+    </Link>
   );
 }
 
@@ -214,6 +414,7 @@ function ThresholdCard({
 
   return (
     <motion.section
+      id="approvals"
       {...motionProps}
       transition={{ duration: 0.2 }}
       className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-7"
@@ -337,7 +538,7 @@ function AllowlistCard({ walletName }: { walletName: string }) {
   );
 
   return (
-    <section className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-7">
+    <section id="recipients" className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-7">
       <header className="flex items-start gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
           <UserCheck className="h-5 w-5" strokeWidth={1.75} />
@@ -514,7 +715,7 @@ function TimeWindowCard({ walletName }: { walletName: string }) {
   };
 
   return (
-    <section className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-7">
+    <section id="time-window" className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-7">
       <header className="flex items-start gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
           <CalendarClock className="h-5 w-5" strokeWidth={1.75} />
@@ -662,7 +863,7 @@ function NavCard({
   body,
 }: {
   href: string;
-  icon: typeof Clock;
+  icon: LucideIcon;
   title: string;
   body: string;
 }) {
@@ -690,6 +891,3 @@ function NavCard({
     </Link>
   );
 }
-
-// Avoid unused-import lint nag for icons exposed for future cards.
-void Check;

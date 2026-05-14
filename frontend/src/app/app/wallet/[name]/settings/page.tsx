@@ -1,17 +1,10 @@
 "use client";
 
-// Wallet settings - one place to find every per-wallet control.
+// Wallet settings - low-frequency wallet administration.
 //
-// Used to live as five competing pills in the wallet hub hero
-// (Spending rules / Weekly limit / Policy / Chains / Privacy-ready).
-// Honest review: three of those pills meant "spending controls" with
-// different names, the chains entry was already reachable from the
-// chain picker on Send, and the privacy pill was product-marketing
-// copy with no per-wallet behaviour.
-//
-// This page is the consolidation. It lists each control with a
-// one-line description and a short status snippet so the user can
-// see what's set without drilling in.
+// Policy is the canonical money-control flow. Settings now points
+// there instead of duplicating rules, budget, and allowlist controls
+// under different names.
 
 import { useMemo } from "react";
 import Link from "next/link";
@@ -53,10 +46,9 @@ export default function WalletSettingsPage() {
   const { connection } = useConnection();
   const encoded = encodeURIComponent(name);
 
-  // Pull the first user intent so we can render a one-line status
-  // summary on the "Spending rules" row ("X of Y signers, Z second
-  // hold"). Cheap query - already cached if the user came from the
-  // hub.
+  // Pull the first user intent so we can render a one-line approval
+  // status on the policy row. Cheap query - already cached if the
+  // user came from the hub.
   const walletQuery = useQuery({
     queryKey: ["wallet", name],
     queryFn: () => fetchWalletByName(connection, name),
@@ -94,23 +86,11 @@ export default function WalletSettingsPage() {
 
   const items: SettingItem[] = [
     {
-      href: `/app/wallet/${encoded}/rules`,
-      label: "Spending rules",
-      hint: "How many signers approve, and how long sends wait before they ship.",
+      href: `/app/wallet/${encoded}/policy`,
+      label: "Policy flow",
+      hint: "Members, approvals, spending rules, limits, and advanced checks.",
       Icon: ShieldCheck,
       status: rulesStatus,
-    },
-    {
-      href: `/app/wallet/${encoded}/budget`,
-      label: "Spending limit",
-      hint: "A weekly cap across every chain. Send refuses to break it.",
-      Icon: ShieldCheck,
-    },
-    {
-      href: `/app/wallet/${encoded}/policy`,
-      label: "Allowlist & friends",
-      hint: "Per-friend caps, time windows, and recipient allowlists.",
-      Icon: ShieldCheck,
     },
     {
       href: `/app/wallet/${encoded}/chains`,
@@ -151,9 +131,8 @@ export default function WalletSettingsPage() {
       </motion.header>
 
       <p className="max-w-2xl text-sm text-text-soft sm:text-base">
-        Everything per-wallet lives here: rules, limits, allowlists, chains.
-        Each section is signed by the wallet&rsquo;s approvers when it
-        changes.
+        Wallet settings are for administration. Money controls live in
+        the policy flow so members do not have to hunt across pages.
       </p>
 
       <ul className="flex flex-col gap-2">

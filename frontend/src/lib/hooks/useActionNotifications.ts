@@ -132,16 +132,18 @@ export function useActionNotifications(): UseActionNotificationsResult {
   // connected wallet changes - different identities, different
   // pending lists.
   useEffect(() => {
-    seenRef.current = loadSeen(userAddress);
-    hydratedRef.current = true;
+    seenRef.current = userAddress ? loadSeen(userAddress) : new Set();
+    seenProposalRef.current = userAddress ? loadProposalSeen(userAddress) : new Set();
+    seenMembershipRef.current = userAddress ? loadMembershipSeen(userAddress) : new Map();
+    hydratedRef.current = userAddress.length > 0;
+    proposalHydratedRef.current = false;
+    membershipHydratedRef.current = false;
   }, [userAddress]);
 
   useEffect(() => {
     if (!userAddress) return;
     if (!proposalHydratedRef.current) {
       proposalHydratedRef.current = true;
-      seenProposalRef.current = loadProposalSeen(userAddress);
-      return;
     }
     const prev = seenProposalRef.current;
     const next = new Set(prev);
@@ -263,8 +265,6 @@ export function useActionNotifications(): UseActionNotificationsResult {
     if (!userAddress || !memberships.data) return;
     if (!membershipHydratedRef.current) {
       membershipHydratedRef.current = true;
-      seenMembershipRef.current = loadMembershipSeen(userAddress);
-      return;
     }
     const prev = seenMembershipRef.current;
     const next = new Map(prev);

@@ -69,24 +69,36 @@ export default function PoliciesPage() {
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       className="flex flex-col gap-6"
     >
-      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div className="flex flex-col gap-1">
           <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
-            Policies
+            Advanced policy rules
           </h1>
           <p className="text-xs text-text-soft sm:text-sm">{summary}</p>
         </div>
-        <Link
-          href="/privacy"
-          className={clsx(
-            "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-[11px] font-medium text-text-soft",
-            "transition-colors duration-base ease-out-soft hover:text-accent",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-          {status.live ? "Encryption active" : "Encryption-ready · pre-alpha"}
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={`/app/wallet/${encodeURIComponent(name)}/policy`}
+            className={clsx(
+              "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-[11px] font-medium text-text-soft",
+              "transition-colors duration-base ease-out-soft hover:text-accent",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+            )}
+          >
+            Policy flow
+          </Link>
+          <Link
+            href="/privacy"
+            className={clsx(
+              "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-[11px] font-medium text-text-soft",
+              "transition-colors duration-base ease-out-soft hover:text-accent",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+            )}
+          >
+            <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
+            {status.live ? "Encryption active" : "Encryption-ready · pre-alpha"}
+          </Link>
+        </div>
       </header>
 
       <div className="flex flex-wrap items-center gap-2">
