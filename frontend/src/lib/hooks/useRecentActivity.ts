@@ -59,6 +59,9 @@ export function useRecentActivity(limit = 5): RecentActivityResult {
     queryFn: () => fetchOnchainMemberships(address),
     enabled: address.length > 0,
     staleTime: 30_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
 
   // Per-wallet account fetches (cache-shared with the wallet detail
@@ -112,6 +115,7 @@ export function useRecentActivity(limit = 5): RecentActivityResult {
         // burn O(wallets) RPC per 30s on any tab a user has
         // backgrounded for hours.
         refetchIntervalInBackground: false,
+        refetchOnWindowFocus: true,
       };
     }),
   });

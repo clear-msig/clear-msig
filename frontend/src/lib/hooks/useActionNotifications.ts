@@ -114,6 +114,9 @@ export function useActionNotifications(): UseActionNotificationsResult {
     queryFn: () => fetchOnchainMemberships(userAddress),
     enabled: userAddress.length > 0,
     staleTime: 30_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
 
   const [permission, setPermission] = useState<PermissionState>(() =>
