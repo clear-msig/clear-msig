@@ -722,6 +722,51 @@ fn execute_via_ika(
     ) as usize;
     let onchain_sig = &ma_signed[ika::MA_SIGNATURE..ika::MA_SIGNATURE + onchain_sig_len];
 
+    // Pre-broadcast verification for EVM. Catches the "stale
+    // MessageApproval" case: a prior execute attempt under a
+    // different attestation/binding cached an (r,s) that won't
+    // ecrecover to the current dWallet pubkey, and the reuse path
+    // (`MessageApproval already signed`) would otherwise ship it
+    // straight to broadcast, where `recover_v` errors with the
+    // cryptic "neither v=0 nor v=1 recovers" toast. Failing here
+    // surfaces the same diagnostic dump 30+ seconds earlier and,
+    // when the sig was reused, points the operator at the
+    // fresh-proposal workaround (different params → different
+    // digest → different MessageApproval PDA → fresh sign under
+    // the current — validated — binding).
+    if matches!(chain_kind, 1 | 4) && onchain_sig.len() == 64 {
+        let mut r_arr = [0u8; 32];
+        let mut s_arr = [0u8; 32];
+        r_arr.copy_from_slice(&onchain_sig[..32]);
+        s_arr.copy_from_slice(&onchain_sig[32..]);
+        if let Err(rec_err) = crate::chains::evm::recover_v(
+            &message_hash,
+            &r_arr,
+            &s_arr,
+            &dwallet_account.public_key,
+        ) {
+            let hint = if already_signed {
+                format!(
+                    " This MessageApproval PDA ({message_approval_pk}) was \
+                     signed by a prior execute attempt under a different \
+                     dWallet binding and is now poisoned — the Ika program \
+                     owns the PDA so clear-msig can't close it. To unblock: \
+                     create a new proposal with at least one different \
+                     parameter (e.g. bump the EVM nonce by 1). That yields a \
+                     different keccak256(preimage), a different MessageApproval \
+                     PDA, and a fresh Ika sign under the current binding."
+                )
+            } else {
+                String::new()
+            };
+            return Err(rec_err.context(format!(
+                "on-chain MessageApproval signature does not recover to the \
+                 current dWallet pubkey 0x{}.{hint}",
+                hex_lower(&dwallet_account.public_key),
+            )));
+        }
+    }
+
     let mut output = serde_json::json!({
         "txid":             quorum_tx_sig.to_string(),
         "path":             "ika-dwallet",
