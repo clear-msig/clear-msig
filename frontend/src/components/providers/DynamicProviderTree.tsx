@@ -182,6 +182,12 @@ export default function DynamicProviderTree({ environmentId, children }: Props) 
       DynamicWaasSVMConnectors,
       TurnkeySolanaWalletConnectors,
     ],
+    // Mobile Solana wallets do not behave like desktop extensions:
+    // the app leaves the browser, asks Phantom/Solflare to approve,
+    // then redirects back to Clear. Without redirect mode, that handoff
+    // can re-enter the app with an incomplete connector state and trip
+    // the route error boundary on mobile.
+    mobileExperience: "redirect",
     initialAuthenticationMode: "connect-only",
     deviceRegistrationModal: { enabled: false },
     // The cssOverrides string remaps every load-bearing
