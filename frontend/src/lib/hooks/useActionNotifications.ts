@@ -178,7 +178,6 @@ export function useActionNotifications(): UseActionNotificationsResult {
   useEffect(() => {
     if (!hydratedRef.current) return;
     if (!userAddress) return;
-    if (!("Notification" in window)) return;
 
     const seen = seenRef.current;
     const fresh: typeof rows = [];
@@ -207,6 +206,14 @@ export function useActionNotifications(): UseActionNotificationsResult {
       });
     }
 
+    // Email/webhooks are independent of the browser Notification API.
+    // Fire them as soon as the in-app feed records the fresh row.
+    void maybeFireEmail(fired[0]);
+    for (const r of fired) {
+      void maybeFirePendingWebhook(r);
+    }
+
+    if (!("Notification" in window)) return;
     if (window.Notification.permission !== "granted") return;
     if (typeof document !== "undefined" && document.visibilityState === "visible") {
       // User's already on the page - no point pinging them. We
@@ -245,20 +252,6 @@ export function useActionNotifications(): UseActionNotificationsResult {
       }
     }
     setLastFiredAt(Date.now());
-
-    // Also fire an email for the first new pending row when the
-    // user has opted in. Throttled so a burst of N proposals doesn't
-    // produce N inbox pings - first one wins, the badge handles the
-    // rest.
-    void maybeFireEmail(fired[0]);
-
-    // Webhooks fire one event per fresh row (not throttled to one
-    // like email) - ops tooling wants the full feed, not a sample.
-    // Caller of fireWebhook still respects per-event-type opt-in
-    // and walletScope.
-    for (const r of fired) {
-      void maybeFirePendingWebhook(r);
-    }
   }, [rows, userAddress]);
 
   useEffect(() => {
@@ -281,7 +274,7 @@ export function useActionNotifications(): UseActionNotificationsResult {
         body: roleText,
         href: `/app/wallet/${encodeURIComponent(membership.wallet_name || membership.wallet)}`,
       });
-      if (window.Notification.permission === "granted") {
+      if ("Notification" in window && window.Notification.permission === "granted") {
         try {
           const n = new window.Notification(
             `${toDisplayName(membership.wallet_name || membership.wallet) || membership.wallet} access updated`,
