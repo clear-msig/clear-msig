@@ -324,7 +324,29 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
                 (addr, pk)
             } else {
                 eprintln!("→ Running DKG via gRPC ({grpc_url})...");
-                let dkg_result = ika::dkg(config, &grpc_url, curve)
+                // Derive a per-binding 32-byte session preimage so each
+                // DKG produces a unique session_identifier. Previously
+                // we passed `payer_pubkey` here, which was shared across
+                // every wallet/chain bound by the same payer — Ika's
+                // mock signer keyed dwallets by that identifier and the
+                // most-recent DKG silently overwrote the prior one,
+                // stranding the older on-chain dwallets with sigs
+                // produced under the newer key. Hashing in the wallet
+                // pubkey, chain_kind, and curve makes the preimage
+                // unique per binding without breaking idempotency
+                // (the same binding always derives the same preimage).
+                let session_preimage = {
+                    use sha2::{Digest, Sha256};
+                    let payer_pk = solana_sdk::signer::Signer::pubkey(&config.payer);
+                    let mut hasher = Sha256::new();
+                    hasher.update(payer_pk.to_bytes());
+                    hasher.update(wallet_pubkey.to_bytes());
+                    hasher.update([chain_kind]);
+                    hasher.update(curve_val.to_le_bytes());
+                    let out: [u8; 32] = hasher.finalize().into();
+                    out
+                };
+                let dkg_result = ika::dkg(config, &grpc_url, curve, session_preimage)
                     .with_context(|| "Ika DKG failed")?;
                 eprintln!("✓ DKG complete");
                 eprintln!("  → dWallet address: {}", hex_encode(&dkg_result.dwallet_addr));

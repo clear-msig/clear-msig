@@ -345,14 +345,24 @@ pub struct DkgResult {
 
 /// Run a DKG via Ika gRPC. Returns the full DKG result including the
 /// attestation needed by subsequent Sign calls.
+///
+/// `session_preimage` is the 32-byte value Ika uses to derive the new
+/// dWallet's session identifier — caller must make it unique per
+/// binding (e.g. `sha256(payer || wallet || chain_kind || curve)`),
+/// because every DKG call with the same preimage produces the same
+/// session_identifier and the Ika mock signer overwrites the previous
+/// mapping under that identifier. Passing a per-binding hash here is
+/// what keeps cross-binding sign requests from returning signatures
+/// over the wrong dWallet's key.
 pub fn dkg(
     config: &RuntimeConfig,
     grpc_url: &str,
     curve: DWalletCurve,
+    session_preimage: [u8; 32],
 ) -> Result<DkgResult> {
     let payer_pubkey = config.payer.pubkey();
     let request = SignedRequestData {
-        session_identifier_preimage: payer_pubkey.to_bytes(),
+        session_identifier_preimage: session_preimage,
         epoch: 1,
         chain_id: ChainId::Solana,
         intended_chain_sender: payer_pubkey.to_bytes().to_vec(),
