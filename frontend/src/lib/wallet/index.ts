@@ -189,6 +189,56 @@ export function useWallet() {
         if (!solanaWallet) {
           throw new Error("Connect a wallet before signing");
         }
+        // Phantom mobile in-app browser: bypass the Dynamic SDK and
+        // call window.solana.signMessage(bytes, "utf8") directly so
+        // Phantom renders the body as text instead of raw hex. Going
+        // through Dynamic's signer drops the display hint (the Solana
+        // wallet-adapter signature is `signMessage(bytes)`, no second
+        // arg), so the same bytes that render fine on the extension
+        // come up as a hex blob on mobile. Phantom's own API does
+        // accept the display hint, so we route around the adapter
+        // when Phantom is injected at window.solana.
+        //
+        // Gated tightly: only when (a) we detect mobile, (b) Dynamic
+        // says the active connector is Phantom, (c) window.solana
+        // exists and reports isPhantom, and (d) Phantom's published
+        // pubkey matches the Dynamic-tracked one. If any check fails
+        // we fall through to the standard adapter path. Errors from
+        // Phantom itself (rejected, locked, etc.) propagate verbatim
+        // — falling back would mean a second popup.
+        if (isMobile && isPhantomWallet && typeof window !== "undefined") {
+          const phantom = (
+            window as unknown as {
+              solana?: {
+                isPhantom?: boolean;
+                publicKey?: { toString(): string };
+                signMessage?: (
+                  b: Uint8Array,
+                  display?: string,
+                ) => Promise<unknown>;
+              };
+            }
+          ).solana;
+          const phantomPk = phantom?.publicKey?.toString();
+          const dynamicPk = dynamicPublicKey?.toBase58();
+          if (
+            phantom?.isPhantom &&
+            typeof phantom.signMessage === "function" &&
+            phantomPk &&
+            dynamicPk &&
+            phantomPk === dynamicPk
+          ) {
+            const result = await phantom.signMessage(bytes, "utf8");
+            if (result instanceof Uint8Array) return result;
+            const sig = (result as { signature?: Uint8Array })?.signature;
+            if (!(sig instanceof Uint8Array)) {
+              throw new Error(
+                "Phantom returned an unexpected signMessage shape",
+              );
+            }
+            return sig;
+          }
+        }
         const signer = await solanaWallet.getSigner();
         const result = await signer.signMessage(bytes);
         // Dynamic returns either Uint8Array directly or {signature: ...}
@@ -204,7 +254,7 @@ export function useWallet() {
         "No signer available. Connect a Ledger or sign in to a wallet.",
       );
     },
-    [solanaWallet, ledger.session, ledgerPublicKey, dynamicPublicKey],
+    [solanaWallet, ledger.session, ledgerPublicKey, dynamicPublicKey, isMobile, isPhantomWallet],
   );
 
   const disconnect = useCallback(async () => {
