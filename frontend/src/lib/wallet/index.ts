@@ -97,6 +97,20 @@ export function useWallet() {
   }, [solanaWallet]);
   const isPhantomWallet = /phantom/.test(walletConnectorKey);
 
+  // Mobile in-app browser detection. On desktop, Phantom + Solflare
+  // extensions decode signMessage bytes and render the body as text in
+  // their confirm modal. On mobile in-app browsers, the same bytes
+  // render as raw hex — same payload, different wallet renderer.
+  // Consumers (WalletPopupNarration) use this to swap the disclaimer
+  // copy from "technical text is normal" to "your wallet will show
+  // hex; verify the preview above".
+  const isMobile = useMemo(
+    () =>
+      typeof navigator !== "undefined" &&
+      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent),
+    [],
+  );
+
   const isUnsupportedSigner = signerIssue !== null;
 
   const ledgerPublicKey = useMemo(() => {
@@ -290,6 +304,13 @@ export function useWallet() {
     /// the plain-body v2 signing path without marking the wallet as
     /// broken in the UI.
     isPhantomWallet,
+    /// True when the browser is on a mobile device. On mobile, the
+    /// Phantom / Solflare in-app browsers render signMessage payloads
+    /// as raw hex instead of decoded text (same bytes as desktop,
+    /// different wallet UI). Surface a stronger "verify the preview
+    /// above" disclaimer so users aren't asked to trust the hex blob
+    /// itself.
+    isMobile,
     /// The user's Dynamic embedded-wallet pubkey when one is minted,
     /// independent of which signer is active. Used by `pickSigner` to
     /// select the right pubkey when the on-chain approver list
