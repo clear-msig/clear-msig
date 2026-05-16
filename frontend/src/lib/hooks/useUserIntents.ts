@@ -80,9 +80,14 @@ export function useUserIntents() {
           return { membership: m, rows };
         },
         enabled: ready,
-        staleTime: 15_000,
-        refetchInterval: 30_000,
-        refetchIntervalInBackground: false,
+        staleTime: 5_000,
+        // Matched to useRecentActivity's cadence so a brand-new intent
+        // and its first proposal can both be visible to the action-
+        // needed feed within the same poll window. Backgrounded polls
+        // continue so a teammate adding an intent + proposing against
+        // it while you're on another tab still produces a timely push.
+        refetchInterval: 10_000,
+        refetchIntervalInBackground: true,
         refetchOnWindowFocus: true,
       };
     }),

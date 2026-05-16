@@ -21,7 +21,8 @@ import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { useConnection } from "@/lib/wallet";
+import { useConnection, useWallet } from "@/lib/wallet";
+import { proposerDisplayName } from "@/lib/retail/proposerName";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, ArrowRight, Banknote, Bell, ChevronDown, Coins, Download, Layers, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users } from "lucide-react";
 import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
@@ -1412,6 +1413,8 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
   const batch = useBatchApprove();
+  const wallet = useWallet();
+  const viewerAddress = wallet.publicKey?.toBase58() ?? "";
   const running =
     batch.progress !== null &&
     batch.progress.completed < batch.progress.total &&
@@ -1465,31 +1468,42 @@ function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
         )}
 
         <ul className="mt-3 flex flex-col divide-y divide-border-soft">
-          {rows.map((row) => (
-            <li key={row.proposalPda}>
-              <Link
-                href={`/app/proposals/${row.proposalPda}`}
-                className={
-                  "group flex items-center justify-between gap-3 rounded-soft px-2 py-3 -mx-2 " +
-                  "transition-colors duration-base ease-out-soft hover:bg-canvas " +
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-                }
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-text-strong">
-                    {friendlyIntentLabel(row.intentTemplate)}
-                  </p>
-                  <p className="mt-0.5 truncate font-mono text-[11px] text-text-soft">
-                    {row.approvalsCollected} of {row.approverCount} approved
-                  </p>
-                </div>
-                <ArrowRight
-                  className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
-                  aria-hidden="true"
-                />
-              </Link>
-            </li>
-          ))}
+          {rows.map((row) => {
+            const label = row.intentPending
+              ? "New request · details loading"
+              : friendlyIntentLabel(row.intentTemplate);
+            const who = proposerDisplayName(row.proposer, viewerAddress);
+            const ago = relativeTime(row.proposedAt);
+            const tally =
+              row.approverCount > 0
+                ? `${row.approvalsCollected} of ${row.approverCount} approved`
+                : "awaiting approval";
+            return (
+              <li key={row.proposalPda}>
+                <Link
+                  href={`/app/proposals/${row.proposalPda}`}
+                  className={
+                    "group flex items-center justify-between gap-3 rounded-soft px-2 py-3 -mx-2 " +
+                    "transition-colors duration-base ease-out-soft hover:bg-canvas " +
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+                  }
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-text-strong">
+                      {label}
+                    </p>
+                    <p className="mt-0.5 truncate text-[11px] text-text-soft">
+                      by {who} · {ago} · {tally}
+                    </p>
+                  </div>
+                  <ArrowRight
+                    className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
+                    aria-hidden="true"
+                  />
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       </div>
     </motion.section>
