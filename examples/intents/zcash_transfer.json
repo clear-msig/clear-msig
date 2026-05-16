@@ -17,5 +17,5 @@
     { "name": "recipient_pkh",   "type": "bytes20" },
     { "name": "send_amount_zat", "type": "u64" }
   ],
-  "template": "send {5} zatoshi to pkh:{4} (input {0}:{1})"
+  "template": "send {5:10^8} ZEC to pkh:{4} (input {0}:{1})"
 }

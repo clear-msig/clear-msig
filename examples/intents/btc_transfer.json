@@ -16,5 +16,5 @@
     { "name": "recipient_pkh",     "type": "bytes20" },
     { "name": "send_amount_sats",  "type": "u64" }
   ],
-  "template": "send {5} sats to bc1q-pkh:0x{4} from utxo 0x{0}:{1}"
+  "template": "send {5:10^8} BTC to bc1q-pkh:0x{4} from utxo 0x{0}:{1}"
 }
