@@ -31,6 +31,16 @@ export interface ActionNeededRow {
   approvalsCollected: number;
   /// Total approvers on the intent.
   approverCount: number;
+  /// Base58 pubkey of the teammate who started the proposal. Renders
+  /// as "started by <name>" via `proposerDisplayName`.
+  proposer: string;
+  /// True when the matching intent definition wasn't loaded yet
+  /// (race window: a brand-new intent and its first proposal can
+  /// land in the same poll cycle, and useUserIntents may not have
+  /// caught the intent yet). In that case we still surface the row
+  /// so the notification fires; the dashboard renders a placeholder
+  /// label until the next poll fills in the real template.
+  intentPending: boolean;
 }
 
 export function useActionNeeded() {
@@ -64,11 +74,6 @@ export function useActionNeeded() {
       if (p.status !== ProposalStatus.Active) continue;
       const key = `${p.walletPda}#${p.intentIndex}`;
       const intent = intentByKey.get(key);
-      if (!intent || intent.approvers.length === 0) continue;
-      const myIndex = intent.approvers.indexOf(address);
-      if (myIndex < 0) continue;
-      const alreadyApproved = (p.approvalBitmap & (1 << myIndex)) !== 0;
-      if (alreadyApproved) continue;
 
       // Count set bits for "N/M collected" hint.
       let collected = 0;
@@ -77,6 +82,38 @@ export function useActionNeeded() {
         collected += bits & 1;
         bits >>>= 1;
       }
+
+      if (!intent || intent.approvers.length === 0) {
+        // Race: a brand-new intent + its first proposal can land in
+        // the same poll window, and useUserIntents may not have the
+        // intent yet. Surface the row anyway so the notification
+        // fires; we can't check whether the viewer is in the
+        // approvers list yet, so we show it conservatively — better
+        // a one-shot "new request landed" ping than silently
+        // dropping it for the full poll window. Suppress for the
+        // proposer themselves (they obviously know they just made it
+        // and are auto-approved on chain via the propose handler).
+        if (p.proposer === address) continue;
+        out.push({
+          walletPda: p.walletPda,
+          walletName: p.walletName,
+          proposalPda: p.proposalPda,
+          proposalIndex: p.proposalIndex,
+          intentIndex: p.intentIndex,
+          proposedAt: p.proposedAt,
+          intentTemplate: "Custom",
+          approvalsCollected: collected,
+          approverCount: 0,
+          proposer: p.proposer,
+          intentPending: true,
+        });
+        continue;
+      }
+
+      const myIndex = intent.approvers.indexOf(address);
+      if (myIndex < 0) continue;
+      const alreadyApproved = (p.approvalBitmap & (1 << myIndex)) !== 0;
+      if (alreadyApproved) continue;
 
       out.push({
         walletPda: p.walletPda,
@@ -88,6 +125,8 @@ export function useActionNeeded() {
         intentTemplate: intent.template,
         approvalsCollected: collected,
         approverCount: intent.approvers.length,
+        proposer: p.proposer,
+        intentPending: false,
       });
     }
     // Oldest pending first - they've waited longest, sign those first.

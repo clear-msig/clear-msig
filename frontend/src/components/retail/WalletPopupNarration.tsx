@@ -60,7 +60,7 @@ export function WalletPopupNarration({
   hideHexDisclaimer = false,
   disclaimerBehindInfoTip = false,
 }: WalletPopupNarrationProps) {
-  const { isLedger } = useWallet();
+  const { isLedger, isMobile } = useWallet();
   const popupCopy = isLedger
     ? popups === 1
       ? "Your Ledger will prompt you."
@@ -79,6 +79,14 @@ export function WalletPopupNarration({
       </span>{" "}
       Your Ledger displays the exact message it&rsquo;s about to sign.
       If anything looks off, cancel on the device.
+    </>
+  ) : isMobile ? (
+    <>
+      <span className="font-medium text-text-strong">Heads up.</span>{" "}
+      Mobile wallet apps render the signing prompt as raw hex instead of
+      the human-readable text the desktop extensions show. The bytes
+      they&rsquo;re signing are exactly what the preview above
+      describes — verify the preview before approving.
     </>
   ) : (
     <>
@@ -140,7 +148,9 @@ export function WalletPopupNarration({
                 label={
                   isLedger
                     ? "Why your Ledger shows that message"
-                    : "Why your wallet shows technical text"
+                    : isMobile
+                      ? "Why your mobile wallet shows hex"
+                      : "Why your wallet shows technical text"
                 }
                 width="md"
                 size="xs"

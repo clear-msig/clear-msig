@@ -40,6 +40,12 @@ export interface RecentActivityRow {
   /// shouldn't read "Sent" when executed. Custom intents fall through
   /// to the actual template name once a contacts/intent layer joins.
   intentTemplate: string;
+  /// Base58 pubkey of the teammate who started the proposal. Surfaced
+  /// in pending-approval notifications and the dashboard action row
+  /// ("started by Sarah · 2m ago") so reviewers see who's waiting on
+  /// them. Maps to a contact name via `proposerDisplayName` at render
+  /// time; falls back to a short address.
+  proposer: string;
 }
 
 export interface RecentActivityResult {
@@ -104,17 +110,17 @@ export function useRecentActivity(limit = 5): RecentActivityResult {
           return { membership: m, rows };
         },
         enabled: ready,
-        staleTime: 15_000,
-        // Live badge: refetch every 30s so the sidebar's "needs your
-        // approval" count stays fresh without the user having to
-        // navigate away and back. Polite cadence - proposals land at
-        // human pace, not stream-rate.
-        refetchInterval: 30_000,
-        // Pause the poll when the tab is hidden. With BottomNav
-        // mounted on every /app/* route, this hook would otherwise
-        // burn O(wallets) RPC per 30s on any tab a user has
-        // backgrounded for hours.
-        refetchIntervalInBackground: false,
+        staleTime: 5_000,
+        // Drives the "needs your approval" badge + browser
+        // notifications. 10s foreground keeps the surface fresh
+        // without hammering RPC; we also let the poll continue in
+        // the background (was paused at 30s) so a teammate's new
+        // proposal still triggers a push notification when the tab
+        // isn't focused. That's the entire point of the
+        // Notification API integration in `useActionNotifications` —
+        // background-paused polling silently neutered it.
+        refetchInterval: 10_000,
+        refetchIntervalInBackground: true,
         refetchOnWindowFocus: true,
       };
     }),
@@ -154,6 +160,7 @@ export function useRecentActivity(limit = 5): RecentActivityResult {
                 : p.intentIndex === 2
                   ? "UpdateIntent"
                   : "Custom",
+          proposer: p.account.proposer,
         });
       }
     }

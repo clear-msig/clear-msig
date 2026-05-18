@@ -41,6 +41,7 @@ import {
 import {
   recordNotificationFeed,
 } from "@/lib/security/notificationFeed";
+import { proposerDisplayName } from "@/lib/retail/proposerName";
 
 type PermissionState = "default" | "granted" | "denied" | "unsupported";
 
@@ -154,11 +155,12 @@ export function useActionNotifications(): UseActionNotificationsResult {
       if (row.status !== 0) continue;
       if (next.has(row.proposalPda)) continue;
       next.add(row.proposalPda);
+      const who = proposerDisplayName(row.proposer, userAddress);
       recordNotificationFeed(userAddress, {
         kind: "wallet_request",
         walletName: row.walletName,
         title: `${toDisplayName(row.walletName) || row.walletName} has a new request`,
-        body: `${friendlyIntentLabel(row.intentTemplate)} · ready for review`,
+        body: `${friendlyIntentLabel(row.intentTemplate)} · started by ${who}`,
         href: `/app/proposals/${encodeURIComponent(row.proposalPda)}`,
       });
     }
@@ -200,11 +202,17 @@ export function useActionNotifications(): UseActionNotificationsResult {
     const FIRE_CAP = 3;
     const fired = fresh.slice(0, FIRE_CAP);
     for (const r of fired) {
+      const who = proposerDisplayName(r.proposer, userAddress);
+      const action = friendlyIntentLabel(r.intentTemplate);
+      const tally =
+        r.approverCount > 0
+          ? `${r.approvalsCollected}/${r.approverCount} approved`
+          : "awaiting approval";
       recordNotificationFeed(userAddress, {
         kind: "pending_approval",
         walletName: r.walletName,
         title: `${toDisplayName(r.walletName) || r.walletName} needs your approval`,
-        body: `${friendlyIntentLabel(r.intentTemplate)} · ${r.approvalsCollected}/${r.approverCount} approved`,
+        body: `${action} · started by ${who} · ${tally}`,
         href: `/app/proposals/${encodeURIComponent(r.proposalPda)}`,
       });
     }
@@ -232,10 +240,15 @@ export function useActionNotifications(): UseActionNotificationsResult {
       try {
         const wallet = toDisplayName(r.walletName) || r.walletName;
         const action = friendlyIntentLabel(r.intentTemplate);
+        const who = proposerDisplayName(r.proposer, userAddress);
+        const tally =
+          r.approverCount > 0
+            ? `${r.approvalsCollected}/${r.approverCount} approved`
+            : "awaiting approval";
         const n = new window.Notification(
           `${wallet} needs your approval`,
           {
-            body: `${action} · ${r.approvalsCollected}/${r.approverCount} approved`,
+            body: `${action} · started by ${who} · ${tally}`,
             icon: "/icon",
             tag: r.proposalPda, // dedupe per proposal across browsers
           },

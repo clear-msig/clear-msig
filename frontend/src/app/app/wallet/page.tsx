@@ -57,6 +57,7 @@ import {
   friendlyStatus,
   statusTextColor,
 } from "@/lib/retail/labels";
+import { proposerDisplayName } from "@/lib/retail/proposerName";
 import { formatBalance } from "@/lib/retail/format";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
@@ -1212,7 +1213,23 @@ function BatchActionRow({
 }
 
 function ActionRow({ row }: { row: ActionNeededRow }) {
-  const friendlyTemplate = friendlyIntentLabel(row.intentTemplate);
+  const wallet = useWallet();
+  const viewerAddress = wallet.publicKey?.toBase58() ?? "";
+  // Race-window fallback: when the matching intent definition hasn't
+  // synced yet (see useActionNeeded), the row carries intentPending
+  // and an empty approverCount. Show a "pending details" placeholder
+  // rather than the template label so users don't see "Custom · 0 of
+  // 0 approved" — that's an artefact of the cross-poll race, not the
+  // real shape of the proposal.
+  const friendlyTemplate = row.intentPending
+    ? "New request · details loading"
+    : friendlyIntentLabel(row.intentTemplate);
+  const who = proposerDisplayName(row.proposer, viewerAddress);
+  const ago = relativeTime(row.proposedAt);
+  const tally =
+    row.approverCount > 0
+      ? `${row.approvalsCollected} of ${row.approverCount} approved`
+      : "awaiting approval";
   return (
     <li>
       <Link
@@ -1228,8 +1245,7 @@ function ActionRow({ row }: { row: ActionNeededRow }) {
             {friendlyTemplate}
           </p>
           <p className="mt-0.5 truncate text-xs text-text-soft">
-            in {toDisplayName(row.walletName)} · {row.approvalsCollected} of{" "}
-            {row.approverCount} approved
+            by {who} · {ago} · in {toDisplayName(row.walletName)} · {tally}
           </p>
         </div>
         <ArrowRight
