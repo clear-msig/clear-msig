@@ -117,8 +117,20 @@ export function parseIntent(data: Uint8Array): IntentAccount {
   const instructions = r.vecInstructionEntries();
   const dataSegments = r.vecDataSegmentEntries();
   const seeds = r.vecSeedEntries();
-  const policyCiphertexts = r.vecU8();
-  const bytePool = r.vecU8();
+  const tailOffset = r.position();
+  let policyCiphertexts: Uint8Array;
+  let bytePool: Uint8Array;
+  try {
+    policyCiphertexts = r.vecU8();
+    bytePool = r.vecU8();
+  } catch {
+    // Older deployed program builds wrote intent accounts before the
+    // policy_ciphertexts tail field existed. Accept that layout so
+    // wallet signing can still verify legacy on-chain intents.
+    const legacyTail = readOptionalVecU8(data, tailOffset, "Intent");
+    policyCiphertexts = new Uint8Array();
+    bytePool = legacyTail.bytes;
+  }
 
   const template = new TextDecoder().decode(
     bytePool.subarray(templateOffset, templateOffset + templateLen)
@@ -174,6 +186,29 @@ function decodePolicyCiphertexts(data: Uint8Array): string[] {
     offset += len;
   }
   return ids;
+}
+
+function readOptionalVecU8(
+  data: Uint8Array,
+  offset: number,
+  tag: string,
+): { bytes: Uint8Array; nextOffset: number } {
+  if (offset === data.length) return { bytes: new Uint8Array(), nextOffset: offset };
+  if (offset + 4 > data.length) {
+    throw new Error(
+      `parse${tag}: unexpected end of data (need 4 at offset ${offset}, total ${data.length})`
+    );
+  }
+  const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const len = dv.getUint32(offset, true);
+  const start = offset + 4;
+  const end = start + len;
+  if (end > data.length) {
+    throw new Error(
+      `parse${tag}: unexpected end of data (need ${len} at offset ${start}, total ${data.length})`
+    );
+  }
+  return { bytes: data.slice(start, end), nextOffset: end };
 }
 
 // ── ProposalAccount ──────────────────────────────────────────────────
@@ -372,6 +407,9 @@ class Reader {
     const out = this.data.slice(this.off, this.off + n);
     this.off += n;
     return out;
+  }
+  position(): number {
+    return this.off;
   }
   vecParamEntries(): ParamEntry[] {
     const n = Number(this.u32());

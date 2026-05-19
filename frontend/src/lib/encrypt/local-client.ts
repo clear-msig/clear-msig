@@ -84,8 +84,9 @@ function bytesToHex(bytes: Uint8Array): string {
 async function deterministicId(
   bytes: Uint8Array,
   authorized: Uint8Array,
+  nonce = 0,
 ): Promise<string> {
-  const buf = new Uint8Array(bytes.length + authorized.length + 8);
+  const buf = new Uint8Array(bytes.length + authorized.length + 12);
   buf.set(bytes, 0);
   buf.set(authorized, bytes.length);
   // 8-byte timestamp burst at the tail keeps two same-bytes payloads
@@ -95,6 +96,10 @@ async function deterministicId(
     buf[bytes.length + authorized.length + i] = Number(
       (ts >> BigInt(8 * i)) & 0xffn,
     );
+  }
+  const nonceOffset = bytes.length + authorized.length + 8;
+  for (let i = 0; i < 4; i++) {
+    buf[nonceOffset + i] = (nonce >> (8 * i)) & 0xff;
   }
   const hash = await crypto.subtle.digest("SHA-256", buf);
   return "ct_" + bytesToHex(new Uint8Array(hash)).slice(0, 32);
@@ -106,8 +111,8 @@ export class LocalEncryptClient {
   async createInput(args: CreateInputArgs): Promise<CreateInputResult> {
     const records = loadAll();
     const ciphertextIdentifiers: string[] = [];
-    for (const input of args.inputs) {
-      const id = await deterministicId(input.ciphertextBytes, args.authorized);
+    for (const [idx, input] of args.inputs.entries()) {
+      const id = await deterministicId(input.ciphertextBytes, args.authorized, idx);
       records[id] = {
         id,
         ciphertext: bytesToHex(input.ciphertextBytes),

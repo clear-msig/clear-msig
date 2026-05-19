@@ -27,6 +27,7 @@ import {
   Users,
 } from "lucide-react";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
+import { BackendApiError } from "@/lib/api/client";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { toOnChainName } from "@/lib/retail/walletNames";
@@ -37,6 +38,22 @@ import { saveWalletAppearance } from "@/lib/retail/walletAppearance";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
 
 const SOL_TRANSFER_TEMPLATE = "examples/intents/solana_transfer.json";
+
+function isAlreadyInitializedCreateError(err: unknown): boolean {
+  const message =
+    err instanceof BackendApiError
+      ? `${err.message} ${err.payload?.stderr ?? ""}`
+      : err instanceof Error
+        ? err.message
+        : String(err);
+  const hay = message.toLowerCase();
+  return (
+    hay.includes("already exists") ||
+    hay.includes("alreadyinitialized") ||
+    hay.includes("account already in use") ||
+    hay.includes("instruction requires an uninitialized account")
+  );
+}
 
 type ShapeId = "just_me" | "couple" | "family" | "roommates" | "team";
 
@@ -153,15 +170,19 @@ export default function NewWalletPage() {
         .map((p) => p.ciphertextIdentifier)
         .filter((id): id is string => typeof id === "string");
 
-      await backendApi.createWallet({
-        name: walletSlug,
-        proposers: initialMembers,
-        approvers: initialMembers,
-        threshold,
-        cancellation_threshold: 1,
-        timelock: 0,
-        policy_ciphertexts: createIds,
-      });
+      try {
+        await backendApi.createWallet({
+          name: walletSlug,
+          proposers: initialMembers,
+          approvers: initialMembers,
+          threshold,
+          cancellation_threshold: 1,
+          timelock: 0,
+          policy_ciphertexts: createIds,
+        });
+      } catch (err) {
+        if (!isAlreadyInitializedCreateError(err)) throw err;
+      }
 
       // ── popup 2: enable sending (propose AddIntent) ──
       const enableCt = await encryptPolicyBatch([
