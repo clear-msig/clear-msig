@@ -16,6 +16,7 @@ import { evaluateFirstMatch } from "@/lib/policies/evaluate";
 import { listPolicies } from "@/lib/policies/storage";
 import type { PolicyRule, RuleEvaluation } from "@/lib/policies/types";
 import { decryptPolicy } from "@/lib/encrypt/client";
+import { decryptCooldownSeconds } from "@/lib/policies/encryption";
 
 const decoder = new TextDecoder();
 
@@ -61,7 +62,15 @@ export async function resolvePolicyEnforcement(
     rule,
     extraApprovers,
     extraCooldownSeconds:
-      rule.action === "require-cooldown" ? Math.max(0, rule.extraCooldownSeconds ?? 0) : 0,
+      rule.action === "require-cooldown"
+        ? Math.max(
+            0,
+            (await decryptCooldownSeconds(
+              rule.extraCooldownEncrypted,
+              rule.extraCooldownSeconds,
+            )) ?? 0,
+          )
+        : 0,
   };
 }
 

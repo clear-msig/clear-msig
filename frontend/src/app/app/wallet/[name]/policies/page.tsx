@@ -248,6 +248,9 @@ function actionLabel(a: PolicyRule["action"]): string {
 function summariseCondition(c: RuleCondition): string {
   switch (c.kind) {
     case "asset":
+      if (c.encryptedChainKind || c.encryptedTokenContract) {
+        return "Encrypted asset filter";
+      }
       if (c.chainKind === null) return "Any chain";
       return chainName(c.chainKind);
     case "recipient": {
@@ -255,14 +258,28 @@ function summariseCondition(c: RuleCondition): string {
       return `${c.mode === "allowlist" ? "Allow" : "Block"} ${count} recipient${count === 1 ? "" : "s"}`;
     }
     case "amount":
+      if (c.encryptedMinDisplay || c.encryptedMaxDisplay || c.encryptedTicker) {
+        return "Encrypted amount range";
+      }
       if (c.minDisplay && c.maxDisplay)
         return `Amount ${c.minDisplay}–${c.maxDisplay} ${c.ticker ?? ""}`.trim();
       if (c.minDisplay) return `Amount ≥ ${c.minDisplay} ${c.ticker ?? ""}`.trim();
       if (c.maxDisplay) return `Amount ≤ ${c.maxDisplay} ${c.ticker ?? ""}`.trim();
       return "Amount (any)";
     case "time-window":
+      if (
+        c.encryptedStartHour ||
+        c.encryptedEndHour ||
+        c.encryptedDaysOfWeek ||
+        c.encryptedMatch
+      ) {
+        return "Encrypted time window";
+      }
       return `${c.match === "inside" ? "Inside" : "Outside"} ${pad(c.startHour)}–${pad(c.endHour)}`;
     case "velocity":
+      if (c.encryptedCapDisplay || c.encryptedTicker || c.encryptedWindowDays) {
+        return "Encrypted velocity cap";
+      }
       return `≤ ${c.capDisplay} ${c.ticker} per ${c.windowDays}d`;
   }
 }
