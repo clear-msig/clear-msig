@@ -15,8 +15,8 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { PublicKey } from "@solana/web3.js";
-import { backendApi, backendApiLegacy } from "@/lib/api/endpoints";
-import type { CreateProposalInput, ExecuteProposalInput } from "@/lib/api/types";
+import { backendApi } from "@/lib/api/endpoints";
+import type { ExecuteProposalInput } from "@/lib/api/types";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import {
   fetchProposal,
@@ -60,14 +60,6 @@ export function useProposalWorkflow(walletName: string, selectedProposal: string
     },
     enabled: selectedProposal.trim().length > 0,
     staleTime: 10_000,
-  });
-
-  const createMutation = useMutation({
-    mutationFn: (input: CreateProposalInput) =>
-      backendApiLegacy.createProposal(walletName, input),
-    onSuccess: async () => {
-      await listQuery.refetch();
-    },
   });
 
   // Approve = prepare + sign + submit. Approve / cancel /approve carry
@@ -131,7 +123,6 @@ export function useProposalWorkflow(walletName: string, selectedProposal: string
   return {
     listQuery,
     detailQuery,
-    createMutation,
     approveMutation,
     cancelMutation,
     executeMutation,

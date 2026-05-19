@@ -196,26 +196,3 @@ export function executeProposalStreamUrl(
   const path = `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/execute/stream`;
   return `${base}${path}${q.toString() ? "?" + q.toString() : ""}`;
 }
-
-// ── Back-compat shims kept while Phase 5 rewrites the hooks ────────────
-//
-// Each points at a `/prepare/**` route so the old call signatures keep
-// typechecking. The DryRunDescriptor returned is fine for the existing
-// ResponseViewer panels until the typed-form + signMessage flow lands.
-
-export const backendApiLegacy = {
-  addIntent: (walletName: string, input: PrepareAddIntentInput) =>
-    backendApi.prepare.addIntent(walletName, input),
-  removeIntent: (walletName: string, index: number) =>
-    backendApi.prepare.removeIntent(walletName, { index }),
-  updateIntent: (
-    walletName: string,
-    input: PrepareUpdateIntentInput
-  ) => backendApi.prepare.updateIntent(walletName, input),
-  createProposal: (walletName: string, input: PrepareCreateProposalInput) =>
-    backendApi.prepare.createProposal(walletName, input),
-  approveProposal: (walletName: string, proposalAddress: string) =>
-    backendApi.prepare.approveProposal(walletName, proposalAddress, {}),
-  cancelProposal: (walletName: string, proposalAddress: string) =>
-    backendApi.prepare.cancelProposal(walletName, proposalAddress, {})
-};
