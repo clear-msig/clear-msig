@@ -9,10 +9,9 @@
 // treasury: asset filter, recipient allow/blocklist, amount range,
 // time window, velocity cap.
 //
-// What gets encrypted: recipient lists + extra-approver lists. Other
-// numeric/temporal conditions stay plaintext today; when on-chain
-// FHE handlers land, the same shapes will encrypt then via a single
-// extension to lib/policies/encryption.ts.
+// What gets encrypted: all condition values plus extra-approver and
+// extra-cooldown action values. Rule shell metadata stays plaintext
+// so the list/editor can render without decrypting every row.
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -34,6 +33,7 @@ import { useToast } from "@/components/ui/Toast";
 import { encryptStatus } from "@/lib/encrypt/client";
 import {
   encryptApprovers,
+  encryptCooldownSeconds,
   encryptConditions,
 } from "@/lib/policies/encryption";
 import { newRuleId, savePolicy } from "@/lib/policies/storage";
@@ -54,9 +54,10 @@ type ConditionKind = RuleCondition["kind"];
 interface FormProps {
   mode: "create" | "edit";
   initial?: PolicyRule;
+  initialExtraApproversText?: string;
 }
 
-export function PolicyForm({ mode, initial }: FormProps) {
+export function PolicyForm({ mode, initial, initialExtraApproversText = "" }: FormProps) {
   const params = useParams<{ name: string }>();
   const router = useRouter();
   const toast = useToast();
@@ -79,7 +80,7 @@ export function PolicyForm({ mode, initial }: FormProps) {
   const [extraCooldownSeconds, setExtraCooldownSeconds] = useState(
     initial?.extraCooldownSeconds ?? 24 * 60 * 60,
   );
-  const [extraApproversText, setExtraApproversText] = useState("");
+  const [extraApproversText, setExtraApproversText] = useState(initialExtraApproversText);
   const [conditions, setConditions] = useState<RuleCondition[]>(
     initial?.conditions ?? [
       { kind: "asset", chainKind: null } as AssetCondition,
@@ -95,9 +96,9 @@ export function PolicyForm({ mode, initial }: FormProps) {
     if (!canSubmit || busy) return;
     setBusy(true);
     try {
-      // Encrypt the recipient-condition addresses + the extra-
-      // approver list. Numeric / temporal conditions pass through
-      // verbatim today.
+      // Encrypt concrete policy values before persistence. The
+      // resulting rule keeps only ciphertext payloads for values;
+      // decryptConditions restores them in memory for edit/eval.
       const encryptedConditions = await encryptConditions(conditions);
       const extraApproverInputs = extraApproversText
         .split(/[\s,]+/)
@@ -106,6 +107,10 @@ export function PolicyForm({ mode, initial }: FormProps) {
       const extraApproversEncrypted = extraApproverInputs.length
         ? await encryptApprovers(extraApproverInputs)
         : undefined;
+      const extraCooldownEncrypted =
+        action === "require-cooldown"
+          ? await encryptCooldownSeconds(extraCooldownSeconds)
+          : undefined;
 
       const now = Date.now();
       const rule: PolicyRule = {
@@ -118,8 +123,8 @@ export function PolicyForm({ mode, initial }: FormProps) {
         conditions: encryptedConditions,
         action,
         extraApproversEncrypted,
-        extraCooldownSeconds:
-          action === "require-cooldown" ? extraCooldownSeconds : undefined,
+        extraCooldownEncrypted,
+        extraCooldownSeconds: undefined,
         updatedAt: now,
         createdAt: initial?.createdAt ?? now,
         version: 1,
@@ -329,8 +334,8 @@ export function PolicyForm({ mode, initial }: FormProps) {
               }
             />
             <p className="mt-1 text-[10px] text-text-soft">
-              Encrypted via Encrypt - addresses don&rsquo;t leave this device
-              in plaintext.
+              Routed through Encrypt when configured. Pre-alpha is not
+              production confidentiality.
             </p>
           </Field>
         )}
@@ -533,7 +538,7 @@ function RecipientEditor({
         />
         <span className="mt-1 inline-flex items-center gap-1 text-[10px] text-text-soft">
           <Lock className="h-3 w-3" aria-hidden="true" />
-          Encrypted on save - list never persists in plaintext.
+          Routed through Encrypt on save; on-chain privacy still depends on the program rollout.
         </span>
       </label>
     </div>

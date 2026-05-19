@@ -32,6 +32,7 @@ pub mod clear_wallet {
         name: String<64>,
         proposers: Vec<[u8; 32], 16>,
         approvers: Vec<[u8; 32], 16>,
+        policy_ciphertexts: &[u8],
     ) -> Result<(), ProgramError> {
         ctx.accounts.create(
             CreateWalletArgs {
@@ -41,6 +42,7 @@ pub mod clear_wallet {
                 timelock_seconds,
                 proposers,
                 approvers,
+                policy_ciphertexts,
             },
             &ctx.bumps,
         )

@@ -65,6 +65,7 @@ pub struct CreateWalletArgs<'a> {
     pub timelock_seconds: u32,
     pub proposers: &'a [[u8; 32]],
     pub approvers: &'a [[u8; 32]],
+    pub policy_ciphertexts: &'a [u8],
 }
 
 impl<'info> CreateWallet<'info> {
@@ -88,7 +89,10 @@ impl<'info> CreateWallet<'info> {
         require!(proposer_count as usize <= 16, WalletError::TooManyProposers);
         require!(approver_count as usize <= 16, WalletError::TooManyApprovers);
 
-        require!(args.approval_threshold > 0, WalletError::InvalidApprovalThreshold);
+        require!(
+            args.approval_threshold > 0,
+            WalletError::InvalidApprovalThreshold
+        );
         require!(
             args.approval_threshold <= approver_count,
             WalletError::InvalidApprovalThreshold
@@ -134,6 +138,7 @@ impl<'info> CreateWallet<'info> {
         let empty_segments: &[crate::utils::definition::DataSegmentEntry] = &[];
         let empty_seeds: &[crate::utils::definition::SeedEntry] = &[];
         let empty_pool: &[u8] = &[];
+        let policy_ciphertexts = args.policy_ciphertexts;
 
         let meta_intents = [
             (
@@ -180,6 +185,7 @@ impl<'info> CreateWallet<'info> {
                     instructions: empty_instructions,
                     data_segments: empty_segments,
                     seeds: empty_seeds,
+                    policy_ciphertexts,
                     byte_pool: empty_pool,
                 },
                 self.payer.to_account_view(),

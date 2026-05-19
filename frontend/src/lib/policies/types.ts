@@ -63,9 +63,14 @@ export interface AssetCondition {
   /// Chain kind from the program's enum (0 SOL, 1 EVM, 2 BTC, 3 ZEC,
   /// 4 ERC-20). Null means "any chain".
   chainKind: number | null;
+  /// Encrypted stored value. `chainKind` is kept only while editing
+  /// in memory or for legacy rules saved before full policy-value
+  /// encryption.
+  encryptedChainKind?: EncryptedPayload;
   /// For chain_kind=4 (ERC-20), optionally restrict to a specific
   /// token contract. Lowercased 0x address.
   tokenContract?: string | null;
+  encryptedTokenContract?: EncryptedPayload;
 }
 
 /// Allow- or block-list of recipients. Addresses normalised to
@@ -87,12 +92,15 @@ export interface AmountCondition {
   /// Inclusive lower bound in display units (e.g. "0.01" SOL).
   /// Null means no lower bound.
   minDisplay?: string | null;
+  encryptedMinDisplay?: EncryptedPayload;
   /// Inclusive upper bound in display units.
   maxDisplay?: string | null;
+  encryptedMaxDisplay?: EncryptedPayload;
   /// Ticker the bounds are denominated in - provides UI display
   /// + sanity-checks the bounds belong to the asset filter above
   /// when both are set.
   ticker?: string | null;
+  encryptedTicker?: EncryptedPayload;
 }
 
 /// Time-of-day + days-of-week window. Hours are local to the
@@ -103,14 +111,18 @@ export interface TimeWindowCondition {
   /// 24h, 0–23. startHour < endHour means "during the day"; if
   /// startHour > endHour the window wraps midnight.
   startHour: number;
+  encryptedStartHour?: EncryptedPayload;
   endHour: number;
+  encryptedEndHour?: EncryptedPayload;
   /// Subset of [0..6]; empty means every day.
   daysOfWeek: number[];
+  encryptedDaysOfWeek?: EncryptedPayload;
   /// "inside"  - rule fires when the proposal's local time falls
   ///             inside the window.
   /// "outside" - fires only when OUTSIDE the window (useful for
   ///             "no sends overnight").
   match: "inside" | "outside";
+  encryptedMatch?: EncryptedPayload;
 }
 
 /// Per-period spend cap. Today the rolling-window evaluation reads
@@ -120,8 +132,11 @@ export interface VelocityCondition {
   kind: "velocity";
   /// Cap, in display units of the same ticker as the asset filter.
   capDisplay: string;
+  encryptedCapDisplay?: EncryptedPayload;
   ticker: string;
+  encryptedTicker?: EncryptedPayload;
   windowDays: 1 | 7 | 30;
+  encryptedWindowDays?: EncryptedPayload;
 }
 
 export type RuleCondition =
@@ -155,6 +170,9 @@ export interface PolicyRule {
   /// Used by the require-cooldown action. Additional seconds to
   /// wait beyond the intent's timelock.
   extraCooldownSeconds?: number;
+  /// Encrypted stored value. `extraCooldownSeconds` is present only
+  /// in edit-time memory or for legacy plaintext rules.
+  extraCooldownEncrypted?: EncryptedPayload;
   /// Unix ms of last edit.
   updatedAt: number;
   /// Unix ms of creation.

@@ -55,6 +55,7 @@ pub struct CreateWalletArgs<'a> {
     pub timelock: u32,
     pub proposers: &'a [Pubkey],
     pub approvers: &'a [Pubkey],
+    pub policy_ciphertexts: &'a [u8],
 }
 
 /// Build create_wallet instruction (Quasar discriminator 0).
@@ -73,6 +74,7 @@ pub fn create_wallet(args: CreateWalletArgs<'_>) -> Instruction {
         name: DynBytes::from(args.name.as_bytes().to_vec()),
         proposers: DynVec::new(args.proposers.iter().map(|p| p.to_bytes()).collect()),
         approvers: DynVec::new(args.approvers.iter().map(|a| a.to_bytes()).collect()),
+        policy_ciphertexts: TailBytes(args.policy_ciphertexts.to_vec()),
     }
     .into();
     sdk_ix_from_ext(ext_ix)
@@ -110,8 +112,12 @@ pub fn propose(args: ProposeArgs<'_>) -> Instruction {
 
 /// Build approve instruction (Quasar discriminator 2) via the vendored client.
 pub fn approve(
-    wallet: Pubkey, intent: Pubkey, proposal: Pubkey,
-    expiry: i64, approver_index: u8, signature: [u8; 64],
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    expiry: i64,
+    approver_index: u8,
+    signature: [u8; 64],
 ) -> Instruction {
     let ext_ix: solana_instruction_v3::Instruction = ApproveInstruction {
         wallet: pk_to_addr(wallet),
@@ -127,8 +133,12 @@ pub fn approve(
 
 /// Build cancel instruction.
 pub fn cancel(
-    wallet: Pubkey, intent: Pubkey, proposal: Pubkey,
-    expiry: i64, canceller_index: u8, signature: [u8; 64],
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    expiry: i64,
+    canceller_index: u8,
+    signature: [u8; 64],
 ) -> Instruction {
     let accounts = vec![
         AccountMeta::new_readonly(wallet, false),
@@ -141,12 +151,19 @@ pub fn cancel(
     data.push(canceller_index);
     data.extend_from_slice(&signature);
 
-    Instruction { program_id: program_id(), accounts, data }
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
 }
 
 /// Build execute instruction (Quasar discriminator 4) via the vendored client.
 pub fn execute(
-    wallet: Pubkey, vault: Pubkey, intent: Pubkey, proposal: Pubkey,
+    wallet: Pubkey,
+    vault: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
     remaining_accounts: Vec<AccountMeta>,
 ) -> Instruction {
     let ext_remaining: Vec<solana_instruction_v3::AccountMeta> = remaining_accounts
@@ -175,7 +192,11 @@ pub fn cleanup(proposal: Pubkey, rent_refund: Pubkey) -> Instruction {
         AccountMeta::new(proposal, false),
         AccountMeta::new(rent_refund, false),
     ];
-    Instruction { program_id: program_id(), accounts, data: vec![5u8] }
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data: vec![5u8],
+    }
 }
 
 // =============================================================================
@@ -279,5 +300,9 @@ pub fn ika_transfer_ownership(
     let mut data = Vec::with_capacity(33);
     data.push(24u8);
     data.extend_from_slice(new_authority.as_ref());
-    Instruction { program_id: dwallet_program, accounts, data }
+    Instruction {
+        program_id: dwallet_program,
+        accounts,
+        data,
+    }
 }

@@ -225,8 +225,8 @@ export default function MembersPage() {
             </p>
             <p className="mt-1 text-xs leading-relaxed text-text-soft">
               Set a daily, weekly, or monthly cap for each friend. The
-              wallet enforces it on chain, and the limits stay
-              encrypted - nobody outside this wallet can read them.
+              wallet will enforce it on chain when Encrypt FHE support
+              lands; today this is an encryption-ready preview.
             </p>
             <Link
               href="/privacy"

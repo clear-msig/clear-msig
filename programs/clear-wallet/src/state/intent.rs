@@ -74,6 +74,12 @@ pub struct Intent<'a> {
     pub instructions: Vec<'a, InstructionEntry, 12>,
     pub data_segments: Vec<'a, DataSegmentEntry, 32>,
     pub seeds: Vec<'a, SeedEntry, 32>,
+    /// Length-prefixed Encrypt ciphertext identifiers for this intent's
+    /// governing policy fields. The program persists these references so
+    /// clients can fetch the matching Encrypt ciphertext accounts and future
+    /// FHE handlers can consume them without changing the clear-signing
+    /// message shape.
+    pub policy_ciphertexts: Vec<'a, u8, 2048>,
     /// Byte pool for variable data: param names, seed literals,
     /// instruction literal data, static addresses, template string.
     pub byte_pool: Vec<'a, u8, 4096>,
@@ -129,7 +135,8 @@ impl Intent<'_> {
         let pool = self.byte_pool();
         let start = offset as usize;
         let end = start + len as usize;
-        pool.get(start..end).ok_or(ProgramError::InvalidInstructionData)
+        pool.get(start..end)
+            .ok_or(ProgramError::InvalidInstructionData)
     }
 
     pub fn param_name(&self, param: &ParamEntry) -> Result<&str, ProgramError> {

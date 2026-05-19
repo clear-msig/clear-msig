@@ -43,6 +43,7 @@ pub struct IntentAccount {
     pub instructions: Vec<InstructionEntry>,
     pub data_segments: Vec<DataSegmentEntry>,
     pub seeds: Vec<SeedEntry>,
+    pub policy_ciphertexts: Vec<u8>,
     pub byte_pool: Vec<u8>,
 }
 
@@ -64,41 +65,52 @@ pub struct ProposalAccount {
 }
 
 fn read_u8(data: &[u8], offset: &mut usize) -> Result<u8> {
-    let val = *data.get(*offset).ok_or(anyhow!("unexpected end of data at {}", *offset))?;
+    let val = *data
+        .get(*offset)
+        .ok_or(anyhow!("unexpected end of data at {}", *offset))?;
     *offset += 1;
     Ok(val)
 }
 
 fn read_u16_le(data: &[u8], offset: &mut usize) -> Result<u16> {
-    let bytes: [u8; 2] = data.get(*offset..*offset + 2)
-        .ok_or(anyhow!("unexpected end of data"))?.try_into()?;
+    let bytes: [u8; 2] = data
+        .get(*offset..*offset + 2)
+        .ok_or(anyhow!("unexpected end of data"))?
+        .try_into()?;
     *offset += 2;
     Ok(u16::from_le_bytes(bytes))
 }
 
 fn read_u32_le(data: &[u8], offset: &mut usize) -> Result<u32> {
-    let bytes: [u8; 4] = data.get(*offset..*offset + 4)
-        .ok_or(anyhow!("unexpected end of data"))?.try_into()?;
+    let bytes: [u8; 4] = data
+        .get(*offset..*offset + 4)
+        .ok_or(anyhow!("unexpected end of data"))?
+        .try_into()?;
     *offset += 4;
     Ok(u32::from_le_bytes(bytes))
 }
 
 fn read_u64_le(data: &[u8], offset: &mut usize) -> Result<u64> {
-    let bytes: [u8; 8] = data.get(*offset..*offset + 8)
-        .ok_or(anyhow!("unexpected end of data"))?.try_into()?;
+    let bytes: [u8; 8] = data
+        .get(*offset..*offset + 8)
+        .ok_or(anyhow!("unexpected end of data"))?
+        .try_into()?;
     *offset += 8;
     Ok(u64::from_le_bytes(bytes))
 }
 
 fn read_i64_le(data: &[u8], offset: &mut usize) -> Result<i64> {
-    let bytes: [u8; 8] = data.get(*offset..*offset + 8)
-        .ok_or(anyhow!("unexpected end of data"))?.try_into()?;
+    let bytes: [u8; 8] = data
+        .get(*offset..*offset + 8)
+        .ok_or(anyhow!("unexpected end of data"))?
+        .try_into()?;
     *offset += 8;
     Ok(i64::from_le_bytes(bytes))
 }
 
 fn read_address(data: &[u8], offset: &mut usize) -> Result<String> {
-    let bytes = data.get(*offset..*offset + 32)
+    let bytes = data
+        .get(*offset..*offset + 32)
         .ok_or(anyhow!("unexpected end of data"))?;
     *offset += 32;
     Ok(bs58::encode(bytes).into_string())
@@ -117,8 +129,10 @@ fn read_vec_raw<T: Copy>(data: &[u8], offset: &mut usize) -> Result<Vec<T>> {
     let count = read_u32_le(data, offset)? as usize;
     let elem_size = core::mem::size_of::<T>();
     let total = count * elem_size;
-    let bytes = data.get(*offset..*offset + total)
-        .ok_or(anyhow!("unexpected end of data reading vec of {} elements", count))?;
+    let bytes = data.get(*offset..*offset + total).ok_or(anyhow!(
+        "unexpected end of data reading vec of {} elements",
+        count
+    ))?;
     let items: Vec<T> = (0..count)
         .map(|i| unsafe { core::ptr::read(bytes[i * elem_size..].as_ptr() as *const T) })
         .collect();
@@ -128,7 +142,8 @@ fn read_vec_raw<T: Copy>(data: &[u8], offset: &mut usize) -> Result<Vec<T>> {
 
 fn read_vec_u8(data: &[u8], offset: &mut usize) -> Result<Vec<u8>> {
     let count = read_u32_le(data, offset)? as usize;
-    let bytes = data.get(*offset..*offset + count)
+    let bytes = data
+        .get(*offset..*offset + count)
         .ok_or(anyhow!("unexpected end of data reading {} bytes", count))?;
     let result = bytes.to_vec();
     *offset += count;
@@ -137,7 +152,10 @@ fn read_vec_u8(data: &[u8], offset: &mut usize) -> Result<Vec<u8>> {
 
 pub fn parse_wallet(data: &[u8]) -> Result<WalletAccount> {
     if data.is_empty() || data[0] != 1 {
-        return Err(anyhow!("not a ClearWallet account (discriminator={})", data.first().unwrap_or(&0)));
+        return Err(anyhow!(
+            "not a ClearWallet account (discriminator={})",
+            data.first().unwrap_or(&0)
+        ));
     }
     let mut offset = 1;
     let bump = read_u8(data, &mut offset)?;
@@ -147,24 +165,35 @@ pub fn parse_wallet(data: &[u8]) -> Result<WalletAccount> {
     // creator-scoped PDA upgrade. Layout drift here is the most
     // likely source of "name decodes as junk" if you forget to
     // mirror this in the frontend's parseWallet too.
-    let creator_bytes = data.get(offset..offset + 32)
+    let creator_bytes = data
+        .get(offset..offset + 32)
         .ok_or(anyhow!("unexpected end of data reading creator"))?;
-    let creator = solana_pubkey::Pubkey::new_from_array(
-        creator_bytes.try_into().expect("32 bytes"),
-    ).to_string();
+    let creator =
+        solana_pubkey::Pubkey::new_from_array(creator_bytes.try_into().expect("32 bytes"))
+            .to_string();
     offset += 32;
     // name is a dynamic String with u32 LE prefix
     let name_len = read_u32_le(data, &mut offset)? as usize;
-    let name_bytes = data.get(offset..offset + name_len)
+    let name_bytes = data
+        .get(offset..offset + name_len)
         .ok_or(anyhow!("unexpected end of data reading name"))?;
     let name = String::from_utf8_lossy(name_bytes).to_string();
 
-    Ok(WalletAccount { bump, proposal_index, intent_index, creator, name })
+    Ok(WalletAccount {
+        bump,
+        proposal_index,
+        intent_index,
+        creator,
+        name,
+    })
 }
 
 pub fn parse_intent(data: &[u8]) -> Result<IntentAccount> {
     if data.is_empty() || data[0] != 2 {
-        return Err(anyhow!("not an Intent account (discriminator={})", data.first().unwrap_or(&0)));
+        return Err(anyhow!(
+            "not an Intent account (discriminator={})",
+            data.first().unwrap_or(&0)
+        ));
     }
     // Layout (must match programs/clear-wallet/src/state/intent.rs):
     //   disc(1) + wallet(32) + bump(1) + intent_index(1) + intent_type(1)
@@ -173,7 +202,8 @@ pub fn parse_intent(data: &[u8]) -> Result<IntentAccount> {
     //   + template_offset(2) + template_len(2)
     //   + tx_template_offset(2) + tx_template_len(2)
     //   + active_proposal_count(2)
-    //   + Vec<proposers> + Vec<approvers> + Vec<params> + ... + byte_pool
+    //   + Vec<proposers> + Vec<approvers> + Vec<params> + ...
+    //   + policy_ciphertexts + byte_pool
     let mut offset = 1;
     let wallet = read_address(data, &mut offset)?;
     let bump = read_u8(data, &mut offset)?;
@@ -197,15 +227,33 @@ pub fn parse_intent(data: &[u8]) -> Result<IntentAccount> {
     let instructions = read_vec_raw::<InstructionEntry>(data, &mut offset)?;
     let data_segments = read_vec_raw::<DataSegmentEntry>(data, &mut offset)?;
     let seeds = read_vec_raw::<SeedEntry>(data, &mut offset)?;
+    let policy_ciphertexts = read_vec_u8(data, &mut offset)?;
     let byte_pool = read_vec_u8(data, &mut offset)?;
 
     Ok(IntentAccount {
-        wallet, bump, intent_index, intent_type, chain_kind, approved,
-        approval_threshold, cancellation_threshold, timelock_seconds,
-        template_offset, template_len, tx_template_offset, tx_template_len,
+        wallet,
+        bump,
+        intent_index,
+        intent_type,
+        chain_kind,
+        approved,
+        approval_threshold,
+        cancellation_threshold,
+        timelock_seconds,
+        template_offset,
+        template_len,
+        tx_template_offset,
+        tx_template_len,
         active_proposal_count,
-        proposers, approvers, params, accounts, instructions,
-        data_segments, seeds, byte_pool,
+        proposers,
+        approvers,
+        params,
+        accounts,
+        instructions,
+        data_segments,
+        seeds,
+        policy_ciphertexts,
+        byte_pool,
     })
 }
 
@@ -269,9 +317,9 @@ pub fn parse_dwallet(data: &[u8]) -> Result<DWalletAccount> {
     }
     let public_key = data[38..38 + public_key_len].to_vec();
     let created_epoch = u64::from_le_bytes(data[103..111].try_into().unwrap());
-    let noa_public_key = solana_pubkey::Pubkey::new_from_array(
-        data[111..143].try_into().expect("32 bytes"),
-    ).to_string();
+    let noa_public_key =
+        solana_pubkey::Pubkey::new_from_array(data[111..143].try_into().expect("32 bytes"))
+            .to_string();
     Ok(DWalletAccount {
         curve,
         state,
@@ -333,8 +381,7 @@ pub fn bitcoin_p2wpkh_address(compressed: &[u8], hrp: &str) -> Result<String> {
     // For witness v0 P2WPKH the encoded payload is just the 20-byte hash and
     // the version byte is encoded outside the data. The simplest correct
     // path is to use `bech32::segwit::encode_v0`.
-    bech32::segwit::encode_v0(hrp, &h160)
-        .map_err(|e| anyhow!("bech32 encode: {e}"))
+    bech32::segwit::encode_v0(hrp, &h160).map_err(|e| anyhow!("bech32 encode: {e}"))
 }
 
 /// Zcash transparent P2PKH address (base58check) from a 33-byte compressed
@@ -375,8 +422,7 @@ mod tests {
     /// `87W54kGYFQ1rgWqMeu4XTPHWXWmXSQCcjm8vCTfiq1oY` — used as a known
     /// fixed input so we can pin every chain-native derivation against
     /// independently-computed reference values.
-    const TEST_PK_HEX: &str =
-        "03445655313b638875c9f559b34aacb355e59cc9ce248b49696a584d0416cd9b79";
+    const TEST_PK_HEX: &str = "03445655313b638875c9f559b34aacb355e59cc9ce248b49696a584d0416cd9b79";
 
     fn pk() -> Vec<u8> {
         let mut out = Vec::with_capacity(33);
@@ -427,7 +473,8 @@ pub fn parse_ika_config(data: &[u8]) -> Result<IkaConfigAccount> {
     let mut offset = 1;
     let wallet = read_address(data, &mut offset)?;
     let dwallet = read_address(data, &mut offset)?;
-    let user_pubkey_bytes = data.get(offset..offset + 32)
+    let user_pubkey_bytes = data
+        .get(offset..offset + 32)
         .ok_or(anyhow!("unexpected end of data reading user_pubkey"))?;
     let user_pubkey = hex_encode(user_pubkey_bytes);
     offset += 32;
@@ -441,7 +488,12 @@ pub fn parse_ika_config(data: &[u8]) -> Result<IkaConfigAccount> {
     offset += 2;
     let bump = read_u8(data, &mut offset)?;
     Ok(IkaConfigAccount {
-        wallet, dwallet, user_pubkey, chain_kind, signature_scheme, bump,
+        wallet,
+        dwallet,
+        user_pubkey,
+        chain_kind,
+        signature_scheme,
+        bump,
     })
 }
 
@@ -457,7 +509,10 @@ fn hex_encode(bytes: &[u8]) -> String {
 
 pub fn parse_proposal(data: &[u8]) -> Result<ProposalAccount> {
     if data.is_empty() || data[0] != 3 {
-        return Err(anyhow!("not a Proposal account (discriminator={})", data.first().unwrap_or(&0)));
+        return Err(anyhow!(
+            "not a Proposal account (discriminator={})",
+            data.first().unwrap_or(&0)
+        ));
     }
     let mut offset = 1;
     let wallet = read_address(data, &mut offset)?;
@@ -466,8 +521,13 @@ pub fn parse_proposal(data: &[u8]) -> Result<ProposalAccount> {
     let proposer = read_address(data, &mut offset)?;
     let status_byte = read_u8(data, &mut offset)?;
     let status = match status_byte {
-        0 => "Active", 1 => "Approved", 2 => "Executed", 3 => "Cancelled", _ => "Unknown",
-    }.to_string();
+        0 => "Active",
+        1 => "Approved",
+        2 => "Executed",
+        3 => "Cancelled",
+        _ => "Unknown",
+    }
+    .to_string();
     let proposed_at = read_i64_le(data, &mut offset)?;
     let approved_at = read_i64_le(data, &mut offset)?;
     let bump = read_u8(data, &mut offset)?;
@@ -477,9 +537,18 @@ pub fn parse_proposal(data: &[u8]) -> Result<ProposalAccount> {
     let params_data = read_vec_u8(data, &mut offset)?;
 
     Ok(ProposalAccount {
-        wallet, intent, proposal_index, proposer, status,
-        proposed_at, approved_at, bump, approval_bitmap, cancellation_bitmap,
-        rent_refund, params_data,
+        wallet,
+        intent,
+        proposal_index,
+        proposer,
+        status,
+        proposed_at,
+        approved_at,
+        bump,
+        approval_bitmap,
+        cancellation_bitmap,
+        rent_refund,
+        params_data,
     })
 }
 
@@ -495,7 +564,9 @@ impl IntentAccount {
     }
 
     pub fn template(&self) -> &str {
-        if self.template_len == 0 { return ""; }
+        if self.template_len == 0 {
+            return "";
+        }
         let start = self.template_offset as usize;
         let end = start + self.template_len as usize;
         if end <= self.byte_pool.len() {
@@ -504,4 +575,54 @@ impl IntentAccount {
             ""
         }
     }
+
+    pub fn policy_ciphertext_ids(&self) -> Vec<String> {
+        decode_policy_ciphertexts(&self.policy_ciphertexts).unwrap_or_default()
+    }
+}
+
+pub fn encode_policy_ciphertexts(ids: &[String]) -> Result<Vec<u8>> {
+    let trimmed: Vec<&str> = ids
+        .iter()
+        .map(|id| id.trim())
+        .filter(|id| !id.is_empty())
+        .collect();
+    if trimmed.len() > u16::MAX as usize {
+        return Err(anyhow!("too many policy ciphertext identifiers"));
+    }
+    let mut out = Vec::new();
+    out.extend_from_slice(&(trimmed.len() as u16).to_le_bytes());
+    for trimmed in trimmed {
+        let bytes = trimmed.as_bytes();
+        if bytes.len() > u16::MAX as usize {
+            return Err(anyhow!("policy ciphertext identifier too long"));
+        }
+        out.extend_from_slice(&(bytes.len() as u16).to_le_bytes());
+        out.extend_from_slice(bytes);
+    }
+    if out.len() > 2048 {
+        return Err(anyhow!(
+            "policy ciphertext identifiers exceed on-chain limit: {} > 2048 bytes",
+            out.len()
+        ));
+    }
+    Ok(out)
+}
+
+pub fn decode_policy_ciphertexts(data: &[u8]) -> Result<Vec<String>> {
+    if data.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut offset = 0usize;
+    let count = read_u16_le(data, &mut offset)? as usize;
+    let mut ids = Vec::with_capacity(count);
+    for _ in 0..count {
+        let len = read_u16_le(data, &mut offset)? as usize;
+        let bytes = data
+            .get(offset..offset + len)
+            .ok_or_else(|| anyhow!("truncated policy ciphertext identifier"))?;
+        offset += len;
+        ids.push(String::from_utf8_lossy(bytes).to_string());
+    }
+    Ok(ids)
 }

@@ -14,10 +14,9 @@
 //     thing about their own service - "all data is completely public
 //     and stored as plaintext." Local stub matches that contract.
 //
-// Swap path: when `@encrypt.xyz/pre-alpha-solana-client` lands on npm
-// with a stable browser entry, `lib/encrypt/client.ts` instantiates
-// the gRPC-Web client instead of this one. Same `createInput` call,
-// same shape of identifier - every consumer keeps working.
+// Swap path: `lib/encrypt/client.ts` now uses Encrypt's published
+// gRPC-Web client when configured. This local client remains the
+// development fallback and keeps the same `createInput` result shape.
 
 import type { FheType } from "@/lib/encrypt/client";
 

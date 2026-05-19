@@ -11,7 +11,7 @@
 use solana_address::Address;
 use solana_instruction::{AccountMeta, Instruction};
 use super::ID;
-use quasar_lang::client::{DynBytes, DynVec};
+use quasar_lang::client::{DynBytes, DynVec, TailBytes};
 
 pub struct CreateWalletInstruction {
     pub payer: Address,
@@ -27,6 +27,7 @@ pub struct CreateWalletInstruction {
     pub name: DynBytes,
     pub proposers: DynVec<[u8; 32]>,
     pub approvers: DynVec<[u8; 32]>,
+    pub policy_ciphertexts: TailBytes,
 }
 
 impl From<CreateWalletInstruction> for Instruction {
@@ -47,6 +48,7 @@ impl From<CreateWalletInstruction> for Instruction {
         wincode::serialize_into(&mut data, &ix.name).unwrap();
         wincode::serialize_into(&mut data, &ix.proposers).unwrap();
         wincode::serialize_into(&mut data, &ix.approvers).unwrap();
+        wincode::serialize_into(&mut data, &ix.policy_ciphertexts).unwrap();
         Instruction {
             program_id: ID,
             accounts,

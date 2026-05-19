@@ -181,10 +181,10 @@ What's solid today:
 
 What's load-bearing pre-alpha and ships when the network does:
 - **FHE-encrypted policies are NOT live today.** Honest accounting of where each layer stands:
-  - Frontend (`frontend/src/lib/encrypt/client.ts`): wired. Every policy change routes through `encryptPolicy` / `encryptPolicyBatch`, which return real ciphertext identifiers. When `@encrypt.xyz/pre-alpha-solana-client` ships to npm, swapping the local pass-through for real gRPC encryption is a single-file change.
+  - Frontend (`frontend/src/lib/encrypt/client.ts`): wired. Every policy change routes through `encryptPolicy` / `encryptPolicyBatch`. When `NEXT_PUBLIC_ENCRYPT_GRPC_URL` and `NEXT_PUBLIC_ENCRYPT_NETWORK_KEY_HEX` are set, the browser calls Encrypt's published pre-alpha gRPC-Web `createInput` endpoint and forwards the returned ciphertext identifiers. Without those env vars it falls back to the local pre-alpha stub.
   - CLI (`cli/src/commands/intent.rs`): receives the ciphertext IDs and **logs them only** (`[encrypt] intent-add received N policy ciphertext id(s): …`). They are not forwarded into the on-chain instruction yet.
   - Solana program (`programs/clear-wallet/`): has zero FHE-aware code today. No `#[encrypt_fn]` handlers, no `EUint*` types, no encrypted-bytes account fields. Approval threshold + allowance arithmetic operate on plaintext.
-  - Net: a "flip a flag and you're encrypting" story would be misleading. The CLI plus on-chain program work is the bulk of the lift; the frontend is one file. UI status text (`encryptStatus().description`) and the /privacy page reflect this.
+  - Net: a "flip a flag and you're encrypting" story would be misleading. The program work is the bulk of the lift; the frontend can now exercise Encrypt's pre-alpha API surface. UI status text (`encryptStatus().description`) and the /privacy page reflect this.
 - On-chain enforcement of allowances + budgets (program lacks the FHE handlers needed to compare encrypted bytes).
 
 What's deferred to post-MVP:

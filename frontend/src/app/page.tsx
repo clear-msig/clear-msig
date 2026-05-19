@@ -464,10 +464,10 @@ function Bento({ fadeIn }: { fadeIn: FadeInFn }) {
               </span>
             </div>
             <div className="mt-12 text-2xl font-medium leading-[1.1] tracking-tight">
-              Private by default.
+              Privacy-ready.
             </div>
             <p className="mt-3 text-[13px] leading-relaxed text-black/70">
-              Members, limits, and rules - kept private, never on display to the rest of the world.
+              Policy values route through Encrypt today; on-chain privacy comes with the FHE rollout.
             </p>
           </div>
         </motion.div>
@@ -867,8 +867,8 @@ function WhyClear({ fadeIn }: { fadeIn: FadeInFn }) {
         body: "Anyone curious can look up who's in your wallet and how much they can move.",
       },
       good: {
-        title: "Members and limits private",
-        body: "Spending caps and approvers stay encrypted. The rules are enforced, never on display.",
+        title: "Privacy-ready rules",
+        body: "Policy values already flow through Encrypt hooks. Full on-chain privacy turns on with Encrypt FHE.",
       },
     },
     {
