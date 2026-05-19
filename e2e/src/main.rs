@@ -581,6 +581,7 @@ async fn main() {
             approver1_pk.to_bytes(),
             approver2_pk.to_bytes(),
         ]),
+        policy_ciphertexts: quasar_lang::client::TailBytes(Vec::new()),
     }
     .into();
     let cw_ix = sdk_ix_from_ext(cw_ix);

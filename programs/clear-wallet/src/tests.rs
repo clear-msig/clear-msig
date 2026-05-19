@@ -157,6 +157,7 @@ fn create_wallet_ix(
         approval_threshold: threshold, cancellation_threshold: 1, timelock_seconds: 0,
         proposers: DynVec::new(proposers.iter().map(|p| p.to_bytes()).collect()),
         approvers: DynVec::new(approvers.iter().map(|a| a.to_bytes()).collect()),
+        policy_ciphertexts: TailBytes(Vec::new()),
     }.into();
 
     let accounts = vec![funded_account(payer), empty_account(name_hash), empty_account(wallet),
@@ -302,6 +303,7 @@ fn test_create_wallet_wrong_wallet_address_fails() {
         approval_threshold: 1, cancellation_threshold: 1, timelock_seconds: 0,
         proposers: DynVec::new(vec![proposer.to_bytes()]),
         approvers: DynVec::new(vec![approver.to_bytes()]),
+        policy_ciphertexts: TailBytes(Vec::new()),
     }.into();
 
     let result = svm.process_instruction(&instruction, &[
@@ -682,6 +684,7 @@ fn test_timelock_enforcement() {
         timelock_seconds: 3600,
         proposers: DynVec::new(vec![pubkey_of(&proposer).to_bytes()]),
         approvers: DynVec::new(vec![pubkey_of(&approver).to_bytes()]),
+        policy_ciphertexts: TailBytes(Vec::new()),
     }.into();
 
     svm.process_instruction(&instruction, &[
@@ -807,6 +810,7 @@ fn test_cancel_reverts_approved_to_active() {
         timelock_seconds: 0,
         proposers: DynVec::new(vec![pubkey_of(&proposer).to_bytes()]),
         approvers: DynVec::new(vec![pubkey_of(&approver1).to_bytes(), pubkey_of(&approver2).to_bytes()]),
+        policy_ciphertexts: TailBytes(Vec::new()),
     }.into();
     svm.process_instruction(&instruction, &[
         funded_account(payer), empty_account(name_hash), empty_account(wallet),

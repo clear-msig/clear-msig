@@ -86,6 +86,8 @@ export interface IntentAccount {
   instructions: InstructionEntry[];
   dataSegments: DataSegmentEntry[];
   seeds: SeedEntry[];
+  policyCiphertexts: Uint8Array;
+  policyCiphertextIds: string[];
   bytePool: Uint8Array;
   /// Convenience accessor for the template string slice in `bytePool`.
   template: string;
@@ -115,11 +117,13 @@ export function parseIntent(data: Uint8Array): IntentAccount {
   const instructions = r.vecInstructionEntries();
   const dataSegments = r.vecDataSegmentEntries();
   const seeds = r.vecSeedEntries();
+  const policyCiphertexts = r.vecU8();
   const bytePool = r.vecU8();
 
   const template = new TextDecoder().decode(
     bytePool.subarray(templateOffset, templateOffset + templateLen)
   );
+  const policyCiphertextIds = decodePolicyCiphertexts(policyCiphertexts);
 
   return {
     wallet,
@@ -143,9 +147,33 @@ export function parseIntent(data: Uint8Array): IntentAccount {
     instructions,
     dataSegments,
     seeds,
+    policyCiphertexts,
+    policyCiphertextIds,
     bytePool,
     template,
   };
+}
+
+function decodePolicyCiphertexts(data: Uint8Array): string[] {
+  if (data.length === 0) return [];
+  let offset = 0;
+  const readU16 = () => {
+    if (offset + 2 > data.length) return null;
+    const value = data[offset] | (data[offset + 1] << 8);
+    offset += 2;
+    return value;
+  };
+  const count = readU16();
+  if (count == null) return [];
+  const ids: string[] = [];
+  const dec = new TextDecoder();
+  for (let i = 0; i < count; i++) {
+    const len = readU16();
+    if (len == null || offset + len > data.length) return ids;
+    ids.push(dec.decode(data.subarray(offset, offset + len)));
+    offset += len;
+  }
+  return ids;
 }
 
 // ── ProposalAccount ──────────────────────────────────────────────────

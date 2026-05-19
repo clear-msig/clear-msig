@@ -41,6 +41,7 @@ pub struct BuiltIntent {
     pub instructions: Vec<InstructionEntry>,
     pub data_segments: Vec<DataSegmentEntry>,
     pub seeds: Vec<SeedEntry>,
+    pub policy_ciphertexts: Vec<u8>,
     pub byte_pool: Vec<u8>,
 }
 
@@ -74,6 +75,7 @@ pub struct IntentBuilder {
     pool: Vec<u8>,
     template: String,
     tx_template: Vec<u8>,
+    policy_ciphertexts: Vec<u8>,
 }
 
 impl Default for IntentBuilder {
@@ -97,6 +99,7 @@ impl IntentBuilder {
             pool: Vec::new(),
             template: String::new(),
             tx_template: Vec::new(),
+            policy_ciphertexts: Vec::new(),
         }
     }
 
@@ -109,6 +112,11 @@ impl IntentBuilder {
     /// Layout depends on chain_kind — see `clear_wallet::chains` for per-chain formats.
     pub fn set_tx_template(&mut self, tx_template: &[u8]) -> &mut Self {
         self.tx_template = tx_template.to_vec();
+        self
+    }
+
+    pub fn set_policy_ciphertexts(&mut self, policy_ciphertexts: &[u8]) -> &mut Self {
+        self.policy_ciphertexts = policy_ciphertexts.to_vec();
         self
     }
 
@@ -297,6 +305,7 @@ impl IntentBuilder {
             instructions: self.instructions,
             data_segments: self.data_segments,
             seeds: self.seeds,
+            policy_ciphertexts: self.policy_ciphertexts,
             byte_pool: self.pool,
         }
     }
@@ -390,6 +399,8 @@ impl BuiltIntent {
         write_vec_raw(&mut out, &self.instructions);
         write_vec_raw(&mut out, &self.data_segments);
         write_vec_raw(&mut out, &self.seeds);
+        out.extend_from_slice(&(self.policy_ciphertexts.len() as u32).to_le_bytes());
+        out.extend_from_slice(&self.policy_ciphertexts);
         // byte_pool: u32 count + raw bytes
         out.extend_from_slice(&(self.byte_pool.len() as u32).to_le_bytes());
         out.extend_from_slice(&self.byte_pool);

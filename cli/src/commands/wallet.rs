@@ -31,11 +31,10 @@ pub enum WalletAction {
         #[arg(long, default_value = "0")]
         timelock: u32,
         /// Comma-separated Encrypt ciphertext identifiers covering the
-        /// policy fields (proposers / approvers / threshold). Forward-
-        /// compatibility hook: today the program isn't FHE-aware so
-        /// these are logged and ignored. When the program adopts
-        /// `encrypt-quasar` and `#[encrypt_fn]` handlers, these IDs
-        /// replace plaintext fields in the on-chain instruction.
+        /// policy fields (proposers / approvers / threshold). Stored in
+        /// the intent payload for future Encrypt-aware program handlers;
+        /// on-chain privacy still depends on the program adopting
+        /// `encrypt-quasar` and `#[encrypt_fn]`.
         #[arg(long, value_delimiter = ',')]
         policy_ciphertexts: Vec<String>,
     },
@@ -121,7 +120,9 @@ fn parse_hex(s: &str) -> Result<Vec<u8>> {
         return Err(anyhow!("hex string has odd length"));
     }
     (0..s.len() / 2)
-        .map(|i| u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).map_err(|e| anyhow!("invalid hex: {e}")))
+        .map(|i| {
+            u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).map_err(|e| anyhow!("invalid hex: {e}"))
+        })
         .collect()
 }
 
@@ -146,14 +147,10 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
             timelock,
             policy_ciphertexts,
         } => {
-            // Forward-compat: log received Encrypt identifiers so the
-            // wire path is exercised end-to-end. The on-chain program
-            // doesn't read these yet — when it adopts `#[encrypt_fn]`
-            // handlers, the CLI swaps the plaintext fields below for
-            // these identifiers in the instruction encoding.
+            let policy_ciphertext_bytes = accounts::encode_policy_ciphertexts(&policy_ciphertexts)?;
             if !policy_ciphertexts.is_empty() {
                 eprintln!(
-                    "[encrypt] create-wallet received {} policy ciphertext id(s): {}",
+                    "[encrypt] create-wallet storing {} policy ciphertext id(s): {}",
                     policy_ciphertexts.len(),
                     policy_ciphertexts.join(", ")
                 );
@@ -166,7 +163,8 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
             // and end up at distinct PDAs.
             let payer_pubkey = solana_sdk::signer::Signer::pubkey(&config.payer);
             let creator_addr = solana_address::Address::new_from_array(payer_pubkey.to_bytes());
-            let (wallet_addr, _) = clear_wallet_client::pda::find_wallet_address(&name, &creator_addr, &pid);
+            let (wallet_addr, _) =
+                clear_wallet_client::pda::find_wallet_address(&name, &creator_addr, &pid);
             let wallet = Pubkey::new_from_array(wallet_addr.to_bytes());
 
             let (vault_addr, _) = clear_wallet_client::pda::find_vault_address(&wallet_addr, &pid);
@@ -185,11 +183,17 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
 
             let proposer_pubkeys: Vec<Pubkey> = proposers
                 .iter()
-                .map(|s| s.parse().with_context(|| format!("invalid proposer address: {s}")))
+                .map(|s| {
+                    s.parse()
+                        .with_context(|| format!("invalid proposer address: {s}"))
+                })
                 .collect::<Result<_>>()?;
             let approver_pubkeys: Vec<Pubkey> = approvers
                 .iter()
-                .map(|s| s.parse().with_context(|| format!("invalid approver address: {s}")))
+                .map(|s| {
+                    s.parse()
+                        .with_context(|| format!("invalid approver address: {s}"))
+                })
                 .collect::<Result<_>>()?;
 
             let ix = crate::instructions::create_wallet(crate::instructions::CreateWalletArgs {
@@ -205,6 +209,7 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
                 timelock,
                 proposers: &proposer_pubkeys,
                 approvers: &approver_pubkeys,
+                policy_ciphertexts: &policy_ciphertext_bytes,
             });
 
             let client = rpc::client(config);
@@ -237,7 +242,8 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
             // the parsed account so we don't need a second roundtrip
             // for verification.
             let client = rpc::client(config);
-            let (wallet_pubkey, _wallet_account) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
+            let (wallet_pubkey, _wallet_account) =
+                rpc::resolve_wallet_by_name(&client, &wallet_name)?;
             let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
 
             // Wait for the dWallet program's coordinator (mock auto-init).
@@ -261,11 +267,12 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
             // same dWallet PDA, and copying its `user_pubkey` field
             // (which the prior `add-chain` populated with the real
             // session identifier from the original DKG).
-            let (dwallet_addr_bytes, dwallet_public_key) = if let Some(hex_pk) = existing_dwallet_pubkey {
+            let (dwallet_addr_bytes, dwallet_public_key) = if let Some(hex_pk) =
+                existing_dwallet_pubkey
+            {
                 let pk = parse_hex(&hex_pk)?;
                 eprintln!("→ Using existing dWallet pubkey ({} bytes)", pk.len());
-                let (target_dwallet_pda, _) =
-                    ika::dwallet_pda(&dwallet_program_pk, curve_val, &pk);
+                let (target_dwallet_pda, _) = ika::dwallet_pda(&dwallet_program_pk, curve_val, &pk);
 
                 // Resolve the 32-byte Ika session id. Prefer the explicit
                 // `--existing-dwallet-addr` if provided; otherwise scan the
@@ -281,7 +288,10 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
                     }
                     let mut a = [0u8; 32];
                     a.copy_from_slice(&bytes);
-                    eprintln!("  ↳ session id from --existing-dwallet-addr: {}", hex_encode(&a));
+                    eprintln!(
+                        "  ↳ session id from --existing-dwallet-addr: {}",
+                        hex_encode(&a)
+                    );
                     a
                 } else {
                     let mut found: Option<[u8; 32]> = None;
@@ -349,23 +359,26 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
                 let dkg_result = ika::dkg(config, &grpc_url, curve, session_preimage)
                     .with_context(|| "Ika DKG failed")?;
                 eprintln!("✓ DKG complete");
-                eprintln!("  → dWallet address: {}", hex_encode(&dkg_result.dwallet_addr));
-                eprintln!("  → dWallet pubkey:  {}", hex_encode(&dkg_result.public_key));
+                eprintln!(
+                    "  → dWallet address: {}",
+                    hex_encode(&dkg_result.dwallet_addr)
+                );
+                eprintln!(
+                    "  → dWallet pubkey:  {}",
+                    hex_encode(&dkg_result.public_key)
+                );
 
                 // Persist the DKG attestation so `proposal execute` can use it
                 // for the gRPC Sign request later.
-                ika::save_attestation(
-                    &wallet_name,
-                    chain_kind,
-                    &dkg_result.attestation,
-                )?;
+                ika::save_attestation(&wallet_name, chain_kind, &dkg_result.attestation)?;
                 eprintln!("✓ Attestation saved (chain_kind={chain_kind})");
 
                 (dkg_result.dwallet_addr, dkg_result.public_key)
             };
 
             // 2. Resolve the dWallet PDA on-chain (mock auto-commits within ~5s).
-            let (dwallet_pda, _) = ika::dwallet_pda(&dwallet_program_pk, curve_val, &dwallet_public_key);
+            let (dwallet_pda, _) =
+                ika::dwallet_pda(&dwallet_program_pk, curve_val, &dwallet_public_key);
             ika::poll_until(
                 &client,
                 &dwallet_pda,
@@ -459,7 +472,8 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
             // the creator pubkey, which we don't have on this command
             // line — scan to find it.
             let client = rpc::client(config);
-            let (wallet_pubkey, _wallet_account) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
+            let (wallet_pubkey, _wallet_account) =
+                rpc::resolve_wallet_by_name(&client, &wallet_name)?;
 
             // Probe each known chain_kind for an IkaConfig PDA.
             let mut chains = Vec::new();
@@ -482,21 +496,18 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
                             "user_pubkey_hex":  cfg.user_pubkey,
                             "signature_scheme": cfg.signature_scheme,
                         });
-                        if let Some(dw_data) =
-                            rpc::fetch_account_optional(&client, &dwallet_pk)?
-                        {
+                        if let Some(dw_data) = rpc::fetch_account_optional(&client, &dwallet_pk)? {
                             if let Ok(dw) = accounts::parse_dwallet(&dw_data) {
                                 let pk_hex = dw
                                     .public_key
                                     .iter()
                                     .map(|b| format!("{b:02x}"))
                                     .collect::<String>();
-                                entry["secp256k1_pubkey_hex"] =
-                                    serde_json::Value::String(pk_hex);
+                                entry["secp256k1_pubkey_hex"] = serde_json::Value::String(pk_hex);
                                 // Solana dWallet: 32-byte Ed25519 pubkey IS the Solana address.
                                 if chain_kind == 0 && dw.public_key.len() == 32 {
                                     let sol_addr = solana_sdk::pubkey::Pubkey::new_from_array(
-                                        dw.public_key[..32].try_into().unwrap()
+                                        dw.public_key[..32].try_into().unwrap(),
                                     );
                                     entry["solana_address"] =
                                         serde_json::Value::String(sol_addr.to_string());
@@ -506,9 +517,9 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
                                         // 1 = evm_1559, 4 = evm_1559_erc20 — both use the
                                         // standard EOA derivation `keccak256(uncompressed)[12..]`.
                                         1 | 4 => {
-                                            if let Ok(addr) = accounts::evm_address_from_secp256k1(
-                                                &dw.public_key,
-                                            ) {
+                                            if let Ok(addr) =
+                                                accounts::evm_address_from_secp256k1(&dw.public_key)
+                                            {
                                                 entry["evm_address"] =
                                                     serde_json::Value::String(addr);
                                             }

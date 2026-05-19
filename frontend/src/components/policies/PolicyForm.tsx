@@ -334,8 +334,8 @@ export function PolicyForm({ mode, initial, initialExtraApproversText = "" }: Fo
               }
             />
             <p className="mt-1 text-[10px] text-text-soft">
-              Encrypted via Encrypt - addresses don&rsquo;t leave this device
-              in plaintext.
+              Routed through Encrypt when configured. Pre-alpha is not
+              production confidentiality.
             </p>
           </Field>
         )}
@@ -538,7 +538,7 @@ function RecipientEditor({
         />
         <span className="mt-1 inline-flex items-center gap-1 text-[10px] text-text-soft">
           <Lock className="h-3 w-3" aria-hidden="true" />
-          Routed through Encrypt on save; real FHE switches on with the network.
+          Routed through Encrypt on save; on-chain privacy still depends on the program rollout.
         </span>
       </label>
     </div>

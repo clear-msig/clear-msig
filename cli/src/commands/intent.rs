@@ -1,8 +1,8 @@
 use crate::config::RuntimeConfig;
 use crate::error::*;
 use crate::output::{print_dry_run, print_json, DryRunDescriptor};
-use crate::{accounts, message, rpc};
 use crate::signing::sign_message_with_fallback;
+use crate::{accounts, message, rpc};
 use clap::Subcommand;
 use clear_wallet_client::intent_builder::BuiltIntent;
 use clear_wallet_client::intent_json::IntentTransactionJson;
@@ -46,9 +46,10 @@ pub enum IntentAction {
         #[arg(long)]
         expiry: Option<String>,
         /// Encrypt ciphertext identifiers covering the policy fields
-        /// (proposers / approvers / threshold / timelock). Forward-
-        /// compat — logged and ignored until the program adopts
-        /// `#[encrypt_fn]` handlers.
+        /// (proposers / approvers / threshold / timelock). Stored in the
+        /// intent payload for future Encrypt-aware execution paths; the
+        /// program still needs `#[encrypt_fn]` handlers before these IDs
+        /// become an enforcement boundary.
         #[arg(long, value_delimiter = ',')]
         policy_ciphertexts: Vec<String>,
     },
@@ -88,7 +89,8 @@ pub enum IntentAction {
         #[arg(long)]
         expiry: Option<String>,
         /// Encrypt ciphertext identifiers for the new policy fields.
-        /// Forward-compat — see `Add::policy_ciphertexts`.
+        /// Stored in the intent payload for future Encrypt-aware execution
+        /// paths. See `Add::policy_ciphertexts`.
         #[arg(long, value_delimiter = ',')]
         policy_ciphertexts: Vec<String>,
     },
@@ -138,9 +140,10 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
             expiry,
             policy_ciphertexts,
         } => {
+            let policy_ciphertext_bytes = accounts::encode_policy_ciphertexts(&policy_ciphertexts)?;
             if !policy_ciphertexts.is_empty() {
                 eprintln!(
-                    "[encrypt] intent-add received {} policy ciphertext id(s): {}",
+                    "[encrypt] intent-add storing {} policy ciphertext id(s): {}",
                     policy_ciphertexts.len(),
                     policy_ciphertexts.join(", ")
                 );
@@ -155,7 +158,8 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
             // returns the parsed account so we don't need the
             // separate fetch + parse the old PDA-derive path used.
             let client = rpc::client(config);
-            let (wallet_pubkey, wallet_account) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
+            let (wallet_pubkey, wallet_account) =
+                rpc::resolve_wallet_by_name(&client, &wallet_name)?;
             let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
 
             // params_data for AddIntent = the serialized intent body. In
@@ -185,7 +189,8 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
                         cancellation_threshold,
                         timelock,
                     );
-                    let built = full_json.to_built().map_err(|e| anyhow!("{e}"))?;
+                    let mut built = full_json.to_built().map_err(|e| anyhow!("{e}"))?;
+                    built.policy_ciphertexts = policy_ciphertext_bytes.clone();
                     let next_index = wallet_account.intent_index + 1;
                     built.serialize_body(
                         &wallet_addr,
@@ -287,7 +292,8 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
             // returns the parsed account so we don't need the
             // separate fetch + parse the old PDA-derive path used.
             let client = rpc::client(config);
-            let (wallet_pubkey, wallet_account) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
+            let (wallet_pubkey, wallet_account) =
+                rpc::resolve_wallet_by_name(&client, &wallet_name)?;
             let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
 
             // RemoveIntent params_data = [target_index]. Pre-signed mode
@@ -386,9 +392,10 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
             expiry,
             policy_ciphertexts,
         } => {
+            let policy_ciphertext_bytes = accounts::encode_policy_ciphertexts(&policy_ciphertexts)?;
             if !policy_ciphertexts.is_empty() {
                 eprintln!(
-                    "[encrypt] intent-update received {} policy ciphertext id(s): {}",
+                    "[encrypt] intent-update storing {} policy ciphertext id(s): {}",
                     policy_ciphertexts.len(),
                     policy_ciphertexts.join(", ")
                 );
@@ -403,7 +410,8 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
             // returns the parsed account so we don't need the
             // separate fetch + parse the old PDA-derive path used.
             let client = rpc::client(config);
-            let (wallet_pubkey, wallet_account) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
+            let (wallet_pubkey, wallet_account) =
+                rpc::resolve_wallet_by_name(&client, &wallet_name)?;
             let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
 
             // UpdateIntent params_data = [target_index, ...new_intent_body].
@@ -447,7 +455,8 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
                         cancellation_threshold,
                         timelock,
                     );
-                    let built = full_json.to_built().map_err(|e| anyhow!("{e}"))?;
+                    let mut built = full_json.to_built().map_err(|e| anyhow!("{e}"))?;
+                    built.policy_ciphertexts = policy_ciphertext_bytes.clone();
                     let intent_body = built.serialize_body(&wallet_addr, 0, index, 3);
                     let mut buf = Vec::with_capacity(1 + intent_body.len());
                     buf.push(index);
@@ -545,8 +554,7 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
             let client = rpc::client(config);
             let (wallet_pubkey, wallet_account) =
                 rpc::resolve_wallet_by_name(&client, &wallet_name)?;
-            let wallet_addr =
-                solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
+            let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
 
             // Load the existing intent at `index` and reproject it as a
             // BuiltIntent with the template swapped. We touch only the
@@ -556,10 +564,10 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
             let (target_intent_addr, _) =
                 clear_wallet_client::pda::find_intent_address(&wallet_addr, index, &pid);
             let target_intent_pk = Pubkey::new_from_array(target_intent_addr.to_bytes());
-            let target_data = rpc::fetch_account(&client, &target_intent_pk)
-                .with_context(|| format!(
-                    "no intent found at index {index} on wallet `{wallet_name}`"
-                ))?;
+            let target_data =
+                rpc::fetch_account(&client, &target_intent_pk).with_context(|| {
+                    format!("no intent found at index {index} on wallet `{wallet_name}`")
+                })?;
             let target = accounts::parse_intent(&target_data)?;
             if target.intent_type != 3 {
                 return Err(anyhow!(
@@ -628,9 +636,9 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
                 let bytes = bs58::decode(s)
                     .into_vec()
                     .map_err(|e| anyhow!("invalid base58 address {s}: {e}"))?;
-                let arr: [u8; 32] = bytes.try_into().map_err(|v: Vec<u8>| {
-                    anyhow!("address must be 32 bytes, got {}", v.len())
-                })?;
+                let arr: [u8; 32] = bytes
+                    .try_into()
+                    .map_err(|v: Vec<u8>| anyhow!("address must be 32 bytes, got {}", v.len()))?;
                 Ok(Address::new_from_array(arr))
             }
             let proposers = target
@@ -660,6 +668,7 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
                 instructions: target.instructions,
                 data_segments: target.data_segments,
                 seeds: target.seeds,
+                policy_ciphertexts: target.policy_ciphertexts,
                 byte_pool: new_pool,
             };
 
@@ -765,7 +774,8 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
             // returns the parsed account so we don't need the
             // separate fetch + parse the old PDA-derive path used.
             let client = rpc::client(config);
-            let (wallet_pubkey, wallet_account) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
+            let (wallet_pubkey, wallet_account) =
+                rpc::resolve_wallet_by_name(&client, &wallet_name)?;
             let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
 
             let mut intents = Vec::new();
@@ -787,6 +797,7 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
                             "template": intent.template(),
                             "proposers": intent.proposers,
                             "approvers": intent.approvers,
+                            "policy_ciphertexts": intent.policy_ciphertext_ids(),
                             "active_proposals": intent.active_proposal_count,
                         }));
                     }
