@@ -120,9 +120,18 @@ export interface NetworkConfig {
 export function getNetworkConfig(): NetworkConfig {
   return {
     grpcUrl: process.env.NEXT_PUBLIC_ENCRYPT_GRPC_URL ?? null,
-    networkEncryptionPublicKey: null,
+    networkEncryptionPublicKey: parseHexBytes(
+      process.env.NEXT_PUBLIC_ENCRYPT_NETWORK_KEY_HEX,
+    ),
     authorizedProgram: CLEAR_WALLET_PROGRAM_ID.toBytes(),
   };
+}
+
+function parseHexBytes(hex: string | undefined): Uint8Array | null {
+  if (!hex) return null;
+  const normalized = hex.trim().replace(/^0x/i, "");
+  if (normalized.length === 0) return null;
+  return hexToBytes(normalized);
 }
 
 function bytesToHex(bytes: Uint8Array): string {
@@ -165,6 +174,91 @@ function ciphertextToBytes(ciphertext: unknown): Uint8Array {
   throw new Error("unsupported ciphertext payload encoding");
 }
 
+function fheTypeCode(fheType: FheType): number {
+  // Encrypt pre-alpha's public TS client takes numeric fheType
+  // values. The exact enum is not exported by the package; EUint64
+  // is documented as 4 in grpc-web.ts. Keep the same contiguous
+  // layout used by the current pre-alpha examples.
+  switch (fheType) {
+    case "ebool":
+      return 0;
+    case "euint8":
+      return 1;
+    case "euint16":
+      return 2;
+    case "euint32":
+      return 3;
+    case "euint64":
+      return 4;
+    case "euint128":
+      return 5;
+    case "ebytes":
+      return 6;
+  }
+}
+
+function identifierToString(id: Uint8Array | string): string {
+  if (typeof id === "string") return id;
+  return "enc_" + bytesToHex(id);
+}
+
+function plaintextNumber(bytes: Uint8Array): bigint {
+  if (bytes.length === 0) return 0n;
+  if (bytes.length === 1) return BigInt(bytes[0]);
+  const text = new TextDecoder().decode(bytes).trim();
+  if (/^\d+$/.test(text)) return BigInt(text);
+  let out = 0n;
+  for (let i = 0; i < bytes.length; i++) {
+    out |= BigInt(bytes[i]) << BigInt(i * 8);
+  }
+  return out;
+}
+
+async function createInputWithEncryptNetwork(
+  cfg: NetworkConfig,
+  inputs: ReadonlyArray<{ plaintext: Uint8Array; fheType: FheType }>,
+): Promise<string[] | null> {
+  if (!cfg.grpcUrl || !cfg.networkEncryptionPublicKey) return null;
+  try {
+    const mod = (await import(
+      "@encrypt.xyz/pre-alpha-solana-client/grpc-web"
+    )) as {
+      createEncryptWebClient: (baseUrl: string) => {
+        createInput: (params: {
+          chain: unknown;
+          inputs: Array<{ ciphertextBytes: Uint8Array; fheType: number }>;
+          authorized: Uint8Array;
+          networkEncryptionPublicKey: Uint8Array;
+        }) => Promise<Array<Uint8Array | string>>;
+      };
+      Chain: { SOLANA?: unknown; Solana?: unknown; solana?: unknown };
+      encryptValue: (value: number | bigint, fheType: number) => Uint8Array;
+    };
+    const chain =
+      mod.Chain.SOLANA ?? mod.Chain.Solana ?? mod.Chain.solana ?? 0;
+    const client = mod.createEncryptWebClient(cfg.grpcUrl);
+    const identifiers = await client.createInput({
+      chain,
+      inputs: inputs.map((i) => ({
+        // Pre-alpha client still accepts mock ciphertext bytes. When
+        // Encrypt ships the WASM FHE encryptor, this is the one spot
+        // that swaps plaintext bytes for real ciphertext+proof.
+        ciphertextBytes:
+          i.fheType === "ebytes"
+            ? i.plaintext
+            : mod.encryptValue(plaintextNumber(i.plaintext), fheTypeCode(i.fheType)),
+        fheType: fheTypeCode(i.fheType),
+      })),
+      authorized: cfg.authorizedProgram,
+      networkEncryptionPublicKey: cfg.networkEncryptionPublicKey,
+    });
+    return identifiers.map(identifierToString);
+  } catch (err) {
+    console.warn("[encrypt] network createInput failed; using local stub", err);
+    return null;
+  }
+}
+
 /// Encrypt a policy field. Routes through the active client -
 /// `LocalEncryptClient` today, swap to the real gRPC client when
 /// `@encrypt.xyz/pre-alpha-solana-client` ships. The returned
@@ -176,12 +270,19 @@ export async function encryptPolicy(
 ): Promise<EncryptedPayload> {
   const fheType = options?.fheType ?? "ebytes";
   const cfg = getNetworkConfig();
-  const { ciphertextIdentifiers } = await localEncryptClient.createInput({
-    chain: "solana",
-    inputs: [{ ciphertextBytes: plaintext, fheType }],
-    authorized: cfg.authorizedProgram,
-    networkEncryptionPublicKey: cfg.networkEncryptionPublicKey,
-  });
+  const networkIds = await createInputWithEncryptNetwork(cfg, [
+    { plaintext, fheType },
+  ]);
+  const ciphertextIdentifiers =
+    networkIds ??
+    (
+      await localEncryptClient.createInput({
+        chain: "solana",
+        inputs: [{ ciphertextBytes: plaintext, fheType }],
+        authorized: cfg.authorizedProgram,
+        networkEncryptionPublicKey: cfg.networkEncryptionPublicKey,
+      })
+    ).ciphertextIdentifiers;
   return {
     // Pre-alpha: ciphertext bytes are still the plaintext bytes - the
     // real cryptography hasn't switched on. The identifier IS real
@@ -203,15 +304,24 @@ export async function encryptPolicyBatch(
   inputs: ReadonlyArray<{ plaintext: Uint8Array; fheType?: FheType }>,
 ): Promise<EncryptedPayload[]> {
   const cfg = getNetworkConfig();
-  const { ciphertextIdentifiers } = await localEncryptClient.createInput({
-    chain: "solana",
-    inputs: inputs.map((i) => ({
-      ciphertextBytes: i.plaintext,
-      fheType: i.fheType ?? "ebytes",
-    })),
-    authorized: cfg.authorizedProgram,
-    networkEncryptionPublicKey: cfg.networkEncryptionPublicKey,
-  });
+  const normalized = inputs.map((i) => ({
+    plaintext: i.plaintext,
+    fheType: i.fheType ?? "ebytes",
+  }));
+  const networkIds = await createInputWithEncryptNetwork(cfg, normalized);
+  const ciphertextIdentifiers =
+    networkIds ??
+    (
+      await localEncryptClient.createInput({
+        chain: "solana",
+        inputs: normalized.map((i) => ({
+          ciphertextBytes: i.plaintext,
+          fheType: i.fheType,
+        })),
+        authorized: cfg.authorizedProgram,
+        networkEncryptionPublicKey: cfg.networkEncryptionPublicKey,
+      })
+    ).ciphertextIdentifiers;
   return inputs.map((i, idx) => ({
     ciphertext: bytesToHex(i.plaintext),
     scheme: "passthrough-v1",
@@ -257,6 +367,9 @@ export interface EncryptStatus {
   /// touches this module. Today: true. Distinct from `live` so the
   /// UI can say "ready, not yet active" honestly.
   wired: boolean;
+  /// True when the browser has enough configuration to call
+  /// Encrypt's published pre-alpha gRPC-Web createInput endpoint.
+  networkConfigured: boolean;
   scheme: EncryptScheme;
   /// User-facing one-liner about the current state.
   description: string;
@@ -281,12 +394,19 @@ export function encryptStatus(): EncryptStatus {
   // When Encrypt ships their npm SDK and Solana FHE crate, the
   // frontend swap is one file; the CLI + program work is the bulk
   // of the lift. /SECURITY.md tracks this honestly.
+  const networkConfigured = Boolean(
+    process.env.NEXT_PUBLIC_ENCRYPT_GRPC_URL &&
+      process.env.NEXT_PUBLIC_ENCRYPT_NETWORK_KEY_HEX,
+  );
   return {
     live: false,
     wired: true,
+    networkConfigured,
     scheme: "passthrough-v1",
     description:
-      "The frontend routes every policy change through the Encrypt surface today. CLI and on-chain program still operate on plaintext; both need updates before real FHE encryption flips on. See /SECURITY.md for the full status.",
+      networkConfigured
+        ? "The frontend submits policy inputs to Encrypt's pre-alpha gRPC-Web createInput endpoint and forwards the returned ciphertext identifiers. CLI and on-chain program still need FHE-aware state before policy enforcement is private on chain."
+        : "The frontend routes every policy change through the Encrypt surface today using a local pre-alpha stub. Set NEXT_PUBLIC_ENCRYPT_GRPC_URL and NEXT_PUBLIC_ENCRYPT_NETWORK_KEY_HEX to submit inputs to Encrypt's pre-alpha service.",
     learnMoreHref: "/privacy",
   };
 }

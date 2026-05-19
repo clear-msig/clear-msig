@@ -67,6 +67,7 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig = {
+  transpilePackages: ["@encrypt.xyz/pre-alpha-solana-client"],
   // optimizePackageImports rewrites named imports from these
   // packages into deep imports at build time. Without it, every
   // `import { X } from "lucide-react"` pulls the barrel and the
