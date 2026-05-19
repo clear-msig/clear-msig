@@ -7,11 +7,10 @@
 // proposal, the rule's action takes effect (deny / allow /
 // require-extra-approvers / require-cooldown).
 //
-// Encrypted-via-Encrypt status is surfaced honestly: the Encrypt
-// scaffolding (lib/encrypt/client.ts) routes condition values
-// through the local pass-through stub today; the actual FHE
-// network ships when @encrypt.xyz/pre-alpha-solana-client lands on
-// npm + the program gets #[encrypt_fn] handlers.
+// Encrypted-via-Encrypt status is surfaced honestly: the frontend
+// can call Encrypt's pre-alpha createInput endpoint when configured,
+// but private on-chain enforcement still needs program #[encrypt_fn]
+// handlers.
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";

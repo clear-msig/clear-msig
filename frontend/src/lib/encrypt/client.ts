@@ -9,8 +9,8 @@
 //
 // ── What we learned from docs.encrypt.xyz / dwallet-labs/encrypt-pre-alpha
 //
-// 1.  Their TypeScript client lives at `@encrypt.xyz/pre-alpha-solana-client`
-//     (not yet on npm - only in their git repo). Two transports:
+// 1.  Their TypeScript client lives at `@encrypt.xyz/pre-alpha-solana-client`.
+//     Two transports:
 //       - `src/grpc.ts`     (Node)
 //       - `src/grpc-web.ts` (browser, what we'd want)
 //
@@ -55,11 +55,9 @@
 //
 // ── What changes at swap time
 //
-// Only this file. Add the `@encrypt.xyz/pre-alpha-solana-client`
-// dependency (when it ships to npm), instantiate a gRPC-Web transport
-// against `getNetworkConfig().grpcUrl`, fetch the network key, route
-// `encryptPolicy` through `client.createInput(...)`. Flip
-// `encryptStatus().live` to `true`.
+// Only this file. Replace the pre-alpha mock ciphertext bytes passed
+// to `client.createInput(...)` with Encrypt's production WASM FHE
+// encryptor + proof, then flip `encryptStatus().live` to `true`.
 
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
 import { localEncryptClient } from "@/lib/encrypt/local-client";
@@ -103,9 +101,9 @@ export interface EncryptedPayload {
   fheType?: FheType;
 }
 
-/// Network configuration we'll need at swap time. None of these
-/// fields are populated today - they'll come from env when Encrypt
-/// publishes endpoints + ships their npm package.
+/// Network configuration. When both `grpcUrl` and
+/// `networkEncryptionPublicKey` are set, the frontend calls Encrypt's
+/// published pre-alpha gRPC-Web `createInput` endpoint.
 export interface NetworkConfig {
   /// gRPC-Web endpoint for the Encrypt service. Likely something like
   /// `https://gateway.encrypt.xyz` once it's live.
@@ -259,11 +257,11 @@ async function createInputWithEncryptNetwork(
   }
 }
 
-/// Encrypt a policy field. Routes through the active client -
-/// `LocalEncryptClient` today, swap to the real gRPC client when
-/// `@encrypt.xyz/pre-alpha-solana-client` ships. The returned
-/// `ciphertextIdentifier` matches the real service's shape so call
-/// sites and persistence layers don't change at swap time.
+/// Encrypt a policy field. Routes through Encrypt's pre-alpha
+/// gRPC-Web client when configured, otherwise the local fallback.
+/// The returned `ciphertextIdentifier` matches the service shape so
+/// call sites and persistence layers don't change when real FHE
+/// ciphertext generation replaces the pre-alpha mock bytes.
 export async function encryptPolicy(
   plaintext: Uint8Array,
   options?: { fheType?: FheType },
