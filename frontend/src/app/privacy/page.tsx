@@ -202,8 +202,8 @@ export default function PrivacyPage() {
           className="mt-16 flex flex-col items-start gap-4 sm:mt-20 sm:flex-row sm:items-center sm:justify-between"
         >
           <p className="max-w-md text-sm text-white/60">
-            Privacy ships in the box, every policy change is encrypted before
-            it leaves your device.
+            Policy values route through the Encrypt surface today. On-chain FHE
+            enforcement switches on when the Encrypt network support lands.
           </p>
           <Link
             href="/welcome"

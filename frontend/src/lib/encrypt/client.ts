@@ -90,7 +90,11 @@ export interface EncryptInput {
 /// hold a mix of bound-pre-alpha and bound-after-Alpha-1 policies
 /// during the rollout window.
 export interface EncryptedPayload {
-  ciphertext: Uint8Array;
+  /// Hex-encoded ciphertext bytes. Kept JSON-native because policy
+  /// rules are persisted through localStorage; raw Uint8Array values
+  /// stringify into object-shaped data that cannot be decoded after
+  /// reload.
+  ciphertext: string;
   scheme: EncryptScheme;
   /// Set when scheme is `encrypt-fhe-v1` - the gRPC service's
   /// reference back to the stored ciphertext. The on-chain program
@@ -121,6 +125,46 @@ export function getNetworkConfig(): NetworkConfig {
   };
 }
 
+function bytesToHex(bytes: Uint8Array): string {
+  let out = "";
+  for (let i = 0; i < bytes.length; i++) {
+    out += bytes[i].toString(16).padStart(2, "0");
+  }
+  return out;
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const normalized = hex.trim();
+  if (normalized.length % 2 !== 0) {
+    throw new Error("invalid ciphertext hex length");
+  }
+  const out = new Uint8Array(normalized.length / 2);
+  for (let i = 0; i < out.length; i++) {
+    const byte = Number.parseInt(normalized.slice(i * 2, i * 2 + 2), 16);
+    if (!Number.isFinite(byte)) {
+      throw new Error("invalid ciphertext hex");
+    }
+    out[i] = byte;
+  }
+  return out;
+}
+
+function ciphertextToBytes(ciphertext: unknown): Uint8Array {
+  if (ciphertext instanceof Uint8Array) return ciphertext;
+  if (typeof ciphertext === "string") return hexToBytes(ciphertext);
+  // Back-compat for rules saved before EncryptedPayload became
+  // JSON-native. JSON.stringify(Uint8Array) produces {"0":123,...}.
+  if (ciphertext && typeof ciphertext === "object") {
+    const values = Object.entries(ciphertext as Record<string, unknown>)
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .map(([, value]) => Number(value));
+    if (values.every((v) => Number.isInteger(v) && v >= 0 && v <= 255)) {
+      return new Uint8Array(values);
+    }
+  }
+  throw new Error("unsupported ciphertext payload encoding");
+}
+
 /// Encrypt a policy field. Routes through the active client -
 /// `LocalEncryptClient` today, swap to the real gRPC client when
 /// `@encrypt.xyz/pre-alpha-solana-client` ships. The returned
@@ -143,7 +187,7 @@ export async function encryptPolicy(
     // real cryptography hasn't switched on. The identifier IS real
     // (locally-deterministic SHA-256), so any persistence keyed off
     // it works the same way at Alpha 1.
-    ciphertext: plaintext,
+    ciphertext: bytesToHex(plaintext),
     scheme: "passthrough-v1",
     ciphertextIdentifier: ciphertextIdentifiers[0],
     fheType,
@@ -169,7 +213,7 @@ export async function encryptPolicyBatch(
     networkEncryptionPublicKey: cfg.networkEncryptionPublicKey,
   });
   return inputs.map((i, idx) => ({
-    ciphertext: i.plaintext,
+    ciphertext: bytesToHex(i.plaintext),
     scheme: "passthrough-v1",
     ciphertextIdentifier: ciphertextIdentifiers[idx],
     fheType: i.fheType ?? "ebytes",
@@ -192,7 +236,7 @@ export async function decryptPolicy(
 ): Promise<Uint8Array> {
   switch (payload.scheme) {
     case "passthrough-v1":
-      return payload.ciphertext;
+      return ciphertextToBytes(payload.ciphertext);
     case "encrypt-fhe-v1":
       throw new Error(
         "encrypt-fhe-v1 decrypt not implemented - pending Encrypt SDK npm release",

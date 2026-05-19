@@ -187,7 +187,7 @@ function ConnectPage() {
                 />
                 <TrustItem
                   icon={ShieldCheck}
-                  text="Spending rules are encrypted on chain."
+                  text="Spending rules are Encrypt-ready for the pre-alpha."
                 />
                 <TrustItem
                   icon={Check}
