@@ -18,8 +18,8 @@ export function detectWebauthnAvailability(
   const hasApi =
     typeof env?.hasCredentialsGet === "boolean"
       ? env.hasCredentialsGet
-      : typeof navigator !== "undefined" &&
-        !!navigator.credentials &&
-        typeof navigator.credentials.get === "function";
+      : typeof globalThis.navigator !== "undefined" &&
+        !!globalThis.navigator.credentials &&
+        typeof globalThis.navigator.credentials.get === "function";
   return hasApi ? { ok: true } : { ok: false, reason: "unavailable" };
 }
