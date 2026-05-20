@@ -41,7 +41,6 @@ import {
   UserCircle2,
   Users,
   Wallet as WalletIcon,
-  Vault as VaultIcon,
   type LucideIcon,
 } from "lucide-react";
 import { openCommandPalette } from "@/components/layout/CommandPalette";
@@ -185,8 +184,6 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
             )}
           </SidebarSection>
 
-          {/* Vault sidebar entry - promotional surface for ikavery */}
-          <VaultPromoCard pathname={pathname} onNavigate={onNavigate} />
         </>
       )}
 
@@ -729,39 +726,6 @@ function SecurePromoCard({
     >
       <ShieldCheck size={14} className="shrink-0" aria-hidden="true" />
       <span className="flex-1 truncate">Secure</span>
-    </Link>
-  );
-}
-
-// Vault promo card - icon + single label, matching the
-// PrimaryNav row style. Clicking it navigates to /app/vault where
-// the ikavery promotional surface begins.
-function VaultPromoCard({
-  pathname,
-  onNavigate,
-}: {
-  pathname: string;
-  onNavigate?: () => void;
-}) {
-  const href = "/app/vault";
-  const active = pathname === href || pathname.startsWith(`${href}/`);
-  return (
-    <Link
-      href={href}
-      onClick={onNavigate}
-      aria-current={active ? "page" : undefined}
-      aria-label="Vault"
-      className={clsx(
-        "group relative inline-flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-medium",
-        "transition-colors duration-base ease-out-soft",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
-        active
-          ? "bg-accent/10 text-accent"
-          : "text-text-soft hover:bg-glass-mid hover:text-text-strong",
-      )}
-    >
-      <VaultIcon size={14} className="shrink-0" aria-hidden="true" />
-      <span className="flex-1 truncate">Vault</span>
     </Link>
   );
 }
