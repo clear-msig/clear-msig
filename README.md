@@ -208,3 +208,9 @@ examples/intents/ Per-chain intent JSON templates
 ## Security
 
 The full attack-surface walkthrough lives in [SECURITY.md](SECURITY.md). Read it before changing any sign or verify path.
+
+## Documentation
+
+- [Product overview](docs/product-overview.md)
+- [Encrypt pre-alpha integration notes](docs/encrypt-prealpha-testing.md)
+- [Render migration notes](docs/render-migration.md)
