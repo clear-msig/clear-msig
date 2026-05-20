@@ -41,6 +41,7 @@ import {
   UserCircle2,
   Users,
   Wallet as WalletIcon,
+  Vault as VaultIcon,
   type LucideIcon,
 } from "lucide-react";
 import { openCommandPalette } from "@/components/layout/CommandPalette";
@@ -186,6 +187,7 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
 
           {/* Vault sidebar entry - promotional surface for ikavery */}
           <VaultPromoCard pathname={pathname} onNavigate={onNavigate} />
+        </>
       )}
 
       <div

@@ -12,12 +12,10 @@ import { decodeRecovery } from "./codec/recovery";
 // attestation is required at SIGN time (sweep + roster change +
 // enrollment), and there's no on-chain slot for it.
 //
-// We persist the bundle in localStorage keyed by Recovery PDA so
-// the same browser can run sweeps later. Same wallet on a fresh
-// browser will need to either re-derive the attestation (not
-// supported by pre-alpha) or be told upfront that sweep is
-// browser-bound at v3. For v3a we just persist; the v3c sweep flow
-// will read from this store.
+// We persist the bundle in localStorage keyed by Recovery PDA so the
+// same browser can run sweeps, enrollments, and roster changes later.
+// Fresh browsers need either an imported backup or the device that
+// originally minted the attestation.
 //
 // Schema versioned via a key prefix so a future migration can be
 // detected and ignored without dropping unrelated localStorage data.
@@ -35,7 +33,7 @@ interface StoredAttestation {
    * 32-byte session identifier returned from DKG (= what the CLI calls
    * `dwallet_addr`). Required as `session_identifier_preimage` for the
    * Presign / Sign gRPC calls. Optional in the stored shape so older
-   * v3a entries - written before this field existed - still load.
+   * entries written before this field existed still load.
    */
   dwalletAddr?: string;
   ts: number;
@@ -65,7 +63,7 @@ function writeAll(next: StoredAttestationMap): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   } catch {
-    /* localStorage full / blocked - silent. v3 sweep will fail with
+    /* localStorage full / blocked - silent. The app will fail with
      * "no attestation" rather than corrupting other state. */
   }
 }
@@ -93,7 +91,7 @@ export interface AttestationBundle {
   networkPubkey: Uint8Array;
   publicKey: Uint8Array;
   /**
-   * Session identifier from the V1 DKG attestation. v3a entries written
+   * Session identifier from the V1 DKG attestation. Entries written
    * before this field existed return undefined; the sweep flow falls
    * back to a re-DKG prompt in that case.
    */

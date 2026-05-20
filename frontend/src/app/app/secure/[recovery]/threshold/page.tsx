@@ -45,6 +45,10 @@ import {
   type BumpAuthMode,
   type BumpThresholdStage,
 } from "@/lib/ikavery/clearmsig-roster";
+import {
+  detectWebauthnAvailability,
+  type WebauthnAvailability,
+} from "@/lib/ikavery/webauthn";
 import { SCHEME_SOLANA_ADDRESS, SCHEME_WEBAUTHN } from "@/lib/ikavery/constants";
 
 type Stage = "intro" | "running" | "done";
@@ -273,24 +277,19 @@ function ThresholdPage() {
 
   // Pre-flight WebAuthn capability check so the user gets a clear
   // message at page load instead of a hung passkey prompt.
-  const [webauthnState, setWebauthnState] = useState<
-    | null
-    | { ok: true }
-    | { ok: false; reason: "insecure" | "unavailable" }
-  >(null);
+  const [webauthnState, setWebauthnState] =
+    useState<WebauthnAvailability | null>(null);
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const insecure =
-      typeof window.isSecureContext === "boolean" && !window.isSecureContext;
-    if (insecure) {
-      setWebauthnState({ ok: false, reason: "insecure" });
-      return;
-    }
-    const hasApi =
-      typeof navigator !== "undefined" &&
-      !!navigator.credentials &&
-      typeof navigator.credentials.get === "function";
-    setWebauthnState(hasApi ? { ok: true } : { ok: false, reason: "unavailable" });
+    setWebauthnState(
+      detectWebauthnAvailability({
+        isSecureContext: window.isSecureContext,
+        hasCredentialsGet:
+          typeof navigator !== "undefined" &&
+          !!navigator.credentials &&
+          typeof navigator.credentials.get === "function",
+      }),
+    );
   }, []);
 
   const [stage, setStage] = useState<Stage>("intro");
@@ -307,13 +306,6 @@ function ThresholdPage() {
     if (!recoveryPk || !vaultQuery.data) return;
     if (!wallet.connected || !wallet.publicKey || !wallet.signTransaction) {
       toast.error("Connect a wallet first");
-      return;
-    }
-    if (wallet.isLedger) {
-      toast.error("Ledger not supported yet", {
-        details:
-          "Roster-change signing for vault is on the v3 list. Use a hot wallet for now.",
-      });
       return;
     }
     if (authMode === "passkey" && webauthnState?.ok === false) {
@@ -442,7 +434,6 @@ function ThresholdPage() {
         };
 
   const blockedByDisconnect = !wallet.connected;
-  const blockedByLedger = wallet.isLedger;
   const blockedByMembers = !!vaultQuery.data && memberCount < 2;
   const blockedByThreshold =
     !!vaultQuery.data &&
@@ -487,22 +478,14 @@ function ThresholdPage() {
         />
       )}
 
-      {!blockedByDisconnect && blockedByLedger && (
-        <BlockedNote
-          eyebrow="Ledger"
-          title="Roster change needs a hot wallet"
-          body="clear-msig's Ledger path doesn't sign vault transactions yet. Use your Dynamic embedded wallet."
-        />
-      )}
-
-      {!blockedByDisconnect && !blockedByLedger && vaultQuery.isLoading && (
+      {!blockedByDisconnect && vaultQuery.isLoading && (
         <div className="flex items-center justify-center gap-2 py-8 text-sm text-text-soft">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           Reading vault state…
         </div>
       )}
 
-      {!blockedByDisconnect && !blockedByLedger && vaultQuery.isError && (
+      {!blockedByDisconnect && vaultQuery.isError && (
         <div className="mx-auto max-w-md rounded-card border border-warning/40 bg-warning/[0.06] p-4 text-sm text-text-soft">
           <p className="font-medium text-text-strong">
             Couldn&rsquo;t load this vault.
@@ -523,7 +506,6 @@ function ThresholdPage() {
       )}
 
       {!blockedByDisconnect &&
-        !blockedByLedger &&
         vaultQuery.data &&
         blockedByMembers && (
           <BlockedNote
@@ -538,7 +520,6 @@ function ThresholdPage() {
         )}
 
       {!blockedByDisconnect &&
-        !blockedByLedger &&
         vaultQuery.data &&
         !blockedByMembers &&
         blockedByThreshold && (
@@ -550,7 +531,6 @@ function ThresholdPage() {
         )}
 
       {!blockedByDisconnect &&
-        !blockedByLedger &&
         vaultQuery.data &&
         !blockedByMembers &&
         !blockedByThreshold &&
@@ -563,7 +543,6 @@ function ThresholdPage() {
         )}
 
       {!blockedByDisconnect &&
-        !blockedByLedger &&
         vaultQuery.data &&
         !blockedByMembers &&
         !blockedByThreshold &&

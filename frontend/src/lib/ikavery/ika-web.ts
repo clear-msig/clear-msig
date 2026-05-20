@@ -31,8 +31,8 @@
 //
 // `createSoloVault` calls `ikaDkgWeb` so the on-chain `Recovery` row
 // stores the real 32-byte network-derived dWallet pubkey instead of
-// the v2 placeholder. `clearmsig-attestations.ts` persists the
-// attestation locally (keyed by recovery PDA) for the v3 sweep flow.
+// a placeholder. `clearmsig-attestations.ts` persists the attestation
+// locally (keyed by recovery PDA) for later sign-time flows.
 
 // `defineBcsTypes` is vendored from @ika.xyz/pre-alpha-solana-client@0.1.1
 // because the published package ships raw TS sources with broken `.js`

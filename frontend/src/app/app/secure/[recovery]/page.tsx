@@ -9,10 +9,9 @@
 // address, 2 = secp256k1, 3 = secp256r1 / passkey, 4 = ed25519
 // public key, 5 = webauthn).
 //
-// Two action cards at the bottom: Add device (passkey enrollment,
-// stubbed for v3) and Sweep (move funds out, stubbed for v3). The
-// stubs explain what the action does and link to ikavery.com when
-// the user wants to try it through the upstream demo.
+// Action cards at the bottom: Add device, Sweep, and threshold lock
+// down. The detail cards explain what each action does and where the
+// upstream demo still differs from this product.
 
 import { Suspense, useMemo, useState, type ChangeEvent } from "react";
 import Link from "next/link";
@@ -370,25 +369,18 @@ function SecureRecoveryPage() {
               body="Authorise a transfer of funds from the dWallet to a destination wallet, signed by your threshold."
               cta="Open"
             />
-            {/* Threshold-bump card. Disabled at v3l-fix1: the
-                deployed ikavery program at 6kdyWi8… predates the
-                staging-PDA pattern (`stage_roster_change_payload`,
-                disc 10), so any roster-change attempt fails with
-                `InvalidInstructionData` at simulation time.
-                Confirmed by inspecting the deployed ELF. Only
-                execute_roster_change.rs ships, no
-                stage_roster_change.rs. The action layer
-                (clearmsig-roster.ts) and the threshold page stay
-                intact so the feature relights as soon as upstream
-                redeploys. */}
+            {/* Threshold bump. The page now drives the roster-change
+                flow directly so users can lock a vault to a higher
+                quorum from here. */}
             {vault.account.members.length > 1 &&
-              vault.account.threshold === 1 && (
-                <DisabledActionCard
+              vault.account.threshold >= 1 && (
+                <ActionCard
+                  href={`/app/secure/${encodeURIComponent(recoveryStr)}/threshold`}
                   Icon={Lock}
                   eyebrow="// 06 · roster"
                   title="Lock down"
-                  body={`Today any 1 of ${vault.account.members.length} can sign. Bumping the threshold needs an upstream program redeploy. Coming soon.`}
-                  cta="Awaiting redeploy"
+                  body={`Set a new quorum for the vault. Today it is ${vault.account.threshold} of ${vault.account.members.length}.`}
+                  cta="Open"
                 />
               )}
           </section>

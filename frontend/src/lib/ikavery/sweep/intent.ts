@@ -153,7 +153,7 @@ export function hashIntents(intents: SweepIntent[]): Uint8Array {
   return keccak_256(bcsEncodeIntents(intents));
 }
 
-/** Convenience builder for the only sweep variant the v3e UI ships:
+/** Convenience builder for the current sweep variant the UI ships:
  *  a single SOL transfer from the dWallet to a destination. */
 export function buildSolTransferIntent(
   dwallet: Uint8Array,

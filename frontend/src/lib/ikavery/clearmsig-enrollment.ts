@@ -84,10 +84,9 @@ export interface EnrollPasskeyParams {
   /** Compressed 33-byte P-256 pubkey from the new passkey. */
   newPasskeyPubkey: Uint8Array;
   /**
-   * 32-byte encryption-key address. v3 sets this to the dWallet pubkey;
-   * the field is opaque to the program today (re-encrypt CPI lands at
-   * mainnet) but is stored on the EnrollmentProposal for forward
-   * compatibility.
+   * 32-byte encryption-key address. The create/enroll flows set this
+   * to the dWallet pubkey; the field is opaque to the program today
+   * but is stored on the EnrollmentProposal for forward compatibility.
    */
   encryptionKeyAddress: Uint8Array;
   /** Sign callback - Dynamic's signTransaction wrapped from useWallet(). */

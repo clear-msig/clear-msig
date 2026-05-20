@@ -12,7 +12,7 @@
 //     threshold + member count + status, and tucks the explainer
 //     beneath as background.
 //   - Always shows the trio of "what you can do" tiles: Build,
-//     Add device (stubbed), Sweep (stubbed). v3 will wire those.
+//     Add device, Sweep, and threshold lock-down.
 //
 // Visual treatment:
 //   - Split hero on lg+ (copy left, illustrative mockup right) so the

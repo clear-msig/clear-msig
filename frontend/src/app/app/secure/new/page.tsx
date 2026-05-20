@@ -158,13 +158,6 @@ function SecureBuildPage() {
       toast.error("Connect a wallet first");
       return;
     }
-    if (wallet.isLedger) {
-      toast.error("Ledger not supported yet", {
-        details:
-          "Ledger transaction signing for the vault flow is on the v3 list. Use your Dynamic wallet for now.",
-      });
-      return;
-    }
     // For multi-member shapes, the wizard fires `memberCount - 1`
     // passkey-create prompts back-to-back BEFORE DKG. Set the initial
     // sub-stage accordingly so the UI shows "Creating passkey 1 of N"
@@ -239,12 +232,9 @@ function SecureBuildPage() {
   };
 
   // Upfront gates so the user can't get stuck halfway through.
-  // The wizard needs (a) a Solana wallet connected and (b) a
-  // signer that can sign transactions. Ledger only signs offchain
-  // messages in clear-msig today; it'll get vault support in v3.
-  const blockedByLedger = wallet.isLedger;
+  // The wizard needs a connected wallet that can sign transactions.
   const blockedByDisconnect = !wallet.connected;
-  const isBlocked = blockedByDisconnect || blockedByLedger;
+  const isBlocked = blockedByDisconnect;
 
   return (
     <motion.div
@@ -259,8 +249,6 @@ function SecureBuildPage() {
       )}
 
       {blockedByDisconnect && <BlockedDisconnect />}
-      {!blockedByDisconnect && blockedByLedger && <BlockedLedger />}
-
       {!isBlocked && stage === "shape" && (
         <ShapeStage
           shape={shape}
@@ -1025,25 +1013,6 @@ function BlockedDisconnect() {
           </Button>
         </Link>
       </div>
-    </section>
-  );
-}
-
-function BlockedLedger() {
-  return (
-    <section className="mx-gutter rounded-card border border-warning/40 bg-warning/[0.06] p-6 shadow-card-rest sm:p-8">
-      <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-warning">
-        Ledger not supported yet
-      </p>
-      <h1 className="mt-2 font-display text-display-xs leading-tight tracking-[-0.02em] text-text-strong">
-        Vault flow needs a hot wallet
-      </h1>
-      <p className="mt-3 max-w-md text-[14px] leading-relaxed text-text-soft">
-        clear-msig&rsquo;s Ledger path only signs ed25519 messages today.
-        The vault create flow needs full transaction signing. Disconnect
-        Ledger and use your Dynamic embedded wallet, then try again.
-        Ledger support for vault is on the v3 list.
-      </p>
     </section>
   );
 }
