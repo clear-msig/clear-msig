@@ -441,8 +441,9 @@ function SecureRecoveryPage() {
             <p className="leading-relaxed">
               <span className="font-medium text-text-strong">Pre-alpha.</span>{" "}
               The dWallet was minted by Ika&rsquo;s pre-alpha network and
-              lives on-chain. Device enrollment and in-app sweep are the
-              next pieces landing; until then, sweeps work upstream at{" "}
+              lives on-chain. Device enrollment, sweep, and threshold
+              updates are available here; the stack is still devnet-only
+              and still linked to the upstream demo at{" "}
               <a
                 href={IKAVERY_LIVE}
                 target="_blank"
