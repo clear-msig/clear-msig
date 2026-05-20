@@ -100,6 +100,17 @@ export interface AttestationBundle {
   dwalletAddr?: Uint8Array;
 }
 
+interface AttestationBackupV1 {
+  version: 1;
+  recoveryPda: string;
+  savedAt: number;
+  attestationData: string;
+  networkSignature: string;
+  networkPubkey: string;
+  publicKey: string;
+  dwalletAddr?: string;
+}
+
 export function saveAttestation(
   recoveryPdaBase58: string,
   bundle: AttestationBundle,
@@ -114,6 +125,40 @@ export function saveAttestation(
     ts: Date.now(),
   };
   writeAll(all);
+}
+
+export function encodeAttestationBackup(
+  recoveryPdaBase58: string,
+  bundle: AttestationBundle,
+): string {
+  const backup: AttestationBackupV1 = {
+    version: 1,
+    recoveryPda: recoveryPdaBase58,
+    savedAt: Date.now(),
+    attestationData: bytesToHex(bundle.attestationData),
+    networkSignature: bytesToHex(bundle.networkSignature),
+    networkPubkey: bytesToHex(bundle.networkPubkey),
+    publicKey: bytesToHex(bundle.publicKey),
+    dwalletAddr: bundle.dwalletAddr ? bytesToHex(bundle.dwalletAddr) : undefined,
+  };
+  return JSON.stringify(backup, null, 2);
+}
+
+export function downloadAttestationBackup(
+  recoveryPdaBase58: string,
+  bundle: AttestationBundle,
+): void {
+  if (typeof document === "undefined") return;
+  const json = encodeAttestationBackup(recoveryPdaBase58, bundle);
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `clear-ikavery-attestation-${recoveryPdaBase58.slice(0, 8)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 export function loadAttestation(
@@ -137,6 +182,34 @@ export function loadAttestation(
 
 export function hasAttestation(recoveryPdaBase58: string): boolean {
   return !!readAll()[recoveryPdaBase58];
+}
+
+export async function importAttestationBackup(
+  connection: Connection,
+  recovery: PublicKey,
+  backupJson: string,
+): Promise<AttestationBundle> {
+  const parsed = decodeAttestationBackup(backupJson);
+  const recoveryPdaBase58 = recovery.toBase58();
+  if (parsed.recoveryPda !== recoveryPdaBase58) {
+    throw new Error(
+      `Backup is for ${parsed.recoveryPda}, not this vault (${recoveryPdaBase58}).`,
+    );
+  }
+  const info = await connection.getAccountInfo(recovery, "confirmed");
+  if (!info || info.data.length === 0) {
+    throw new Error(
+      `Recovery account ${recoveryPdaBase58} not found on chain. Refusing to import backup.`,
+    );
+  }
+  const onChainDwallet = decodeRecovery(new Uint8Array(info.data)).dwallet.toBytes();
+  if (!bytesEq(parsed.bundle.publicKey, onChainDwallet)) {
+    throw new Error(
+      "Backup dwallet pubkey does not match the on-chain Recovery account.",
+    );
+  }
+  saveAttestation(recoveryPdaBase58, parsed.bundle);
+  return parsed.bundle;
 }
 
 /**
@@ -202,4 +275,33 @@ function bytesEq(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
   return true;
+}
+
+export function decodeAttestationBackup(backupJson: string): {
+  recoveryPda: string;
+  bundle: AttestationBundle;
+} {
+  const raw = JSON.parse(backupJson) as Partial<AttestationBackupV1> | null;
+  if (!raw || raw.version !== 1) {
+    throw new Error("Unsupported attestation backup format.");
+  }
+  if (typeof raw.recoveryPda !== "string" || raw.recoveryPda.length === 0) {
+    throw new Error("Attestation backup is missing the recovery PDA.");
+  }
+  if (
+    typeof raw.attestationData !== "string" ||
+    typeof raw.networkSignature !== "string" ||
+    typeof raw.networkPubkey !== "string" ||
+    typeof raw.publicKey !== "string"
+  ) {
+    throw new Error("Attestation backup is missing required fields.");
+  }
+  const bundle: AttestationBundle = {
+    attestationData: hexToBytes(raw.attestationData),
+    networkSignature: hexToBytes(raw.networkSignature),
+    networkPubkey: hexToBytes(raw.networkPubkey),
+    publicKey: hexToBytes(raw.publicKey),
+    dwalletAddr: raw.dwalletAddr ? hexToBytes(raw.dwalletAddr) : undefined,
+  };
+  return { recoveryPda: raw.recoveryPda, bundle };
 }

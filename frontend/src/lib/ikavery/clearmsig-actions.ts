@@ -40,7 +40,10 @@ import { packSolanaMember } from "./credential";
 import { listAllRecoveries, type DecodedRecovery } from "./discovery";
 import { decodeRecovery } from "./codec/recovery";
 import { ikaDkgWeb, type IkaDkgResult } from "./ika-web";
-import { saveAttestation } from "./clearmsig-attestations";
+import {
+  downloadAttestationBackup,
+  saveAttestation,
+} from "./clearmsig-attestations";
 import {
   cpiAuthorityPda,
   dwalletPda,
@@ -296,6 +299,13 @@ export async function createSoloVault(
     publicKey: dkg.publicKey,
     dwalletAddr: dkg.dwalletAddr,
   });
+  downloadAttestationBackup(recovery.toBase58(), {
+    attestationData: dkg.attestationData,
+    networkSignature: dkg.networkSignature,
+    networkPubkey: dkg.networkPubkey,
+    publicKey: dkg.publicKey,
+    dwalletAddr: dkg.dwalletAddr,
+  });
 
   return {
     recovery,
@@ -469,6 +479,13 @@ export async function createMultiMemberVault(
   );
 
   saveAttestation(recovery.toBase58(), {
+    attestationData: dkg.attestationData,
+    networkSignature: dkg.networkSignature,
+    networkPubkey: dkg.networkPubkey,
+    publicKey: dkg.publicKey,
+    dwalletAddr: dkg.dwalletAddr,
+  });
+  downloadAttestationBackup(recovery.toBase58(), {
     attestationData: dkg.attestationData,
     networkSignature: dkg.networkSignature,
     networkPubkey: dkg.networkPubkey,

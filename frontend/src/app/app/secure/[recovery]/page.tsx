@@ -14,7 +14,7 @@
 // stubs explain what the action does and link to ikavery.com when
 // the user wants to try it through the upstream demo.
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useMemo, useState, type ChangeEvent } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
@@ -36,12 +36,15 @@ import {
   ShieldAlert,
   Users,
 } from "lucide-react";
-import { useState } from "react";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { UsdHint } from "@/components/retail/UsdHint";
 import { fetchVault } from "@/lib/ikavery/clearmsig-actions";
-import { loadAttestation } from "@/lib/ikavery/clearmsig-attestations";
+import {
+  downloadAttestationBackup,
+  importAttestationBackup,
+  loadAttestation,
+} from "@/lib/ikavery/clearmsig-attestations";
 import { listProposals, type ProposalEntry } from "@/lib/ikavery/proposals";
 import {
   STATUS_ACTIVE,
@@ -71,6 +74,8 @@ function SecureRecoveryPage() {
   const reduce = useReducedMotion();
   const { connection } = useConnection();
   const wallet = useWallet();
+  const [backupMessage, setBackupMessage] = useState<string | null>(null);
+  const [backupError, setBackupError] = useState<string | null>(null);
 
   const recoveryStr = useMemo(() => {
     const raw = params?.recovery ?? "";
@@ -163,6 +168,32 @@ function SecureRecoveryPage() {
 
   const vault = vaultQuery.data;
   const recoveryShort = `${recoveryStr.slice(0, 4)}…${recoveryStr.slice(-4)}`;
+  const attestation = loadAttestation(recoveryStr);
+
+  const handleDownloadBackup = () => {
+    if (!attestation) {
+      setBackupError("No attestation is cached on this device yet.");
+      return;
+    }
+    downloadAttestationBackup(recoveryStr, attestation);
+    setBackupMessage("Backup downloaded.");
+    setBackupError(null);
+  };
+
+  const handleImportBackup = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !recoveryPk) return;
+    try {
+      const text = await file.text();
+      await importAttestationBackup(connection, recoveryPk, text);
+      setBackupMessage("Backup imported.");
+      setBackupError(null);
+    } catch (err) {
+      setBackupError(err instanceof Error ? err.message : String(err));
+      setBackupMessage(null);
+    }
+  };
 
   return (
     <motion.div
@@ -360,6 +391,48 @@ function SecureRecoveryPage() {
                   cta="Awaiting redeploy"
                 />
               )}
+          </section>
+
+          <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+                  Recovery backup
+                </p>
+                <p className="mt-1 text-sm text-text-soft">
+                  Save the attestation bundle for this vault. You can import it on another device to restore sweep and recovery flows.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleDownloadBackup}
+                  className="inline-flex min-h-tap items-center gap-2 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-[11px] font-medium text-text-soft transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                  Download backup
+                </button>
+                <label className="inline-flex min-h-tap cursor-pointer items-center gap-2 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-[11px] font-medium text-text-soft transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+                  Import backup
+                  <input
+                    type="file"
+                    accept="application/json"
+                    className="hidden"
+                    onChange={handleImportBackup}
+                  />
+                </label>
+              </div>
+            </div>
+            {(backupMessage || backupError) && (
+              <p
+                className={
+                  "mt-3 text-xs " +
+                  (backupError ? "text-warning" : "text-accent")
+                }
+              >
+                {backupError ?? backupMessage}
+              </p>
+            )}
           </section>
 
           {/* Pre-alpha disclosure - lighter treatment, neutral
@@ -881,4 +954,3 @@ function bytesToHexShort(bytes: Uint8Array): string {
   }
   return s;
 }
-
