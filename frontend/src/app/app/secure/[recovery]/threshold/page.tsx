@@ -4,21 +4,20 @@
 //
 // Two auth modes:
 //   - Wallet (default when connected wallet is a roster member): one
-//     bundled tx covers stage + propose + approve + execute.
+//     stage tx, one propose tx, one approval tx, then an execute tx if
+//     the new quorum needs more votes.
 //   - Passkey (default when wallet ISN'T a member, but the vault has
-//     a passkey): two passkey taps + two wallet popups, splitting the
-//     work into propose-tx then approve+execute-tx so each carries
-//     its own secp256r1 precompile + assertion.
+//     a passkey): two passkey taps + one or more wallet popups,
+//     splitting the work into propose, approve, collect, then execute
+//     so each signed tx carries its own secp256r1 precompile + assertion.
 //
 // Pre-conditions enforced upfront so the user never gets a surprise
 // at sign time:
 //   - vault has ≥ 2 members (no quorum to change otherwise)
-//   - current threshold === 1 (this commit's bundled path; higher
-//     thresholds need multi-member coordination, follow-up)
 //   - new threshold differs from current
 //   - in wallet mode: connected wallet is on the roster
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
@@ -39,7 +38,10 @@ import { PageEyebrow } from "@/components/retail/PageEyebrow";
 import { useToast } from "@/components/ui/Toast";
 import { fetchVault } from "@/lib/ikavery/clearmsig-actions";
 import {
+  addRosterChangeApproval,
   bumpThresholdSimple,
+  readRosterChangeApprovalCount,
+  type AdditionalApprovalsRequest,
   type BumpAuthMode,
   type BumpThresholdStage,
 } from "@/lib/ikavery/clearmsig-roster";
@@ -68,17 +70,42 @@ const WALLET_RUN_STAGES: {
     detail: "Second wallet popup proposes the change.",
   },
   {
+    id: "submit",
+    label: "Submitting propose tx",
+    detail: "Solana records the proposal.",
+  },
+  {
     id: "confirm",
     label: "Awaiting propose confirmation",
     detail: "Solana commits the proposal.",
   },
   {
     id: "approve-sign",
-    label: "Sign approve + execute tx",
-    detail: "Third wallet popup approves and applies the change.",
+    label: "Sign approval tx",
+    detail: "Third wallet popup adds the proposer vote.",
+  },
+  {
+    id: "approve-submit",
+    label: "Submitting approval tx",
+    detail: "Solana records the proposer vote.",
   },
   {
     id: "approve-confirm",
+    label: "Awaiting approval confirmation",
+    detail: "The proposer vote lands on chain.",
+  },
+  {
+    id: "collecting-approvals",
+    label: "Collecting extra approvals",
+    detail: "Add distinct credentials until the quorum is met.",
+  },
+  {
+    id: "execute-sign",
+    label: "Sign execute tx",
+    detail: "Final wallet popup applies the threshold change.",
+  },
+  {
+    id: "execute-confirm",
     label: "Finalising",
     detail: "Solana commits the new threshold.",
   },
@@ -110,6 +137,11 @@ const PASSKEY_RUN_STAGES: {
     detail: "Wallet popup confirms the propose tx.",
   },
   {
+    id: "submit",
+    label: "Submitting propose tx",
+    detail: "Solana records the proposal.",
+  },
+  {
     id: "confirm",
     label: "Awaiting propose confirmation",
     detail: "Solana commits the proposal.",
@@ -121,11 +153,31 @@ const PASSKEY_RUN_STAGES: {
   },
   {
     id: "approve-sign",
-    label: "Sign approve + execute tx",
-    detail: "Wallet popup confirms approve + execute.",
+    label: "Sign approval tx",
+    detail: "Wallet popup confirms the proposer vote.",
+  },
+  {
+    id: "approve-submit",
+    label: "Submitting approval tx",
+    detail: "Solana records the proposer vote.",
   },
   {
     id: "approve-confirm",
+    label: "Awaiting approval confirmation",
+    detail: "The proposer vote lands on chain.",
+  },
+  {
+    id: "collecting-approvals",
+    label: "Collecting extra approvals",
+    detail: "Add distinct credentials until the quorum is met.",
+  },
+  {
+    id: "execute-sign",
+    label: "Sign execute tx",
+    detail: "Final wallet popup applies the threshold change.",
+  },
+  {
+    id: "execute-confirm",
     label: "Finalising",
     detail: "Solana commits the new threshold.",
   },
@@ -244,6 +296,12 @@ function ThresholdPage() {
   const [stage, setStage] = useState<Stage>("intro");
   const [runStage, setRunStage] = useState<BumpThresholdStage | null>(null);
   const [txSig, setTxSig] = useState<string | null>(null);
+  const [collectInfo, setCollectInfo] =
+    useState<AdditionalApprovalsRequest | null>(null);
+  const [collectCount, setCollectCount] = useState(0);
+  const [collectBusy, setCollectBusy] = useState(false);
+  const [collectError, setCollectError] = useState<string | null>(null);
+  const collectResolveRef = useRef<(() => void) | null>(null);
 
   const handleRun = async () => {
     if (!recoveryPk || !vaultQuery.data) return;
@@ -269,6 +327,11 @@ function ThresholdPage() {
     }
     setRunStage("stage-sign");
     setStage("running");
+    setCollectInfo(null);
+    setCollectCount(0);
+    setCollectBusy(false);
+    setCollectError(null);
+    collectResolveRef.current = null;
     try {
       const result = await bumpThresholdSimple({
         connection,
@@ -279,6 +342,16 @@ function ThresholdPage() {
         authMode,
         signTransaction: wallet.signTransaction,
         onProgress: (s) => setRunStage(s),
+        collectAdditionalApprovals: async (req) => {
+          setCollectInfo(req);
+          setCollectCount(req.currentCount);
+          setCollectError(null);
+          await new Promise<void>((resolve) => {
+            collectResolveRef.current = resolve;
+          });
+          setCollectInfo(null);
+          collectResolveRef.current = null;
+        },
       });
       setTxSig(result.txSignature);
       setRunStage(null);
@@ -294,7 +367,56 @@ function ThresholdPage() {
         details: e instanceof Error ? e.message : String(e),
       });
       setRunStage(null);
+      setCollectInfo(null);
+      setCollectBusy(false);
+      setCollectError(null);
+      collectResolveRef.current = null;
       setStage("intro");
+    }
+  };
+
+  const handleAddApproval = async (mode: BumpAuthMode) => {
+    if (collectBusy) return;
+    if (!collectInfo || !recoveryPk) return;
+    if (!wallet.publicKey || !wallet.signTransaction) {
+      setCollectError("Connect a wallet first.");
+      return;
+    }
+    if (mode === "wallet" && authMode === "wallet") {
+      setCollectError("The connected wallet already cast the proposer vote.");
+      return;
+    }
+    setCollectBusy(true);
+    setCollectError(null);
+    try {
+      await addRosterChangeApproval({
+        connection,
+        recovery: recoveryPk,
+        rosterChange: collectInfo.proposal,
+        payer: wallet.publicKey,
+        authMode: mode,
+        walletPubkey: mode === "wallet" ? wallet.publicKey : undefined,
+        rpId:
+          typeof window !== "undefined" ? window.location.hostname : undefined,
+        signTransaction: wallet.signTransaction,
+      });
+      const liveCount = await readRosterChangeApprovalCount(
+        connection,
+        collectInfo.proposal,
+      );
+      setCollectCount(liveCount);
+      if (liveCount >= collectInfo.threshold) {
+        const resolve = collectResolveRef.current;
+        if (resolve) {
+          collectResolveRef.current = null;
+          resolve();
+        }
+      }
+    } catch (e) {
+      console.error("[secure/threshold] addApproval", e);
+      setCollectError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCollectBusy(false);
     }
   };
 
@@ -323,7 +445,10 @@ function ThresholdPage() {
   const blockedByLedger = wallet.isLedger;
   const blockedByMembers = !!vaultQuery.data && memberCount < 2;
   const blockedByThreshold =
-    !!vaultQuery.data && currentThreshold !== 1;
+    !!vaultQuery.data &&
+    walletIsMember &&
+    currentThreshold !== 1 &&
+    !vaultHasPasskey;
   // Wallet not a member AND vault has no passkey to fall back to →
   // there is genuinely nothing the user can do here.
   const blockedByNotMember =
@@ -418,9 +543,9 @@ function ThresholdPage() {
         !blockedByMembers &&
         blockedByThreshold && (
           <BlockedNote
-            eyebrow="Already locked down"
+            eyebrow="Need another credential"
             title={`Vault is ${currentThreshold} of ${memberCount}`}
-            body="This commit's bundled bump only works on 1-of-N vaults. Bumping further (or back to 1) needs multi-member sign coordination. Follow-up."
+            body="This browser only has the connected wallet available, and the vault has no enrolled passkey to collect extra votes with. Higher-threshold bumps need at least one additional credential you can sign with here."
           />
         )}
 
@@ -463,7 +588,23 @@ function ThresholdPage() {
         )}
 
       {stage === "running" && (
-        <RunningStage subStage={runStage} authMode={authMode} reduce={!!reduce} />
+        <RunningStage
+          subStage={runStage}
+          authMode={authMode}
+          reduce={!!reduce}
+          collect={
+            collectInfo
+              ? {
+                  count: collectCount,
+                  threshold: collectInfo.threshold,
+                  busy: collectBusy,
+                  error: collectError,
+                  walletEnabled: authMode === "passkey" && walletIsMember,
+                  onPick: handleAddApproval,
+                }
+              : null
+          }
+        />
       )}
 
       {stage === "done" && (
@@ -533,8 +674,8 @@ function IntroStage({
           Lock down vault {recoveryShort}
         </h1>
         <p className="mx-auto mt-2 max-w-md text-base text-text-soft">
-          Today any one of your {memberCount} devices can sign. Pick how
-          many must agree from now on.
+          Vault is currently {currentThreshold} of {memberCount}. Pick the
+          new quorum.
         </p>
       </PageEyebrow>
 
@@ -592,13 +733,13 @@ function IntroStage({
               active={authMode === "wallet"}
               onClick={() => setAuthMode("wallet")}
               label="Wallet"
-              detail="Three wallet popups."
+              detail="Wallet signs the txs it can; extra approvals still need distinct credentials."
             />
             <AuthOption
               active={authMode === "passkey"}
               onClick={() => setAuthMode("passkey")}
               label="Existing passkey"
-              detail="Three popups + 2 passkey taps."
+              detail="Passkey signs the auth txs; extra approvals can keep going until quorum."
             />
           </div>
         </section>
@@ -649,8 +790,8 @@ function IntroStage({
         </Button>
         <p className="text-[11px] text-text-soft">
           {authMode === "passkey"
-            ? "Three Solana txs (stage, propose, approve+execute) + two passkey taps. Reversible later via another roster change."
-            : "Three wallet popups (stage, propose, approve+execute). Solana's 1232-byte packet limit forces the split. Reversible later via another roster change."}
+            ? "Stage, propose, approve, collect any extra approvals, then execute. Passkey taps appear on the auth txs; additional member approvals can be added until the quorum is met."
+            : "Stage, propose, approve, collect any extra approvals, then execute. Solana's 1232-byte packet limit still forces the initial split. Reversible later via another roster change."}
         </p>
       </div>
     </motion.section>
@@ -689,13 +830,23 @@ function AuthOption({
   );
 }
 
+interface CollectStateProps {
+  count: number;
+  threshold: number;
+  busy: boolean;
+  error: string | null;
+  walletEnabled: boolean;
+  onPick: (mode: BumpAuthMode) => void;
+}
+
 interface RunningStageProps {
   subStage: BumpThresholdStage | null;
   authMode: BumpAuthMode;
   reduce: boolean;
+  collect: CollectStateProps | null;
 }
 
-function RunningStage({ subStage, authMode, reduce }: RunningStageProps) {
+function RunningStage({ subStage, authMode, reduce, collect }: RunningStageProps) {
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
@@ -709,39 +860,106 @@ function RunningStage({ subStage, authMode, reduce }: RunningStageProps) {
       transition={{ duration: 0.3 }}
       className="flex flex-col items-center gap-6 px-gutter py-16"
     >
-      <Loader2
-        className="h-10 w-10 animate-spin text-accent"
-        strokeWidth={1.5}
-        aria-hidden="true"
-      />
-      <div className="flex flex-col items-center gap-1 text-center">
-        <p className="font-display text-xl font-semibold text-text-strong">
-          {active?.label ?? "Bumping…"}
-        </p>
-        <p className="max-w-sm text-sm text-text-soft">
-          {active?.detail ?? "Recording the roster change on Solana."}
-        </p>
-      </div>
-      <ol className="flex items-center gap-1.5" aria-label="bump progress">
-        {stages.map((s, i) => {
-          const completed = activeIdx > i;
-          const current = activeIdx === i;
-          return (
-            <li
-              key={s.id}
-              aria-label={s.label}
-              className={
-                "h-1.5 w-8 rounded-full " +
-                (completed
-                  ? "bg-accent"
-                  : current
-                    ? "bg-accent/60"
-                    : "bg-border-soft")
+      {collect ? (
+        <>
+          <div className="flex flex-col items-center gap-1 text-center">
+            <p className="font-display text-xl font-semibold text-text-strong">
+              {collect.count} of {collect.threshold} approvals
+            </p>
+            <p className="max-w-sm text-sm text-text-soft">
+              The proposer&rsquo;s vote is in. Add the remaining quorum by
+              using a different credential for each approval.
+            </p>
+          </div>
+          <div className="flex w-full max-w-md flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => collect.onPick("wallet")}
+              disabled={collect.busy || !collect.walletEnabled}
+              title={
+                collect.walletEnabled
+                  ? undefined
+                  : "The connected wallet already cast the proposer vote"
               }
-            />
-          );
-        })}
-      </ol>
+              className={
+                "flex w-full min-h-tap items-center justify-center gap-2 rounded-card border border-border-soft bg-surface-raised px-4 py-3 text-sm font-medium text-text-strong shadow-card-rest " +
+                "transition-[border-color,transform] duration-base ease-out-soft " +
+                "hover:-translate-y-0.5 hover:border-accent/40 " +
+                "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:border-border-soft " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+              }
+            >
+              {collect.busy ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : null}
+              Approve as Wallet
+              {!collect.walletEnabled && (
+                <span className="font-mono text-[10px] text-text-soft">
+                  (already used)
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => collect.onPick("passkey")}
+              disabled={collect.busy}
+              className={
+                "flex w-full min-h-tap items-center justify-center gap-2 rounded-card border border-border-soft bg-surface-raised px-4 py-3 text-sm font-medium text-text-strong shadow-card-rest " +
+                "transition-[border-color,transform] duration-base ease-out-soft " +
+                "hover:-translate-y-0.5 hover:border-accent/40 " +
+                "disabled:cursor-not-allowed disabled:opacity-50 " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+              }
+            >
+              {collect.busy ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : null}
+              Approve as Passkey
+            </button>
+          </div>
+          {collect.error && (
+            <p className="max-w-md text-center text-[11px] text-warning">
+              {collect.error}
+            </p>
+          )}
+        </>
+      ) : (
+        <>
+          <Loader2
+            className="h-10 w-10 animate-spin text-accent"
+            strokeWidth={1.5}
+            aria-hidden="true"
+          />
+          <div className="flex flex-col items-center gap-1 text-center">
+            <p className="font-display text-xl font-semibold text-text-strong">
+              {active?.label ?? "Bumping…"}
+            </p>
+            <p className="max-w-sm text-sm text-text-soft">
+              {active?.detail ?? "Recording the roster change on Solana."}
+            </p>
+          </div>
+          <ol className="flex items-center gap-1.5" aria-label="bump progress">
+            {stages.map((s, i) => {
+              const completed = activeIdx > i;
+              const current = activeIdx === i;
+              return (
+                <li
+                  key={s.id}
+                  aria-label={s.label}
+                  className={
+                    "h-1.5 w-8 rounded-full " +
+                    (completed
+                      ? "bg-accent"
+                      : current
+                        ? "bg-accent/60"
+                        : "bg-border-soft")
+                  }
+                />
+              );
+            })}
+          </ol>
+        </>
+      )}
     </motion.section>
   );
 }

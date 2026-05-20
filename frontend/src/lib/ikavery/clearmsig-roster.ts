@@ -19,12 +19,13 @@
 //      and Recovery.threshold.
 //
 // For the threshold-bump case (no add/remove members, just change the
-// quorum) on a 1-of-N vault using SCHEME_SOLANA_ADDRESS:
+// quorum):
 //   - Staging payload has additions=[], removals=[], threshold=newN.
-//   - The connected wallet is on the roster, so its credential auths
-//     both propose and approve (no precompile needed since
-//     SCHEME_SOLANA_ADDRESS is verified via the tx signer list).
-//   - All four ixs fit in one tx, one user popup.
+//   - The connected wallet can auth the proposer vote when it is on
+//     the roster; passkey mode uses a WebAuthn assertion + precompile.
+//   - Threshold=1 can still bundle the proposer approval + execute.
+//   - Higher thresholds split after the proposer approval so the page
+//     can gather the remaining member votes before execute.
 //
 // Two auth modes:
 //
@@ -35,15 +36,10 @@
 //               (one per challenge) + secp256r1 precompiles. The
 //               "lost wallet, lock down via passkey" path.
 //
-// Both modes split into THREE user-signed txs because
-// `stage_roster_change_payload` carries 556 bytes of fixed-size
-// padded payload (CREATE_MEMBERS_BYTES × 2 + headers). Even bundled
-// with just `propose`, the combined tx tips over Solana's 1232-byte
-// packet cap, so stage gets its own tx:
-//
-//   tx A: [stage_roster_change_payload]
-//   tx B: [propose]            (passkey adds precompile + passkey tap A)
-//   tx C: [approve, execute]   (passkey adds precompile + passkey tap B)
+// Both modes split stage + propose into separate txs because the
+// staging payload is wide enough to push the bundle over Solana's
+// packet cap. The final proposer approval is bundled with execute only
+// when the threshold is already satisfied after that vote.
 
 import {
   Connection,
@@ -64,6 +60,7 @@ import {
   MAX_MEMBERS,
 } from "./constants";
 import { fetchVault } from "./clearmsig-actions";
+import { decodeRosterChangeProposal } from "./codec/roster-change";
 import {
   rosterChangePayloadHash,
   rosterChangeProposeChallenge,
@@ -71,6 +68,7 @@ import {
 } from "./passkey/challenges";
 import { runPasskeySign } from "./passkey/sign";
 import type { AuthCredential } from "./ix/types";
+import { approvalPda, memberIdHash } from "./pda";
 
 export type BumpAuthMode = "wallet" | "passkey";
 
@@ -84,11 +82,24 @@ export type BumpThresholdStage =
   | "sign"
   | "submit"
   | "confirm"
-  // Approve+execute tx (passkey mode runs `approve-passkey` first)
+  // Initial proposer approval tx (passkey mode runs `approve-passkey` first)
   | "approve-passkey"
   | "approve-sign"
+  | "approve-submit"
   | "approve-confirm"
+  // Higher-threshold bumps pause here while the page gathers the
+  // remaining distinct approvals.
+  | "collecting-approvals"
+  // Final execute tx once the proposal is approved.
+  | "execute-sign"
+  | "execute-confirm"
   | "done";
+
+export interface AdditionalApprovalsRequest {
+  proposal: PublicKey;
+  currentCount: number;
+  threshold: number;
+}
 
 export interface BumpThresholdParams {
   connection: Connection;
@@ -104,6 +115,9 @@ export interface BumpThresholdParams {
   /** RP id for passkey assertions. Defaults to window.location.hostname. */
   rpId?: string;
   onProgress?: (stage: BumpThresholdStage) => void;
+  collectAdditionalApprovals?: (
+    req: AdditionalApprovalsRequest,
+  ) => Promise<void>;
 }
 
 export interface BumpThresholdResult {
@@ -112,18 +126,15 @@ export interface BumpThresholdResult {
 }
 
 /**
- * Bundle stage + propose + approve + execute into one user-signed
- * transaction and confirm it on chain. Only valid when the connected
- * wallet is a roster member AND the current threshold is 1 (so the
- * proposer's single approve completes the quorum).
+ * Bump a vault's threshold on chain.
  *
- * Throws with a clear message on every other case so the wizard can
- * surface it inline:
- *   - wallet not on roster
- *   - newThreshold out of range / unchanged
- *   - threshold > 1 (would need additional approvals via a separate
- *     collect flow; not in this commit)
- *   - members empty / corrupt
+ * Stage always gets its own tx because the payload is wide. Propose
+ * always gets its own tx. The proposer approval is either bundled with
+ * execute when the new quorum is already satisfied, or emitted as a
+ * standalone tx when the page needs to collect more votes first.
+ *
+ * The caller can pass `collectAdditionalApprovals` to pause after the
+ * proposer vote and gather the remaining approvals before execute.
  */
 export async function bumpThresholdSimple(
   params: BumpThresholdParams,
@@ -138,6 +149,7 @@ export async function bumpThresholdSimple(
     onProgress,
     authMode = "wallet",
     rpId,
+    collectAdditionalApprovals,
   } = params;
   const progress = onProgress ?? (() => undefined);
 
@@ -161,12 +173,6 @@ export async function bumpThresholdSimple(
   if (newThreshold > MAX_MEMBERS) {
     throw new Error(`Threshold ${newThreshold} exceeds protocol cap ${MAX_MEMBERS}.`);
   }
-  if (account.threshold !== 1) {
-    throw new Error(
-      `This commit's bundled bump only works on 1-of-N vaults (current threshold ${account.threshold}). For higher thresholds, the propose + approve dance needs additional signatures from other members.`,
-    );
-  }
-
   // Wallet mode requires the connected wallet to BE the member that
   // proposes + approves. Passkey mode bypasses the check because the
   // connected wallet only pays fees there — the actual auth comes
@@ -249,7 +255,6 @@ export async function bumpThresholdSimple(
       () => progress("confirm"),
     );
 
-    // --- Tx C: approve + execute ---
     const { ix: approveIx } = buildApproveRosterChangeIx({
       recovery,
       rosterChange,
@@ -257,20 +262,75 @@ export async function bumpThresholdSimple(
       memberSlot: creatorSlot,
       credential,
     });
-    const executeIx = buildExecuteRosterChangeIx({
-      recovery,
-      rosterChange,
-      payer: creator,
-    });
-    txSignature = await sendBundle(
-      connection,
-      creator,
-      [approveIx, executeIx],
-      signTransaction,
-      () => progress("approve-sign"),
-      () => progress("approve-confirm"),
-      () => progress("approve-confirm"),
-    );
+
+    if (account.threshold === 1) {
+      const executeIx = buildExecuteRosterChangeIx({
+        recovery,
+        rosterChange,
+        payer: creator,
+      });
+      txSignature = await sendBundle(
+        connection,
+        creator,
+        [approveIx, executeIx],
+        signTransaction,
+        () => progress("approve-sign"),
+        () => progress("approve-submit"),
+        () => progress("approve-confirm"),
+      );
+    } else {
+      txSignature = await sendBundle(
+        connection,
+        creator,
+        [approveIx],
+        signTransaction,
+        () => progress("approve-sign"),
+        () => progress("approve-submit"),
+        () => progress("approve-confirm"),
+      );
+
+      let approvalCount = await readRosterChangeApprovalCount(
+        connection,
+        rosterChange,
+      );
+      if (approvalCount < account.threshold) {
+        if (!collectAdditionalApprovals) {
+          throw new Error(
+            `Vault threshold is ${account.threshold}; higher-threshold bumps require the page to collect the remaining approvals.`,
+          );
+        }
+        progress("collecting-approvals");
+        await collectAdditionalApprovals({
+          proposal: rosterChange,
+          currentCount: approvalCount,
+          threshold: account.threshold,
+        });
+        approvalCount = await readRosterChangeApprovalCount(
+          connection,
+          rosterChange,
+        );
+        if (approvalCount < account.threshold) {
+          throw new Error(
+            `Threshold bump aborted: collected ${approvalCount} of ${account.threshold} required approvals.`,
+          );
+        }
+      }
+
+      const executeIx = buildExecuteRosterChangeIx({
+        recovery,
+        rosterChange,
+        payer: creator,
+      });
+      txSignature = await sendBundle(
+        connection,
+        creator,
+        [executeIx],
+        signTransaction,
+        () => progress("execute-sign"),
+        undefined,
+        () => progress("execute-confirm"),
+      );
+    }
   } else {
     // Passkey mode. Each user-auth tx carries its own secp256r1
     // precompile + assertion challenge:
@@ -318,7 +378,7 @@ export async function bumpThresholdSimple(
       () => progress("confirm"),
     );
 
-    // --- Tx C: passkey assertion + approve + execute ---
+    // --- Tx C: passkey assertion + approve ---
     progress("approve-passkey");
     const approveC = rosterChangeApproveChallenge(
       recoveryIdBytes,
@@ -343,21 +403,75 @@ export async function bumpThresholdSimple(
       memberSlot: approverMemberSlot,
       credential: approveCred,
     });
-    const executeIx = buildExecuteRosterChangeIx({
-      recovery,
-      rosterChange,
-      payer: creator,
-    });
+    if (account.threshold === 1) {
+      const executeIx = buildExecuteRosterChangeIx({
+        recovery,
+        rosterChange,
+        payer: creator,
+      });
 
-    txSignature = await sendBundle(
-      connection,
-      creator,
-      [approvePrecompile, approveIx, executeIx],
-      signTransaction,
-      () => progress("approve-sign"),
-      () => progress("approve-confirm"),
-      () => progress("approve-confirm"),
-    );
+      txSignature = await sendBundle(
+        connection,
+        creator,
+        [approvePrecompile, approveIx, executeIx],
+        signTransaction,
+        () => progress("approve-sign"),
+        () => progress("approve-submit"),
+        () => progress("approve-confirm"),
+      );
+    } else {
+      txSignature = await sendBundle(
+        connection,
+        creator,
+        [approvePrecompile, approveIx],
+        signTransaction,
+        () => progress("approve-sign"),
+        () => progress("approve-submit"),
+        () => progress("approve-confirm"),
+      );
+
+      let approvalCount = await readRosterChangeApprovalCount(
+        connection,
+        rosterChange,
+      );
+      if (approvalCount < account.threshold) {
+        if (!collectAdditionalApprovals) {
+          throw new Error(
+            `Vault threshold is ${account.threshold}; higher-threshold bumps require the page to collect the remaining approvals.`,
+          );
+        }
+        progress("collecting-approvals");
+        await collectAdditionalApprovals({
+          proposal: rosterChange,
+          currentCount: approvalCount,
+          threshold: account.threshold,
+        });
+        approvalCount = await readRosterChangeApprovalCount(
+          connection,
+          rosterChange,
+        );
+        if (approvalCount < account.threshold) {
+          throw new Error(
+            `Threshold bump aborted: collected ${approvalCount} of ${account.threshold} required approvals.`,
+          );
+        }
+      }
+
+      const executeIx = buildExecuteRosterChangeIx({
+        recovery,
+        rosterChange,
+        payer: creator,
+      });
+      txSignature = await sendBundle(
+        connection,
+        creator,
+        [executeIx],
+        signTransaction,
+        () => progress("execute-sign"),
+        undefined,
+        () => progress("execute-confirm"),
+      );
+    }
   }
 
   progress("done");
@@ -393,7 +507,7 @@ async function sendBundle(
   ixs: TransactionInstruction[],
   signTransaction: <T extends VersionedTransaction>(tx: T) => Promise<T>,
   onSign: () => void,
-  onSubmit: () => void,
+  onSubmit: (() => void) | undefined,
   onConfirm: () => void,
 ): Promise<string> {
   const { blockhash, lastValidBlockHeight } =
@@ -406,7 +520,7 @@ async function sendBundle(
   const tx = new VersionedTransaction(message);
   onSign();
   const signed = await signTransaction(tx);
-  onSubmit();
+  if (onSubmit) onSubmit();
   const sig = await connection.sendRawTransaction(signed.serialize(), {
     skipPreflight: false,
     preflightCommitment: "confirmed",
@@ -425,4 +539,142 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
     if (a[i] !== b[i]) return false;
   }
   return true;
+}
+
+export interface AddRosterChangeApprovalParams {
+  connection: Connection;
+  recovery: PublicKey;
+  rosterChange: PublicKey;
+  /** Pays the fee. Must be a Signer on the tx but doesn't need to be a member. */
+  payer: PublicKey;
+  authMode: BumpAuthMode;
+  walletPubkey?: PublicKey;
+  rpId?: string;
+  signTransaction: <T extends VersionedTransaction>(tx: T) => Promise<T>;
+}
+
+export interface AddRosterChangeApprovalResult {
+  txSignature: string;
+}
+
+export async function addRosterChangeApproval(
+  params: AddRosterChangeApprovalParams,
+): Promise<AddRosterChangeApprovalResult> {
+  const {
+    connection,
+    recovery,
+    rosterChange,
+    payer,
+    authMode,
+    walletPubkey,
+    rpId,
+    signTransaction,
+  } = params;
+
+  const proposalAccount = await readRosterChangeProposalOrThrow(
+    connection,
+    rosterChange,
+  );
+  const { account: vault } = await fetchVault(connection, recovery);
+
+  if (authMode === "wallet") {
+    if (!walletPubkey) {
+      throw new Error("walletPubkey required when authMode is 'wallet'");
+    }
+    const slot = packSolanaMember(walletPubkey);
+    const onRoster = vault.members.some((m) => bytesEqual(m, slot));
+    if (!onRoster) {
+      throw new Error(
+        "Connected wallet isn't on this vault's roster — pick a different credential.",
+      );
+    }
+    if (await alreadyApproved(connection, rosterChange, slot)) {
+      throw new Error(
+        "This wallet has already voted on this roster change — pick a different credential.",
+      );
+    }
+    const credential: AuthCredential = {
+      scheme: SCHEME_SOLANA_ADDRESS,
+      pubkey: walletPubkey.toBytes(),
+    };
+    const { ix: approveIx } = buildApproveRosterChangeIx({
+      recovery,
+      rosterChange,
+      payer,
+      memberSlot: slot,
+      credential,
+    });
+    const sig = await sendBundle(
+      connection,
+      payer,
+      [approveIx],
+      signTransaction,
+      () => undefined,
+      undefined,
+      () => undefined,
+    );
+    return { txSignature: sig };
+  }
+
+  const recoveryIdBytes = vault.recoveryId.toBytes();
+  const approveC = rosterChangeApproveChallenge(
+    recoveryIdBytes,
+    proposalAccount.rosterChangeIndex,
+  );
+  const assertion = await runPasskeySign({ challenge: approveC, rpId });
+  const pub = pickRosterPubkey(vault.members, assertion.candidatePubkeys);
+  const memberSlot = packMemberSlot(SCHEME_WEBAUTHN, pub);
+  if (await alreadyApproved(connection, rosterChange, memberSlot)) {
+    throw new Error(
+      "That passkey has already voted on this roster change — tap a different one.",
+    );
+  }
+  const { precompileIx, credential } = assertion.build(pub);
+  const { ix: approveIx } = buildApproveRosterChangeIx({
+    recovery,
+    rosterChange,
+    payer,
+    memberSlot,
+    credential,
+  });
+  const sig = await sendBundle(
+    connection,
+    payer,
+    [precompileIx, approveIx],
+    signTransaction,
+    () => undefined,
+    undefined,
+    () => undefined,
+  );
+  return { txSignature: sig };
+}
+
+export async function readRosterChangeApprovalCount(
+  connection: Connection,
+  rosterChange: PublicKey,
+): Promise<number> {
+  const acc = await readRosterChangeProposalOrThrow(connection, rosterChange);
+  return acc.approvalCount;
+}
+
+async function alreadyApproved(
+  connection: Connection,
+  rosterChange: PublicKey,
+  memberSlot: Uint8Array,
+): Promise<boolean> {
+  const memberHash = memberIdHash(memberSlot);
+  const approvalAddr = approvalPda(rosterChange, memberHash);
+  const info = await connection.getAccountInfo(approvalAddr, "confirmed");
+  return !!info && info.data.length > 0;
+}
+
+async function readRosterChangeProposalOrThrow(
+  connection: Connection,
+  rosterChange: PublicKey,
+) {
+  const info = await connection.getAccountInfo(rosterChange, "confirmed");
+  if (!info || info.data.length === 0) {
+    throw new Error(`Roster change account ${rosterChange.toBase58()} not found`);
+  }
+  return decodeRosterChangeProposal(new Uint8Array(info.data));
 }
