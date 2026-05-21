@@ -30,7 +30,7 @@ export function UnsupportedSignerBanner({
   const wallet = useWallet();
   if (!wallet.signerIssue) return null;
 
-  const defaultTitle = "Email sign-in can't sign on Solana right now";
+  const defaultTitle = "This embedded wallet can't sign on Solana right now";
 
   return (
     <div
@@ -51,10 +51,10 @@ export function UnsupportedSignerBanner({
         <div className="min-w-0 flex-1">
           <p className="font-medium">{title ?? defaultTitle}</p>
           <p className={"mt-1 text-text-soft " + (compact ? "text-[11px]" : "text-xs")}>
-            Dynamic&rsquo;s embedded TSS Solana wallet has a known
-            UTF-8 issue that corrupts the message bytes before
-            signing. To create wallets and send transactions, sign
-            out and sign back in with{" "}
+            A legacy embedded signer path can corrupt the message
+            bytes before signing. Clear now routes new email / phone
+            sign-ins through a compatible embedded wallet, but if you
+            still land here, sign out and sign back in with{" "}
             <strong>Solflare, Backpack</strong>, or{" "}
             <strong>Coinbase Wallet</strong> from the same wallet
             picker. For hardware-tier security,{" "}
@@ -74,7 +74,7 @@ export function UnsupportedSignerBanner({
               rel="noopener noreferrer"
               className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-text-soft hover:text-text-strong"
             >
-              About Dynamic&rsquo;s Solana provider
+              About Dynamic&rsquo;s Solana embedded wallet
               <ExternalLink className="h-3 w-3" aria-hidden="true" />
             </a>
           )}
