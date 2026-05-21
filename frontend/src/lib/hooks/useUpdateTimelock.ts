@@ -53,6 +53,8 @@ export function templateFileForChainKind(chainKind: number): string {
       return "examples/intents/evm_transfer_sepolia.json";
     case 4:
       return "examples/intents/erc20_transfer_sepolia.json";
+    case 5:
+      return "examples/intents/hyperliquid_transfer.json";
     default:
       // Bitcoin (2) and Zcash (3) intents aren't editable from
       // the UI today; the rules page hides the timelock-edit

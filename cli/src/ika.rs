@@ -568,7 +568,7 @@ pub fn build_chain_preimage(intent: &IntentAccount, params_data: &[u8]) -> Resul
     let tx_template = read_tx_template(intent)?;
     match intent.chain_kind {
         0 => solana_dwallet_preimage(intent, params_data),
-        1 => evm_native_preimage(intent, params_data, tx_template),
+        1 | 5 => evm_native_preimage(intent, params_data, tx_template),
         4 => evm_erc20_preimage(intent, params_data, tx_template),
         2 => bitcoin_p2wpkh_preimage(intent, params_data, tx_template),
         3 => zcash_transparent_preimage(intent, params_data, tx_template),

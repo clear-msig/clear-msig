@@ -1,5 +1,5 @@
 // Direct-RPC reader for IkaConfig PDAs (per-(wallet, chain_kind) dWallet
-// bindings). Scans chain_kinds 0..=4 in parallel via one batched
+// bindings). Scans chain_kinds 0..=5 in parallel via one batched
 // `getMultipleAccountsInfo` . single RPC roundtrip.
 //
 // Supported chain_kinds (mirrors programs/clear-wallet/src/chains/mod.rs::
@@ -9,6 +9,7 @@
 //   2 = Bitcoin P2WPKH
 //   3 = Zcash transparent
 //   4 = EVM 1559 ERC-20
+//   5 = Hyperliquid HyperEVM
 
 import { Connection, PublicKey } from "@solana/web3.js";
 import {
@@ -26,6 +27,7 @@ export const CHAIN_KIND_LABELS: Readonly<Record<number, string>> = {
   2: "bitcoin_p2wpkh",
   3: "zcash_transparent",
   4: "evm_1559_erc20",
+  5: "hyperliquid_evm",
 };
 
 export interface ChainBindingWithPda {
@@ -42,7 +44,7 @@ export async function listChainBindings(
   connection: Connection,
   wallet: PublicKey
 ): Promise<ChainBindingWithPda[]> {
-  const probes = [0, 1, 2, 3, 4].map((ck) => {
+  const probes = [0, 1, 2, 3, 4, 5].map((ck) => {
     const [pda] = findIkaConfigAddress(wallet, ck, CLEAR_WALLET_PROGRAM_ID);
     return { pda, chainKind: ck };
   });

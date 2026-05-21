@@ -31,6 +31,8 @@ import { useToast } from "@/components/ui/Toast";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { useWalletChains } from "@/lib/hooks/useWalletChains";
 
+const SECP256K1_KINDS = new Set([1, 2, 3, 4, 5]);
+
 type Stage = "pick" | "confirm" | "binding" | "done";
 
 export default function AddChainPageWrapper() {
@@ -165,7 +167,6 @@ function AddChainPage() {
   //
   // Solana stays separate (different curve, Curve25519). The
   // wallet's SOL binding from create-time is untouched.
-  const SECP256K1_KINDS = new Set([1, 2, 3, 4]);
   const existingSecp256k1Binding = useMemo(() => {
     return (chainsQuery.data?.chains ?? []).find(
       (b) =>
@@ -353,12 +354,11 @@ function AddChainPage() {
 function sendOrSetupPathFor(walletName: string, kind: number): string | null {
   const base = `/app/wallet/${encodeURIComponent(walletName)}`;
   if (kind === 0) return `${base}/send`;
-  if (kind === 1) return `${base}/send/eth`;
+  if (kind === 1) return `${base}/setup/eth`;
   if (kind === 2) return `${base}/send/btc`;
-  // Zcash (kind 3): no send page yet; drop to chains list so the
-  // user sees the binding instead of being asked to re-bind.
-  if (kind === 3) return `${base}/chains`;
+  if (kind === 3) return `${base}/send/zec`;
   if (kind === 4) return `${base}/send/erc20`;
+  if (kind === 5) return `${base}/setup/eth?network=hyperliquid`;
   return null;
 }
 

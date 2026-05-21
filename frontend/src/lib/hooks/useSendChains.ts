@@ -16,11 +16,6 @@
 // runs on Solana and the vault PDA is derivable client-side. For
 // non-Solana chains, both binding + intent must be present.
 //
-// Today: Solana + Ethereum are the active picker chains. Bitcoin /
-// Zcash bindings show up as "coming soon" rather than enabled
-// because UTXO / transparent-pool management isn't wired into the
-// frontend yet.
-
 import { useMemo } from "react";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
@@ -33,6 +28,10 @@ import {
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { CHAIN_CATALOG, chainByKind, type ChainMeta } from "@/lib/retail/chains";
 import type { ChainBindingResponse } from "@/lib/api/types";
+import {
+  baseChainSendStatus,
+  type ChainSendStatus,
+} from "@/lib/chain/send-support";
 
 export interface SendChainOption {
   chain: ChainMeta;
@@ -43,19 +42,13 @@ export interface SendChainOption {
   /// The matching intent for this chain (or null if not set up yet).
   intent: IntentAccount | null;
   /// True if a send can fire today (binding present + intent present
-  /// + chain is one of the supported send chains).
+  /// + chain is one of the supported live chains).
   canSend: boolean;
   /// Friendly status string for the picker chip ("Ready", "Set up
-  /// sending", "Coming soon"). Drives the badge under the chain name.
-  status: "ready" | "needs_setup" | "needs_binding" | "coming_soon";
+  /// sending", "Coming soon"). Drives the badge under the chain
+  /// name.
+  status: ChainSendStatus;
 }
-
-// Send-supported chains today. Solana (0), Ethereum (1), and Bitcoin
-// P2WPKH (2). Zcash (chain_kind 3) ships as "coming soon" until the
-// transparent-send flow lands. Bitcoin's send page lives at
-// /send/btc and uses the Esplora UTXO + bech32 helpers in
-// `lib/chain/btc.ts`.
-const SEND_SUPPORTED: ReadonlySet<number> = new Set([0, 1, 2]);
 
 export function useSendChains(walletName: string) {
   const { connection } = useConnection();
@@ -110,8 +103,9 @@ export function useSendChains(walletName: string) {
         customIntents.find((it) => it.chainKind === chain.kind) ?? null;
 
       let status: SendChainOption["status"];
-      if (!SEND_SUPPORTED.has(chain.kind)) {
-        status = "coming_soon";
+      const support = baseChainSendStatus(chain.kind);
+      if (support === "coming_soon") {
+        status = support;
       } else if (!hasBinding) {
         status = "needs_binding";
       } else if (!intent) {

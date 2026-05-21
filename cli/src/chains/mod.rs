@@ -118,12 +118,19 @@ pub fn broadcast_signed_tx(
                 rpc_url,
             )
         }
-        // 1 = evm_1559, 4 = evm_1559_erc20 — same EIP-1559 envelope.
-        1 | 4 => {
+        // 1 = evm_1559, 4 = evm_1559_erc20, 5 = hyperliquid_evm —
+        // same EIP-1559 envelope.
+        1 | 4 | 5 => {
             if !matches!(inputs, BroadcastInputs::Evm) {
                 return Err(anyhow!("EVM chain_kind requires BroadcastInputs::Evm"));
             }
-            evm::assemble_and_broadcast(preimage, &r, &s, dwallet_pubkey_compressed, rpc_url)
+            let mut result =
+                evm::assemble_and_broadcast(preimage, &r, &s, dwallet_pubkey_compressed, rpc_url)?;
+            if chain_kind == 5 {
+                result.chain = "hyperliquid_evm";
+                result.chain_kind = 5;
+            }
+            Ok(result)
         }
         // 2 = bitcoin_p2wpkh — BIP143 witness assembly + Esplora REST.
         2 => {

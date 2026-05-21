@@ -21,6 +21,7 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import { useConnection } from "@/lib/wallet";
 import { fetchEvmTxHistory } from "@/lib/chain/eth";
 import { fetchBitcoinTxHistory } from "@/lib/chain/btc";
+import { fetchZcashTxHistory } from "@/lib/chain/zcash";
 
 export interface ChainTxRow {
   /// Chain-native tx identifier (Solana signature, EVM tx hash,
@@ -137,6 +138,34 @@ export function useBitcoinTxHistory(
       }));
     },
     enabled: !!address,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    retry: 1,
+  });
+}
+
+// ── Zcash (zcashd RPC) ──────────────────────────────────────────
+
+export function useZcashTxHistory(
+  address: string | null,
+  rpcUrl: string,
+  limit: number = 10,
+) {
+  return useQuery({
+    queryKey: ["chain-tx-history-zcash", address ?? "", rpcUrl, limit],
+    queryFn: async (): Promise<ChainTxRow[]> => {
+      if (!address) return [];
+      const rows = await fetchZcashTxHistory(rpcUrl, address, limit);
+      return rows.map((r) => ({
+        txId: r.txId,
+        ts: r.blockTime,
+        slot: r.blockHeight ?? 0,
+        status: r.confirmed ? "confirmed" : "confirmed",
+        errorBrief: null,
+      }));
+    },
+    enabled: !!address && rpcUrl.trim().length > 0,
     staleTime: 15_000,
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,

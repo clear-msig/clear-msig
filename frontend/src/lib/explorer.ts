@@ -7,6 +7,7 @@
 //   2 = Bitcoin P2WPKH     → mempool.space (testnet vs mainnet from RPC URL)
 //   3 = Zcash transparent  → zcashblockexplorer.com
 //   4 = EVM 1559 ERC-20    → same as EVM 1559
+//   5 = Hyperliquid HyperEVM→ Hyperliquid explorer
 //
 // The CLI's `BroadcastResult` (cli/src/chains/mod.rs) carries an
 // optional `explorer_url` that some chains (Bitcoin) populate
@@ -60,6 +61,8 @@ export function explorerLabelForChainKind(
       return etherscanLabelFromRpc(
         destinationRpcUrl ?? appConfig.preAlpha.destinationRpcUrl,
       );
+    case 5:
+      return "Hyperliquid Explorer";
     case 2:
       return mempoolLabelFromRpc(
         destinationRpcUrl ?? appConfig.preAlpha.destinationRpcUrl,
@@ -89,6 +92,8 @@ export function addressUrlForChainKind(
     case 1:
     case 4:
       return `${etherscanFromRpc(rpc).base}/address/${address}`;
+    case 5:
+      return `https://app.hyperliquid.xyz/explorer/address/${address}`;
     case 2:
       return `${mempoolFromRpc(rpc).base}/address/${address}`;
     case 3:
@@ -118,6 +123,8 @@ export function broadcastExplorerUrl(
     case 1:
     case 4:
       return etherscanTxUrl(broadcast.tx_id, rpc);
+    case 5:
+      return `https://app.hyperliquid.xyz/explorer/tx/${broadcast.tx_id}`;
     case 2:
       return mempoolTxUrl(broadcast.tx_id, rpc);
     case 3:

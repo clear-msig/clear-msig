@@ -95,7 +95,7 @@ export default function WalletSettingsPage() {
     {
       href: `/app/wallet/${encoded}/chains`,
       label: "Connected chains",
-      hint: "Bind Ethereum, Bitcoin, Zcash. Solana is always on.",
+      hint: "Bind Ethereum, Hyperliquid, Bitcoin, Zcash. Solana is always on.",
       Icon: Globe,
     },
   ];

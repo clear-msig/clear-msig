@@ -58,8 +58,6 @@ interface ThresholdShape {
   threshold: number;
   members: number;
   blurb: string;
-  /** When true, available in v2. Otherwise stub. */
-  available: boolean;
 }
 
 const SHAPES: ThresholdShape[] = [
@@ -69,7 +67,6 @@ const SHAPES: ThresholdShape[] = [
     threshold: 1,
     members: 1,
     blurb: "Your connected wallet is the only signer. Add devices later.",
-    available: true,
   },
   {
     id: "2of3",
@@ -78,7 +75,6 @@ const SHAPES: ThresholdShape[] = [
     members: 3,
     blurb:
       "You + two passkeys. Any two sign and you're in. Tolerates losing one. Two passkey prompts during create.",
-    available: true,
   },
   {
     id: "3of5",
@@ -87,7 +83,6 @@ const SHAPES: ThresholdShape[] = [
     members: 5,
     blurb:
       "Five members, three to recover. Tolerates losing two. Four passkey prompts during create.",
-    available: true,
   },
 ];
 
@@ -146,10 +141,6 @@ function SecureBuildPage() {
         };
 
   const handleConfirm = () => {
-    if (!shape.available) {
-      toast.info("Coming soon");
-      return;
-    }
     setStage("confirm");
   };
 
@@ -409,13 +400,11 @@ function ShapeStage({ shape, setShape, onContinue, reduce }: ShapeStageProps) {
       <ul className="flex flex-col gap-3 px-gutter">
         {SHAPES.map((s) => {
           const selected = s.id === shape.id;
-          const disabled = !s.available;
           const Icon = s.id === "solo" ? User : Fingerprint;
           return (
             <li key={s.id}>
               <button
                 type="button"
-                disabled={disabled}
                 onClick={() => setShape(s)}
                 aria-pressed={selected}
                 className={
@@ -424,9 +413,7 @@ function ShapeStage({ shape, setShape, onContinue, reduce }: ShapeStageProps) {
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
                   (selected
                     ? "border-accent bg-accent/[0.04] shadow-card-rest"
-                    : disabled
-                      ? "cursor-not-allowed border-border-soft bg-surface-raised/40 opacity-70"
-                      : "border-border-soft bg-surface-raised hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-card-raised")
+                    : "border-border-soft bg-surface-raised hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-card-raised")
                 }
               >
                 {/* Selected check badge - sits in the top-right
@@ -439,15 +426,6 @@ function ShapeStage({ shape, setShape, onContinue, reduce }: ShapeStageProps) {
                     className="absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-full bg-accent text-text-on-accent shadow-card-rest sm:right-5 sm:top-5"
                   >
                     <Check className="h-3.5 w-3.5" strokeWidth={3} />
-                  </span>
-                )}
-
-                {/* Disabled badge - same corner slot. Mutually
-                    exclusive with selected (a stub can't be
-                    selected; the button is disabled). */}
-                {disabled && (
-                  <span className="absolute right-4 top-4 rounded-full border border-border-soft bg-canvas px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.2em] text-text-soft sm:right-5 sm:top-5">
-                    Coming soon
                   </span>
                 )}
 
@@ -506,7 +484,6 @@ function ShapeStage({ shape, setShape, onContinue, reduce }: ShapeStageProps) {
           size="lg"
           fullWidth
           onClick={onContinue}
-          disabled={!shape.available}
         >
           Continue
           <ArrowRight className="h-4 w-4" aria-hidden="true" />

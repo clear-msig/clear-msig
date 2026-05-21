@@ -299,6 +299,8 @@ function chainName(k: number): string {
       return "Zcash";
     case 4:
       return "Ethereum (ERC-20)";
+    case 5:
+      return "Hyperliquid";
     default:
       return `Chain ${k}`;
   }

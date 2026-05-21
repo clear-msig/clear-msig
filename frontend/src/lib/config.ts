@@ -50,6 +50,12 @@ function readEvmRpcOverride(): string | null {
 export const destinationRpcDefault =
   process.env.NEXT_PUBLIC_DESTINATION_RPC_URL ?? "https://1rpc.io/sepolia";
 
+export const hyperliquidRpcDefault =
+  process.env.NEXT_PUBLIC_HYPERLIQUID_RPC_URL ?? "https://rpc.hyperliquid.xyz/evm";
+
+export const zcashRpcDefault =
+  process.env.NEXT_PUBLIC_ZCASH_RPC_URL ?? "http://127.0.0.1:8232";
+
 export const appConfig = {
   backendApiUrl:
     process.env.NEXT_PUBLIC_BACKEND_API_URL ?? "http://127.0.0.1:8080",
@@ -73,6 +79,8 @@ export const appConfig = {
     // load requires a page reload to take effect; the Settings UI
     // handles that.
     destinationRpcUrl: readEvmRpcOverride() ?? destinationRpcDefault,
+    hyperliquidRpcUrl: process.env.NEXT_PUBLIC_HYPERLIQUID_RPC_URL ?? hyperliquidRpcDefault,
+    zcashRpcUrl: process.env.NEXT_PUBLIC_ZCASH_RPC_URL ?? zcashRpcDefault,
   },
   dynamicEnvironmentId: process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID ?? "",
 };

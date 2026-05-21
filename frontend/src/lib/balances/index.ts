@@ -16,7 +16,7 @@
 //              (NEXT_PUBLIC_DESTINATION_RPC_URL)
 //   - Bitcoin: mempool.space REST (testnet vs mainnet inferred
 //              from the destination RPC's path)
-//   - Zcash:   no widely-available public REST today; skipped.
+//   - Zcash:   fetched via a user-configured Zcash RPC endpoint.
 //              Caller can render "-" when this returns null.
 
 import { Connection, PublicKey } from "@solana/web3.js";
@@ -25,6 +25,7 @@ import {
   detectBitcoinNetwork,
   fetchBitcoinBalance,
 } from "@/lib/chain/btc";
+import { fetchZcashBalance } from "@/lib/chain/zcash";
 
 export interface ChainBalance {
   /// Smallest-unit balance (lamports / wei / sats). `null` when the
@@ -41,6 +42,7 @@ export async function fetchChainBalance(
   ctx: {
     solanaConnection: Connection;
     evmRpcUrl: string;
+    zcashRpcUrl: string;
   },
 ): Promise<ChainBalance | null> {
   switch (binding.chain_kind) {
@@ -55,6 +57,12 @@ export async function fetchChainBalance(
     }
     case 1:
     case 4: {
+      const addr = binding.evm_address;
+      if (!addr) return null;
+      const wei = await fetchEvmBalance(ctx.evmRpcUrl, addr);
+      return { raw: wei, address: addr };
+    }
+    case 5: {
       const addr = binding.evm_address;
       if (!addr) return null;
       const wei = await fetchEvmBalance(ctx.evmRpcUrl, addr);
@@ -81,9 +89,8 @@ export async function fetchChainBalance(
       const addr =
         binding.zcash_t_addr_testnet ?? binding.zcash_t_addr_mainnet ?? null;
       if (!addr) return null;
-      // Zcash: no widely-available public REST today. Surface
-      // address but null balance so the UI renders "-".
-      return { raw: null, address: addr };
+      const zats = await fetchZcashBalance(ctx.zcashRpcUrl, addr);
+      return { raw: zats, address: addr };
     }
     default:
       return null;

@@ -878,7 +878,7 @@ function WhyClear({ fadeIn }: { fadeIn: FadeInFn }) {
       },
       good: {
         title: "One wallet, every chain",
-        body: "Ethereum, Bitcoin, Zcash - all from the same shared wallet. No bridges, no copies to set up.",
+        body: "Ethereum, Hyperliquid, Bitcoin, Zcash - all from the same shared wallet. No bridges, no copies to set up.",
       },
     },
     {
