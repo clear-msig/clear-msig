@@ -1062,8 +1062,9 @@ pub fn signing_params(
     match chain_kind {
         // Solana — Ed25519 + SHA512 (Curve25519 dWallet).
         0 => Ok((DWalletCurve::Curve25519, DWalletSignatureScheme::EddsaSha512)),
-        // Evm1559 (1) / Evm1559Erc20 (4) — keccak256 of RLP, secp256k1 ECDSA.
-        1 | 4 => Ok((DWalletCurve::Secp256k1, DWalletSignatureScheme::EcdsaKeccak256)),
+        // Evm1559 (1) / Evm1559Erc20 (4) / HyperliquidEvm (5) —
+        // keccak256 of RLP, secp256k1 ECDSA.
+        1 | 4 | 5 => Ok((DWalletCurve::Secp256k1, DWalletSignatureScheme::EcdsaKeccak256)),
         // BitcoinP2wpkh — sha256d of BIP143 preimage, secp256k1 ECDSA.
         2 => Ok((DWalletCurve::Secp256k1, DWalletSignatureScheme::EcdsaDoubleSha256)),
         // ZcashTransparent — personalised BLAKE2b-256, secp256k1 ECDSA.
