@@ -99,8 +99,9 @@ fn parse_chain_kind(chain: &str) -> Result<u8> {
         "zcash_transparent"   => Ok(3),
         "evm_1559_erc20"      => Ok(4),
         "hyperliquid_evm"     => Ok(5),
+        "hyperliquid"         => Ok(5),
         other => Err(anyhow!(
-            "unknown chain '{other}' (expected one of: solana, evm_1559, evm_1559_erc20, bitcoin_p2wpkh, zcash_transparent, hyperliquid_evm, solana_dwallet)"
+            "unknown chain '{other}' (expected one of: solana, evm_1559, evm_1559_erc20, bitcoin_p2wpkh, zcash_transparent, hyperliquid_evm, hyperliquid, solana_dwallet)"
         )),
     }
 }

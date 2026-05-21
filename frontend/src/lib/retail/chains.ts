@@ -96,7 +96,8 @@ export const CHAIN_CATALOG: readonly ChainMeta[] = [
     apiName: "hyperliquid_evm",
     ticker: "HYPE",
     symbol: "H",
-    logoUrl: "https://app.hyperliquid.xyz/favicon.ico",
+    logoUrl:
+      "https://assets.coingecko.com/coins/images/50882/large/hyperliquid.jpg",
     name: "Hyperliquid",
     description: "High-performance EVM trading chain.",
     gradient: { from: "from-cyan-500", to: "to-sky-400" },
@@ -110,7 +111,11 @@ export function chainByKind(kind: number): ChainMeta | undefined {
 }
 
 export function chainByApiName(apiName: string): ChainMeta | undefined {
-  return CHAIN_CATALOG.find((c) => c.apiName === apiName);
+  const normalized = apiName.toLowerCase();
+  if (normalized === "hyperliquid") {
+    return CHAIN_CATALOG.find((c) => c.kind === 5);
+  }
+  return CHAIN_CATALOG.find((c) => c.apiName === normalized);
 }
 
 /// Retail label for a chain_kind, falling back to "Other" if we don't
