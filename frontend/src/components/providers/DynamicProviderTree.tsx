@@ -179,7 +179,7 @@ export default function DynamicProviderTree({ environmentId, children }: Props) 
       SolanaWalletConnectors,
       TurnkeySolanaWalletConnectors,
     ],
-    initialAuthenticationMode: "connect-only",
+    initialAuthenticationMode: "connect-and-sign",
     deviceRegistrationModal: { enabled: false },
     // The cssOverrides string remaps every load-bearing
     // `--dynamic-*` token to the Obsidian & Lime palette directly,
