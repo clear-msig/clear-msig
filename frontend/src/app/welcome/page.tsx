@@ -145,12 +145,11 @@ const TRANSITION = { duration: 0.25, ease: [0.22, 1, 0.36, 1] as const };
 
 export default function WelcomePage() {
   const gate = useWalletGate();
-  // signerIssue is set when the connected wallet cannot sign clear-msig's
-  // offchain-wrapped messages - Dynamic's WaaS-SVM embedded provider
-  // (UTF-8-decodes the bytes before signing) or Phantom (rejects the
-  // `\xff` magic prefix as a suspected versioned-tx). Either way, block
-  // the Create CTA up front so users don't burn devnet SOL on a
-  // createWallet that the second popup will reject.
+  // signerIssue is set when the connected wallet is on the legacy
+  // embedded signer path that corrupts clear-msig's offchain-wrapped
+  // messages. This should not happen on the Google/email/phone +
+  // Turnkey path. If it does, the current auth session still needs to
+  // be migrated or the app deployment is stale.
   const wallet = useWallet();
   const isBrokenSigner = wallet.signerIssue !== null;
   const signerIssue = wallet.signerIssue;
@@ -610,9 +609,9 @@ export default function WelcomePage() {
                   </button>
                   {isBrokenSigner && (
                     <p className="mt-3 text-center font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/50">
-                      Email/Google sign-in can't sign Solana yet. Use{" "}
-                      <span className="text-[#ccff00]">Solflare</span>, Backpack,
-                      or a Ledger.
+                      This account is on the legacy embedded signer path.
+                      Recreate the embedded wallet or use a hardware
+                      wallet.
                     </p>
                   )}
                 </motion.section>

@@ -52,12 +52,12 @@ export function UnsupportedSignerBanner({
           <p className="font-medium">{title ?? defaultTitle}</p>
           <p className={"mt-1 text-text-soft " + (compact ? "text-[11px]" : "text-xs")}>
             A legacy embedded signer path can corrupt the message
-            bytes before signing. Clear now routes new email / phone
-            sign-ins through a compatible embedded wallet, but if you
-            still land here, sign out and sign back in with{" "}
-            <strong>Solflare, Backpack</strong>, or{" "}
-            <strong>Coinbase Wallet</strong> from the same wallet
-            picker. For hardware-tier security,{" "}
+            bytes before signing. Clear routes Google, email, and
+            phone sign-ins through the compatible embedded Solana
+            wallet path. If you still land here, your current account
+            is on the legacy signer path and needs to be replaced or
+            the app needs to be redeployed from the newer build. For
+            hardware-tier security,{" "}
             <Link
               href="/security"
               className="font-medium text-accent underline-offset-2 hover:underline"
