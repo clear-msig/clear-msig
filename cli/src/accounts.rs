@@ -150,6 +150,13 @@ fn read_vec_u8(data: &[u8], offset: &mut usize) -> Result<Vec<u8>> {
     Ok(result)
 }
 
+fn read_optional_vec_u8(data: &[u8], offset: &mut usize) -> Result<Vec<u8>> {
+    if *offset == data.len() {
+        return Ok(Vec::new());
+    }
+    read_vec_u8(data, offset)
+}
+
 pub fn parse_wallet(data: &[u8]) -> Result<WalletAccount> {
     if data.is_empty() || data[0] != 1 {
         return Err(anyhow!(
@@ -227,8 +234,22 @@ pub fn parse_intent(data: &[u8]) -> Result<IntentAccount> {
     let instructions = read_vec_raw::<InstructionEntry>(data, &mut offset)?;
     let data_segments = read_vec_raw::<DataSegmentEntry>(data, &mut offset)?;
     let seeds = read_vec_raw::<SeedEntry>(data, &mut offset)?;
-    let policy_ciphertexts = read_vec_u8(data, &mut offset)?;
-    let byte_pool = read_vec_u8(data, &mut offset)?;
+    let tail_offset = offset;
+    let (policy_ciphertexts, byte_pool) = match (|| -> Result<(Vec<u8>, Vec<u8>)> {
+        let policy_ciphertexts = read_vec_u8(data, &mut offset)?;
+        let byte_pool = read_vec_u8(data, &mut offset)?;
+        Ok((policy_ciphertexts, byte_pool))
+    })() {
+        Ok(tail) => tail,
+        Err(_) => {
+            // Older deployed program builds wrote intent accounts before the
+            // policy_ciphertexts tail field existed. Accept that layout so
+            // wallet signing can still verify legacy on-chain intents.
+            let mut legacy_offset = tail_offset;
+            let byte_pool = read_optional_vec_u8(data, &mut legacy_offset)?;
+            (Vec::new(), byte_pool)
+        }
+    };
 
     Ok(IntentAccount {
         wallet,
@@ -460,6 +481,81 @@ mod tests {
             let (_hrp, _witness_version, program) = bech32::segwit::decode(&addr).unwrap();
             assert_eq!(&program, &h160);
         }
+    }
+
+    fn push_u8(buf: &mut Vec<u8>, value: u8) {
+        buf.push(value);
+    }
+
+    fn push_u16(buf: &mut Vec<u8>, value: u16) {
+        buf.extend_from_slice(&value.to_le_bytes());
+    }
+
+    fn push_u32(buf: &mut Vec<u8>, value: u32) {
+        buf.extend_from_slice(&value.to_le_bytes());
+    }
+
+    fn push_address(buf: &mut Vec<u8>, value: [u8; 32]) {
+        buf.extend_from_slice(&value);
+    }
+
+    fn push_zero_vec_headers(buf: &mut Vec<u8>, count: usize) {
+        for _ in 0..count {
+            push_u32(buf, 0);
+        }
+    }
+
+    fn intent_prefix() -> Vec<u8> {
+        let mut buf = Vec::new();
+        buf.push(2);
+        push_address(&mut buf, [7; 32]);
+        push_u8(&mut buf, 1);
+        push_u8(&mut buf, 2);
+        push_u8(&mut buf, 3);
+        push_u8(&mut buf, 4);
+        push_u8(&mut buf, 1);
+        push_u8(&mut buf, 2);
+        push_u8(&mut buf, 1);
+        push_u32(&mut buf, 3600);
+        push_u16(&mut buf, 0);
+        push_u16(&mut buf, 4);
+        push_u16(&mut buf, 0);
+        push_u16(&mut buf, 0);
+        push_u16(&mut buf, 0);
+        push_zero_vec_headers(&mut buf, 7);
+        buf
+    }
+
+    #[test]
+    fn parse_intent_accepts_current_tail_layout() {
+        let mut data = intent_prefix();
+        let policy_ciphertexts =
+            encode_policy_ciphertexts(&["ct_deadbeef".to_string(), "ct_cafebabe".to_string()])
+                .unwrap();
+        push_u32(&mut data, policy_ciphertexts.len() as u32);
+        data.extend_from_slice(&policy_ciphertexts);
+        push_u32(&mut data, 4);
+        data.extend_from_slice(b"tmpl");
+
+        let parsed = parse_intent(&data).unwrap();
+        assert_eq!(parsed.template(), "tmpl");
+        assert_eq!(
+            parsed.policy_ciphertext_ids(),
+            vec!["ct_deadbeef".to_string(), "ct_cafebabe".to_string()]
+        );
+        assert_eq!(parsed.byte_pool, b"tmpl");
+    }
+
+    #[test]
+    fn parse_intent_accepts_legacy_tail_layout_without_policy_ciphertexts() {
+        let mut data = intent_prefix();
+        push_u32(&mut data, 4);
+        data.extend_from_slice(b"tmpl");
+
+        let parsed = parse_intent(&data).unwrap();
+        assert_eq!(parsed.template(), "tmpl");
+        assert!(parsed.policy_ciphertexts.is_empty());
+        assert_eq!(parsed.byte_pool, b"tmpl");
     }
 }
 
