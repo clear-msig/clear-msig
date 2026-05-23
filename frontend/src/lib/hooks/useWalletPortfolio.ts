@@ -130,6 +130,7 @@ export function useWalletPortfolio(walletName: string): WalletPortfolio {
                 fetchChainBalance(b, {
                   solanaConnection: connection as unknown as Connection,
                   evmRpcUrl: appConfig.preAlpha.destinationRpcUrl,
+                  zcashRpcUrl: appConfig.preAlpha.zcashRpcUrl,
                 }),
                 8000,
                 `balance fetch timed out for chain ${b.chain_kind}`,

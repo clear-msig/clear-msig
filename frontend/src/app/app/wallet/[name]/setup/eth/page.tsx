@@ -19,7 +19,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -52,14 +52,9 @@ import { SignPayloadPreview } from "@/components/retail/SignPayloadPreview";
 import { chainByKind } from "@/lib/retail/chains";
 import { shortEvmAddress } from "@/lib/chain/eth";
 
-// Chain kind 1 = Ethereum (EIP-1559). Sepolia variant of the
-// canonical evm_transfer template; the chain_id has been swapped to
-// 11155111 so signed txs broadcast against the right network.
-const ETH_TEMPLATE = "examples/intents/evm_transfer_sepolia.json";
-const ETH_CHAIN_KIND = 1;
-
 export default function SetupEthPage() {
   const params = useParams<{ name: string }>();
+  const searchParams = useSearchParams();
   const name = useMemo(() => {
     try {
       return decodeURIComponent(params?.name ?? "");
@@ -67,6 +62,13 @@ export default function SetupEthPage() {
       return params?.name ?? "";
     }
   }, [params?.name]);
+  const isHyperliquid = searchParams?.get("network") === "hyperliquid";
+  const EVM_CHAIN_KIND = isHyperliquid ? 5 : 1;
+  const EVM_TEMPLATE = isHyperliquid
+    ? "examples/intents/hyperliquid_transfer.json"
+    : "examples/intents/evm_transfer_sepolia.json";
+  const EVM_LABEL = isHyperliquid ? "Hyperliquid" : "Ethereum";
+  const EVM_TICKER = isHyperliquid ? "HYPE" : "ETH";
 
   const router = useRouter();
   const wallet = useWallet();
@@ -76,7 +78,7 @@ export default function SetupEthPage() {
   const reduce = useReducedMotion();
   const queryClient = useQueryClient();
 
-  const ethMeta = chainByKind(ETH_CHAIN_KIND);
+  const ethMeta = chainByKind(EVM_CHAIN_KIND);
 
   const walletQuery = useQuery({
     queryKey: ["wallet", name],
@@ -109,15 +111,15 @@ export default function SetupEthPage() {
         (a) =>
           a !== null &&
           a.intentType === IntentType.Custom &&
-          a.chainKind === ETH_CHAIN_KIND,
+          a.chainKind === EVM_CHAIN_KIND,
       );
-  }, [intentsQuery.data]);
+  }, [intentsQuery.data, EVM_CHAIN_KIND]);
 
   useEffect(() => {
     if (!name || intentsQuery.isLoading || walletQuery.isLoading) return;
     if (existingEthIntent) {
       router.replace(
-        `/app/wallet/${encodeURIComponent(name)}/send/eth`,
+        `/app/wallet/${encodeURIComponent(name)}/send/eth${isHyperliquid ? "?network=hyperliquid" : ""}`,
       );
     }
   }, [
@@ -126,6 +128,7 @@ export default function SetupEthPage() {
     walletQuery.isLoading,
     existingEthIntent,
     router,
+    isHyperliquid,
   ]);
 
   // Binding guard. Without an Ethereum chain binding the dWallet
@@ -133,9 +136,9 @@ export default function SetupEthPage() {
   // a chain the wallet can't sign on.
   const ethBinding = useMemo(() => {
     return (chainsQuery.data?.chains ?? []).find(
-      (b) => b.chain_kind === ETH_CHAIN_KIND,
+      (b) => b.chain_kind === EVM_CHAIN_KIND,
     );
-  }, [chainsQuery.data]);
+  }, [chainsQuery.data, EVM_CHAIN_KIND]);
   const ethAddress = ethBinding ? chainAddress(ethBinding) : null;
   const needsBinding =
     !chainsQuery.isLoading && !walletQuery.isLoading && !ethBinding;
@@ -150,7 +153,7 @@ export default function SetupEthPage() {
   const setup = useMutation({
     mutationFn: async () => {
       if (!wallet.publicKey) throw new Error("Connect your wallet first");
-      if (!ethBinding) throw new Error("Bind Ethereum to this wallet first");
+      if (!ethBinding) throw new Error(`Bind ${EVM_LABEL} to this wallet first`);
       // Resolve which signer pubkey the wallet's AddIntent meta-
       // intent expects (Ledger vs Dynamic embedded). See setup/page.tsx.
       const addIntent = (intentsQuery.data ?? []).find(
@@ -183,7 +186,7 @@ export default function SetupEthPage() {
         .filter((id): id is string => typeof id === "string");
 
       const dry = await backendApi.prepare.addIntent(name, {
-        file: ETH_TEMPLATE,
+        file: EVM_TEMPLATE,
         proposers,
         approvers,
         threshold,
@@ -196,13 +199,13 @@ export default function SetupEthPage() {
         ...signed,
         params_data_hex: dry.params_data_hex,
         expiry: dry.expiry,
-        file: ETH_TEMPLATE,
+        file: EVM_TEMPLATE,
       });
 
       const proposal = (submitted as Record<string, unknown>)?.proposal;
       if (typeof proposal !== "string" || proposal.length === 0) {
         throw new Error(
-          "Backend didn't return a proposal address from enable-Ethereum",
+          `Backend didn't return a proposal address from enable-${EVM_LABEL}`,
         );
       }
       const decision = await approveIfNeeded(connection, proposal);
@@ -228,7 +231,7 @@ export default function SetupEthPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });
       queryClient.invalidateQueries({ queryKey: ["wallet", name] });
-      toast.success(`${toHeadingName(name)} can now send Ethereum`);
+      toast.success(`${toHeadingName(name)} can now send ${EVM_LABEL}`);
       // Inline success - parity with /setup (SOL). The previous
       // router.push to /send/eth threw the user into the compose
       // form before they could register that the chain was enabled.
@@ -266,7 +269,7 @@ export default function SetupEthPage() {
                 </span>
                 <div className="min-w-0">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-                    Ethereum sending enabled
+                    {EVM_LABEL} sending enabled
                   </p>
                   <p className="mt-0.5 truncate text-xs text-text-soft">
                     Spending rule is live on chain. No money has moved yet.
@@ -275,7 +278,7 @@ export default function SetupEthPage() {
               </div>
               <p className="mt-5 font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
                 <span className="text-accent">{toHeadingName(name)}</span> can
-                send Ethereum
+                send {EVM_LABEL}
               </p>
               <p className="mt-1.5 text-sm text-text-soft">
                 Pick a recipient, enter an amount, sign once.
@@ -285,9 +288,9 @@ export default function SetupEthPage() {
               title={`What do you want to do in ${walletDisplay}?`}
               options={[
                 {
-                  label: "Send your first ETH request",
+                  label: `Send your first ${EVM_TICKER} request`,
                   hint: "Pick a recipient, enter an amount, sign once.",
-                  href: `/app/wallet/${encodeURIComponent(name)}/send/eth`,
+                  href: `/app/wallet/${encodeURIComponent(name)}/send/eth${isHyperliquid ? "?network=hyperliquid" : ""}`,
                   primary: true,
                   icon: Send,
                 },
@@ -316,10 +319,10 @@ export default function SetupEthPage() {
                 {ethMeta ? <ChainBadge chain={ethMeta} size="md" /> : null}
                 <div className="flex flex-col gap-0.5">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-                    Setup · Ethereum
+                    Setup · {EVM_LABEL}
                   </p>
                   <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
-                    Enable Ethereum sending
+                    Enable {EVM_LABEL} sending
                   </h1>
                 </div>
               </div>
@@ -332,19 +335,19 @@ export default function SetupEthPage() {
             </header>
 
             <p className="text-sm leading-relaxed text-text-soft">
-              Adds a spending rule for Ethereum so {walletDisplay} can move ETH
-              on the Sepolia testnet. One quick setup; the rule is signed by
-              you and lives on chain.
+              Adds a spending rule for {EVM_LABEL} so {walletDisplay} can move
+              {EVM_TICKER === "HYPE" ? " HYPE" : " ETH"} on the network.
+              One quick setup; the rule is signed by you and lives on chain.
             </p>
 
             {needsBinding && (
               <div className="rounded-card border border-warning/30 bg-warning/5 p-5 shadow-card-rest">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
-                  Bind Ethereum first
+                  Bind {EVM_LABEL} first
                 </p>
                 <p className="mt-2 text-sm text-text-strong">
-                  This wallet does not have an Ethereum address yet. Add
-                  Ethereum on the chains page (about 30 seconds) and come
+                  This wallet does not have a {EVM_LABEL} address yet. Add
+                  {EVM_LABEL} on the chains page (about 30 seconds) and come
                   back here.
                 </p>
                 <Link
@@ -355,7 +358,7 @@ export default function SetupEthPage() {
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
                   }
                 >
-                  Add Ethereum
+                  Add {EVM_LABEL}
                   <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                 </Link>
               </div>
@@ -370,7 +373,7 @@ export default function SetupEthPage() {
                   <ul className="mt-3 flex flex-col gap-2 text-sm text-text-strong">
                     <li className="flex items-start gap-2">
                       <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                      Send ETH from this wallet on Sepolia.
+                      Send {EVM_TICKER} from this wallet.
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
@@ -378,7 +381,7 @@ export default function SetupEthPage() {
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                      Your wallet&rsquo;s ETH address:{" "}
+                      Your wallet&rsquo;s {EVM_LABEL} address:{" "}
                       <span className="font-mono text-xs text-text-soft">
                         {ethAddress
                           ? shortEvmAddress(ethAddress)
@@ -410,10 +413,10 @@ export default function SetupEthPage() {
 
                 <div className="flex flex-col gap-3">
                   <SignPayloadPreview
-                    action={`Enable Ethereum sending in ${walletDisplay}`}
+                    action={`Enable ${EVM_LABEL} sending in ${walletDisplay}`}
                     details={[
                       { label: "Wallet", value: walletDisplay },
-                      { label: "Chain", value: "Ethereum (Sepolia)" },
+                      { label: "Chain", value: EVM_LABEL },
                       ethAddress
                         ? {
                             label: "Address",
@@ -425,12 +428,14 @@ export default function SetupEthPage() {
                         label: "Pace",
                         value:
                           delaySeconds === 0
-                            ? "Ships immediately"
-                            : "Wait 24 hours",
+                          ? "Ships immediately"
+                          : "Wait 24 hours",
                       },
                     ]}
                   />
-                  <WalletPopupNarration action="enable Ethereum sending" />
+                  <WalletPopupNarration
+                    action={`enable ${EVM_LABEL} sending`}
+                  />
                 </div>
 
                 <Button
@@ -449,7 +454,7 @@ export default function SetupEthPage() {
                     </>
                   ) : (
                     <>
-                      Enable Ethereum sending
+                      Enable {EVM_LABEL} sending
                       <ArrowRight className="h-4 w-4" aria-hidden="true" />
                     </>
                   )}

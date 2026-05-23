@@ -11,7 +11,7 @@
 // Solana is implicit on every wallet (the program runs there). Other
 // chains are added one at a time via /chains/add, which pops the
 // dWallet network's DKG ceremony - a ~30-second setup. After that,
-// the wallet can send on that chain.
+// the chain appears in the wallet's support set alongside the others.
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -48,6 +48,8 @@ import {
 import type { ChainBindingResponse } from "@/lib/api/types";
 import { fetchChainBalance, formatChainBalance } from "@/lib/balances";
 import { UsdHint } from "@/components/retail/UsdHint";
+
+const SECP256K1_KINDS_LIST = [1, 2, 3, 4];
 
 export default function ChainsPage() {
   const params = useParams<{ name: string }>();
@@ -116,7 +118,6 @@ export default function ChainsPage() {
   // independently. Surfacing as a banner so users with affected
   // wallets know to create a fresh one for the demo, instead of
   // hitting the failure mid-send.
-  const SECP256K1_KINDS_LIST = [1, 2, 3, 4];
   const hasLegacyMultiDwallet = useMemo(() => {
     const secp256k1Bindings = (bindingsQuery.data?.chains ?? []).filter(
       (b) => SECP256K1_KINDS_LIST.includes(b.chain_kind),
@@ -147,7 +148,7 @@ export default function ChainsPage() {
             <span className="font-medium text-text-strong">
               {toDisplayName(name)}
             </span>{" "}
-            can send on. Adding a chain usually takes 10–30 seconds. Tap
+            can act on. Adding a chain usually takes 10–30 seconds. Tap
             refresh if a freshly-added chain hasn&rsquo;t shown up yet.
           </p>
         </div>
@@ -324,12 +325,13 @@ function ActiveChainRow({
   //   Solana   : 1_000_000   lamports = 0.001 SOL
   //   EVM      : 2e15        wei      = 0.002 ETH
   //   Bitcoin  : 10_000      sats     ≈ one peak-fee P2WPKH
-  // Zcash skipped - we don't fetch balance for it today.
   const LOW_BALANCE_THRESHOLDS: Record<number, bigint> = {
     0: 1_000_000n,
     1: 2_000_000_000_000_000n,
     2: 10_000n,
+    3: 10_000n,
     4: 2_000_000_000_000_000n, // ERC-20 path uses ETH for gas
+    5: 2_000_000_000_000_000n,
   };
   const lowBalanceThreshold = LOW_BALANCE_THRESHOLDS[chain.kind];
   const isLowBalance =
@@ -595,6 +597,7 @@ async function loadBalance(
   const result = await fetchChainBalance(binding, {
     solanaConnection: connection,
     evmRpcUrl: appConfig.preAlpha.destinationRpcUrl,
+    zcashRpcUrl: appConfig.preAlpha.zcashRpcUrl,
   });
   return result?.raw ?? null;
 }

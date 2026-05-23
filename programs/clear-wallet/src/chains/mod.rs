@@ -68,6 +68,9 @@ pub enum ChainKind {
     /// typed (recipient, amount) params, so approvers can clear-sign
     /// "transfer X tokens to Y" instead of opaque bytes.
     Evm1559Erc20 = 4,
+    /// Hyperliquid HyperEVM native transfer. Same EIP-1559 envelope as
+    /// `Evm1559`, but keyed to the HyperEVM chain id and explorer/RPC.
+    HyperliquidEvm = 5,
 }
 
 // Note: there is no `Solana*Dwallet` variant. For Solana-side intents the
@@ -86,6 +89,7 @@ impl ChainKind {
             2 => Ok(Self::BitcoinP2wpkh),
             3 => Ok(Self::ZcashTransparent),
             4 => Ok(Self::Evm1559Erc20),
+            5 => Ok(Self::HyperliquidEvm),
             _ => Err(ProgramError::InvalidInstructionData),
         }
     }
@@ -125,7 +129,7 @@ pub fn dispatch_sighash(
                 solana_dwallet::build_preimage(intent, params_data, tx_template, &mut buf)?
             }
         }
-        ChainKind::Evm1559 => {
+        ChainKind::Evm1559 | ChainKind::HyperliquidEvm => {
             evm::build_preimage(intent, params_data, tx_template, &mut buf)?
         }
         ChainKind::Evm1559Erc20 => {

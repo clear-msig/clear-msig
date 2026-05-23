@@ -22,9 +22,9 @@ export type ApiErrorEnvelope = {
 };
 
 /// Response from `GET /wallets/{name}/chains`. The backend's CLI walks
-/// every known `chain_kind` (0-4), returns the ones that have an
+/// every known `chain_kind` (0-5), returns the ones that have an
 /// IkaConfig binding on chain, and includes chain-native addresses
-/// derived from each dWallet's pubkey (Ethereum 0x…, Bitcoin bc1q…,
+/// derived from each dWallet's pubkey (Ethereum/Hyperliquid 0x…, Bitcoin bc1q…,
 /// Zcash t1…). Solana's address is just the dWallet pubkey itself.
 export interface ChainBindingResponse {
   chain: string;
@@ -37,7 +37,7 @@ export interface ChainBindingResponse {
   secp256k1_pubkey_hex?: string;
   /// Solana - chain_kind 0.
   solana_address?: string;
-  /// Ethereum / ERC-20 - chain_kind 1, 4.
+  /// Ethereum / ERC-20 / Hyperliquid - chain_kind 1, 4, 5.
   evm_address?: string;
   /// Bitcoin P2WPKH - chain_kind 2.
   btc_p2wpkh_mainnet?: string;

@@ -594,9 +594,8 @@ export default function NewWalletPage() {
 
         {isBrokenSigner && (
           <p className="text-center text-[11px] uppercase tracking-[0.2em] text-text-soft/80">
-            Email/Google sign-in can't sign Solana yet. Use{" "}
-            <span className="text-accent">Solflare</span>, Backpack, or a
-            Ledger.
+            This account is on the legacy embedded signer path.
+            Recreate the embedded wallet or use a hardware wallet.
           </p>
         )}
       </section>

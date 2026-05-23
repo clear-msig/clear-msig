@@ -13,7 +13,7 @@ pub struct IntentDefinitionJson {
     #[serde(default)]
     pub timelock_seconds: u32,
     /// Destination chain. Defaults to `solana` (local CPI execution). Set to
-    /// `evm_1559`, `evm_1559_erc20`, or `bitcoin_p2wpkh` for cross-chain
+    /// `evm_1559`, `evm_1559_erc20`, `hyperliquid_evm`, or `bitcoin_p2wpkh` for cross-chain
     /// signing via Ika `ika_sign`.
     #[serde(default)]
     pub chain: ChainKindJson,
@@ -44,6 +44,8 @@ pub enum ChainKindJson {
     ZcashTransparent,
     #[serde(rename = "evm_1559_erc20")]
     Evm1559Erc20,
+    #[serde(rename = "hyperliquid_evm")]
+    HyperliquidEvm,
 }
 
 impl ChainKindJson {
@@ -54,6 +56,7 @@ impl ChainKindJson {
             Self::BitcoinP2wpkh => 2,
             Self::ZcashTransparent => 3,
             Self::Evm1559Erc20 => 4,
+            Self::HyperliquidEvm => 5,
         }
     }
 
@@ -150,7 +153,7 @@ impl TxTemplateJson {
         matches!(
             (self, chain),
             (Self::Solana { .. }, ChainKindJson::Solana)
-                | (Self::Evm1559 { .. }, ChainKindJson::Evm1559 | ChainKindJson::Evm1559Erc20)
+                | (Self::Evm1559 { .. }, ChainKindJson::Evm1559 | ChainKindJson::Evm1559Erc20 | ChainKindJson::HyperliquidEvm)
                 | (Self::BitcoinP2wpkh { .. }, ChainKindJson::BitcoinP2wpkh)
                 | (Self::ZcashTransparent { .. }, ChainKindJson::ZcashTransparent)
         )

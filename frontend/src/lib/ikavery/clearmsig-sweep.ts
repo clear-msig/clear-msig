@@ -1,6 +1,6 @@
 "use client";
 
-// In-app sweep flow — the v3e end-to-end path that replaces the v3c
+// In-app sweep flow — the current end-to-end path that replaces the
 // upstream handoff. Five on-chain or gRPC steps that together move
 // SOL from the vault's dWallet to a destination, with the dWallet's
 // signature minted by the Ika network at execute time.
@@ -97,7 +97,7 @@ export interface AdditionalApprovalsRequest {
  * Auth mode controls who authorises the proposal + approval.
  *
  *   - "wallet": the connected Solana wallet (must be a member). One
- *     signed tx covers propose + approve. Same flow shipped in v3e.
+ *     signed tx covers propose + approve.
  *   - "passkey": the user picks a passkey via the OS picker; we run
  *     two assertions (one for propose, one for approve) and bundle
  *     each with its secp256r1 precompile. Two passkey taps + two
@@ -190,7 +190,8 @@ export interface SweepResult {
 /**
  * Run the full in-app sweep. The vault must be a solo (1-of-N) recovery
  * with the dWallet's authority already transferred to ikavery's CPI
- * authority (v3d takes care of that for any vault created from /secure/new).
+ * authority (the create flow takes care of that for any vault created
+ * from /secure/new).
  */
 export async function runInAppSweep(params: SweepParams): Promise<SweepResult> {
   const {
@@ -230,7 +231,7 @@ export async function runInAppSweep(params: SweepParams): Promise<SweepResult> {
   const att = await loadAttestationVerified(connection, recovery);
   if (!att.dwalletAddr) {
     throw new Error(
-      "Saved attestation is missing the session id. This vault was created before v3d; re-mint via /secure/new.",
+      "Saved attestation is missing the session id. Re-mint via /secure/new.",
     );
   }
   const dwalletPubkey = new PublicKey(att.publicKey);

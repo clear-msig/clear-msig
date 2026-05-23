@@ -17,6 +17,7 @@ const CHAIN_KIND = {
   Bitcoin: 2,
   ZcashTransparent: 3,
   EvmErc20: 4,
+  Hyperliquid: 5,
 } as const;
 
 const CHAIN_LABEL: Record<number, string> = {
@@ -25,6 +26,7 @@ const CHAIN_LABEL: Record<number, string> = {
   [CHAIN_KIND.Bitcoin]: "Send BTC",
   [CHAIN_KIND.ZcashTransparent]: "Send ZEC",
   [CHAIN_KIND.EvmErc20]: "Send ERC-20 token",
+  [CHAIN_KIND.Hyperliquid]: "Send HYPE",
 };
 
 export type ProposalStatusLike = ProposalStatus | number;

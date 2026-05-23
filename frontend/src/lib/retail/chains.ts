@@ -29,7 +29,7 @@ export interface ChainMeta {
   /// and glyph fallback. Brand color family per chain.
   gradient: { from: string; to: string };
   /// Smallest unit per ticker - what the chain stores on-wire.
-  /// SOL=lamports (1e9), ETH=wei (1e18), BTC=sats (1e8), ZEC=zats (1e8).
+  /// SOL=lamports (1e9), ETH=wei (1e18), BTC=sats (1e8), ZEC=zats (1e8), HYPE=wei (1e18).
   smallestPerWhole: bigint;
   /// Decimal places to surface for retail amounts. Chains like
   /// Bitcoin / Ethereum want more precision than dollars.
@@ -86,10 +86,23 @@ export const CHAIN_CATALOG: readonly ChainMeta[] = [
     logoUrl:
       "https://assets.coingecko.com/coins/images/486/large/circle-zcash-color.png",
     name: "Zcash",
-    description: "Privacy-first. Built for shielded sends.",
+    description: "Privacy-first money.",
     gradient: { from: "from-amber-400", to: "to-yellow-500" },
     smallestPerWhole: 100_000_000n,
     displayDecimals: 8,
+  },
+  {
+    kind: 5,
+    apiName: "hyperliquid_evm",
+    ticker: "HYPE",
+    symbol: "H",
+    logoUrl:
+      "https://assets.coingecko.com/coins/images/50882/large/hyperliquid.jpg",
+    name: "Hyperliquid",
+    description: "High-performance EVM trading chain.",
+    gradient: { from: "from-cyan-500", to: "to-sky-400" },
+    smallestPerWhole: 1_000_000_000_000_000_000n,
+    displayDecimals: 6,
   },
 ] as const;
 
@@ -98,7 +111,11 @@ export function chainByKind(kind: number): ChainMeta | undefined {
 }
 
 export function chainByApiName(apiName: string): ChainMeta | undefined {
-  return CHAIN_CATALOG.find((c) => c.apiName === apiName);
+  const normalized = apiName.toLowerCase();
+  if (normalized === "hyperliquid") {
+    return CHAIN_CATALOG.find((c) => c.kind === 5);
+  }
+  return CHAIN_CATALOG.find((c) => c.apiName === normalized);
 }
 
 /// Retail label for a chain_kind, falling back to "Other" if we don't
@@ -106,5 +123,6 @@ export function chainByApiName(apiName: string): ChainMeta | undefined {
 /// as "Ethereum" - it's not a separate chain to a retail user.
 export function friendlyChainName(kind: number): string {
   if (kind === 4) return "Ethereum";
+  if (kind === 5) return "Hyperliquid";
   return chainByKind(kind)?.name ?? "Other";
 }

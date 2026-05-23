@@ -995,6 +995,8 @@ fn ensure_chain(value: &str, field: &str) -> Result<(), ApiError> {
         "evm_1559_erc20",
         "bitcoin_p2wpkh",
         "zcash_transparent",
+        "hyperliquid_evm",
+        "hyperliquid",
     ];
     let trimmed = value.trim();
     if !ALLOWED.contains(&trimmed) {
@@ -1022,6 +1024,29 @@ fn ensure_base58(value: &str, field: &str, min_len: usize, max_len: usize) -> Re
         )));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ensure_chain_accepts_hyperliquid_aliases() {
+        ensure_chain("hyperliquid_evm", "chain").unwrap();
+        ensure_chain("hyperliquid", "chain").unwrap();
+    }
+
+    #[test]
+    fn ensure_chain_rejects_unknown_chain() {
+        let err = ensure_chain("sui", "chain").unwrap_err();
+        match err {
+            ApiError::BadRequest(message) => {
+                assert!(message.contains("hyperliquid_evm"));
+                assert!(message.contains("hyperliquid"));
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
 }
 
 async fn health(State(state): State<AppState>) -> Result<Json<HealthResponse>, ApiError> {

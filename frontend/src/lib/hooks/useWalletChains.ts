@@ -3,7 +3,7 @@
 // useWalletChains - typed wrapper around `GET /wallets/{name}/chains`.
 //
 // Returns chain bindings WITH their chain-native addresses (already
-// derived by the CLI: Ethereum 0x…, Bitcoin bc1q…, Zcash t1…). Used
+// derived by the CLI: Ethereum/Hyperliquid 0x…, Bitcoin bc1q…, Zcash t1…). Used
 // by Receive to surface a per-chain address picker, and could feed
 // future Send chain-selector logic.
 
@@ -48,6 +48,7 @@ export function chainAddress(binding: ChainBindingResponse): string | null {
       return binding.solana_address ?? null;
     case 1:
     case 4:
+    case 5:
       return binding.evm_address ?? null;
     case 2:
       return (

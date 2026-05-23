@@ -12,7 +12,7 @@
 //     threshold + member count + status, and tucks the explainer
 //     beneath as background.
 //   - Always shows the trio of "what you can do" tiles: Build,
-//     Add device (stubbed), Sweep (stubbed). v3 will wire those.
+//     Add device, Sweep, and threshold lock-down.
 //
 // Visual treatment:
 //   - Split hero on lg+ (copy left, illustrative mockup right) so the
@@ -211,16 +211,24 @@ export default function SecurePage() {
                       Three taps to your first vault.
                     </h2>
                     <p className="mt-2 max-w-md text-[14px] leading-relaxed text-text-soft">
-                      Pick a threshold, place a key behind it, sweep
-                      when you need it back.
+                      Pick a threshold, place a key behind it, or
+                      import an existing vault backup and recover it on
+                      this device.
                     </p>
                   </div>
-                  <Link href="/app/secure/new" className="inline-block">
-                    <Button size="lg">
-                      Secure your key
-                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                    </Button>
-                  </Link>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link href="/app/secure/new" className="inline-block">
+                      <Button size="lg">
+                        Secure your key
+                        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                      </Button>
+                    </Link>
+                    <Link href="/app/secure/import" className="inline-block">
+                      <Button variant="ghost" size="lg">
+                        Import key
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
               </motion.section>
             )}
@@ -758,10 +766,9 @@ interface StepProps {
   body: string;
   delay: number;
   reduce: boolean;
-  stub?: boolean;
 }
 
-function Step({ n, Icon, title, body, delay, reduce, stub }: StepProps) {
+function Step({ n, Icon, title, body, delay, reduce }: StepProps) {
   const motionProps = reduce
     ? {}
     : {
@@ -774,24 +781,10 @@ function Step({ n, Icon, title, body, delay, reduce, stub }: StepProps) {
       {...motionProps}
       className="relative flex flex-col rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6"
     >
-      {/* Header row - icon node on the left, optional Coming Soon
-          chip on the right. The chip sits inside the card rather
-          than mangling the eyebrow line, which reads more like a
-          product spec sheet. */}
       <div className="flex items-start justify-between">
-        <span
-          className={
-            "relative flex h-12 w-12 items-center justify-center rounded-full ring-2 ring-surface-raised " +
-            (stub ? "bg-canvas text-text-soft" : "bg-accent/[0.08] text-accent")
-          }
-        >
+        <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-accent/[0.08] text-accent ring-2 ring-surface-raised">
           <Icon className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
         </span>
-        {stub && (
-          <span className="rounded-full border border-border-soft bg-canvas px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.18em] text-text-soft">
-            Coming soon
-          </span>
-        )}
       </div>
 
       <p className="mt-5 font-mono text-[10px] uppercase tracking-[0.22em] text-text-soft">

@@ -9,12 +9,11 @@
 // address, 2 = secp256k1, 3 = secp256r1 / passkey, 4 = ed25519
 // public key, 5 = webauthn).
 //
-// Two action cards at the bottom: Add device (passkey enrollment,
-// stubbed for v3) and Sweep (move funds out, stubbed for v3). The
-// stubs explain what the action does and link to ikavery.com when
-// the user wants to try it through the upstream demo.
+// Action cards at the bottom: Add device, Sweep, and threshold lock
+// down. The detail cards explain what each action does and where the
+// upstream demo still differs from this product.
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useMemo, useState, type ChangeEvent } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
@@ -36,12 +35,15 @@ import {
   ShieldAlert,
   Users,
 } from "lucide-react";
-import { useState } from "react";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { UsdHint } from "@/components/retail/UsdHint";
 import { fetchVault } from "@/lib/ikavery/clearmsig-actions";
-import { loadAttestation } from "@/lib/ikavery/clearmsig-attestations";
+import {
+  downloadAttestationBackup,
+  importAttestationBackup,
+  loadAttestation,
+} from "@/lib/ikavery/clearmsig-attestations";
 import { listProposals, type ProposalEntry } from "@/lib/ikavery/proposals";
 import {
   STATUS_ACTIVE,
@@ -71,6 +73,8 @@ function SecureRecoveryPage() {
   const reduce = useReducedMotion();
   const { connection } = useConnection();
   const wallet = useWallet();
+  const [backupMessage, setBackupMessage] = useState<string | null>(null);
+  const [backupError, setBackupError] = useState<string | null>(null);
 
   const recoveryStr = useMemo(() => {
     const raw = params?.recovery ?? "";
@@ -163,6 +167,32 @@ function SecureRecoveryPage() {
 
   const vault = vaultQuery.data;
   const recoveryShort = `${recoveryStr.slice(0, 4)}…${recoveryStr.slice(-4)}`;
+  const attestation = loadAttestation(recoveryStr);
+
+  const handleDownloadBackup = () => {
+    if (!attestation) {
+      setBackupError("No attestation is cached on this device yet.");
+      return;
+    }
+    downloadAttestationBackup(recoveryStr, attestation);
+    setBackupMessage("Backup downloaded.");
+    setBackupError(null);
+  };
+
+  const handleImportBackup = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !recoveryPk) return;
+    try {
+      const text = await file.text();
+      await importAttestationBackup(connection, recoveryPk, text);
+      setBackupMessage("Backup imported.");
+      setBackupError(null);
+    } catch (err) {
+      setBackupError(err instanceof Error ? err.message : String(err));
+      setBackupMessage(null);
+    }
+  };
 
   return (
     <motion.div
@@ -339,27 +369,62 @@ function SecureRecoveryPage() {
               body="Authorise a transfer of funds from the dWallet to a destination wallet, signed by your threshold."
               cta="Open"
             />
-            {/* Threshold-bump card. Disabled at v3l-fix1: the
-                deployed ikavery program at 6kdyWi8… predates the
-                staging-PDA pattern (`stage_roster_change_payload`,
-                disc 10), so any roster-change attempt fails with
-                `InvalidInstructionData` at simulation time.
-                Confirmed by inspecting the deployed ELF. Only
-                execute_roster_change.rs ships, no
-                stage_roster_change.rs. The action layer
-                (clearmsig-roster.ts) and the threshold page stay
-                intact so the feature relights as soon as upstream
-                redeploys. */}
+            {/* Threshold bump. The page now drives the roster-change
+                flow directly so users can lock a vault to a higher
+                quorum from here. */}
             {vault.account.members.length > 1 &&
-              vault.account.threshold === 1 && (
-                <DisabledActionCard
+              vault.account.threshold >= 1 && (
+                <ActionCard
+                  href={`/app/secure/${encodeURIComponent(recoveryStr)}/threshold`}
                   Icon={Lock}
                   eyebrow="// 06 · roster"
                   title="Lock down"
-                  body={`Today any 1 of ${vault.account.members.length} can sign. Bumping the threshold needs an upstream program redeploy. Coming soon.`}
-                  cta="Awaiting redeploy"
+                  body={`Set a new quorum for the vault. Today it is ${vault.account.threshold} of ${vault.account.members.length}.`}
+                  cta="Open"
                 />
               )}
+          </section>
+
+          <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+                  Recovery backup
+                </p>
+                <p className="mt-1 text-sm text-text-soft">
+                  Save the attestation bundle for this vault. You can import it on another device to restore sweep and recovery flows.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleDownloadBackup}
+                  className="inline-flex min-h-tap items-center gap-2 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-[11px] font-medium text-text-soft transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                  Download backup
+                </button>
+                <label className="inline-flex min-h-tap cursor-pointer items-center gap-2 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-[11px] font-medium text-text-soft transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+                  Import backup
+                  <input
+                    type="file"
+                    accept="application/json"
+                    className="hidden"
+                    onChange={handleImportBackup}
+                  />
+                </label>
+              </div>
+            </div>
+            {(backupMessage || backupError) && (
+              <p
+                className={
+                  "mt-3 text-xs " +
+                  (backupError ? "text-warning" : "text-accent")
+                }
+              >
+                {backupError ?? backupMessage}
+              </p>
+            )}
           </section>
 
           {/* Pre-alpha disclosure - lighter treatment, neutral
@@ -376,8 +441,9 @@ function SecureRecoveryPage() {
             <p className="leading-relaxed">
               <span className="font-medium text-text-strong">Pre-alpha.</span>{" "}
               The dWallet was minted by Ika&rsquo;s pre-alpha network and
-              lives on-chain. Device enrollment and in-app sweep are the
-              next pieces landing; until then, sweeps work upstream at{" "}
+              lives on-chain. Device enrollment, sweep, and threshold
+              updates are available here; the stack is still devnet-only
+              and still linked to the upstream demo at{" "}
               <a
                 href={IKAVERY_LIVE}
                 target="_blank"
@@ -881,4 +947,3 @@ function bytesToHexShort(bytes: Uint8Array): string {
   }
   return s;
 }
-

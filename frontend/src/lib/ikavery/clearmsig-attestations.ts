@@ -12,12 +12,10 @@ import { decodeRecovery } from "./codec/recovery";
 // attestation is required at SIGN time (sweep + roster change +
 // enrollment), and there's no on-chain slot for it.
 //
-// We persist the bundle in localStorage keyed by Recovery PDA so
-// the same browser can run sweeps later. Same wallet on a fresh
-// browser will need to either re-derive the attestation (not
-// supported by pre-alpha) or be told upfront that sweep is
-// browser-bound at v3. For v3a we just persist; the v3c sweep flow
-// will read from this store.
+// We persist the bundle in localStorage keyed by Recovery PDA so the
+// same browser can run sweeps, enrollments, and roster changes later.
+// Fresh browsers need either an imported backup or the device that
+// originally minted the attestation.
 //
 // Schema versioned via a key prefix so a future migration can be
 // detected and ignored without dropping unrelated localStorage data.
@@ -35,7 +33,7 @@ interface StoredAttestation {
    * 32-byte session identifier returned from DKG (= what the CLI calls
    * `dwallet_addr`). Required as `session_identifier_preimage` for the
    * Presign / Sign gRPC calls. Optional in the stored shape so older
-   * v3a entries - written before this field existed - still load.
+   * entries written before this field existed still load.
    */
   dwalletAddr?: string;
   ts: number;
@@ -65,7 +63,7 @@ function writeAll(next: StoredAttestationMap): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   } catch {
-    /* localStorage full / blocked - silent. v3 sweep will fail with
+    /* localStorage full / blocked - silent. The app will fail with
      * "no attestation" rather than corrupting other state. */
   }
 }
@@ -93,11 +91,22 @@ export interface AttestationBundle {
   networkPubkey: Uint8Array;
   publicKey: Uint8Array;
   /**
-   * Session identifier from the V1 DKG attestation. v3a entries written
+   * Session identifier from the V1 DKG attestation. Entries written
    * before this field existed return undefined; the sweep flow falls
    * back to a re-DKG prompt in that case.
    */
   dwalletAddr?: Uint8Array;
+}
+
+interface AttestationBackupV1 {
+  version: 1;
+  recoveryPda: string;
+  savedAt: number;
+  attestationData: string;
+  networkSignature: string;
+  networkPubkey: string;
+  publicKey: string;
+  dwalletAddr?: string;
 }
 
 export function saveAttestation(
@@ -114,6 +123,40 @@ export function saveAttestation(
     ts: Date.now(),
   };
   writeAll(all);
+}
+
+export function encodeAttestationBackup(
+  recoveryPdaBase58: string,
+  bundle: AttestationBundle,
+): string {
+  const backup: AttestationBackupV1 = {
+    version: 1,
+    recoveryPda: recoveryPdaBase58,
+    savedAt: Date.now(),
+    attestationData: bytesToHex(bundle.attestationData),
+    networkSignature: bytesToHex(bundle.networkSignature),
+    networkPubkey: bytesToHex(bundle.networkPubkey),
+    publicKey: bytesToHex(bundle.publicKey),
+    dwalletAddr: bundle.dwalletAddr ? bytesToHex(bundle.dwalletAddr) : undefined,
+  };
+  return JSON.stringify(backup, null, 2);
+}
+
+export function downloadAttestationBackup(
+  recoveryPdaBase58: string,
+  bundle: AttestationBundle,
+): void {
+  if (typeof document === "undefined") return;
+  const json = encodeAttestationBackup(recoveryPdaBase58, bundle);
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `clear-ikavery-attestation-${recoveryPdaBase58.slice(0, 8)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 export function loadAttestation(
@@ -137,6 +180,34 @@ export function loadAttestation(
 
 export function hasAttestation(recoveryPdaBase58: string): boolean {
   return !!readAll()[recoveryPdaBase58];
+}
+
+export async function importAttestationBackup(
+  connection: Connection,
+  recovery: PublicKey,
+  backupJson: string,
+): Promise<AttestationBundle> {
+  const parsed = decodeAttestationBackup(backupJson);
+  const recoveryPdaBase58 = recovery.toBase58();
+  if (parsed.recoveryPda !== recoveryPdaBase58) {
+    throw new Error(
+      `Backup is for ${parsed.recoveryPda}, not this vault (${recoveryPdaBase58}).`,
+    );
+  }
+  const info = await connection.getAccountInfo(recovery, "confirmed");
+  if (!info || info.data.length === 0) {
+    throw new Error(
+      `Recovery account ${recoveryPdaBase58} not found on chain. Refusing to import backup.`,
+    );
+  }
+  const onChainDwallet = decodeRecovery(new Uint8Array(info.data)).dwallet.toBytes();
+  if (!bytesEq(parsed.bundle.publicKey, onChainDwallet)) {
+    throw new Error(
+      "Backup dwallet pubkey does not match the on-chain Recovery account.",
+    );
+  }
+  saveAttestation(recoveryPdaBase58, parsed.bundle);
+  return parsed.bundle;
 }
 
 /**
@@ -202,4 +273,33 @@ function bytesEq(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
   return true;
+}
+
+export function decodeAttestationBackup(backupJson: string): {
+  recoveryPda: string;
+  bundle: AttestationBundle;
+} {
+  const raw = JSON.parse(backupJson) as Partial<AttestationBackupV1> | null;
+  if (!raw || raw.version !== 1) {
+    throw new Error("Unsupported attestation backup format.");
+  }
+  if (typeof raw.recoveryPda !== "string" || raw.recoveryPda.length === 0) {
+    throw new Error("Attestation backup is missing the recovery PDA.");
+  }
+  if (
+    typeof raw.attestationData !== "string" ||
+    typeof raw.networkSignature !== "string" ||
+    typeof raw.networkPubkey !== "string" ||
+    typeof raw.publicKey !== "string"
+  ) {
+    throw new Error("Attestation backup is missing required fields.");
+  }
+  const bundle: AttestationBundle = {
+    attestationData: hexToBytes(raw.attestationData),
+    networkSignature: hexToBytes(raw.networkSignature),
+    networkPubkey: hexToBytes(raw.networkPubkey),
+    publicKey: hexToBytes(raw.publicKey),
+    dwalletAddr: raw.dwalletAddr ? hexToBytes(raw.dwalletAddr) : undefined,
+  };
+  return { recoveryPda: raw.recoveryPda, bundle };
 }

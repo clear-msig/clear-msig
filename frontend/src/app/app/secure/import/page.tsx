@@ -288,13 +288,6 @@ function SecureImportPage() {
       });
       return;
     }
-    if (wallet.isLedger) {
-      toast.error("Ledger not supported yet", {
-        details:
-          "The vault create flow needs full transaction signing. Use a hot wallet (Dynamic embedded) for now.",
-      });
-      return;
-    }
     if (secureContext === false) {
       toast.error("HTTPS required", {
         details:
@@ -442,7 +435,6 @@ function SecureImportPage() {
         <IntroStage
           onContinue={handleStartCompose}
           walletConnected={!!wallet.connected && !!wallet.publicKey}
-          isLedger={!!wallet.isLedger}
           secureContext={secureContext}
           reduce={!!reduce}
         />
@@ -521,7 +513,6 @@ function SecureImportPage() {
 interface IntroStageProps {
   onContinue: () => void;
   walletConnected: boolean;
-  isLedger: boolean;
   secureContext: boolean | null;
   reduce: boolean;
 }
@@ -529,15 +520,13 @@ interface IntroStageProps {
 function IntroStage({
   onContinue,
   walletConnected,
-  isLedger,
   secureContext,
   reduce,
 }: IntroStageProps) {
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
-  const blocked =
-    !walletConnected || isLedger || secureContext === false;
+  const blocked = !walletConnected || secureContext === false;
   return (
     <motion.section
       {...motionProps}
@@ -601,12 +590,6 @@ function IntroStage({
           body="The new vault needs an owner. Your connected Solana wallet becomes member 0 and pays the tx fee."
           ctaHref="/connect?next=/app/secure/import"
           ctaLabel="Sign in"
-        />
-      )}
-      {walletConnected && isLedger && (
-        <BlockedNote
-          title="Ledger not supported here"
-          body="The import flow needs full transaction signing. Use your Dynamic embedded wallet for now."
         />
       )}
       {secureContext === false && (

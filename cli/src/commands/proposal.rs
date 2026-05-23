@@ -734,7 +734,7 @@ fn execute_via_ika(
     // fresh-proposal workaround (different params → different
     // digest → different MessageApproval PDA → fresh sign under
     // the current — validated — binding).
-    if matches!(chain_kind, 1 | 4) && onchain_sig.len() == 64 {
+    if matches!(chain_kind, 1 | 4 | 5) && onchain_sig.len() == 64 {
         let mut r_arr = [0u8; 32];
         let mut s_arr = [0u8; 32];
         r_arr.copy_from_slice(&onchain_sig[..32]);

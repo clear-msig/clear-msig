@@ -7,11 +7,13 @@
 //   2 = bitcoin_p2wpkh                    (BTC native)
 //   3 = zcash_transparent                 (ZEC transparent)
 //   4 = evm_1559_erc20                    (ERC-20 token transfers)
+//   5 = hyperliquid_evm                  (Hyperliquid HyperEVM)
 //
 // rust-settlement uses:
 //   chain_family ∈ { "solana" | "evm" | "bitcoin" | "zcash" }
 //   chain_id     = the chain-specific identifier ("1" for ETH mainnet,
-//                  "11155111" for Sepolia, "mainnet"/"testnet" for
+//                  "11155111" for Sepolia / Hyperliquid test env,
+//                  "999" for Hyperliquid mainnet, "mainnet"/"testnet" for
 //                  Bitcoin and Zcash, "mainnet-beta"/"devnet" for
 //                  Solana).
 
@@ -76,6 +78,14 @@ export function rampTargetForChainKind(
         asset_symbol: "ERC20",
         smallest_per_whole: 1_000_000n, // USDC-shaped default; override per token
         display_decimals: 2,
+      };
+    case 5: // hyperliquid_evm
+      return {
+        chain_family: "evm",
+        chain_id: chainEnv === "mainnet" ? "999" : "999",
+        asset_symbol: "HYPE",
+        smallest_per_whole: 1_000_000_000_000_000_000n,
+        display_decimals: 6,
       };
     default:
       return null;

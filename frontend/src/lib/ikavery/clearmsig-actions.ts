@@ -23,9 +23,8 @@
 //
 // Why Curve25519: clear-msig binds everything through Solana, so the
 // dWallet curve is always ed25519 / Curve25519 in our integration.
-// The 32-byte dwallet handle is opaque to the program; in v2 we
-// generate a random one client-side as a placeholder. Real DKG
-// against the Ika pre-alpha network is the v3 lift.
+// The 32-byte dwallet handle is opaque to the program; the create
+// flow fetches the real network-derived value client-side.
 
 import {
   Connection,
@@ -40,7 +39,10 @@ import { packSolanaMember } from "./credential";
 import { listAllRecoveries, type DecodedRecovery } from "./discovery";
 import { decodeRecovery } from "./codec/recovery";
 import { ikaDkgWeb, type IkaDkgResult } from "./ika-web";
-import { saveAttestation } from "./clearmsig-attestations";
+import {
+  downloadAttestationBackup,
+  saveAttestation,
+} from "./clearmsig-attestations";
 import {
   cpiAuthorityPda,
   dwalletPda,
@@ -56,7 +58,7 @@ export const DWALLET_CURVE_ED25519 = 2;
 /**
  * Run real DKG against the Ika pre-alpha network and return the
  * 32-byte dWallet pubkey + the full attestation bundle the network
- * will demand at sign-time. v3a wiring; v2 used a placeholder.
+ * will demand at sign-time.
  *
  * One gRPC-Web fetch round-trip to
  * `pre-alpha-dev-1.ika.ika-network.net`. Returns inside a few hundred
@@ -142,7 +144,7 @@ export interface CreateVaultResult {
 /**
  * Build, sign, and submit a create-recovery transaction. The user is
  * the only initial member; they can add devices / passkeys later via
- * the enrollment flow (v3).
+ * the enrollment flow.
  */
 export async function createSoloVault(
   params: CreateVaultParams,
@@ -285,11 +287,19 @@ export async function createSoloVault(
     "confirmed",
   );
 
-  // Persist the attestation against this recovery PDA so the v3 sweep
-  // flow can read it. Best-effort - if localStorage is blocked, the
-  // vault still works; sweep will surface a clean "no attestation"
-  // error and prompt re-DKG.
+  // Persist the attestation against this recovery PDA so later
+  // sign-time flows can read it. Best-effort - if localStorage is
+  // blocked, the vault still works; later flows will surface a clean
+  // "no attestation" error and prompt import or reuse of the same
+  // browser.
   saveAttestation(recovery.toBase58(), {
+    attestationData: dkg.attestationData,
+    networkSignature: dkg.networkSignature,
+    networkPubkey: dkg.networkPubkey,
+    publicKey: dkg.publicKey,
+    dwalletAddr: dkg.dwalletAddr,
+  });
+  downloadAttestationBackup(recovery.toBase58(), {
     attestationData: dkg.attestationData,
     networkSignature: dkg.networkSignature,
     networkPubkey: dkg.networkPubkey,
@@ -469,6 +479,13 @@ export async function createMultiMemberVault(
   );
 
   saveAttestation(recovery.toBase58(), {
+    attestationData: dkg.attestationData,
+    networkSignature: dkg.networkSignature,
+    networkPubkey: dkg.networkPubkey,
+    publicKey: dkg.publicKey,
+    dwalletAddr: dkg.dwalletAddr,
+  });
+  downloadAttestationBackup(recovery.toBase58(), {
     attestationData: dkg.attestationData,
     networkSignature: dkg.networkSignature,
     networkPubkey: dkg.networkPubkey,

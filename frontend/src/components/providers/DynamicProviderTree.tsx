@@ -6,19 +6,17 @@
 // every connector package out of the initial layout chunk that
 // ships on /privacy, /security, /, etc.
 //
-// 2026-05-08: dropped WaaS-EVM and WaaS-Sui connectors. clear-msig's
-// user-facing chain is Solana - ETH/BTC/Zcash transfers are signed
-// by the user's existing Solana key via Ika dWallets, so users never
-// connect with an EVM account. Sui isn't a destination chain at all.
-// Removing the two unused connector packages trims hundreds of KB
-// off the chunk that gates /welcome and /connect rendering.
+// 2026-05-21: keep only the embedded Solana connector that signs
+// correctly for Clear. Dynamic email / social login still works, but
+// the WaaS-SVM connector is intentionally omitted because its
+// signMessage path UTF-8-decodes payload bytes and breaks Clear's
+// offchain signing envelope.
 
 import {
   DynamicContextProvider,
   type DynamicContextProps,
 } from "@dynamic-labs/sdk-react-core";
 import { TurnkeySolanaWalletConnectors } from "@dynamic-labs/embedded-wallet-solana";
-import { DynamicWaasSVMConnectors } from "@dynamic-labs/waas-svm";
 import { SolanaWalletConnectors } from "@dynamic-labs/solana";
 import { LedgerProvider } from "@/lib/wallet/LedgerProvider";
 
@@ -179,10 +177,9 @@ export default function DynamicProviderTree({ environmentId, children }: Props) 
     environmentId,
     walletConnectors: [
       SolanaWalletConnectors,
-      DynamicWaasSVMConnectors,
       TurnkeySolanaWalletConnectors,
     ],
-    initialAuthenticationMode: "connect-only",
+    initialAuthenticationMode: "connect-and-sign",
     deviceRegistrationModal: { enabled: false },
     // The cssOverrides string remaps every load-bearing
     // `--dynamic-*` token to the Obsidian & Lime palette directly,

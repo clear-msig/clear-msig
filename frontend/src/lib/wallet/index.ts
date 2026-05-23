@@ -47,12 +47,31 @@ export function useWallet() {
   const allWallets = useUserWallets();
   const ledger = useLedger();
 
+  const walletConnectorId = (wallet: unknown): string => {
+    const c = (wallet as {
+      connector?: { key?: string; name?: string; overrideKey?: string };
+    })?.connector;
+    return (c?.key ?? c?.overrideKey ?? c?.name ?? "").toLowerCase();
+  };
+
+  const isLegacyEmbeddedWallet = (wallet: unknown): boolean =>
+    /dynamicwaas/.test(walletConnectorId(wallet));
+  const isCompatibleEmbeddedWallet = (wallet: unknown): boolean =>
+    /turnkey/.test(walletConnectorId(wallet));
+
   // Prefer the active wallet when it's Solana; otherwise grab any
   // Solana wallet the user has minted (e.g. they logged in via email,
   // primary is EVM, but a Solana embedded wallet was also minted).
   const solanaWallet = useMemo(() => {
-    if (primaryWallet && isSolanaWallet(primaryWallet)) return primaryWallet;
-    return allWallets.find((w) => w && isSolanaWallet(w)) ?? null;
+    const compatible = allWallets.find(
+      (w) => w && isSolanaWallet(w) && isCompatibleEmbeddedWallet(w),
+    );
+    if (compatible) return compatible;
+    if (primaryWallet && isSolanaWallet(primaryWallet) && !isLegacyEmbeddedWallet(primaryWallet)) {
+      return primaryWallet;
+    }
+    const anySolana = allWallets.find((w) => w && isSolanaWallet(w));
+    return anySolana ?? null;
   }, [primaryWallet, allWallets]);
 
   const dynamicPublicKey = useMemo(() => {
@@ -82,19 +101,11 @@ export function useWallet() {
     // Duck-type the connector identifier; the SDK's WalletConnector type
     // doesn't expose `overrideKey` in its public types but the value is
     // set at runtime (e.g. 'dynamicwaas' on the WaaS connector).
-    const c = (solanaWallet as unknown as { connector?: { key?: string; name?: string; overrideKey?: string } }).connector;
-    if (!c) return null;
-    const id = (c.key ?? c.overrideKey ?? c.name ?? "").toLowerCase();
-    if (/dynamicwaas/.test(id)) return "waas";
+    if (isLegacyEmbeddedWallet(solanaWallet)) return "waas";
     return null;
   }, [solanaWallet, ledger.session]);
 
-  const walletConnectorKey = useMemo(() => {
-    if (!solanaWallet) return "";
-    const c = (solanaWallet as unknown as { connector?: { key?: string; name?: string; overrideKey?: string } }).connector;
-    if (!c) return "";
-    return (c.key ?? c.overrideKey ?? c.name ?? "").toLowerCase();
-  }, [solanaWallet]);
+  const walletConnectorKey = useMemo(() => walletConnectorId(solanaWallet), [solanaWallet]);
   const isPhantomWallet = /phantom/.test(walletConnectorKey);
 
   // Mobile in-app browser detection. On desktop, Phantom + Solflare
@@ -239,7 +250,15 @@ export function useWallet() {
             return sig;
           }
         }
-        const signer = await solanaWallet.getSigner();
+        const signer = await (
+          solanaWallet as unknown as {
+            getSigner: () => Promise<{
+              signMessage: (
+                b: Uint8Array,
+              ) => Promise<Uint8Array | { signature?: Uint8Array }>;
+            }>;
+          }
+        ).getSigner();
         const result = await signer.signMessage(bytes);
         // Dynamic returns either Uint8Array directly or {signature: ...}
         // depending on connector version; normalise.

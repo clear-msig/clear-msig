@@ -42,6 +42,7 @@ import {
   useSolanaTxHistory,
   useEvmTxHistory,
   useBitcoinTxHistory,
+  useZcashTxHistory,
   type ChainTxRow,
 } from "@/lib/hooks/useChainTxHistory";
 import {
@@ -78,6 +79,7 @@ import { formatUsd } from "@/lib/retail/priceConversion";
 import { useDisplayCurrency } from "@/lib/hooks/useDisplayCurrency";
 import { UsdHint } from "@/components/retail/UsdHint";
 import { CHAIN_CATALOG as CHAIN_CATALOG_REF } from "@/lib/retail/chains";
+import { appConfig } from "@/lib/config";
 
 export default function WalletDetailPage() {
   const params = useParams<{ name: string }>();
@@ -180,7 +182,7 @@ export default function WalletDetailPage() {
   const chainsQueryForHistory = useWalletChains(name);
   const evmAddress = useMemo(() => {
     const b = (chainsQueryForHistory.data?.chains ?? []).find(
-      (c) => c.chain_kind === 1 || c.chain_kind === 4,
+      (c) => c.chain_kind === 1 || c.chain_kind === 4 || c.chain_kind === 5,
     );
     return b ? chainAddress(b) : null;
   }, [chainsQueryForHistory.data]);
@@ -190,9 +192,20 @@ export default function WalletDetailPage() {
     );
     return b ? chainAddress(b) : null;
   }, [chainsQueryForHistory.data]);
+  const zcashAddress = useMemo(() => {
+    const b = (chainsQueryForHistory.data?.chains ?? []).find(
+      (c) => c.chain_kind === 3,
+    );
+    return b ? chainAddress(b) : null;
+  }, [chainsQueryForHistory.data]);
   const solanaTxHistoryQuery = useSolanaTxHistory(solanaVaultAddress, 8);
   const evmTxHistoryQuery = useEvmTxHistory(evmAddress, 8);
   const btcTxHistoryQuery = useBitcoinTxHistory(btcAddress, 8);
+  const zcashTxHistoryQuery = useZcashTxHistory(
+    zcashAddress,
+    appConfig.preAlpha.zcashRpcUrl,
+    8,
+  );
 
   // ERC-20 holdings - every token the wallet's Sepolia address holds,
   // pulled from Blockscout. Drives the new Tokens-held panel below
@@ -266,6 +279,7 @@ export default function WalletDetailPage() {
         solanaHistory={solanaTxHistoryQuery.data ?? []}
         evmHistory={evmTxHistoryQuery.data ?? []}
         btcHistory={btcTxHistoryQuery.data ?? []}
+        zcashHistory={zcashTxHistoryQuery.data ?? []}
         // Holdings tab data
         erc20Holdings={erc20HoldingsQuery.data ?? []}
         // Manage tab data
@@ -310,6 +324,7 @@ interface WalletDetailTabsProps {
   solanaHistory: ChainTxRow[];
   evmHistory: ChainTxRow[];
   btcHistory: ChainTxRow[];
+  zcashHistory: ChainTxRow[];
   erc20Holdings: Erc20Holding[];
   name: string;
   /// Tri-state to match the upstream useMemo: null while the
@@ -329,6 +344,7 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
     solanaHistory,
     evmHistory,
     btcHistory,
+    zcashHistory,
     erc20Holdings,
     name,
     hasIntents,
@@ -458,6 +474,14 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
               reduce={reduce}
             />
           )}
+          {zcashHistory.length > 0 && (
+            <ChainTxHistorySection
+              rows={zcashHistory}
+              chainTicker="ZEC"
+              chainKind={3}
+              reduce={reduce}
+            />
+          )}
         </div>
       )}
 
@@ -582,7 +606,7 @@ function HoldingsEmptyState() {
       </div>
       <p className="mt-3 text-sm font-medium text-text-strong">No tokens yet</p>
       <p className="mt-1 text-xs text-text-soft">
-        ERC-20 tokens this wallet holds appear here. SOL, ETH, BTC, and ZEC
+        ERC-20 tokens this wallet holds appear here. SOL, ETH, BTC, ZEC, and HYPE
         balances live on the wallet hero above.
       </p>
     </section>
@@ -1307,7 +1331,7 @@ function Actions({
           href={`/app/wallet/${encoded}/chains`}
           icon={Layers}
           title="Chains"
-          body="Bind ETH, BTC, or Zcash for multi-chain sending."
+          body="Bind ETH, BTC, or Zcash."
         />
         <ActionRow
           href={`/app/wallet/${encoded}/policy`}

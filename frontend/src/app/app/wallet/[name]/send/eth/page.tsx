@@ -92,8 +92,6 @@ import { chainByKind } from "@/lib/retail/chains";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { appConfig } from "@/lib/config";
 
-const ETH_CHAIN_KIND = 1;
-
 type Stage = "compose" | "sending" | "sent";
 
 // Strip an EIP-681 / wallet-scheme prefix from a scanned QR. We
@@ -125,6 +123,13 @@ export default function SendEthPageWrapper() {
 function SendEthPage() {
   const params = useSearchParams();
   const route = useParams<{ name: string }>();
+  const isHyperliquid = params?.get("network") === "hyperliquid";
+  const EVM_CHAIN_KIND = isHyperliquid ? 5 : 1;
+  const EVM_LABEL = isHyperliquid ? "Hyperliquid" : "Ethereum";
+  const EVM_TICKER = isHyperliquid ? "HYPE" : "ETH";
+  const EVM_RPC_URL = isHyperliquid
+    ? appConfig.preAlpha.hyperliquidRpcUrl
+    : appConfig.preAlpha.destinationRpcUrl;
   const reduce = useReducedMotion();
   const wallet = useWallet();
   const { connection } = useConnection();
@@ -172,8 +177,8 @@ function SendEthPage() {
   });
   const chainsQuery = useWalletChains(walletName);
 
-  // Match the wallet's EvmTransfer intent (chainKind === 1) and the
-  // Ethereum binding. Both must be present to send.
+  // Match the wallet's EvmTransfer intent and the corresponding
+  // binding. Both must be present to send.
   const ethIntent = useMemo(() => {
     if (!intentsQuery.data) return null;
     return (
@@ -181,15 +186,15 @@ function SendEthPage() {
         (it) =>
           it.account !== null &&
           it.account.intentType === IntentType.Custom &&
-          it.account.chainKind === ETH_CHAIN_KIND,
+          it.account.chainKind === EVM_CHAIN_KIND,
       ) ?? null
     );
-  }, [intentsQuery.data]);
+  }, [intentsQuery.data, EVM_CHAIN_KIND]);
   const ethBinding = useMemo(() => {
     return (chainsQuery.data?.chains ?? []).find(
-      (b) => b.chain_kind === ETH_CHAIN_KIND,
+      (b) => b.chain_kind === EVM_CHAIN_KIND,
     );
-  }, [chainsQuery.data]);
+  }, [chainsQuery.data, EVM_CHAIN_KIND]);
   const walletEthAddress = ethBinding ? chainAddress(ethBinding) : null;
 
   // Both isLoading (first fetch) AND isFetching (background refetch
@@ -271,7 +276,7 @@ function SendEthPage() {
   // pre-flight insufficient-balance check below.
   const ethBalanceQuery = useQuery({
     queryKey: ["wallet-eth-balance", walletEthAddress ?? ""],
-    queryFn: () => fetchEvmBalance(walletEthAddress!),
+    queryFn: () => fetchEvmBalance(walletEthAddress!, EVM_RPC_URL),
     enabled: !!walletEthAddress,
     staleTime: 15_000,
     refetchInterval: 30_000,
@@ -285,8 +290,8 @@ function SendEthPage() {
   // direction (lets a real send through later; doesn't push a
   // doomed one through now).
   const gasPriceQuery = useQuery({
-    queryKey: ["evm-gas-price", appConfig.preAlpha.destinationRpcUrl],
-    queryFn: () => fetchEvmGasPrice(),
+    queryKey: ["evm-gas-price", EVM_RPC_URL],
+    queryFn: () => fetchEvmGasPrice(EVM_RPC_URL),
     staleTime: 15_000,
     refetchInterval: 30_000,
     retry: 1,
@@ -326,9 +331,9 @@ function SendEthPage() {
   // banners. ENS-resolved address is already in effectiveRecipient.
   const policyEvaluation = usePolicyEvaluation({
     walletName,
-    chainKind: 1,
+    chainKind: EVM_CHAIN_KIND,
     recipient: effectiveRecipient ?? "",
-    ticker: "ETH",
+    ticker: EVM_TICKER,
     amountDisplay: amount,
     enabled: amountValid && !!effectiveRecipient,
   });
@@ -348,9 +353,9 @@ function SendEthPage() {
     mutationFn: async () => {
       if (!wallet.publicKey) throw new Error("Connect your wallet first");
       if (!ethIntent || !ethIntent.account)
-        throw new Error("Ethereum sending isn't set up for this wallet");
+        throw new Error(`${EVM_LABEL} sending isn't set up for this wallet`);
       if (!walletEthAddress)
-        throw new Error("Wallet's Ethereum address isn't ready yet");
+        throw new Error(`Wallet's ${EVM_LABEL} address isn't ready yet`);
       if (!recipientValid || !effectiveRecipient)
         throw new Error("Recipient must be a valid 0x address or .eth name");
 
@@ -369,7 +374,7 @@ function SendEthPage() {
       const { nonce } = await fetchEvmNonce(walletEthAddress);
 
       // 2. Prepare. The CLI encodes nonce/to/value_wei/data into
-      //    params_data per the evm_transfer_sepolia template.
+      //    params_data per the EVM transfer template.
       const dry = await backendApi.prepare.createProposal(walletName, {
         intent_index: ethIntent.account.intentIndex,
         params: [
@@ -419,9 +424,9 @@ function SendEthPage() {
 
       const policyPlan = await resolvePolicyEnforcement(walletName, {
         walletName,
-        chainKind: 1,
+        chainKind: EVM_CHAIN_KIND,
         recipient: effectiveRecipient ?? "",
-        ticker: "ETH",
+        ticker: EVM_TICKER,
         amountDisplay: amount,
       });
       if (policyPlan.evaluation?.matched) {
@@ -474,13 +479,12 @@ function SendEthPage() {
       }
 
       // 5. Execute with broadcast=true and Ika dWallet params. The
-      //    backend tells Ika to sign + broadcast the EVM tx; the
-      //    dWallet's secp256k1 signature lands the real Sepolia tx.
+      //    backend tells Ika to sign + broadcast the EVM tx.
       const executed = await backendApi.executeProposal(walletName, proposal, {
         broadcast: true,
         dwallet_program: appConfig.preAlpha.dwalletProgramId,
         grpc_url: appConfig.preAlpha.grpcUrl,
-        rpc_url: appConfig.preAlpha.destinationRpcUrl,
+        rpc_url: EVM_RPC_URL,
       });
       const broadcast = (executed as { broadcast?: BroadcastResultLike })
         ?.broadcast;
@@ -489,11 +493,11 @@ function SendEthPage() {
     onSuccess: ({ broadcast }) => {
       const explorerUrl = broadcastExplorerUrl(
         broadcast,
-        appConfig.preAlpha.destinationRpcUrl,
+        EVM_RPC_URL,
       );
       const explorerLabel = explorerLabelForChainKind(
         broadcast?.chain_kind,
-        appConfig.preAlpha.destinationRpcUrl,
+        EVM_RPC_URL,
       );
       // Prefer the typed ENS name in the success label so the user
       // sees what they wrote ("vitalik.eth") rather than the
@@ -512,17 +516,17 @@ function SendEthPage() {
       // proof of the send instead of a transient toast.
       recordAttempt({
         walletName,
-        chainKind: ETH_CHAIN_KIND,
+        chainKind: EVM_CHAIN_KIND,
         status: "success",
         amountDisplay: amount.trim(),
-        ticker: "ETH",
+        ticker: EVM_TICKER,
         recipientShort: sentTo,
         recipientFull: effectiveRecipient ?? undefined,
         txId: broadcast?.tx_id,
         explorerUrl: explorerUrl ?? undefined,
       });
       queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
-      // Refresh every place ETH balance is shown so the post-send
+      // Refresh every place EVM balance is shown so the post-send
       // compose, /chains row, and portfolio panel all reflect the
       // new number. Multiple keys for the same data - each consumer
       // picked its own type/shape; invalidate them all.
@@ -544,10 +548,10 @@ function SendEthPage() {
         (err as { payload?: { stderr?: string } })?.payload?.stderr ?? undefined;
       recordAttempt({
         walletName,
-        chainKind: ETH_CHAIN_KIND,
+        chainKind: EVM_CHAIN_KIND,
         status: "failed",
         amountDisplay: amount.trim(),
-        ticker: "ETH",
+        ticker: EVM_TICKER,
         recipientShort: effectiveRecipient
           ? ensAddress
             ? trimmedRecipient
@@ -575,11 +579,11 @@ function SendEthPage() {
   if (allLoaded && needsBinding) {
     return (
       <PreFlightCard
-        title="Add Ethereum to this wallet first"
-        body="This wallet doesn't have an Ethereum address yet. Adding Ethereum spins up its dWallet (about 30 seconds), then you can come back here."
+        title={`Add ${EVM_LABEL} to this wallet first`}
+        body={`This wallet doesn't have a ${EVM_LABEL} address yet. Adding ${EVM_LABEL} spins up its dWallet (about 30 seconds), then you can come back here.`}
         cta={{
           href: `/app/wallet/${encodeURIComponent(walletName)}/chains/add`,
-          label: "Add Ethereum",
+          label: `Add ${EVM_LABEL}`,
         }}
       />
     );
@@ -587,11 +591,11 @@ function SendEthPage() {
   if (allLoaded && needsIntent) {
     return (
       <PreFlightCard
-        title="Enable Ethereum sending first"
-        body="Ethereum is bound to this wallet, but the spending rule for it isn't set up yet. One quick setup, then sends are unlocked."
+        title={`Enable ${EVM_LABEL} sending first`}
+        body={`${EVM_LABEL} is bound to this wallet, but the spending rule for it isn't set up yet. One quick setup, then sends are unlocked.`}
         cta={{
-          href: `/app/wallet/${encodeURIComponent(walletName)}/setup/eth`,
-          label: "Enable Ethereum sending",
+          href: `/app/wallet/${encodeURIComponent(walletName)}/setup/eth${isHyperliquid ? "?network=hyperliquid" : ""}`,
+          label: `Enable ${EVM_LABEL} sending`,
         }}
       />
     );
@@ -606,7 +610,7 @@ function SendEthPage() {
           className="w-full"
         >
           {stage === "compose" && (
-            <SendChainPicker walletName={walletName} activeKind={ETH_CHAIN_KIND} />
+            <SendChainPicker walletName={walletName} activeKind={EVM_CHAIN_KIND} />
           )}
           {stage === "compose" && policyEvaluation?.matched && (
             <PolicyMatchBanner
@@ -617,6 +621,9 @@ function SendEthPage() {
           {stage === "compose" && (
             <ComposeStage
               walletName={walletName}
+              chainKind={EVM_CHAIN_KIND}
+              chainLabel={EVM_LABEL}
+              ticker={EVM_TICKER}
               walletEthAddress={walletEthAddress}
               amount={amount}
               setAmount={setAmount}
@@ -640,7 +647,9 @@ function SendEthPage() {
               reduce={!!reduce}
             />
           )}
-          {stage === "sending" && <SendingStage reduce={!!reduce} />}
+          {stage === "sending" && (
+            <SendingStage reduce={!!reduce} label={EVM_LABEL} />
+          )}
           {stage === "sent" && sentLabel && (
             <SentStage
               amount={sentLabel.amount}
@@ -649,6 +658,8 @@ function SendEthPage() {
               explorerLabel={sentLabel.explorerLabel}
               walletName={walletName}
               walletDisplay={walletDisplay || "your shared wallet"}
+              ticker={EVM_TICKER}
+              networkLabel={EVM_LABEL}
               reduce={!!reduce}
             />
           )}
@@ -662,6 +673,9 @@ function SendEthPage() {
 
 interface ComposeStageProps {
   walletName: string;
+  chainKind: number;
+  chainLabel: string;
+  ticker: string;
   walletEthAddress: string | null;
   amount: string;
   setAmount: (s: string) => void;
@@ -695,6 +709,9 @@ interface ComposeStageProps {
 
 function ComposeStage({
   walletName,
+  chainKind,
+  chainLabel,
+  ticker,
   walletEthAddress,
   amount,
   setAmount,
@@ -717,11 +734,11 @@ function ComposeStage({
   onSubmit,
 }: ComposeStageProps) {
   const walletDisplay = toDisplayName(walletName);
-  const ethMeta = chainByKind(ETH_CHAIN_KIND);
+  const ethMeta = chainByKind(chainKind);
 
   const previewDetails: SignPayloadDetail[] = [
     { label: "From wallet", value: toDisplayName(walletName) || "your wallet" },
-    { label: "Chain", value: "Ethereum (Sepolia)" },
+    { label: "Chain", value: chainLabel },
     walletEthAddress
       ? {
           label: "From address",
@@ -743,7 +760,7 @@ function ComposeStage({
   if (amountValid) {
     previewDetails.push({
       label: "Amount",
-      value: `${amount.trim()} ETH`,
+      value: `${amount.trim()} ${ticker}`,
       emphasis: "amount",
     });
   }
@@ -759,10 +776,10 @@ function ComposeStage({
           {ethMeta ? <ChainBadge chain={ethMeta} size="md" /> : null}
           <div className="flex flex-col gap-0.5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Send · Ethereum
+              Send · {chainLabel}
             </p>
             <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
-              Send ETH
+              Send {ticker}
             </h1>
           </div>
         </div>
@@ -772,17 +789,19 @@ function ComposeStage({
         </p>
       </header>
 
-      <Link
-        href={`/app/wallet/${encodeURIComponent(walletName)}/send/erc20`}
-        className={
-          "inline-flex min-h-tap w-fit items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-4 py-2 text-xs font-medium text-text-soft " +
-          "transition-[border-color,color,transform] duration-base ease-out-soft " +
-          "hover:-translate-y-0.5 hover:text-accent " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-        }
-      >
-        Send a token instead (USDC, DAI, …)
-      </Link>
+      {chainKind === 1 || chainKind === 4 ? (
+        <Link
+          href={`/app/wallet/${encodeURIComponent(walletName)}/send/erc20`}
+          className={
+            "inline-flex min-h-tap w-fit items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-4 py-2 text-xs font-medium text-text-soft " +
+            "transition-[border-color,color,transform] duration-base ease-out-soft " +
+            "hover:-translate-y-0.5 hover:text-accent " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          }
+        >
+          Send a token instead (USDC, DAI, …)
+        </Link>
+      ) : null}
 
       {/* Compose grid. Amount + Recipient sit side-by-side on lg+
           and merge into one bordered card on mobile. Same shell as
@@ -826,7 +845,7 @@ function ComposeStage({
               )}
           </div>
           <label htmlFor="send-eth-amount-input" className="sr-only">
-            Amount in ETH
+            Amount in {ticker}
           </label>
           <div
             className={
@@ -852,14 +871,14 @@ function ComposeStage({
               placeholder="0"
               autoFocus
               maxLength={20}
-              aria-label="Amount in ETH"
+              aria-label={`Amount in ${ticker}`}
               className="min-w-0 flex-1 bg-transparent font-numerals text-3xl font-semibold tracking-tight text-text-strong tabular-nums outline-none placeholder:text-text-soft/50 sm:text-4xl"
             />
             <span
               aria-hidden="true"
               className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft sm:text-lg"
             >
-              ETH
+              {ticker}
             </span>
           </div>
           <p className="text-xs text-text-soft">
@@ -871,13 +890,13 @@ function ComposeStage({
                   ? weiToEth(walletBalanceWei)
                   : "-"}
             </span>
-            <span> ETH</span>
+            <span> {ticker}</span>
             {typeof walletBalanceWei === "bigint" &&
               walletBalanceWei > 0n && (
                 <UsdHint
                   amount={walletBalanceWei}
                   smallestPerWhole={1_000_000_000_000_000_000n}
-                  ticker="ETH"
+                  ticker={ticker}
                 />
               )}
             {amount.trim() && !amountValid && (
@@ -889,15 +908,15 @@ function ComposeStage({
           {insufficientBalance && walletBalanceWei !== null && (
             <p className="rounded-soft border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-text-strong">
               <span className="font-medium">Insufficient balance.</span>{" "}
-              You have {weiToEth(walletBalanceWei)} ETH
+              You have {weiToEth(walletBalanceWei)} {ticker}
               <UsdHint
                 amount={walletBalanceWei}
                 smallestPerWhole={1_000_000_000_000_000_000n}
-                ticker="ETH"
+                ticker={ticker}
               />
-              {" "}, need at least {weiToEth(amountWei + gasReserveWei)} ETH
+              {" "}, need at least {weiToEth(amountWei + gasReserveWei)} {ticker}
               including ~{weiToEth(gasReserveWei)} for gas. Top up the
-              wallet&rsquo;s Sepolia address from a faucet
+              wallet&rsquo;s {chainLabel} address from a faucet
               {walletEthAddress ? ` (${shortEvmAddress(walletEthAddress)})` : ""}
               .
             </p>
@@ -918,7 +937,7 @@ function ComposeStage({
               recipient.trim() && !recipientValid && !ensResolving && ensFailed
                 ? "Couldn’t resolve that ENS name. Paste a 0x address instead."
                 : recipient.trim() && !recipientValid && !ensResolving
-                  ? "Must be a 0x… 42-character Ethereum address or a .eth name."
+                  ? `Must be a 0x… 42-character ${chainLabel} address or a .eth name.`
                   : undefined
             }
           >
@@ -965,7 +984,7 @@ function ComposeStage({
 
           <RecentRecipientsChips
             walletName={walletName}
-            chainKind={ETH_CHAIN_KIND}
+            chainKind={chainKind}
             onPick={(addr) => setRecipient(addr)}
           />
 
@@ -993,17 +1012,17 @@ function ComposeStage({
         <SignPayloadPreview
           action={
             amountValid && recipientValid && effectiveRecipient
-              ? `Send ${amount.trim()} ETH to ${
+              ? `Send ${amount.trim()} ${ticker} to ${
                   ensName ?? shortEvmAddress(effectiveRecipient)
                 }`
               : "Fill in the amount and recipient above"
           }
           details={previewDetails}
-          warning="Cross-chain send is in alpha. The on-chain Solana sig you give here authorises Ika's dWallet network to broadcast the actual Ethereum tx. If anything is wrong with the EVM-side params, the broadcast fails and the wallet's Solana state stays untouched."
+          warning={`Cross-chain send is in alpha. The on-chain Solana sig you give here authorises Ika's dWallet network to broadcast the actual ${chainLabel} tx. If anything is wrong with the EVM-side params, the broadcast fails and the wallet's Solana state stays untouched.`}
           collapsibleDetails
         />
         <WalletPopupNarration
-          action="send this Ethereum request"
+          action={`send this ${chainLabel} request`}
           popups={1}
           disclaimerBehindInfoTip
         />
@@ -1066,7 +1085,13 @@ function Field({ label, hint, children }: FieldProps) {
 
 // ─── Sending + sent stages ────────────────────────────────────────
 
-function SendingStage({ reduce }: { reduce: boolean }) {
+function SendingStage({
+  reduce,
+  label,
+}: {
+  reduce: boolean;
+  label: string;
+}) {
   const motionProps = reduce
     ? { initial: false as const, animate: { opacity: 1 } }
     : { initial: { opacity: 0 }, animate: { opacity: 1 } };
@@ -1077,11 +1102,11 @@ function SendingStage({ reduce }: { reduce: boolean }) {
       className="flex flex-col items-center text-center"
     >
       <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-raised shadow-card-rest">
-        <BrandLoader size={32} label="Sending Ethereum request" />
+        <BrandLoader size={32} label={`Sending ${label} request`} />
       </div>
-      <p className="mt-5 text-base text-text-strong">Talking to Ethereum…</p>
+      <p className="mt-5 text-base text-text-strong">Talking to {label}…</p>
       <p className="mt-1 text-xs text-text-soft">
-        Signing on Solana, then handing off to Ika to broadcast on Sepolia.
+        Signing on Solana, then handing off to Ika to broadcast on {label}.
       </p>
     </motion.section>
   );
@@ -1094,6 +1119,8 @@ interface SentStageProps {
   explorerLabel: string;
   walletName: string;
   walletDisplay: string;
+  ticker: string;
+  networkLabel: string;
   reduce: boolean;
 }
 
@@ -1104,18 +1131,20 @@ function SentStage({
   explorerLabel,
   walletName,
   walletDisplay,
+  ticker,
+  networkLabel,
   reduce,
 }: SentStageProps) {
   const details: ReceiptDetail[] = [
     { label: "From", value: walletDisplay },
-    { label: "Network", value: "Sepolia" },
+    { label: "Network", value: networkLabel },
   ];
   return (
     <SendReceipt
       status="confirmed"
-      statusLabel="Broadcast on Sepolia via Ika"
+      statusLabel={`Broadcast on ${networkLabel} via Ika`}
       amount={amount}
-      ticker="ETH"
+      ticker={ticker}
       recipientLabel={to}
       details={details}
       explorerHref={explorerUrl}
@@ -1124,7 +1153,7 @@ function SentStage({
         {
           label: "Send another",
           hint: "Same wallet, different recipient.",
-          href: `/app/wallet/${encodeURIComponent(walletName)}/send/eth`,
+          href: `/app/wallet/${encodeURIComponent(walletName)}/send/eth${networkLabel === "Hyperliquid" ? "?network=hyperliquid" : ""}`,
           primary: true,
           icon: ArrowRight,
         },

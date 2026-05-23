@@ -2,12 +2,12 @@
 
 // /app/secure/[recovery]/enroll - passkey enrollment wizard.
 //
-// Adds a new passkey to an existing solo Recovery's roster. Three
+// Adds a new passkey to an existing Recovery's roster. Three
 // stages:
 //
 //   1. intro    - explain what a passkey adds (an extra signer,
-//                 device-bound) and the v3 limits (solo today, the
-//                 wizard fails fast on multi-member vaults).
+//                 device-bound) and the current limits (the wizard
+//                 fails fast on multi-member vaults).
 //   2. enrolling - call navigator.credentials.create to mint a new
 //                 passkey on this device, then submit the on-chain
 //                 propose+approve+execute bundle in one user
@@ -45,6 +45,10 @@ import {
 import { registerPasskey } from "@/lib/ikavery/passkey/registration";
 import { loadAttestation } from "@/lib/ikavery/clearmsig-attestations";
 import { SCHEME_SOLANA_ADDRESS } from "@/lib/ikavery/constants";
+import {
+  detectWebauthnAvailability,
+  type WebauthnAvailability,
+} from "@/lib/ikavery/webauthn";
 
 type Stage = "intro" | "enrolling" | "done";
 
@@ -223,24 +227,19 @@ function EnrollDevicePage() {
   //   - { ok: true } the browser exposes credentials.create + this
   //     context is secure
   //   - { ok: false, reason: ... } known why it won't work
-  const [webauthnState, setWebauthnState] = useState<
-    | null
-    | { ok: true }
-    | { ok: false; reason: "insecure" | "unavailable" }
-  >(null);
+  const [webauthnState, setWebauthnState] =
+    useState<WebauthnAvailability | null>(null);
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const insecure =
-      typeof window.isSecureContext === "boolean" && !window.isSecureContext;
-    if (insecure) {
-      setWebauthnState({ ok: false, reason: "insecure" });
-      return;
-    }
-    const hasApi =
-      typeof navigator !== "undefined" &&
-      !!navigator.credentials &&
-      typeof navigator.credentials.create === "function";
-    setWebauthnState(hasApi ? { ok: true } : { ok: false, reason: "unavailable" });
+    setWebauthnState(
+      detectWebauthnAvailability({
+        isSecureContext: window.isSecureContext,
+        hasCredentialsGet:
+          typeof navigator !== "undefined" &&
+          !!navigator.credentials &&
+          typeof navigator.credentials.create === "function",
+      }),
+    );
   }, []);
 
   const fadeIn = (delay = 0) =>
@@ -262,17 +261,10 @@ function EnrollDevicePage() {
       toast.error("Connect a wallet first");
       return;
     }
-    if (wallet.isLedger) {
-      toast.error("Ledger not supported yet", {
-        details:
-          "Ledger transaction signing for vault is on the v3 list. Use a hot wallet for now.",
-      });
-      return;
-    }
     if (vaultQuery.data.account.threshold !== 1) {
-      toast.error("Solo vaults only at v3a", {
+      toast.error("Enrollment currently covers solo vaults only", {
         details:
-          "Multi-member enrollment needs every existing member to sign the proposal - that flow lands in v3b.",
+          "Multi-member enrollment needs every existing member to sign the proposal.",
       });
       return;
     }
@@ -346,8 +338,6 @@ function EnrollDevicePage() {
     );
   }
   const blockedByDisconnect = !wallet.connected;
-  const blockedByLedger = wallet.isLedger;
-
   return (
     <motion.div {...fadeIn(0)} className="flex flex-col gap-8">
       {stage !== "done" && (
@@ -382,19 +372,7 @@ function EnrollDevicePage() {
         </PageEyebrow>
       )}
 
-      {!blockedByDisconnect && blockedByLedger && (
-        <PageEyebrow label="Ledger" align="center">
-          <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
-            Enrollment needs a hot wallet
-          </h1>
-          <p className="mx-auto mt-2 max-w-md text-base text-text-soft">
-            clear-msig&rsquo;s Ledger path doesn&rsquo;t sign vault transactions
-            yet. Disconnect Ledger and use your Dynamic embedded wallet.
-          </p>
-        </PageEyebrow>
-      )}
-
-      {!blockedByDisconnect && !blockedByLedger && vaultQuery.isError && (
+      {!blockedByDisconnect && vaultQuery.isError && (
         <div className="mx-auto max-w-md rounded-card border border-warning/40 bg-warning/[0.06] p-4 text-sm text-text-soft">
           <p className="font-medium text-text-strong">
             Couldn&rsquo;t load this vault.
@@ -415,7 +393,6 @@ function EnrollDevicePage() {
       )}
 
       {!blockedByDisconnect &&
-        !blockedByLedger &&
         !vaultQuery.isError &&
         stage === "intro" && (
           <IntroStage
@@ -431,7 +408,7 @@ function EnrollDevicePage() {
           />
         )}
 
-      {!blockedByDisconnect && !blockedByLedger && stage === "enrolling" && (
+      {!blockedByDisconnect && stage === "enrolling" && (
         <EnrollingStage
           subStage={subStage}
           authMode={authMode}

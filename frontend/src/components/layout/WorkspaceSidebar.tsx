@@ -125,7 +125,7 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
        *     global workspace chrome so the user feels they're
        *     "inside" the wallet.
        *   • Anywhere else - the standard workspace chrome (search +
-       *     new + primary nav + wallets list + Secure promo). */}
+       *     new + primary nav + wallets list). */}
       {activeWalletSlug ? (
         <WalletScopedSidebar
           slug={activeWalletSlug}
@@ -184,13 +184,6 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
             )}
           </SidebarSection>
 
-          {/* Secure sidebar entry removed — Secure is no longer a
-              separate top-level brand. Personal recovery is now a
-              shape inside the unified "Create a wallet" flow
-              (/app/wallet/new). The /app/secure/* routes still work
-              for direct links, but they don't get a sidebar entry
-              that would suggest they're a second product. See Fesal
-              feedback 2026-05-11 + option (a) collapse. */}
         </>
       )}
 
@@ -202,16 +195,7 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
       >
         {/* Connect / Disconnect moved to the desktop top header so
             it sits at eye level instead of buried in the sidebar
-            footer. The bottom group now holds rail-mode discovery
-            entries (Secure, Chains) only. */}
-        {/* Rail-mode Secure icon also removed — see the matching
-            note on the expanded-mode SecurePromoCard above. Personal
-            recovery is now a shape inside the unified wallet-create
-            flow, not a separate top-level destination. */}
-        {/* Chains used to live here as a wallet-scoped shortcut.
-            It now lives inside WalletScopedSidebar's sub-nav so the
-            entry is part of the wallet's own layout, not bolted on
-            to the workspace footer. */}
+            footer. The bottom group is intentionally spare. */}
       </div>
     </div>
   );

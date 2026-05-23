@@ -54,7 +54,8 @@ pub enum WalletAction {
         #[arg(long)]
         wallet: String,
         /// Destination chain (matches `chain` field in intent JSON files):
-        /// `evm_1559`, `evm_1559_erc20`, `bitcoin_p2wpkh`.
+        /// `evm_1559`, `evm_1559_erc20`, `bitcoin_p2wpkh`,
+        /// `zcash_transparent`, `hyperliquid_evm`.
         #[arg(long)]
         chain: String,
         /// dWallet program ID on the current cluster.
@@ -97,8 +98,10 @@ fn parse_chain_kind(chain: &str) -> Result<u8> {
         "bitcoin_p2wpkh"      => Ok(2),
         "zcash_transparent"   => Ok(3),
         "evm_1559_erc20"      => Ok(4),
+        "hyperliquid_evm"     => Ok(5),
+        "hyperliquid"         => Ok(5),
         other => Err(anyhow!(
-            "unknown chain '{other}' (expected one of: solana, evm_1559, evm_1559_erc20, bitcoin_p2wpkh, zcash_transparent, solana_dwallet)"
+            "unknown chain '{other}' (expected one of: solana, evm_1559, evm_1559_erc20, bitcoin_p2wpkh, zcash_transparent, hyperliquid_evm, hyperliquid, solana_dwallet)"
         )),
     }
 }
@@ -110,6 +113,7 @@ fn chain_kind_name(k: u8) -> &'static str {
         2 => "bitcoin_p2wpkh",
         3 => "zcash_transparent",
         4 => "evm_1559_erc20",
+        5 => "hyperliquid_evm",
         _ => "unknown",
     }
 }
@@ -477,7 +481,7 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
 
             // Probe each known chain_kind for an IkaConfig PDA.
             let mut chains = Vec::new();
-            for chain_kind in 0u8..=4 {
+            for chain_kind in 0u8..=5 {
                 let (cfg_pk, _) = ika::ika_config_pda(&program_id, &wallet_pubkey, chain_kind);
                 if let Some(data) = rpc::fetch_account_optional(&client, &cfg_pk)? {
                     if let Ok(cfg) = accounts::parse_ika_config(&data) {
@@ -514,9 +518,10 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
                                 }
                                 if dw.public_key.len() == 33 {
                                     match chain_kind {
-                                        // 1 = evm_1559, 4 = evm_1559_erc20 — both use the
+                                        // 1 = evm_1559, 4 = evm_1559_erc20,
+                                        // 5 = hyperliquid_evm — all use the
                                         // standard EOA derivation `keccak256(uncompressed)[12..]`.
-                                        1 | 4 => {
+                                        1 | 4 | 5 => {
                                             if let Ok(addr) =
                                                 accounts::evm_address_from_secp256k1(&dw.public_key)
                                             {

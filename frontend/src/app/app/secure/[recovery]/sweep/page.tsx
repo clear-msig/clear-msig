@@ -1,6 +1,6 @@
 "use client";
 
-// /app/secure/[recovery]/sweep. Full in-app sweep wizard (v3e).
+// /app/secure/[recovery]/sweep. Full in-app sweep wizard.
 //
 // Three stages:
 //   1. compose . Destination address + SOL amount.
@@ -16,9 +16,8 @@
 // signature lands.
 //
 // Pre-conditions enforced by the action layer:
-//   - the connected wallet is on the roster (solo at v3e)
-//   - the v3a-saved DKG attestation includes `dwalletAddr` (anything
-//     post-v3d does)
+//   - the connected wallet is on the roster
+//   - the saved DKG attestation includes `dwalletAddr` (new vaults do)
 //   - vault threshold = 1
 // Anything else fails fast with a useful message in the toast.
 
@@ -473,7 +472,7 @@ function SweepPage() {
     if (!dwalletPubkey) {
       toast.error("dWallet attestation missing", {
         details:
-          "v3a saves the dWallet pubkey to local storage on create. If you signed in on a fresh browser, the sweep needs that data - re-mint via /secure/new for now.",
+          "This browser doesn't have the saved attestation yet. Import a backup or sign in on the browser that created the vault.",
       });
       return;
     }
@@ -542,13 +541,6 @@ function SweepPage() {
     }
     if (!wallet.connected || !wallet.publicKey || !wallet.signTransaction) {
       toast.error("Connect a wallet first");
-      return;
-    }
-    if (wallet.isLedger) {
-      toast.error("Ledger not supported yet", {
-        details:
-          "Vault sweep needs full transaction signing. Use your Dynamic embedded wallet.",
-      });
       return;
     }
     if (!dwalletPubkey) return;
@@ -680,8 +672,6 @@ function SweepPage() {
     );
   }
   const blockedByDisconnect = !wallet.connected;
-  const blockedByLedger = wallet.isLedger;
-
   const fadeIn = (delay = 0) =>
     reduce
       ? {}
@@ -728,19 +718,7 @@ function SweepPage() {
         </PageEyebrow>
       )}
 
-      {!blockedByDisconnect && blockedByLedger && (
-        <PageEyebrow label="Ledger" align="center">
-          <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
-            Sweep needs a hot wallet
-          </h1>
-          <p className="mx-auto mt-2 max-w-md text-base text-text-soft">
-            clear-msig&rsquo;s Ledger path doesn&rsquo;t sign vault
-            transactions yet. Use your Dynamic embedded wallet.
-          </p>
-        </PageEyebrow>
-      )}
-
-      {!blockedByDisconnect && !blockedByLedger && vaultQuery.isError && (
+      {!blockedByDisconnect && vaultQuery.isError && (
         <div className="mx-auto max-w-md rounded-card border border-warning/40 bg-warning/[0.06] p-4 text-sm text-text-soft">
           <p className="font-medium text-text-strong">
             Couldn&rsquo;t load this vault.
@@ -761,7 +739,6 @@ function SweepPage() {
       )}
 
       {!blockedByDisconnect &&
-        !blockedByLedger &&
         !vaultQuery.isError &&
         stage === "compose" && (
         <ComposeStage
@@ -808,7 +785,7 @@ function SweepPage() {
         />
       )}
 
-      {!blockedByDisconnect && !blockedByLedger && stage === "review" && (
+      {!blockedByDisconnect && stage === "review" && (
         <ReviewStage
           destination={destinationPk?.toBase58() ?? ""}
           amountDisplay={`${amountInput} ${assetSymbol}`}
@@ -834,7 +811,7 @@ function SweepPage() {
         />
       )}
 
-      {!blockedByDisconnect && !blockedByLedger && stage === "running" && (
+      {!blockedByDisconnect && stage === "running" && (
         <RunningStage
           subStage={runStage}
           authMode={authMode}
