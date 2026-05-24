@@ -21,9 +21,10 @@ import clsx from "clsx";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronLeft, ScanLine, ShieldCheck, UserCircle2 } from "lucide-react";
+import { Bell, ChevronLeft, ScanLine, ShieldCheck, UserCircle2 } from "lucide-react";
 import { useWallet } from "@/lib/wallet";
 import { useOnboarding } from "@/lib/hooks/useOnboarding";
+import { useNotificationFeed } from "@/lib/hooks/useNotificationFeed";
 import { BrandMark } from "@/components/retail/BrandMark";
 import { useToast } from "@/components/ui/Toast";
 import { getSectionLabel, isSendRoute } from "@/lib/retail/sectionLabel";
@@ -42,7 +43,9 @@ const MOBILE_HEADER_BTN = [
 
 export function HeaderBar() {
   const { hydrated } = useOnboarding();
-  const { connected } = useWallet();
+  const { connected, publicKey } = useWallet();
+  const address = publicKey?.toBase58() ?? "";
+  const notifications = useNotificationFeed(address);
   const pathname = usePathname() ?? "";
   const router = useRouter();
   const toast = useToast();
@@ -64,6 +67,7 @@ export function HeaderBar() {
   const showTitle = inAppConnected;
   const showBrandPill = !inApp || !connected;
   const showScan = isSendRoute(pathname);
+  const showNotifications = inAppConnected && !pathname.startsWith("/app/notifications");
   // Account shortcut - lives on the Settings page only. Settings
   // moved into the bottom nav, so Account becomes the
   // companion surface reachable from the Settings page header.
@@ -193,7 +197,7 @@ export function HeaderBar() {
           ml-auto pushes the cluster to the trailing edge, opposite
           the title / back button on the leading edge. */}
       <AnimatePresence>
-        {inAppConnected && (showScan || showAccount || showSecure) && (
+        {inAppConnected && (showScan || showAccount || showSecure || showNotifications) && (
           <motion.div
             initial={{ opacity: 0, x: 8 }}
             animate={{ opacity: 1, x: 0 }}
@@ -202,6 +206,41 @@ export function HeaderBar() {
             className="ml-auto flex items-center gap-2 md:hidden"
           >
             <AnimatePresence>
+              {showNotifications && (
+                <motion.div
+                  key="notifications"
+                  initial={{ opacity: 0, scale: 0.92 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.92 }}
+                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  <Link
+                    href="/app/notifications"
+                    aria-label={
+                      notifications.unreadCount > 0
+                        ? `Notifications (${notifications.unreadCount} unread)`
+                        : "Notifications"
+                    }
+                    className={clsx("relative", MOBILE_HEADER_BTN)}
+                  >
+                    <Bell size={18} />
+                    {notifications.unreadCount > 0 && (
+                      <span
+                        aria-hidden="true"
+                        className={clsx(
+                          "absolute -right-1 -top-1 inline-flex h-4 min-w-[1rem] items-center justify-center",
+                          "rounded-full bg-accent px-1 text-[10px] font-semibold leading-none text-text-on-accent",
+                          "ring-2 ring-canvas",
+                        )}
+                      >
+                        {notifications.unreadCount > 99
+                          ? "99+"
+                          : notifications.unreadCount}
+                      </span>
+                    )}
+                  </Link>
+                </motion.div>
+              )}
               {showScan && (
                 <motion.button
                   key="scan"

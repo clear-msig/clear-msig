@@ -22,13 +22,15 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
-import { ArrowRight, ChevronLeft, LogOut } from "lucide-react";
+import { ArrowRight, Bell, ChevronLeft, LogOut } from "lucide-react";
 import { useWallet } from "@/lib/wallet";
+import { useNotificationFeed } from "@/lib/hooks/useNotificationFeed";
 import { avatarGradient } from "@/lib/retail/avatar";
 import { getSectionLabel } from "@/lib/retail/sectionLabel";
 
 const ROOT_ROUTES = new Set([
   "/app/wallet",
+  "/app/notifications",
   "/app/activity",
   "/app/contacts",
   "/app/account",
@@ -45,6 +47,7 @@ function getParentRoute(pathname: string): string {
   ) {
     return "/app/wallet";
   }
+  if (pathname.startsWith("/app/notifications")) return "/app/notifications";
   if (pathname.startsWith("/app/settings/")) return "/app/settings";
   if (pathname.startsWith("/app/account/")) return "/app/account";
   // Walk one segment up; if we'd land at /app or /app/, go to /app/wallet.
@@ -120,9 +123,52 @@ export function DashboardHeader() {
           owns the connect / disconnect surface so it sits at eye
           level instead of buried in the sidebar footer. */}
       <div className="ml-auto flex items-center gap-2">
+        {!pathname.startsWith("/app/notifications") && (
+          <HeaderNotificationsButton />
+        )}
         <HeaderWalletPill />
       </div>
     </header>
+  );
+}
+
+function HeaderNotificationsButton() {
+  const wallet = useWallet();
+  const address = wallet.publicKey?.toBase58() ?? "";
+  const { unreadCount } = useNotificationFeed(address);
+
+  if (!wallet.connected || !address) return null;
+
+  const label = unreadCount
+    ? `Notifications (${unreadCount} unread)`
+    : "Notifications";
+
+  return (
+    <Link
+      href="/app/notifications"
+      aria-label={label}
+      className={clsx(
+        "relative inline-flex h-8 w-8 items-center justify-center rounded-soft",
+        "border border-border-soft bg-glass-soft text-text-soft",
+        "transition-[border-color,color,background-color] duration-base ease-out-soft",
+        "hover:border-border-strong hover:bg-glass-mid hover:text-text-strong",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+      )}
+    >
+      <Bell size={14} aria-hidden="true" />
+      {unreadCount > 0 && (
+        <span
+          aria-hidden="true"
+          className={clsx(
+            "absolute -right-1 -top-1 inline-flex h-4 min-w-[1rem] items-center justify-center",
+            "rounded-full bg-accent px-1 text-[10px] font-semibold leading-none text-text-on-accent",
+            "ring-2 ring-canvas",
+          )}
+        >
+          {unreadCount > 99 ? "99+" : unreadCount}
+        </span>
+      )}
+    </Link>
   );
 }
 

@@ -250,6 +250,7 @@ function ConnectCta() {
 // state so the user knows the click worked.
 
 function SignedInWaiting({ reduce }: { reduce: boolean }) {
+  const MotionCheck = motion(Check);
   return (
     // Flat landing-shell with NO nav. Wallets are loading - the user
     // can't act on anything else, so the chrome would just be noise
@@ -278,13 +279,19 @@ function SignedInWaiting({ reduce }: { reduce: boolean }) {
               }}
               className="flex h-16 w-16 items-center justify-center rounded-full bg-[#ccff00] text-black shadow-[0_0_40px_rgba(204, 255, 0,0.5)]"
             >
-              <Check className="h-8 w-8" strokeWidth={2.5} aria-hidden="true" />
+              <MotionCheck
+                className="h-8 w-8"
+                strokeWidth={2.5}
+                aria-hidden="true"
+                initial={reduce ? false : { pathLength: 0, opacity: 0 }}
+                animate={{ pathLength: 1, opacity: 1 }}
+                transition={{ duration: 0.45, ease: "easeOut", delay: 0.18 }}
+              />
             </motion.div>
 
             <div className="mt-6 flex items-center gap-2">
-              <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00]" />
               <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-white/60">
-                / session ready
+                session ready
               </span>
             </div>
             <h1 className="mt-3 text-[clamp(2rem,5vw,3rem)] font-light leading-[0.95] tracking-[-0.04em] text-white">

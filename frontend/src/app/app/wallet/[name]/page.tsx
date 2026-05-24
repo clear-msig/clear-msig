@@ -220,14 +220,14 @@ export default function WalletDetailPage() {
     retry: 1,
   });
 
-  // Visible top-5 + the full filtered list for CSV export. Same
+  // Visible top-4 + the full filtered list for CSV export. Same
   // filter, two slice depths.
   const walletActivityAll = useMemo(
     () => allActivity.allRows.filter((r) => r.walletName === name),
     [allActivity.allRows, name],
   );
   const walletActivity = useMemo(
-    () => walletActivityAll.slice(0, 5),
+    () => walletActivityAll.slice(0, 4),
     [walletActivityAll],
   );
   const walletAction = useMemo(
@@ -1690,7 +1690,7 @@ function ActivitySection({
               }
               title="See every proposal with chain + status filters"
             >
-              See all
+              See more
               <ArrowRight className="h-3 w-3" aria-hidden="true" />
             </Link>
           )}
