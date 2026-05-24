@@ -24,7 +24,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import { PublicKey } from "@solana/web3.js";
-import { ArrowRight, Bell, BellRing, Eye, Pin, PinOff, Users, Wallet, X } from "lucide-react";
+import { ArrowRight, Bell, Eye, Pin, PinOff, Users, Wallet } from "lucide-react";
 import {
   isWalletPinned,
   sortPinnedFirst,
@@ -41,11 +41,7 @@ import {
   removeWatchedWallet,
 } from "@/lib/retail/watchedWallets";
 import { type RecentActivityRow } from "@/lib/hooks/useRecentActivity";
-import { useActionNeeded, type ActionNeededRow } from "@/lib/hooks/useActionNeeded";
-import { useActionNotifications } from "@/lib/hooks/useActionNotifications";
-import { useNotificationFeed } from "@/lib/hooks/useNotificationFeed";
-import { useBatchApprove } from "@/lib/hooks/useBatchApprove";
-import { listBatches } from "@/lib/hooks/useBatchSend";
+import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
 import { findVaultAddress, ProposalStatus } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
 import { Button } from "@/components/retail/Button";
@@ -68,7 +64,6 @@ export default function WalletDashboard() {
   const { connection } = useConnection();
   const address = wallet.publicKey?.toBase58() ?? "";
   const reduce = useReducedMotion();
-  const notifications = useNotificationFeed(address);
 
   const memberships = useQuery({
     queryKey: ["my-organizations", address],
@@ -155,18 +150,6 @@ export default function WalletDashboard() {
       {/* Action-first ordering: surface what needs the user above the
           wallet grid so a returning user sees their inbox without
           having to scroll past their cards. */}
-      {notifications.rows.length > 0 && (
-        <NotificationInboxSection
-          rows={notifications.rows}
-          unreadCount={notifications.unreadCount}
-          markAllSeen={notifications.markAllSeen}
-          markSeen={notifications.markSeen}
-          reduce={!!reduce}
-        />
-      )}
-      {!isFirstVisit && action.rows.length > 0 && (
-        <ActionNeededSection rows={action.rows} reduce={!!reduce} />
-      )}
 
       {hasError ? (
         <MembershipsErrorCard onRetry={() => memberships.refetch()} />
@@ -216,78 +199,6 @@ export default function WalletDashboard() {
         </div>
       )}
     </div>
-  );
-}
-
-function NotificationInboxSection({
-  rows,
-  unreadCount,
-  markAllSeen,
-  markSeen,
-  reduce,
-}: {
-  rows: ReturnType<typeof useNotificationFeed>["rows"];
-  unreadCount: number;
-  markAllSeen: ReturnType<typeof useNotificationFeed>["markAllSeen"];
-  markSeen: ReturnType<typeof useNotificationFeed>["markSeen"];
-  reduce: boolean;
-}) {
-  const motionProps = reduce
-    ? {}
-    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
-
-  const visible = rows.slice(0, 6);
-  return (
-    <motion.section
-      {...motionProps}
-      transition={{ duration: 0.2 }}
-      className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
-    >
-      <header className="flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-medium text-text-strong">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent/10 text-accent">
-            <Bell className="h-3.5 w-3.5" strokeWidth={2} />
-          </span>
-          Notifications
-        </h2>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-text-soft">{unreadCount}</span>
-          {unreadCount > 0 && (
-            <BadgePill onClick={markAllSeen}>Mark all seen</BadgePill>
-          )}
-        </div>
-      </header>
-      <ul className="mt-3 flex flex-col divide-y divide-border-soft">
-        {visible.map((row) => (
-          <li key={row.id} className="flex items-start gap-3 py-3">
-            <span
-              className={clsx(
-                "mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full",
-                row.seenAt ? "bg-border-soft" : "bg-accent",
-              )}
-            />
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-medium text-text-strong">{row.title}</p>
-                <span className="text-[11px] text-text-soft">
-                  {relativeTime(row.createdAt)}
-                </span>
-              </div>
-              <p className="mt-0.5 text-xs text-text-soft">{row.body}</p>
-              {row.href ? (
-                <Link
-                  href={row.href}
-                  onClick={() => markSeen(row.id)}
-                  className="mt-1 inline-flex text-xs font-medium text-accent hover:text-accent-hover"
-                >
-                  Open
-                </Link>
-              ) : null}
-            </div>
-          </li>
-        ))}
-      </ul>
-    </motion.section>
   );
 }
 
@@ -904,359 +815,6 @@ function CardSkeleton() {
   );
 }
 
-// ─── Action needed ─────────────────────────────────────────────────
-
-interface ActionNeededProps {
-  rows: ActionNeededRow[];
-  reduce: boolean;
-}
-
-function ActionNeededSection({ rows, reduce }: ActionNeededProps) {
-  const motionProps = reduce
-    ? {}
-    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
-  const batch = useBatchApprove();
-  // Per-tab dismissal so we don't nag a user who's already declined.
-  // Persisted in sessionStorage so a navigate-away-and-back keeps it
-  // hidden, but a fresh tab gets the prompt again - they may have
-  // changed their mind, or be on a different device.
-  const notif = useActionNotifications();
-  const [dismissedNotifPrompt, setDismissedNotifPrompt] = useState<boolean>(
-    () => {
-      if (typeof window === "undefined") return false;
-      try {
-        return (
-          window.sessionStorage.getItem("clear.notif-prompt.dismissed") ===
-          "1"
-        );
-      } catch {
-        return false;
-      }
-    },
-  );
-  const showNotifPrompt =
-    notif.supported &&
-    notif.permission === "default" &&
-    rows.length > 0 &&
-    !dismissedNotifPrompt;
-  const running = batch.progress !== null && batch.progress.completed < batch.progress.total && !batch.progress.error;
-  const showApproveAll = rows.length >= 2;
-
-  // Group rows that came out of /send/batch under one card so the
-  // inbox doesn't render 50 near-identical lines for a payroll. The
-  // batch metadata (id + member proposals) lives in localStorage,
-  // stamped by useBatchSend after each row lands.
-  const grouped = useMemo(() => groupRowsByBatch(rows), [rows]);
-
-  const approveTargets = (subset: ActionNeededRow[]) =>
-    subset.map((r) => ({
-      walletName: r.walletName,
-      proposalPda: r.proposalPda,
-      label: `${friendlyIntentLabel(r.intentTemplate)} in ${toDisplayName(r.walletName)}`,
-    }));
-
-  const handleApproveAll = () => batch.approveAll(approveTargets(rows));
-  const handleApproveBatch = (batchRows: ActionNeededRow[]) =>
-    batch.approveAll(approveTargets(batchRows));
-
-  return (
-    <motion.section
-      {...motionProps}
-      transition={{ duration: 0.2 }}
-      className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
-    >
-      <header className="flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-medium text-text-strong">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent/10 text-accent">
-            <Bell className="h-3.5 w-3.5" strokeWidth={2} />
-          </span>
-          Needs your approval
-        </h2>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-text-soft">{rows.length}</span>
-          {showApproveAll && (
-            <BadgePill onClick={handleApproveAll} disabled={running}>
-              {running ? "Approving…" : "Approve all"}
-            </BadgePill>
-          )}
-        </div>
-      </header>
-
-      {batch.progress && (
-        <BatchProgressRow progress={batch.progress} onDismiss={batch.reset} />
-      )}
-      {!batch.progress && rows.length > 0 && (
-        <p className="mt-2 text-[11px] text-text-soft">
-          Approving fires one wallet popup per request. Tap Approve in each.
-        </p>
-      )}
-
-      {showNotifPrompt && (
-        <div className="mt-3 flex items-center gap-3 rounded-soft border border-accent/30 bg-accent/[0.04] px-3 py-2">
-          <BellRing
-            className="h-4 w-4 shrink-0 text-accent"
-            strokeWidth={2}
-            aria-hidden="true"
-          />
-          <p className="min-w-0 flex-1 text-[11px] text-text-strong">
-            Want a browser ping when something else needs you?{" "}
-            <span className="text-text-soft">
-              Only fires when this tab is in the background.
-            </span>
-          </p>
-          <button
-            type="button"
-            onClick={() => void notif.request()}
-            className={
-              "shrink-0 rounded-full bg-accent px-2.5 py-1 text-[11px] font-medium text-text-on-accent " +
-              "transition-[background-color,transform] duration-base ease-out-soft " +
-              "hover:bg-accent-hover active:scale-[0.98] " +
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-            }
-          >
-            Enable
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setDismissedNotifPrompt(true);
-              try {
-                window.sessionStorage.setItem(
-                  "clear.notif-prompt.dismissed",
-                  "1",
-                );
-              } catch {
-                /* storage blocked - keep state local to this view */
-              }
-            }}
-            aria-label="Dismiss notifications prompt"
-            className="shrink-0 rounded-soft p-1 text-text-soft transition-colors hover:bg-canvas hover:text-text-strong"
-          >
-            <X className="h-3 w-3" aria-hidden="true" />
-          </button>
-        </div>
-      )}
-
-      <ul className="mt-3 flex flex-col divide-y divide-border-soft">
-        {grouped.map((entry: GroupedActionRow) =>
-          entry.kind === "single" ? (
-            <ActionRow key={entry.row.proposalPda} row={entry.row} />
-          ) : (
-            <BatchActionRow
-              key={entry.batchId}
-              batchId={entry.batchId}
-              walletName={entry.walletName}
-              rows={entry.rows}
-              disabled={running}
-              onApprove={() => handleApproveBatch(entry.rows)}
-            />
-          ),
-        )}
-      </ul>
-    </motion.section>
-  );
-}
-
-function BatchProgressRow({
-  progress,
-  onDismiss,
-}: {
-  progress: { total: number; completed: number; error?: string; currentLabel?: string };
-  onDismiss: () => void;
-}) {
-  const done = progress.completed >= progress.total;
-  const stopped = !!progress.error;
-  const pct = Math.round((progress.completed / progress.total) * 100);
-
-  return (
-    <div className="mt-3 rounded-soft border border-border-soft bg-canvas px-3 py-2">
-      <div className="flex items-center justify-between gap-2 text-xs">
-        <span className="font-medium text-text-strong">
-          {stopped
-            ? `Stopped. Approved ${progress.completed} of ${progress.total}`
-            : done
-              ? `Approved ${progress.total} request${progress.total === 1 ? "" : "s"}`
-              : `Approving ${progress.completed + 1} of ${progress.total}…`}
-        </span>
-        {(done || stopped) && (
-          <button
-            type="button"
-            onClick={onDismiss}
-            className="text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
-          >
-            Dismiss
-          </button>
-        )}
-      </div>
-      {!done && !stopped && progress.currentLabel && (
-        <p className="mt-1 truncate text-[11px] text-text-soft">
-          {progress.currentLabel}
-        </p>
-      )}
-      {stopped && progress.error && (
-        <p className="mt-1 text-[11px] text-warning">{progress.error}</p>
-      )}
-      <div
-        aria-hidden="true"
-        className="mt-2 h-1 overflow-hidden rounded-full bg-border-soft"
-      >
-        <div
-          className="h-full bg-accent transition-[width] duration-base ease-out-soft"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-type GroupedActionRow =
-  | { kind: "single"; row: ActionNeededRow }
-  | {
-      kind: "batch";
-      batchId: string;
-      walletName: string;
-      rows: ActionNeededRow[];
-    };
-
-/// Collapse pending rows that came out of /send/batch under a single
-/// entry. We look up the batch records the send hook stamps into
-/// `clear-msig:batches:v1` and bucket rows whose proposal PDA is in
-/// any record. Rows that belong to no batch fall through as singles.
-/// Order is preserved within a batch (the action-needed feed is
-/// already sorted oldest-first, which works for payroll display too).
-function groupRowsByBatch(rows: ActionNeededRow[]): GroupedActionRow[] {
-  if (rows.length === 0) return [];
-  const batches = listBatches();
-  if (batches.length === 0) {
-    return rows.map((row) => ({ kind: "single", row }));
-  }
-  const batchByProposal = new Map<string, string>();
-  const batchMeta = new Map<string, { walletName: string }>();
-  for (const b of batches) {
-    batchMeta.set(b.batchId, { walletName: b.walletName });
-    for (const pda of b.proposalPdas) batchByProposal.set(pda, b.batchId);
-  }
-  const out: GroupedActionRow[] = [];
-  const grouped = new Map<string, ActionNeededRow[]>();
-  for (const row of rows) {
-    const batchId = batchByProposal.get(row.proposalPda);
-    if (!batchId) {
-      out.push({ kind: "single", row });
-      continue;
-    }
-    if (!grouped.has(batchId)) {
-      grouped.set(batchId, []);
-      // Reserve the slot in the output where this batch lives so
-      // mixed feeds (some batched, some single) keep chronological
-      // order.
-      out.push({
-        kind: "batch",
-        batchId,
-        walletName: batchMeta.get(batchId)?.walletName ?? row.walletName,
-        rows: grouped.get(batchId)!,
-      });
-    }
-    grouped.get(batchId)!.push(row);
-  }
-  // The batch slot's `rows` reference is shared with `grouped`, so
-  // pushes above already populated it. Drop empty batches just in
-  // case (paranoid: every batch we created has at least one row).
-  return out.filter((e) => e.kind === "single" || e.rows.length > 0);
-}
-
-function BatchActionRow({
-  batchId,
-  walletName,
-  rows,
-  disabled,
-  onApprove,
-}: {
-  batchId: string;
-  walletName: string;
-  rows: ActionNeededRow[];
-  disabled: boolean;
-  onApprove: () => void;
-}) {
-  const allCollected = rows[0]?.approverCount ?? 0;
-  const minPending = Math.min(
-    ...rows.map((r) => allCollected - r.approvalsCollected),
-  );
-  return (
-    <li>
-      <div className="flex items-start justify-between gap-3 py-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-text-strong">
-            Batch in {toDisplayName(walletName)}
-          </p>
-          <p className="mt-0.5 truncate text-xs text-text-soft">
-            {rows.length} request{rows.length === 1 ? "" : "s"} · waiting on{" "}
-            {minPending} more
-          </p>
-          <Link
-            href={`/app/proposals/${rows[0].proposalPda}`}
-            className="mt-1 inline-block text-[11px] text-text-soft underline-offset-2 hover:text-accent hover:underline"
-            data-batch-id={batchId}
-          >
-            See first request
-          </Link>
-        </div>
-        <BadgePill
-          onClick={onApprove}
-          disabled={disabled}
-          className="shrink-0"
-        >
-          Approve batch ({rows.length})
-        </BadgePill>
-      </div>
-    </li>
-  );
-}
-
-function ActionRow({ row }: { row: ActionNeededRow }) {
-  const wallet = useWallet();
-  const viewerAddress = wallet.publicKey?.toBase58() ?? "";
-  // Race-window fallback: when the matching intent definition hasn't
-  // synced yet (see useActionNeeded), the row carries intentPending
-  // and an empty approverCount. Show a "pending details" placeholder
-  // rather than the template label so users don't see "Custom · 0 of
-  // 0 approved" — that's an artefact of the cross-poll race, not the
-  // real shape of the proposal.
-  const friendlyTemplate = row.intentPending
-    ? "New request · details loading"
-    : friendlyIntentLabel(row.intentTemplate);
-  const who = proposerDisplayName(row.proposer, viewerAddress);
-  const ago = relativeTime(row.proposedAt);
-  const tally =
-    row.approverCount > 0
-      ? `${row.approvalsCollected} of ${row.approverCount} approved`
-      : "awaiting approval";
-  return (
-    <li>
-      <Link
-        href={`/app/proposals/${row.proposalPda}`}
-        className={
-          "group flex items-center justify-between gap-3 py-3 " +
-          "transition-colors duration-base ease-out-soft hover:text-text-strong " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-        }
-      >
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-text-strong">
-            {friendlyTemplate}
-          </p>
-          <p className="mt-0.5 truncate text-xs text-text-soft">
-            by {who} · {ago} · in {toDisplayName(row.walletName)} · {tally}
-          </p>
-        </div>
-        <ArrowRight
-          className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
-          aria-hidden="true"
-        />
-      </Link>
-    </li>
-  );
-}
-
 // ─── Recent activity ───────────────────────────────────────────────
 
 interface RecentActivityProps {
@@ -1285,12 +843,12 @@ function RecentActivitySection({ rows, reduce }: RecentActivityProps) {
           }
           title="See every proposal across all wallets, with filters + CSV export"
         >
-          See all
+          See more
           <ArrowRight className="h-3 w-3" aria-hidden="true" />
         </Link>
       </div>
       <ul className="mt-3 flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
-        {rows.map((row) => (
+        {rows.slice(0, 4).map((row) => (
           <ActivityRow key={row.proposalPda} row={row} />
         ))}
       </ul>
