@@ -44,12 +44,8 @@ jobs:
       # uses nightly features gated to target_os="solana"; host clippy/test
       # only cover the off-chain pieces.
 
-      # TODO(tests): re-add `cargo test -p clear-wallet-client` once the four
-      # stale `intent_json::tests::*` cases are updated. They predate the
-      # `tx_template` requirement the parser now enforces for `chain = solana`,
-      # so their fixtures fail with "chain Solana requires a tx_template field".
       - name: cargo test (host crates)
-        run: cargo test -p clear-msig-cli
+        run: cargo test -p clear-msig-cli -p clear-wallet-client
 
   frontend-tests:
     name: frontend unit tests
