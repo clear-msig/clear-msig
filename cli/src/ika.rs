@@ -218,10 +218,7 @@ pub fn save_attestation(
 /// found". In that case the user has to re-bind the chain (which
 /// writes a fresh chain-specific file under the new code) or
 /// create a new wallet.
-pub fn load_attestation(
-    wallet_name: &str,
-    chain_kind: u8,
-) -> Result<NetworkSignedAttestation> {
+pub fn load_attestation(wallet_name: &str, chain_kind: u8) -> Result<NetworkSignedAttestation> {
     let dir = attestation_dir();
     let chain_path = dir.join(format!("{wallet_name}__c{chain_kind}.json"));
     let legacy_path = dir.join(format!("{wallet_name}.json"));
@@ -234,7 +231,8 @@ pub fn load_attestation(
         return Err(anyhow!(
             "no saved attestation for wallet '{wallet_name}' chain_kind={chain_kind} \
              at {} (also checked legacy {}); re-run `wallet add-chain` to generate one",
-            dir.join(format!("{wallet_name}__c{chain_kind}.json")).display(),
+            dir.join(format!("{wallet_name}__c{chain_kind}.json"))
+                .display(),
             dir.join(format!("{wallet_name}.json")).display(),
         ));
     };
@@ -329,7 +327,12 @@ pub fn wait_for_coordinator(
     timeout: Duration,
 ) -> Result<()> {
     let (coord, _) = coordinator_pda(dwallet_program);
-    poll_until(client, &coord, |d| d.len() >= COORDINATOR_LEN && d[0] == DISC_COORDINATOR, timeout)?;
+    poll_until(
+        client,
+        &coord,
+        |d| d.len() >= COORDINATOR_LEN && d[0] == DISC_COORDINATOR,
+        timeout,
+    )?;
     Ok(())
 }
 
@@ -423,9 +426,8 @@ pub fn presign(
     let response = grpc_call(grpc_url, build_signed_request(&payer_pubkey, request))?;
     match response {
         TransactionResponseData::Attestation(att) => {
-            let versioned: VersionedPresignDataAttestation =
-                bcs::from_bytes(&att.attestation_data)
-                    .with_context(|| "failed to decode presign attestation")?;
+            let versioned: VersionedPresignDataAttestation = bcs::from_bytes(&att.attestation_data)
+                .with_context(|| "failed to decode presign attestation")?;
             let VersionedPresignDataAttestation::V1(data) = versioned;
             Ok(data.presign_session_identifier)
         }
@@ -503,7 +505,10 @@ fn grpc_call(grpc_url: &str, request: UserSignedRequest) -> Result<TransactionRe
         framed.extend_from_slice(&buf);
         let path = "/tmp/clear-msig-grpc-request.bin";
         std::fs::write(path, &framed).ok();
-        eprintln!("[DEBUG] dumped {} bytes of gRPC body to {path}", framed.len());
+        eprintln!(
+            "[DEBUG] dumped {} bytes of gRPC body to {path}",
+            framed.len()
+        );
     }
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -617,19 +622,18 @@ pub fn build_solana_tx_message(
     // 3: SysvarRecentBlockhashes (signer=false, readonly=true)
     // 4: SystemProgram     (signer=false, readonly=true)
     let sysvar_blockhashes: [u8; 32] = [
-        0x06, 0xa7, 0xd5, 0x17, 0x19, 0x2c, 0x56, 0x8e,
-        0xe0, 0x8a, 0x84, 0x5f, 0x73, 0xd2, 0x97, 0x88,
-        0xcf, 0x03, 0x5c, 0x31, 0x45, 0xb2, 0x1a, 0xb3,
-        0x44, 0xd8, 0x06, 0x2e, 0xa9, 0x40, 0x00, 0x00,
+        0x06, 0xa7, 0xd5, 0x17, 0x19, 0x2c, 0x56, 0x8e, 0xe0, 0x8a, 0x84, 0x5f, 0x73, 0xd2, 0x97,
+        0x88, 0xcf, 0x03, 0x5c, 0x31, 0x45, 0xb2, 0x1a, 0xb3, 0x44, 0xd8, 0x06, 0x2e, 0xa9, 0x40,
+        0x00, 0x00,
     ];
     let system_program: [u8; 32] = [0u8; 32];
 
     let mut msg = Vec::with_capacity(256);
 
     // Header
-    msg.push(1);  // num_required_signatures
-    msg.push(0);  // num_readonly_signed_accounts
-    msg.push(2);  // num_readonly_unsigned_accounts (sysvar + system_program)
+    msg.push(1); // num_required_signatures
+    msg.push(0); // num_readonly_signed_accounts
+    msg.push(2); // num_readonly_unsigned_accounts (sysvar + system_program)
 
     // Account keys (compact-u16 length = 5)
     msg.push(5);
@@ -670,10 +674,17 @@ pub fn build_solana_tx_message(
 }
 
 // EVM 1559 native — see programs/clear-wallet/src/chains/evm.rs::build_sighash
-fn evm_native_preimage(intent: &IntentAccount, params_data: &[u8], tx_template: &[u8]) -> Result<Vec<u8>> {
+fn evm_native_preimage(
+    intent: &IntentAccount,
+    params_data: &[u8],
+    tx_template: &[u8],
+) -> Result<Vec<u8>> {
     use clear_wallet_client::chains::evm::Tx1559;
     if tx_template.len() != 32 {
-        return Err(anyhow!("evm_1559 tx_template must be 32 bytes, got {}", tx_template.len()));
+        return Err(anyhow!(
+            "evm_1559 tx_template must be 32 bytes, got {}",
+            tx_template.len()
+        ));
     }
     let chain_id = u64::from_le_bytes(tx_template[0..8].try_into().unwrap());
     let gas_limit = u64::from_le_bytes(tx_template[8..16].try_into().unwrap());
@@ -692,13 +703,23 @@ fn evm_native_preimage(intent: &IntentAccount, params_data: &[u8], tx_template: 
     };
 
     let tx = Tx1559 {
-        chain_id, nonce, max_priority_fee_per_gas, max_fee_per_gas, gas_limit,
-        to, value, data,
+        chain_id,
+        nonce,
+        max_priority_fee_per_gas,
+        max_fee_per_gas,
+        gas_limit,
+        to,
+        value,
+        data,
     };
     Ok(tx.rlp_preimage())
 }
 
-fn evm_erc20_preimage(intent: &IntentAccount, params_data: &[u8], tx_template: &[u8]) -> Result<Vec<u8>> {
+fn evm_erc20_preimage(
+    intent: &IntentAccount,
+    params_data: &[u8],
+    tx_template: &[u8],
+) -> Result<Vec<u8>> {
     use clear_wallet_client::chains::evm::Erc20Transfer;
     if tx_template.len() != 32 {
         return Err(anyhow!("evm_1559_erc20 tx_template must be 32 bytes"));
@@ -714,13 +735,23 @@ fn evm_erc20_preimage(intent: &IntentAccount, params_data: &[u8], tx_template: &
     let amount = read_param_u128(intent, params_data, 3)?;
 
     let tx = Erc20Transfer {
-        chain_id, nonce, max_priority_fee_per_gas, max_fee_per_gas, gas_limit,
-        token_contract, recipient, amount,
+        chain_id,
+        nonce,
+        max_priority_fee_per_gas,
+        max_fee_per_gas,
+        gas_limit,
+        token_contract,
+        recipient,
+        amount,
     };
     Ok(tx.rlp_preimage())
 }
 
-fn bitcoin_p2wpkh_preimage(intent: &IntentAccount, params_data: &[u8], tx_template: &[u8]) -> Result<Vec<u8>> {
+fn bitcoin_p2wpkh_preimage(
+    intent: &IntentAccount,
+    params_data: &[u8],
+    tx_template: &[u8],
+) -> Result<Vec<u8>> {
     use clear_wallet_client::chains::bitcoin::P2wpkhSpend;
     if tx_template.len() != 16 {
         return Err(anyhow!("bitcoin_p2wpkh tx_template must be 16 bytes"));
@@ -738,9 +769,16 @@ fn bitcoin_p2wpkh_preimage(intent: &IntentAccount, params_data: &[u8], tx_templa
     let send_amount_sats = read_param_u64(intent, params_data, 5)?;
 
     let spend = P2wpkhSpend {
-        version, lock_time, sequence, sighash_type,
-        prev_txid, prev_vout, prev_amount_sats,
-        sender_pkh, recipient_pkh, send_amount_sats,
+        version,
+        lock_time,
+        sequence,
+        sighash_type,
+        prev_txid,
+        prev_vout,
+        prev_amount_sats,
+        sender_pkh,
+        recipient_pkh,
+        send_amount_sats,
     };
     Ok(spend.bip143_preimage())
 }
@@ -748,9 +786,16 @@ fn bitcoin_p2wpkh_preimage(intent: &IntentAccount, params_data: &[u8], tx_templa
 /// Build the simplified Zcash preimage (same bytes as on-chain) for the
 /// MessageApproval PDA hash. The FULL ZIP-243 preimage is built separately
 /// by `build_zcash_zip243_preimage` for the gRPC Sign request.
-fn zcash_transparent_preimage(intent: &IntentAccount, params_data: &[u8], tx_template: &[u8]) -> Result<Vec<u8>> {
+fn zcash_transparent_preimage(
+    intent: &IntentAccount,
+    params_data: &[u8],
+    tx_template: &[u8],
+) -> Result<Vec<u8>> {
     if tx_template.len() != 20 {
-        return Err(anyhow!("zcash_transparent tx_template must be 20 bytes, got {}", tx_template.len()));
+        return Err(anyhow!(
+            "zcash_transparent tx_template must be 20 bytes, got {}",
+            tx_template.len()
+        ));
     }
     let header = &tx_template[0..4];
     let version_group_id = &tx_template[4..8];
@@ -787,10 +832,7 @@ fn zcash_transparent_preimage(intent: &IntentAccount, params_data: &[u8], tx_tem
 /// signing digest.
 ///
 /// Requires the `blake2b_simd` crate (available via the `blake2` feature).
-pub fn build_zcash_zip243_preimage(
-    intent: &IntentAccount,
-    params_data: &[u8],
-) -> Result<Vec<u8>> {
+pub fn build_zcash_zip243_preimage(intent: &IntentAccount, params_data: &[u8]) -> Result<Vec<u8>> {
     let tx_template = read_tx_template(intent)?;
     if tx_template.len() != 20 {
         return Err(anyhow!("zcash tx_template must be 20 bytes"));
@@ -844,22 +886,22 @@ pub fn build_zcash_zip243_preimage(
 
     // Assemble the full ZIP-243 preimage (transparent-only, no shielded).
     let mut preimage = Vec::with_capacity(294);
-    preimage.extend_from_slice(header);           // 4
+    preimage.extend_from_slice(header); // 4
     preimage.extend_from_slice(version_group_id); // 4
-    preimage.extend_from_slice(&hash_prevouts);   // 32
-    preimage.extend_from_slice(&hash_sequence);   // 32
-    preimage.extend_from_slice(&hash_outputs);    // 32
-    preimage.extend_from_slice(&[0u8; 32]);       // hashJoinSplits (none)
-    preimage.extend_from_slice(&[0u8; 32]);       // hashShieldedSpends (none)
-    preimage.extend_from_slice(&[0u8; 32]);       // hashShieldedOutputs (none)
-    preimage.extend_from_slice(lock_time);        // 4
-    preimage.extend_from_slice(expiry_height);    // 4
+    preimage.extend_from_slice(&hash_prevouts); // 32
+    preimage.extend_from_slice(&hash_sequence); // 32
+    preimage.extend_from_slice(&hash_outputs); // 32
+    preimage.extend_from_slice(&[0u8; 32]); // hashJoinSplits (none)
+    preimage.extend_from_slice(&[0u8; 32]); // hashShieldedSpends (none)
+    preimage.extend_from_slice(&[0u8; 32]); // hashShieldedOutputs (none)
+    preimage.extend_from_slice(lock_time); // 4
+    preimage.extend_from_slice(expiry_height); // 4
     preimage.extend_from_slice(&0i64.to_le_bytes()); // valueBalance = 0 (transparent-only)
     preimage.extend_from_slice(&sighash_type.to_le_bytes()); // 4
-    preimage.extend_from_slice(&outpoint);        // 36
-    preimage.extend_from_slice(&script_code);     // 26
+    preimage.extend_from_slice(&outpoint); // 36
+    preimage.extend_from_slice(&script_code); // 26
     preimage.extend_from_slice(&prev_amount.to_le_bytes()); // 8
-    preimage.extend_from_slice(&sequence.to_le_bytes());    // 4
+    preimage.extend_from_slice(&sequence.to_le_bytes()); // 4
 
     Ok(preimage)
 }
@@ -867,10 +909,7 @@ pub fn build_zcash_zip243_preimage(
 /// BLAKE2b-256 with a personalization string.
 fn blake2b_personal(personal: &[u8], data: &[u8]) -> [u8; 32] {
     use blake2b_simd::Params;
-    let h = Params::new()
-        .hash_length(32)
-        .personal(personal)
-        .hash(data);
+    let h = Params::new().hash_length(32).personal(personal).hash(data);
     let mut out = [0u8; 32];
     out.copy_from_slice(h.as_bytes());
     out
@@ -890,7 +929,10 @@ pub fn zcash_sighash_personal(consensus_branch_id: u32) -> Vec<u8> {
 fn param_offset(intent: &IntentAccount, params_data: &[u8], target: u8) -> Result<usize> {
     let mut off = 0usize;
     for i in 0..target as usize {
-        let p = intent.params.get(i).ok_or(anyhow!("param index out of bounds"))?;
+        let p = intent
+            .params
+            .get(i)
+            .ok_or(anyhow!("param index out of bounds"))?;
         off += param_byte_size_at(p.param_type, params_data, off)?;
     }
     Ok(off)
@@ -919,36 +961,62 @@ fn param_byte_size_at(
     })
 }
 
-pub(crate) fn read_param_raw<'a>(intent: &IntentAccount, params_data: &'a [u8], idx: u8) -> Result<&'a [u8]> {
+pub(crate) fn read_param_raw<'a>(
+    intent: &IntentAccount,
+    params_data: &'a [u8],
+    idx: u8,
+) -> Result<&'a [u8]> {
     let off = param_offset(intent, params_data, idx)?;
-    let p = intent.params.get(idx as usize).ok_or(anyhow!("param idx OOB"))?;
+    let p = intent
+        .params
+        .get(idx as usize)
+        .ok_or(anyhow!("param idx OOB"))?;
     let size = param_byte_size_at(p.param_type, params_data, off)?;
-    params_data.get(off..off + size).ok_or(anyhow!("param slice OOB")).map(|s| s)
+    params_data
+        .get(off..off + size)
+        .ok_or(anyhow!("param slice OOB"))
+        .map(|s| s)
 }
 
 pub(crate) fn read_param_u64(intent: &IntentAccount, params_data: &[u8], idx: u8) -> Result<u64> {
     let bytes = read_param_raw(intent, params_data, idx)?;
-    if bytes.len() < 8 { return Err(anyhow!("expected u64")); }
+    if bytes.len() < 8 {
+        return Err(anyhow!("expected u64"));
+    }
     Ok(u64::from_le_bytes(bytes[..8].try_into().unwrap()))
 }
 
 pub(crate) fn read_param_u128(intent: &IntentAccount, params_data: &[u8], idx: u8) -> Result<u128> {
     let bytes = read_param_raw(intent, params_data, idx)?;
-    if bytes.len() < 16 { return Err(anyhow!("expected u128")); }
+    if bytes.len() < 16 {
+        return Err(anyhow!("expected u128"));
+    }
     Ok(u128::from_le_bytes(bytes[..16].try_into().unwrap()))
 }
 
-pub(crate) fn read_param_bytes20(intent: &IntentAccount, params_data: &[u8], idx: u8) -> Result<[u8; 20]> {
+pub(crate) fn read_param_bytes20(
+    intent: &IntentAccount,
+    params_data: &[u8],
+    idx: u8,
+) -> Result<[u8; 20]> {
     let bytes = read_param_raw(intent, params_data, idx)?;
-    if bytes.len() < 20 { return Err(anyhow!("expected bytes20")); }
+    if bytes.len() < 20 {
+        return Err(anyhow!("expected bytes20"));
+    }
     let mut out = [0u8; 20];
     out.copy_from_slice(&bytes[..20]);
     Ok(out)
 }
 
-pub(crate) fn read_param_bytes32(intent: &IntentAccount, params_data: &[u8], idx: u8) -> Result<[u8; 32]> {
+pub(crate) fn read_param_bytes32(
+    intent: &IntentAccount,
+    params_data: &[u8],
+    idx: u8,
+) -> Result<[u8; 32]> {
     let bytes = read_param_raw(intent, params_data, idx)?;
-    if bytes.len() < 32 { return Err(anyhow!("expected bytes32")); }
+    if bytes.len() < 32 {
+        return Err(anyhow!("expected bytes32"));
+    }
     let mut out = [0u8; 32];
     out.copy_from_slice(&bytes[..32]);
     Ok(out)
@@ -1027,9 +1095,7 @@ pub fn metadata_digest(chain_kind: u8, tx_template: &[u8]) -> [u8; 32] {
     if chain_kind != 3 || tx_template.len() < 20 {
         return [0u8; 32];
     }
-    let branch_id = u32::from_le_bytes(
-        tx_template[16..20].try_into().unwrap_or([0; 4]),
-    );
+    let branch_id = u32::from_le_bytes(tx_template[16..20].try_into().unwrap_or([0; 4]));
     let personal = zcash_sighash_personal(branch_id);
     let metadata = ika_dwallet_types::Blake2bMessageMetadata {
         personal,
@@ -1056,20 +1122,32 @@ pub fn metadata_digest(chain_kind: u8, tx_template: &[u8]) -> [u8; 32] {
 /// Rejects unknown `chain_kind` values. Callers that might receive one
 /// (e.g. a stale IkaConfig) get a clear error instead of a default
 /// downgrade.
-pub fn signing_params(
-    chain_kind: u8,
-) -> Result<(DWalletCurve, DWalletSignatureScheme)> {
+pub fn signing_params(chain_kind: u8) -> Result<(DWalletCurve, DWalletSignatureScheme)> {
     match chain_kind {
         // Solana — Ed25519 + SHA512 (Curve25519 dWallet).
-        0 => Ok((DWalletCurve::Curve25519, DWalletSignatureScheme::EddsaSha512)),
+        0 => Ok((
+            DWalletCurve::Curve25519,
+            DWalletSignatureScheme::EddsaSha512,
+        )),
         // Evm1559 (1) / Evm1559Erc20 (4) / HyperliquidEvm (5) —
         // keccak256 of RLP, secp256k1 ECDSA.
-        1 | 4 | 5 => Ok((DWalletCurve::Secp256k1, DWalletSignatureScheme::EcdsaKeccak256)),
+        1 | 4 | 5 => Ok((
+            DWalletCurve::Secp256k1,
+            DWalletSignatureScheme::EcdsaKeccak256,
+        )),
         // BitcoinP2wpkh — sha256d of BIP143 preimage, secp256k1 ECDSA.
-        2 => Ok((DWalletCurve::Secp256k1, DWalletSignatureScheme::EcdsaDoubleSha256)),
+        2 => Ok((
+            DWalletCurve::Secp256k1,
+            DWalletSignatureScheme::EcdsaDoubleSha256,
+        )),
         // ZcashTransparent — personalised BLAKE2b-256, secp256k1 ECDSA.
-        3 => Ok((DWalletCurve::Secp256k1, DWalletSignatureScheme::EcdsaBlake2b256)),
-        other => Err(anyhow!("unknown chain_kind {other} — no signing scheme defined")),
+        3 => Ok((
+            DWalletCurve::Secp256k1,
+            DWalletSignatureScheme::EcdsaBlake2b256,
+        )),
+        other => Err(anyhow!(
+            "unknown chain_kind {other} — no signing scheme defined"
+        )),
     }
 }
 

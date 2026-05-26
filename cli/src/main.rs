@@ -1,17 +1,17 @@
+mod accounts;
+mod chains;
 mod commands;
 mod config;
 mod error;
-mod signing;
-mod accounts;
-mod chains;
 mod ika;
-mod message;
-mod params;
-mod resolve;
 mod instructions;
+mod message;
 mod output;
+mod params;
 mod quasar_client;
+mod resolve;
 mod rpc;
+mod signing;
 
 use clap::{Parser, Subcommand};
 

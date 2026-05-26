@@ -8,16 +8,9 @@ use solana_address::Address;
 /// Callers MUST pass the creator who originally signed the create_wallet
 /// instruction. Wallets created against the older name-only seed live
 /// at different PDAs and won't be found by this function.
-pub fn find_wallet_address(
-    name: &str,
-    creator: &Address,
-    program_id: &Address,
-) -> (Address, u8) {
+pub fn find_wallet_address(name: &str, creator: &Address, program_id: &Address) -> (Address, u8) {
     let name_hash = compute_name_hash(name);
-    Address::find_program_address(
-        &[b"clear_wallet", creator.as_ref(), &name_hash],
-        program_id,
-    )
+    Address::find_program_address(&[b"clear_wallet", creator.as_ref(), &name_hash], program_id)
 }
 
 pub fn find_vault_address(wallet: &Address, program_id: &Address) -> (Address, u8) {
@@ -40,10 +33,7 @@ pub fn find_ika_config_address(
     chain_kind: u8,
     program_id: &Address,
 ) -> (Address, u8) {
-    Address::find_program_address(
-        &[b"ika_config", wallet.as_ref(), &[chain_kind]],
-        program_id,
-    )
+    Address::find_program_address(&[b"ika_config", wallet.as_ref(), &[chain_kind]], program_id)
 }
 
 pub fn find_cpi_authority(program_id: &Address) -> (Address, u8) {

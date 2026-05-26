@@ -46,7 +46,11 @@ impl PreSignedMessageSigner {
     pub fn new(pubkey: [u8; 32], signature: [u8; 64]) -> Result<Self> {
         let verifying_key = ed25519_dalek::VerifyingKey::from_bytes(&pubkey)
             .map_err(|e| anyhow!("invalid ed25519 pubkey: {e}"))?;
-        Ok(Self { pubkey, signature, verifying_key })
+        Ok(Self {
+            pubkey,
+            signature,
+            verifying_key,
+        })
     }
 }
 
@@ -115,8 +119,8 @@ impl KeypairMessageSigner {
         let expanded = shellexpand::tilde(path).to_string();
         let data = std::fs::read_to_string(&expanded)
             .with_context(|| format!("reading signer keypair from {expanded}"))?;
-        let bytes: Vec<u8> = serde_json::from_str(&data)
-            .with_context(|| "parsing signer keypair JSON")?;
+        let bytes: Vec<u8> =
+            serde_json::from_str(&data).with_context(|| "parsing signer keypair JSON")?;
         // Solana keypair JSON is 64 bytes: [secret_key(32) ++ public_key(32)]
         if bytes.len() < 32 {
             return Err(anyhow!("keypair too short"));
@@ -148,15 +152,19 @@ impl LedgerMessageSigner {
         let wallet_manager = solana_remote_wallet::remote_wallet::initialize_wallet_manager()
             .map_err(|e| anyhow!("failed to initialize wallet manager: {e}"))?;
 
-        wallet_manager.update_devices()
+        wallet_manager
+            .update_devices()
             .map_err(|e| anyhow!("failed to detect Ledger devices: {e}"))?;
 
         let devices = wallet_manager.list_devices();
         if devices.is_empty() {
-            return Err(anyhow!("no Ledger device found — is it connected and unlocked with the Solana app open?"));
+            return Err(anyhow!(
+                "no Ledger device found — is it connected and unlocked with the Solana app open?"
+            ));
         }
 
-        let derivation_path = solana_derivation_path::DerivationPath::new_bip44(ledger_account, None);
+        let derivation_path =
+            solana_derivation_path::DerivationPath::new_bip44(ledger_account, None);
 
         let locator = solana_remote_wallet::locator::Locator {
             manufacturer: solana_remote_wallet::locator::Manufacturer::Ledger,
@@ -169,7 +177,8 @@ impl LedgerMessageSigner {
             &wallet_manager,
             false,
             "signer",
-        ).map_err(|e| anyhow!("failed to connect to Ledger: {e}"))?;
+        )
+        .map_err(|e| anyhow!("failed to connect to Ledger: {e}"))?;
 
         let cached_pubkey = solana_signer::Signer::pubkey(&keypair).to_bytes();
 
@@ -198,7 +207,8 @@ impl MessageSigner for LedgerMessageSigner {
             &self.wallet_manager,
             false,
             "signer",
-        ).map_err(|e| anyhow!("failed to connect to Ledger: {e}"))?;
+        )
+        .map_err(|e| anyhow!("failed to connect to Ledger: {e}"))?;
 
         let signature = solana_signer::Signer::try_sign_message(&keypair, message)
             .map_err(|e| anyhow!("Ledger signing failed: {e}"))?;

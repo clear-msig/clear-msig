@@ -4,7 +4,7 @@ use crate::state::intent::Intent;
 use crate::utils::{
     base58::encode_base58,
     datetime::format_timestamp,
-    definition::{ParamType, param_byte_size},
+    definition::{param_byte_size, ParamType},
 };
 
 const MSG_BUF_SIZE: usize = 2048;
@@ -36,11 +36,18 @@ pub struct MessageBuilder {
 }
 
 impl Default for MessageBuilder {
-    fn default() -> Self { Self { buf: [0u8; MSG_BUF_SIZE], len: OFFCHAIN_HEADER_LEN } }
+    fn default() -> Self {
+        Self {
+            buf: [0u8; MSG_BUF_SIZE],
+            len: OFFCHAIN_HEADER_LEN,
+        }
+    }
 }
 
 impl MessageBuilder {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     /// Returns the full offchain-wrapped message bytes for signature verification.
     pub fn as_bytes(&self) -> &[u8] {
@@ -50,7 +57,10 @@ impl MessageBuilder {
     /// Finalize the offchain header. Must be called after the message body is complete.
     pub fn finalize(&mut self) -> Result<(), ProgramError> {
         let message_len = self.len - OFFCHAIN_HEADER_LEN;
-        require!(message_len <= u16::MAX as usize, ProgramError::InvalidInstructionData);
+        require!(
+            message_len <= u16::MAX as usize,
+            ProgramError::InvalidInstructionData
+        );
 
         // Write header into the reserved space
         self.buf[..OFFCHAIN_SIGNING_DOMAIN.len()].copy_from_slice(OFFCHAIN_SIGNING_DOMAIN);
@@ -64,7 +74,10 @@ impl MessageBuilder {
 
     fn push_bytes(&mut self, data: &[u8]) -> Result<(), ProgramError> {
         let new_len = self.len + data.len();
-        require!(new_len <= MSG_BUF_SIZE, ProgramError::InvalidInstructionData);
+        require!(
+            new_len <= MSG_BUF_SIZE,
+            ProgramError::InvalidInstructionData
+        );
         self.buf[self.len..new_len].copy_from_slice(data);
         self.len = new_len;
         Ok(())
@@ -81,11 +94,17 @@ impl MessageBuilder {
     }
 
     pub fn push_u64(&mut self, val: u64) -> Result<(), ProgramError> {
-        if val == 0 { return self.push_bytes(b"0"); }
+        if val == 0 {
+            return self.push_bytes(b"0");
+        }
         let mut buf = [0u8; 20];
         let mut pos = 20;
         let mut v = val;
-        while v > 0 { pos -= 1; buf[pos] = b'0' + (v % 10) as u8; v /= 10; }
+        while v > 0 {
+            pos -= 1;
+            buf[pos] = b'0' + (v % 10) as u8;
+            v /= 10;
+        }
         self.push_bytes(&buf[pos..])
     }
 
@@ -100,7 +119,10 @@ impl MessageBuilder {
 
     fn push_timestamp(&mut self, ts: i64) -> Result<(), ProgramError> {
         let start = self.len;
-        require!(start + 19 <= MSG_BUF_SIZE, ProgramError::InvalidInstructionData);
+        require!(
+            start + 19 <= MSG_BUF_SIZE,
+            ProgramError::InvalidInstructionData
+        );
         format_timestamp(ts, &mut self.buf[start..]).ok_or(ProgramError::InvalidInstructionData)?;
         self.len = start + 19;
         Ok(())
@@ -211,7 +233,10 @@ impl MessageBuilder {
     // --- Custom intent messages ---
 
     pub fn build_custom_message(
-        &mut self, ctx: &MessageContext<'_>, intent: &Intent<'_>, params_data: &[u8],
+        &mut self,
+        ctx: &MessageContext<'_>,
+        intent: &Intent<'_>,
+        params_data: &[u8],
     ) -> Result<(), ProgramError> {
         self.push_header(ctx)?;
         self.render_template(intent, params_data)?;
@@ -221,7 +246,9 @@ impl MessageBuilder {
     // --- Meta-intent messages ---
 
     pub fn build_add_intent_message(
-        &mut self, ctx: &MessageContext<'_>, definition_hash: &[u8; 32],
+        &mut self,
+        ctx: &MessageContext<'_>,
+        definition_hash: &[u8; 32],
     ) -> Result<(), ProgramError> {
         self.push_header(ctx)?;
         self.push_str("add intent definition_hash: ")?;
@@ -230,7 +257,9 @@ impl MessageBuilder {
     }
 
     pub fn build_remove_intent_message(
-        &mut self, ctx: &MessageContext<'_>, intent_index: u8,
+        &mut self,
+        ctx: &MessageContext<'_>,
+        intent_index: u8,
     ) -> Result<(), ProgramError> {
         self.push_header(ctx)?;
         self.push_str("remove intent ")?;
@@ -239,7 +268,10 @@ impl MessageBuilder {
     }
 
     pub fn build_update_intent_message(
-        &mut self, ctx: &MessageContext<'_>, intent_index: u8, definition_hash: &[u8; 32],
+        &mut self,
+        ctx: &MessageContext<'_>,
+        intent_index: u8,
+        definition_hash: &[u8; 32],
     ) -> Result<(), ProgramError> {
         self.push_header(ctx)?;
         self.push_str("update intent ")?;
@@ -251,15 +283,22 @@ impl MessageBuilder {
 
     // --- Template rendering ---
 
-    fn render_template(&mut self, intent: &Intent<'_>, params_data: &[u8]) -> Result<(), ProgramError> {
+    fn render_template(
+        &mut self,
+        intent: &Intent<'_>,
+        params_data: &[u8],
+    ) -> Result<(), ProgramError> {
         let template = intent.template_str()?;
         let bytes = template.as_bytes();
         let mut i = 0;
         while i < bytes.len() {
             if bytes[i] == b'{' {
                 let start = i + 1;
-                let end = bytes[start..].iter().position(|&b| b == b'}')
-                    .ok_or(ProgramError::InvalidInstructionData)? + start;
+                let end = bytes[start..]
+                    .iter()
+                    .position(|&b| b == b'}')
+                    .ok_or(ProgramError::InvalidInstructionData)?
+                    + start;
                 let inner = &template[start..end];
                 // inner = "<idx>" or "<idx>:10^<digits>" (decimal-shift format spec)
                 let (idx_str, fmt) = match inner.as_bytes().iter().position(|&b| b == b':') {
@@ -320,28 +359,49 @@ impl MessageBuilder {
 
     fn parse_decimal_spec(spec: &str) -> Result<u8, ProgramError> {
         // Format spec: `10^<digits>`. Anything else is rejected.
-        let rest = spec.strip_prefix("10^").ok_or(ProgramError::InvalidInstructionData)?;
+        let rest = spec
+            .strip_prefix("10^")
+            .ok_or(ProgramError::InvalidInstructionData)?;
         let n = parse_usize(rest)?;
         require!(n <= 19, ProgramError::InvalidInstructionData);
         Ok(n as u8)
     }
 
     fn push_u128(&mut self, val: u128) -> Result<(), ProgramError> {
-        if val == 0 { return self.push_bytes(b"0"); }
+        if val == 0 {
+            return self.push_bytes(b"0");
+        }
         let mut buf = [0u8; 39];
         let mut pos = 39;
         let mut v = val;
-        while v > 0 { pos -= 1; buf[pos] = b'0' + (v % 10) as u8; v /= 10; }
+        while v > 0 {
+            pos -= 1;
+            buf[pos] = b'0' + (v % 10) as u8;
+            v /= 10;
+        }
         self.push_bytes(&buf[pos..])
     }
 
-    fn render_param(&mut self, intent: &Intent<'_>, data: &[u8], idx: u8, fmt: Option<&str>) -> Result<(), ProgramError> {
-        let param = intent.params().get(idx as usize).ok_or(ProgramError::InvalidInstructionData)?;
+    fn render_param(
+        &mut self,
+        intent: &Intent<'_>,
+        data: &[u8],
+        idx: u8,
+        fmt: Option<&str>,
+    ) -> Result<(), ProgramError> {
+        let param = intent
+            .params()
+            .get(idx as usize)
+            .ok_or(ProgramError::InvalidInstructionData)?;
         let offset = param_offset(intent, data, idx)?;
         match param.param_type {
             ParamType::Address => self.push_base58(&data[offset..offset + 32]),
             ParamType::U64 => {
-                let v = u64::from_le_bytes(data[offset..offset+8].try_into().map_err(|_| ProgramError::InvalidInstructionData)?);
+                let v = u64::from_le_bytes(
+                    data[offset..offset + 8]
+                        .try_into()
+                        .map_err(|_| ProgramError::InvalidInstructionData)?,
+                );
                 if let Some(spec) = fmt {
                     let decimals = Self::parse_decimal_spec(spec)?;
                     self.push_decimal_u64(v, decimals)
@@ -350,32 +410,53 @@ impl MessageBuilder {
                 }
             }
             ParamType::I64 => {
-                let v = i64::from_le_bytes(data[offset..offset+8].try_into().map_err(|_| ProgramError::InvalidInstructionData)?);
+                let v = i64::from_le_bytes(
+                    data[offset..offset + 8]
+                        .try_into()
+                        .map_err(|_| ProgramError::InvalidInstructionData)?,
+                );
                 self.push_i64(v)
             }
             ParamType::String => {
                 let len = data[offset] as usize;
-                let s = core::str::from_utf8(&data[offset+1..offset+1+len]).map_err(|_| ProgramError::InvalidInstructionData)?;
+                let s = core::str::from_utf8(&data[offset + 1..offset + 1 + len])
+                    .map_err(|_| ProgramError::InvalidInstructionData)?;
                 self.push_str(s)
             }
             ParamType::Bool => {
-                let v = *data.get(offset).ok_or(ProgramError::InvalidInstructionData)?;
+                let v = *data
+                    .get(offset)
+                    .ok_or(ProgramError::InvalidInstructionData)?;
                 self.push_str(if v != 0 { "true" } else { "false" })
             }
             ParamType::U8 => {
-                let v = *data.get(offset).ok_or(ProgramError::InvalidInstructionData)?;
+                let v = *data
+                    .get(offset)
+                    .ok_or(ProgramError::InvalidInstructionData)?;
                 self.push_u64(v as u64)
             }
             ParamType::U16 => {
-                let v = u16::from_le_bytes(data[offset..offset+2].try_into().map_err(|_| ProgramError::InvalidInstructionData)?);
+                let v = u16::from_le_bytes(
+                    data[offset..offset + 2]
+                        .try_into()
+                        .map_err(|_| ProgramError::InvalidInstructionData)?,
+                );
                 self.push_u64(v as u64)
             }
             ParamType::U32 => {
-                let v = u32::from_le_bytes(data[offset..offset+4].try_into().map_err(|_| ProgramError::InvalidInstructionData)?);
+                let v = u32::from_le_bytes(
+                    data[offset..offset + 4]
+                        .try_into()
+                        .map_err(|_| ProgramError::InvalidInstructionData)?,
+                );
                 self.push_u64(v as u64)
             }
             ParamType::U128 => {
-                let v = u128::from_le_bytes(data[offset..offset+16].try_into().map_err(|_| ProgramError::InvalidInstructionData)?);
+                let v = u128::from_le_bytes(
+                    data[offset..offset + 16]
+                        .try_into()
+                        .map_err(|_| ProgramError::InvalidInstructionData)?,
+                );
                 self.push_u128(v)
             }
             ParamType::Bytes20 => {
@@ -410,7 +491,9 @@ fn parse_usize(s: &str) -> Result<usize, ProgramError> {
     let mut r = 0usize;
     for &b in s.as_bytes() {
         require!(b.is_ascii_digit(), ProgramError::InvalidInstructionData);
-        r = r.checked_mul(10).and_then(|r| r.checked_add((b - b'0') as usize))
+        r = r
+            .checked_mul(10)
+            .and_then(|r| r.checked_add((b - b'0') as usize))
             .ok_or(ProgramError::InvalidInstructionData)?;
     }
     Ok(r)

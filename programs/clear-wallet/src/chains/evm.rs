@@ -41,8 +41,8 @@
 
 use quasar_lang::prelude::*;
 
-use crate::state::intent::Intent;
 use super::{read_bytes20, read_param, read_u128, read_u64};
+use crate::state::intent::Intent;
 
 /// ERC-20 `transfer(address,uint256)` function selector.
 /// = `keccak256("transfer(address,uint256)")[0..4]`
@@ -221,7 +221,11 @@ fn rlp_bytes(buf: &mut [u8], len: &mut usize, data: &[u8]) -> Result<(), Program
     }
 }
 
-fn rlp_list_header(buf: &mut [u8], len: &mut usize, payload_len: usize) -> Result<(), ProgramError> {
+fn rlp_list_header(
+    buf: &mut [u8],
+    len: &mut usize,
+    payload_len: usize,
+) -> Result<(), ProgramError> {
     if payload_len < 56 {
         push(buf, len, 0xc0 + payload_len as u8)
     } else {

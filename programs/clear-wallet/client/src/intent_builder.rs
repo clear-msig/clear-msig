@@ -18,10 +18,10 @@
 //! let built = b.build();
 //! ```
 
-use std::{string::String, vec::Vec};
 use clear_wallet::utils::definition::*;
 use quasar_lang::prelude::*;
 use solana_address::Address;
+use std::{string::String, vec::Vec};
 
 /// Packed intent data ready for set_inner.
 /// Uses native Rust types (not Pod) since this runs off-chain.
@@ -79,7 +79,9 @@ pub struct IntentBuilder {
 }
 
 impl Default for IntentBuilder {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl IntentBuilder {
@@ -137,7 +139,12 @@ impl IntentBuilder {
         self
     }
 
-    pub fn add_param(&mut self, name: &str, param_type: ParamType, constraint: Option<(ConstraintType, u64)>) -> &mut Self {
+    pub fn add_param(
+        &mut self,
+        name: &str,
+        param_type: ParamType,
+        constraint: Option<(ConstraintType, u64)>,
+    ) -> &mut Self {
         let name_offset = self.pool.len() as u16;
         self.pool.extend_from_slice(name.as_bytes());
         let (ct, cv) = constraint.unwrap_or((ConstraintType::None, 0));
@@ -166,7 +173,12 @@ impl IntentBuilder {
         self
     }
 
-    pub fn add_param_account(&mut self, param_index: u8, signer: bool, writable: bool) -> &mut Self {
+    pub fn add_param_account(
+        &mut self,
+        param_index: u8,
+        signer: bool,
+        writable: bool,
+    ) -> &mut Self {
         let offset = self.pool.len() as u16;
         self.pool.push(param_index);
         self.accounts.push(AccountEntry {
@@ -247,7 +259,13 @@ impl IntentBuilder {
         self
     }
 
-    pub fn add_has_one_account(&mut self, account_index: u8, byte_offset: u16, signer: bool, writable: bool) -> &mut Self {
+    pub fn add_has_one_account(
+        &mut self,
+        account_index: u8,
+        byte_offset: u16,
+        signer: bool,
+        writable: bool,
+    ) -> &mut Self {
         let offset = self.pool.len() as u16;
         self.pool.push(account_index);
         self.pool.extend_from_slice(&byte_offset.to_le_bytes());
@@ -376,20 +394,20 @@ impl BuiltIntent {
         let mut out = Vec::new();
 
         // Fixed header (51 bytes)
-        out.extend_from_slice(wallet.as_ref());    // 32
-        out.push(bump);                             // 1
-        out.push(intent_index);                     // 1
-        out.push(intent_type);                      // 1
-        out.push(self.chain_kind);                  // 1
+        out.extend_from_slice(wallet.as_ref()); // 32
+        out.push(bump); // 1
+        out.push(intent_index); // 1
+        out.push(intent_type); // 1
+        out.push(self.chain_kind); // 1
         out.push(1u8); // approved                  // 1
-        out.push(self.approval_threshold);           // 1
-        out.push(self.cancellation_threshold);       // 1
+        out.push(self.approval_threshold); // 1
+        out.push(self.cancellation_threshold); // 1
         out.extend_from_slice(&self.timelock_seconds.to_le_bytes()); // 4
         out.extend_from_slice(&self.template_offset.to_le_bytes()); // 2
-        out.extend_from_slice(&self.template_len.to_le_bytes());    // 2
+        out.extend_from_slice(&self.template_len.to_le_bytes()); // 2
         out.extend_from_slice(&self.tx_template_offset.to_le_bytes()); // 2
-        out.extend_from_slice(&self.tx_template_len.to_le_bytes());    // 2
-        out.extend_from_slice(&0u16.to_le_bytes());                 // 2: active_proposal_count = 0
+        out.extend_from_slice(&self.tx_template_len.to_le_bytes()); // 2
+        out.extend_from_slice(&0u16.to_le_bytes()); // 2: active_proposal_count = 0
 
         // Dynamic fields: u32 LE count prefix + elements
         write_vec_address(&mut out, &self.proposers);

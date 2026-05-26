@@ -92,9 +92,7 @@ fn resolve_custom_accounts(
     // index, so the resolution table needs all addresses regardless
     // of whether each one ends up in remaining_accounts.
     for entry in &intent.accounts {
-        let address = resolve_account_source(
-            rpc, entry, intent, params_data, vault, &resolved,
-        )?;
+        let address = resolve_account_source(rpc, entry, intent, params_data, vault, &resolved)?;
         resolved.push(address);
     }
 
@@ -143,7 +141,10 @@ fn resolve_account_source(
     match entry.source_type {
         AccountSourceType::Static => {
             if pool_data.len() != 32 {
-                return Err(anyhow!("static account needs 32 bytes, got {}", pool_data.len()));
+                return Err(anyhow!(
+                    "static account needs 32 bytes, got {}",
+                    pool_data.len()
+                ));
             }
             Ok(Pubkey::new_from_array(pool_data.try_into().unwrap()))
         }
@@ -167,12 +168,15 @@ fn resolve_account_source(
             let seeds_start = u16::from_le_bytes([pool_data[1], pool_data[2]]) as usize;
             let seeds_count = u16::from_le_bytes([pool_data[3], pool_data[4]]) as usize;
 
-            let program_id = resolved.get(program_account_index)
-                .ok_or(anyhow!("PDA program account index {} not yet resolved", program_account_index))?;
+            let program_id = resolved.get(program_account_index).ok_or(anyhow!(
+                "PDA program account index {} not yet resolved",
+                program_account_index
+            ))?;
 
             let mut seed_bufs: Vec<Vec<u8>> = Vec::new();
             for i in seeds_start..seeds_start + seeds_count {
-                let seed_entry = seeds.get(i)
+                let seed_entry = seeds
+                    .get(i)
                     .ok_or(anyhow!("seed index {i} out of bounds"))?;
                 let seed_offset = seed_entry.pool_offset.get() as usize;
                 let seed_len = seed_entry.pool_len.get() as usize;
@@ -189,7 +193,8 @@ fn resolve_account_source(
                     }
                     SeedType::AccountRef => {
                         let acct_idx = seed_data[0] as usize;
-                        let acct = resolved.get(acct_idx)
+                        let acct = resolved
+                            .get(acct_idx)
                             .ok_or(anyhow!("AccountRef {acct_idx} not yet resolved"))?;
                         acct.to_bytes().to_vec()
                     }
@@ -208,8 +213,9 @@ fn resolve_account_source(
             let account_index = pool_data[0] as usize;
             let byte_offset = u16::from_le_bytes([pool_data[1], pool_data[2]]) as usize;
 
-            let source_addr = resolved.get(account_index)
-                .ok_or(anyhow!("HasOne references account {account_index} not yet resolved"))?;
+            let source_addr = resolved.get(account_index).ok_or(anyhow!(
+                "HasOne references account {account_index} not yet resolved"
+            ))?;
             let account_data = rpc::fetch_account(rpc, source_addr)?;
             let addr_bytes: [u8; 32] = account_data
                 .get(byte_offset..byte_offset + 32)
@@ -223,7 +229,9 @@ fn resolve_account_source(
 fn compute_param_offset(params: &[ParamEntry], params_data: &[u8], target: usize) -> Result<usize> {
     let mut offset = 0usize;
     for i in 0..target {
-        let param = params.get(i).ok_or(anyhow!("param index {i} out of bounds"))?;
+        let param = params
+            .get(i)
+            .ok_or(anyhow!("param index {i} out of bounds"))?;
         offset += param_byte_size(param.param_type, params_data, offset)
             .map_err(|_| anyhow!("error computing param size at index {i}"))?;
     }

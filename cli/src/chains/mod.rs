@@ -107,8 +107,14 @@ pub fn broadcast_signed_tx(
     match chain_kind {
         // 0 = solana — Ed25519 signed transaction.
         0 => {
-            let BroadcastInputs::Solana { destination, amount_lamports } = inputs else {
-                return Err(anyhow!("solana chain_kind requires BroadcastInputs::Solana"));
+            let BroadcastInputs::Solana {
+                destination,
+                amount_lamports,
+            } = inputs
+            else {
+                return Err(anyhow!(
+                    "solana chain_kind requires BroadcastInputs::Solana"
+                ));
             };
             solana_broadcast::assemble_and_broadcast(
                 destination,
@@ -166,10 +172,15 @@ pub fn broadcast_signed_tx(
         // 3 = zcash_transparent — P2PKH assembly + lightwalletd or Zcash RPC.
         3 => {
             let BroadcastInputs::ZcashTransparent {
-                header, version_group_id,
-                prev_txid, prev_vout, sender_pkh,
-                recipient_pkh, send_amount_zat,
-                lock_time, expiry_height,
+                header,
+                version_group_id,
+                prev_txid,
+                prev_vout,
+                sender_pkh,
+                recipient_pkh,
+                send_amount_zat,
+                lock_time,
+                expiry_height,
             } = inputs
             else {
                 return Err(anyhow!(
@@ -178,19 +189,23 @@ pub fn broadcast_signed_tx(
             };
             zcash::assemble_and_broadcast(
                 zcash::SpendInputs {
-                    header, version_group_id,
-                    prev_txid, prev_vout, sender_pkh,
-                    recipient_pkh, send_amount_zat,
-                    lock_time, expiry_height,
+                    header,
+                    version_group_id,
+                    prev_txid,
+                    prev_vout,
+                    sender_pkh,
+                    recipient_pkh,
+                    send_amount_zat,
+                    lock_time,
+                    expiry_height,
                 },
-                &r, &s,
+                &r,
+                &s,
                 dwallet_pubkey_compressed,
                 rpc_url,
             )
         }
         // 0 = solana — local CPI executor, never goes through this path.
-        n => Err(anyhow!(
-            "broadcast not implemented for chain_kind {n}"
-        )),
+        n => Err(anyhow!("broadcast not implemented for chain_kind {n}")),
     }
 }

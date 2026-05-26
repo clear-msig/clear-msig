@@ -8,10 +8,10 @@
 //! which Quasar serialises as two `DynVec<[u8; 32]>` in the instruction
 //! **data**.
 
-use solana_address::Address;
-use solana_instruction::{AccountMeta, Instruction};
 use super::ID;
 use quasar_lang::client::{DynBytes, DynVec, TailBytes};
+use solana_address::Address;
+use solana_instruction::{AccountMeta, Instruction};
 
 pub struct CreateWalletInstruction {
     pub payer: Address,

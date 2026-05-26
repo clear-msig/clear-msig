@@ -1,8 +1,8 @@
 use crate::config::RuntimeConfig;
 use crate::error::*;
 use crate::output::print_json;
-use crate::{accounts, message, params, resolve, rpc};
 use crate::signing::sign_message_with_fallback;
+use crate::{accounts, message, params, resolve, rpc};
 use clap::Subcommand;
 use ika_dwallet_types::{NetworkSignedAttestation, VersionedDWalletDataAttestation};
 use solana_sdk::pubkey::Pubkey;
@@ -119,14 +119,12 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             // Resolve wallet by name. Creator-scoped PDA upgrade —
             // see comment in intent.rs:120 for context.
             let client = rpc::client(config);
-            let (wallet_pubkey, wallet_account) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
+            let (wallet_pubkey, wallet_account) =
+                rpc::resolve_wallet_by_name(&client, &wallet_name)?;
             let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
 
-            let (intent_addr, _) = clear_wallet_client::pda::find_intent_address(
-                &wallet_addr,
-                intent_index,
-                &pid,
-            );
+            let (intent_addr, _) =
+                clear_wallet_client::pda::find_intent_address(&wallet_addr, intent_index, &pid);
             let intent_pubkey = Pubkey::new_from_array(intent_addr.to_bytes());
             let intent_data = rpc::fetch_account(&client, &intent_pubkey)?;
             let intent_account = accounts::parse_intent(&intent_data)?;
@@ -173,11 +171,8 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 &params_data,
             )?;
 
-            let (proposal_addr, _) = clear_wallet_client::pda::find_proposal_address(
-                &intent_addr,
-                proposal_index,
-                &pid,
-            );
+            let (proposal_addr, _) =
+                clear_wallet_client::pda::find_proposal_address(&intent_addr, proposal_index, &pid);
 
             if config.dry_run {
                 crate::output::print_dry_run(&crate::output::DryRunDescriptor {
@@ -261,8 +256,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             let (wallet_pubkey, _) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
             let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
 
-            let (vault_addr, _) =
-                clear_wallet_client::pda::find_vault_address(&wallet_addr, &pid);
+            let (vault_addr, _) = clear_wallet_client::pda::find_vault_address(&wallet_addr, &pid);
             let vault_pubkey = Pubkey::new_from_array(vault_addr.to_bytes());
 
             let proposal_pubkey: Pubkey = proposal_addr_str
@@ -296,8 +290,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             //   handler does the CPI directly. SOL transfers fall here.
             // - Custom intents on any other chain go through Ika dWallet
             //   signing.
-            let is_local = intent_account.intent_type <= 2
-                || intent_account.chain_kind == 0;
+            let is_local = intent_account.intent_type <= 2 || intent_account.chain_kind == 0;
             if is_local {
                 let payer_pubkey = solana_sdk::signer::Signer::pubkey(&config.payer);
                 let remaining = resolve::resolve_remaining_accounts(
@@ -328,9 +321,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 }));
             } else {
                 let dwallet_program_pk: Pubkey = dwallet_program
-                    .ok_or(anyhow!(
-                        "proposal execution requires --dwallet-program",
-                    ))?
+                    .ok_or(anyhow!("proposal execution requires --dwallet-program",))?
                     .parse()
                     .with_context(|| "invalid dWallet program ID")?;
 
@@ -360,17 +351,15 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             // Resolve wallet by name. Creator-scoped PDA upgrade —
             // see comment in intent.rs:120 for context.
             let client = rpc::client(config);
-            let (wallet_pubkey, wallet_account) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
+            let (wallet_pubkey, wallet_account) =
+                rpc::resolve_wallet_by_name(&client, &wallet_name)?;
             let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
 
             // Iterate all intents, then all proposals for each
             let mut proposals = Vec::new();
             for intent_idx in 0..=wallet_account.intent_index {
-                let (intent_addr, _) = clear_wallet_client::pda::find_intent_address(
-                    &wallet_addr,
-                    intent_idx,
-                    &pid,
-                );
+                let (intent_addr, _) =
+                    clear_wallet_client::pda::find_intent_address(&wallet_addr, intent_idx, &pid);
 
                 // Try fetching proposals for this intent
                 // We don't know the exact count, so scan from 0 up to wallet.proposal_index
@@ -439,7 +428,8 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             let client = rpc::client(config);
             let data = rpc::fetch_account(&client, &proposal_pubkey)?;
             let proposal = accounts::parse_proposal(&data)?;
-            let rent_refund: Pubkey = proposal.rent_refund
+            let rent_refund: Pubkey = proposal
+                .rent_refund
                 .parse()
                 .with_context(|| "invalid rent_refund address in proposal")?;
 
@@ -479,9 +469,7 @@ fn execute_via_ika(
     use std::time::Duration;
 
     let chain_kind = intent_account.chain_kind;
-    eprintln!(
-        "→ Remote-chain execution (chain_kind={chain_kind}) via Ika dWallet"
-    );
+    eprintln!("→ Remote-chain execution (chain_kind={chain_kind}) via Ika dWallet");
 
     let program_id = crate::instructions::program_id();
 
@@ -494,7 +482,10 @@ fn execute_via_ika(
         )
     })?;
     let cfg = accounts::parse_ika_config(&cfg_data)?;
-    let dwallet_pk: Pubkey = cfg.dwallet.parse().context("invalid dwallet in IkaConfig")?;
+    let dwallet_pk: Pubkey = cfg
+        .dwallet
+        .parse()
+        .context("invalid dwallet in IkaConfig")?;
     eprintln!("✓ IkaConfig: {ika_config_pk} → dWallet {dwallet_pk}");
 
     // 2. Resolve signing params and fetch the dWallet pubkey.
@@ -503,9 +494,8 @@ fn execute_via_ika(
     let curve_u16 = ika::curve_u16(curve);
     let scheme_u16 = scheme as u16;
 
-    let dwallet_data = rpc::fetch_account(client, &dwallet_pk).with_context(|| {
-        format!("failed to fetch dwallet account {dwallet_pk}")
-    })?;
+    let dwallet_data = rpc::fetch_account(client, &dwallet_pk)
+        .with_context(|| format!("failed to fetch dwallet account {dwallet_pk}"))?;
     let dwallet_account = accounts::parse_dwallet(&dwallet_data)?;
 
     // 3. Build the off-chain preimage and derive the message hash.
@@ -516,13 +506,18 @@ fn execute_via_ika(
         0 => {
             let dest = ika::read_param_bytes32(intent_account, &proposal_account.params_data, 0)?;
             let amt = ika::read_param_u64(intent_account, &proposal_account.params_data, 1)?;
-            let nonce_val = ika::read_param_bytes32(intent_account, &proposal_account.params_data, 2)?;
+            let nonce_val =
+                ika::read_param_bytes32(intent_account, &proposal_account.params_data, 2)?;
             let off = intent_account.tx_template_offset as usize;
             let nonce_acct: [u8; 32] = intent_account.byte_pool[off..off + 32]
-                .try_into().map_err(|_| anyhow!("nonce_account read failed"))?;
+                .try_into()
+                .map_err(|_| anyhow!("nonce_account read failed"))?;
             ika::build_solana_tx_message(
                 &dwallet_account.public_key[..32].try_into().unwrap(),
-                &dest, amt, &nonce_acct, &nonce_val,
+                &dest,
+                amt,
+                &nonce_acct,
+                &nonce_val,
             )
         }
         3 => ika::build_zcash_zip243_preimage(intent_account, &proposal_account.params_data)?,
@@ -540,8 +535,14 @@ fn execute_via_ika(
     let tt_len = intent_account.tx_template_len as usize;
     let tx_template = &intent_account.byte_pool[tt_off..tt_off + tt_len];
     let meta_digest = ika::metadata_digest(intent_account.chain_kind, tx_template);
-    let (message_approval_pk, message_approval_bump) =
-        ika::message_approval_pda(&dwallet_program, curve_u16, &dwallet_account.public_key, scheme_u16, &message_hash, &meta_digest);
+    let (message_approval_pk, message_approval_bump) = ika::message_approval_pda(
+        &dwallet_program,
+        curve_u16,
+        &dwallet_account.public_key,
+        scheme_u16,
+        &message_hash,
+        &meta_digest,
+    );
     let (coordinator_pk, _) = ika::coordinator_pda(&dwallet_program);
     let (cpi_authority_pk, cpi_authority_bump) = ika::cpi_authority_pda(&program_id);
     let (dwallet_ownership_pk, _) = ika::dwallet_ownership_pda(&program_id, &dwallet_pk);
@@ -571,8 +572,8 @@ fn execute_via_ika(
         cpi_authority_bump,
         blake2b_hashes,
     );
-    let quorum_tx_sig = rpc::send_instruction(client, config, ix)
-        .with_context(|| "ika_sign failed")?;
+    let quorum_tx_sig =
+        rpc::send_instruction(client, config, ix).with_context(|| "ika_sign failed")?;
     eprintln!("✓ ika_sign tx: {quorum_tx_sig}");
 
     // 6. Wait for the MessageApproval PDA to materialize on-chain.
@@ -591,15 +592,21 @@ fn execute_via_ika(
     let sign_message_for_broadcast: Vec<u8> = match chain_kind {
         0 => {
             // Solana: full transaction message with durable nonce.
-            let destination = ika::read_param_bytes32(intent_account, &proposal_account.params_data, 0)?;
+            let destination =
+                ika::read_param_bytes32(intent_account, &proposal_account.params_data, 0)?;
             let amount = ika::read_param_u64(intent_account, &proposal_account.params_data, 1)?;
-            let nonce_value = ika::read_param_bytes32(intent_account, &proposal_account.params_data, 2)?;
+            let nonce_value =
+                ika::read_param_bytes32(intent_account, &proposal_account.params_data, 2)?;
             let off = intent_account.tx_template_offset as usize;
             let nonce_account: [u8; 32] = intent_account.byte_pool[off..off + 32]
-                .try_into().map_err(|_| anyhow!("nonce_account read failed"))?;
+                .try_into()
+                .map_err(|_| anyhow!("nonce_account read failed"))?;
             ika::build_solana_tx_message(
                 &dwallet_account.public_key[..32].try_into().unwrap(),
-                &destination, amount, &nonce_account, &nonce_value,
+                &destination,
+                amount,
+                &nonce_account,
+                &nonce_value,
             )
         }
         3 => ika::build_zcash_zip243_preimage(intent_account, &proposal_account.params_data)?,
@@ -614,8 +621,8 @@ fn execute_via_ika(
     // already in `signed` state from the prior successful execute.
     // Re-running gRPC presign+sign would either duplicate work or
     // get rejected by Ika; we just reuse the on-chain signature.
-    let already_signed = ma_data.len() > ika::MA_STATUS
-        && ma_data[ika::MA_STATUS] == ika::MA_STATUS_SIGNED;
+    let already_signed =
+        ma_data.len() > ika::MA_STATUS && ma_data[ika::MA_STATUS] == ika::MA_STATUS_SIGNED;
     let ma_signed: Vec<u8> = if already_signed {
         eprintln!("✓ MessageApproval already signed — reusing on-chain signature");
         ma_data
@@ -682,7 +689,9 @@ fn execute_via_ika(
         let message_metadata: Vec<u8> = if chain_kind == 3 {
             let off = intent_account.tx_template_offset as usize;
             let branch_id = u32::from_le_bytes(
-                intent_account.byte_pool[off + 16..off + 20].try_into().unwrap()
+                intent_account.byte_pool[off + 16..off + 20]
+                    .try_into()
+                    .unwrap(),
             );
             let personal = ika::zcash_sighash_personal(branch_id);
             let metadata = ika_dwallet_types::Blake2bMessageMetadata {
@@ -795,9 +804,8 @@ fn execute_via_ika(
             wire_tx.extend_from_slice(&sign_message_for_broadcast);
 
             let sol_client = solana_client::rpc_client::RpcClient::new(rpc_url.to_string());
-            let tx: solana_sdk::transaction::Transaction =
-                bincode::deserialize(&wire_tx)
-                    .with_context(|| "failed to deserialize Solana transaction")?;
+            let tx: solana_sdk::transaction::Transaction = bincode::deserialize(&wire_tx)
+                .with_context(|| "failed to deserialize Solana transaction")?;
             let tx_sig = sol_client
                 .send_and_confirm_transaction(&tx)
                 .with_context(|| "failed to send Solana transaction")?;
@@ -809,11 +817,8 @@ fn execute_via_ika(
                 "raw_tx_hex": format!("0x{}", hex_lower(&wire_tx)),
             });
         } else {
-            let inputs = build_broadcast_inputs(
-                chain_kind,
-                intent_account,
-                &proposal_account.params_data,
-            )?;
+            let inputs =
+                build_broadcast_inputs(chain_kind, intent_account, &proposal_account.params_data)?;
 
             let result = crate::chains::broadcast_signed_tx(
                 chain_kind,
@@ -845,9 +850,8 @@ fn attestation_session_for_binding(
     expected_public_key: &[u8],
     expected_session_hex: &str,
 ) -> Result<[u8; 32]> {
-    let versioned: VersionedDWalletDataAttestation =
-        bcs::from_bytes(&attestation.attestation_data)
-            .with_context(|| "failed to decode dWallet attestation")?;
+    let versioned: VersionedDWalletDataAttestation = bcs::from_bytes(&attestation.attestation_data)
+        .with_context(|| "failed to decode dWallet attestation")?;
     let VersionedDWalletDataAttestation::V1(data) = versioned;
 
     if data.public_key != expected_public_key {
@@ -894,7 +898,10 @@ fn build_broadcast_inputs(
         0 => {
             let destination = ika::read_param_bytes32(intent, params_data, 0)?;
             let amount_lamports = ika::read_param_u64(intent, params_data, 1)?;
-            Ok(BroadcastInputs::Solana { destination, amount_lamports })
+            Ok(BroadcastInputs::Solana {
+                destination,
+                amount_lamports,
+            })
         }
         1 | 4 => Ok(BroadcastInputs::Evm),
         2 => {
@@ -975,9 +982,7 @@ fn build_broadcast_inputs(
                 expiry_height,
             })
         }
-        n => Err(anyhow!(
-            "broadcast not supported for chain_kind {n}"
-        )),
+        n => Err(anyhow!("broadcast not supported for chain_kind {n}")),
     }
 }
 
@@ -987,7 +992,9 @@ fn parse_hex_local(s: &str) -> Result<Vec<u8>> {
         return Err(anyhow!("hex string has odd length"));
     }
     (0..s.len() / 2)
-        .map(|i| u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).map_err(|e| anyhow!("invalid hex: {e}")))
+        .map(|i| {
+            u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).map_err(|e| anyhow!("invalid hex: {e}"))
+        })
         .collect()
 }
 
@@ -1053,7 +1060,11 @@ fn approve_or_cancel(
 
     if config.dry_run {
         crate::output::print_dry_run(&crate::output::DryRunDescriptor {
-            action: if is_approve { "proposal_approve" } else { "proposal_cancel" },
+            action: if is_approve {
+                "proposal_approve"
+            } else {
+                "proposal_cancel"
+            },
             wallet_name: &wallet_account.name,
             wallet_pubkey: wallet_pubkey.to_string(),
             intent_index: intent_account.intent_index,

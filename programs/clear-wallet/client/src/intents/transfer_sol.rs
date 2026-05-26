@@ -1,5 +1,5 @@
+use crate::intent_builder::{BuiltIntent, IntentBuilder};
 use clear_wallet::utils::definition::*;
-use crate::intent_builder::{IntentBuilder, BuiltIntent};
 use solana_address::Address;
 
 const SYSTEM_PROGRAM: Address = solana_address::address!("11111111111111111111111111111111");
@@ -19,10 +19,18 @@ pub struct IntentConfig<'a> {
 pub fn build(config: &IntentConfig<'_>) -> BuiltIntent {
     let mut b = IntentBuilder::new();
 
-    b.set_governance(config.approval_threshold, config.cancellation_threshold, config.timelock_seconds);
+    b.set_governance(
+        config.approval_threshold,
+        config.cancellation_threshold,
+        config.timelock_seconds,
+    );
 
-    for p in config.proposers { b.add_proposer(*p); }
-    for a in config.approvers { b.add_approver(*a); }
+    for p in config.proposers {
+        b.add_proposer(*p);
+    }
+    for a in config.approvers {
+        b.add_approver(*a);
+    }
 
     b.add_param("destination", ParamType::Address, None);
     b.add_param("amount", ParamType::U64, None);

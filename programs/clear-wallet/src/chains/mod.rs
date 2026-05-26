@@ -140,7 +140,13 @@ pub fn dispatch_sighash(
         }
         ChainKind::ZcashTransparent => {
             if *blake2b_hashes != [0u8; 96] {
-                zcash::build_zip243_preimage(intent, params_data, tx_template, blake2b_hashes, &mut buf)?
+                zcash::build_zip243_preimage(
+                    intent,
+                    params_data,
+                    tx_template,
+                    blake2b_hashes,
+                    &mut buf,
+                )?
             } else {
                 zcash::build_preimage(intent, params_data, tx_template, &mut buf)?
             }
@@ -153,10 +159,7 @@ pub fn dispatch_sighash(
 ///
 /// For Zcash: BCS-serialize Blake2bMessageMetadata { personal, salt },
 /// then keccak256 the result. For all other chains: zeros.
-pub fn dispatch_metadata_digest(
-    chain_kind: u8,
-    tx_template: &[u8],
-) -> [u8; 32] {
+pub fn dispatch_metadata_digest(chain_kind: u8, tx_template: &[u8]) -> [u8; 32] {
     let kind = match ChainKind::from_u8(chain_kind) {
         Ok(k) => k,
         Err(_) => return [0u8; 32],
@@ -166,9 +169,7 @@ pub fn dispatch_metadata_digest(
             if tx_template.len() < 20 {
                 return [0u8; 32];
             }
-            let branch_id = u32::from_le_bytes(
-                tx_template[16..20].try_into().unwrap_or([0; 4]),
-            );
+            let branch_id = u32::from_le_bytes(tx_template[16..20].try_into().unwrap_or([0; 4]));
             // "ZcashSigHash" (12 bytes) + branch_id LE (4 bytes) = 16 bytes
             let mut personal = [0u8; 16];
             personal[..12].copy_from_slice(b"ZcashSigHash");

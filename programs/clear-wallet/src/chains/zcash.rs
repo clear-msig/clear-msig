@@ -31,9 +31,9 @@
 //!   param[4] = recipient_pkh      : Bytes20  (HASH160 of recipient's pubkey for P2PKH)
 //!   param[5] = send_amount_zat    : U64      (output value in zatoshi)
 
-use quasar_lang::prelude::*;
-use crate::state::intent::Intent;
 use super::{read_bytes20, read_bytes32, read_u64};
+use crate::state::intent::Intent;
+use quasar_lang::prelude::*;
 
 pub const TX_TEMPLATE_LEN: usize = 20;
 
@@ -74,18 +74,29 @@ pub fn build_preimage(
     // transaction fields. Both on-chain and off-chain produce these exact
     // bytes for keccak256 → MessageApproval PDA.
     let mut p = 0;
-    out[p..p + 4].copy_from_slice(header);                    p += 4;
-    out[p..p + 4].copy_from_slice(version_group_id);          p += 4;
-    out[p..p + 32].copy_from_slice(&prev_txid);               p += 32;
-    out[p..p + 4].copy_from_slice(&prev_vout.to_le_bytes());  p += 4;
-    out[p..p + 8].copy_from_slice(&prev_amount.to_le_bytes());p += 8;
-    out[p..p + 20].copy_from_slice(&sender_pkh);              p += 20;
-    out[p..p + 20].copy_from_slice(&recipient_pkh);           p += 20;
-    out[p..p + 8].copy_from_slice(&send_amount.to_le_bytes());p += 8;
-    out[p..p + 4].copy_from_slice(lock_time);                 p += 4;
-    out[p..p + 4].copy_from_slice(expiry_height);             p += 4;
+    out[p..p + 4].copy_from_slice(header);
+    p += 4;
+    out[p..p + 4].copy_from_slice(version_group_id);
+    p += 4;
+    out[p..p + 32].copy_from_slice(&prev_txid);
+    p += 32;
+    out[p..p + 4].copy_from_slice(&prev_vout.to_le_bytes());
+    p += 4;
+    out[p..p + 8].copy_from_slice(&prev_amount.to_le_bytes());
+    p += 8;
+    out[p..p + 20].copy_from_slice(&sender_pkh);
+    p += 20;
+    out[p..p + 20].copy_from_slice(&recipient_pkh);
+    p += 20;
+    out[p..p + 8].copy_from_slice(&send_amount.to_le_bytes());
+    p += 8;
+    out[p..p + 4].copy_from_slice(lock_time);
+    p += 4;
+    out[p..p + 4].copy_from_slice(expiry_height);
+    p += 4;
     // SIGHASH_ALL = 0x01
-    out[p..p + 4].copy_from_slice(&1u32.to_le_bytes());       p += 4;
+    out[p..p + 4].copy_from_slice(&1u32.to_le_bytes());
+    p += 4;
 
     debug_assert_eq!(p, PREIMAGE_LEN);
     Ok(PREIMAGE_LEN)
@@ -150,22 +161,38 @@ pub fn build_zip243_preimage(
     let hash_outputs = &blake2b_hashes[64..96];
 
     let mut p = 0;
-    out[p..p + 4].copy_from_slice(header);              p += 4;
-    out[p..p + 4].copy_from_slice(version_group_id);    p += 4;
-    out[p..p + 32].copy_from_slice(hash_prevouts);      p += 32;
-    out[p..p + 32].copy_from_slice(hash_sequence);      p += 32;
-    out[p..p + 32].copy_from_slice(hash_outputs);       p += 32;
-    out[p..p + 32].copy_from_slice(&[0u8; 32]);         p += 32; // hashJoinSplits
-    out[p..p + 32].copy_from_slice(&[0u8; 32]);         p += 32; // hashShieldedSpends
-    out[p..p + 32].copy_from_slice(&[0u8; 32]);         p += 32; // hashShieldedOutputs
-    out[p..p + 4].copy_from_slice(lock_time);           p += 4;
-    out[p..p + 4].copy_from_slice(expiry_height);       p += 4;
-    out[p..p + 8].copy_from_slice(&0i64.to_le_bytes()); p += 8;  // valueBalance
-    out[p..p + 4].copy_from_slice(&sighash_type.to_le_bytes()); p += 4;
-    out[p..p + 36].copy_from_slice(&outpoint);          p += 36;
-    out[p..p + 26].copy_from_slice(&script_code);       p += 26;
-    out[p..p + 8].copy_from_slice(&prev_amount.to_le_bytes()); p += 8;
-    out[p..p + 4].copy_from_slice(&sequence.to_le_bytes());    p += 4;
+    out[p..p + 4].copy_from_slice(header);
+    p += 4;
+    out[p..p + 4].copy_from_slice(version_group_id);
+    p += 4;
+    out[p..p + 32].copy_from_slice(hash_prevouts);
+    p += 32;
+    out[p..p + 32].copy_from_slice(hash_sequence);
+    p += 32;
+    out[p..p + 32].copy_from_slice(hash_outputs);
+    p += 32;
+    out[p..p + 32].copy_from_slice(&[0u8; 32]);
+    p += 32; // hashJoinSplits
+    out[p..p + 32].copy_from_slice(&[0u8; 32]);
+    p += 32; // hashShieldedSpends
+    out[p..p + 32].copy_from_slice(&[0u8; 32]);
+    p += 32; // hashShieldedOutputs
+    out[p..p + 4].copy_from_slice(lock_time);
+    p += 4;
+    out[p..p + 4].copy_from_slice(expiry_height);
+    p += 4;
+    out[p..p + 8].copy_from_slice(&0i64.to_le_bytes());
+    p += 8; // valueBalance
+    out[p..p + 4].copy_from_slice(&sighash_type.to_le_bytes());
+    p += 4;
+    out[p..p + 36].copy_from_slice(&outpoint);
+    p += 36;
+    out[p..p + 26].copy_from_slice(&script_code);
+    p += 26;
+    out[p..p + 8].copy_from_slice(&prev_amount.to_le_bytes());
+    p += 8;
+    out[p..p + 4].copy_from_slice(&sequence.to_le_bytes());
+    p += 4;
 
     debug_assert_eq!(p, ZIP243_PREIMAGE_LEN);
     Ok(ZIP243_PREIMAGE_LEN)

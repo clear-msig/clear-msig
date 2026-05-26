@@ -1,4 +1,4 @@
 pub mod config;
-pub mod wallet;
 pub mod intent;
 pub mod proposal;
+pub mod wallet;

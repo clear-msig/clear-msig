@@ -111,9 +111,10 @@ impl RateLimiter {
     async fn check(&self, pubkey: &str) -> Result<(), ApiError> {
         let mut buckets = self.buckets.lock().await;
         let now = std::time::Instant::now();
-        let state = buckets
-            .entry(pubkey.to_string())
-            .or_insert(BucketState { window_start: now, count: 0 });
+        let state = buckets.entry(pubkey.to_string()).or_insert(BucketState {
+            window_start: now,
+            count: 0,
+        });
         if now.duration_since(state.window_start) > self.window {
             state.window_start = now;
             state.count = 0;
@@ -134,7 +135,10 @@ enum ApiError {
     #[error("bad request: {0}")]
     BadRequest(String),
     #[error("rate limited")]
-    RateLimited { retry_after: Duration, max_per_window: u32 },
+    RateLimited {
+        retry_after: Duration,
+        max_per_window: u32,
+    },
     #[error("command failed")]
     CommandFailed {
         code: Option<i32>,
@@ -164,7 +168,10 @@ impl IntoResponse for ApiError {
             ApiError::BadRequest(message) => {
                 serde_json::json!({ "error": message, "kind": "bad_request" })
             }
-            ApiError::RateLimited { retry_after, max_per_window } => serde_json::json!({
+            ApiError::RateLimited {
+                retry_after,
+                max_per_window,
+            } => serde_json::json!({
                 "error": format!(
                     "rate limit exceeded ({max_per_window} per window); retry in {}s",
                     retry_after.as_secs()
@@ -172,7 +179,11 @@ impl IntoResponse for ApiError {
                 "kind": "rate_limited",
                 "retry_after_secs": retry_after.as_secs(),
             }),
-            ApiError::CommandFailed { code, stderr, stdout } => serde_json::json!({
+            ApiError::CommandFailed {
+                code,
+                stderr,
+                stdout,
+            } => serde_json::json!({
                 "error": "clear-msig command failed",
                 "kind": "command_failed",
                 "code": code,
@@ -272,7 +283,11 @@ impl CliRunner {
             dry_run,
             actor = actor_prefix.as_deref().unwrap_or("-"),
             elapsed_ms,
-            outcome = if parsed.is_ok() { "ok" } else { "invalid_output" },
+            outcome = if parsed.is_ok() {
+                "ok"
+            } else {
+                "invalid_output"
+            },
             "clear-msig CLI invocation"
         );
 
@@ -302,7 +317,11 @@ fn cli_subcommand_label(args: &[String]) -> String {
         seen += 1;
         i += 1;
     }
-    if out.is_empty() { "-".into() } else { out.join(" ") }
+    if out.is_empty() {
+        "-".into()
+    } else {
+        out.join(" ")
+    }
 }
 
 /// Return the first 6 chars of the signer pubkey in the argv, if any,
@@ -618,7 +637,9 @@ fn parse_wallet_name(data: &[u8]) -> Result<Option<(String, String)>, ApiError> 
     Ok(Some((name, creator)))
 }
 
-fn parse_intent_membership(data: &[u8]) -> Result<Option<(String, u8, Vec<String>, Vec<String>)>, ApiError> {
+fn parse_intent_membership(
+    data: &[u8],
+) -> Result<Option<(String, u8, Vec<String>, Vec<String>)>, ApiError> {
     if data.first().copied() != Some(2) {
         return Ok(None);
     }
@@ -647,10 +668,10 @@ fn parse_intent_membership(data: &[u8]) -> Result<Option<(String, u8, Vec<String
     // are tight-packed). Drift here silently corrupts the membership scan
     // for any wallet that has a custom intent with non-empty vectors.
     skip_raw_vec(data, &mut offset, 14)?; // ParamEntry   = u8+PodU16+PodU16+u8+PodU64
-    skip_raw_vec(data, &mut offset, 7)?;  // AccountEntry = bool+bool+u8+PodU16+PodU16
-    skip_raw_vec(data, &mut offset, 9)?;  // InstructionEntry = u8 + 4*PodU16
-    skip_raw_vec(data, &mut offset, 5)?;  // DataSegmentEntry = u8 + 2*PodU16
-    skip_raw_vec(data, &mut offset, 5)?;  // SeedEntry        = u8 + 2*PodU16
+    skip_raw_vec(data, &mut offset, 7)?; // AccountEntry = bool+bool+u8+PodU16+PodU16
+    skip_raw_vec(data, &mut offset, 9)?; // InstructionEntry = u8 + 4*PodU16
+    skip_raw_vec(data, &mut offset, 5)?; // DataSegmentEntry = u8 + 2*PodU16
+    skip_raw_vec(data, &mut offset, 5)?; // SeedEntry        = u8 + 2*PodU16
     skip_u8_vec(data, &mut offset)?; // byte_pool
 
     Ok(Some((wallet, intent_index, proposers, approvers)))
@@ -739,7 +760,11 @@ async fn membership_lookup(
         .run_json(vec!["config".to_string(), "show".to_string()])
         .await
         .ok()
-        .and_then(|cfg| cfg.get("program_id").and_then(|v| v.as_str()).map(ToString::to_string))
+        .and_then(|cfg| {
+            cfg.get("program_id")
+                .and_then(|v| v.as_str())
+                .map(ToString::to_string)
+        })
         .or_else(|| std::env::var("CLEAR_MSIG_PROGRAM_ID").ok())
         .unwrap_or_else(|| "Abf68HjgGyaCqGtu2W9Tg7Kkz5iJoBvAb8e86M6xTkNJ".to_string());
 
@@ -850,7 +875,9 @@ fn format_expiry(unix_ts: i64) -> Result<String, ApiError> {
             "expiry timestamp {unix_ts} resolves to year {year}, out of supported range"
         )));
     }
-    Ok(format!("{year:04}-{m:02}-{d:02} {hour:02}:{min:02}:{sec:02}"))
+    Ok(format!(
+        "{year:04}-{m:02}-{d:02} {hour:02}:{min:02}:{sec:02}"
+    ))
 }
 
 fn ensure_non_empty(value: &str, field: &str) -> Result<(), ApiError> {
@@ -902,9 +929,7 @@ fn ensure_intent_filename(value: &str, field: &str) -> Result<(), ApiError> {
         return Err(ApiError::BadRequest(format!("{field} basename too long")));
     }
     if !basename.ends_with(".json") {
-        return Err(ApiError::BadRequest(format!(
-            "{field} must end in .json"
-        )));
+        return Err(ApiError::BadRequest(format!("{field} must end in .json")));
     }
     if basename.starts_with('.') || basename.contains("..") {
         return Err(ApiError::BadRequest(format!("{field} not permitted")));
@@ -936,12 +961,9 @@ fn ensure_base58_pubkey(value: &str, field: &str) -> Result<(), ApiError> {
         )));
     }
     // Bitcoin / IPFS base58 alphabet — same one Solana uses.
-    const ALPHABET: &[u8] =
-        b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+    const ALPHABET: &[u8] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
     if !trimmed.bytes().all(|b| ALPHABET.contains(&b)) {
-        return Err(ApiError::BadRequest(format!(
-            "{field} is not valid base58"
-        )));
+        return Err(ApiError::BadRequest(format!("{field} is not valid base58")));
     }
     Ok(())
 }
@@ -1124,10 +1146,7 @@ fn push_policy_ciphertexts(args: &mut Vec<String>, ids: &[String]) {
 ///
 /// Validates the base58 length so a malformed pubkey from the
 /// frontend gets a clean 400 instead of a confusing CLI error.
-fn push_actor_pubkey(
-    args: &mut Vec<String>,
-    actor: &Option<String>,
-) -> Result<(), ApiError> {
+fn push_actor_pubkey(args: &mut Vec<String>, actor: &Option<String>) -> Result<(), ApiError> {
     let Some(pk) = actor.as_deref() else {
         return Ok(());
     };
@@ -1198,7 +1217,9 @@ async fn add_wallet_chain(
         })?;
     ensure_non_empty(&dwallet_program, "dwallet_program")?;
 
-    let grpc_url = body.grpc_url.or_else(|| state.runner.default_grpc_url.clone());
+    let grpc_url = body
+        .grpc_url
+        .or_else(|| state.runner.default_grpc_url.clone());
 
     let mut args = vec![
         "wallet".to_string(),
@@ -1269,7 +1290,10 @@ async fn add_intent(
     ensure_wallet_name(&name, "name")?;
     ensure_intent_filename(&body.file, "file")?;
     body.pre_signed.ensure_valid()?;
-    state.rate_limiter.check(&body.pre_signed.signer_pubkey).await?;
+    state
+        .rate_limiter
+        .check(&body.pre_signed.signer_pubkey)
+        .await?;
 
     let mut args = Vec::with_capacity(16);
     push_pre_signed_flags(&mut args, &body.pre_signed);
@@ -1293,7 +1317,10 @@ async fn remove_intent(
 ) -> Result<Json<Value>, ApiError> {
     ensure_wallet_name(&name, "name")?;
     body.pre_signed.ensure_valid()?;
-    state.rate_limiter.check(&body.pre_signed.signer_pubkey).await?;
+    state
+        .rate_limiter
+        .check(&body.pre_signed.signer_pubkey)
+        .await?;
 
     let mut args = Vec::with_capacity(12);
     push_pre_signed_flags(&mut args, &body.pre_signed);
@@ -1318,7 +1345,10 @@ async fn update_intent(
     ensure_wallet_name(&name, "name")?;
     ensure_intent_filename(&body.file, "file")?;
     body.pre_signed.ensure_valid()?;
-    state.rate_limiter.check(&body.pre_signed.signer_pubkey).await?;
+    state
+        .rate_limiter
+        .check(&body.pre_signed.signer_pubkey)
+        .await?;
 
     let mut args = Vec::with_capacity(14);
     push_pre_signed_flags(&mut args, &body.pre_signed);
@@ -1344,7 +1374,10 @@ async fn create_proposal(
 ) -> Result<Json<Value>, ApiError> {
     ensure_wallet_name(&name, "name")?;
     body.pre_signed.ensure_valid()?;
-    state.rate_limiter.check(&body.pre_signed.signer_pubkey).await?;
+    state
+        .rate_limiter
+        .check(&body.pre_signed.signer_pubkey)
+        .await?;
     if body.pre_signed.params_data_hex.is_none() {
         return Err(ApiError::BadRequest(
             "params_data_hex is required for proposal create — build it via /prepare first".into(),
@@ -1410,7 +1443,10 @@ async fn approve_proposal(
     ensure_wallet_name(&name, "name")?;
     ensure_base58(&proposal, "proposal", 32, 88)?;
     body.pre_signed.ensure_valid()?;
-    state.rate_limiter.check(&body.pre_signed.signer_pubkey).await?;
+    state
+        .rate_limiter
+        .check(&body.pre_signed.signer_pubkey)
+        .await?;
 
     let mut args = Vec::with_capacity(12);
     push_pre_signed_flags(&mut args, &body.pre_signed);
@@ -1435,7 +1471,10 @@ async fn cancel_proposal(
     ensure_wallet_name(&name, "name")?;
     ensure_base58(&proposal, "proposal", 32, 88)?;
     body.pre_signed.ensure_valid()?;
-    state.rate_limiter.check(&body.pre_signed.signer_pubkey).await?;
+    state
+        .rate_limiter
+        .check(&body.pre_signed.signer_pubkey)
+        .await?;
 
     let mut args = Vec::with_capacity(12);
     push_pre_signed_flags(&mut args, &body.pre_signed);
@@ -1640,7 +1679,11 @@ async fn prepare_approve_or_cancel(
     push_actor_pubkey(&mut args, &body.actor_pubkey)?;
     args.extend([
         "proposal".into(),
-        if is_approve { "approve".into() } else { "cancel".into() },
+        if is_approve {
+            "approve".into()
+        } else {
+            "cancel".into()
+        },
         "--wallet".into(),
         name,
         "--proposal".into(),
@@ -1680,7 +1723,9 @@ async fn execute_proposal(
         args.push(dwallet_program);
     }
 
-    let grpc_url = body.grpc_url.or_else(|| state.runner.default_grpc_url.clone());
+    let grpc_url = body
+        .grpc_url
+        .or_else(|| state.runner.default_grpc_url.clone());
     if let Some(grpc_url) = grpc_url {
         ensure_non_empty(&grpc_url, "grpc_url")?;
         args.push("--grpc-url".to_string());
@@ -1721,9 +1766,14 @@ async fn stream_execute_proposal(
     State(state): State<AppState>,
     Path((name, proposal)): Path<(String, String)>,
     Query(body): Query<ExecuteProposalRequest>,
-) -> Result<axum::response::sse::Sse<
-    impl futures_core::Stream<Item = std::result::Result<axum::response::sse::Event, std::convert::Infallible>>,
->, ApiError> {
+) -> Result<
+    axum::response::sse::Sse<
+        impl futures_core::Stream<
+            Item = std::result::Result<axum::response::sse::Event, std::convert::Infallible>,
+        >,
+    >,
+    ApiError,
+> {
     use axum::response::sse::{Event, KeepAlive, Sse};
 
     ensure_wallet_name(&name, "name")?;
@@ -1746,7 +1796,9 @@ async fn stream_execute_proposal(
         args.push("--dwallet-program".into());
         args.push(v);
     }
-    let grpc_url = body.grpc_url.or_else(|| state.runner.default_grpc_url.clone());
+    let grpc_url = body
+        .grpc_url
+        .or_else(|| state.runner.default_grpc_url.clone());
     if let Some(v) = grpc_url {
         ensure_non_empty(&v, "grpc_url")?;
         args.push("--grpc-url".into());
@@ -1769,9 +1821,9 @@ async fn stream_execute_proposal(
     let (tx, rx) = tokio::sync::mpsc::channel::<Event>(32);
     let runner = state.runner.clone();
     tokio::spawn(async move {
+        use std::process::Stdio;
         use tokio::io::{AsyncBufReadExt, BufReader};
         use tokio::process::Command;
-        use std::process::Stdio;
 
         let mut cmd = Command::new(&runner.cli_bin);
         cmd.args(&runner.base_args)
@@ -1779,31 +1831,31 @@ async fn stream_execute_proposal(
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        let child = match cmd.spawn() {
-            Ok(c) => c,
-            Err(e) => {
-                let _ = tx
-                    .send(
-                        Event::default().event("error").data(
+        let child =
+            match cmd.spawn() {
+                Ok(c) => c,
+                Err(e) => {
+                    let _ = tx
+                        .send(Event::default().event("error").data(
                             serde_json::json!({ "error": format!("spawn: {e}") }).to_string(),
-                        ),
-                    )
-                    .await;
-                return;
-            }
-        };
+                        ))
+                        .await;
+                    return;
+                }
+            };
         let mut child = child;
-        let stderr = match child.stderr.take() {
-            Some(s) => s,
-            None => {
-                let _ = tx
-                    .send(Event::default().event("error").data(
-                        serde_json::json!({ "error": "missing stderr pipe" }).to_string(),
-                    ))
-                    .await;
-                return;
-            }
-        };
+        let stderr =
+            match child.stderr.take() {
+                Some(s) => s,
+                None => {
+                    let _ = tx
+                        .send(Event::default().event("error").data(
+                            serde_json::json!({ "error": "missing stderr pipe" }).to_string(),
+                        ))
+                        .await;
+                    return;
+                }
+            };
         let stdout = child.stdout.take();
 
         // Stream stderr line-by-line as `progress` events.
@@ -1831,17 +1883,18 @@ async fn stream_execute_proposal(
             Vec::new()
         };
 
-        let status = match child.wait().await {
-            Ok(s) => s,
-            Err(e) => {
-                let _ = tx
-                    .send(Event::default().event("error").data(
-                        serde_json::json!({ "error": format!("wait: {e}") }).to_string(),
-                    ))
-                    .await;
-                return;
-            }
-        };
+        let status =
+            match child.wait().await {
+                Ok(s) => s,
+                Err(e) => {
+                    let _ =
+                        tx.send(Event::default().event("error").data(
+                            serde_json::json!({ "error": format!("wait: {e}") }).to_string(),
+                        ))
+                        .await;
+                    return;
+                }
+            };
 
         let _ = stderr_task.await;
 
@@ -1854,18 +1907,21 @@ async fn stream_execute_proposal(
                 .await;
         } else {
             let _ = tx
-                .send(Event::default().event("error").data(
-                    serde_json::json!({
-                        "code": status.code(),
-                        "stdout": stdout_str,
-                    })
-                    .to_string(),
-                ))
+                .send(
+                    Event::default().event("error").data(
+                        serde_json::json!({
+                            "code": status.code(),
+                            "stdout": stdout_str,
+                        })
+                        .to_string(),
+                    ),
+                )
                 .await;
         }
     });
 
-    let stream = tokio_stream::wrappers::ReceiverStream::new(rx).map(std::result::Result::<_, std::convert::Infallible>::Ok);
+    let stream = tokio_stream::wrappers::ReceiverStream::new(rx)
+        .map(std::result::Result::<_, std::convert::Infallible>::Ok);
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }
 
@@ -2057,7 +2113,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/wallets/{name}/intents/add", post(add_intent))
         .route("/wallets/{name}/intents/remove", post(remove_intent))
         .route("/wallets/{name}/intents/update", post(update_intent))
-        .route("/wallets/{name}/proposals", post(create_proposal).get(list_proposals))
+        .route(
+            "/wallets/{name}/proposals",
+            post(create_proposal).get(list_proposals),
+        )
         .route(
             "/wallets/{name}/proposals/{proposal}/approve",
             post(approve_proposal),
@@ -2079,9 +2138,18 @@ async fn main() -> anyhow::Result<()> {
         // Dry-run mirrors of the signed-submit routes. Given the same
         // inputs (minus signature/signer_pubkey) they return the exact
         // bytes the wallet must sign.
-        .route("/prepare/wallets/{name}/intents/add", post(prepare_intent_add))
-        .route("/prepare/wallets/{name}/intents/remove", post(prepare_intent_remove))
-        .route("/prepare/wallets/{name}/intents/update", post(prepare_intent_update))
+        .route(
+            "/prepare/wallets/{name}/intents/add",
+            post(prepare_intent_add),
+        )
+        .route(
+            "/prepare/wallets/{name}/intents/remove",
+            post(prepare_intent_remove),
+        )
+        .route(
+            "/prepare/wallets/{name}/intents/update",
+            post(prepare_intent_update),
+        )
         .route(
             "/prepare/wallets/{name}/proposals/create",
             post(prepare_proposal_create),

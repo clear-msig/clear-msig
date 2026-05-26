@@ -4,9 +4,9 @@
 //! Includes the `dwallet_ownership` account (placed after `ika_config` per
 //! the on-chain struct order). The previous vendored copy omitted it.
 
+use super::ID;
 use solana_address::Address;
 use solana_instruction::{AccountMeta, Instruction};
-use super::ID;
 
 pub struct IkaSignInstruction {
     pub payer: Address,

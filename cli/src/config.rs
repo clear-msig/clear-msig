@@ -1,7 +1,6 @@
 use crate::error::*;
 use crate::signing::{
-    KeypairMessageSigner, MessageSigner, PreSignedMessageSigner,
-    PubkeyOnlyMessageSigner,
+    KeypairMessageSigner, MessageSigner, PreSignedMessageSigner, PubkeyOnlyMessageSigner,
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -49,7 +48,9 @@ pub struct PersistedConfig {
 /// chain rejected with WalletError::Expired (0x1777). 30 minutes is
 /// safely above any realistic human-pause budget without being so
 /// long that a stolen signature is dangerous to leave outstanding.
-fn default_expiry_seconds() -> u64 { 1800 }
+fn default_expiry_seconds() -> u64 {
+    1800
+}
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 #[serde(rename_all = "snake_case")]
@@ -65,7 +66,9 @@ fn default_rpc_url() -> String {
 
 fn default_payer_path() -> String {
     let home = dirs::home_dir().unwrap_or_default();
-    home.join(".config/solana/id.json").to_string_lossy().to_string()
+    home.join(".config/solana/id.json")
+        .to_string_lossy()
+        .to_string()
 }
 
 pub fn config_path() -> PathBuf {
@@ -220,10 +223,9 @@ pub fn load_config(globals: &CliGlobals) -> Result<RuntimeConfig> {
     };
 
     let params_data_override = match &globals.params_data {
-        Some(hex_str) => Some(
-            decode_hex(hex_str)
-                .with_context(|| "invalid --params-data hex".to_string())?,
-        ),
+        Some(hex_str) => {
+            Some(decode_hex(hex_str).with_context(|| "invalid --params-data hex".to_string())?)
+        }
         None => None,
     };
 
@@ -246,7 +248,9 @@ fn decode_hex(s: &str) -> Result<Vec<u8>> {
         return Err(anyhow!("hex string has odd length"));
     }
     (0..s.len() / 2)
-        .map(|i| u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).map_err(|e| anyhow!("invalid hex: {e}")))
+        .map(|i| {
+            u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).map_err(|e| anyhow!("invalid hex: {e}"))
+        })
         .collect()
 }
 
@@ -259,8 +263,6 @@ fn load_keypair(path: &str) -> Result<solana_keypair::Keypair> {
     let expanded = shellexpand::tilde(path).to_string();
     let data = std::fs::read_to_string(&expanded)
         .with_context(|| format!("reading keypair from {expanded}"))?;
-    let bytes: Vec<u8> = serde_json::from_str(&data)
-        .with_context(|| "parsing keypair JSON")?;
-    solana_keypair::Keypair::try_from(bytes.as_slice())
-        .map_err(|e| anyhow!("invalid keypair: {e}"))
+    let bytes: Vec<u8> = serde_json::from_str(&data).with_context(|| "parsing keypair JSON")?;
+    solana_keypair::Keypair::try_from(bytes.as_slice()).map_err(|e| anyhow!("invalid keypair: {e}"))
 }

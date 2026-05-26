@@ -6,9 +6,9 @@
 //! previous vendored copy omitted it and the program rejected every
 //! `bind_dwallet` with a "not enough account keys" error.
 
+use super::ID;
 use solana_address::Address;
 use solana_instruction::{AccountMeta, Instruction};
-use super::ID;
 
 pub struct BindDwalletInstruction {
     pub payer: Address,
