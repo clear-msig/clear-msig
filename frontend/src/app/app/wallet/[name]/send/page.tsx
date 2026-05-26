@@ -67,6 +67,7 @@ import {
   type ReceiptDetail,
 } from "@/components/retail/SendReceipt";
 import { QuickSendInput } from "@/components/retail/QuickSendInput";
+import { RouteSkeleton } from "@/components/retail/RouteSkeleton";
 import { UsdHint } from "@/components/retail/UsdHint";
 import { txUrl as solanaTxUrl } from "@/lib/explorer";
 import { recordAttempt } from "@/lib/retail/txLog";
@@ -253,9 +254,7 @@ function buildSendPreviewWarning(args: {
 
 export default function SendPageWrapper() {
   return (
-    <Suspense
-      fallback={<div className="min-h-screen" aria-hidden="true" />}
-    >
+    <Suspense fallback={<RouteSkeleton variant="form" />}>
       <SendPage />
     </Suspense>
   );

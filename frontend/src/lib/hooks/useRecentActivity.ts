@@ -55,15 +55,23 @@ export interface RecentActivityResult {
   loading: boolean;
 }
 
-export function useRecentActivity(limit = 5): RecentActivityResult {
+interface RecentActivityOptions {
+  enabled?: boolean;
+}
+
+export function useRecentActivity(
+  limit = 5,
+  options: RecentActivityOptions = {},
+): RecentActivityResult {
   const wallet = useWallet();
   const { connection } = useConnection();
   const address = wallet.publicKey?.toBase58() ?? "";
+  const enabled = (options.enabled ?? true) && address.length > 0;
 
   const memberships = useQuery({
     queryKey: ["my-organizations", address],
     queryFn: () => fetchOnchainMemberships(address),
-    enabled: address.length > 0,
+    enabled,
     staleTime: 30_000,
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
@@ -73,7 +81,8 @@ export function useRecentActivity(limit = 5): RecentActivityResult {
   // Per-wallet account fetches (cache-shared with the wallet detail
   // page when the user navigates into one).
   const walletQueries = useQueries({
-    queries: (memberships.data ?? []).map((m) => ({
+    queries: enabled
+      ? (memberships.data ?? []).map((m) => ({
       queryKey: ["wallet-account-by-pda", m.wallet],
       queryFn: async (): Promise<{
         membership: OnchainMembership;
@@ -83,13 +92,15 @@ export function useRecentActivity(limit = 5): RecentActivityResult {
         return { membership: m, account };
       },
       staleTime: 30_000,
-    })),
+      }))
+      : [],
   });
 
   // Per-wallet proposal lists, keyed by wallet PDA. Only fires once
   // the corresponding wallet-account query resolves.
   const proposalsQueries = useQueries({
-    queries: walletQueries.map((wq) => {
+    queries: enabled
+      ? walletQueries.map((wq) => {
       const ready = wq.data?.account != null;
       return {
         queryKey: [
@@ -123,7 +134,8 @@ export function useRecentActivity(limit = 5): RecentActivityResult {
         refetchIntervalInBackground: true,
         refetchOnWindowFocus: true,
       };
-    }),
+      })
+      : [],
   });
 
   // useQueries returns a fresh array reference every render, so a

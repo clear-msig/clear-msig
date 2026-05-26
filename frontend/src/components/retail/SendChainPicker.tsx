@@ -27,7 +27,17 @@ export function SendChainPicker({
   activeKind: number;
 }) {
   const { options, loading } = useSendChains(walletName);
-  if (loading) return null;
+  if (loading) {
+    return (
+      <div
+        className="mb-5 flex animate-pulse flex-wrap items-center gap-2"
+        aria-hidden="true"
+      >
+        <div className="h-[58px] w-32 rounded-card border border-border-soft bg-surface-raised" />
+        <div className="h-[58px] w-36 rounded-card border border-border-soft bg-surface-raised" />
+      </div>
+    );
+  }
   // Bound + setup-needed chains are tappable. needs_binding chains
   // are hidden from the row (the trailing "Add chain" tile is the
   // right entry point for adding new ones).
