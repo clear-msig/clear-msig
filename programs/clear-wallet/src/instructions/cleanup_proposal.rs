@@ -1,6 +1,9 @@
 use quasar_lang::prelude::*;
 
-use crate::{error::WalletError, state::proposal::{Proposal, ProposalStatus}};
+use crate::{
+    error::WalletError,
+    state::proposal::{Proposal, ProposalStatus},
+};
 
 #[derive(Accounts)]
 pub struct CleanupProposal<'info> {

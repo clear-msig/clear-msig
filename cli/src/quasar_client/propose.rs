@@ -1,7 +1,7 @@
-use solana_address::Address;
-use solana_instruction_v3::{AccountMeta, Instruction};
 use super::ID;
 use quasar_lang::client::TailBytes;
+use solana_address::Address;
+use solana_instruction_v3::{AccountMeta, Instruction};
 
 pub struct ProposeInstruction {
     pub payer: Address,

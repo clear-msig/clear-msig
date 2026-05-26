@@ -190,10 +190,8 @@ impl<'info> IkaSign<'info> {
 
         // CPI Ika `approve_message`.
         // Verify the program-wide CPI authority PDA (defense in depth).
-        let (expected_cpi_auth, _) = Address::find_program_address(
-            &[CPI_AUTHORITY_SEED],
-            &crate::ID,
-        );
+        let (expected_cpi_auth, _) =
+            Address::find_program_address(&[CPI_AUTHORITY_SEED], &crate::ID);
         require_keys_eq!(
             *self.cpi_authority.address(),
             expected_cpi_auth,
@@ -218,7 +216,11 @@ impl<'info> IkaSign<'info> {
         let ownership_data = unsafe { self.dwallet_ownership.to_account_view().borrow_unchecked() };
         let ownership = DwalletOwnership::read(ownership_data)?;
         require_keys_eq!(ownership.wallet, wallet_addr, ProgramError::InvalidArgument);
-        require_keys_eq!(ownership.dwallet, dwallet_addr, ProgramError::InvalidArgument);
+        require_keys_eq!(
+            ownership.dwallet,
+            dwallet_addr,
+            ProgramError::InvalidArgument
+        );
 
         // Idempotency: when a previous successful `ika_sign` already
         // populated this MessageApproval PDA (typically a different
@@ -244,10 +246,8 @@ impl<'info> IkaSign<'info> {
             };
 
             let user_pubkey: [u8; 32] = ika_config.user_pubkey.to_bytes();
-            let message_metadata_digest = crate::chains::dispatch_metadata_digest(
-                self.intent.chain_kind,
-                tx_template,
-            );
+            let message_metadata_digest =
+                crate::chains::dispatch_metadata_digest(self.intent.chain_kind, tx_template);
             ctx.approve_message(
                 self.coordinator.to_account_view(),
                 self.message_approval.to_account_view(),

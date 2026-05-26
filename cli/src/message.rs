@@ -8,7 +8,9 @@ pub fn format_timestamp(ts: i64) -> String {
     let secs_per_day: i64 = 86400;
     let mut days = ts / secs_per_day;
     let day_secs = ((ts % secs_per_day) + secs_per_day) % secs_per_day;
-    if ts < 0 && day_secs > 0 { days -= 1; }
+    if ts < 0 && day_secs > 0 {
+        days -= 1;
+    }
     let (hour, min, sec) = (day_secs / 3600, (day_secs % 3600) / 60, day_secs % 60);
     let adj = days + 719468;
     let era = if adj >= 0 { adj } else { adj - 146096 } / 146097;
@@ -39,20 +41,42 @@ fn suffix(wallet_name: &str, proposal_index: u64) -> String {
 
 /// Build the human-readable message body for any intent type.
 pub fn build_message_body(
-    action: &str, expiry: i64, wallet_name: &str,
-    proposal_index: u64, intent: &IntentAccount, params_data: &[u8],
+    action: &str,
+    expiry: i64,
+    wallet_name: &str,
+    proposal_index: u64,
+    intent: &IntentAccount,
+    params_data: &[u8],
 ) -> Result<Vec<u8>> {
     let raw = match intent.intent_type {
         0 => build_add_intent_message(action, expiry, wallet_name, proposal_index, params_data),
         1 => {
-            if params_data.len() != 1 { return Err(anyhow!("RemoveIntent params must be 1 byte")); }
+            if params_data.len() != 1 {
+                return Err(anyhow!("RemoveIntent params must be 1 byte"));
+            }
             build_remove_intent_message(action, expiry, wallet_name, proposal_index, params_data[0])
         }
         2 => {
-            if params_data.len() < 2 { return Err(anyhow!("UpdateIntent params must be >1 byte")); }
-            build_update_intent_message(action, expiry, wallet_name, proposal_index, params_data[0], &params_data[1..])
+            if params_data.len() < 2 {
+                return Err(anyhow!("UpdateIntent params must be >1 byte"));
+            }
+            build_update_intent_message(
+                action,
+                expiry,
+                wallet_name,
+                proposal_index,
+                params_data[0],
+                &params_data[1..],
+            )
         }
-        3 => build_custom_intent_message(action, expiry, wallet_name, proposal_index, intent, params_data)?,
+        3 => build_custom_intent_message(
+            action,
+            expiry,
+            wallet_name,
+            proposal_index,
+            intent,
+            params_data,
+        )?,
         _ => return Err(anyhow!("unknown intent type {}", intent.intent_type)),
     };
     Ok(raw)
@@ -60,50 +84,72 @@ pub fn build_message_body(
 
 /// Build a message for a meta-intent (AddIntent).
 pub fn build_add_intent_message(
-    action: &str, expiry: i64, wallet_name: &str,
-    proposal_index: u64, params_data: &[u8],
+    action: &str,
+    expiry: i64,
+    wallet_name: &str,
+    proposal_index: u64,
+    params_data: &[u8],
 ) -> Vec<u8> {
     format!(
         "expires {}: {action} add intent definition_hash: {}{}",
-        format_timestamp(expiry), hex_encode(&sha256_hash(params_data)),
+        format_timestamp(expiry),
+        hex_encode(&sha256_hash(params_data)),
         suffix(wallet_name, proposal_index),
-    ).into_bytes()
+    )
+    .into_bytes()
 }
 
 /// Build a message for RemoveIntent.
 pub fn build_remove_intent_message(
-    action: &str, expiry: i64, wallet_name: &str,
-    proposal_index: u64, intent_index: u8,
+    action: &str,
+    expiry: i64,
+    wallet_name: &str,
+    proposal_index: u64,
+    intent_index: u8,
 ) -> Vec<u8> {
     format!(
         "expires {}: {action} remove intent {intent_index}{}",
-        format_timestamp(expiry), suffix(wallet_name, proposal_index),
-    ).into_bytes()
+        format_timestamp(expiry),
+        suffix(wallet_name, proposal_index),
+    )
+    .into_bytes()
 }
 
 /// Build a message for UpdateIntent.
 pub fn build_update_intent_message(
-    action: &str, expiry: i64, wallet_name: &str,
-    proposal_index: u64, intent_index: u8, new_def_data: &[u8],
+    action: &str,
+    expiry: i64,
+    wallet_name: &str,
+    proposal_index: u64,
+    intent_index: u8,
+    new_def_data: &[u8],
 ) -> Vec<u8> {
     format!(
         "expires {}: {action} update intent {intent_index} definition_hash: {}{}",
-        format_timestamp(expiry), hex_encode(&sha256_hash(new_def_data)),
+        format_timestamp(expiry),
+        hex_encode(&sha256_hash(new_def_data)),
         suffix(wallet_name, proposal_index),
-    ).into_bytes()
+    )
+    .into_bytes()
 }
 
 /// Build a message for a custom intent using its template.
 pub fn build_custom_intent_message(
-    action: &str, expiry: i64, wallet_name: &str,
-    proposal_index: u64, intent: &IntentAccount, params_data: &[u8],
+    action: &str,
+    expiry: i64,
+    wallet_name: &str,
+    proposal_index: u64,
+    intent: &IntentAccount,
+    params_data: &[u8],
 ) -> Result<Vec<u8>> {
     let template = intent.template();
     let rendered = render_template(template, intent, params_data)?;
     Ok(format!(
         "expires {}: {action} {rendered}{}",
-        format_timestamp(expiry), suffix(wallet_name, proposal_index),
-    ).into_bytes())
+        format_timestamp(expiry),
+        suffix(wallet_name, proposal_index),
+    )
+    .into_bytes())
 }
 
 /// Wrap a human-readable message in Solana offchain message format.
@@ -122,18 +168,40 @@ fn wrap_offchain(message: Vec<u8>) -> Vec<u8> {
 
 /// Build the plain human-readable bytes without the offchain envelope.
 pub fn build_plain_message(
-    action: &str, expiry: i64, wallet_name: &str,
-    proposal_index: u64, intent: &IntentAccount, params_data: &[u8],
+    action: &str,
+    expiry: i64,
+    wallet_name: &str,
+    proposal_index: u64,
+    intent: &IntentAccount,
+    params_data: &[u8],
 ) -> Result<Vec<u8>> {
-    build_message_body(action, expiry, wallet_name, proposal_index, intent, params_data)
+    build_message_body(
+        action,
+        expiry,
+        wallet_name,
+        proposal_index,
+        intent,
+        params_data,
+    )
 }
 
 /// Build message for any intent type, wrapped in Solana offchain message format.
 pub fn build_message(
-    action: &str, expiry: i64, wallet_name: &str,
-    proposal_index: u64, intent: &IntentAccount, params_data: &[u8],
+    action: &str,
+    expiry: i64,
+    wallet_name: &str,
+    proposal_index: u64,
+    intent: &IntentAccount,
+    params_data: &[u8],
 ) -> Result<Vec<u8>> {
-    let raw = build_message_body(action, expiry, wallet_name, proposal_index, intent, params_data)?;
+    let raw = build_message_body(
+        action,
+        expiry,
+        wallet_name,
+        proposal_index,
+        intent,
+        params_data,
+    )?;
     Ok(wrap_offchain(raw))
 }
 
@@ -147,15 +215,19 @@ fn render_template(template: &str, intent: &IntentAccount, params_data: &[u8]) -
     while i < bytes.len() {
         if bytes[i] == b'{' {
             let start = i + 1;
-            let end = bytes[start..].iter().position(|&b| b == b'}')
-                .ok_or(anyhow!("unclosed {{ in template"))? + start;
+            let end = bytes[start..]
+                .iter()
+                .position(|&b| b == b'}')
+                .ok_or(anyhow!("unclosed {{ in template"))?
+                + start;
             let inner = &template[start..end];
             // inner = "<idx>" or "<idx>:10^<digits>" (decimal-shift format spec)
             let (idx_str, fmt) = match inner.find(':') {
                 Some(pos) => (&inner[..pos], Some(&inner[pos + 1..])),
                 None => (inner, None),
             };
-            let idx: usize = idx_str.parse()
+            let idx: usize = idx_str
+                .parse()
                 .with_context(|| format!("invalid param index: {idx_str}"))?;
             result.push_str(&render_param(intent, params_data, idx, fmt)?);
             i = end + 1;
@@ -170,9 +242,11 @@ fn render_template(template: &str, intent: &IntentAccount, params_data: &[u8]) -
 
 /// Parse a `10^N` format spec into the decimal shift `N`.
 fn parse_decimal_spec(spec: &str) -> Result<u8> {
-    let rest = spec.strip_prefix("10^")
-        .ok_or(anyhow!("invalid format spec '{spec}': only '10^N' is supported"))?;
-    let n: usize = rest.parse()
+    let rest = spec.strip_prefix("10^").ok_or(anyhow!(
+        "invalid format spec '{spec}': only '10^N' is supported"
+    ))?;
+    let n: usize = rest
+        .parse()
         .with_context(|| format!("invalid decimal shift: {rest}"))?;
     if n > 19 {
         return Err(anyhow!("decimal shift too large (max 19): {n}"));
@@ -209,14 +283,22 @@ fn format_decimal_u64(val: u64, decimals: u8) -> String {
     s
 }
 
-fn render_param(intent: &IntentAccount, params_data: &[u8], idx: usize, fmt: Option<&str>) -> Result<String> {
-    let param = intent.params.get(idx)
+fn render_param(
+    intent: &IntentAccount,
+    params_data: &[u8],
+    idx: usize,
+    fmt: Option<&str>,
+) -> Result<String> {
+    let param = intent
+        .params
+        .get(idx)
         .ok_or(anyhow!("param index {idx} out of bounds"))?;
     let offset = param_offset(&intent.params, params_data, idx)?;
 
     match param.param_type {
         ParamType::Address => {
-            let addr_bytes = params_data.get(offset..offset + 32)
+            let addr_bytes = params_data
+                .get(offset..offset + 32)
                 .ok_or(anyhow!("not enough param data for address"))?;
             Ok(bs58::encode(addr_bytes).into_string())
         }
@@ -240,11 +322,15 @@ fn render_param(intent: &IntentAccount, params_data: &[u8], idx: usize, fmt: Opt
             Ok(s.to_string())
         }
         ParamType::Bool => {
-            let v = *params_data.get(offset).ok_or(anyhow!("not enough param data for bool"))?;
+            let v = *params_data
+                .get(offset)
+                .ok_or(anyhow!("not enough param data for bool"))?;
             Ok(if v != 0 { "true" } else { "false" }.to_string())
         }
         ParamType::U8 => {
-            let v = *params_data.get(offset).ok_or(anyhow!("not enough param data for u8"))?;
+            let v = *params_data
+                .get(offset)
+                .ok_or(anyhow!("not enough param data for u8"))?;
             Ok(v.to_string())
         }
         ParamType::U16 => {
@@ -260,12 +346,14 @@ fn render_param(intent: &IntentAccount, params_data: &[u8], idx: usize, fmt: Opt
             Ok(u128::from_le_bytes(bytes).to_string())
         }
         ParamType::Bytes20 => {
-            let bytes = params_data.get(offset..offset + 20)
+            let bytes = params_data
+                .get(offset..offset + 20)
                 .ok_or(anyhow!("not enough param data for bytes20"))?;
             Ok(format!("0x{}", encode_hex(bytes)))
         }
         ParamType::Bytes32 => {
-            let bytes = params_data.get(offset..offset + 32)
+            let bytes = params_data
+                .get(offset..offset + 32)
                 .ok_or(anyhow!("not enough param data for bytes32"))?;
             Ok(format!("0x{}", encode_hex(bytes)))
         }
@@ -297,7 +385,9 @@ fn param_size(param_type: ParamType, data: &[u8], offset: usize) -> Result<usize
         ParamType::U64 | ParamType::I64 => Ok(8),
         ParamType::Bytes20 => Ok(20),
         ParamType::String => {
-            let len = *data.get(offset).ok_or(anyhow!("unexpected end of params"))? as usize;
+            let len = *data
+                .get(offset)
+                .ok_or(anyhow!("unexpected end of params"))? as usize;
             Ok(1 + len)
         }
         ParamType::Bool | ParamType::U8 => Ok(1),
@@ -315,7 +405,10 @@ pub fn parse_expiry(s: &str) -> Result<i64> {
 }
 
 /// Resolve expiry: use explicit value if provided, otherwise compute from config default.
-pub fn resolve_expiry(explicit: &Option<String>, config: &crate::config::RuntimeConfig) -> Result<i64> {
+pub fn resolve_expiry(
+    explicit: &Option<String>,
+    config: &crate::config::RuntimeConfig,
+) -> Result<i64> {
     match explicit {
         Some(s) => parse_expiry(s),
         None => Ok(config.default_expiry()),

@@ -1,4 +1,4 @@
-use crate::config::{PersistedConfig, config_path};
+use crate::config::{config_path, PersistedConfig};
 use crate::error::*;
 use crate::signing::MessageSigner;
 use clap::Subcommand;
@@ -32,10 +32,21 @@ pub enum ConfigAction {
 
 pub fn handle(action: ConfigAction) -> Result<()> {
     match action {
-        ConfigAction::Set { url, payer, signer, signer_ledger, expiry_seconds, ledger_account } => {
+        ConfigAction::Set {
+            url,
+            payer,
+            signer,
+            signer_ledger,
+            expiry_seconds,
+            ledger_account,
+        } => {
             let mut config = PersistedConfig::load();
-            if let Some(url) = url { config.rpc_url = url; }
-            if let Some(payer) = payer { config.payer = payer; }
+            if let Some(url) = url {
+                config.rpc_url = url;
+            }
+            if let Some(payer) = payer {
+                config.payer = payer;
+            }
             if let Some(signer) = signer {
                 config.signer = signer;
                 config.signer_type = crate::config::SignerType::Keypair;
@@ -56,7 +67,8 @@ pub fn handle(action: ConfigAction) -> Result<()> {
         ConfigAction::Show => {
             let config = PersistedConfig::load();
             let mut output = serde_json::to_value(&config)?;
-            output["config_path"] = serde_json::Value::String(config_path().to_string_lossy().to_string());
+            output["config_path"] =
+                serde_json::Value::String(config_path().to_string_lossy().to_string());
 
             // Resolve and display payer pubkey
             if let Ok(payer) = crate::config::load_keypair_public(&config.payer) {

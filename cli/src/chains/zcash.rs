@@ -4,8 +4,8 @@
 //! network's 64-byte ECDSA signature and broadcasts it via Zcash RPC
 //! (`sendrawtransaction`).
 
-use crate::error::*;
 use super::BroadcastResult;
+use crate::error::*;
 
 pub struct SpendInputs {
     pub header: u32,
@@ -135,7 +135,10 @@ pub fn assemble_and_broadcast(
             .with_context(|| "parse JSON-RPC response")?;
         if let Some(err) = resp.get("error").filter(|e| !e.is_null()) {
             let code = err.get("code").and_then(|c| c.as_i64()).unwrap_or(0);
-            let message = err.get("message").and_then(|m| m.as_str()).unwrap_or("unknown error");
+            let message = err
+                .get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("unknown error");
             return Err(anyhow!(
                 "sendrawtransaction failed (code {code}): {message}"
             ));

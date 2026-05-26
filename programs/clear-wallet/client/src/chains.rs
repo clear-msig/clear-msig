@@ -142,14 +142,13 @@ pub mod bitcoin {
 
             // Tx parameters.
             let prev_txid_bytes: [u8; 32] = [
-                0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37,
-                0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37,
-                0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37,
-                0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37,
+                0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37,
+                0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37, 0x37,
+                0x37, 0x37, 0x37, 0x37,
             ];
             let prev_vout: u32 = 0;
             let prev_amount_sats: u64 = 100_000_000; // 1 BTC
-            let send_amount_sats: u64 = 99_990_000;  // ~10k sats fee
+            let send_amount_sats: u64 = 99_990_000; // ~10k sats fee
             let version: u32 = 2;
             let lock_time: u32 = 0;
             let sequence: u32 = 0xfffffffd;
@@ -194,7 +193,10 @@ pub mod bitcoin {
                 version: Version(version as i32),
                 lock_time: LockTime::from_consensus(lock_time),
                 input: vec![TxIn {
-                    previous_output: OutPoint { txid: prev_txid, vout: prev_vout },
+                    previous_output: OutPoint {
+                        txid: prev_txid,
+                        vout: prev_vout,
+                    },
                     script_sig: ScriptBuf::new(),
                     sequence: Sequence(sequence),
                     witness: Witness::new(),
@@ -228,8 +230,7 @@ pub mod bitcoin {
             // and our key derivation are interoperable with bitcoind.
             let msg = Message::from_digest(our_sighash);
             let signature = secp.sign_ecdsa(&msg, &sender_sk);
-            let sender_pk =
-                bitcoin::secp256k1::PublicKey::from_secret_key(&secp, &sender_sk);
+            let sender_pk = bitcoin::secp256k1::PublicKey::from_secret_key(&secp, &sender_sk);
             secp.verify_ecdsa(&msg, &signature, &sender_pk)
                 .expect("ECDSA verification failed");
 
@@ -507,11 +508,11 @@ pub mod evm {
             // Small numbers chosen so leading-zero RLP rules are exercised
             // (chain_id needs 3 bytes, value needs 1, nonce empty).
             let tx = Tx1559 {
-                chain_id: 11_155_111, // 0x00aa36a7
-                nonce: 0,             // RLP empty bytes
+                chain_id: 11_155_111,                    // 0x00aa36a7
+                nonce: 0,                                // RLP empty bytes
                 max_priority_fee_per_gas: 1_500_000_000, // 0x59682f00 (4 bytes)
                 max_fee_per_gas: 30_000_000_000,         // 0x06fc23ac00 (5 bytes)
-                gas_limit: 21_000,    // 0x5208 (2 bytes)
+                gas_limit: 21_000,                       // 0x5208 (2 bytes)
                 to: [0xab; 20],
                 value: 10, // single byte 0x0a
                 data: vec![],

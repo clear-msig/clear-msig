@@ -117,12 +117,7 @@ pub fn assemble_and_broadcast(
     // A loud stderr line names which combination won so the upstream
     // bug stays visible — silently auto-correcting forever lets
     // bugs ossify.
-    let chosen = pick_verifying_combination(
-        preimage,
-        r,
-        s,
-        dwallet_pubkey_compressed,
-    )?;
+    let chosen = pick_verifying_combination(preimage, r, s, dwallet_pubkey_compressed)?;
 
     let der_sig = der_encode_signature(&chosen.r, &chosen.s)?;
     let mut sig_with_hashtype = Vec::with_capacity(der_sig.len() + 1);
@@ -141,7 +136,7 @@ pub fn assemble_and_broadcast(
     );
     let raw_tx_hex = hex_encode(&raw_tx);
 
-    let tx_id = broadcast_via_esplora(rpc_url, &raw_tx_hex)?;
+    let tx_id = broadcast_via_bitcoin_rpc(rpc_url, &raw_tx_hex)?;
     let explorer_url = derive_explorer_url(rpc_url, &tx_id);
 
     Ok(BroadcastResult {
@@ -426,21 +421,56 @@ fn hex_encode(bytes: &[u8]) -> String {
 #[allow(dead_code)]
 enum EsploraResponse {
     /// Some Esplora deployments return JSON like `{"txid": "..."}`.
-    Json {
-        txid: String,
-    },
+    Json { txid: String },
     /// Most return the txid as a plain text body.
     Text(String),
 }
 
-/// Broadcast a fully-signed Bitcoin tx via Esplora's REST endpoint.
-///
-/// Esplora is the API that runs behind block explorers like
-/// blockstream.info and mempool.space. The relevant call is
-/// `POST <base>/tx` with the hex-encoded raw tx as the request body
-/// (no JSON wrapping). On success it returns the txid as a plain text
-/// string in the response body. On failure it returns an HTTP 4xx with
-/// the consensus error in the body (e.g. `bad-txns-inputs-missingorspent`).
+/// Broadcast a fully-signed Bitcoin tx via either:
+///   - Esplora `POST <base>/tx` for the mempool.space path, or
+///   - Bitcoin JSON-RPC `sendrawtransaction` for Alchemy endpoints.
+fn broadcast_via_bitcoin_rpc(rpc_base: &str, raw_tx_hex: &str) -> Result<String> {
+    if is_alchemy_bitcoin_rpc(rpc_base) {
+        return broadcast_via_alchemy(rpc_base, raw_tx_hex);
+    }
+    broadcast_via_esplora(rpc_base, raw_tx_hex)
+}
+
+fn broadcast_via_alchemy(rpc_base: &str, raw_tx_hex: &str) -> Result<String> {
+    let endpoint = rpc_base.trim_end_matches('/');
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .with_context(|| "build reqwest client")?;
+    let resp = client
+        .post(endpoint)
+        .json(&serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "sendrawtransaction",
+            "params": [raw_tx_hex],
+        }))
+        .send()
+        .with_context(|| format!("POST {endpoint}"))?;
+    let status = resp.status();
+    let text = resp.text().with_context(|| "read Alchemy response body")?;
+    if !status.is_success() {
+        return Err(anyhow!(
+            "Alchemy broadcast failed (HTTP {status}): {}",
+            text.trim()
+        ));
+    }
+    let json: serde_json::Value = serde_json::from_str(&text)
+        .with_context(|| format!("parse Alchemy JSON response: {text}"))?;
+    if let Some(err) = json.get("error") {
+        return Err(anyhow!("Alchemy broadcast error: {err}"));
+    }
+    json.get("result")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| anyhow!("Alchemy response missing result: {text}"))
+}
+
 fn broadcast_via_esplora(rpc_base: &str, raw_tx_hex: &str) -> Result<String> {
     let endpoint = format!("{}/tx", rpc_base.trim_end_matches('/'));
     let client = reqwest::blocking::Client::builder()
@@ -475,11 +505,24 @@ fn broadcast_via_esplora(rpc_base: &str, raw_tx_hex: &str) -> Result<String> {
     }
 }
 
+fn is_alchemy_bitcoin_rpc(rpc_base: &str) -> bool {
+    rpc_base.to_lowercase().contains(".g.alchemy.com")
+}
+
 /// Best-effort explorer URL — recognises the public Esplora deployments
 /// (blockstream.info and mempool.space) and emits a tx-page URL for them.
 /// Returns `None` for any other base URL since we don't know the
 /// corresponding explorer route.
 fn derive_explorer_url(rpc_base: &str, txid: &str) -> Option<String> {
+    let lower = rpc_base.to_lowercase();
+    if lower.contains(".g.alchemy.com") {
+        if lower.contains("bitcoin-testnet") {
+            return Some(format!("https://testnet4.dev/tx/{txid}"));
+        }
+        if lower.contains("bitcoin-signet") {
+            return Some(format!("https://mempool.space/signet/tx/{txid}"));
+        }
+    }
     if rpc_base.contains("blockstream.info/testnet") {
         Some(format!("https://blockstream.info/testnet/tx/{txid}"))
     } else if rpc_base.contains("blockstream.info") {
@@ -588,7 +631,10 @@ mod tests {
             (0xffff, &[0xfd, 0xff, 0xff]),
             (0x10000, &[0xfe, 0x00, 0x00, 0x01, 0x00]),
             (0xffff_ffff, &[0xfe, 0xff, 0xff, 0xff, 0xff]),
-            (0x1_0000_0000, &[0xff, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00]),
+            (
+                0x1_0000_0000,
+                &[0xff, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00],
+            ),
         ];
         for &(n, want) in cases {
             let mut out = Vec::new();

@@ -119,6 +119,14 @@ export default function WalletDashboard() {
   const showStats = !hasError && !isFirstVisit && wallets.length > 0;
   const showRecent = !isFirstVisit && recent.rows.length > 0;
   const showWatched = !hasError;
+  const nextWallet = useMemo(() => {
+    if (wallets.length === 0) return null;
+    const ordered = sortPinnedFirst(wallets, (m) => m.wallet_name ?? "");
+    return (
+      ordered.find((m) => (recent.pendingByWallet.get(m.wallet) ?? 0) > 0) ??
+      ordered[0]
+    );
+  }, [wallets, recent.pendingByWallet]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -143,6 +151,19 @@ export default function WalletDashboard() {
           balances={balancesQuery.data}
           loadingBalances={balancesQuery.isLoading}
           pendingCount={action.rows.length}
+          reduce={!!reduce}
+        />
+      )}
+
+      {!hasError && !isFirstVisit && nextWallet && (
+        <NextActionStrip
+          wallet={nextWallet}
+          pendingCount={action.rows.length}
+          firstApprovalHref={
+            action.rows[0]
+              ? `/app/proposals/${action.rows[0].proposalPda}`
+              : null
+          }
           reduce={!!reduce}
         />
       )}
@@ -317,6 +338,68 @@ function StatsRow({
         />
       </div>
     </motion.div>
+  );
+}
+
+function NextActionStrip({
+  wallet,
+  pendingCount,
+  firstApprovalHref,
+  reduce,
+}: {
+  wallet: OnchainMembership;
+  pendingCount: number;
+  firstApprovalHref: string | null;
+  reduce: boolean;
+}) {
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  const walletName = wallet.wallet_name ?? "Wallet";
+  const displayName = toDisplayName(walletName);
+  const encoded = encodeURIComponent(walletName);
+  const primaryHref =
+    pendingCount > 0 && firstApprovalHref
+      ? firstApprovalHref
+      : `/app/wallet/${encoded}`;
+  const primaryLabel = pendingCount > 0 ? "Review approvals" : "Open wallet";
+  const summary =
+    pendingCount > 0
+      ? `${pendingCount} ${pendingCount === 1 ? "approval needs" : "approvals need"} your decision.`
+      : `Continue with ${displayName} or start another shared wallet.`;
+
+  return (
+    <motion.section
+      {...motionProps}
+      transition={{ duration: 0.2 }}
+      className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-text-soft">
+            Next step
+          </p>
+          <p className="mt-1 truncate text-sm font-medium text-text-strong">
+            {displayName}
+          </p>
+          <p className="mt-0.5 text-xs text-text-soft">{summary}</p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <Link href={primaryHref}>
+            <Button size="md">
+              {primaryLabel}
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </Link>
+          <Link
+            href="/app/wallet/new"
+            className="inline-flex min-h-tap items-center rounded-full px-3 text-xs font-medium text-text-soft transition-colors hover:text-text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          >
+            New wallet
+          </Link>
+        </div>
+      </div>
+    </motion.section>
   );
 }
 

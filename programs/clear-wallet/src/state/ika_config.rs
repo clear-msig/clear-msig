@@ -43,7 +43,9 @@ impl IkaConfig {
         let mut user_pubkey = [0u8; 32];
         user_pubkey.copy_from_slice(&data[65..97]);
         let signature_scheme = u16::from_le_bytes(
-            data[98..100].try_into().map_err(|_| ProgramError::InvalidAccountData)?
+            data[98..100]
+                .try_into()
+                .map_err(|_| ProgramError::InvalidAccountData)?,
         );
         Ok(Self {
             wallet: Address::new_from_array(wallet),

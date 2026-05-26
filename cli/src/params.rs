@@ -9,7 +9,8 @@ pub fn encode_params(intent: &IntentAccount, raw_params: &[String]) -> Result<Ve
     // Parse key=value pairs
     let mut param_map: HashMap<String, String> = HashMap::new();
     for raw in raw_params {
-        let (key, value) = raw.split_once('=')
+        let (key, value) = raw
+            .split_once('=')
             .ok_or(anyhow!("invalid param format: '{raw}', expected key=value"))?;
         param_map.insert(key.to_string(), value.to_string());
     }
@@ -23,25 +24,32 @@ pub fn encode_params(intent: &IntentAccount, raw_params: &[String]) -> Result<Ve
         let name = std::str::from_utf8(&pool[name_start..name_end])
             .with_context(|| "invalid param name in intent")?;
 
-        let value = param_map.get(name)
+        let value = param_map
+            .get(name)
             .ok_or(anyhow!("missing required param: {name}"))?;
 
         match param.param_type {
             ParamType::Address => {
-                let bytes = bs58::decode(value).into_vec()
+                let bytes = bs58::decode(value)
+                    .into_vec()
                     .with_context(|| format!("invalid address for param {name}: {value}"))?;
                 if bytes.len() != 32 {
-                    return Err(anyhow!("address for {name} must be 32 bytes, got {}", bytes.len()));
+                    return Err(anyhow!(
+                        "address for {name} must be 32 bytes, got {}",
+                        bytes.len()
+                    ));
                 }
                 data.extend_from_slice(&bytes);
             }
             ParamType::U64 => {
-                let val: u64 = value.parse()
+                let val: u64 = value
+                    .parse()
                     .with_context(|| format!("invalid u64 for param {name}: {value}"))?;
                 data.extend_from_slice(&val.to_le_bytes());
             }
             ParamType::I64 => {
-                let val: i64 = value.parse()
+                let val: i64 = value
+                    .parse()
                     .with_context(|| format!("invalid i64 for param {name}: {value}"))?;
                 data.extend_from_slice(&val.to_le_bytes());
             }
@@ -57,27 +65,35 @@ pub fn encode_params(intent: &IntentAccount, raw_params: &[String]) -> Result<Ve
                 let val = match value.as_str() {
                     "true" | "1" => 1u8,
                     "false" | "0" => 0u8,
-                    _ => return Err(anyhow!("invalid bool for param {name}: {value} (expected true/false)")),
+                    _ => {
+                        return Err(anyhow!(
+                            "invalid bool for param {name}: {value} (expected true/false)"
+                        ))
+                    }
                 };
                 data.push(val);
             }
             ParamType::U8 => {
-                let val: u8 = value.parse()
+                let val: u8 = value
+                    .parse()
                     .with_context(|| format!("invalid u8 for param {name}: {value}"))?;
                 data.push(val);
             }
             ParamType::U16 => {
-                let val: u16 = value.parse()
+                let val: u16 = value
+                    .parse()
                     .with_context(|| format!("invalid u16 for param {name}: {value}"))?;
                 data.extend_from_slice(&val.to_le_bytes());
             }
             ParamType::U32 => {
-                let val: u32 = value.parse()
+                let val: u32 = value
+                    .parse()
                     .with_context(|| format!("invalid u32 for param {name}: {value}"))?;
                 data.extend_from_slice(&val.to_le_bytes());
             }
             ParamType::U128 => {
-                let val: u128 = value.parse()
+                let val: u128 = value
+                    .parse()
                     .with_context(|| format!("invalid u128 for param {name}: {value}"))?;
                 data.extend_from_slice(&val.to_le_bytes());
             }
@@ -85,7 +101,10 @@ pub fn encode_params(intent: &IntentAccount, raw_params: &[String]) -> Result<Ve
                 let bytes = parse_hex(value)
                     .with_context(|| format!("invalid bytes20 for param {name}: {value}"))?;
                 if bytes.len() != 20 {
-                    return Err(anyhow!("bytes20 for {name} must be 20 bytes, got {}", bytes.len()));
+                    return Err(anyhow!(
+                        "bytes20 for {name} must be 20 bytes, got {}",
+                        bytes.len()
+                    ));
                 }
                 data.extend_from_slice(&bytes);
             }
@@ -93,7 +112,10 @@ pub fn encode_params(intent: &IntentAccount, raw_params: &[String]) -> Result<Ve
                 let bytes = parse_hex(value)
                     .with_context(|| format!("invalid bytes32 for param {name}: {value}"))?;
                 if bytes.len() != 32 {
-                    return Err(anyhow!("bytes32 for {name} must be 32 bytes, got {}", bytes.len()));
+                    return Err(anyhow!(
+                        "bytes32 for {name} must be 32 bytes, got {}",
+                        bytes.len()
+                    ));
                 }
                 data.extend_from_slice(&bytes);
             }

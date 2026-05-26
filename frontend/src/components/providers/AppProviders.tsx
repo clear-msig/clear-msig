@@ -17,24 +17,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import dynamic from "next/dynamic";
 import { ToastProvider } from "@/components/ui/Toast";
 import { validateConfig } from "@/lib/config";
 import { applyTheme, getStoredTheme, watchSystemTheme } from "@/lib/security/theme";
 import { LivePricesProvider } from "@/lib/retail/priceFeed";
-
-// Dynamic Labs SDK + connectors + LedgerProvider live in their own
-// chunk so the initial layout bundle doesn't ship them. We render a
-// minimal shell while the chunk loads - about one frame on prod -
-// then the auth provider takes over. ssr:false because all the
-// connectors touch browser-only globals.
-const DynamicProviderTree = dynamic(
-  () => import("@/components/providers/DynamicProviderTree"),
-  {
-    ssr: false,
-    loading: () => <ProvidersLoadingShell />,
-  },
-);
+import DynamicProviderTree from "@/components/providers/DynamicProviderTree";
 
 type Props = {
   children: React.ReactNode;
@@ -113,38 +100,6 @@ export function AppProviders({ children }: Props) {
         <ToastProvider>{children}</ToastProvider>
       </DynamicProviderTree>
     </QueryClientProvider>
-  );
-}
-
-// Mount target while the Dynamic chunk loads. Same canvas color +
-// font as the app proper so the swap to the real tree is invisible.
-// We deliberately don't render an interactive loader here - the
-// chunk lands fast in prod and a spinner just becomes visible
-// noise.
-function ProvidersLoadingShell() {
-  return (
-    <main
-      className="flex min-h-screen flex-col items-center justify-center gap-6 bg-canvas px-gutter font-sans"
-      aria-busy="true"
-      aria-label="Loading"
-    >
-      <div className="relative h-10 w-10">
-        <span
-          aria-hidden="true"
-          className="absolute inset-0 rounded-full bg-accent/15"
-        />
-        <span
-          aria-hidden="true"
-          className="absolute inset-0 animate-spin rounded-full border-2 border-accent border-t-transparent"
-        />
-      </div>
-      <div className="flex flex-col items-center text-center">
-        <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-          Booting Clear
-        </p>
-      </div>
-    </main>
   );
 }
 

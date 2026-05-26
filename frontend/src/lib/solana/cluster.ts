@@ -29,6 +29,11 @@ import { Commitment, Connection } from "@solana/web3.js";
 
 const PUBLIC_DEVNET_RPC = "https://api.devnet.solana.com";
 
+const alchemyApiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
+const ALCHEMY_DEVNET_RPC = alchemyApiKey
+  ? `https://solana-devnet.g.alchemy.com/v2/${alchemyApiKey}`
+  : null;
+
 /// Per-device localStorage key for the user-set RPC override.
 /// Power-user setting - lets a treasury manager point the app at
 /// their own paid RPC (Helius, QuickNode, Triton, …) without
@@ -67,7 +72,17 @@ function readOverrideFromStorage(): string | null {
 
 /// Default URL - env-driven. Doesn't see the override.
 export const solanaClusterDefaultRpc =
-  process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? PUBLIC_DEVNET_RPC;
+  process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
+  ALCHEMY_DEVNET_RPC ??
+  PUBLIC_DEVNET_RPC;
+
+export const solanaClusterDefaultRpcOrigin = (() => {
+  try {
+    return new URL(solanaClusterDefaultRpc).origin;
+  } catch {
+    return PUBLIC_DEVNET_RPC;
+  }
+})();
 
 /// Effective primary URL: localStorage override (if any) wins,
 /// otherwise the env default. Evaluated at module load - the

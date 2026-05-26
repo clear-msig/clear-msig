@@ -4,8 +4,8 @@
 //! Ed25519 signature from Ika, assembles a wire-format transaction, and
 //! sends it via Solana RPC.
 
-use crate::error::*;
 use super::BroadcastResult;
+use crate::error::*;
 
 /// Broadcast a signed Solana transaction.
 ///

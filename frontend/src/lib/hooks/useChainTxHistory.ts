@@ -23,6 +23,10 @@ import { fetchEvmTxHistory } from "@/lib/chain/eth";
 import { fetchBitcoinTxHistory } from "@/lib/chain/btc";
 import { fetchZcashTxHistory } from "@/lib/chain/zcash";
 
+interface ChainTxHistoryOptions {
+  enabled?: boolean;
+}
+
 export interface ChainTxRow {
   /// Chain-native tx identifier (Solana signature, EVM tx hash,
   /// BTC txid). Keys the React list and powers the explorer link.
@@ -45,6 +49,7 @@ export interface ChainTxRow {
 export function useSolanaTxHistory(
   address: string | null,
   limit: number = 10,
+  options: ChainTxHistoryOptions = {},
 ) {
   const { connection } = useConnection();
   return useQuery({
@@ -58,7 +63,7 @@ export function useSolanaTxHistory(
       );
       return sigs;
     },
-    enabled: !!address,
+    enabled: (options.enabled ?? true) && !!address,
     staleTime: 15_000,
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
@@ -96,6 +101,7 @@ async function fetchSolanaSignatures(
 export function useEvmTxHistory(
   address: string | null,
   limit: number = 10,
+  options: ChainTxHistoryOptions = {},
 ) {
   return useQuery({
     queryKey: ["chain-tx-history-evm", address ?? "", limit],
@@ -110,7 +116,7 @@ export function useEvmTxHistory(
         errorBrief: r.errorBrief,
       }));
     },
-    enabled: !!address,
+    enabled: (options.enabled ?? true) && !!address,
     staleTime: 15_000,
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
@@ -123,6 +129,7 @@ export function useEvmTxHistory(
 export function useBitcoinTxHistory(
   address: string | null,
   limit: number = 10,
+  options: ChainTxHistoryOptions = {},
 ) {
   return useQuery({
     queryKey: ["chain-tx-history-btc", address ?? "", limit],
@@ -137,7 +144,7 @@ export function useBitcoinTxHistory(
         errorBrief: null,
       }));
     },
-    enabled: !!address,
+    enabled: (options.enabled ?? true) && !!address,
     staleTime: 15_000,
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
@@ -151,6 +158,7 @@ export function useZcashTxHistory(
   address: string | null,
   rpcUrl: string,
   limit: number = 10,
+  options: ChainTxHistoryOptions = {},
 ) {
   return useQuery({
     queryKey: ["chain-tx-history-zcash", address ?? "", rpcUrl, limit],
@@ -165,7 +173,8 @@ export function useZcashTxHistory(
         errorBrief: null,
       }));
     },
-    enabled: !!address && rpcUrl.trim().length > 0,
+    enabled:
+      (options.enabled ?? true) && !!address && rpcUrl.trim().length > 0,
     staleTime: 15_000,
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,

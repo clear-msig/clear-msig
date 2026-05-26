@@ -145,13 +145,19 @@ pub struct SeedEntry {
 
 // --- Helpers ---
 
-pub fn param_byte_size(param_type: ParamType, params_data: &[u8], offset: usize) -> Result<usize, ProgramError> {
+pub fn param_byte_size(
+    param_type: ParamType,
+    params_data: &[u8],
+    offset: usize,
+) -> Result<usize, ProgramError> {
     match param_type {
         ParamType::Address | ParamType::Bytes32 => Ok(32),
         ParamType::U64 | ParamType::I64 => Ok(8),
         ParamType::Bytes20 => Ok(20),
         ParamType::String => {
-            let len = *params_data.get(offset).ok_or(ProgramError::InvalidInstructionData)? as usize;
+            let len = *params_data
+                .get(offset)
+                .ok_or(ProgramError::InvalidInstructionData)? as usize;
             Ok(1 + len)
         }
         ParamType::Bool | ParamType::U8 => Ok(1),

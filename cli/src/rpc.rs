@@ -13,7 +13,8 @@ pub fn client(config: &RuntimeConfig) -> RpcClient {
 }
 
 pub fn fetch_account(rpc: &RpcClient, address: &Pubkey) -> Result<Vec<u8>> {
-    let account = rpc.get_account(address)
+    let account = rpc
+        .get_account(address)
         .with_context(|| format!("fetching account {address}"))?;
     Ok(account.data)
 }
@@ -25,7 +26,10 @@ pub fn fetch_account(rpc: &RpcClient, address: &Pubkey) -> Result<Vec<u8>> {
 /// matches by the parsed `name` field.
 ///
 /// Returns `(wallet_pda, parsed_account)` or an error if no match.
-pub fn resolve_wallet_by_name(rpc: &RpcClient, name: &str) -> Result<(Pubkey, crate::accounts::WalletAccount)> {
+pub fn resolve_wallet_by_name(
+    rpc: &RpcClient,
+    name: &str,
+) -> Result<(Pubkey, crate::accounts::WalletAccount)> {
     use solana_client::rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
     use solana_client::rpc_filter::{Memcmp, RpcFilterType};
 
@@ -47,7 +51,8 @@ pub fn resolve_wallet_by_name(rpc: &RpcClient, name: &str) -> Result<(Pubkey, cr
         sort_results: None,
     };
 
-    let accounts = rpc.get_program_accounts_with_config(&program_id, config)
+    let accounts = rpc
+        .get_program_accounts_with_config(&program_id, config)
         .with_context(|| "scanning ClearWallet accounts")?;
 
     for (pubkey, account) in accounts {
@@ -86,7 +91,8 @@ pub fn send_instruction(
         &[&config.payer],
         recent_blockhash,
     );
-    let signature = rpc.send_and_confirm_transaction(&transaction)
+    let signature = rpc
+        .send_and_confirm_transaction(&transaction)
         .with_context(|| "sending transaction")?;
     Ok(signature)
 }
@@ -104,7 +110,8 @@ pub fn send_instructions(
         &[&config.payer],
         recent_blockhash,
     );
-    let signature = rpc.send_and_confirm_transaction(&transaction)
+    let signature = rpc
+        .send_and_confirm_transaction(&transaction)
         .with_context(|| "sending transaction")?;
     Ok(signature)
 }

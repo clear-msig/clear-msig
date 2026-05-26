@@ -383,11 +383,7 @@ fn execute_cpi_loop(
                     require!(val.len() >= size, ProgramError::InvalidInstructionData);
                     require!(ix_len + size <= 1024, ProgramError::InvalidInstructionData);
                     unsafe {
-                        core::ptr::copy_nonoverlapping(
-                            val.as_ptr(),
-                            data_ptr.add(ix_len),
-                            size,
-                        );
+                        core::ptr::copy_nonoverlapping(val.as_ptr(), data_ptr.add(ix_len), size);
                     }
                     ix_len += size;
                 }

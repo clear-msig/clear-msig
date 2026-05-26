@@ -1,4 +1,4 @@
-use crate::intent_builder::{IntentBuilder, BuiltIntent, PdaSeedSpec};
+use crate::intent_builder::{BuiltIntent, IntentBuilder, PdaSeedSpec};
 use clear_wallet::utils::definition::*;
 use serde::{Deserialize, Serialize};
 
@@ -98,9 +98,7 @@ pub enum TxTemplateJson {
         sighash_type: u32,
     },
     /// Solana dWallet: 32 bytes (nonce account address).
-    Solana {
-        nonce_account: String,
-    },
+    Solana { nonce_account: String },
     /// Zcash Sapling transparent: 20 bytes total.
     ZcashTransparent {
         header: u32,
@@ -116,12 +114,18 @@ impl TxTemplateJson {
     pub fn encode(&self) -> Vec<u8> {
         match self {
             Self::Solana { nonce_account } => {
-                let bytes = bs58::decode(nonce_account).into_vec()
+                let bytes = bs58::decode(nonce_account)
+                    .into_vec()
                     .expect("invalid nonce_account base58");
                 assert_eq!(bytes.len(), 32, "nonce_account must be 32 bytes");
                 bytes
             }
-            Self::Evm1559 { chain_id, gas_limit, max_priority_fee_per_gas, max_fee_per_gas } => {
+            Self::Evm1559 {
+                chain_id,
+                gas_limit,
+                max_priority_fee_per_gas,
+                max_fee_per_gas,
+            } => {
                 let mut out = Vec::with_capacity(32);
                 out.extend_from_slice(&chain_id.to_le_bytes());
                 out.extend_from_slice(&gas_limit.to_le_bytes());
@@ -129,7 +133,12 @@ impl TxTemplateJson {
                 out.extend_from_slice(&max_fee_per_gas.to_le_bytes());
                 out
             }
-            Self::BitcoinP2wpkh { version, lock_time, sequence, sighash_type } => {
+            Self::BitcoinP2wpkh {
+                version,
+                lock_time,
+                sequence,
+                sighash_type,
+            } => {
                 let mut out = Vec::with_capacity(16);
                 out.extend_from_slice(&version.to_le_bytes());
                 out.extend_from_slice(&lock_time.to_le_bytes());
@@ -137,7 +146,13 @@ impl TxTemplateJson {
                 out.extend_from_slice(&sighash_type.to_le_bytes());
                 out
             }
-            Self::ZcashTransparent { header, version_group_id, lock_time, expiry_height, consensus_branch_id } => {
+            Self::ZcashTransparent {
+                header,
+                version_group_id,
+                lock_time,
+                expiry_height,
+                consensus_branch_id,
+            } => {
                 let mut out = Vec::with_capacity(20);
                 out.extend_from_slice(&header.to_le_bytes());
                 out.extend_from_slice(&version_group_id.to_le_bytes());
@@ -153,9 +168,17 @@ impl TxTemplateJson {
         matches!(
             (self, chain),
             (Self::Solana { .. }, ChainKindJson::Solana)
-                | (Self::Evm1559 { .. }, ChainKindJson::Evm1559 | ChainKindJson::Evm1559Erc20 | ChainKindJson::HyperliquidEvm)
+                | (
+                    Self::Evm1559 { .. },
+                    ChainKindJson::Evm1559
+                        | ChainKindJson::Evm1559Erc20
+                        | ChainKindJson::HyperliquidEvm
+                )
                 | (Self::BitcoinP2wpkh { .. }, ChainKindJson::BitcoinP2wpkh)
-                | (Self::ZcashTransparent { .. }, ChainKindJson::ZcashTransparent)
+                | (
+                    Self::ZcashTransparent { .. },
+                    ChainKindJson::ZcashTransparent
+                )
         )
     }
 }
@@ -171,11 +194,26 @@ pub struct ParamDefJson {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum ParamTypeJson { Address, U64, I64, String, Bool, U8, U16, U32, U128, Bytes20, Bytes32 }
+pub enum ParamTypeJson {
+    Address,
+    U64,
+    I64,
+    String,
+    Bool,
+    U8,
+    U16,
+    U32,
+    U128,
+    Bytes20,
+    Bytes32,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum ConstraintJson { LessThan(u64), GreaterThan(u64) }
+pub enum ConstraintJson {
+    LessThan(u64),
+    GreaterThan(u64),
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountDefJson {
@@ -204,10 +242,17 @@ pub struct PdaSourceJson {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum SeedJson { Literal(Vec<u8>), ParamRef(u8), AccountRef(u8) }
+pub enum SeedJson {
+    Literal(Vec<u8>),
+    ParamRef(u8),
+    AccountRef(u8),
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HasOneJson { pub account_index: u8, pub byte_offset: u16 }
+pub struct HasOneJson {
+    pub account_index: u8,
+    pub byte_offset: u16,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InstructionDefJson {
@@ -224,11 +269,23 @@ pub enum DataSegmentJson {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ParamSegmentJson { pub param_index: u8, pub encoding: DataEncodingJson }
+pub struct ParamSegmentJson {
+    pub param_index: u8,
+    pub encoding: DataEncodingJson,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum DataEncodingJson { RawAddress, LeU64, LeI64, Bool, LeU8, LeU16, LeU32, LeU128 }
+pub enum DataEncodingJson {
+    RawAddress,
+    LeU64,
+    LeI64,
+    Bool,
+    LeU8,
+    LeU16,
+    LeU32,
+    LeU128,
+}
 
 /// Transaction-only intent definition (no governance fields).
 /// Used by CLI `intent add` / `intent update` where governance comes from flags.
@@ -274,19 +331,27 @@ impl IntentTransactionJson {
     }
 }
 
-fn default_one() -> u8 { 1 }
+fn default_one() -> u8 {
+    1
+}
 
 // --- Conversion ---
 
 impl IntentDefinitionJson {
     pub fn to_built(&self) -> Result<BuiltIntent, String> {
         let mut b = IntentBuilder::new();
-        b.set_governance(self.approval_threshold, self.cancellation_threshold, self.timelock_seconds);
+        b.set_governance(
+            self.approval_threshold,
+            self.cancellation_threshold,
+            self.timelock_seconds,
+        );
         b.set_chain_kind(self.chain.as_u8());
 
         // Validate chain/tx_template consistency.
         if self.chain.needs_tx_template() {
-            let tx = self.tx_template.as_ref()
+            let tx = self
+                .tx_template
+                .as_ref()
                 .ok_or_else(|| format!("chain {:?} requires a tx_template field", self.chain))?;
             if !tx.matches_chain(self.chain) {
                 return Err(format!(
@@ -296,10 +361,7 @@ impl IntentDefinitionJson {
             }
             b.set_tx_template(&tx.encode());
         } else if self.tx_template.is_some() {
-            return Err(format!(
-                "chain {:?} cannot have a tx_template",
-                self.chain
-            ));
+            return Err(format!("chain {:?} cannot have a tx_template", self.chain));
         }
 
         for addr_str in &self.proposers {
@@ -331,17 +393,39 @@ impl IntentDefinitionJson {
         }
         for acct in &self.accounts {
             match &acct.source {
-                AccountSourceJson::Static(addr) => { b.add_static_account(parse_address(addr)?, acct.signer, acct.writable); }
-                AccountSourceJson::Param(idx) => { b.add_param_account(*idx, acct.signer, acct.writable); }
-                AccountSourceJson::Vault => { b.add_vault_account(acct.signer, acct.writable); }
-                AccountSourceJson::HasOne(h) => { b.add_has_one_account(h.account_index, h.byte_offset, acct.signer, acct.writable); }
+                AccountSourceJson::Static(addr) => {
+                    b.add_static_account(parse_address(addr)?, acct.signer, acct.writable);
+                }
+                AccountSourceJson::Param(idx) => {
+                    b.add_param_account(*idx, acct.signer, acct.writable);
+                }
+                AccountSourceJson::Vault => {
+                    b.add_vault_account(acct.signer, acct.writable);
+                }
+                AccountSourceJson::HasOne(h) => {
+                    b.add_has_one_account(
+                        h.account_index,
+                        h.byte_offset,
+                        acct.signer,
+                        acct.writable,
+                    );
+                }
                 AccountSourceJson::Pda(pda) => {
-                    let seeds: Vec<PdaSeedSpec> = pda.seeds.iter().map(|s| match s {
-                        SeedJson::Literal(d) => PdaSeedSpec::Literal(d.clone()),
-                        SeedJson::ParamRef(i) => PdaSeedSpec::ParamRef(*i),
-                        SeedJson::AccountRef(i) => PdaSeedSpec::AccountRef(*i),
-                    }).collect();
-                    b.add_pda_account(pda.program_account_index, &seeds, acct.signer, acct.writable);
+                    let seeds: Vec<PdaSeedSpec> = pda
+                        .seeds
+                        .iter()
+                        .map(|s| match s {
+                            SeedJson::Literal(d) => PdaSeedSpec::Literal(d.clone()),
+                            SeedJson::ParamRef(i) => PdaSeedSpec::ParamRef(*i),
+                            SeedJson::AccountRef(i) => PdaSeedSpec::AccountRef(*i),
+                        })
+                        .collect();
+                    b.add_pda_account(
+                        pda.program_account_index,
+                        &seeds,
+                        acct.signer,
+                        acct.writable,
+                    );
                 }
             }
         }
@@ -352,7 +436,9 @@ impl IntentDefinitionJson {
             }
             for seg in &ix.data_segments {
                 match seg {
-                    DataSegmentJson::Literal(data) => { ix_b.add_literal_segment(data); }
+                    DataSegmentJson::Literal(data) => {
+                        ix_b.add_literal_segment(data);
+                    }
                     DataSegmentJson::Param(p) => {
                         let enc = match p.encoding {
                             DataEncodingJson::RawAddress => DataEncoding::RawAddress,
@@ -386,10 +472,15 @@ fn parse_address(s: &str) -> Result<solana_address::Address, String> {
         .into_vec()
         .map_err(|e| format!("invalid base58 address '{s}': {e}"))?;
     if bytes.len() != 32 {
-        return Err(format!("address '{s}' decoded to {} bytes, expected 32", bytes.len()));
+        return Err(format!(
+            "address '{s}' decoded to {} bytes, expected 32",
+            bytes.len()
+        ));
     }
     // Length validated above, conversion is infallible
-    let arr: [u8; 32] = bytes.try_into().map_err(|_| format!("address '{s}' not 32 bytes"))?;
+    let arr: [u8; 32] = bytes
+        .try_into()
+        .map_err(|_| format!("address '{s}' not 32 bytes"))?;
     Ok(solana_address::Address::new_from_array(arr))
 }
 
@@ -406,7 +497,9 @@ mod tests {
             "template": ""
         });
         let built = serde_json::from_value::<IntentDefinitionJson>(json)
-            .unwrap().to_built().unwrap();
+            .unwrap()
+            .to_built()
+            .unwrap();
         assert_eq!(built.proposers.len(), 1);
         assert_eq!(built.approvers.len(), 1);
         assert!(built.params.is_empty());
@@ -440,7 +533,9 @@ mod tests {
         });
 
         let built = serde_json::from_value::<IntentDefinitionJson>(json)
-            .unwrap().to_built().unwrap();
+            .unwrap()
+            .to_built()
+            .unwrap();
         assert_eq!(built.params.len(), 2);
         assert_eq!(built.accounts.len(), 3);
         assert_eq!(built.instructions.len(), 1);
@@ -462,7 +557,9 @@ mod tests {
             "template": ""
         });
         let built = serde_json::from_value::<IntentDefinitionJson>(json)
-            .unwrap().to_built().unwrap();
+            .unwrap()
+            .to_built()
+            .unwrap();
         assert_eq!(built.accounts[1].source_type, AccountSourceType::Vault);
         assert_eq!(built.accounts[2].source_type, AccountSourceType::PdaDerived);
         assert_eq!(built.seeds.len(), 2);
@@ -494,7 +591,9 @@ mod tests {
 
     #[test]
     fn test_evm_intent_from_file() {
-        let built = load_example("../../../examples/intents/evm_transfer.json").to_built().unwrap();
+        let built = load_example("../../../examples/intents/evm_transfer.json")
+            .to_built()
+            .unwrap();
         assert_eq!(built.chain_kind, 1); // Evm1559
         assert_eq!(built.tx_template_len, 32);
         assert_eq!(built.params.len(), 4);
@@ -502,7 +601,9 @@ mod tests {
 
     #[test]
     fn test_btc_intent_from_file() {
-        let built = load_example("../../../examples/intents/btc_transfer.json").to_built().unwrap();
+        let built = load_example("../../../examples/intents/btc_transfer.json")
+            .to_built()
+            .unwrap();
         assert_eq!(built.chain_kind, 2); // BitcoinP2wpkh
         assert_eq!(built.tx_template_len, 16);
         assert_eq!(built.params.len(), 6);
@@ -510,7 +611,9 @@ mod tests {
 
     #[test]
     fn test_erc20_intent_from_file() {
-        let built = load_example("../../../examples/intents/erc20_transfer.json").to_built().unwrap();
+        let built = load_example("../../../examples/intents/erc20_transfer.json")
+            .to_built()
+            .unwrap();
         assert_eq!(built.chain_kind, 4); // Evm1559Erc20
         assert_eq!(built.tx_template_len, 32); // reuses Evm1559 envelope template
         assert_eq!(built.params.len(), 4);

@@ -65,10 +65,10 @@ use ika_grpc::d_wallet_service_client::DWalletServiceClient;
 use ika_grpc::UserSignedRequest;
 
 use clear_wallet_client::chains::evm::Tx1559;
-use clear_wallet_client::intent_json::{IntentTransactionJson, IntentDefinitionJson};
+use clear_wallet_client::intent_json::{IntentDefinitionJson, IntentTransactionJson};
 use clear_wallet_client::pda::{
-    compute_name_hash, find_ika_config_address, find_intent_address,
-    find_proposal_address, find_vault_address, find_wallet_address,
+    compute_name_hash, find_ika_config_address, find_intent_address, find_proposal_address,
+    find_vault_address, find_wallet_address,
 };
 use quasar_lang::client::{DynBytes, TailBytes};
 
@@ -152,10 +152,13 @@ const DEFAULT_EXPIRY: i64 = 1_900_000_000;
 
 fn load_payer() -> Keypair {
     let path = env::var("PAYER_KEYPAIR").unwrap_or_else(|_| {
-        format!("{}/.config/solana/devnet-admin.json", env::var("HOME").unwrap_or_default())
+        format!(
+            "{}/.config/solana/devnet-admin.json",
+            env::var("HOME").unwrap_or_default()
+        )
     });
-    let data = std::fs::read_to_string(&path)
-        .unwrap_or_else(|_| panic!("Cannot read keypair at {path}"));
+    let data =
+        std::fs::read_to_string(&path).unwrap_or_else(|_| panic!("Cannot read keypair at {path}"));
     let bytes: Vec<u8> = {
         let s = data.trim();
         s[1..s.len() - 1]
@@ -177,7 +180,9 @@ fn send_tx(
     let mut signers: Vec<&Keypair> = vec![payer];
     signers.extend_from_slice(extra);
     let tx = Transaction::new_signed_with_payer(&ixs, Some(&payer.pubkey()), &signers, blockhash);
-    client.send_and_confirm_transaction(&tx).expect("send_and_confirm")
+    client
+        .send_and_confirm_transaction(&tx)
+        .expect("send_and_confirm")
 }
 
 fn poll_until(
@@ -252,7 +257,9 @@ fn format_timestamp(ts: i64) -> String {
     let secs_per_day: i64 = 86400;
     let mut days = ts / secs_per_day;
     let day_secs = ((ts % secs_per_day) + secs_per_day) % secs_per_day;
-    if ts < 0 && day_secs > 0 { days -= 1; }
+    if ts < 0 && day_secs > 0 {
+        days -= 1;
+    }
     let (hour, min, sec) = (day_secs / 3600, (day_secs % 3600) / 60, day_secs % 60);
     let adj = days + 719468;
     let era = if adj >= 0 { adj } else { adj - 146096 } / 146097;
@@ -281,7 +288,13 @@ fn sha256_hash(data: &[u8]) -> [u8; 32] {
 /// Build the same message body the on-chain code computes for an AddIntent
 /// proposal/approval. Format:
 /// `expires <ts>: <action> add intent definition_hash: <hex> | wallet: <name> proposal: <index>`
-fn add_intent_msg(action: &str, expiry: i64, wallet_name: &str, proposal_index: u64, body: &[u8]) -> Vec<u8> {
+fn add_intent_msg(
+    action: &str,
+    expiry: i64,
+    wallet_name: &str,
+    proposal_index: u64,
+    body: &[u8],
+) -> Vec<u8> {
     format!(
         "expires {}: {action} add intent definition_hash: {} | wallet: {wallet_name} proposal: {proposal_index}",
         format_timestamp(expiry),
@@ -343,11 +356,15 @@ fn ext_account_meta_readonly(pk: Pubkey) -> solana_instruction::AccountMeta {
 fn sdk_ix_from_ext(ix: solana_instruction::Instruction) -> Instruction {
     Instruction {
         program_id: addr_to_pk(ix.program_id),
-        accounts: ix.accounts.into_iter().map(|m| AccountMeta {
-            pubkey: addr_to_pk(m.pubkey),
-            is_signer: m.is_signer,
-            is_writable: m.is_writable,
-        }).collect(),
+        accounts: ix
+            .accounts
+            .into_iter()
+            .map(|m| AccountMeta {
+                pubkey: addr_to_pk(m.pubkey),
+                is_signer: m.is_signer,
+                is_writable: m.is_writable,
+            })
+            .collect(),
         data: ix.data,
     }
 }
@@ -392,10 +409,17 @@ async fn main() {
     // ---------------------------------------------------------------
     // Setup
     // ---------------------------------------------------------------
-    log("Setup", "Loading payer + waiting for dWallet program init...");
+    log(
+        "Setup",
+        "Loading payer + waiting for dWallet program init...",
+    );
     let payer = load_payer();
     let balance = client.get_balance(&payer.pubkey()).unwrap_or(0);
-    ok(&format!("Payer: {} ({:.3} SOL)", payer.pubkey(), balance as f64 / 1e9));
+    ok(&format!(
+        "Payer: {} ({:.3} SOL)",
+        payer.pubkey(),
+        balance as f64 / 1e9
+    ));
     if balance < 100_000_000 {
         panic!("payer needs at least 0.1 SOL on devnet");
     }
@@ -414,8 +438,11 @@ async fn main() {
     let nek_accounts: Vec<(Pubkey, Account)> = {
         let start = Instant::now();
         loop {
-            let accs = client.get_program_accounts(&dwallet_program_id).unwrap_or_default();
-            let neks: Vec<_> = accs.into_iter()
+            let accs = client
+                .get_program_accounts(&dwallet_program_id)
+                .unwrap_or_default();
+            let neks: Vec<_> = accs
+                .into_iter()
                 .filter(|(_, a)| a.data.len() >= NEK_LEN && a.data[0] == DISC_NEK)
                 .collect();
             if !neks.is_empty() {
@@ -434,38 +461,53 @@ async fn main() {
     // ---------------------------------------------------------------
     // 1. gRPC DKG → dWallet on-chain
     // ---------------------------------------------------------------
-    log("1/12", "Requesting DKG via gRPC (Curve25519 — pre-alpha mock limitation)...");
+    log(
+        "1/12",
+        "Requesting DKG via gRPC (Curve25519 — pre-alpha mock limitation)...",
+    );
 
     let mut grpc_client = if grpc_url.starts_with("https") {
         let tls = tonic::transport::ClientTlsConfig::new().with_native_roots();
         let channel = tonic::transport::Channel::from_shared(grpc_url.clone())
-            .expect("valid URL").tls_config(tls).expect("tls")
-            .connect().await.expect("connect to gRPC");
+            .expect("valid URL")
+            .tls_config(tls)
+            .expect("tls")
+            .connect()
+            .await
+            .expect("connect to gRPC");
         DWalletServiceClient::new(channel)
     } else {
-        DWalletServiceClient::connect(grpc_url.clone()).await.expect("connect to gRPC")
+        DWalletServiceClient::connect(grpc_url.clone())
+            .await
+            .expect("connect to gRPC")
     };
 
-    let dkg_request = build_grpc_request(&payer, SignedRequestData {
-        session_identifier_preimage: [0u8; 32],
-        epoch: 1,
-        chain_id: ChainId::Solana,
-        intended_chain_sender: payer.pubkey().to_bytes().to_vec(),
-        request: DWalletRequest::DKG {
-            dwallet_network_encryption_public_key: vec![0u8; 32],
-            curve: DWalletCurve::Curve25519,
-            centralized_public_key_share_and_proof: vec![0u8; 32],
-            user_secret_key_share: UserSecretKeyShare::Encrypted {
-                encrypted_centralized_secret_share_and_proof: vec![0u8; 32],
-                encryption_key: vec![0u8; 32],
-                signer_public_key: payer.pubkey().to_bytes().to_vec(),
+    let dkg_request = build_grpc_request(
+        &payer,
+        SignedRequestData {
+            session_identifier_preimage: [0u8; 32],
+            epoch: 1,
+            chain_id: ChainId::Solana,
+            intended_chain_sender: payer.pubkey().to_bytes().to_vec(),
+            request: DWalletRequest::DKG {
+                dwallet_network_encryption_public_key: vec![0u8; 32],
+                curve: DWalletCurve::Curve25519,
+                centralized_public_key_share_and_proof: vec![0u8; 32],
+                user_secret_key_share: UserSecretKeyShare::Encrypted {
+                    encrypted_centralized_secret_share_and_proof: vec![0u8; 32],
+                    encryption_key: vec![0u8; 32],
+                    signer_public_key: payer.pubkey().to_bytes().to_vec(),
+                },
+                user_public_output: vec![0u8; 32],
+                sign_during_dkg_request: None,
             },
-            user_public_output: vec![0u8; 32],
-            sign_during_dkg_request: None,
         },
-    });
+    );
 
-    let response = grpc_client.submit_transaction(dkg_request).await.expect("gRPC DKG");
+    let response = grpc_client
+        .submit_transaction(dkg_request)
+        .await
+        .expect("gRPC DKG");
     let response_data: TransactionResponseData =
         bcs::from_bytes(&response.into_inner().response_data).expect("BCS deserialize");
 
@@ -512,7 +554,10 @@ async fn main() {
     // ---------------------------------------------------------------
     // 2. Transfer dWallet authority → clear-wallet's CPI authority PDA
     // ---------------------------------------------------------------
-    log("2/12", "Transferring dWallet authority to clear-wallet CPI PDA...");
+    log(
+        "2/12",
+        "Transferring dWallet authority to clear-wallet CPI PDA...",
+    );
 
     let (cpi_authority_pk, cpi_authority_bump) =
         Pubkey::find_program_address(&[SEED_CPI_AUTHORITY], &clear_wallet_program_id);
@@ -521,14 +566,19 @@ async fn main() {
     transfer_data.push(IX_TRANSFER_OWNERSHIP);
     transfer_data.extend_from_slice(cpi_authority_pk.as_ref());
 
-    send_tx(&client, &payer, vec![Instruction::new_with_bytes(
-        dwallet_program_id,
-        &transfer_data,
-        vec![
-            AccountMeta::new_readonly(payer.pubkey(), true),
-            AccountMeta::new(dwallet_pda, false),
-        ],
-    )], &[]);
+    send_tx(
+        &client,
+        &payer,
+        vec![Instruction::new_with_bytes(
+            dwallet_program_id,
+            &transfer_data,
+            vec![
+                AccountMeta::new_readonly(payer.pubkey(), true),
+                AccountMeta::new(dwallet_pda, false),
+            ],
+        )],
+        &[],
+    );
     ok(&format!("Authority → {cpi_authority_pk}"));
     println!();
 
@@ -557,33 +607,37 @@ async fn main() {
     let (vault_addr, _) = find_vault_address(&wallet_pk_addr, &pk_to_addr(clear_wallet_program_id));
     let vault_pk = addr_to_pk(vault_addr);
 
-    let (add_intent_addr, _) = find_intent_address(&wallet_pk_addr, 0, &pk_to_addr(clear_wallet_program_id));
-    let (remove_intent_addr, _) = find_intent_address(&wallet_pk_addr, 1, &pk_to_addr(clear_wallet_program_id));
-    let (update_intent_addr, _) = find_intent_address(&wallet_pk_addr, 2, &pk_to_addr(clear_wallet_program_id));
+    let (add_intent_addr, _) =
+        find_intent_address(&wallet_pk_addr, 0, &pk_to_addr(clear_wallet_program_id));
+    let (remove_intent_addr, _) =
+        find_intent_address(&wallet_pk_addr, 1, &pk_to_addr(clear_wallet_program_id));
+    let (update_intent_addr, _) =
+        find_intent_address(&wallet_pk_addr, 2, &pk_to_addr(clear_wallet_program_id));
     let add_intent_pk = addr_to_pk(add_intent_addr);
     let remove_intent_pk = addr_to_pk(remove_intent_addr);
     let update_intent_pk = addr_to_pk(update_intent_addr);
 
-    let cw_ix: solana_instruction::Instruction = quasar_client::create_wallet::CreateWalletInstruction {
-        payer: pk_to_addr(payer.pubkey()),
-        name_hash: pk_to_addr(name_hash_pk),
-        wallet: wallet_pk_addr,
-        add_intent: add_intent_addr,
-        remove_intent: remove_intent_addr,
-        update_intent: update_intent_addr,
-        system_program: pk_to_addr(system_program::id()),
-        approval_threshold: 2,
-        cancellation_threshold: 1,
-        timelock_seconds: 0,
-        name: quasar_lang::client::DynBytes::from(wallet_name.as_bytes().to_vec()),
-        proposers: quasar_lang::client::DynVec::new(vec![proposer_pk.to_bytes()]),
-        approvers: quasar_lang::client::DynVec::new(vec![
-            approver1_pk.to_bytes(),
-            approver2_pk.to_bytes(),
-        ]),
-        policy_ciphertexts: quasar_lang::client::TailBytes(Vec::new()),
-    }
-    .into();
+    let cw_ix: solana_instruction::Instruction =
+        quasar_client::create_wallet::CreateWalletInstruction {
+            payer: pk_to_addr(payer.pubkey()),
+            name_hash: pk_to_addr(name_hash_pk),
+            wallet: wallet_pk_addr,
+            add_intent: add_intent_addr,
+            remove_intent: remove_intent_addr,
+            update_intent: update_intent_addr,
+            system_program: pk_to_addr(system_program::id()),
+            approval_threshold: 2,
+            cancellation_threshold: 1,
+            timelock_seconds: 0,
+            name: quasar_lang::client::DynBytes::from(wallet_name.as_bytes().to_vec()),
+            proposers: quasar_lang::client::DynVec::new(vec![proposer_pk.to_bytes()]),
+            approvers: quasar_lang::client::DynVec::new(vec![
+                approver1_pk.to_bytes(),
+                approver2_pk.to_bytes(),
+            ]),
+            policy_ciphertexts: quasar_lang::client::TailBytes(Vec::new()),
+        }
+        .into();
     let cw_ix = sdk_ix_from_ext(cw_ix);
     send_tx(&client, &payer, vec![cw_ix], &[]);
     ok(&format!("Wallet: {wallet_pk}"));
@@ -596,11 +650,15 @@ async fn main() {
     // ---------------------------------------------------------------
     // 4. Build the EVM intent body via the JSON example
     // ---------------------------------------------------------------
-    log("4/12", "Loading and building EVM intent definition from JSON...");
+    log(
+        "4/12",
+        "Loading and building EVM intent definition from JSON...",
+    );
 
     let json = std::fs::read_to_string("examples/intents/evm_transfer.json")
         .expect("read evm_transfer.json (run from repo root)");
-    let tx_def: IntentTransactionJson = serde_json::from_str(&json).expect("parse evm_transfer.json");
+    let tx_def: IntentTransactionJson =
+        serde_json::from_str(&json).expect("parse evm_transfer.json");
     let def: IntentDefinitionJson = tx_def.with_governance(
         vec![bs58::encode(proposer_pk.as_ref()).into_string()],
         vec![
@@ -617,7 +675,12 @@ async fn main() {
     val("params", built.params.len());
 
     // Serialize the intent body that will become params_data of the AddIntent proposal.
-    let intent_body = built.serialize_body(&wallet_pk_addr, /*bump=*/ 0, /*intent_index=*/ 3, INTENT_TYPE_CUSTOM);
+    let intent_body = built.serialize_body(
+        &wallet_pk_addr,
+        /*bump=*/ 0,
+        /*intent_index=*/ 3,
+        INTENT_TYPE_CUSTOM,
+    );
     println!();
 
     // ---------------------------------------------------------------
@@ -626,10 +689,20 @@ async fn main() {
     log("5/12", "Proposing AddIntent (EVM transfer template)...");
 
     let proposal_index_add: u64 = 0;
-    let (proposal_add_addr, _) = find_proposal_address(&add_intent_addr, proposal_index_add, &pk_to_addr(clear_wallet_program_id));
+    let (proposal_add_addr, _) = find_proposal_address(
+        &add_intent_addr,
+        proposal_index_add,
+        &pk_to_addr(clear_wallet_program_id),
+    );
     let proposal_add_pk = addr_to_pk(proposal_add_addr);
 
-    let propose_msg = add_intent_msg("propose", DEFAULT_EXPIRY, &wallet_name, proposal_index_add, &intent_body);
+    let propose_msg = add_intent_msg(
+        "propose",
+        DEFAULT_EXPIRY,
+        &wallet_name,
+        proposal_index_add,
+        &intent_body,
+    );
     let proposer_sig = sign_dalek(&proposer, &propose_msg);
     let proposer_pk_bytes = proposer.verifying_key().to_bytes();
 
@@ -643,7 +716,8 @@ async fn main() {
         proposer_pubkey: proposer_pk_bytes,
         signature: proposer_sig,
         params_data: quasar_lang::client::TailBytes(intent_body.clone()),
-    }.into();
+    }
+    .into();
     send_tx(&client, &payer, vec![sdk_ix_from_ext(propose_ix)], &[]);
     ok(&format!("AddIntent proposal: {proposal_add_pk}"));
 
@@ -652,7 +726,13 @@ async fn main() {
     // ---------------------------------------------------------------
     log("6/12", "Approving AddIntent (2/2)...");
 
-    let approve_msg = add_intent_msg("approve", DEFAULT_EXPIRY, &wallet_name, proposal_index_add, &intent_body);
+    let approve_msg = add_intent_msg(
+        "approve",
+        DEFAULT_EXPIRY,
+        &wallet_name,
+        proposal_index_add,
+        &intent_body,
+    );
     for (idx, approver) in [(0u8, &approver1), (1u8, &approver2)] {
         let sig = sign_dalek(approver, &approve_msg);
         let ix: solana_instruction::Instruction = quasar_client::approve::ApproveInstruction {
@@ -662,7 +742,8 @@ async fn main() {
             expiry: DEFAULT_EXPIRY,
             approver_index: idx,
             signature: sig,
-        }.into();
+        }
+        .into();
         send_tx(&client, &payer, vec![sdk_ix_from_ext(ix)], &[]);
     }
     ok("AddIntent approved");
@@ -670,9 +751,13 @@ async fn main() {
     // ---------------------------------------------------------------
     // 7. Execute AddIntent — writes the new intent at index 3
     // ---------------------------------------------------------------
-    log("7/12", "Executing AddIntent → writes EVM intent at index 3...");
+    log(
+        "7/12",
+        "Executing AddIntent → writes EVM intent at index 3...",
+    );
 
-    let (custom_intent_addr, _) = find_intent_address(&wallet_pk_addr, 3, &pk_to_addr(clear_wallet_program_id));
+    let (custom_intent_addr, _) =
+        find_intent_address(&wallet_pk_addr, 3, &pk_to_addr(clear_wallet_program_id));
     let custom_intent_pk = addr_to_pk(custom_intent_addr);
 
     let exec_ix: solana_instruction::Instruction = quasar_client::execute::ExecuteInstruction {
@@ -695,7 +780,8 @@ async fn main() {
                 is_writable: true,
             },
         ],
-    }.into();
+    }
+    .into();
     send_tx(&client, &payer, vec![sdk_ix_from_ext(exec_ix)], &[]);
     ok(&format!("Custom EVM intent at index 3: {custom_intent_pk}"));
     println!();
@@ -703,7 +789,10 @@ async fn main() {
     // ---------------------------------------------------------------
     // 8. Bind dWallet
     // ---------------------------------------------------------------
-    log("8/12", "Binding dWallet to clear-msig wallet (chain=evm_1559)...");
+    log(
+        "8/12",
+        "Binding dWallet to clear-msig wallet (chain=evm_1559)...",
+    );
 
     let (ika_config_addr, _) = find_ika_config_address(
         &wallet_pk_addr,
@@ -727,21 +816,23 @@ async fn main() {
     let copy_len = dwallet_public_key.len().min(32);
     user_pubkey[..copy_len].copy_from_slice(&dwallet_public_key[..copy_len]);
 
-    let bind_ix: solana_instruction::Instruction = quasar_client::bind_dwallet::BindDwalletInstruction {
-        payer: pk_to_addr(payer.pubkey()),
-        wallet: wallet_pk_addr,
-        ika_config: ika_config_addr,
-        dwallet_ownership: pk_to_addr(dwallet_ownership_pk),
-        dwallet: pk_to_addr(dwallet_pda),
-        cpi_authority: pk_to_addr(cpi_authority_pk),
-        caller_program: pk_to_addr(clear_wallet_program_id),
-        dwallet_program: pk_to_addr(dwallet_program_id),
-        system_program: pk_to_addr(system_program::id()),
-        chain_kind: CHAIN_KIND_EVM,
-        user_pubkey,
-        signature_scheme: 0,
-        cpi_authority_bump,
-    }.into();
+    let bind_ix: solana_instruction::Instruction =
+        quasar_client::bind_dwallet::BindDwalletInstruction {
+            payer: pk_to_addr(payer.pubkey()),
+            wallet: wallet_pk_addr,
+            ika_config: ika_config_addr,
+            dwallet_ownership: pk_to_addr(dwallet_ownership_pk),
+            dwallet: pk_to_addr(dwallet_pda),
+            cpi_authority: pk_to_addr(cpi_authority_pk),
+            caller_program: pk_to_addr(clear_wallet_program_id),
+            dwallet_program: pk_to_addr(dwallet_program_id),
+            system_program: pk_to_addr(system_program::id()),
+            chain_kind: CHAIN_KIND_EVM,
+            user_pubkey,
+            signature_scheme: 0,
+            cpi_authority_bump,
+        }
+        .into();
     send_tx(&client, &payer, vec![sdk_ix_from_ext(bind_ix)], &[]);
     ok(&format!("IkaConfig: {ika_config_pk}"));
     println!();
@@ -773,7 +864,15 @@ async fn main() {
     );
     let proposal_custom_pk = addr_to_pk(proposal_custom_addr);
 
-    let custom_msg = custom_evm_msg("propose", DEFAULT_EXPIRY, &wallet_name, proposal_index_custom, evm_nonce, &evm_to, evm_value);
+    let custom_msg = custom_evm_msg(
+        "propose",
+        DEFAULT_EXPIRY,
+        &wallet_name,
+        proposal_index_custom,
+        evm_nonce,
+        &evm_to,
+        evm_value,
+    );
     let custom_sig = sign_dalek(&proposer, &custom_msg);
 
     let prop2_ix: solana_instruction::Instruction = quasar_client::propose::ProposeInstruction {
@@ -786,13 +885,22 @@ async fn main() {
         proposer_pubkey: proposer_pk_bytes,
         signature: custom_sig,
         params_data: quasar_lang::client::TailBytes(evm_params.clone()),
-    }.into();
+    }
+    .into();
     send_tx(&client, &payer, vec![sdk_ix_from_ext(prop2_ix)], &[]);
     ok(&format!("EVM transfer proposal: {proposal_custom_pk}"));
 
     log("10/12", "Approving EVM transfer (2/2)...");
 
-    let approve2_msg = custom_evm_msg("approve", DEFAULT_EXPIRY, &wallet_name, proposal_index_custom, evm_nonce, &evm_to, evm_value);
+    let approve2_msg = custom_evm_msg(
+        "approve",
+        DEFAULT_EXPIRY,
+        &wallet_name,
+        proposal_index_custom,
+        evm_nonce,
+        &evm_to,
+        evm_value,
+    );
     for (idx, approver) in [(0u8, &approver1), (1u8, &approver2)] {
         let sig = sign_dalek(approver, &approve2_msg);
         let ix: solana_instruction::Instruction = quasar_client::approve::ApproveInstruction {
@@ -802,7 +910,8 @@ async fn main() {
             expiry: DEFAULT_EXPIRY,
             approver_index: idx,
             signature: sig,
-        }.into();
+        }
+        .into();
         send_tx(&client, &payer, vec![sdk_ix_from_ext(ix)], &[]);
     }
     ok("EVM transfer approved");
@@ -811,7 +920,10 @@ async fn main() {
     // ---------------------------------------------------------------
     // 11. ika_sign — clear-wallet builds the EVM RLP sighash and CPIs approve_message
     // ---------------------------------------------------------------
-    log("11/12", "ika_sign → builds EIP-1559 RLP sighash + CPIs approve_message...");
+    log(
+        "11/12",
+        "ika_sign → builds EIP-1559 RLP sighash + CPIs approve_message...",
+    );
 
     // Compute the same RLP preimage off-chain so we can pass it to the gRPC Sign request.
     let evm_tx = Tx1559 {
@@ -856,7 +968,8 @@ async fn main() {
         system_program: pk_to_addr(system_program::id()),
         message_approval_bump,
         cpi_authority_bump,
-    }.into();
+    }
+    .into();
     let quorum_tx_sig = send_tx(&client, &payer, vec![sdk_ix_from_ext(sign_ix)], &[]);
     ok(&format!("ika_sign tx: {quorum_tx_sig}"));
 
@@ -878,18 +991,24 @@ async fn main() {
     // ---------------------------------------------------------------
     log("12/12", "Allocating presign + signing via gRPC...");
 
-    let presign_request = build_grpc_request(&payer, SignedRequestData {
-        session_identifier_preimage: dwallet_addr,
-        epoch: 1,
-        chain_id: ChainId::Solana,
-        intended_chain_sender: payer.pubkey().to_bytes().to_vec(),
-        request: DWalletRequest::Presign {
-            dwallet_network_encryption_public_key: vec![0u8; 32],
-            curve: DWalletCurve::Curve25519,
-            signature_algorithm: DWalletSignatureAlgorithm::EdDSA,
+    let presign_request = build_grpc_request(
+        &payer,
+        SignedRequestData {
+            session_identifier_preimage: dwallet_addr,
+            epoch: 1,
+            chain_id: ChainId::Solana,
+            intended_chain_sender: payer.pubkey().to_bytes().to_vec(),
+            request: DWalletRequest::Presign {
+                dwallet_network_encryption_public_key: vec![0u8; 32],
+                curve: DWalletCurve::Curve25519,
+                signature_algorithm: DWalletSignatureAlgorithm::EdDSA,
+            },
         },
-    });
-    let presign_response = grpc_client.submit_transaction(presign_request).await.expect("presign");
+    );
+    let presign_response = grpc_client
+        .submit_transaction(presign_request)
+        .await
+        .expect("presign");
     let presign_data: TransactionResponseData =
         bcs::from_bytes(&presign_response.into_inner().response_data).expect("BCS");
     // Presign now returns an Attestation carrying a VersionedPresignDataAttestation.
@@ -905,34 +1024,43 @@ async fn main() {
             .expect("decode presign attestation body");
     let presign_session_identifier = presign_body.presign_session_identifier.clone();
     ok("Presign allocated");
-    val("Presign session id", hex::encode(&presign_session_identifier));
+    val(
+        "Presign session id",
+        hex::encode(&presign_session_identifier),
+    );
 
-    let sign_request = build_grpc_request(&payer, SignedRequestData {
-        session_identifier_preimage: dwallet_addr,
-        epoch: 1,
-        chain_id: ChainId::Solana,
-        intended_chain_sender: payer.pubkey().to_bytes().to_vec(),
-        request: DWalletRequest::Sign {
-            message: rlp_preimage.clone(),
-            // The redesigned Sign carries message_metadata (an opaque blob
-            // the network forwards along with the signature — for Zcash
-            // this encodes the Blake2b personal+salt; for EVM/BTC it's
-            // empty). The clear-wallet dispatcher mirrors this via
-            // `crate::chains::message_metadata`.
-            message_metadata: Vec::new(),
-            presign_session_identifier,
-            message_centralized_signature: vec![0u8; 64],
-            // Post-redesign (2026-04-13), Sign pins the authoritative
-            // dWallet record via the DKG attestation itself. We hand back
-            // what DKG returned (moved — it isn't referenced again).
-            dwallet_attestation: dkg_attestation,
-            approval_proof: ApprovalProof::Solana {
-                transaction_signature: quorum_tx_sig.as_ref().to_vec(),
-                slot: 0,
+    let sign_request = build_grpc_request(
+        &payer,
+        SignedRequestData {
+            session_identifier_preimage: dwallet_addr,
+            epoch: 1,
+            chain_id: ChainId::Solana,
+            intended_chain_sender: payer.pubkey().to_bytes().to_vec(),
+            request: DWalletRequest::Sign {
+                message: rlp_preimage.clone(),
+                // The redesigned Sign carries message_metadata (an opaque blob
+                // the network forwards along with the signature — for Zcash
+                // this encodes the Blake2b personal+salt; for EVM/BTC it's
+                // empty). The clear-wallet dispatcher mirrors this via
+                // `crate::chains::message_metadata`.
+                message_metadata: Vec::new(),
+                presign_session_identifier,
+                message_centralized_signature: vec![0u8; 64],
+                // Post-redesign (2026-04-13), Sign pins the authoritative
+                // dWallet record via the DKG attestation itself. We hand back
+                // what DKG returned (moved — it isn't referenced again).
+                dwallet_attestation: dkg_attestation,
+                approval_proof: ApprovalProof::Solana {
+                    transaction_signature: quorum_tx_sig.as_ref().to_vec(),
+                    slot: 0,
+                },
             },
         },
-    });
-    let sign_response = grpc_client.submit_transaction(sign_request).await.expect("sign");
+    );
+    let sign_response = grpc_client
+        .submit_transaction(sign_request)
+        .await
+        .expect("sign");
     let sign_data: TransactionResponseData =
         bcs::from_bytes(&sign_response.into_inner().response_data).expect("BCS");
     let grpc_signature = match sign_data {
@@ -959,8 +1087,8 @@ async fn main() {
     println!("{BOLD}{GREEN}\u{2550}\u{2550}\u{2550} E2E PASSED \u{2550}\u{2550}\u{2550}{RESET}");
     println!();
     val("clear-msig wallet", wallet_pk);
-    val("Bound dWallet",     dwallet_pda);
-    val("EVM tx (RLP)",      hex::encode(&rlp_preimage));
-    val("Final signature",   hex::encode(onchain_signature));
+    val("Bound dWallet", dwallet_pda);
+    val("EVM tx (RLP)", hex::encode(&rlp_preimage));
+    val("Final signature", hex::encode(onchain_signature));
     println!();
 }

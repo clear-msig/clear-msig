@@ -70,9 +70,14 @@ impl<'info> Cancel<'info> {
         let mut msg_buf = MessageBuilder::new();
         msg_buf.build_message_for_intent(&ctx, &self.intent, self.proposal.params_data())?;
 
-        let v1 = brine_ed25519::sig_verify(canceller_addr.as_ref(), args.signature, msg_buf.as_bytes());
+        let v1 =
+            brine_ed25519::sig_verify(canceller_addr.as_ref(), args.signature, msg_buf.as_bytes());
         if v1.is_err() {
-            msg_buf.build_plain_message_for_intent(&ctx, &self.intent, self.proposal.params_data())?;
+            msg_buf.build_plain_message_for_intent(
+                &ctx,
+                &self.intent,
+                self.proposal.params_data(),
+            )?;
             brine_ed25519::sig_verify(canceller_addr.as_ref(), args.signature, msg_buf.as_bytes())
                 .map_err(|_| WalletError::InvalidSignature)?;
         }

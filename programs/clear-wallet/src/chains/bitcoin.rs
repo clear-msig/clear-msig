@@ -57,8 +57,8 @@
 use quasar_lang::prelude::*;
 use sha2::{Digest, Sha256};
 
-use crate::state::intent::Intent;
 use super::{read_bytes20, read_bytes32, read_u64};
+use crate::state::intent::Intent;
 
 pub const TX_TEMPLATE_LEN: usize = 16;
 
@@ -124,16 +124,26 @@ pub fn build_preimage(
 
     // Assemble the BIP143 preimage directly into the caller's `out` buffer.
     let mut p = 0;
-    out[p..p + 4].copy_from_slice(&version.to_le_bytes()); p += 4;
-    out[p..p + 32].copy_from_slice(&hash_prevouts); p += 32;
-    out[p..p + 32].copy_from_slice(&hash_sequence); p += 32;
-    out[p..p + 36].copy_from_slice(&outpoint); p += 36;
-    out[p..p + 26].copy_from_slice(&script_code); p += 26;
-    out[p..p + 8].copy_from_slice(&prev_amount.to_le_bytes()); p += 8;
-    out[p..p + 4].copy_from_slice(&sequence.to_le_bytes()); p += 4;
-    out[p..p + 32].copy_from_slice(&hash_outputs); p += 32;
-    out[p..p + 4].copy_from_slice(&lock_time.to_le_bytes()); p += 4;
-    out[p..p + 4].copy_from_slice(&sighash_type.to_le_bytes()); p += 4;
+    out[p..p + 4].copy_from_slice(&version.to_le_bytes());
+    p += 4;
+    out[p..p + 32].copy_from_slice(&hash_prevouts);
+    p += 32;
+    out[p..p + 32].copy_from_slice(&hash_sequence);
+    p += 32;
+    out[p..p + 36].copy_from_slice(&outpoint);
+    p += 36;
+    out[p..p + 26].copy_from_slice(&script_code);
+    p += 26;
+    out[p..p + 8].copy_from_slice(&prev_amount.to_le_bytes());
+    p += 8;
+    out[p..p + 4].copy_from_slice(&sequence.to_le_bytes());
+    p += 4;
+    out[p..p + 32].copy_from_slice(&hash_outputs);
+    p += 32;
+    out[p..p + 4].copy_from_slice(&lock_time.to_le_bytes());
+    p += 4;
+    out[p..p + 4].copy_from_slice(&sighash_type.to_le_bytes());
+    p += 4;
     debug_assert_eq!(p, PREIMAGE_LEN);
 
     Ok(PREIMAGE_LEN)

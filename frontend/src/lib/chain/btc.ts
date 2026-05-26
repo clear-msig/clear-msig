@@ -43,6 +43,9 @@ export async function fetchBitcoinTxHistory(
   const base = isTestnet
     ? "https://mempool.space/testnet/api"
     : "https://mempool.space/api";
+  if (esploraBaseUrl(isTestnet ? "testnet" : "mainnet").includes(".g.alchemy.com/")) {
+    return fetchAlchemyBitcoinTxHistory(address, isTestnet ? "testnet" : "mainnet", limit);
+  }
   const res = await fetch(`${base}/address/${address}/txs`, {
     method: "GET",
     headers: { accept: "application/json" },
@@ -98,6 +101,113 @@ export async function fetchBitcoinTxHistory(
   return rows;
 }
 
+async function fetchAlchemyBitcoinTxHistory(
+  address: string,
+  network: BitcoinNetwork,
+  limit: number,
+): Promise<BtcTxRow[]> {
+  const rpcBase = esploraBaseUrl(network).replace(/\/+$/, "");
+  const addressUrl = `${rpcBase}/api/v2/address/${encodeURIComponent(address)}?details=txids`;
+  const resp = await fetch(addressUrl, {
+    method: "GET",
+    headers: { accept: "application/json" },
+    credentials: "omit",
+  });
+  if (!resp.ok) {
+    if (resp.status === 404) return [];
+    throw new Error(`Alchemy Bitcoin address HTTP ${resp.status}`);
+  }
+  const raw = (await resp.json()) as unknown;
+  const txids = extractTxids(raw).slice(0, limit);
+  const rows: BtcTxRow[] = [];
+  for (const txid of txids) {
+    const tx = await bitcoinRpcCall(network, "getrawtransaction", [txid, true]);
+    const rec = tx.result as Record<string, unknown> | undefined;
+    if (!rec) continue;
+    const confirmations = numberField(rec, "confirmations");
+    const blockTime = numberField(rec, "blocktime", "time");
+    const blockHeight = numberField(rec, "blockheight", "height");
+    rows.push({
+      txId: txid,
+      blockTime: blockTime ?? null,
+      blockHeight: blockHeight ?? null,
+      confirmed: (confirmations ?? 0) > 0,
+      netValueSats: 0n,
+    });
+  }
+  return rows;
+}
+
+async function bitcoinRpcCall(
+  network: BitcoinNetwork,
+  method: string,
+  params: unknown[],
+): Promise<{ result?: unknown; error?: { message?: string } }> {
+  const rpcBase = esploraBaseUrl(network).replace(/\/+$/, "");
+  const resp = await fetch(rpcBase, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method,
+      params,
+    }),
+  });
+  if (!resp.ok) {
+    throw new Error(`Bitcoin RPC returned HTTP ${resp.status}`);
+  }
+  const json = (await resp.json()) as {
+    result?: unknown;
+    error?: { message?: string };
+  };
+  if (json.error) {
+    throw new Error(`Bitcoin RPC error: ${json.error.message ?? "unknown"}`);
+  }
+  return json;
+}
+
+function extractTxids(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw.flatMap((item) =>
+      typeof item === "string"
+        ? [item]
+        : typeof item === "object" && item !== null
+          ? extractTxidsFromObject(item as Record<string, unknown>)
+          : [],
+    );
+  }
+  if (typeof raw === "object" && raw !== null) {
+    return extractTxidsFromObject(raw as Record<string, unknown>);
+  }
+  return [];
+}
+
+function extractTxidsFromObject(obj: Record<string, unknown>): string[] {
+  for (const key of ["txids", "transactions", "txid_list", "txidList"]) {
+    const v = obj[key];
+    if (Array.isArray(v)) {
+      return v.filter((x): x is string => typeof x === "string" && x.length > 0);
+    }
+  }
+  return [];
+}
+
+function numberField(
+  row: Record<string, unknown>,
+  ...keys: string[]
+): number | null {
+  for (const key of keys) {
+    const v = row[key];
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    if (typeof v === "string" && v.trim() !== "") {
+      const parsed = Number(v);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  return null;
+}
+
 function isLikelyBitcoinTestnetAddress(addr: string): boolean {
   const s = addr.toLowerCase();
   if (s.startsWith("tb1") || s.startsWith("tb1q") || s.startsWith("tb1p")) {
@@ -116,6 +226,13 @@ function isLikelyBitcoinTestnetAddress(addr: string): boolean {
 
 export type BitcoinNetwork = "mainnet" | "testnet" | "signet" | "regtest";
 
+const BITCOIN_MAINNET_RPC_URL =
+  process.env.NEXT_PUBLIC_BITCOIN_MAINNET_RPC_URL ?? null;
+const BITCOIN_TESTNET_RPC_URL =
+  process.env.NEXT_PUBLIC_BITCOIN_TESTNET_RPC_URL ?? null;
+const BITCOIN_SIGNET_RPC_URL =
+  process.env.NEXT_PUBLIC_BITCOIN_SIGNET_RPC_URL ?? null;
+
 /// Default network for v1. **testnet3**.
 ///
 /// We previously defaulted to signet (free faucets, stable fees) but
@@ -131,17 +248,17 @@ export type BitcoinNetwork = "mainnet" | "testnet" | "signet" | "regtest";
 /// collapses the ambiguity.
 export const DEFAULT_BITCOIN_NETWORK: BitcoinNetwork = "testnet";
 
-/// mempool.space's Esplora base URL per network. Matches the CLI's
-/// default in `cli/src/chains/bitcoin.rs` so a tx broadcast via the
-/// CLI is visible to the frontend's reads.
+/// Bitcoin RPC / Esplora base URL per network. If an Alchemy Bitcoin
+/// endpoint is configured for the selected network, return that.
+/// Otherwise fall back to the public mempool.space Esplora endpoint.
 export function esploraBaseUrl(network: BitcoinNetwork): string {
   switch (network) {
     case "mainnet":
-      return "https://mempool.space/api";
+      return BITCOIN_MAINNET_RPC_URL ?? "https://mempool.space/api";
     case "testnet":
-      return "https://mempool.space/testnet/api";
+      return BITCOIN_TESTNET_RPC_URL ?? "https://mempool.space/testnet/api";
     case "signet":
-      return "https://mempool.space/signet/api";
+      return BITCOIN_SIGNET_RPC_URL ?? "https://mempool.space/signet/api";
     case "regtest":
       // No public regtest Esplora; user is expected to override via
       // env. Returning a placeholder keeps the type exhaustive.
@@ -149,36 +266,48 @@ export function esploraBaseUrl(network: BitcoinNetwork): string {
   }
 }
 
+function bitcoinExplorerBaseUrl(network: BitcoinNetwork): string {
+  const rpc = esploraBaseUrl(network);
+  const isAlchemy = rpc.includes(".g.alchemy.com/");
+  switch (network) {
+    case "mainnet":
+      return "https://mempool.space";
+    case "testnet":
+      return isAlchemy ? "https://testnet4.dev" : "https://mempool.space/testnet";
+    case "signet":
+      return "https://mempool.space/signet";
+    case "regtest":
+      return "http://localhost:3002";
+  }
+}
+
+export function bitcoinExplorerLabel(network: BitcoinNetwork): string {
+  const rpc = esploraBaseUrl(network);
+  const isAlchemy = rpc.includes(".g.alchemy.com/");
+  switch (network) {
+    case "mainnet":
+      return "mempool.space";
+    case "testnet":
+      return isAlchemy ? "testnet4.dev" : "mempool.space";
+    case "signet":
+      return "mempool.space";
+    case "regtest":
+      return "Bitcoin explorer";
+  }
+}
+
 export function mempoolSpaceTxUrl(
   txid: string,
   network: BitcoinNetwork,
 ): string {
-  switch (network) {
-    case "mainnet":
-      return `https://mempool.space/tx/${txid}`;
-    case "testnet":
-      return `https://mempool.space/testnet/tx/${txid}`;
-    case "signet":
-      return `https://mempool.space/signet/tx/${txid}`;
-    case "regtest":
-      return `http://localhost:3002/tx/${txid}`;
-  }
+  return `${bitcoinExplorerBaseUrl(network)}/tx/${txid}`;
 }
 
 export function mempoolSpaceAddressUrl(
   address: string,
   network: BitcoinNetwork,
 ): string {
-  switch (network) {
-    case "mainnet":
-      return `https://mempool.space/address/${address}`;
-    case "testnet":
-      return `https://mempool.space/testnet/address/${address}`;
-    case "signet":
-      return `https://mempool.space/signet/address/${address}`;
-    case "regtest":
-      return `http://localhost:3002/address/${address}`;
-  }
+  return `${bitcoinExplorerBaseUrl(network)}/address/${address}`;
 }
 
 /**
@@ -250,7 +379,12 @@ export async function fetchBitcoinBalance(
   address: string,
   network: BitcoinNetwork = DEFAULT_BITCOIN_NETWORK,
 ): Promise<bigint> {
-  const url = `${esploraBaseUrl(network)}/address/${encodeURIComponent(address)}`;
+  const rpcBase = esploraBaseUrl(network);
+  if (rpcBase.includes(".g.alchemy.com/")) {
+    const utxos = await fetchBitcoinUtxos(address, network);
+    return utxos.reduce((acc, utxo) => acc + BigInt(utxo.value), 0n);
+  }
+  const url = `${rpcBase}/address/${encodeURIComponent(address)}`;
   const resp = await fetch(url, {
     method: "GET",
     headers: { accept: "application/json" },
@@ -283,7 +417,79 @@ export async function fetchBitcoinUtxos(
   address: string,
   network: BitcoinNetwork = DEFAULT_BITCOIN_NETWORK,
 ): Promise<EsploraUtxo[]> {
-  const url = `${esploraBaseUrl(network)}/address/${encodeURIComponent(address)}/utxo`;
+  const rpcBase = esploraBaseUrl(network);
+  if (rpcBase.includes(".g.alchemy.com/")) {
+    const base = rpcBase.replace(/\/+$/, "");
+    const url = `${base}/api/v2/utxo/${encodeURIComponent(address)}?confirmed=false`;
+    const resp = await fetch(url, {
+      method: "GET",
+      headers: { accept: "application/json" },
+      credentials: "omit",
+    });
+    if (!resp.ok) {
+      if (resp.status === 404) return [];
+      throw new Error(`Alchemy Bitcoin UTXO HTTP ${resp.status}`);
+    }
+    const raw = (await resp.json()) as unknown;
+    const list = Array.isArray(raw)
+      ? raw
+      : Array.isArray((raw as { utxos?: unknown[] })?.utxos)
+        ? ((raw as { utxos?: unknown[] }).utxos as unknown[])
+        : [];
+    return list
+      .map((row) => {
+        const rec = row as Record<string, unknown>;
+        const txid = typeof rec.txid === "string" ? rec.txid : "";
+        const vout =
+          typeof rec.vout === "number"
+            ? rec.vout
+            : typeof rec.vout === "string"
+              ? parseInt(rec.vout, 10)
+              : NaN;
+        const value =
+          typeof rec.value === "number"
+            ? rec.value
+            : typeof rec.value === "string"
+              ? parseInt(rec.value, 10)
+              : NaN;
+        const confirmed =
+          typeof rec.confirmed === "boolean"
+            ? rec.confirmed
+            : typeof rec.confirmations === "number"
+              ? rec.confirmations > 0
+              : typeof rec.confirmations === "string"
+                ? parseInt(rec.confirmations, 10) > 0
+                : false;
+        const blockHeight =
+          typeof rec.height === "number"
+            ? rec.height
+            : typeof rec.height === "string"
+              ? parseInt(rec.height, 10)
+              : undefined;
+        const blockTime =
+          typeof rec.block_time === "number"
+            ? rec.block_time
+            : typeof rec.blockTime === "number"
+              ? rec.blockTime
+              : undefined;
+        if (!txid || !Number.isFinite(vout) || !Number.isFinite(value)) {
+          return null;
+        }
+        return {
+          txid,
+          vout,
+          value,
+          status: {
+            confirmed,
+            block_height: Number.isFinite(blockHeight) ? blockHeight : undefined,
+            block_time: Number.isFinite(blockTime) ? blockTime : undefined,
+          },
+        } as EsploraUtxo;
+      })
+      .filter((row): row is EsploraUtxo => row !== null)
+      .sort((a, b) => b.value - a.value);
+  }
+  const url = `${rpcBase}/address/${encodeURIComponent(address)}/utxo`;
   const resp = await fetch(url, {
     method: "GET",
     headers: { accept: "application/json" },

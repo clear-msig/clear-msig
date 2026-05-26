@@ -58,7 +58,9 @@ impl Id for ClearWalletProgram {
 /// override `matches` to always return true.
 pub struct DWalletProgramInterface;
 impl quasar_lang::traits::ProgramInterface for DWalletProgramInterface {
-    fn matches(_address: &Address) -> bool { true }
+    fn matches(_address: &Address) -> bool {
+        true
+    }
 }
 
 #[derive(Accounts)]
@@ -165,10 +167,8 @@ impl<'info> BindDwallet<'info> {
         );
 
         // Verify the program-wide CPI authority PDA matches.
-        let (expected_cpi_auth, _) = Address::find_program_address(
-            &[CPI_AUTHORITY_SEED],
-            &crate::ID,
-        );
+        let (expected_cpi_auth, _) =
+            Address::find_program_address(&[CPI_AUTHORITY_SEED], &crate::ID);
         require_keys_eq!(
             *self.cpi_authority.address(),
             expected_cpi_auth,
@@ -220,11 +220,7 @@ impl<'info> BindDwallet<'info> {
             // accounts in this instruction alias it.
             let data = unsafe { ownership_view.borrow_unchecked() };
             let ownership = DwalletOwnership::read(data)?;
-            require_keys_eq!(
-                ownership.wallet,
-                wallet_addr,
-                ProgramError::InvalidArgument
-            );
+            require_keys_eq!(ownership.wallet, wallet_addr, ProgramError::InvalidArgument);
             require_keys_eq!(
                 ownership.dwallet,
                 dwallet_addr,
@@ -261,9 +257,8 @@ impl<'info> BindDwallet<'info> {
             .invoke_signed(seeds)?;
 
         // Write the IkaConfig contents.
-        let cfg_view = unsafe {
-            &mut *(self.ika_config as *mut UncheckedAccount as *mut AccountView)
-        };
+        let cfg_view =
+            unsafe { &mut *(self.ika_config as *mut UncheckedAccount as *mut AccountView) };
         let ptr = cfg_view.data_mut_ptr();
         let scheme_bytes = args.signature_scheme.to_le_bytes();
         unsafe {

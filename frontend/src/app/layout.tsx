@@ -32,6 +32,7 @@ import {
 import "./globals.css";
 import { AppProviders } from "@/components/providers/AppProviders";
 import { THEME_INIT_SCRIPT } from "@/lib/security/theme-init-script";
+import { solanaClusterDefaultRpcOrigin } from "@/lib/solana/cluster";
 
 const geist = Geist({
   subsets: ["latin"],
@@ -133,9 +134,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={fontVars} suppressHydrationWarning>
       <head>
-        {/* Preconnect to Solana devnet RPC so initial queries shave their DNS+TLS. */}
-        <link rel="preconnect" href="https://api.devnet.solana.com" />
-        <link rel="dns-prefetch" href="https://api.devnet.solana.com" />
+        {/* Preconnect to the configured Solana RPC so initial queries shave their DNS+TLS. */}
+        <link rel="preconnect" href={solanaClusterDefaultRpcOrigin} />
+        <link rel="dns-prefetch" href={solanaClusterDefaultRpcOrigin} />
         {/* Theme bootstrap - runs SYNCHRONOUSLY before paint to set
             the right `data-theme` attribute. Without this, users
             with stored "light" preference would see a dark flash

@@ -56,7 +56,7 @@ export function CommandPalette() {
   const memberships = useQuery({
     queryKey: ["my-organizations", address],
     queryFn: () => fetchOnchainMemberships(address),
-    enabled: address.length > 0,
+    enabled: open && address.length > 0,
     staleTime: 30_000,
   });
 
@@ -64,7 +64,9 @@ export function CommandPalette() {
   // real "jump anywhere" surface, not just a wallet switcher. Shares
   // queryKey infrastructure with the sidebar / detail pages so this
   // isn't extra RPC.
-  const allProposals = useRecentActivity(Number.POSITIVE_INFINITY);
+  const allProposals = useRecentActivity(Number.POSITIVE_INFINITY, {
+    enabled: open,
+  });
 
   // Cmd-K (mac) / Ctrl-K (everywhere else) toggles the palette.
   // Esc closes (cmdk handles that automatically when the dialog is open).

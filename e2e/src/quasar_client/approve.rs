@@ -1,6 +1,6 @@
+use super::ID;
 use solana_address::Address;
 use solana_instruction::{AccountMeta, Instruction};
-use super::ID;
 
 pub struct ApproveInstruction {
     pub wallet: Address,

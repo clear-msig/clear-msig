@@ -53,10 +53,16 @@ impl<'info> Propose<'info> {
         );
 
         let clock = Clock::get()?;
-        require!(args.expiry > clock.unix_timestamp.get(), WalletError::Expired);
+        require!(
+            args.expiry > clock.unix_timestamp.get(),
+            WalletError::Expired
+        );
 
         let proposer_addr = Address::new_from_array(*args.proposer_pubkey);
-        require!(self.intent.is_proposer(&proposer_addr), WalletError::NotProposer);
+        require!(
+            self.intent.is_proposer(&proposer_addr),
+            WalletError::NotProposer
+        );
 
         if self.intent.intent_type == crate::state::intent::IntentType::Custom {
             self.intent.validate_param_constraints(args.params_data)?;
@@ -72,7 +78,8 @@ impl<'info> Propose<'info> {
         let mut msg_buf = MessageBuilder::new();
         msg_buf.build_message_for_intent(&ctx, &self.intent, args.params_data)?;
 
-        let v1 = brine_ed25519::sig_verify(args.proposer_pubkey, args.signature, msg_buf.as_bytes());
+        let v1 =
+            brine_ed25519::sig_verify(args.proposer_pubkey, args.signature, msg_buf.as_bytes());
         if v1.is_err() {
             msg_buf.build_plain_message_for_intent(&ctx, &self.intent, args.params_data)?;
             brine_ed25519::sig_verify(args.proposer_pubkey, args.signature, msg_buf.as_bytes())
@@ -102,22 +109,28 @@ impl<'info> Propose<'info> {
             }
         }
 
-        self.proposal.set_inner(ProposalInner {
-            wallet: *self.wallet.address(),
-            intent: *self.intent.address(),
-            proposal_index,
-            proposer: proposer_addr,
-            status,
-            proposed_at: clock.unix_timestamp.get(),
-            approved_at,
-            bump: bumps.proposal,
-            approval_bitmap,
-            cancellation_bitmap: 0u16,
-            rent_refund: *self.payer.address(),
-            params_data: args.params_data,
-        }, self.payer.to_account_view(), None)?;
+        self.proposal.set_inner(
+            ProposalInner {
+                wallet: *self.wallet.address(),
+                intent: *self.intent.address(),
+                proposal_index,
+                proposer: proposer_addr,
+                status,
+                proposed_at: clock.unix_timestamp.get(),
+                approved_at,
+                bump: bumps.proposal,
+                approval_bitmap,
+                cancellation_bitmap: 0u16,
+                rent_refund: *self.payer.address(),
+                params_data: args.params_data,
+            },
+            self.payer.to_account_view(),
+            None,
+        )?;
 
-        self.intent.active_proposal_count = self.intent.active_proposal_count
+        self.intent.active_proposal_count = self
+            .intent
+            .active_proposal_count
             .checked_add(1)
             .ok_or(WalletError::TooManyActiveProposals)?;
         self.wallet.proposal_index += 1;

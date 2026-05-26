@@ -1,11 +1,13 @@
+use crate::intent_builder::{BuiltIntent, IntentBuilder, PdaSeedSpec};
 use clear_wallet::utils::definition::*;
-use crate::intent_builder::{IntentBuilder, BuiltIntent, PdaSeedSpec};
 use solana_address::Address;
 
 pub use super::transfer_sol::IntentConfig;
 
-const TOKEN_PROGRAM: Address = solana_address::address!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
-const ATA_PROGRAM: Address = solana_address::address!("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
+const TOKEN_PROGRAM: Address =
+    solana_address::address!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+const ATA_PROGRAM: Address =
+    solana_address::address!("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 const SYSTEM_PROGRAM: Address = solana_address::address!("11111111111111111111111111111111");
 
 /// Build a SPL token transfer intent with idempotent ATA creation.
@@ -15,10 +17,18 @@ const SYSTEM_PROGRAM: Address = solana_address::address!("1111111111111111111111
 pub fn build(config: &IntentConfig<'_>) -> BuiltIntent {
     let mut b = IntentBuilder::new();
 
-    b.set_governance(config.approval_threshold, config.cancellation_threshold, config.timelock_seconds);
+    b.set_governance(
+        config.approval_threshold,
+        config.cancellation_threshold,
+        config.timelock_seconds,
+    );
 
-    for p in config.proposers { b.add_proposer(*p); }
-    for a in config.approvers { b.add_approver(*a); }
+    for p in config.proposers {
+        b.add_proposer(*p);
+    }
+    for a in config.approvers {
+        b.add_approver(*a);
+    }
 
     b.add_param("destination", ParamType::Address, None);
     b.add_param("mint", ParamType::Address, None);
@@ -37,17 +47,27 @@ pub fn build(config: &IntentConfig<'_>) -> BuiltIntent {
     // account 5: Mint (param 1)
     b.add_param_account(1, false, false);
     // account 6: Source ATA — PDA([vault, token_program, mint], ata_program)
-    b.add_pda_account(1, &[
-        PdaSeedSpec::AccountRef(3), // vault
-        PdaSeedSpec::AccountRef(0), // token program
-        PdaSeedSpec::AccountRef(5), // mint
-    ], false, true);
+    b.add_pda_account(
+        1,
+        &[
+            PdaSeedSpec::AccountRef(3), // vault
+            PdaSeedSpec::AccountRef(0), // token program
+            PdaSeedSpec::AccountRef(5), // mint
+        ],
+        false,
+        true,
+    );
     // account 7: Destination ATA — PDA([destination, token_program, mint], ata_program)
-    b.add_pda_account(1, &[
-        PdaSeedSpec::AccountRef(4), // destination
-        PdaSeedSpec::AccountRef(0), // token program
-        PdaSeedSpec::AccountRef(5), // mint
-    ], false, true);
+    b.add_pda_account(
+        1,
+        &[
+            PdaSeedSpec::AccountRef(4), // destination
+            PdaSeedSpec::AccountRef(0), // token program
+            PdaSeedSpec::AccountRef(5), // mint
+        ],
+        false,
+        true,
+    );
 
     // Instruction 0: Create destination ATA (idempotent)
     // ATA program, data = [1]

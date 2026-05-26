@@ -48,12 +48,7 @@ pub fn assemble_and_broadcast(
     // build the signed envelope MUST be the canonical ones — ETH's
     // own recovery on the receiving end uses canonical bytes.
     let recovered = recover_v(&digest, r, s, dwallet_pubkey_compressed)?;
-    let raw_tx_hex = build_signed_eip1559(
-        preimage,
-        &recovered.r,
-        &recovered.s,
-        recovered.v,
-    )?;
+    let raw_tx_hex = build_signed_eip1559(preimage, &recovered.r, &recovered.s, recovered.v)?;
     let tx_id = broadcast_eip1559(rpc_url, &raw_tx_hex)?;
 
     Ok(BroadcastResult {
@@ -120,8 +115,7 @@ pub fn recover_v(
             if let Ok(recovered) =
                 K256VerifyingKey::recover_from_prehash(message_hash, &sig, rec_id)
             {
-                out[v as usize] =
-                    Some(recovered.to_encoded_point(true).as_bytes().to_vec());
+                out[v as usize] = Some(recovered.to_encoded_point(true).as_bytes().to_vec());
             }
         }
         out
@@ -272,7 +266,9 @@ fn rlp_read_list(buf: &[u8], off: usize) -> Result<(usize, usize)> {
         }
         Ok((off + 1 + llen, len))
     } else {
-        Err(anyhow!("expected rlp list header at offset {off}, got 0x{b:02x}"))
+        Err(anyhow!(
+            "expected rlp list header at offset {off}, got 0x{b:02x}"
+        ))
     }
 }
 
@@ -319,7 +315,9 @@ fn rlp_read_item(buf: &[u8], off: usize) -> Result<RlpItem<'_>> {
 /// into `eth_sendRawTransaction`.
 pub fn build_signed_eip1559(preimage: &[u8], r: &[u8; 32], s: &[u8; 32], v: u8) -> Result<String> {
     if preimage.first() != Some(&0x02) {
-        return Err(anyhow!("expected EIP-1559 type byte 0x02 at start of preimage"));
+        return Err(anyhow!(
+            "expected EIP-1559 type byte 0x02 at start of preimage"
+        ));
     }
     // Decode the inner list inside the preimage and re-emit it with three
     // extra fields appended (y_parity, r, s).
@@ -412,16 +410,14 @@ pub fn broadcast_eip1559(rpc_url: &str, raw_tx_hex: &str) -> Result<String> {
     if !status.is_success() {
         return Err(anyhow!("EVM RPC HTTP {status}: {text}"));
     }
-    let parsed: JsonRpcResponse<String> = serde_json::from_str(&text)
-        .with_context(|| format!("parse RPC response: {text}"))?;
+    let parsed: JsonRpcResponse<String> =
+        serde_json::from_str(&text).with_context(|| format!("parse RPC response: {text}"))?;
     if let Some(err) = parsed.error {
         return Err(anyhow!(
             "eth_sendRawTransaction failed (code {}): {}{}",
             err.code,
             err.message,
-            err.data
-                .map(|d| format!(" — {d}"))
-                .unwrap_or_default()
+            err.data.map(|d| format!(" — {d}")).unwrap_or_default()
         ));
     }
     parsed
