@@ -76,6 +76,7 @@ import {
   decodeSegwitAddress,
   detectBitcoinNetwork,
   esploraBaseUrl,
+  bitcoinExplorerLabel,
   fetchBitcoinBalance,
   fetchBitcoinUtxos,
   formatSats,
@@ -500,16 +501,11 @@ function BitcoinSendPage() {
         broadcast: true,
         dwallet_program: appConfig.preAlpha.dwalletProgramId,
         grpc_url: appConfig.preAlpha.grpcUrl,
-        // BTC needs an ESPLORA URL (POST /tx), not a JSON-RPC URL.
-        // The backend's `default_destination_rpc_url` is set up for
-        // EVM (publicnode.com / 1RPC etc). Using that for BTC would
-        // POST `eth_sendRawTransaction` JSON to mempool.space's
-        // `/tx` endpoint and 400 immediately. We pass the
-        // network-specific mempool.space Esplora URL explicitly so
-        // the CLI's `cli/src/chains/bitcoin.rs::broadcast_tx`
-        // adapter hits the right endpoint regardless of whatever
-        // EVM default the backend env carries.
-        rpc_url: esploraBaseUrl(btcNetwork),
+      // BTC needs a Bitcoin RPC/Esplora base, not the backend's
+      // EVM destination RPC. We pass the network-specific Bitcoin
+      // endpoint explicitly so the CLI's Bitcoin broadcast adapter
+      // can choose Alchemy JSON-RPC or Esplora as appropriate.
+      rpc_url: esploraBaseUrl(btcNetwork),
       });
       const broadcast = (executed as { broadcast?: BroadcastResultLike })
         ?.broadcast;
@@ -1182,7 +1178,7 @@ function SentCard({
       recipientLabel={sent.to}
       details={details}
       explorerHref={sent.explorerUrl}
-      explorerLabel="mempool.space"
+      explorerLabel={bitcoinExplorerLabel(network as BitcoinNetwork)}
       actions={[
         {
           label: "Send another",
