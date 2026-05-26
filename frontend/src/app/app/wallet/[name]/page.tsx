@@ -81,6 +81,15 @@ import { UsdHint } from "@/components/retail/UsdHint";
 import { CHAIN_CATALOG as CHAIN_CATALOG_REF } from "@/lib/retail/chains";
 import { appConfig } from "@/lib/config";
 
+type WalletTab = "activity" | "holdings" | "manage";
+
+function readWalletTabFromHash(): WalletTab {
+  if (typeof window === "undefined") return "activity";
+  const h = window.location.hash.replace(/^#/, "");
+  if (h === "holdings" || h === "manage") return h;
+  return "activity";
+}
+
 export default function WalletDetailPage() {
   const params = useParams<{ name: string }>();
   const rawName = params?.name ?? "";
@@ -98,6 +107,25 @@ export default function WalletDetailPage() {
   const displayName = useMemo(() => toDisplayName(name), [name]);
   const reduce = useReducedMotion();
   const { connection } = useConnection();
+  const [detailTab, setDetailTab] = useState<WalletTab>(
+    readWalletTabFromHash,
+  );
+  const [loadChainHistory, setLoadChainHistory] = useState(false);
+
+  useEffect(() => {
+    if (detailTab !== "activity") return;
+    if (loadChainHistory) return;
+    if (typeof window === "undefined") return;
+
+    const idle = window.requestIdleCallback;
+    if (typeof idle === "function") {
+      const handle = idle(() => setLoadChainHistory(true), { timeout: 1_000 });
+      return () => window.cancelIdleCallback?.(handle);
+    }
+
+    const handle = window.setTimeout(() => setLoadChainHistory(true), 600);
+    return () => window.clearTimeout(handle);
+  }, [detailTab, loadChainHistory]);
 
   const walletQuery = useQuery({
     queryKey: ["wallet", name],
@@ -198,13 +226,21 @@ export default function WalletDetailPage() {
     );
     return b ? chainAddress(b) : null;
   }, [chainsQueryForHistory.data]);
-  const solanaTxHistoryQuery = useSolanaTxHistory(solanaVaultAddress, 8);
-  const evmTxHistoryQuery = useEvmTxHistory(evmAddress, 8);
-  const btcTxHistoryQuery = useBitcoinTxHistory(btcAddress, 8);
+  const chainHistoryEnabled = detailTab === "activity" && loadChainHistory;
+  const solanaTxHistoryQuery = useSolanaTxHistory(solanaVaultAddress, 8, {
+    enabled: chainHistoryEnabled,
+  });
+  const evmTxHistoryQuery = useEvmTxHistory(evmAddress, 8, {
+    enabled: chainHistoryEnabled,
+  });
+  const btcTxHistoryQuery = useBitcoinTxHistory(btcAddress, 8, {
+    enabled: chainHistoryEnabled,
+  });
   const zcashTxHistoryQuery = useZcashTxHistory(
     zcashAddress,
     appConfig.preAlpha.zcashRpcUrl,
     8,
+    { enabled: chainHistoryEnabled },
   );
 
   // ERC-20 holdings - every token the wallet's Sepolia address holds,
@@ -272,6 +308,8 @@ export default function WalletDetailPage() {
         <ActionNeededSection rows={walletAction} reduce={!!reduce} />
       )}
       <WalletDetailTabs
+        tab={detailTab}
+        onTabChange={setDetailTab}
         // Activity tab data
         activityRows={walletActivity}
         activityAllRows={walletActivityAll}
@@ -315,9 +353,9 @@ export default function WalletDetailPage() {
 // URL is shareable. Hash is intentionally cosmetic - the page
 // renders correctly without it.
 
-type WalletTab = "activity" | "holdings" | "manage";
-
 interface WalletDetailTabsProps {
+  tab: WalletTab;
+  onTabChange: (next: WalletTab) => void;
   activityRows: RecentActivityRow[];
   activityAllRows: RecentActivityRow[];
   sendAttempts: TxAttempt[];
@@ -338,6 +376,8 @@ interface WalletDetailTabsProps {
 
 function WalletDetailTabs(props: WalletDetailTabsProps) {
   const {
+    tab,
+    onTabChange,
     activityRows,
     activityAllRows,
     sendAttempts,
@@ -353,32 +393,21 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
     reduce,
   } = props;
 
-  // Hash-driven tab selection. Lazy initializer so SSR keeps the
-  // deterministic "activity" default and hydration matches the
-  // first client render before the hashchange listener fires.
-  const [tab, setTab] = useState<WalletTab>(() => {
-    if (typeof window === "undefined") return "activity";
-    const h = window.location.hash.replace(/^#/, "");
-    if (h === "holdings" || h === "manage") return h;
-    return "activity";
-  });
   useEffect(() => {
     if (typeof window === "undefined") return;
     const onHash = () => {
-      const h = window.location.hash.replace(/^#/, "");
-      if (h === "holdings" || h === "manage") setTab(h);
-      else setTab("activity");
+      onTabChange(readWalletTabFromHash());
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
-  }, []);
+  }, [onTabChange]);
   // Tab-bar ref so a tab switch scrolls the user back to the bar's
   // top edge. Without this, switching from a deep-scrolled Activity
   // tab to the much shorter Holdings tab leaves the user mid-page on
   // empty content - the tap registers but reads as broken.
   const tabBarRef = useRef<HTMLDivElement>(null);
   const switchTab = (next: WalletTab) => {
-    setTab(next);
+    onTabChange(next);
     if (typeof window !== "undefined") {
       // Replace, not push - back-button in a wallet should leave
       // the wallet, not cycle through tabs the user already saw.
