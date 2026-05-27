@@ -262,7 +262,7 @@ function Hero({
   const summary = loading
     ? "Loading…"
     : totalCount === 0
-      ? "Nothing yet - no proposals across your wallets."
+      ? "Nothing yet - no requests across your wallets."
       : `${filteredCount} of ${totalCount} request${totalCount === 1 ? "" : "s"}`;
   return (
     <motion.div
@@ -275,7 +275,7 @@ function Hero({
           All activity
         </h1>
         <p className="text-xs text-text-soft sm:text-sm">
-          Every proposal across the wallets you&rsquo;re a member of.
+          Every request across the wallets you&rsquo;re a member of.
         </p>
       </div>
       <p className="text-xs text-text-soft sm:text-sm">{summary}</p>
@@ -440,7 +440,7 @@ function FilterBar({
           value={chainFilter}
           onChange={onChainChange}
           options={[
-            { value: "all", label: "All chains" },
+            { value: "all", label: "All networks" },
             { value: "0", label: "Solana" },
             { value: "1", label: "Ethereum" },
             { value: "4", label: "Ethereum (ERC-20)" },
@@ -709,11 +709,14 @@ function ActivityList({
         {emptyKind === "no-activity" ? (
           <p className="text-sm text-text-soft">
             No activity yet on any of your wallets.
+            <span className="mt-1 block">
+              Create or open a wallet, then send your first request.
+            </span>
           </p>
         ) : (
           <>
             <p className="text-sm text-text-soft">
-              No proposals match these filters.
+              No requests match these filters.
             </p>
             <button
               type="button"

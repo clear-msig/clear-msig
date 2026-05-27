@@ -8,9 +8,9 @@ import { toDisplayName } from "@/lib/retail/walletNames";
 const SUB_LABELS: Record<string, string> = {
   send: "Send",
   members: "Members",
-  chains: "Chains",
-  setup: "Setup",
-  policies: "Policies",
+  chains: "Networks",
+  setup: "Finish setup",
+  policies: "Rules",
   activity: "Activity",
   budget: "Budget",
   add: "Add",
@@ -20,7 +20,7 @@ const SUB_LABELS: Record<string, string> = {
   settings: "Settings",
   rules: "Rules",
   allowances: "Allowances",
-  policy: "Policy",
+  policy: "Rules",
 };
 
 export function getSectionLabel(pathname: string): string {
@@ -32,7 +32,7 @@ export function getSectionLabel(pathname: string): string {
   if (pathname.startsWith("/app/settings")) return "Settings";
   if (pathname.startsWith("/app/account")) return "Account";
   if (pathname.startsWith("/app/proposals")) return "Request";
-  if (pathname.startsWith("/app/intents")) return "Intent";
+  if (pathname.startsWith("/app/intents")) return "Spending rule";
   if (pathname.startsWith("/app/invitations")) return "Invitation";
   // Secure (ikavery) flow.
   if (pathname === "/app/secure") return "Secure";

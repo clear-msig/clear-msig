@@ -523,8 +523,8 @@ function SendPage() {
       );
       if (!signerPk) {
         throw new Error(
-          "None of your connected wallets is in this wallet's approver list. " +
-            "Disconnect the Ledger or sign in with the wallet that originally created this multisig.",
+          "This connected wallet cannot approve sends for this shared wallet. " +
+            "Switch to a wallet that can approve here, or ask an owner to add this wallet.",
         );
       }
       const destination =
@@ -752,7 +752,7 @@ function SendPage() {
         // above (user sees "Sent" with no on-chain effect), so
         // surface it as a failure with the proposal link.
         const err = new Error(
-          "The execute step finished but didn't return a transaction id. The proposal is on chain - open it from the dashboard to retry.",
+          "The final send step finished but didn't return a transaction id. The request is saved - open it from the dashboard to retry.",
         );
         tagExecuteFailure(err, proposal);
         throw err;
@@ -829,10 +829,10 @@ function SendPage() {
         // why. Showing the SentStage here would be the same lie
         // we just stopped recording.
         toast.success(
-          "Proposal created - waiting on approvers to finish the send",
+          "Request created - waiting for approvals",
           {
             details:
-              "Your SOL hasn't moved yet. Open the proposal from the dashboard once enough friends have approved.",
+              "Your SOL hasn't moved yet. Open the request from the dashboard once enough people have approved.",
           },
         );
         setStage("compose");
@@ -850,11 +850,11 @@ function SendPage() {
       // re-signing propose+approve.
       if (executeFailedProposal) {
         toast.error(
-          "Send didn't go through - proposal created but didn't execute",
+          "Request created, but the send did not finish",
           {
             details:
               fe.body +
-              ` Open this proposal in the dashboard to retry executing it.`,
+              ` Open this request in the dashboard to retry it.`,
           },
         );
       } else {
@@ -870,7 +870,7 @@ function SendPage() {
         ticker: "SOL",
         recipientShort: sentRecipientDisplay,
         errorBrief: executeFailedProposal
-          ? "Proposal created but execute failed"
+          ? "Request created but send did not finish"
           : fe.title,
         errorStderr: stderr ? stderr.slice(0, 800) : undefined,
       });
@@ -1113,6 +1113,8 @@ function ComposeStage({
         </p>
       </header>
 
+      <SendStepRail />
+
       {/* Quick-send shortcut - type a sentence, the form fills. */}
       <QuickSendInput contactNames={contactNames} onParsed={onQuickFill} />
 
@@ -1350,7 +1352,7 @@ function ComposeStage({
           inside the workspace shell. */}
       <div className="flex flex-col gap-3 pt-1">
         <p className="inline-flex items-center gap-1.5 text-xs text-text-soft">
-          Friends in {walletDisplay} approve before it sends.
+          People in {walletDisplay} approve before it sends.
           <InfoTip
             label="How approvals work"
             width="md"
@@ -1358,10 +1360,10 @@ function ComposeStage({
             side="start"
           >
             <span className="block">
-              When you tap Send, this becomes a proposal in {walletDisplay}.
-              The other approvers in this wallet get a notification and the
-              transfer only goes through once the threshold approves. You can
-              cancel anytime before that.
+              When you tap Send, this becomes a request in {walletDisplay}.
+              Other people who can approve get a notification, and the transfer
+              only goes through after enough approvals. You can cancel anytime
+              before that.
             </span>
           </InfoTip>
         </p>
@@ -1405,6 +1407,34 @@ function ComposeStage({
         </Link>
       </div>
     </motion.section>
+  );
+}
+
+function SendStepRail() {
+  const steps = ["Asset", "Amount", "Recipient", "Review"];
+  return (
+    <ol className="grid grid-cols-4 gap-1.5">
+      {steps.map((label, index) => (
+        <li
+          key={label}
+          className="flex min-w-0 items-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-2.5 py-2"
+        >
+          <span
+            className={
+              "flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-numerals text-[10px] font-semibold tabular-nums " +
+              (index === 0
+                ? "bg-accent/15 text-accent"
+                : "bg-glass-soft text-text-soft")
+            }
+          >
+            {index + 1}
+          </span>
+          <span className="truncate text-[11px] font-medium text-text-soft">
+            {label}
+          </span>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -1654,12 +1684,12 @@ const PHASE_LABEL: Record<SendingPhase, { primary: string; hint: string }> = {
     hint: "Approve the second prompt in your wallet to flip your bit.",
   },
   cooldown: {
-    primary: "Waiting out the policy cooldown",
-    hint: "This policy adds extra wait time before the transfer can execute.",
+    primary: "Waiting for the wallet rule",
+    hint: "This rule adds extra wait time before the transfer can finish.",
   },
   executing: {
     primary: "Releasing the funds",
-    hint: "Threshold met. Asking the chain to execute.",
+    hint: "Enough approvals collected. Finishing the send.",
   },
 };
 

@@ -217,6 +217,11 @@ function DynamicPostConnectModalGuard({
   useEffect(() => {
     if (!sdkHasLoaded || !showAuthFlow || !hasUsableWallet) return;
     setShowAuthFlow(false);
+    // Mobile webviews can re-open Dynamic's auth portal one tick after
+    // wallet hydration. Close it once immediately, then once more after
+    // the SDK has finished its post-connect bookkeeping.
+    const closeAgain = window.setTimeout(() => setShowAuthFlow(false), 250);
+    return () => window.clearTimeout(closeAgain);
   }, [hasUsableWallet, sdkHasLoaded, setShowAuthFlow, showAuthFlow]);
 
   return children;

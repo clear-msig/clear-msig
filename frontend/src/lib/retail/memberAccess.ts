@@ -7,22 +7,22 @@ export function isWalletRole(value: string): value is WalletRole {
 export function describeWalletRole(role: WalletRole): string {
   switch (role) {
     case "full":
-      return "proposer + approver access";
+      return "Can request and approve";
     case "approver":
-      return "approver access";
+      return "Can approve";
     case "watcher":
-      return "watch-only access";
+      return "Can view";
   }
 }
 
 export function describeWalletRights(role: WalletRole): string {
   switch (role) {
     case "full":
-      return "You can create requests and approve them.";
+      return "You can request sends and approve requests.";
     case "approver":
-      return "You can approve requests, but you cannot create them.";
+      return "You can approve requests, but you cannot start them.";
     case "watcher":
-      return "You can see the wallet activity, but you cannot create or approve requests.";
+      return "You can see wallet activity, but you cannot start or approve requests.";
   }
 }
 
@@ -30,10 +30,10 @@ export function describeRolesSummary(roles: readonly string[]): string {
   const normalized = new Set(roles);
   const isApprover = normalized.has("approver");
   const isProposer = normalized.has("proposer");
-  if (isApprover && isProposer) return "proposer + approver access";
-  if (isApprover) return "approver access";
-  if (isProposer) return "proposer access";
-  return "watch-only access";
+  if (isApprover && isProposer) return "Can request and approve";
+  if (isApprover) return "Can approve";
+  if (isProposer) return "Can request";
+  return "Can view";
 }
 
 export function describeRolesRights(roles: readonly string[]): string {
@@ -41,13 +41,13 @@ export function describeRolesRights(roles: readonly string[]): string {
   const isApprover = normalized.has("approver");
   const isProposer = normalized.has("proposer");
   if (isApprover && isProposer) {
-    return "You can create requests and approve them.";
+    return "You can request sends and approve requests.";
   }
   if (isApprover) {
-    return "You can approve requests, but you cannot create them.";
+    return "You can approve requests, but you cannot start them.";
   }
   if (isProposer) {
-    return "You can create requests, but you cannot approve them.";
+    return "You can request sends, but you cannot approve them.";
   }
-  return "You can see the wallet activity, but you cannot create or approve requests.";
+  return "You can see wallet activity, but you cannot start or approve requests.";
 }
