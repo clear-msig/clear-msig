@@ -14,10 +14,14 @@
 
 import {
   DynamicContextProvider,
+  useDynamicContext,
+  useUserWallets,
   type DynamicContextProps,
 } from "@dynamic-labs/sdk-react-core";
 import { TurnkeySolanaWalletConnectors } from "@dynamic-labs/embedded-wallet-solana";
 import { SolanaWalletConnectors } from "@dynamic-labs/solana";
+import { isSolanaWallet } from "@dynamic-labs/solana-core";
+import { useEffect } from "react";
 import { LedgerProvider } from "@/lib/wallet/LedgerProvider";
 
 interface Props {
@@ -191,7 +195,29 @@ export default function DynamicProviderTree({ environmentId, children }: Props) 
 
   return (
     <DynamicContextProvider settings={settings}>
-      <LedgerProvider>{children}</LedgerProvider>
+      <DynamicPostConnectModalGuard>
+        <LedgerProvider>{children}</LedgerProvider>
+      </DynamicPostConnectModalGuard>
     </DynamicContextProvider>
   );
+}
+
+function DynamicPostConnectModalGuard({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const { primaryWallet, sdkHasLoaded, setShowAuthFlow, showAuthFlow } =
+    useDynamicContext();
+  const wallets = useUserWallets();
+
+  const hasUsableWallet =
+    !!primaryWallet || wallets.some((wallet) => wallet && isSolanaWallet(wallet));
+
+  useEffect(() => {
+    if (!sdkHasLoaded || !showAuthFlow || !hasUsableWallet) return;
+    setShowAuthFlow(false);
+  }, [hasUsableWallet, sdkHasLoaded, setShowAuthFlow, showAuthFlow]);
+
+  return children;
 }
