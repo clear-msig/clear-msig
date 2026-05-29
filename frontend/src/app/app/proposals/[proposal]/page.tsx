@@ -336,7 +336,7 @@ function Loaded({
         </div>
         {approverCount > approvalThreshold && (
           <p className="mt-1 text-xs text-text-soft">
-            {approverCount} approvers eligible · {approvalThreshold}{" "}
+            {approverCount} people can approve · {approvalThreshold}{" "}
             approval{approvalThreshold === 1 ? "" : "s"} required
           </p>
         )}
@@ -353,7 +353,7 @@ function Loaded({
               "hover:-translate-y-0.5 hover:text-accent " +
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
             }
-            title="Open this proposal account on Solscan"
+            title="Open this request on Solscan"
           >
             <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
             View on Solana Explorer
@@ -363,13 +363,20 @@ function Loaded({
             copy is independently verifiable. The hidden classes
             flip on @media print. */}
         <div className="hidden print:mt-4 print:block print:text-xs print:text-black">
-          <p className="font-mono break-all">Proposal: {proposalPda}</p>
+          <p className="font-mono break-all">Request account: {proposalPda}</p>
           <p className="font-mono break-all">Explorer: {addressUrl(proposalPda)}</p>
           <p className="mt-1 italic">
             Printed from Clear · pre-alpha · Solana devnet
           </p>
         </div>
       </section>
+
+      <RequestTimeline
+        status={proposal.status}
+        approvalsCollected={approvalsCollected}
+        approvalThreshold={approvalThreshold}
+        createdAgo={createdAgo}
+      />
 
       <ApproversBreakdown
         approvers={intent.approvers}
@@ -395,7 +402,7 @@ function Loaded({
               },
               {
                 label: "Your role",
-                value: isProposer ? "Proposer + approver" : "Approver",
+                value: isProposer ? "Can request and approve" : "Can approve",
               },
             ]}
           />
@@ -483,8 +490,8 @@ function Loaded({
             title="Ready to send"
             body={
               isApprover
-                ? "Threshold reached. Tap below to broadcast the request and finish the send."
-                : "Threshold reached. Any approver on this wallet can finish the send."
+                ? "Enough approvals collected. Tap below to finish the send."
+                : "Enough approvals collected. Anyone who can approve can finish the send."
             }
           />
           {isApprover && (
@@ -547,6 +554,93 @@ function ApprovalProgress({
         />
       ))}
     </div>
+  );
+}
+
+function RequestTimeline({
+  status,
+  approvalsCollected,
+  approvalThreshold,
+  createdAgo,
+}: {
+  status: ProposalStatus;
+  approvalsCollected: number;
+  approvalThreshold: number;
+  createdAgo: string;
+}) {
+  const approvalsDone = approvalsCollected >= approvalThreshold;
+  const stopped = status === ProposalStatus.Cancelled;
+  const sent = status === ProposalStatus.Executed;
+  const ready = status === ProposalStatus.Approved || sent;
+  const steps = [
+    {
+      label: "Request created",
+      detail: `Created ${createdAgo}`,
+      state: "done" as const,
+    },
+    {
+      label: "Collect approvals",
+      detail: `${Math.min(approvalsCollected, approvalThreshold)} of ${approvalThreshold} approved`,
+      state: stopped ? ("stopped" as const) : approvalsDone ? ("done" as const) : ("current" as const),
+    },
+    {
+      label: "Send money",
+      detail: sent
+        ? "Money sent"
+        : stopped
+          ? "Request declined"
+          : ready
+            ? "Ready to finish"
+            : "Starts after enough approvals",
+      state: sent
+        ? ("done" as const)
+        : stopped
+          ? ("stopped" as const)
+          : ready
+            ? ("current" as const)
+            : ("next" as const),
+    },
+  ];
+
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+      <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        Request timeline
+      </h2>
+      <ol className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {steps.map((step, index) => (
+          <li
+            key={step.label}
+            className="flex min-w-0 items-start gap-3 rounded-soft border border-border-soft bg-canvas p-3"
+          >
+            <span
+              className={
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-numerals text-[11px] font-semibold tabular-nums " +
+                (step.state === "done"
+                  ? "bg-accent/15 text-accent"
+                  : step.state === "current"
+                    ? "bg-warning/15 text-warning"
+                    : step.state === "stopped"
+                      ? "bg-warning/10 text-warning"
+                      : "bg-glass-soft text-text-soft")
+              }
+            >
+              {step.state === "done" ? (
+                <Check className="h-3.5 w-3.5" strokeWidth={3} aria-hidden="true" />
+              ) : (
+                index + 1
+              )}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-text-strong">
+                {step.label}
+              </p>
+              <p className="mt-0.5 text-xs text-text-soft">{step.detail}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }
 

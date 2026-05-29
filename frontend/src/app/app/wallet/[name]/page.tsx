@@ -299,6 +299,16 @@ export default function WalletDetailPage() {
         pendingApprovalCount={walletAction.length}
         reduce={!!reduce}
       />
+      <NextBestActionCard
+        name={name}
+        displayName={displayName}
+        pendingApprovalCount={walletAction.length}
+        hasIntents={hasIntents}
+        memberCount={memberCount}
+        activityCount={walletActivityAll.length}
+        loading={intentsQuery.isLoading}
+        reduce={!!reduce}
+      />
       {/* Pending approvals come right after the hero - they're the
           single highest-priority action a wallet member can take.
           Always-visible, regardless of which tab is active, so a
@@ -324,7 +334,6 @@ export default function WalletDetailPage() {
         name={name}
         hasIntents={hasIntents}
         memberCount={memberCount}
-        loadingIntents={intentsQuery.isLoading}
         reduce={!!reduce}
       />
     </div>
@@ -370,7 +379,6 @@ interface WalletDetailTabsProps {
   /// already handles the null case for its loading skeleton.
   hasIntents: boolean | null;
   memberCount: number | null;
-  loadingIntents: boolean;
   reduce: boolean;
 }
 
@@ -389,7 +397,6 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
     name,
     hasIntents,
     memberCount,
-    loadingIntents,
     reduce,
   } = props;
 
@@ -437,18 +444,6 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
 
   return (
     <>
-      {/* Onboarding nudge - sits above the tabs, NOT inside Manage.
-          The component self-hides once the wallet has intents +
-          members + activity, so it's only visible during the
-          first-run window. Was wrongly placed inside the Manage tab
-          (a settings drawer) where users wouldn't see it. */}
-      <NextStepsStripe
-        name={name}
-        hasIntents={hasIntents}
-        memberCount={memberCount}
-        activityCount={activityRows.length}
-        loading={loadingIntents}
-      />
       <TabBar
         ref={tabBarRef}
         tab={tab}
@@ -642,6 +637,177 @@ function HoldingsEmptyState() {
   );
 }
 
+// ─── Next best action ──────────────────────────────────────────────
+//
+// Retail dashboard rule: the first screen should tell the user what
+// matters now. This card deliberately sits between the money hero and
+// the tabbed detail feed so a user does not need to inspect Activity,
+// Holdings, and Manage just to find their next move.
+
+interface NextBestActionCardProps {
+  name: string;
+  displayName: string;
+  pendingApprovalCount: number;
+  hasIntents: boolean | null;
+  memberCount: number | null;
+  activityCount: number;
+  loading: boolean;
+  reduce: boolean;
+}
+
+function NextBestActionCard({
+  name,
+  displayName,
+  pendingApprovalCount,
+  hasIntents,
+  memberCount,
+  activityCount,
+  loading,
+  reduce,
+}: NextBestActionCardProps) {
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  const encoded = encodeURIComponent(name);
+
+  if (loading || hasIntents === null) {
+    return (
+      <motion.section
+        {...motionProps}
+        transition={{ duration: 0.2 }}
+        className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
+      >
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 animate-pulse rounded-full bg-border-soft" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-3 w-24 animate-pulse rounded bg-border-soft" />
+            <div className="h-4 w-56 max-w-full animate-pulse rounded bg-border-soft" />
+          </div>
+        </div>
+      </motion.section>
+    );
+  }
+
+  const action = (() => {
+    if (pendingApprovalCount > 0) {
+      return {
+        Icon: Bell,
+        eyebrow: "Needs your approval",
+        title:
+          pendingApprovalCount === 1
+            ? "Review 1 request"
+            : `Review ${pendingApprovalCount} requests`,
+        body: "Requests waiting on you are the highest priority. Approve or decline them before starting a new send.",
+        href: "#action-needed",
+        cta: "Review now",
+        accent: true,
+      };
+    }
+    if (!hasIntents) {
+      return {
+        Icon: Send,
+        eyebrow: "Finish setup",
+        title: "Enable sending",
+        body: `${displayName} cannot send yet. Set up the first spending rule before adding money movement.`,
+        href: `/app/wallet/${encoded}/setup`,
+        cta: "Enable sending",
+        accent: true,
+      };
+    }
+    if ((memberCount ?? 0) <= 1) {
+      return {
+        Icon: Users,
+        eyebrow: "Strengthen this wallet",
+        title: "Add someone you trust",
+        body: "A shared wallet is safer when another person can review requests before money moves.",
+        href: `/app/wallet/${encoded}/members/add`,
+        cta: "Add member",
+        accent: false,
+      };
+    }
+    if (activityCount === 0) {
+      return {
+        Icon: Send,
+        eyebrow: "Ready to use",
+        title: "Make the first send",
+        body: `${displayName} is ready. Start with a small request so every member sees how approvals work.`,
+        href: `/app/wallet/${encoded}/send`,
+        cta: "Send request",
+        accent: false,
+      };
+    }
+    return {
+      Icon: ShieldCheck,
+      eyebrow: "All clear",
+      title: "No action needed",
+      body: "There are no requests waiting on you. You can send, receive, or adjust rules when needed.",
+      href: `/app/wallet/${encoded}/send`,
+      cta: "Send",
+      accent: false,
+    };
+  })();
+
+  const Icon = action.Icon;
+
+  return (
+    <motion.section
+      {...motionProps}
+      transition={{ duration: 0.2 }}
+      className={
+        "rounded-card border p-5 shadow-card-rest " +
+        (action.accent
+          ? "border-accent/40 bg-accent/[0.07]"
+          : "border-border-soft bg-surface-raised")
+      }
+    >
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 gap-3">
+          <span
+            className={
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-full " +
+              (action.accent
+                ? "bg-accent/15 text-accent"
+                : "bg-glass-soft text-text-soft")
+            }
+          >
+            <Icon className="h-4 w-4" strokeWidth={1.9} aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p
+              className={
+                "font-mono text-[10px] uppercase tracking-[0.24em] " +
+                (action.accent ? "text-accent" : "text-text-soft")
+              }
+            >
+              Next best action · {action.eyebrow}
+            </p>
+            <h2 className="mt-1 font-display text-lg font-semibold leading-tight text-text-strong">
+              {action.title}
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm text-text-soft">
+              {action.body}
+            </p>
+          </div>
+        </div>
+        <Link
+          href={action.href}
+          className={
+            "inline-flex min-h-tap shrink-0 items-center justify-center gap-1.5 rounded-soft px-4 py-2 text-sm font-medium " +
+            "transition-[background-color,border-color,transform] duration-base ease-out-soft active:scale-[0.98] " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
+            (action.accent
+              ? "bg-accent text-text-on-accent shadow-accent-rest hover:bg-accent-hover"
+              : "border border-border-soft bg-canvas text-text-strong hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent")
+          }
+        >
+          {action.cta}
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
+      </div>
+    </motion.section>
+  );
+}
+
 // ─── Hero card ─────────────────────────────────────────────────────
 
 interface HeroProps {
@@ -830,7 +996,7 @@ function Hero({
             <HeroActionTile
               href={`/app/wallet/${encoded}/policy`}
               icon={<ShieldCheck className="h-5 w-5" strokeWidth={1.75} />}
-              label="Policy"
+              label="Rules"
               hint="Controls"
             />
           </div>
@@ -1359,13 +1525,13 @@ function Actions({
         <ActionRow
           href={`/app/wallet/${encoded}/chains`}
           icon={Layers}
-          title="Chains"
+          title="Networks"
           body="Bind ETH, BTC, or Zcash."
         />
         <ActionRow
           href={`/app/wallet/${encoded}/policy`}
           icon={ShieldCheck}
-          title="Policy"
+          title="Rules"
           body="Approvals, rules, limits, and notifications."
         />
         <ActionRow
@@ -1717,7 +1883,7 @@ function ActivitySection({
                 "hover:-translate-y-0.5 hover:text-accent " +
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
               }
-              title="See every proposal with chain + status filters"
+              title="See every request with network and status filters"
             >
               See more
               <ArrowRight className="h-3 w-3" aria-hidden="true" />
@@ -1733,7 +1899,7 @@ function ActivitySection({
                 "hover:-translate-y-0.5 hover:text-accent " +
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
               }
-              title="Download every proposal on this wallet as CSV"
+              title="Download every request on this wallet as CSV"
             >
               <Download className="h-3 w-3" aria-hidden="true" />
               Export CSV
@@ -1925,14 +2091,14 @@ function NextStepsStripe({
   } else if ((memberCount ?? 0) <= 1) {
     nudge = {
       title: "Invite someone",
-      body: "You're the only signer right now. Add a friend, teammate, or board member so requests get a second look.",
+      body: "You're the only person who can approve right now. Add a friend, teammate, or board member so requests get a second look.",
       cta: "Add someone",
       href: `/app/wallet/${encoded}/members/add`,
     };
   } else if (activityCount === 0) {
     nudge = {
       title: "Send your first request",
-      body: `${display} is set up and has signers. Make the first send to put the rule into practice.`,
+      body: `${display} is set up and has people who can approve. Make the first send to put the rule into practice.`,
       cta: "Send a request",
       href: `/app/wallet/${encoded}/send`,
     };
@@ -2037,7 +2203,7 @@ function BudgetStripe({ name }: { name: string }) {
             ? "Over weekly limit"
             : hasWalletCap
               ? "Weekly limit"
-              : "Spending policy"}
+              : "Spending rules"}
         </p>
         <p className="text-xs text-text-soft">
           {usage.proposalCount} {usage.proposalCount === 1 ? "send" : "sends"} this week

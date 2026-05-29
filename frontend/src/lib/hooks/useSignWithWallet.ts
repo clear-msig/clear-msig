@@ -81,7 +81,7 @@ export class WalletSignError extends Error {
 /// `descriptor.message_hex` before invoking the wallet. See
 /// `rebuildAndVerifyMessage` and SECURITY.md surface A.
 export function useSignWithWallet() {
-  const { signMessage, publicKey, connected, isPhantomWallet, isMobile } = useWallet();
+  const { signMessage, publicKey, connected } = useWallet();
   const { connection } = useConnection();
 
   const signBytes = useCallback(
@@ -170,13 +170,11 @@ export function useSignWithWallet() {
         bytes = await rebuildAndVerifyMessage(
           descriptor,
           connection,
-          // Mobile in-app wallets (Solflare in particular) don't decode
-          // the `\xffsolana offchain` envelope — they show the raw hex.
-          // Sending the plain UTF-8 body lets them render as text. The
-          // on-chain program's signature verifier tries the offchain-
-          // wrapped form first and falls back to the plain body, so
-          // either flavor is accepted.
-          isPhantomWallet || isMobile ? "plain_v2" : "offchain_v1",
+          // The deployed program verifies the canonical Solana offchain
+          // envelope. Some wallet UIs render that as raw hex, but signing
+          // the envelope keeps browser, CLI, and on-chain verification on
+          // the same byte sequence.
+          "offchain_v1",
         );
       } catch (err) {
         if (err instanceof MessageVerificationError) {
@@ -190,7 +188,7 @@ export function useSignWithWallet() {
       }
       return signBytes(bytes, options);
     },
-    [connection, signBytes, isPhantomWallet, isMobile],
+    [connection, signBytes],
   );
 
   return {

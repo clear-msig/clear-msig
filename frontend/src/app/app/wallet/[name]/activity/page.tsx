@@ -143,7 +143,7 @@ export default function WalletActivityPage() {
               Activity · {walletDisplay || "Wallet"}
             </p>
             <h1 className="mt-1.5 truncate font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
-              Recent proposals
+              Recent requests
             </h1>
           </div>
         </div>
@@ -186,7 +186,7 @@ export default function WalletActivityPage() {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search proposal address or type"
+              placeholder="Search request address or type"
               className="min-w-0 flex-1 bg-transparent text-xs text-text-strong outline-none placeholder:text-text-soft/60"
             />
           </label>
@@ -217,7 +217,7 @@ export default function WalletActivityPage() {
                 value={chainFilter}
                 onChange={(v) => setChainFilter(v as ChainFilter)}
                 options={[
-                  { value: "all", label: "All chains" },
+                  { value: "all", label: "All networks" },
                   { value: "0", label: "Solana" },
                   { value: "1", label: "Ethereum" },
                   { value: "4", label: "Ethereum (ERC-20)" },
@@ -254,11 +254,14 @@ export default function WalletActivityPage() {
             {allRows.length === 0 ? (
               <p className="text-sm text-text-soft">
                 No activity yet on this wallet.
+                <span className="mt-1 block">
+                  Send or receive funds and the history will appear here.
+                </span>
               </p>
             ) : (
               <>
                 <p className="text-sm text-text-soft">
-                  No proposals match these filters.
+                  No requests match these filters.
                 </p>
                 <button
                   type="button"
@@ -344,4 +347,3 @@ function statusForFilter(f: StatusFilter): ProposalStatus {
       return ProposalStatus.Active;
   }
 }
-

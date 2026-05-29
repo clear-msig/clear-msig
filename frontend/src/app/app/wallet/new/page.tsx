@@ -293,7 +293,10 @@ export default function NewWalletPage() {
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <button
             type="button"
-            onClick={() => setPurpose("share")}
+            onClick={() => {
+              setPurpose("share");
+              if (!name.trim()) setName(currentShape.defaultName);
+            }}
             className={clsx(
               "group flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 text-left",
               "transition-[border-color,background-color,transform] duration-base ease-out-soft",
@@ -478,13 +481,92 @@ export default function NewWalletPage() {
       )}
       {purpose === "share" && (
       <section className="flex flex-col gap-5 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
+        <ol className="grid grid-cols-3 gap-2">
+          {[
+            ["1", "Preset"],
+            ["2", "Name"],
+            ["3", "Create"],
+          ].map(([step, label]) => (
+            <li
+              key={step}
+              className="flex items-center gap-2 rounded-soft border border-border-soft bg-canvas px-3 py-2"
+            >
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/15 font-numerals text-[11px] font-semibold text-accent">
+                {step}
+              </span>
+              <span className="truncate text-[11px] font-medium text-text-soft">
+                {label}
+              </span>
+            </li>
+          ))}
+        </ol>
+
+        {/* Preset picker */}
+        <div className="flex flex-col gap-3">
+          <div>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
+              Pick a starter setup
+            </span>
+            <p className="mt-1 text-xs text-text-soft">
+              This only shapes the first screen and default name. You can invite
+              people and adjust approvals after the wallet is created.
+            </p>
+          </div>
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {SHAPES.map((s) => {
+              const selected = shape === s.id;
+              return (
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShape(s.id);
+                      if (!name.trim() || name === currentShape.defaultName) {
+                        setName(s.defaultName);
+                      }
+                    }}
+                    aria-pressed={selected}
+                    className={clsx(
+                      "group flex h-full w-full items-start justify-between gap-3 rounded-soft border p-4 text-left",
+                      "transition-[border-color,background-color,transform] duration-base ease-out-soft",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+                      selected
+                        ? "border-accent bg-accent/[0.08] text-accent"
+                        : "border-border-soft bg-canvas text-text-soft hover:-translate-y-px hover:border-accent/40 hover:text-text-strong",
+                    )}
+                  >
+                    <div className="min-w-0">
+                      <p className="font-display text-sm font-semibold leading-tight text-text-strong">
+                        {s.label}
+                      </p>
+                      <p className="mt-1 text-xs leading-relaxed text-text-soft">
+                        {s.blurb}
+                      </p>
+                    </div>
+                    <span
+                      className={clsx(
+                        "shrink-0 rounded-full border px-2 py-0.5 font-numerals text-[10px] font-semibold tabular-nums",
+                        selected
+                          ? "border-accent/30 bg-accent/10 text-accent"
+                          : "border-border-soft bg-surface-raised text-text-soft",
+                      )}
+                    >
+                      {s.expectedMembers}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
         {/* Name */}
         <div className="flex flex-col gap-2">
           <label
             htmlFor="new-wallet-name"
             className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft"
           >
-            Name it
+            Name your wallet
           </label>
           <div className="flex items-stretch gap-3">
             <span
@@ -510,41 +592,6 @@ export default function NewWalletPage() {
           </div>
         </div>
 
-        {/* Shape picker */}
-        <div className="flex flex-col gap-2">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
-            Who&rsquo;s it for?
-          </span>
-          <ul className="flex flex-wrap gap-2">
-            {SHAPES.map((s) => {
-              const selected = shape === s.id;
-              return (
-                <li key={s.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShape(s.id);
-                      if (!name.trim()) setName(s.defaultName);
-                    }}
-                    aria-pressed={selected}
-                    className={clsx(
-                      "rounded-full border px-3.5 py-1.5 text-xs font-medium",
-                      "transition-[border-color,background-color,color] duration-base ease-out-soft",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
-                      selected
-                        ? "border-accent bg-accent/[0.08] text-accent shadow-[0_0_18px_rgba(204, 255, 0,0.18)]"
-                        : "border-border-soft bg-canvas text-text-soft hover:text-text-strong",
-                    )}
-                  >
-                    {s.label}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          <p className="text-xs text-text-soft">{currentShape.blurb}</p>
-        </div>
-
         {/* What happens next callout */}
         <div className="rounded-soft border border-border-soft bg-canvas p-3.5">
           <div className="flex items-center gap-2 text-text-soft">
@@ -556,8 +603,8 @@ export default function NewWalletPage() {
           <p className="mt-1.5 text-xs leading-relaxed text-text-soft">
             Your wallet will pop up{" "}
             <span className="font-medium text-text-strong">twice</span> - once
-            to create the wallet, once to enable sending. The signing text
-            looks technical; that&rsquo;s normal. Nothing leaves your account.
+            to create the wallet, once to turn on sending. No funds move during
+            setup.
           </p>
         </div>
 

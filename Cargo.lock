@@ -1085,6 +1085,7 @@ dependencies = [
  "bech32",
  "bincode",
  "blake2b_simd",
+ "brine-ed25519",
  "bs58",
  "chrono",
  "clap",

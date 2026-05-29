@@ -40,12 +40,12 @@ const STEPS: Step[] = [
   {
     title: "Send and receive money",
     body:
-      "The Send pill in the hero starts a transfer. Receive opens a QR for someone to scan; the chains tab gives you the address per chain.",
+      "Send starts a transfer. Receive opens a QR for someone to scan; Networks shows each address this wallet can use.",
   },
   {
     title: "Pending approvals show up everywhere",
     body:
-      "Anything waiting on your sig surfaces on the dashboard, the bottom-nav Home badge, and (if you opt in) as a browser notification. You can also share a proposal link in your team's chat - the recipient lands on the approve page.",
+      "Anything waiting for your approval appears on the dashboard, the Home badge, and optional browser notifications. You can also share a request link in your team's chat; the recipient lands on the approve page.",
   },
   {
     title: "Activity + audit trail",

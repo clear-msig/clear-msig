@@ -924,7 +924,7 @@ function RecentActivitySection({ rows, reduce }: RecentActivityProps) {
             "hover:-translate-y-0.5 hover:text-accent " +
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
           }
-          title="See every proposal across all wallets, with filters + CSV export"
+          title="See every request across all wallets, with filters and CSV export"
         >
           See more
           <ArrowRight className="h-3 w-3" aria-hidden="true" />
@@ -1150,7 +1150,7 @@ function WatchedWalletsSection({
                         </p>
                         {pending > 0 && (
                           <p className="mt-0.5 text-[11px] text-warning">
-                            {pending} active proposal
+                            {pending} active request
                             {pending === 1 ? "" : "s"}
                           </p>
                         )}

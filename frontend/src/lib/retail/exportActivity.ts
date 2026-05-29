@@ -49,7 +49,7 @@ const HEADER = [
   "Type",
   "Status",
   "Approvals",
-  "Proposal",
+  "Request",
   "Tx hash",
   "Recipient",
   "Amount",

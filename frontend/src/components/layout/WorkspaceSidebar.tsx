@@ -436,8 +436,8 @@ const WALLET_SUB_NAV: { sub: string; label: string; Icon: LucideIcon }[] = [
   { sub: "", label: "Overview", Icon: WalletIcon },
   { sub: "members", label: "Members", Icon: Users },
   { sub: "activity", label: "Activity", Icon: ActivityIcon },
-  { sub: "chains", label: "Chains", Icon: Layers },
-  { sub: "policy", label: "Policy", Icon: Shield },
+  { sub: "chains", label: "Networks", Icon: Layers },
+  { sub: "policy", label: "Rules", Icon: Shield },
   { sub: "settings", label: "Settings", Icon: Settings },
 ];
 

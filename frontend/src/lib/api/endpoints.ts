@@ -8,6 +8,7 @@
 // Reads are unchanged: GETs + the /health probe.
 import { apiRequest } from "@/lib/api/client";
 import { appConfig } from "@/lib/config";
+import { withFreshExpiry } from "@/lib/api/expiry";
 import { withRetry } from "@/lib/api/retry";
 import type {
   AddChainInput,
@@ -81,37 +82,37 @@ export const backendApi = {
       apiRequest<DryRunDescriptor, PrepareAddIntentInput>(
         `/prepare/wallets/${encodeURIComponent(walletName)}/intents/add`,
         "POST",
-        input
+        withFreshExpiry(input),
       ),
     removeIntent: (walletName: string, input: PrepareRemoveIntentInput) =>
       apiRequest<DryRunDescriptor, PrepareRemoveIntentInput>(
         `/prepare/wallets/${encodeURIComponent(walletName)}/intents/remove`,
         "POST",
-        input
+        withFreshExpiry(input),
       ),
     updateIntent: (walletName: string, input: PrepareUpdateIntentInput) =>
       apiRequest<DryRunDescriptor, PrepareUpdateIntentInput>(
         `/prepare/wallets/${encodeURIComponent(walletName)}/intents/update`,
         "POST",
-        input
+        withFreshExpiry(input),
       ),
     createProposal: (walletName: string, input: PrepareCreateProposalInput) =>
       apiRequest<DryRunDescriptor, PrepareCreateProposalInput>(
         `/prepare/wallets/${encodeURIComponent(walletName)}/proposals/create`,
         "POST",
-        input
+        withFreshExpiry(input),
       ),
     approveProposal: (walletName: string, proposalAddress: string, input: PrepareApproveCancelInput) =>
       apiRequest<DryRunDescriptor, PrepareApproveCancelInput>(
         `/prepare/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/approve`,
         "POST",
-        input
+        withFreshExpiry(input),
       ),
     cancelProposal: (walletName: string, proposalAddress: string, input: PrepareApproveCancelInput) =>
       apiRequest<DryRunDescriptor, PrepareApproveCancelInput>(
         `/prepare/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/cancel`,
         "POST",
-        input
+        withFreshExpiry(input),
       )
   },
 

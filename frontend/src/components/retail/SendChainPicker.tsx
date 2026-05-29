@@ -51,88 +51,103 @@ export function SendChainPicker({
   const addChainHref = `/app/wallet/${encodeURIComponent(walletName)}/chains/add`;
   return (
     <nav
-      aria-label="Send chain"
-      className="mb-5 flex flex-wrap items-center gap-2"
+      aria-label="Choose what to send"
+      className="mb-5 rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest sm:p-4"
     >
-      {visible.map((opt) => {
-        const isActive = opt.chain.kind === activeKind;
-        const href = sendHrefFor(walletName, opt.chain.kind, opt.status);
-        const disabled = opt.status === "coming_soon" || !href;
-        const tile = (
-          <span
-            className={
-              "flex items-center gap-2 rounded-card border px-3 py-2 text-left " +
-              "transition-[border-color,background-color,transform] duration-base ease-out-soft " +
-              (disabled
-                ? "cursor-not-allowed opacity-60 border-border-soft bg-canvas"
-                : isActive
-                  ? "border-accent bg-accent/5 shadow-card-rest"
-                  : "border-border-soft bg-surface-raised hover:-translate-y-px")
-            }
-          >
-            <ChainBadge chain={opt.chain} size="sm" />
-            <span className="flex flex-col">
-              <span className="text-xs font-medium text-text-strong">
-                {opt.chain.name}
-              </span>
-              <span className="text-[10px] text-text-soft">
-                {chainSendSubtitle(opt.status)}
-              </span>
-            </span>
-          </span>
-        );
-        if (disabled || !href) {
-          return (
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+            Step 1
+          </p>
+          <h2 className="mt-0.5 text-sm font-medium text-text-strong">
+            Choose what to send
+          </h2>
+        </div>
+        <p className="hidden text-xs text-text-soft sm:block">
+          Pick an asset or add a network.
+        </p>
+      </div>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {visible.map((opt) => {
+          const isActive = opt.chain.kind === activeKind;
+          const href = sendHrefFor(walletName, opt.chain.kind, opt.status);
+          const disabled = opt.status === "coming_soon" || !href;
+          const tile = (
             <span
-              key={opt.chain.kind}
-              aria-disabled
-              className="hidden md:inline-flex"
+              className={
+                "flex min-w-[9.5rem] items-center gap-2 rounded-card border px-3 py-2 text-left " +
+                "transition-[border-color,background-color,transform] duration-base ease-out-soft " +
+                (disabled
+                  ? "cursor-not-allowed opacity-60 border-border-soft bg-canvas"
+                  : isActive
+                    ? "border-accent bg-accent/5 shadow-card-rest"
+                    : "border-border-soft bg-canvas hover:-translate-y-px hover:border-accent/40")
+              }
             >
-              {tile}
+              <ChainBadge chain={opt.chain} size="sm" />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-xs font-medium text-text-strong">
+                  {opt.chain.name}
+                </span>
+                <span className="truncate text-[10px] text-text-soft">
+                  {isActive ? "Selected" : chainSendSubtitle(opt.status)}
+                </span>
+              </span>
             </span>
           );
-        }
-        return (
-          <Link
-            key={opt.chain.kind}
-            href={href}
-            aria-current={isActive ? "page" : undefined}
-          >
-            {tile}
-          </Link>
-        );
-      })}
+          if (disabled || !href) {
+            return (
+              <span
+                key={opt.chain.kind}
+                aria-disabled
+                className="hidden md:inline-flex"
+              >
+                {tile}
+              </span>
+            );
+          }
+          return (
+            <Link
+              key={opt.chain.kind}
+              href={href}
+              aria-current={isActive ? "page" : undefined}
+            >
+              {tile}
+            </Link>
+          );
+        })}
 
-      {/* Add-chain tile - always rendered as the last item so users
+        {/* Add-chain tile - always rendered as the last item so users
           can find the chain-management flow without leaving /send.
           Solana-only wallets see this as the only secondary tile;
           multi-chain wallets see it after their bound chains.
           Subtitle adapts so the row reads as a single thought. */}
-      <Link
-        href={addChainHref}
-        aria-label="Add another chain"
-        className={
-          "flex items-center gap-2 rounded-card border border-dashed border-border-soft bg-surface-raised px-3 py-2 text-left " +
-          "transition-[border-color,background-color,transform] duration-base ease-out-soft " +
-          "hover:-translate-y-px hover:bg-accent/5 " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-        }
-      >
-        <span
-          aria-hidden="true"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent"
+        <Link
+          href={addChainHref}
+          aria-label="Add another network"
+          className={
+            "flex min-w-[9.5rem] items-center gap-2 rounded-card border border-dashed border-border-soft bg-canvas px-3 py-2 text-left " +
+            "transition-[border-color,background-color,transform] duration-base ease-out-soft " +
+            "hover:-translate-y-px hover:border-accent/40 hover:bg-accent/5 " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          }
         >
-          <Plus className="h-4 w-4" strokeWidth={2.25} />
-        </span>
-        <span className="flex flex-col">
-          <span className="text-xs font-medium text-text-strong">
-            Add chain
+          <span
+            aria-hidden="true"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent"
+          >
+            <Plus className="h-4 w-4" strokeWidth={2.25} />
           </span>
-          <span className="text-[10px] text-text-soft">
-            {boundCount === 1 ? "Send ETH, BTC, ZEC, HYPE" : "More chains"}
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate text-xs font-medium text-text-strong">
+              Add network
+            </span>
+            <span className="truncate text-[10px] text-text-soft">
+              {boundCount === 1 ? "ETH, BTC, ZEC, HYPE" : "More options"}
+            </span>
           </span>
-        </span>
-      </Link>
+        </Link>
+      </div>
     </nav>
   );
 }
