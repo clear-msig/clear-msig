@@ -35,6 +35,7 @@ solana-address = { version = "2", features = ["curve25519"] }
 # compiling without a sweeping rewrite.
 solana-sdk = "2"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
+brine-ed25519 = { git = "https://github.com/ChewingGlass/brine-ed25519", default-features = false }
 sha2 = "0.10"
 bs58 = "0.5"
 serde = { version = "1", features = ["derive"] }

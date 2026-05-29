@@ -71,6 +71,15 @@ impl MessageSigner for PreSignedMessageSigner {
                 message.len()
             )
         })?;
+        brine_ed25519::sig_verify(&self.pubkey, &self.signature, message).map_err(|e| {
+            anyhow!(
+                "pre-signed signature verifies with ed25519-dalek but not \
+                 with the on-chain verifier ({e:?}) for the message the CLI \
+                 is about to submit ({} bytes). Refusing to submit because \
+                 the deployed program would reject it.",
+                message.len()
+            )
+        })?;
         Ok(self.signature)
     }
 }
