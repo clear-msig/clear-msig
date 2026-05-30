@@ -702,7 +702,7 @@ const WALLET_ERRORS: Record<string, FriendlyError> = {
   },
   InvalidSignature: {
     title: "Signature didn't verify",
-    body: "The wallet signed something that doesn't match what the program expected. This is usually a stale request - refresh and try again from a fresh state.",
+    body: "The wallet signature did not match the request bytes or signer expected by the program. Reconnect the wallet that belongs to this rule, then try from the send screen again.",
   },
   NotProposer: {
     title: "Your wallet can't propose from this rule",

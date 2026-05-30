@@ -19,6 +19,7 @@ import {
   rebuildAndVerifyMessage,
   MessageVerificationError,
 } from "@/lib/msig";
+import { messageFlavorForSigner } from "@/lib/hooks/signFlavor";
 import { LedgerError } from "@/lib/wallet/ledger";
 import type { DryRunDescriptor } from "@/lib/api/types";
 
@@ -81,7 +82,13 @@ export class WalletSignError extends Error {
 /// `descriptor.message_hex` before invoking the wallet. See
 /// `rebuildAndVerifyMessage` and SECURITY.md surface A.
 export function useSignWithWallet() {
-  const { signMessage, publicKey, connected, isLedger } = useWallet();
+  const {
+    signMessage,
+    publicKey,
+    connected,
+    isLedger,
+    ledgerPublicKey,
+  } = useWallet();
   const { connection } = useConnection();
 
   const signBytes = useCallback(
@@ -166,16 +173,16 @@ export function useSignWithWallet() {
       options?: SignOptions,
     ): Promise<SignedPayload> => {
       let bytes: Uint8Array;
+      const flavor = messageFlavorForSigner({
+        preferSigner: options?.preferSigner,
+        isLedger,
+        ledgerPublicKey,
+      });
       try {
         bytes = await rebuildAndVerifyMessage(
           descriptor,
           connection,
-          // Ledger needs the Solana offchain envelope so the device
-          // renders the body as clear text. Software wallets sign the
-          // plain body for deployment compatibility: current CLI/program
-          // code accepts both, while older deployed programs only verify
-          // the plain body.
-          isLedger ? "offchain_v1" : "plain_v2",
+          flavor,
         );
       } catch (err) {
         if (err instanceof MessageVerificationError) {
@@ -189,7 +196,7 @@ export function useSignWithWallet() {
       }
       return signBytes(bytes, options);
     },
-    [connection, isLedger, signBytes],
+    [connection, isLedger, ledgerPublicKey, signBytes],
   );
 
   return {
