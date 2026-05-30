@@ -1,6 +1,7 @@
 use crate::error::*;
 use crate::signing::{
-    KeypairMessageSigner, MessageSigner, PreSignedMessageSigner, PubkeyOnlyMessageSigner,
+    KeypairMessageSigner, MessageFlavor, MessageSigner, PreSignedMessageSigner,
+    PubkeyOnlyMessageSigner,
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -21,6 +22,7 @@ pub struct CliGlobals {
     pub signer_pubkey: Option<String>,
     pub signature: Option<String>,
     pub params_data: Option<String>,
+    pub message_flavor: Option<String>,
     /// Dry-run: emit a JSON descriptor of what would be signed and exit.
     pub dry_run: bool,
 }
@@ -131,6 +133,9 @@ pub struct RuntimeConfig {
     /// clearer error if the pre-signed pubkey isn't in the proposer /
     /// approver list of the intent.
     pub pre_signed: bool,
+    /// Exact message byte layout the browser says it signed. Only set
+    /// in pre-signed mode by newer frontends.
+    pub message_flavor: Option<MessageFlavor>,
 }
 
 impl RuntimeConfig {
@@ -228,6 +233,10 @@ pub fn load_config(globals: &CliGlobals) -> Result<RuntimeConfig> {
         }
         None => None,
     };
+    let message_flavor = match &globals.message_flavor {
+        Some(value) => Some(value.parse::<MessageFlavor>()?),
+        None => None,
+    };
 
     Ok(RuntimeConfig {
         rpc_url,
@@ -237,6 +246,7 @@ pub fn load_config(globals: &CliGlobals) -> Result<RuntimeConfig> {
         params_data_override,
         dry_run: globals.dry_run,
         pre_signed: globals.signer_pubkey.is_some(),
+        message_flavor,
     })
 }
 

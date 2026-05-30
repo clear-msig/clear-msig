@@ -1,7 +1,7 @@
 use crate::config::RuntimeConfig;
 use crate::error::*;
 use crate::output::print_json;
-use crate::signing::sign_message_with_fallback;
+use crate::signing::sign_message_with_flavor;
 use crate::{accounts, message, params, resolve, rpc};
 use clap::Subcommand;
 use ika_dwallet_types::{NetworkSignedAttestation, VersionedDWalletDataAttestation};
@@ -193,7 +193,8 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             }
 
             eprintln!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
-            let signature = sign_message_with_fallback(&*config.signer, &msg, &msg_plain)?;
+            let signature =
+                sign_message_with_flavor(&*config.signer, &msg, &msg_plain, config.message_flavor)?;
             let proposer_pubkey = config.signer.pubkey();
 
             let payer_pubkey = solana_sdk::signer::Signer::pubkey(&config.payer);
@@ -1079,7 +1080,8 @@ fn approve_or_cancel(
     }
 
     eprintln!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
-    let signature = sign_message_with_fallback(&*config.signer, &msg, &msg_plain)?;
+    let signature =
+        sign_message_with_flavor(&*config.signer, &msg, &msg_plain, config.message_flavor)?;
 
     let ix = if is_approve {
         crate::instructions::approve(
