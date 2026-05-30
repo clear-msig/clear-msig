@@ -883,10 +883,10 @@ fn attestation_session_for_binding(
 }
 
 /// Build the chain-specific [`crate::chains::BroadcastInputs`] payload from
-/// the intent's params + tx_template. EVM doesn't need any extras (the
-/// EIP-1559 RLP is fully self-describing), so chains 1 and 4 short-circuit
-/// to `BroadcastInputs::Evm`. Bitcoin BIP143 commits to its outputs as a
-/// hash, so we have to plumb the originals through.
+/// the intent's params + tx_template. EVM-compatible chains do not need any
+/// extras (the EIP-1559 RLP is fully self-describing), so chains 1, 4, and 5
+/// short-circuit to `BroadcastInputs::Evm`. Bitcoin BIP143 commits to its
+/// outputs as a hash, so we have to plumb the originals through.
 fn build_broadcast_inputs(
     chain_kind: u8,
     intent: &accounts::IntentAccount,
@@ -904,7 +904,7 @@ fn build_broadcast_inputs(
                 amount_lamports,
             })
         }
-        1 | 4 => Ok(BroadcastInputs::Evm),
+        1 | 4 | 5 => Ok(BroadcastInputs::Evm),
         2 => {
             // Param schema (must match `clear_wallet::chains::bitcoin`):
             //   [0] prev_txid       : Bytes32
@@ -1042,6 +1042,30 @@ fn approve_or_cancel(
         ))? as u8;
 
     let action = if is_approve { "approve" } else { "cancel" };
+    let member_bit = 1u16
+        .checked_shl(approver_index as u32)
+        .ok_or_else(|| anyhow!("invalid approver index {approver_index}"))?;
+    if is_approve && (proposal_account.approval_bitmap & member_bit) != 0 {
+        print_json(&serde_json::json!({
+            "txid": null,
+            "action": action,
+            "approver_index": approver_index,
+            "status": proposal_account.status,
+            "already_recorded": true,
+        }));
+        return Ok(());
+    }
+    if !is_approve && (proposal_account.cancellation_bitmap & member_bit) != 0 {
+        print_json(&serde_json::json!({
+            "txid": null,
+            "action": action,
+            "approver_index": approver_index,
+            "status": proposal_account.status,
+            "already_recorded": true,
+        }));
+        return Ok(());
+    }
+
     let msg = message::build_message(
         action,
         expiry_ts,

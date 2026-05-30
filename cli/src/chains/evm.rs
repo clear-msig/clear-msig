@@ -25,9 +25,10 @@ use k256::ecdsa::{Signature as K256Signature, VerifyingKey as K256VerifyingKey};
 use serde::Deserialize;
 
 /// Top-level entry point used by [`crate::chains::broadcast_signed_tx`] for
-/// `chain_kind = 1` (`evm_1559`) and `chain_kind = 4` (`evm_1559_erc20`).
-/// Both share the same EIP-1559 envelope; only the calldata differs, and
-/// that's already baked into the `preimage` we receive here.
+/// `chain_kind = 1` (`evm_1559`), `chain_kind = 4` (`evm_1559_erc20`), and
+/// `chain_kind = 5` (`hyperliquid_evm`). All share the same EIP-1559
+/// envelope; only calldata / chain id differ, and that is already baked into
+/// the `preimage` we receive here.
 pub fn assemble_and_broadcast(
     preimage: &[u8],
     r: &[u8; 32],

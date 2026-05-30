@@ -43,8 +43,6 @@ export function useUpdateApprovalThreshold() {
       if (!Number.isFinite(newThreshold) || newThreshold < 1) {
         throw new Error("Threshold must be at least 1");
       }
-      const me = wallet.publicKey.toBase58();
-
       const walletData = await fetchWalletByName(connection, walletName);
       if (!walletData) throw new Error("Couldn't load wallet");
 
@@ -69,6 +67,23 @@ export function useUpdateApprovalThreshold() {
       if (newThreshold > intent.approvers.length) {
         throw new Error(
           `Threshold ${newThreshold} exceeds the number of approvers (${intent.approvers.length})`,
+        );
+      }
+      const governanceIntent = intents.find(
+        (it) => it.account !== null && it.account.intentIndex === 2,
+      )?.account as IntentAccount | undefined;
+      const signerPk = governanceIntent
+        ? wallet.pickSigner(governanceIntent.approvers)
+        : wallet.pickSigner(intent.approvers);
+      if (!signerPk) {
+        throw new Error(
+          "None of your connected wallets can approve rule changes for this wallet.",
+        );
+      }
+      const me = signerPk.toBase58();
+      if (governanceIntent && !governanceIntent.proposers.includes(me)) {
+        throw new Error(
+          "Your connected wallet can approve this wallet, but it cannot propose rule changes.",
         );
       }
 
@@ -114,7 +129,7 @@ export function useUpdateApprovalThreshold() {
         policy_ciphertexts,
       });
 
-      const signed = await signDescriptor(dry);
+      const signed = await signDescriptor(dry, { preferSigner: signerPk });
       const submitted = await backendApi.submit.updateIntent(walletName, {
         ...signed,
         params_data_hex: dry.params_data_hex,
@@ -130,14 +145,19 @@ export function useUpdateApprovalThreshold() {
         );
       }
 
-      const decision = await approveIfNeeded(connection, proposal);
+      const decision = await approveIfNeeded(connection, proposal, {
+        approvers: governanceIntent?.approvers ?? intent.approvers,
+        approverPubkey: me,
+      });
       if (decision.needsApproveSignature) {
         const approveDry = await backendApi.prepare.approveProposal(
           walletName,
           proposal,
           { actor_pubkey: me },
         );
-        const approveSigned = await signDescriptor(approveDry);
+        const approveSigned = await signDescriptor(approveDry, {
+          preferSigner: signerPk,
+        });
         await backendApi.submit.approveProposal(walletName, proposal, {
           ...approveSigned,
           expiry: approveDry.expiry,

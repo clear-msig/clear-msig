@@ -405,7 +405,10 @@ function SendEthPage() {
 
       // Old-program fallback: re-sign approve if the propose did not
       // auto-approve. With the upgrade this branch never fires.
-      const decision = await approveIfNeeded(connection, proposal);
+      const decision = await approveIfNeeded(connection, proposal, {
+        approvers: intent.approvers,
+        approverPubkey: approverPk?.toBase58() ?? null,
+      });
       if (decision.needsApproveSignature) {
         if (!approverPk) {
           throw new Error(

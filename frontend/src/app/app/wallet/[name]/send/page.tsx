@@ -634,7 +634,10 @@ function SendPage() {
       //    only if propose didn't already do it on chain (program
       //    auto-approves proposer when proposer ∈ approvers).
       const userIsApprover = approver !== null;
-      const decision = await approveIfNeeded(connection, proposal);
+      const decision = await approveIfNeeded(connection, proposal, {
+        approvers: intent.approvers,
+        approverPubkey: approver,
+      });
       let needsOwnApprove =
         userIsApprover && decision.needsApproveSignature;
       if (userIsApprover && decision.status === null) {

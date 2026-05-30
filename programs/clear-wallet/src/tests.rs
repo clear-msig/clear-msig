@@ -2214,10 +2214,10 @@ fn test_execute_sol_transfer() {
 
     // 5. Render the human-readable message the on-chain builder
     //    will reproduce exactly. Template is
-    //    "transfer {1} lamports to {0}". Param[0] is base58'd
-    //    address, param[1] is decimal lamports.
+    //    "transfer {1:10^9} SOL to {0}". Param[0] is base58'd
+    //    address, param[1] is lamports rendered as display SOL.
     let rendered_template = format!(
-        "transfer {transfer_amount} lamports to {}",
+        "transfer 0.1 SOL to {}",
         bs58::encode(destination.as_ref()).into_string(),
     );
     let propose_msg = wrap_offchain(
