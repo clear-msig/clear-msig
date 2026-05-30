@@ -22,6 +22,7 @@ import {
 import { messageFlavorForSigner } from "@/lib/hooks/signFlavor";
 import { LedgerError } from "@/lib/wallet/ledger";
 import type { DryRunDescriptor } from "@/lib/api/types";
+import type { MessageFlavor } from "@/lib/msig/offchain";
 
 export interface SignOptions {
   /// When provided, route the sign through the signer whose pubkey
@@ -178,31 +179,44 @@ export function useSignWithWallet() {
       options?: SignOptions,
     ): Promise<SignedPayload> => {
       ensureDescriptorFresh(descriptor);
-      let bytes: Uint8Array;
       const flavor = messageFlavorForSigner({
         preferSigner: options?.preferSigner,
         isLedger,
         ledgerPublicKey,
       });
       try {
-        bytes = await rebuildAndVerifyMessage(
+        return await signDescriptorWithFlavor(
           descriptor,
-          connection,
+          options,
           flavor,
         );
       } catch (err) {
-        if (err instanceof MessageVerificationError) {
-          throw new WalletSignError(
-            "message_mismatch",
-            err.message,
-            { expectedHex: err.expected, gotHex: err.got },
+        if (
+          flavor === "plain_v2" &&
+          isLedger &&
+          err instanceof WalletSignError &&
+          err.code === "wallet_signed_wrong_bytes"
+        ) {
+          return signDescriptorWithFlavor(
+            descriptor,
+            options,
+            "offchain_v1",
+          );
+        }
+        if (
+          flavor === "offchain_v1" &&
+          !isLedger &&
+          err instanceof WalletSignError &&
+          err.code === "wallet_signed_wrong_bytes"
+        ) {
+          return signDescriptorWithFlavor(
+            descriptor,
+            options,
+            "plain_v2",
           );
         }
         throw err;
       }
-      const signed = await signBytes(bytes, options);
-      ensureDescriptorFresh(descriptor);
-      return { ...signed, message_flavor: flavor };
     },
     [connection, isLedger, ledgerPublicKey, signBytes],
   );
@@ -212,6 +226,33 @@ export function useSignWithWallet() {
     signDescriptor,
     canSign: Boolean(connected && publicKey && signMessage),
   };
+
+  async function signDescriptorWithFlavor(
+    descriptor: DryRunDescriptor,
+    options: SignOptions | undefined,
+    flavor: MessageFlavor,
+  ): Promise<SignedPayload> {
+    let bytes: Uint8Array;
+    try {
+      bytes = await rebuildAndVerifyMessage(
+        descriptor,
+        connection,
+        flavor,
+      );
+    } catch (err) {
+      if (err instanceof MessageVerificationError) {
+        throw new WalletSignError(
+          "message_mismatch",
+          err.message,
+          { expectedHex: err.expected, gotHex: err.got },
+        );
+      }
+      throw err;
+    }
+    const signed = await signBytes(bytes, options);
+    ensureDescriptorFresh(descriptor);
+    return { ...signed, message_flavor: flavor };
+  }
 }
 
 function ensureDescriptorFresh(descriptor: DryRunDescriptor) {

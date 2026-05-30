@@ -27,17 +27,18 @@ pub trait MessageSigner {
     fn sign_message(&self, message: &[u8]) -> Result<[u8; 64]>;
 }
 
-/// Try the legacy offchain-wrapped bytes first, then the plain body.
-/// This keeps old wallets and legacy proposals working while Phantom
-/// migrates to the plain-body v2 path.
+/// Try the plain body first, then the offchain-wrapped bytes.
+/// The currently deployed devnet program behaves as the plain-body
+/// verifier. Falling back to offchain keeps newer Ledger/offchain
+/// deployments reachable without making old deployments reject.
 pub fn sign_message_with_fallback<S: MessageSigner + ?Sized>(
     signer: &S,
     wrapped: &[u8],
     plain: &[u8],
 ) -> Result<[u8; 64]> {
-    match signer.sign_message(wrapped) {
+    match signer.sign_message(plain) {
         Ok(sig) => Ok(sig),
-        Err(_) => signer.sign_message(plain),
+        Err(_) => signer.sign_message(wrapped),
     }
 }
 
