@@ -81,7 +81,7 @@ export class WalletSignError extends Error {
 /// `descriptor.message_hex` before invoking the wallet. See
 /// `rebuildAndVerifyMessage` and SECURITY.md surface A.
 export function useSignWithWallet() {
-  const { signMessage, publicKey, connected } = useWallet();
+  const { signMessage, publicKey, connected, isLedger } = useWallet();
   const { connection } = useConnection();
 
   const signBytes = useCallback(
@@ -170,11 +170,12 @@ export function useSignWithWallet() {
         bytes = await rebuildAndVerifyMessage(
           descriptor,
           connection,
-          // The deployed program verifies the canonical Solana offchain
-          // envelope. Some wallet UIs render that as raw hex, but signing
-          // the envelope keeps browser, CLI, and on-chain verification on
-          // the same byte sequence.
-          "offchain_v1",
+          // Ledger needs the Solana offchain envelope so the device
+          // renders the body as clear text. Software wallets sign the
+          // plain body for deployment compatibility: current CLI/program
+          // code accepts both, while older deployed programs only verify
+          // the plain body.
+          isLedger ? "offchain_v1" : "plain_v2",
         );
       } catch (err) {
         if (err instanceof MessageVerificationError) {
@@ -188,7 +189,7 @@ export function useSignWithWallet() {
       }
       return signBytes(bytes, options);
     },
-    [connection, signBytes],
+    [connection, isLedger, signBytes],
   );
 
   return {

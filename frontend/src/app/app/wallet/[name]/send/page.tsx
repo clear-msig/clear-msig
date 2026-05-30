@@ -33,6 +33,7 @@ import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import {
   IntentType,
+  ProposalStatus,
   toHex,
   findProposalAddress,
   findVaultAddress,
@@ -41,6 +42,7 @@ import { toDisplayName } from "@/lib/retail/walletNames";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
 import { PublicKey } from "@solana/web3.js";
 import { fetchWalletByName } from "@/lib/chain/wallets";
+import { fetchProposal } from "@/lib/chain/proposals";
 import { listIntents } from "@/lib/chain/intents";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import {
@@ -317,7 +319,11 @@ function SendPage() {
     if (!intentsQuery.data) return null;
     return (
       intentsQuery.data.find(
-        (it) => it.account !== null && it.account.intentType === IntentType.Custom,
+        (it) =>
+          it.account !== null &&
+          it.account.intentType === IntentType.Custom &&
+          it.account.chainKind === 0 &&
+          it.account.approved,
       ) ?? null
     );
   }, [intentsQuery.data]);
@@ -634,7 +640,16 @@ function SendPage() {
       //    auto-approves proposer when proposer ∈ approvers).
       const userIsApprover = intent.approvers.includes(me);
       const decision = await approveIfNeeded(connection, proposal);
-      if (userIsApprover && decision.needsApproveSignature) {
+      let needsOwnApprove =
+        userIsApprover && decision.needsApproveSignature;
+      if (userIsApprover && decision.status === null) {
+        const observedStatus = await waitForProposalStatus(
+          connection,
+          proposal,
+        );
+        needsOwnApprove = observedStatus === ProposalStatus.Active;
+      }
+      if (needsOwnApprove) {
         setPhase("approving");
         try {
           const approveDry = await backendApi.prepare.approveProposal(
@@ -719,17 +734,32 @@ function SendPage() {
         }
       }
 
-      // 5. If the proposal has reached threshold (either from the
-      //    program's auto-approve or our explicit approve above),
-      //    execute now so the SOL actually moves.
-      const approvalsAfterUs =
-        (userIsApprover ? 1 : 0) /* propose either auto-set or we just set it */;
-      if (approvalsAfterUs >= intent.approvalThreshold) {
+      // 5. Execute only after the proposal account says it is
+      //    Approved. Do not infer this from a local approval count:
+      //    old/new program versions, RPC lag, policy-added approvers,
+      //    and explicit approve retries can all make local counting
+      //    wrong. The chain account is the source of truth.
+      const statusBeforeExecute = await waitForProposalStatus(
+        connection,
+        proposal,
+      );
+      if (statusBeforeExecute === ProposalStatus.Approved) {
         setPhase("executing");
         let executed: unknown;
         try {
           executed = await backendApi.executeProposal(walletName, proposal, {});
         } catch (err) {
+          // If an RPC race means the backend still sees Active while
+          // our read briefly saw Approved, keep the request on chain
+          // and show the waiting-for-approvals state instead of
+          // turning a valid proposal into a scary failed send.
+          if (isProposalNotApprovedError(err)) {
+            return {
+              ...submitted,
+              executedTxid: null,
+              awaitingApprovers: true,
+            };
+          }
           // Don't swallow - without this the user sees a "Sent" UX
           // even though the SOL never moved (balance stays the same
           // and they think the dashboard is broken). Re-throw with
@@ -852,9 +882,9 @@ function SendPage() {
         toast.error(
           "Request created, but the send did not finish",
           {
-            details:
-              fe.body +
-              ` Open this request in the dashboard to retry it.`,
+            details: [fe.body, "Open this request in the dashboard to retry it."]
+              .filter(Boolean)
+              .join(" "),
           },
         );
       } else {
@@ -1754,6 +1784,50 @@ async function findProposalIfLanded(
     await new Promise((r) => setTimeout(r, 800));
   }
   return null;
+}
+
+async function waitForProposalStatus(
+  connection: import("@solana/web3.js").Connection,
+  proposalPda: string,
+): Promise<ProposalStatus | null> {
+  let pubkey: PublicKey;
+  try {
+    pubkey = new PublicKey(proposalPda);
+  } catch {
+    return null;
+  }
+
+  for (let i = 0; i < 6; i++) {
+    try {
+      const account = await fetchProposal(connection, pubkey);
+      if (account) return account.status;
+    } catch {
+      // Public RPC can lag or briefly reject reads around a fresh
+      // write. Retry instead of converting transient read trouble
+      // into a failed send.
+    }
+    await new Promise((r) => setTimeout(r, 500 + i * 250));
+  }
+  return null;
+}
+
+function isProposalNotApprovedError(err: unknown): boolean {
+  const parts = [
+    err instanceof Error ? err.message : "",
+    (err as { payload?: { error?: string; stderr?: string; stdout?: string } })?.payload?.error,
+    (err as { payload?: { error?: string; stderr?: string; stdout?: string } })?.payload?.stderr,
+    (err as { payload?: { error?: string; stderr?: string; stdout?: string } })?.payload?.stdout,
+  ]
+    .filter(Boolean)
+    .join("\n")
+    .toLowerCase();
+
+  return (
+    parts.includes("proposalnotapproved") ||
+    parts.includes("proposal is not in an approved state") ||
+    // WalletError::ProposalNotApproved = 6005 = 0x1775.
+    parts.includes("custom program error: 0x1775")
+  );
 }
 
 // ─── Stage 3: sent ─────────────────────────────────────────────────
