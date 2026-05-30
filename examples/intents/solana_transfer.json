@@ -20,5 +20,5 @@
       ]
     }
   ],
-  "template": "transfer {1:10^9} SOL to {0}"
+  "template": "transfer {1} lamports to {0}"
 }
