@@ -19,10 +19,11 @@ pub fn encode_params(intent: &IntentAccount, raw_params: &[String]) -> Result<Ve
     let pool = &intent.byte_pool;
 
     for param in &intent.params {
-        let name_start = param.name_offset.get() as usize;
-        let name_end = name_start + param.name_len.get() as usize;
-        let name = std::str::from_utf8(&pool[name_start..name_end])
-            .with_context(|| "invalid param name in intent")?;
+        let name = read_param_name(
+            pool,
+            param.name_offset.get() as usize,
+            param.name_len.get() as usize,
+        )?;
 
         let value = param_map
             .get(name)
@@ -138,6 +139,19 @@ pub fn encode_params(intent: &IntentAccount, raw_params: &[String]) -> Result<Ve
     Ok(data)
 }
 
+fn read_param_name(pool: &[u8], name_start: usize, name_len: usize) -> Result<&str> {
+    let name_end = name_start
+        .checked_add(name_len)
+        .ok_or_else(|| anyhow!("invalid param name range {name_start}..{name_start}+{name_len}"))?;
+    let bytes = pool.get(name_start..name_end).ok_or_else(|| {
+        anyhow!(
+            "invalid param name range {name_start}..{name_end} for byte pool of length {}",
+            pool.len()
+        )
+    })?;
+    std::str::from_utf8(bytes).with_context(|| "invalid param name in intent")
+}
+
 /// Parse a hex string (with optional 0x prefix) into raw bytes.
 fn parse_hex(s: &str) -> Result<Vec<u8>> {
     let s = s.strip_prefix("0x").unwrap_or(s);
@@ -147,4 +161,77 @@ fn parse_hex(s: &str) -> Result<Vec<u8>> {
     (0..s.len() / 2)
         .map(|i| u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).map_err(Into::into))
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clear_wallet::utils::definition::{
+        AccountEntry, AccountSourceType, ConstraintType, DataSegmentEntry, InstructionEntry,
+        ParamEntry, SeedEntry, SeedType, SegmentType,
+    };
+
+    fn empty_intent_with_param() -> IntentAccount {
+        IntentAccount {
+            wallet: "wallet".to_string(),
+            bump: 0,
+            intent_index: 0,
+            intent_type: 3,
+            chain_kind: 0,
+            approved: true,
+            approval_threshold: 1,
+            cancellation_threshold: 1,
+            timelock_seconds: 0,
+            template_offset: 0,
+            template_len: 0,
+            tx_template_offset: 0,
+            tx_template_len: 0,
+            active_proposal_count: 0,
+            proposers: vec![],
+            approvers: vec![],
+            params: vec![ParamEntry {
+                param_type: ParamType::U8,
+                name_offset: 0u16.into(),
+                name_len: 1u16.into(),
+                constraint_type: ConstraintType::None,
+                constraint_value: 0u64.into(),
+            }],
+            accounts: vec![AccountEntry {
+                is_signer: false,
+                is_writable: false,
+                source_type: AccountSourceType::Static,
+                pool_offset: 0u16.into(),
+                pool_len: 0u16.into(),
+            }],
+            instructions: vec![InstructionEntry {
+                program_account_index: 0,
+                account_indexes_offset: 0u16.into(),
+                account_indexes_len: 0u16.into(),
+                segments_start: 0u16.into(),
+                segments_count: 0u16.into(),
+            }],
+            data_segments: vec![DataSegmentEntry {
+                segment_type: SegmentType::Literal,
+                pool_offset: 0u16.into(),
+                pool_len: 0u16.into(),
+            }],
+            seeds: vec![SeedEntry {
+                seed_type: SeedType::Literal,
+                pool_offset: 0u16.into(),
+                pool_len: 0u16.into(),
+            }],
+            policy_ciphertexts: vec![],
+            byte_pool: vec![],
+        }
+    }
+
+    #[test]
+    fn encode_params_returns_error_for_out_of_bounds_param_name() {
+        let intent = empty_intent_with_param();
+        let err = encode_params(&intent, &["amount=1".to_string()]).unwrap_err();
+        assert!(
+            err.to_string().contains("invalid param name range"),
+            "unexpected error: {err}"
+        );
+    }
 }

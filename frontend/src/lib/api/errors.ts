@@ -233,6 +233,14 @@ export function friendlyError(
     };
   }
 
+  if (bag.walletErrorCode === "stale_request") {
+    return {
+      title: "This request expired",
+      body:
+        "The signing request timed out before it could be submitted. Refresh the send screen and try again.",
+    };
+  }
+
   // ── Wallet UX: Ledger device-state errors (app closed, etc.) ──
   // These came in as "rejected" before, telling users they cancelled
   // when their device just had the Solana app closed. Each code gets

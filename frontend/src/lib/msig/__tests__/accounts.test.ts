@@ -22,11 +22,25 @@ function vec(bytes: number[]): number[] {
   return [...u32(bytes.length), ...bytes];
 }
 
+function rawVec(count: number, bytes: number[]): number[] {
+  return [...u32(count), ...bytes];
+}
+
+function paramEntry(nameOffset: number, nameLen: number): number[] {
+  return [
+    1, // ParamType.U64
+    ...u16(nameOffset),
+    ...u16(nameLen),
+    0, // ConstraintType.None
+    0, 0, 0, 0, 0, 0, 0, 0, // constraint_value
+  ];
+}
+
 function addressVec(addresses: number[][]): number[] {
   return [...u32(addresses.length), ...addresses.flat()];
 }
 
-function intentPrefix(): number[] {
+function intentPrefix(params: number[] = []): number[] {
   return [
     2,
     ...address(1),
@@ -45,11 +59,11 @@ function intentPrefix(): number[] {
     ...u16(0),
     ...addressVec([address(2)]),
     ...addressVec([address(3)]),
-    ...vec([]),
-    ...vec([]),
-    ...vec([]),
-    ...vec([]),
-    ...vec([]),
+    ...rawVec(params.length / 14, params),
+    ...rawVec(0, []),
+    ...rawVec(0, []),
+    ...rawVec(0, []),
+    ...rawVec(0, []),
   ];
 }
 
@@ -74,5 +88,11 @@ describe("parseIntent", () => {
     );
 
     expect(parsed.policyCiphertextIds).toEqual([id]);
+  });
+
+  it("rejects param names outside the byte pool", () => {
+    expect(() =>
+      parseIntent(new Uint8Array([...intentPrefix(paramEntry(0, 1)), ...vec([]), ...vec([])])),
+    ).toThrow(/param\[0\]\.name range/);
   });
 });

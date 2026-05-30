@@ -518,19 +518,16 @@ function SendPage() {
         throw new Error("Connect your wallet first");
       if (!firstIntent || !firstIntent.account)
         throw new Error("Spending isn't set up for this wallet");
-      // Resolve which of our pubkeys the wallet's approvers list
-      // expects. With both Ledger and a Dynamic embedded wallet
-      // available, the default Ledger-preferred pubkey may not be in
-      // approvers - signing with it lands a signature the on-chain
-      // verifier rejects. pickSigner picks the matching pubkey, or
-      // null when neither is acceptable.
-      const signerPk = wallet.pickSigner(
-        firstIntent.account.approvers,
+      // Propose and approve are separate roles. Many retail wallets use
+      // the same member for both, but split-role wallets must sign the
+      // proposal with a proposer and the follow-up vote with an approver.
+      const proposerPk = wallet.pickSigner(
+        firstIntent.account.proposers,
       );
-      if (!signerPk) {
+      if (!proposerPk) {
         throw new Error(
-          "This connected wallet cannot approve sends for this shared wallet. " +
-            "Switch to a wallet that can approve here, or ask an owner to add this wallet.",
+          "This connected wallet cannot propose sends for this shared wallet. " +
+            "Switch to a wallet that can propose here, or ask an owner to add this wallet.",
         );
       }
       const destination =
@@ -584,16 +581,13 @@ function SendPage() {
         ],
         // Tells the CLI which identity to validate against during
         // dry-run; without this it uses its filesystem keypair which
-        // isn't in any user's proposers list. Use the resolved
-        // signer pubkey so the CLI checks the right identity (the
-        // default `wallet.publicKey` may not be the one we'll sign
-        // with, see pickSigner above).
-        actor_pubkey: signerPk.toBase58(),
+        // isn't in any user's proposers list.
+        actor_pubkey: proposerPk.toBase58(),
       });
 
       // 2. Sign with the user's wallet.
       setPhase("signing");
-      const signed = await signDescriptor(dry, { preferSigner: signerPk });
+      const signed = await signDescriptor(dry, { preferSigner: proposerPk });
 
       // 3. Submit propose: lands the proposal on chain in Active
       //    state with empty bitmap. Propose does not auto-flip the
@@ -629,16 +623,17 @@ function SendPage() {
       }
 
       const proposal = (submitted as Record<string, unknown>)?.proposal;
-      const me = signerPk.toBase58();
       if (typeof proposal !== "string" || proposal.length === 0) {
         return submitted;
       }
       const intent = firstIntent.account;
+      const approverPk = wallet.pickSigner(intent.approvers);
+      const approver = approverPk?.toBase58() ?? null;
 
       // 4. If the user is also an approver, flip their bit - but
       //    only if propose didn't already do it on chain (program
       //    auto-approves proposer when proposer ∈ approvers).
-      const userIsApprover = intent.approvers.includes(me);
+      const userIsApprover = approver !== null;
       const decision = await approveIfNeeded(connection, proposal);
       let needsOwnApprove =
         userIsApprover && decision.needsApproveSignature;
@@ -650,15 +645,20 @@ function SendPage() {
         needsOwnApprove = observedStatus === ProposalStatus.Active;
       }
       if (needsOwnApprove) {
+        if (!approverPk || !approver) {
+          throw new Error(
+            "This connected wallet cannot approve sends for this shared wallet.",
+          );
+        }
         setPhase("approving");
         try {
           const approveDry = await backendApi.prepare.approveProposal(
             walletName,
             proposal,
-            { actor_pubkey: me },
+            { actor_pubkey: approver },
           );
           const approveSigned = await signDescriptor(approveDry, {
-            preferSigner: signerPk,
+            preferSigner: approverPk,
           });
           await backendApi.submit.approveProposal(walletName, proposal, {
             ...approveSigned,
@@ -682,7 +682,10 @@ function SendPage() {
       });
       if (policyPlan.evaluation?.matched) {
         if (policyPlan.rule?.action === "require-extra-approvers") {
-          const alreadyCovered = new Set<string>([me]);
+          const alreadyCovered = new Set<string>([
+            proposerPk.toBase58(),
+            ...(approver ? [approver] : []),
+          ]);
           const uniqueExtraApprovers = policyPlan.extraApprovers.filter((addr) => {
             const normalized = addr.trim();
             if (!normalized || alreadyCovered.has(normalized)) return false;

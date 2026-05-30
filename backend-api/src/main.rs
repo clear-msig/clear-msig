@@ -9,7 +9,13 @@ use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
-use std::{env, net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    env,
+    net::SocketAddr,
+    path::PathBuf,
+    sync::Arc,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 use thiserror::Error;
 use tokio::process::Command;
 use tokio::time::timeout;
@@ -59,13 +65,23 @@ struct PreSigned {
 impl PreSigned {
     fn ensure_valid(&self) -> Result<(), ApiError> {
         ensure_non_empty(&self.signer_pubkey, "signer_pubkey")?;
+        ensure_base58_pubkey(&self.signer_pubkey, "signer_pubkey")?;
         ensure_non_empty(&self.signature, "signature")?;
+        ensure_hex_exact_len(&self.signature, "signature", 64)?;
         if let Some(p) = &self.params_data_hex {
             ensure_non_empty(p, "params_data_hex")?;
+            ensure_hex(p, "params_data_hex")?;
         }
         if self.expiry <= 0 {
             return Err(ApiError::BadRequest(
                 "expiry must be a positive unix timestamp".into(),
+            ));
+        }
+        let now = current_unix_timestamp()?;
+        if self.expiry <= now + 15 {
+            return Err(ApiError::BadRequest(
+                "signed request has expired or is too close to expiry; prepare a fresh request"
+                    .into(),
             ));
         }
         Ok(())
@@ -887,6 +903,44 @@ fn ensure_non_empty(value: &str, field: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
+fn current_unix_timestamp() -> Result<i64, ApiError> {
+    let duration = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| ApiError::Internal(format!("system clock before unix epoch: {e}")))?;
+    i64::try_from(duration.as_secs())
+        .map_err(|_| ApiError::Internal("system clock timestamp out of range".into()))
+}
+
+fn ensure_hex(value: &str, field: &str) -> Result<(), ApiError> {
+    let trimmed = value.trim();
+    let hex = trimmed.strip_prefix("0x").unwrap_or(trimmed);
+    if hex.is_empty() {
+        return Err(ApiError::BadRequest(format!("{field} must not be empty")));
+    }
+    if hex.len() % 2 != 0 {
+        return Err(ApiError::BadRequest(format!(
+            "{field} must have an even number of hex characters"
+        )));
+    }
+    if !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(ApiError::BadRequest(format!("{field} must be hex encoded")));
+    }
+    Ok(())
+}
+
+fn ensure_hex_exact_len(value: &str, field: &str, expected_bytes: usize) -> Result<(), ApiError> {
+    ensure_hex(value, field)?;
+    let trimmed = value.trim();
+    let hex = trimmed.strip_prefix("0x").unwrap_or(trimmed);
+    let got = hex.len() / 2;
+    if got != expected_bytes {
+        return Err(ApiError::BadRequest(format!(
+            "{field} must be {expected_bytes} bytes, got {got}"
+        )));
+    }
+    Ok(())
+}
+
 /// Intent-template filename validator. The CLI reads this with
 /// `fs::read_to_string`, which means an unsanitized value here is
 /// a file-existence oracle (and worse, a file-read leak via the
@@ -964,6 +1018,14 @@ fn ensure_base58_pubkey(value: &str, field: &str) -> Result<(), ApiError> {
     const ALPHABET: &[u8] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
     if !trimmed.bytes().all(|b| ALPHABET.contains(&b)) {
         return Err(ApiError::BadRequest(format!("{field} is not valid base58")));
+    }
+    let decoded = bs58::decode(trimmed)
+        .into_vec()
+        .map_err(|_| ApiError::BadRequest(format!("{field} is not valid base58")))?;
+    if decoded.len() != 32 {
+        return Err(ApiError::BadRequest(format!(
+            "{field} must decode to a 32-byte Solana pubkey"
+        )));
     }
     Ok(())
 }
@@ -1066,6 +1128,33 @@ mod tests {
                 assert!(message.contains("hyperliquid_evm"));
                 assert!(message.contains("hyperliquid"));
             }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn ensure_hex_exact_len_rejects_malformed_signature() {
+        let err = ensure_hex_exact_len("abc", "signature", 64).unwrap_err();
+        assert!(matches!(err, ApiError::BadRequest(_)));
+
+        let err = ensure_hex_exact_len("00", "signature", 64).unwrap_err();
+        match err {
+            ApiError::BadRequest(message) => assert!(message.contains("64 bytes")),
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn presigned_rejects_stale_expiry() {
+        let ps = PreSigned {
+            signer_pubkey: "11111111111111111111111111111111".to_string(),
+            signature: "00".repeat(64),
+            params_data_hex: Some("00".to_string()),
+            expiry: current_unix_timestamp().unwrap(),
+        };
+        let err = ps.ensure_valid().unwrap_err();
+        match err {
+            ApiError::BadRequest(message) => assert!(message.contains("expired")),
             other => panic!("unexpected error: {other:?}"),
         }
     }

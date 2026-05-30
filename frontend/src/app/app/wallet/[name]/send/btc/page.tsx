@@ -288,11 +288,11 @@ function BitcoinSendPage() {
         (it) => it.account?.intentType === IntentType.AddIntent,
       );
       const signerPk = addIntent?.account
-        ? wallet.pickSigner(addIntent.account.approvers)
+        ? wallet.pickSigner(addIntent.account.proposers)
         : wallet.publicKey;
       if (!signerPk) {
         throw new Error(
-          "None of your connected wallets is in this wallet's approver list.",
+          "None of your connected wallets is in this wallet's proposer list.",
         );
       }
       const me = signerPk.toBase58();
@@ -332,13 +332,21 @@ function BitcoinSendPage() {
       const intent = btcIntent;
       const decision = await approveIfNeeded(connection, proposal);
       if (decision.needsApproveSignature) {
+        const approverPk = addIntent?.account
+          ? wallet.pickSigner(addIntent.account.approvers)
+          : signerPk;
+        if (!approverPk) {
+          throw new Error(
+            "The setup proposal landed, but none of your connected wallets can approve it.",
+          );
+        }
         const approveDry = await backendApi.prepare.approveProposal(
           name,
           proposal,
-          { actor_pubkey: me },
+          { actor_pubkey: approverPk.toBase58() },
         );
         const approveSigned = await signDescriptor(approveDry, {
-          preferSigner: signerPk,
+          preferSigner: approverPk,
         });
         await backendApi.submit.approveProposal(name, proposal, {
           ...approveSigned,
@@ -435,10 +443,10 @@ function BitcoinSendPage() {
       if (!selectedUtxo) throw new Error("No suitable UTXO available");
       if (!sendAmountSats) throw new Error("Enter an amount");
       if (!senderPkhHex) throw new Error("Couldn't derive sender pkh");
-      const signerPk = wallet.pickSigner(btcIntent.proposers);
-      if (!signerPk) {
+      const proposerPk = wallet.pickSigner(btcIntent.proposers);
+      if (!proposerPk) {
         throw new Error(
-          "None of your connected wallets is in this wallet's approver list.",
+          "None of your connected wallets is in this wallet's proposer list.",
         );
       }
       const dest = validateBtcDestination(destination, btcNetwork);
@@ -469,9 +477,9 @@ function BitcoinSendPage() {
           `recipient_pkh=0x${bytesToHex(dest.pkh)}`,
           `send_amount_sats=${sendAmountSats.toString()}`,
         ],
-        actor_pubkey: signerPk.toBase58(),
+        actor_pubkey: proposerPk.toBase58(),
       });
-      const signed = await signDescriptor(dry, { preferSigner: signerPk });
+      const signed = await signDescriptor(dry, { preferSigner: proposerPk });
       const submitted = await backendApi.submit.createProposal(name, {
         ...signed,
         params_data_hex: dry.params_data_hex,
@@ -484,13 +492,19 @@ function BitcoinSendPage() {
       }
       const decision = await approveIfNeeded(connection, proposal);
       if (decision.needsApproveSignature) {
+        const approverPk = wallet.pickSigner(btcIntent.approvers);
+        if (!approverPk) {
+          throw new Error(
+            "The proposal landed, but none of your connected wallets can approve it.",
+          );
+        }
         const approveDry = await backendApi.prepare.approveProposal(
           name,
           proposal,
-          { actor_pubkey: signerPk.toBase58() },
+          { actor_pubkey: approverPk.toBase58() },
         );
         const approveSigned = await signDescriptor(approveDry, {
-          preferSigner: signerPk,
+          preferSigner: approverPk,
         });
         await backendApi.submit.approveProposal(name, proposal, {
           ...approveSigned,

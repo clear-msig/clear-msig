@@ -281,10 +281,10 @@ function SendErc20Page() {
         throw new Error("Recipient must be a valid 0x address");
       if (!meta) throw new Error("Couldn't read token metadata yet");
 
-      const signerPk = wallet.pickSigner(erc20Intent.account.approvers);
-      if (!signerPk) {
+      const proposerPk = wallet.pickSigner(erc20Intent.account.proposers);
+      if (!proposerPk) {
         throw new Error(
-          "None of your connected wallets is in this wallet's approver list. " +
+          "None of your connected wallets is in this wallet's proposer list. " +
             "Disconnect the Ledger or sign in with the wallet that originally created this multisig.",
         );
       }
@@ -299,10 +299,10 @@ function SendErc20Page() {
           `recipient=${trimmedRecipient}`,
           `amount=${amountBase.toString()}`,
         ],
-        actor_pubkey: signerPk.toBase58(),
+        actor_pubkey: proposerPk.toBase58(),
       });
 
-      const signed = await signDescriptor(dry, { preferSigner: signerPk });
+      const signed = await signDescriptor(dry, { preferSigner: proposerPk });
 
       const submitted = await backendApi.submit.createProposal(walletName, {
         ...signed,
@@ -315,16 +315,22 @@ function SendErc20Page() {
         throw new Error("Backend didn't return a proposal address from submit");
       }
       const intent = erc20Intent.account;
+      const approverPk = wallet.pickSigner(intent.approvers);
 
       const decision = await approveIfNeeded(connection, proposal);
       if (decision.needsApproveSignature) {
+        if (!approverPk) {
+          throw new Error(
+            "The proposal landed, but none of your connected wallets can approve it.",
+          );
+        }
         const approveDry = await backendApi.prepare.approveProposal(
           walletName,
           proposal,
-          { actor_pubkey: signerPk.toBase58() },
+          { actor_pubkey: approverPk.toBase58() },
         );
         const approveSigned = await signDescriptor(approveDry, {
-          preferSigner: signerPk,
+          preferSigner: approverPk,
         });
         await backendApi.submit.approveProposal(walletName, proposal, {
           ...approveSigned,
@@ -342,7 +348,10 @@ function SendErc20Page() {
       });
       if (policyPlan.evaluation?.matched) {
         if (policyPlan.rule?.action === "require-extra-approvers") {
-          const seen = new Set<string>([signerPk.toBase58()]);
+          const seen = new Set<string>([
+            proposerPk.toBase58(),
+            ...(approverPk ? [approverPk.toBase58()] : []),
+          ]);
           const extraApprovers = policyPlan.extraApprovers.filter((addr) => {
             const normalized = addr.trim();
             if (!normalized || seen.has(normalized)) return false;
