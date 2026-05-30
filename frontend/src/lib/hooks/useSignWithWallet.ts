@@ -51,8 +51,9 @@ export class WalletSignError extends Error {
     | "ledger_transport"
     | "ledger_unsupported"
     | "unknown"
-  | "message_mismatch"
-  | "wallet_signed_wrong_bytes"
+    | "message_mismatch"
+    | "stale_request"
+    | "wallet_signed_wrong_bytes";
   /// Set when `code === "message_mismatch"` - the bytes the backend
   /// asked us to sign did not match the bytes the frontend rebuilt
   /// from chain state. Includes both for debugging.
@@ -172,6 +173,7 @@ export function useSignWithWallet() {
       descriptor: DryRunDescriptor,
       options?: SignOptions,
     ): Promise<SignedPayload> => {
+      ensureDescriptorFresh(descriptor);
       let bytes: Uint8Array;
       const flavor = messageFlavorForSigner({
         preferSigner: options?.preferSigner,
@@ -194,7 +196,9 @@ export function useSignWithWallet() {
         }
         throw err;
       }
-      return signBytes(bytes, options);
+      const signed = await signBytes(bytes, options);
+      ensureDescriptorFresh(descriptor);
+      return signed;
     },
     [connection, isLedger, ledgerPublicKey, signBytes],
   );
@@ -204,6 +208,16 @@ export function useSignWithWallet() {
     signDescriptor,
     canSign: Boolean(connected && publicKey && signMessage),
   };
+}
+
+function ensureDescriptorFresh(descriptor: DryRunDescriptor) {
+  const secondsLeft = descriptor.expiry - Math.floor(Date.now() / 1000);
+  if (secondsLeft <= 15) {
+    throw new WalletSignError(
+      "stale_request",
+      "This signing request has expired or is too close to expiry. Refresh and try again.",
+    );
+  }
 }
 
 /// Translate any throwable from the underlying wallet/device into a

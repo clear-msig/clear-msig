@@ -16,14 +16,14 @@ describe("messageFlavorForSigner", () => {
     ).toBe("offchain_v1");
   });
 
-  it("uses plain bytes when a Ledger is connected but a software signer is selected", () => {
+  it("uses offchain bytes when a Ledger is connected but a software signer is selected", () => {
     expect(
       messageFlavorForSigner({
         preferSigner: software,
         isLedger: true,
         ledgerPublicKey: ledger,
       }),
-    ).toBe("plain_v2");
+    ).toBe("offchain_v1");
   });
 
   it("falls back to the active signer when no signer preference is supplied", () => {
@@ -38,6 +38,6 @@ describe("messageFlavorForSigner", () => {
         isLedger: false,
         ledgerPublicKey: null,
       }),
-    ).toBe("plain_v2");
+    ).toBe("offchain_v1");
   });
 });
