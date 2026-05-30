@@ -6,9 +6,10 @@ export function messageFlavorForSigner(args: {
   isLedger: boolean;
   ledgerPublicKey?: PublicKey | null;
 }): MessageFlavor {
-  // The deployed program verifies the Solana offchain-wrapped message.
-  // Keep every signer on that canonical payload; the local wallet verify
-  // still catches providers that mangle the leading 0xff byte.
   void args;
-  return "offchain_v1";
+  // Production devnet currently behaves as the plain-body verifier.
+  // Use plain_v2 as the default so the signature the CLI submits is
+  // accepted by the deployed program; offchain_v1 remains available
+  // for Ledger / future deployments that verify wrapped bytes.
+  return "plain_v2";
 }
