@@ -52,6 +52,11 @@ struct PreSigned {
     signer_pubkey: String,
     /// Hex-encoded 64-byte ed25519 signature.
     signature: String,
+    /// Exact byte layout the browser signed. Optional for older clients;
+    /// when present it is forwarded to the CLI so verification does not
+    /// guess the format via fallback.
+    #[serde(default)]
+    message_flavor: Option<String>,
     /// Hex-encoded bytes the caller serialized into the message. Optional
     /// for approve/cancel; required for propose / intent add / update.
     #[serde(default)]
@@ -68,6 +73,16 @@ impl PreSigned {
         ensure_base58_pubkey(&self.signer_pubkey, "signer_pubkey")?;
         ensure_non_empty(&self.signature, "signature")?;
         ensure_hex_exact_len(&self.signature, "signature", 64)?;
+        if let Some(flavor) = &self.message_flavor {
+            match flavor.as_str() {
+                "offchain_v1" | "plain_v2" => {}
+                other => {
+                    return Err(ApiError::BadRequest(format!(
+                        "message_flavor must be offchain_v1 or plain_v2, got {other}"
+                    )));
+                }
+            }
+        }
         if let Some(p) = &self.params_data_hex {
             ensure_non_empty(p, "params_data_hex")?;
             ensure_hex(p, "params_data_hex")?;
@@ -95,6 +110,10 @@ fn push_pre_signed_flags(args: &mut Vec<String>, ps: &PreSigned) {
     args.push(ps.signer_pubkey.clone());
     args.push("--signature".into());
     args.push(ps.signature.clone());
+    if let Some(flavor) = &ps.message_flavor {
+        args.push("--message-flavor".into());
+        args.push(flavor.clone());
+    }
     if let Some(hex) = &ps.params_data_hex {
         args.push("--params-data".into());
         args.push(hex.clone());

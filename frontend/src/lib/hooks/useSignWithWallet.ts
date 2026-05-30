@@ -38,6 +38,10 @@ export interface SignedPayload {
   signer_pubkey: string;
   /// Hex-encoded 64-byte ed25519 signature.
   signature: string;
+  /// Byte layout that was signed. The backend forwards this to the CLI
+  /// so pre-signed verification uses the same layout instead of
+  /// guessing via fallback.
+  message_flavor?: "offchain_v1" | "plain_v2";
 }
 
 export class WalletSignError extends Error {
@@ -198,7 +202,7 @@ export function useSignWithWallet() {
       }
       const signed = await signBytes(bytes, options);
       ensureDescriptorFresh(descriptor);
-      return signed;
+      return { ...signed, message_flavor: flavor };
     },
     [connection, isLedger, ledgerPublicKey, signBytes],
   );

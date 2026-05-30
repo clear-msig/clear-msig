@@ -58,8 +58,11 @@ export interface WalletChainsResponse {
 export type PreSignedPayload = {
   /// Base58-encoded ed25519 public key of the signer (user's Solana wallet).
   signer_pubkey: string;
-  /// Hex-encoded 64-byte ed25519 signature over the offchain-wrapped message.
+  /// Hex-encoded 64-byte ed25519 signature over `message_flavor` bytes.
   signature: string;
+  /// Exact byte layout that was signed. Software wallets use plain_v2;
+  /// Ledger uses offchain_v1 so the device can display the message.
+  message_flavor?: "offchain_v1" | "plain_v2";
   /// Hex-encoded `params_data` bytes the caller serialised for the CLI to
   /// submit verbatim. Required for intent add / update / proposal create.
   /// Optional for approve / cancel (the proposal already holds those bytes

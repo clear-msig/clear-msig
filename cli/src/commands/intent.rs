@@ -1,7 +1,7 @@
 use crate::config::RuntimeConfig;
 use crate::error::*;
 use crate::output::{print_dry_run, print_json, DryRunDescriptor};
-use crate::signing::sign_message_with_fallback;
+use crate::signing::sign_message_with_flavor;
 use crate::{accounts, message, rpc};
 use clap::Subcommand;
 use clear_wallet_client::intent_builder::BuiltIntent;
@@ -251,7 +251,8 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
             }
 
             eprintln!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
-            let signature = sign_message_with_fallback(&*config.signer, &msg, &msg_plain)?;
+            let signature =
+                sign_message_with_flavor(&*config.signer, &msg, &msg_plain, config.message_flavor)?;
             let proposer_pubkey = config.signer.pubkey();
 
             let payer_pubkey = solana_signer::Signer::pubkey(&config.payer);
@@ -353,7 +354,8 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
             }
 
             eprintln!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
-            let signature = sign_message_with_fallback(&*config.signer, &msg, &msg_plain)?;
+            let signature =
+                sign_message_with_flavor(&*config.signer, &msg, &msg_plain, config.message_flavor)?;
             let proposer_pubkey = config.signer.pubkey();
 
             let payer_pubkey = solana_signer::Signer::pubkey(&config.payer);
@@ -514,7 +516,8 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
             }
 
             eprintln!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
-            let signature = sign_message_with_fallback(&*config.signer, &msg, &msg_plain)?;
+            let signature =
+                sign_message_with_flavor(&*config.signer, &msg, &msg_plain, config.message_flavor)?;
             let proposer_pubkey = config.signer.pubkey();
 
             let payer_pubkey = solana_signer::Signer::pubkey(&config.payer);
@@ -734,7 +737,8 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
             }
 
             eprintln!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
-            let signature = sign_message_with_fallback(&*config.signer, &msg, &msg_plain)?;
+            let signature =
+                sign_message_with_flavor(&*config.signer, &msg, &msg_plain, config.message_flavor)?;
             let proposer_pubkey = config.signer.pubkey();
 
             let payer_pubkey = solana_signer::Signer::pubkey(&config.payer);

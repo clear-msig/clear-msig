@@ -875,6 +875,27 @@ function SendPage() {
     },
     onError: (err) => {
       console.error("[send]", err);
+      const backendPayload = (err as {
+        payload?: {
+          code?: number;
+          error?: string;
+          kind?: string;
+          request_id?: string;
+          stderr?: string;
+          stdout?: string;
+        };
+        requestId?: string;
+      })?.payload;
+      if (backendPayload) {
+        console.error("[send backend]", {
+          requestId: (err as { requestId?: string })?.requestId,
+          code: backendPayload.code,
+          kind: backendPayload.kind,
+          error: backendPayload.error,
+          stderr: backendPayload.stderr,
+          stdout: backendPayload.stdout,
+        });
+      }
       const executeFailedProposal = readExecuteFailureProposal(err);
       const fe = friendlyError(err, "send");
       // When the proposal reached chain but the execute step blew

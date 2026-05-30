@@ -63,6 +63,11 @@ struct Cli {
     #[arg(long, global = true)]
     params_data: Option<String>,
 
+    /// Pre-signed mode: exact message byte layout the browser signed.
+    /// Supported values: offchain_v1, plain_v2.
+    #[arg(long, global = true)]
+    message_flavor: Option<String>,
+
     /// Dry-run: print a JSON descriptor of the message the CLI would
     /// sign, along with `params_data` and the derived proposal/intent
     /// PDAs, then exit without sending any transaction. Used by the
@@ -108,6 +113,7 @@ fn main() {
         signer_pubkey: cli.signer_pubkey,
         signature: cli.signature,
         params_data: cli.params_data,
+        message_flavor: cli.message_flavor,
         dry_run: cli.dry_run,
     };
 

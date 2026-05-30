@@ -1,5 +1,26 @@
 use crate::error::*;
 use ed25519_dalek::{Signer, Verifier};
+use std::str::FromStr;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MessageFlavor {
+    OffchainV1,
+    PlainV2,
+}
+
+impl FromStr for MessageFlavor {
+    type Err = anyhow::Error;
+
+    fn from_str(value: &str) -> Result<Self> {
+        match value {
+            "offchain_v1" => Ok(Self::OffchainV1),
+            "plain_v2" => Ok(Self::PlainV2),
+            other => Err(anyhow!(
+                "invalid message flavor {other:?}; expected offchain_v1 or plain_v2"
+            )),
+        }
+    }
+}
 
 pub trait MessageSigner {
     fn pubkey(&self) -> [u8; 32];
@@ -17,6 +38,23 @@ pub fn sign_message_with_fallback<S: MessageSigner + ?Sized>(
     match signer.sign_message(wrapped) {
         Ok(sig) => Ok(sig),
         Err(_) => signer.sign_message(plain),
+    }
+}
+
+pub fn sign_message_with_flavor<S: MessageSigner + ?Sized>(
+    signer: &S,
+    wrapped: &[u8],
+    plain: &[u8],
+    flavor: Option<MessageFlavor>,
+) -> Result<[u8; 64]> {
+    match flavor {
+        Some(MessageFlavor::OffchainV1) => signer
+            .sign_message(wrapped)
+            .with_context(|| "signature did not verify against offchain_v1 message bytes"),
+        Some(MessageFlavor::PlainV2) => signer
+            .sign_message(plain)
+            .with_context(|| "signature did not verify against plain_v2 message bytes"),
+        None => sign_message_with_fallback(signer, wrapped, plain),
     }
 }
 
