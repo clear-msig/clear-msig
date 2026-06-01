@@ -16,17 +16,31 @@
 //
 // All animations are transform/opacity only.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, ChevronLeft, ScanLine, ShieldCheck, UserCircle2 } from "lucide-react";
-import { useWallet } from "@/lib/wallet";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Bell,
+  ChevronLeft,
+  Copy,
+  ExternalLink,
+  LogOut,
+  RefreshCw,
+  ScanLine,
+  ShieldCheck,
+  UserCircle2,
+} from "lucide-react";
+import { useConnection, useWallet } from "@/lib/wallet";
 import { useOnboarding } from "@/lib/hooks/useOnboarding";
 import { useNotificationFeed } from "@/lib/hooks/useNotificationFeed";
 import { BrandMark } from "@/components/retail/BrandMark";
 import { useToast } from "@/components/ui/Toast";
+import { addressUrl } from "@/lib/explorer";
+import { avatarGradient } from "@/lib/retail/avatar";
+import { formatBalance } from "@/lib/retail/format";
 import { getSectionLabel, isSendRoute } from "@/lib/retail/sectionLabel";
 
 // Shared pill-button class used by every floating mobile chrome
@@ -43,12 +57,17 @@ const MOBILE_HEADER_BTN = [
 
 export function HeaderBar() {
   const { hydrated } = useOnboarding();
-  const { connected, publicKey } = useWallet();
+  const wallet = useWallet();
+  const { connected, publicKey } = wallet;
+  const { connection } = useConnection();
+  const queryClient = useQueryClient();
   const address = publicKey?.toBase58() ?? "";
   const notifications = useNotificationFeed(address);
   const pathname = usePathname() ?? "";
   const router = useRouter();
   const toast = useToast();
+  const [walletMenuOpen, setWalletMenuOpen] = useState(false);
+  const walletMenuRef = useRef<HTMLDivElement | null>(null);
 
   const inApp = pathname.startsWith("/app");
   const isHome = pathname === "/app/wallet";
@@ -78,11 +97,23 @@ export function HeaderBar() {
   // /app/secure/* routes still work for deep links. See Fesal
   // feedback 2026-05-11.
   const showSecure = false;
+  const showWallet = inAppConnected;
   const pageTitle = inAppConnected
     ? isHome
       ? "Welcome back"
       : getSectionLabel(pathname)
     : "";
+
+  const balanceQuery = useQuery({
+    queryKey: ["connected-wallet-balance", address],
+    queryFn: async () => {
+      if (!publicKey) return 0;
+      return connection.getBalance(publicKey, "confirmed");
+    },
+    enabled: inAppConnected && Boolean(publicKey),
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  });
 
   // router.back() walks browser history; fall back to home when
   // there's no in-app history yet (cold deep-link). Mount counts as
@@ -91,6 +122,26 @@ export function HeaderBar() {
   useEffect(() => {
     navCountRef.current += 1;
   }, [pathname]);
+
+  useEffect(() => {
+    if (!walletMenuOpen) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!walletMenuRef.current?.contains(event.target as Node)) {
+        setWalletMenuOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setWalletMenuOpen(false);
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [walletMenuOpen]);
 
   const handleBack = () => {
     if (navCountRef.current > 1) {
@@ -105,6 +156,58 @@ export function HeaderBar() {
       details: "Scan-to-send is on the way - sit tight, this is rolling out.",
     });
   };
+
+  const handleCopyAddress = async () => {
+    if (!address) return;
+    try {
+      await navigator.clipboard.writeText(address);
+      toast.success("Wallet address copied");
+    } catch (err) {
+      toast.error("Could not copy wallet address", {
+        details: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  const handleRefreshBalance = async () => {
+    try {
+      await balanceQuery.refetch();
+      toast.info("Wallet balance refreshed");
+    } catch (err) {
+      toast.error("Could not refresh wallet balance", {
+        details: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      await wallet.disconnect();
+    } catch {
+      /* keep going so the local app cache is still cleared */
+    }
+    queryClient.clear();
+    if (typeof window !== "undefined") {
+      window.location.replace("/");
+    }
+  };
+
+  const shortAddress = address ? `${address.slice(0, 4)}…${address.slice(-4)}` : "";
+  const grad = address ? avatarGradient(address) : null;
+  const formattedBalance =
+    typeof balanceQuery.data === "number" ? formatBalance(balanceQuery.data) : null;
+  const balanceLabel = balanceQuery.isLoading
+    ? "Loading"
+    : formattedBalance
+      ? `${formattedBalance.amount} ${formattedBalance.ticker}`
+      : "Balance unavailable";
+  const signerLabel = wallet.isLedger
+    ? "Ledger"
+    : wallet.dynamicPublicKey
+      ? "Embedded wallet"
+      : wallet.isPhantomWallet
+        ? "Phantom"
+        : "Connected wallet";
 
   return (
     <header
@@ -194,10 +297,11 @@ export function HeaderBar() {
             • Scan     - on send routes
             • Account  - on the Settings page
             • Secure   - on the Home page only (recovery hub)
+            • Wallet   - on every connected /app/* route
           ml-auto pushes the cluster to the trailing edge, opposite
           the title / back button on the leading edge. */}
       <AnimatePresence>
-        {inAppConnected && (showScan || showAccount || showSecure || showNotifications) && (
+        {inAppConnected && (showScan || showAccount || showSecure || showNotifications || showWallet) && (
           <motion.div
             initial={{ opacity: 0, x: 8 }}
             animate={{ opacity: 1, x: 0 }}
@@ -256,6 +360,154 @@ export function HeaderBar() {
                   <ScanLine size={18} />
                 </motion.button>
               )}
+              {showWallet && address && grad && (
+                <motion.div
+                  key="wallet"
+                  ref={walletMenuRef}
+                  initial={{ opacity: 0, scale: 0.92 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.92 }}
+                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                  className="relative"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setWalletMenuOpen((v) => !v)}
+                    aria-label={`Connected wallet ${shortAddress}`}
+                    aria-haspopup="menu"
+                    aria-expanded={walletMenuOpen}
+                    className={clsx(MOBILE_HEADER_BTN, "overflow-hidden p-0")}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={clsx(
+                        "flex h-full w-full items-center justify-center rounded-full bg-gradient-to-br",
+                        grad.from,
+                        grad.to,
+                      )}
+                    >
+                      <span className="h-2 w-2 rounded-full bg-white/90" />
+                    </span>
+                  </button>
+
+                  {walletMenuOpen && (
+                    <motion.div
+                      role="menu"
+                      aria-label="Connected wallet"
+                      initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                      transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                      className={clsx(
+                        "absolute right-0 top-12 w-[calc(100vw-1.5rem)] max-w-80 overflow-hidden rounded-lg",
+                        "border border-border-soft bg-surface-elevated shadow-xl shadow-black/15 ring-1 ring-black/5",
+                      )}
+                    >
+                      <div className="border-b border-border-soft px-3 py-3">
+                        <div className="flex items-center gap-2">
+                          <span
+                            aria-hidden="true"
+                            className={clsx(
+                              "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br shadow-sm",
+                              grad.from,
+                              grad.to,
+                            )}
+                          >
+                            <span className="block h-2 w-2 rounded-full bg-white/90" />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-text-strong">
+                              Connected wallet
+                            </p>
+                            <p className="truncate font-mono text-[11px] text-text-muted">
+                              {address}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-px bg-border-soft">
+                        <div className="bg-surface-elevated px-3 py-2.5">
+                          <p className="text-[10px] font-semibold uppercase text-text-muted">
+                            Balance
+                          </p>
+                          <p className="mt-1 truncate text-sm font-semibold text-text-strong">
+                            {balanceLabel}
+                          </p>
+                        </div>
+                        <div className="bg-surface-elevated px-3 py-2.5">
+                          <p className="text-[10px] font-semibold uppercase text-text-muted">
+                            Signer
+                          </p>
+                          <p className="mt-1 truncate text-sm font-semibold text-text-strong">
+                            {signerLabel}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="p-1.5">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={handleCopyAddress}
+                          className={MOBILE_WALLET_MENU_ITEM_CLASS}
+                        >
+                          <Copy size={14} aria-hidden="true" />
+                          Copy address
+                        </button>
+                        <a
+                          role="menuitem"
+                          href={addressUrl(address)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={MOBILE_WALLET_MENU_ITEM_CLASS}
+                        >
+                          <ExternalLink size={14} aria-hidden="true" />
+                          View on explorer
+                        </a>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={handleRefreshBalance}
+                          disabled={balanceQuery.isFetching}
+                          className={clsx(
+                            MOBILE_WALLET_MENU_ITEM_CLASS,
+                            "disabled:opacity-60",
+                          )}
+                        >
+                          <RefreshCw
+                            size={14}
+                            aria-hidden="true"
+                            className={clsx(balanceQuery.isFetching && "animate-spin")}
+                          />
+                          Refresh balance
+                        </button>
+                        <Link
+                          role="menuitem"
+                          href="/app/account"
+                          onClick={() => setWalletMenuOpen(false)}
+                          className={MOBILE_WALLET_MENU_ITEM_CLASS}
+                        >
+                          <UserCircle2 size={14} aria-hidden="true" />
+                          Account
+                        </Link>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={handleDisconnect}
+                          className={clsx(
+                            MOBILE_WALLET_MENU_ITEM_CLASS,
+                            "text-rose-500 hover:bg-rose-500/10 hover:text-rose-500",
+                          )}
+                        >
+                          <LogOut size={14} aria-hidden="true" />
+                          Disconnect
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </motion.div>
+              )}
               {showSecure && (
                 <motion.div
                   key="secure"
@@ -297,3 +549,9 @@ export function HeaderBar() {
     </header>
   );
 }
+
+const MOBILE_WALLET_MENU_ITEM_CLASS = clsx(
+  "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs font-medium text-text-soft",
+  "transition-colors duration-base ease-out-soft hover:bg-glass-soft hover:text-text-strong",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-elevated",
+);
