@@ -96,7 +96,7 @@ export function DashboardHeader() {
     <header
       role="banner"
       className={clsx(
-        "hidden h-14 shrink-0 items-center gap-3 px-6 md:flex lg:px-8 xl:px-10",
+        "relative z-30 hidden h-14 shrink-0 items-center gap-3 px-6 md:flex lg:px-8 xl:px-10",
         "border-b border-border-soft bg-canvas/80 backdrop-blur-xl",
       )}
     >
@@ -345,7 +345,7 @@ function HeaderWalletPill() {
           role="menu"
           aria-label="Connected wallet"
           className={clsx(
-            "absolute right-0 top-11 z-50 w-80 overflow-hidden rounded-lg border border-border-soft bg-surface-elevated shadow-xl shadow-black/10",
+            "absolute right-0 top-[calc(100%+0.5rem)] z-[60] w-80 overflow-hidden rounded-lg border border-border-soft bg-surface-elevated shadow-xl shadow-black/10",
             "ring-1 ring-black/5",
           )}
         >

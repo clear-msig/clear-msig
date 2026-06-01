@@ -211,7 +211,7 @@ export function HeaderBar() {
 
   return (
     <header
-      className="fixed inset-x-3 top-3 z-[100] flex items-center gap-2 sm:inset-x-4 sm:top-4"
+      className="fixed inset-x-3 top-3 z-[140] flex items-center gap-2 sm:inset-x-4 sm:top-4"
       role="banner"
     >
       {/* Back button - left edge, mobile only, off-home only. */}
@@ -399,8 +399,9 @@ export function HeaderBar() {
                       exit={{ opacity: 0, y: -4, scale: 0.98 }}
                       transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
                       className={clsx(
-                        "absolute right-0 top-12 w-[calc(100vw-1.5rem)] max-w-80 overflow-hidden rounded-lg",
-                        "border border-border-soft bg-surface-elevated shadow-xl shadow-black/15 ring-1 ring-black/5",
+                        "absolute right-0 top-[calc(100%+0.5rem)] w-[calc(100vw-1.5rem)] max-w-80 overflow-hidden rounded-lg",
+                        "max-h-[calc(100vh-5rem)] overflow-y-auto border border-border-soft bg-surface-elevated shadow-xl shadow-black/15 ring-1 ring-black/5",
+                        "z-[150]",
                       )}
                     >
                       <div className="border-b border-border-soft px-3 py-3">
