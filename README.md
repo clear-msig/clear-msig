@@ -212,5 +212,6 @@ The full attack-surface walkthrough lives in [SECURITY.md](SECURITY.md). Read it
 ## Documentation
 
 - [Product overview](docs/product-overview.md)
+- [Agent trading vault spec](docs/agent-trading-vault.md)
 - [Encrypt pre-alpha integration notes](docs/encrypt-prealpha-testing.md)
 - [Render migration notes](docs/render-migration.md)

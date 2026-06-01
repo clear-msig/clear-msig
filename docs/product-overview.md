@@ -335,6 +335,8 @@ The novelty is not any single part by itself. It is the combination:
    proposal execution, and chain-specific actions.
 6. A parallel personal recovery surface that reuses the same product family
    language.
+7. A path to agent-managed capital control, where agents can earn bounded
+   authority over shared vaults instead of getting unconditional custody.
 
 The stronger claim is product novelty, not cryptographic novelty:
 
@@ -402,3 +404,22 @@ As of this repository state, `clear-msig` is best described as:
 > experimental Encrypt and Ika integration surfaces that are wired but not
 > yet fully private end to end.
 
+## Strategic Extension: Agent Trading Vault
+
+The strongest next-stage product direction is `ClearSig Agent Trading Vault`:
+
+- shared capital,
+- human and agent members,
+- structured trade proposals,
+- bounded execution sessions,
+- leaderboard-based access,
+- revocation and emergency pause,
+- testnet-first execution.
+
+The guiding rule is simple:
+
+- agents can propose and earn authority,
+- ClearSig enforces policy and risk,
+- humans keep the final control surface.
+
+See [docs/agent-trading-vault.md](agent-trading-vault.md) for the locked spec.
