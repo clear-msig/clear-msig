@@ -17,15 +17,28 @@
 //     getParentRoute() falls back to a sensible parent so back never
 //     ejects the user out of the app.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
-import { ArrowRight, Bell, ChevronLeft, LogOut } from "lucide-react";
-import { useWallet } from "@/lib/wallet";
+import {
+  ArrowRight,
+  Bell,
+  ChevronDown,
+  ChevronLeft,
+  Copy,
+  ExternalLink,
+  LogOut,
+  RefreshCw,
+  ShieldCheck,
+} from "lucide-react";
+import { useConnection, useWallet } from "@/lib/wallet";
+import { useToast } from "@/components/ui/Toast";
 import { useNotificationFeed } from "@/lib/hooks/useNotificationFeed";
+import { addressUrl } from "@/lib/explorer";
 import { avatarGradient } from "@/lib/retail/avatar";
+import { formatBalance } from "@/lib/retail/format";
 import { getSectionLabel } from "@/lib/retail/sectionLabel";
 
 const ROOT_ROUTES = new Set([
@@ -182,8 +195,44 @@ function HeaderNotificationsButton() {
 
 function HeaderWalletPill() {
   const wallet = useWallet();
+  const { connection } = useConnection();
   const queryClient = useQueryClient();
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const address = wallet.publicKey?.toBase58() ?? "";
+  const explorerHref = address ? addressUrl(address) : "";
+
+  const balanceQuery = useQuery({
+    queryKey: ["connected-wallet-balance", address],
+    queryFn: async () => {
+      if (!wallet.publicKey) return 0;
+      return connection.getBalance(wallet.publicKey, "confirmed");
+    },
+    enabled: wallet.connected && Boolean(wallet.publicKey),
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  });
+
+  useEffect(() => {
+    if (!open) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
 
   if (!wallet.connected || !address) {
     return (
@@ -203,6 +252,42 @@ function HeaderWalletPill() {
 
   const grad = avatarGradient(address);
   const short = `${address.slice(0, 4)}…${address.slice(-4)}`;
+  const formattedBalance =
+    typeof balanceQuery.data === "number" ? formatBalance(balanceQuery.data) : null;
+  const balanceLabel = balanceQuery.isLoading
+    ? "Loading"
+    : formattedBalance
+      ? `${formattedBalance.amount} ${formattedBalance.ticker}`
+      : "Balance unavailable";
+  const signerLabel = wallet.isLedger
+    ? "Ledger"
+    : wallet.dynamicPublicKey
+      ? "Embedded wallet"
+      : wallet.isPhantomWallet
+        ? "Phantom"
+        : "Connected wallet";
+
+  const handleCopyAddress = async () => {
+    try {
+      await navigator.clipboard.writeText(address);
+      toast.success("Wallet address copied");
+    } catch (err) {
+      toast.error("Could not copy wallet address", {
+        details: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  const handleRefreshBalance = async () => {
+    try {
+      await balanceQuery.refetch();
+      toast.info("Wallet balance refreshed");
+    } catch (err) {
+      toast.error("Could not refresh wallet balance", {
+        details: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
 
   const handleDisconnect = async () => {
     try {
@@ -217,31 +302,151 @@ function HeaderWalletPill() {
   };
 
   return (
-    <div className="flex items-center gap-1.5 rounded-soft border border-border-soft bg-glass-soft pl-1.5 pr-1 py-1 backdrop-blur-md">
-      <span
-        aria-hidden="true"
-        className={clsx(
-          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br shadow-sm",
-          grad.from,
-          grad.to,
-        )}
-      >
-        <span className="block h-1.5 w-1.5 rounded-full bg-white/90" />
-      </span>
-      <span className="font-mono text-[11px] text-text-strong">{short}</span>
+    <div ref={menuRef} className="relative">
       <button
         type="button"
-        onClick={handleDisconnect}
-        aria-label="Disconnect wallet"
-        title="Disconnect wallet"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
         className={clsx(
-          "flex h-6 w-6 shrink-0 items-center justify-center rounded text-text-soft",
-          "transition-colors duration-base ease-out-soft hover:bg-rose-500/10 hover:text-rose-500",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+          "inline-flex h-9 items-center gap-2 rounded-soft border border-border-soft bg-glass-soft py-1 pl-1.5 pr-2.5 backdrop-blur-md",
+          "transition-[border-color,background-color] duration-base ease-out-soft hover:border-border-strong hover:bg-glass-mid",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
         )}
       >
-        <LogOut size={12} aria-hidden="true" />
+        <span
+          aria-hidden="true"
+          className={clsx(
+            "flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br shadow-sm",
+            grad.from,
+            grad.to,
+          )}
+        >
+          <span className="block h-1.5 w-1.5 rounded-full bg-white/90" />
+        </span>
+        <span className="flex min-w-0 flex-col items-start leading-none">
+          <span className="font-mono text-[11px] text-text-strong">{short}</span>
+          <span className="mt-1 max-w-[6.5rem] truncate text-[10px] font-medium text-text-muted">
+            {balanceLabel}
+          </span>
+        </span>
+        <ChevronDown
+          size={12}
+          aria-hidden="true"
+          className={clsx(
+            "shrink-0 text-text-muted transition-transform duration-base",
+            open && "rotate-180",
+          )}
+        />
       </button>
+
+      {open ? (
+        <div
+          role="menu"
+          aria-label="Connected wallet"
+          className={clsx(
+            "absolute right-0 top-11 z-50 w-80 overflow-hidden rounded-lg border border-border-soft bg-surface-elevated shadow-xl shadow-black/10",
+            "ring-1 ring-black/5",
+          )}
+        >
+          <div className="border-b border-border-soft px-3 py-3">
+            <div className="flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className={clsx(
+                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br shadow-sm",
+                  grad.from,
+                  grad.to,
+                )}
+              >
+                <span className="block h-2 w-2 rounded-full bg-white/90" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-text-strong">
+                  Connected wallet
+                </p>
+                <p className="truncate font-mono text-[11px] text-text-muted">
+                  {address}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-px bg-border-soft">
+            <div className="bg-surface-elevated px-3 py-2.5">
+              <p className="text-[10px] font-semibold uppercase text-text-muted">
+                Balance
+              </p>
+              <p className="mt-1 text-sm font-semibold text-text-strong">
+                {balanceLabel}
+              </p>
+            </div>
+            <div className="bg-surface-elevated px-3 py-2.5">
+              <p className="text-[10px] font-semibold uppercase text-text-muted">
+                Signer
+              </p>
+              <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-text-strong">
+                <ShieldCheck size={13} aria-hidden="true" />
+                {signerLabel}
+              </p>
+            </div>
+          </div>
+
+          <div className="p-1.5">
+            <button
+              type="button"
+              role="menuitem"
+              onClick={handleCopyAddress}
+              className={WALLET_MENU_ITEM_CLASS}
+            >
+              <Copy size={14} aria-hidden="true" />
+              Copy address
+            </button>
+            <a
+              role="menuitem"
+              href={explorerHref}
+              target="_blank"
+              rel="noreferrer"
+              className={WALLET_MENU_ITEM_CLASS}
+            >
+              <ExternalLink size={14} aria-hidden="true" />
+              View on explorer
+            </a>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={handleRefreshBalance}
+              disabled={balanceQuery.isFetching}
+              className={clsx(WALLET_MENU_ITEM_CLASS, "disabled:opacity-60")}
+            >
+              <RefreshCw
+                size={14}
+                aria-hidden="true"
+                className={clsx(balanceQuery.isFetching && "animate-spin")}
+              />
+              Refresh balance
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={handleDisconnect}
+              className={clsx(
+                WALLET_MENU_ITEM_CLASS,
+                "text-rose-500 hover:bg-rose-500/10 hover:text-rose-500",
+              )}
+            >
+              <LogOut size={14} aria-hidden="true" />
+              Disconnect
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
+
+const WALLET_MENU_ITEM_CLASS = clsx(
+  "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs font-medium text-text-soft",
+  "transition-colors duration-base ease-out-soft hover:bg-glass-soft hover:text-text-strong",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-elevated",
+);
