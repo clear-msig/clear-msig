@@ -20,6 +20,14 @@
 :root {
   color-scheme: dark;
 
+  /* Build-stable font tokens. These intentionally use local system
+     stacks so `next build` never needs network access for Google Fonts. */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: var(--font-sans);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --font-numerals: var(--font-mono);
+  --font-grotesk: var(--font-sans);
+
   /* Surfaces - three steps so modals/popovers can lift above cards. */
   --clear-canvas: #0c0c0c;
   --clear-surface-raised: #131316;

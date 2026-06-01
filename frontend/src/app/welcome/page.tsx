@@ -496,7 +496,7 @@ export default function WelcomePage() {
                     shared <span className="italic-skew">wallet</span>.
                   </h2>
                   <p className="mt-3 max-w-md text-[15px] leading-relaxed text-white/60 sm:mt-4 sm:text-base">
-                    Name it, pick who it's for. You can invite friends after.
+                    Name it, pick who it&apos;s for. You can invite friends after.
                   </p>
 
                   {/* Name input */}
@@ -529,7 +529,7 @@ export default function WelcomePage() {
                   {/* Shape chips */}
                   <div className="mt-5 sm:mt-6">
                     <p className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-white/60">
-                      Who's it for?
+                      Who&apos;s it for?
                     </p>
                     <ul className="mt-3 flex flex-wrap gap-2">
                       {SHAPES.map((s) => {
@@ -573,7 +573,7 @@ export default function WelcomePage() {
                         create the wallet
                       </span>{" "}
                       and set up sending in the same step. The signing text
-                      looks technical - that's normal. Nothing leaves your
+                      looks technical - that&apos;s normal. Nothing leaves your
                       account.
                     </p>
                   </div>

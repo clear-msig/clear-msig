@@ -192,8 +192,8 @@ function Gate({ onUnlock }: { onUnlock: () => void }) {
           )}
           {attempts >= 3 && (
             <p className="text-[11px] text-text-soft">
-              Forgot your PIN? Reset by clearing this site's data in
-              your browser. You'll need to reconnect your wallet
+              Forgot your PIN? Reset by clearing this site&apos;s data in
+              your browser. You&apos;ll need to reconnect your wallet
               after.
             </p>
           )}

@@ -47,7 +47,7 @@ export function wrapOffchain(body: Uint8Array): Uint8Array {
   return out;
 }
 
-export function usePlainMessage(body: Uint8Array): Uint8Array {
+export function plainMessage(body: Uint8Array): Uint8Array {
   return body.slice();
 }
 
