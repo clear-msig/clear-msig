@@ -422,4 +422,6 @@ The guiding rule is simple:
 - ClearSig enforces policy and risk,
 - humans keep the final control surface.
 
-See [docs/agent-trading-vault.md](agent-trading-vault.md) for the locked spec.
+See [docs/agent-trading-vault.md](agent-trading-vault.md) for the locked spec
+and [docs/agent-trading-vault-mvp-plan.md](agent-trading-vault-mvp-plan.md)
+for the implementation plan.

@@ -1,0 +1,206 @@
+"use client";
+
+import { FormEvent, useMemo, useState, useTransition } from "react";
+import clsx from "clsx";
+import { useParams, useRouter } from "next/navigation";
+import { Bot, Lock, Save } from "lucide-react";
+import { encryptStatus } from "@/lib/encrypt/client";
+import {
+  encryptAgentProfile,
+  newAgentId,
+  saveAgent,
+  type AgentKind,
+  type AgentProfile,
+} from "@/lib/agents";
+import { toDisplayName } from "@/lib/retail/walletNames";
+import { useToast } from "@/components/ui/Toast";
+
+const AGENT_KINDS: Array<{ value: AgentKind; label: string }> = [
+  { value: "mock", label: "Paper agent" },
+  { value: "api", label: "API agent" },
+  { value: "hermes", label: "Autonomous agent" },
+  { value: "manual", label: "Manual trader" },
+];
+
+export default function NewAgentPage() {
+  const params = useParams<{ name: string }>();
+  const router = useRouter();
+  const toast = useToast();
+  const encrypt = encryptStatus();
+  const [pending, startTransition] = useTransition();
+  const name = useMemo(() => {
+    const raw = params?.name ?? "";
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
+  }, [params?.name]);
+  const display = toDisplayName(name);
+
+  const [agentName, setAgentName] = useState("");
+  const [kind, setKind] = useState<AgentKind>("mock");
+  const [identityPubkey, setIdentityPubkey] = useState("");
+  const [endpoint, setEndpoint] = useState("");
+  const [description, setDescription] = useState("");
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    startTransition(async () => {
+      const cleanName = agentName.trim();
+      if (!cleanName) {
+        toast.error("Agent name is required");
+        return;
+      }
+      const now = Date.now();
+      const draft: AgentProfile = {
+        id: newAgentId(),
+        walletName: name,
+        name: cleanName,
+        kind,
+        status: "active",
+        identityPubkey: identityPubkey.trim() || undefined,
+        endpoint: endpoint.trim() || undefined,
+        description: description.trim() || undefined,
+        createdAt: now,
+        updatedAt: now,
+        version: 1,
+      };
+      try {
+        const encrypted = await encryptAgentProfile(draft);
+        saveAgent(encrypted);
+        toast.success(`${cleanName} registered`);
+        router.push(
+          `/app/wallet/${encodeURIComponent(name)}/agents/${encodeURIComponent(draft.id)}/strategy`,
+        );
+      } catch (err) {
+        toast.error("Could not register agent", {
+          details: err instanceof Error ? err.message : String(err),
+        });
+      }
+    });
+  };
+
+  return (
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+      <header className="flex flex-col gap-2">
+        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+          Agent Trading · {display}
+        </p>
+        <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
+          Register agent
+        </h1>
+        <p className="max-w-2xl text-sm leading-relaxed text-text-soft">
+          Create a trading agent profile. The agent can submit signals now;
+          execution still requires approval, a trading session, and risk limits.
+        </p>
+      </header>
+
+      <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
+        <div className="mb-5 flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+            <Bot className="h-4 w-4" aria-hidden="true" strokeWidth={1.75} />
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-text-strong">
+              Agent profile
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-text-soft">
+              Private notes use the app’s privacy layer when available.
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={submit} className="flex flex-col gap-4">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-text-soft">Name</span>
+            <input
+              value={agentName}
+              onChange={(event) => setAgentName(event.target.value)}
+              placeholder="Hermes Momentum"
+              className={INPUT_CLASS}
+            />
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-text-soft">Agent type</span>
+            <select
+              value={kind}
+              onChange={(event) => setKind(event.target.value as AgentKind)}
+              className={INPUT_CLASS}
+            >
+              {AGENT_KINDS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-text-soft">
+              Agent public key
+            </span>
+            <input
+              value={identityPubkey}
+              onChange={(event) => setIdentityPubkey(event.target.value)}
+              placeholder="Optional"
+              className={INPUT_CLASS}
+            />
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-text-soft">Agent endpoint</span>
+            <input
+              value={endpoint}
+              onChange={(event) => setEndpoint(event.target.value)}
+              placeholder="https://agent.example.com"
+              className={INPUT_CLASS}
+            />
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-text-soft">
+              Strategy notes
+            </span>
+            <textarea
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="What this agent should watch or trade."
+              rows={4}
+              className={clsx(INPUT_CLASS, "resize-none leading-relaxed")}
+            />
+          </label>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border-soft pt-4">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-text-soft">
+              <Lock className="h-3 w-3" aria-hidden="true" />
+              {encrypt.live ? "Privacy on" : "Privacy ready"}
+            </span>
+            <button
+              type="submit"
+              disabled={pending}
+              className={clsx(
+                "inline-flex min-h-tap items-center justify-center gap-1.5 rounded-soft bg-accent px-4 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest",
+                "transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
+                "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+                "disabled:cursor-not-allowed disabled:opacity-60",
+              )}
+            >
+              <Save size={13} aria-hidden="true" />
+              {pending ? "Saving" : "Save agent"}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+const INPUT_CLASS = clsx(
+  "w-full rounded-soft border border-border-soft bg-canvas px-3 py-2 text-sm text-text-strong",
+  "placeholder:text-text-muted",
+  "transition-[border-color,box-shadow] duration-base ease-out-soft",
+  "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25",
+);

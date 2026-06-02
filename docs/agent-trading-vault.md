@@ -115,6 +115,10 @@ This is the most differentiated version of the product:
 - Humans approve it.
 - Backend executes it on a testnet or mocked venue.
 
+This is the safest first path, but it is not enough by itself. If every trade
+waits for a human to be online, the vault will miss entries in fast markets.
+The MVP must therefore include a narrow bounded-session mode.
+
 ### MVP 2: Session Grants
 
 - Humans issue a time-limited grant to an agent.
@@ -201,4 +205,3 @@ The product should be described as:
 
 > a programmable financial constitution for humans and agents, where capital
 > access is earned, bounded, and continuously re-evaluated.
-
