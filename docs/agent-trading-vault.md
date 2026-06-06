@@ -51,6 +51,20 @@ That is a capital-control product, not a custody product.
 
 ## Product Modes
 
+### Agent Sources
+
+Normal users should begin inside ClearSig's Agent Library, not with connection
+details:
+
+- prepared ClearSig traders arrive with complete practice trading plans,
+- users can create their own trader in plain language and refine its plan,
+- community traders can be added after publishing and review rules exist,
+- professional users can connect an outside trader through an advanced path.
+
+Every trader uses the same ClearSig safety checks and must build its own record
+inside the user's wallet. A library listing never grants authority or claims an
+unproven performance record.
+
 ### 1. Propose Only
 
 The agent submits a structured trade proposal:
@@ -125,6 +139,34 @@ The MVP must therefore include a narrow bounded-session mode.
 - The grant has strict capital and venue limits.
 - ClearSig enforces the guardrails before execution.
 - Humans can pause or revoke instantly.
+
+### MVP 2.5: Signal Inbox
+
+- Agents submit JSON trade signals through a per-agent signal endpoint.
+- The signal key identifies the agent but never grants wallet access.
+- `clientSignalId` is required and makes webhook retries idempotent.
+- `submittedAt` is required and keeps expiry anchored to the original market
+  signal time.
+- Inbox rows show whether a signal is allowed, needs approval, or blocked
+  before import.
+- Server-side storage should use Redis/Upstash in production.
+- Imported signals still pass through the Strategy Playbook, session grant,
+  risk limits, daily loss cap, cooldown, and approval flow.
+
+### MVP 2.6: Execution Boundary
+
+- Paper venues can open local paper trades after a final hard risk check.
+- Human-approved signals can open paper trades even without an active session,
+  but approval never overrides hard risk limits.
+- Testnet/live venues stay behind a backend adapter.
+- The backend adapter reports whether the venue is connected, missing setup, or
+  not implemented yet.
+- Approved testnet/live signals can be handed to the server adapter from the
+  UI, but the app shows the adapter result instead of assuming execution.
+- Valid handoffs are saved in a server request ledger, with duplicate
+  protection per proposal and venue.
+- No exchange order is marked as placed unless the server adapter actually
+  returns one.
 
 ### MVP 3: Reputation + Leaderboard
 

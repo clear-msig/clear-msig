@@ -10,6 +10,7 @@ import { encryptStatus } from "@/lib/encrypt/client";
 import {
   findAgent,
   saveAgent,
+  syncAgentProfile,
   type AgentStrategyProfile,
   type AgentTradingMode,
 } from "@/lib/agents";
@@ -18,18 +19,18 @@ import { toDisplayName } from "@/lib/retail/walletNames";
 const MODES: Array<{ value: AgentTradingMode; label: string; hint: string }> = [
   {
     value: "read_only",
-    label: "Read-only",
-    hint: "Agent can analyze markets and submit signals only.",
+    label: "Suggest ideas only",
+    hint: "The trader can suggest ideas, but cannot open practice trades.",
   },
   {
     value: "paper",
-    label: "Paper trading",
-    hint: "Agent can open simulated positions inside risk limits.",
+    label: "Practice trading",
+    hint: "The trader can open practice trades inside your safety rules.",
   },
   {
     value: "bounded_live",
-    label: "Bounded live",
-    hint: "Future mode for real venue execution after hard controls are ready.",
+    label: "Real trading later",
+    hint: "Reserved for real trading after stronger checks are ready.",
   },
 ];
 
@@ -72,19 +73,19 @@ export default function AgentStrategyPage() {
       setKillSwitchRules(agent.strategy.killSwitchRules);
     } else {
       setEntryRules(
-        "Only submit signals when the setup is clear, liquid, and matches allowed markets.",
+        "Only suggest a trade when the opportunity is clear and uses an allowed market.",
       );
       setExitRules(
-        "Every signal must include invalidation, stop loss, and take-profit logic when available.",
+        "Every idea must explain when to exit, when to stop the loss, and when to take profit.",
       );
       setRiskRules(
-        "Respect max notional, max leverage, max open positions, cooldowns, and daily loss controls.",
+        "Stay within the chosen trade size, borrowing, open trade, rest time, and daily loss limits.",
       );
       setExecutionProtocol(
-        "Submit structured trade signals first. Use paper trading until the vault grants a bounded session.",
+        "Suggest the trade first. Use practice trading only while a current allowance is active.",
       );
       setKillSwitchRules(
-        "Stop trading when emergency pause is enabled, risk limits fail, venue data is stale, or realized losses exceed the vault cap.",
+        "Stop when all trading is paused, a safety rule fails, prices are out of date, or losses reach the chosen limit.",
       );
     }
     setLoaded(true);
@@ -92,10 +93,10 @@ export default function AgentStrategyPage() {
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    startTransition(() => {
+    startTransition(async () => {
       const agent = findAgent(name, agentId);
       if (!agent) {
-        toast.error("Trading agent not found");
+        toast.error("Trader not found");
         return;
       }
       const strategy: AgentStrategyProfile = {
@@ -112,18 +113,28 @@ export default function AgentStrategyPage() {
         killSwitchRules: killSwitchRules.trim(),
         updatedAt: Date.now(),
       };
-      saveAgent({
+      const updated = {
         ...agent,
         strategy,
         updatedAt: Date.now(),
-      });
-      toast.success("Strategy playbook saved");
-      router.push(`/app/wallet/${encodedWallet}/agents/${encodeURIComponent(agentId)}`);
+      };
+      saveAgent(updated);
+      const synced = await syncAgentProfile(updated);
+      if (synced.ok) {
+        toast.success("Trading plan saved");
+      } else {
+        toast.info("Trading plan saved on this device for now", {
+          details: synced.message,
+        });
+      }
+      router.push(
+        `/app/wallet/${encodedWallet}/agents/start?agent=${encodeURIComponent(agentId)}`,
+      );
     });
   };
 
   if (!loaded) {
-    return <div className="text-sm text-text-soft">Loading strategy...</div>;
+    return <div className="text-sm text-text-soft">Loading trading plan...</div>;
   }
 
   return (
@@ -138,13 +149,13 @@ export default function AgentStrategyPage() {
         </Link>
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-            Strategy Playbook · {display}
+            Trading Plan · {display}
           </p>
-          <h1 className="hidden md:block mt-1 font-display text-display-xs leading-tight text-text-strong">
+          <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
             {agentName}
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-soft">
-            Define how this trading agent finds signals, manages exits, follows risk limits, and stops when conditions break.
+            Describe what this trader may trade, when it may act, and when it must stop.
           </p>
         </div>
       </header>
@@ -155,16 +166,16 @@ export default function AgentStrategyPage() {
             <ShieldCheck className="h-4 w-4" aria-hidden="true" />
           </span>
           <div>
-            <p className="text-sm font-semibold text-text-strong">Strategy and risk gate</p>
+            <p className="text-sm font-semibold text-text-strong">Trading plan</p>
             <p className="mt-1 text-xs leading-relaxed text-text-soft">
-              This is the agent’s operating playbook. Risk limits still override it.
+              Your safety rules always win if this plan asks for too much.
             </p>
           </div>
         </div>
 
         <form onSubmit={submit} className="flex flex-col gap-4">
           <fieldset className="grid gap-2">
-            <legend className="text-xs font-medium text-text-soft">Operating mode</legend>
+            <legend className="text-xs font-medium text-text-soft">What may it do?</legend>
             <div className="grid gap-2 sm:grid-cols-3">
               {MODES.map((option) => (
                 <label
@@ -192,7 +203,7 @@ export default function AgentStrategyPage() {
           </fieldset>
 
           <TextArea
-            label="Strategy summary"
+            label="Simple summary"
             value={summary}
             onChange={setSummary}
             placeholder="Example: BTC/ETH momentum scalper using clean breakouts and fast invalidation."
@@ -204,16 +215,16 @@ export default function AgentStrategyPage() {
             onChange={setAllowedMarkets}
             placeholder="BTC-PERP, ETH-PERP, SOL-PERP"
           />
-          <TextArea label="Entry rules" value={entryRules} onChange={setEntryRules} />
-          <TextArea label="Exit rules" value={exitRules} onChange={setExitRules} />
-          <TextArea label="Risk rules" value={riskRules} onChange={setRiskRules} />
+          <TextArea label="When may it enter?" value={entryRules} onChange={setEntryRules} />
+          <TextArea label="When must it exit?" value={exitRules} onChange={setExitRules} />
+          <TextArea label="How should it stay safe?" value={riskRules} onChange={setRiskRules} />
           <TextArea
-            label="Execution protocol"
+            label="How should it place a trade?"
             value={executionProtocol}
             onChange={setExecutionProtocol}
           />
           <TextArea
-            label="Kill switch rules"
+            label="When must it stop completely?"
             value={killSwitchRules}
             onChange={setKillSwitchRules}
           />
@@ -229,7 +240,7 @@ export default function AgentStrategyPage() {
               className="inline-flex min-h-tap items-center justify-center gap-1.5 rounded-soft bg-accent px-4 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest transition-[background-color,box-shadow,transform] duration-base ease-out-soft hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Save size={13} aria-hidden="true" />
-              {pending ? "Saving" : "Save strategy"}
+              {pending ? "Saving" : "Save trading plan"}
             </button>
           </div>
         </form>

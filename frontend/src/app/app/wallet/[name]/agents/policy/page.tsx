@@ -2,14 +2,16 @@
 
 import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
 import clsx from "clsx";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Lock, Save, ShieldCheck } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import {
   decryptAgentVaultPolicy,
   encryptAgentVaultPolicy,
   getAgentVaultPolicy,
+  listAgentSessions,
   saveAgentVaultPolicy,
+  syncAgentVaultPolicy,
   type AgentVaultPolicy,
   type TradingVenue,
 } from "@/lib/agents";
@@ -17,14 +19,15 @@ import { encryptStatus } from "@/lib/encrypt/client";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 const VENUES: Array<{ value: TradingVenue; label: string }> = [
-  { value: "mock_perps", label: "Paper Perps" },
-  { value: "hyperliquid_testnet", label: "Hyperliquid Testnet" },
-  { value: "bulktrade_mock", label: "Bulk Paper" },
+  { value: "mock_perps", label: "Built-in practice" },
+  { value: "hyperliquid_testnet", label: "Hyperliquid practice" },
+  { value: "bulktrade_mock", label: "Bulk practice" },
 ];
 
 export default function AgentPolicyPage() {
   const params = useParams<{ name: string }>();
   const router = useRouter();
+  const search = useSearchParams();
   const toast = useToast();
   const encrypt = encryptStatus();
   const [pending, startTransition] = useTransition();
@@ -37,6 +40,8 @@ export default function AgentPolicyPage() {
     }
   }, [params?.name]);
   const display = toDisplayName(name);
+  const requestedVenue = venueFromSearch(search.get("venue"));
+  const requestedAgent = search.get("agent")?.trim() ?? "";
 
   const [policy, setPolicy] = useState<AgentVaultPolicy | null>(null);
   const [markets, setMarkets] = useState("");
@@ -45,13 +50,20 @@ export default function AgentPolicyPage() {
     let alive = true;
     decryptAgentVaultPolicy(getAgentVaultPolicy(name)).then((decrypted) => {
       if (!alive) return;
-      setPolicy(decrypted);
+      setPolicy(
+        requestedVenue && !decrypted.allowedVenues.includes(requestedVenue)
+          ? {
+              ...decrypted,
+              allowedVenues: [...decrypted.allowedVenues, requestedVenue],
+            }
+          : decrypted,
+      );
       setMarkets(decrypted.allowedMarkets.join(", "));
     });
     return () => {
       alive = false;
     };
-  }, [name]);
+  }, [name, requestedVenue]);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -77,11 +89,35 @@ export default function AgentPolicyPage() {
       };
       try {
         const encrypted = await encryptAgentVaultPolicy(cleaned);
+        const sessionsNeedRenewal =
+          encrypted.policyHash !== policy.policyHash &&
+          listAgentSessions(name).some(
+            (session) =>
+              session.status === "active" && session.expiresAt > Date.now(),
+          );
         saveAgentVaultPolicy(encrypted);
-        toast.success("Risk limits saved");
-        router.push(`/app/wallet/${encodeURIComponent(name)}/agents`);
+        const synced = await syncAgentVaultPolicy(encrypted);
+        if (synced.ok) {
+          toast.success(
+            sessionsNeedRenewal
+              ? "Safety rules saved. Review current allowances."
+              : "Safety rules saved",
+          );
+        } else {
+          toast.info(
+            sessionsNeedRenewal
+              ? "Safety rules saved here. Review current allowances."
+              : "Safety rules saved on this device for now",
+            {
+            details: synced.message,
+            },
+          );
+        }
+        router.push(
+          `/app/wallet/${encodeURIComponent(name)}/agents/start?agent=${encodeURIComponent(requestedAgent)}&venue=${encodeURIComponent(requestedVenue ?? "mock_perps")}`,
+        );
       } catch (err) {
-        toast.error("Could not save risk limits", {
+        toast.error("Could not save safety rules", {
           details: err instanceof Error ? err.message : String(err),
         });
       }
@@ -89,21 +125,21 @@ export default function AgentPolicyPage() {
   };
 
   if (!policy) {
-    return <div className="text-sm text-text-soft">Loading risk limits...</div>;
+    return <div className="text-sm text-text-soft">Loading safety rules...</div>;
   }
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <header className="flex flex-col gap-2">
         <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-          Agent Trading · {display}
+          Automated Trading · {display}
         </p>
-        <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
-          Risk limits
+        <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
+          Safety rules
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-text-soft">
-          Set the markets, venues, size, leverage, and exit rules that every
-          agent signal must pass.
+          Choose what every trader may use, the most it may risk, and when it
+          must stop.
         </p>
       </header>
 
@@ -114,10 +150,10 @@ export default function AgentPolicyPage() {
           </span>
           <div>
             <p className="text-sm font-semibold text-text-strong">
-              Risk controls
+              Rules that always win
             </p>
             <p className="mt-1 text-xs leading-relaxed text-text-soft">
-              These controls are checked before any signal can move forward.
+              Every trade idea is checked against these rules before it can move forward.
             </p>
           </div>
         </div>
@@ -125,12 +161,12 @@ export default function AgentPolicyPage() {
         <form onSubmit={submit} className="flex flex-col gap-4">
           <div className="grid gap-3 sm:grid-cols-2">
             <Toggle
-              label="Enable agent trading"
+              label="Allow automated trading"
               checked={policy.enabled}
               onChange={(checked) => setPolicy({ ...policy, enabled: checked })}
             />
             <Toggle
-              label="Emergency pause"
+              label="Stop all trading"
               checked={policy.emergencyPaused}
               onChange={(checked) =>
                 setPolicy({ ...policy, emergencyPaused: checked })
@@ -139,7 +175,7 @@ export default function AgentPolicyPage() {
           </div>
 
           <fieldset className="flex flex-col gap-2">
-            <legend className="text-xs font-medium text-text-soft">Venues</legend>
+            <legend className="text-xs font-medium text-text-soft">Where may it trade?</legend>
             <div className="grid gap-2 sm:grid-cols-3">
               {VENUES.map((venue) => (
                 <label
@@ -181,38 +217,38 @@ export default function AgentPolicyPage() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <NumberField
-              label="Max notional"
+              label="Maximum trade size"
               value={policy.maxNotionalUsd}
               onChange={(value) => setPolicy({ ...policy, maxNotionalUsd: value })}
             />
             <NumberField
-              label="Max leverage"
+              label="Maximum borrowing"
               value={String(policy.maxLeverage)}
               onChange={(value) => setPolicy({ ...policy, maxLeverage: Number(value) })}
             />
             <NumberField
-              label="Max open positions"
+              label="Maximum open trades"
               value={String(policy.maxOpenPositionsPerAgent)}
               onChange={(value) =>
                 setPolicy({ ...policy, maxOpenPositionsPerAgent: Number(value) })
               }
             />
             <NumberField
-              label="Cooldown seconds"
+              label="Rest time between trades (seconds)"
               value={String(policy.cooldownSeconds)}
               onChange={(value) =>
                 setPolicy({ ...policy, cooldownSeconds: Number(value) })
               }
             />
             <NumberField
-              label="Max session hours"
+              label="Maximum allowance length (hours)"
               value={String(policy.maxSessionHours)}
               onChange={(value) =>
                 setPolicy({ ...policy, maxSessionHours: Number(value) })
               }
             />
             <NumberField
-              label="Daily loss cap"
+              label="Daily loss limit"
               value={policy.dailyLossCapUsd}
               onChange={(value) => setPolicy({ ...policy, dailyLossCapUsd: value })}
             />
@@ -220,14 +256,14 @@ export default function AgentPolicyPage() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Toggle
-              label="Require stop loss"
+              label="Require a loss exit"
               checked={policy.requireStopLoss}
               onChange={(checked) =>
                 setPolicy({ ...policy, requireStopLoss: checked })
               }
             />
             <Toggle
-              label="Require take profit"
+              label="Require a profit target"
               checked={policy.requireTakeProfit}
               onChange={(checked) =>
                 setPolicy({ ...policy, requireTakeProfit: checked })
@@ -246,7 +282,7 @@ export default function AgentPolicyPage() {
               className={BUTTON_CLASS}
             >
               <Save size={13} aria-hidden="true" />
-              {pending ? "Saving" : "Save risk limits"}
+              {pending ? "Saving" : "Save safety rules"}
             </button>
           </div>
         </form>
@@ -302,6 +338,14 @@ function NumberField({
 function toggleValue<T>(values: T[], value: T, checked: boolean): T[] {
   if (checked) return values.includes(value) ? values : [...values, value];
   return values.filter((item) => item !== value);
+}
+
+function venueFromSearch(value: string | null): TradingVenue | null {
+  return value === "mock_perps" ||
+    value === "hyperliquid_testnet" ||
+    value === "bulktrade_mock"
+    ? value
+    : null;
 }
 
 function normalizePositiveText(value: string, fallback: string): string {

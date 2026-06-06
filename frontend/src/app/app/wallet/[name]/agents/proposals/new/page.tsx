@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
 import clsx from "clsx";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, BrainCircuit, Lock, Send } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import {
@@ -17,6 +17,8 @@ import {
   newAgentProposalId,
   saveAgentProposal,
   saveAgentProposalAndExecuteIfAllowed,
+  syncAgentExecution,
+  syncAgentProposal,
   type AgentPolicyEvaluation,
   type AgentProfile,
   type AgentProposalStatus,
@@ -29,14 +31,15 @@ import { encryptStatus } from "@/lib/encrypt/client";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 const VENUES: Array<{ value: TradingVenue; label: string }> = [
-  { value: "mock_perps", label: "Paper Perps" },
-  { value: "hyperliquid_testnet", label: "Hyperliquid Testnet" },
-  { value: "bulktrade_mock", label: "Bulk Paper" },
+  { value: "mock_perps", label: "Built-in practice" },
+  { value: "hyperliquid_testnet", label: "Hyperliquid practice" },
+  { value: "bulktrade_mock", label: "Bulk practice" },
 ];
 
 export default function NewAgentProposalPage() {
   const params = useParams<{ name: string }>();
   const router = useRouter();
+  const search = useSearchParams();
   const toast = useToast();
   const encrypt = encryptStatus();
   const [pending, startTransition] = useTransition();
@@ -49,6 +52,8 @@ export default function NewAgentProposalPage() {
     }
   }, [params?.name]);
   const display = toDisplayName(name);
+  const requestedAgentId = search.get("agent")?.trim() ?? "";
+  const requestedVenue = venueFromSearch(search.get("venue"));
 
   const [agents, setAgents] = useState<AgentProfile[]>([]);
   const [agentId, setAgentId] = useState("");
@@ -69,8 +74,13 @@ export default function NewAgentProposalPage() {
   useEffect(() => {
     const list = listAgents(name);
     setAgents(list);
-    setAgentId((current) => current || list[0]?.id || "");
-  }, [name]);
+    setAgentId((current) =>
+      list.some((agent) => agent.id === requestedAgentId)
+        ? requestedAgentId
+        : current || list[0]?.id || "",
+    );
+    if (requestedVenue) setVenue(requestedVenue);
+  }, [name, requestedAgentId, requestedVenue]);
 
   const selectedAgent = agents.find((agent) => agent.id === agentId) ?? null;
 
@@ -127,7 +137,7 @@ export default function NewAgentProposalPage() {
     startTransition(async () => {
       const draft = await buildDraft();
       if (!draft) {
-        toast.error("Register an agent before saving signals");
+        toast.error("Add a trader before trying an idea");
         return;
       }
       setPreview(draft.evaluation);
@@ -139,7 +149,7 @@ export default function NewAgentProposalPage() {
     startTransition(async () => {
       const draft = await buildDraft();
       if (!draft) {
-        toast.error("Register an agent before saving signals");
+        toast.error("Add a trader before trying an idea");
         return;
       }
       const status = statusForDecision(draft.evaluation);
@@ -154,22 +164,41 @@ export default function NewAgentProposalPage() {
         const encrypted = await encryptAgentTradeProposal(proposal);
         if (status === "approved") {
           const result = saveAgentProposalAndExecuteIfAllowed(encrypted);
-          toast.success(
-            result.execution
-              ? "Trade signal passed risk and paper trade opened"
-              : "Trade signal approved by active session",
-          );
+          const synced = await syncAgentProposal(result.proposal);
+          if (result.execution) {
+            await syncAgentExecution(result.execution);
+          }
+          if (synced.ok) {
+            toast.success(
+              result.execution
+                ? "Trade idea passed your rules and a practice trade opened"
+                : "Trade idea fits the current allowance",
+            );
+          } else {
+            toast.info("Trade idea saved on this device for now", {
+              details: synced.message,
+            });
+          }
         } else {
-          saveAgentProposal(encrypted);
-          toast.success(
-            status === "blocked"
-              ? "Trade signal saved as blocked"
-              : "Trade signal saved for approval",
-          );
+          const saved = saveAgentProposal(encrypted);
+          const synced = await syncAgentProposal(saved);
+          if (synced.ok) {
+            toast.success(
+              status === "blocked"
+                ? "Trade idea saved, but stopped by your safety rules"
+                : "Trade idea saved for your approval",
+            );
+          } else {
+            toast.info("Trade idea saved on this device for now", {
+              details: synced.message,
+            });
+          }
         }
-        router.push(`/app/wallet/${encodeURIComponent(name)}/agents`);
+        router.push(
+          `/app/wallet/${encodeURIComponent(name)}/agents/start?agent=${encodeURIComponent(agentId)}&venue=${encodeURIComponent(venue)}`,
+        );
       } catch (err) {
-        toast.error("Could not save trade signal", {
+        toast.error("Could not save trade idea", {
           details: err instanceof Error ? err.message : String(err),
         });
       }
@@ -180,14 +209,14 @@ export default function NewAgentProposalPage() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <header className="flex flex-col gap-2">
         <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-          Agent Trading · {display}
+          Automated Trading · {display}
         </p>
-        <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
-          New trade signal
+        <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
+          Try a trade idea
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-text-soft">
-          Agents submit trade signals. ClearSig checks risk limits before a
-          human approves or an active trading session can act.
+          Enter one idea and see whether it fits the trading plan, safety rules,
+          and current allowance.
         </p>
       </header>
 
@@ -198,25 +227,25 @@ export default function NewAgentProposalPage() {
           </span>
           <div>
             <p className="text-sm font-semibold text-text-strong">
-              Trade signal
+              Practice idea
             </p>
             <p className="mt-1 text-xs leading-relaxed text-text-soft">
-              This saves a signal only. Live venue execution stays off until
-              you connect a real venue.
+              Start with the built-in practice account. Nothing here can move
+              real money.
             </p>
           </div>
         </div>
 
         <form onSubmit={submit} className="flex flex-col gap-4">
           <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-text-soft">Agent</span>
+            <span className="text-xs font-medium text-text-soft">Trader</span>
             <select
               value={agentId}
               onChange={(event) => setAgentId(event.target.value)}
               className={INPUT_CLASS}
             >
               {agents.length === 0 ? (
-                <option value="">No agents registered</option>
+                <option value="">No traders added</option>
               ) : null}
               {agents.map((agent) => (
                 <option key={agent.id} value={agent.id}>
@@ -228,7 +257,7 @@ export default function NewAgentProposalPage() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <SelectField
-              label="Venue"
+              label="Where should it practice?"
               value={venue}
               onChange={(value) => setVenue(value as TradingVenue)}
               options={VENUES}
@@ -253,7 +282,7 @@ export default function NewAgentProposalPage() {
               ]}
             />
             <TextField
-              label="Notional size"
+              label="Trade size"
               value={notionalUsd}
               onChange={setNotionalUsd}
             />
@@ -289,12 +318,12 @@ export default function NewAgentProposalPage() {
           </div>
 
           <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-text-soft">Thesis</span>
+            <span className="text-xs font-medium text-text-soft">Why this trade?</span>
             <textarea
               value={thesis}
               onChange={(event) => setThesis(event.target.value)}
               rows={4}
-              placeholder="Why this signal should be considered."
+              placeholder="Why this idea should be considered."
               className={clsx(INPUT_CLASS, "resize-none leading-relaxed")}
             />
           </label>
@@ -313,11 +342,11 @@ export default function NewAgentProposalPage() {
                 onClick={previewProposal}
                 className={SECONDARY_BUTTON_CLASS}
               >
-                Check risk
+                Check safety
               </button>
               <button type="submit" disabled={pending} className={BUTTON_CLASS}>
                 <Send size={13} aria-hidden="true" />
-                {pending ? "Saving" : "Save signal"}
+                {pending ? "Saving" : "Save idea"}
               </button>
             </div>
           </div>
@@ -341,10 +370,10 @@ function DecisionPreview({ preview }: { preview: AgentPolicyEvaluation }) {
       <div className="flex items-center gap-2 font-medium">
         <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
         {blocked
-          ? "Blocked by risk limits"
+          ? "Stopped by your safety rules"
           : preview.decision === "allowed"
-            ? "Allowed by active session"
-            : "Valid, needs approval"}
+            ? "Fits the current allowance"
+            : "Ready for your approval"}
       </div>
       {preview.violations.length > 0 ? (
         <ul className="mt-2 list-disc space-y-1 pl-5 text-text-soft">
@@ -357,6 +386,14 @@ function DecisionPreview({ preview }: { preview: AgentPolicyEvaluation }) {
       ) : null}
     </div>
   );
+}
+
+function venueFromSearch(value: string | null): TradingVenue | null {
+  return value === "mock_perps" ||
+    value === "hyperliquid_testnet" ||
+    value === "bulktrade_mock"
+    ? value
+    : null;
 }
 
 function TextField({

@@ -6,11 +6,15 @@ import clsx from "clsx";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
+  ArrowRight,
   ArrowLeft,
+  AlertTriangle,
   Bot,
   Check,
   Clock,
+  Inbox,
   Lock,
+  Plug,
   Play,
   RefreshCw,
   Send,
@@ -22,9 +26,14 @@ import { useToast } from "@/components/ui/Toast";
 import { encryptStatus } from "@/lib/encrypt/client";
 import {
   agentLeaderboard,
+  agentLibraryMetrics,
+  agentSessionPolicyBindingStatus,
   approveAgentProposal,
+  buildAgentTradingReadiness,
+  canOpenLocalAgentExecution,
   closeMockAgentExecution,
-  executeMockAgentProposal,
+  closeOpenMockAgentExecutions,
+  executionUnavailableReason,
   findAgent,
   getAgentVaultPolicy,
   agentRiskSnapshot,
@@ -33,25 +42,46 @@ import {
   listAgentProposals,
   listAgentScorecards,
   listAgentSessions,
+  isAgentSessionCurrent,
+  openAgentPaperTrade,
   rejectAgentProposal,
+  recommendAgentAllocation,
   recheckAgentProposal,
   renewAgentSession,
+  setAgentVaultEmergencyPause,
   subscribeAgents,
+  syncAgentEmergencyPause,
+  syncAgentExecution,
+  syncAgentProfile,
+  syncAgentProposalApproval,
+  syncAgentProposalRejection,
+  syncAgentSession,
+  syncAgentSessionStatus,
   updateAgentSessionStatus,
   updateAgentStatus,
   type AgentAuditEvent,
+  type AgentAllocationRecommendation,
   type AgentExecutionRecord,
   type AgentKind,
   type AgentLeaderboardEntry,
+  type AgentLibraryMetrics,
+  type AgentReadinessAction,
   type AgentRiskSnapshot,
   type AgentProfile,
   type AgentProposalStatus,
   type AgentScorecard,
   type AgentSessionGrant,
   type AgentTradeProposal,
+  type AgentTradingReadiness,
   type AgentTradingMode,
+  type AgentVaultPolicy,
   type TradingVenue,
 } from "@/lib/agents";
+import {
+  loadAgentInboxSummary,
+  type AgentInboxSummary,
+} from "@/lib/agents/clientInbox";
+import { submitAgentVenueExecution } from "@/lib/agents/clientExecution";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 export default function AgentDetailPage() {
@@ -69,33 +99,115 @@ export default function AgentDetailPage() {
   const [leaderboard, setLeaderboard] = useState<AgentLeaderboardEntry | undefined>();
   const [scorecard, setScorecard] = useState<AgentScorecard | undefined>();
   const [risk, setRisk] = useState<AgentRiskSnapshot | null>(null);
+  const [readiness, setReadiness] = useState<AgentTradingReadiness | null>(null);
+  const [emergencyPaused, setEmergencyPaused] = useState(false);
   const [dailyLossCapUsd, setDailyLossCapUsd] = useState("100");
+  const [policy, setPolicy] = useState<AgentVaultPolicy | null>(null);
   const [proposals, setProposals] = useState<AgentTradeProposal[]>([]);
   const [sessions, setSessions] = useState<AgentSessionGrant[]>([]);
   const [executions, setExecutions] = useState<AgentExecutionRecord[]>([]);
   const [events, setEvents] = useState<AgentAuditEvent[]>([]);
+  const [inboxSummary, setInboxSummary] = useState<AgentInboxSummary | null>(null);
 
   useEffect(() => {
     const refresh = () => {
-      setAgent(findAgent(name, agentId));
+      const nextAgent = findAgent(name, agentId);
+      const nextRisk = agentRiskSnapshot(name, agentId);
+      const nextPolicy = getAgentVaultPolicy(name);
+      const nextSessions = listAgentSessions(name).filter((item) => item.agentId === agentId);
+      setAgent(nextAgent);
       setLeaderboard(agentLeaderboard(name).find((entry) => entry.agentId === agentId));
       setScorecard(listAgentScorecards(name).find((entry) => entry.agentId === agentId));
-      setRisk(agentRiskSnapshot(name, agentId));
-      setDailyLossCapUsd(getAgentVaultPolicy(name).dailyLossCapUsd || "100");
+      setRisk(nextRisk);
+      setEmergencyPaused(nextPolicy.emergencyPaused);
+      setDailyLossCapUsd(nextPolicy.dailyLossCapUsd || "100");
+      setPolicy(nextPolicy);
       setProposals(listAgentProposals(name).filter((item) => item.agentId === agentId));
-      setSessions(listAgentSessions(name).filter((item) => item.agentId === agentId));
+      setSessions(nextSessions);
       setExecutions(listAgentExecutions(name).filter((item) => item.agentId === agentId));
       setEvents(listAgentEvents(name).filter((item) => item.agentId === agentId));
+      setReadiness(
+        nextAgent
+          ? buildAgentTradingReadiness({
+              agent: nextAgent,
+              policy: nextPolicy,
+              sessions: nextSessions,
+              risk: nextRisk,
+            })
+          : null,
+      );
     };
     refresh();
     return subscribeAgents(refresh);
   }, [agentId, name]);
 
-  const activeSessions = sessions.filter(
-    (session) => session.status === "active" && session.expiresAt > Date.now(),
-  ).length;
+  useEffect(() => {
+    if (!agent) {
+      setInboxSummary(null);
+      return;
+    }
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const summary = await loadAgentInboxSummary(name, agent.id);
+        if (!cancelled) setInboxSummary(summary);
+      } catch {
+        if (!cancelled) {
+          setInboxSummary({
+            count: 0,
+            storage: "unknown",
+            status: "unavailable",
+            updatedAt: Date.now(),
+          });
+        }
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [agent, name]);
+
+  const activeSessions = policy
+    ? sessions.filter((session) => isAgentSessionCurrent(session, policy)).length
+    : 0;
+  const activeSession = policy
+    ? sessions.find((session) => isAgentSessionCurrent(session, policy))
+    : undefined;
   const openPositions = executions.filter((execution) => execution.status === "open").length;
-  const blockedSignals = proposals.filter((proposal) => proposal.status === "blocked").length;
+  const blockedProposals = proposals.filter((proposal) => proposal.status === "blocked");
+  const blockedSignals = blockedProposals.length;
+  const libraryMetrics = agent
+    ? agentLibraryMetrics({ agent, scorecard, executions })
+    : null;
+  const allocation =
+    agent && policy
+      ? recommendAgentAllocation({
+          agent,
+          scorecard,
+          leaderboard,
+          currentSession: activeSession,
+          policy,
+        })
+      : null;
+
+  const setKillSwitch = (enabled: boolean) => {
+    startAction(() => {
+      const updated = setAgentVaultEmergencyPause(name, enabled);
+      setEmergencyPaused(updated.emergencyPaused);
+      void syncAgentEmergencyPause(name, enabled).then((synced) => {
+        if (synced.ok) {
+          toast.success(
+            enabled ? "Agent Trading paused" : "Agent Trading resumed",
+          );
+        } else {
+          toast.info("Kill switch changed locally; backend sync is pending", {
+            details: synced.message,
+          });
+        }
+      });
+    });
+  };
 
   const setStatus = (status: AgentProfile["status"]) => {
     startAction(() => {
@@ -104,13 +216,21 @@ export default function AgentDetailPage() {
         toast.error("Trading agent not found");
         return;
       }
-      toast.success(
-        status === "active"
-          ? "Trading agent active"
-          : status === "paused"
-            ? "Trading agent paused"
-            : "Trading agent revoked",
-      );
+      void syncAgentProfile(updated).then((synced) => {
+        if (synced.ok) {
+          toast.success(
+            status === "active"
+              ? "Trading agent active"
+              : status === "paused"
+                ? "Trading agent paused"
+                : "Trading agent revoked",
+          );
+        } else {
+          toast.info("Agent status changed locally; backend sync is pending", {
+            details: synced.message,
+          });
+        }
+      });
     });
   };
 
@@ -121,7 +241,15 @@ export default function AgentDetailPage() {
         toast.error("Trading session not found");
         return;
       }
-      toast.success("Trading session revoked");
+      void syncAgentSessionStatus(name, id, "revoked").then((synced) => {
+        if (synced.ok) {
+          toast.success("Trading session revoked");
+        } else {
+          toast.info("Session revoked locally; backend sync is pending", {
+            details: synced.message,
+          });
+        }
+      });
     });
   };
 
@@ -132,7 +260,15 @@ export default function AgentDetailPage() {
         toast.error("Reactivate the agent before renewing this session");
         return;
       }
-      toast.success("Trading session renewed");
+      void syncAgentSession(renewed).then((synced) => {
+        if (synced.ok) {
+          toast.success("Trading session renewed");
+        } else {
+          toast.info("Session renewed locally; backend sync is pending", {
+            details: synced.message,
+          });
+        }
+      });
     });
   };
 
@@ -143,7 +279,21 @@ export default function AgentDetailPage() {
         toast.error("Trade signal not found");
         return;
       }
-      toast.success("Trade signal approved");
+      void syncAgentProposalApproval(name, id).then((synced) => {
+        if (!synced.ok) {
+          toast.info("Trade signal approved locally; backend sync is pending", {
+            details: synced.message,
+          });
+          return;
+        }
+        if (synced.value?.status === "blocked") {
+          toast.info("Backend risk check blocked this signal", {
+            details: synced.value.policyViolations?.[0]?.message,
+          });
+        } else {
+          toast.success("Trade signal approved");
+        }
+      });
     });
   };
 
@@ -154,7 +304,15 @@ export default function AgentDetailPage() {
         toast.error("Trade signal not found");
         return;
       }
-      toast.success("Trade signal rejected");
+      void syncAgentProposalRejection(name, id).then((synced) => {
+        if (synced.ok) {
+          toast.success("Trade signal rejected");
+        } else {
+          toast.info("Trade signal rejected locally; backend sync is pending", {
+            details: synced.message,
+          });
+        }
+      });
     });
   };
 
@@ -167,6 +325,13 @@ export default function AgentDetailPage() {
       }
       if (result.execution) {
         toast.success("Trade signal passed risk and paper trade opened");
+        void syncAgentExecution(result.execution).then((synced) => {
+          if (!synced.ok) {
+            toast.info("Paper trade opened locally; backend sync is pending", {
+              details: synced.message,
+            });
+          }
+        });
       } else if (result.proposal.status === "blocked") {
         toast.error("Trade signal is still blocked by risk limits");
       } else if (result.proposal.status === "approved") {
@@ -179,12 +344,59 @@ export default function AgentDetailPage() {
 
   const openPaperTrade = (id: string) => {
     startAction(() => {
-      const execution = executeMockAgentProposal(name, id);
-      if (!execution) {
-        toast.error("Approve the trade signal first, then check risk limits");
+      const result = openAgentPaperTrade(name, id);
+      if (result.reason === "opened") {
+        toast.success("Paper trade opened");
+        if (result.execution) {
+          void syncAgentExecution(result.execution).then((synced) => {
+            if (!synced.ok) {
+              toast.info("Paper trade opened locally; backend sync is pending", {
+                details: synced.message,
+              });
+            }
+          });
+        }
+      } else if (result.reason === "already_open") {
+        toast.success("Paper trade is already open");
+      } else if (result.reason === "blocked") {
+        toast.error(
+          result.proposal?.policyViolations?.[0]?.message ??
+            "Trade signal is blocked by risk limits",
+        );
+      } else if (result.reason === "backend_required") {
+        toast.error("This venue needs the live trading backend before it can open trades");
+      } else if (result.reason === "not_approved") {
+        toast.error("Approve this trade signal first");
+      } else {
+        toast.error("Trade signal not found");
+      }
+    });
+  };
+
+  const submitVenueTrade = (id: string) => {
+    startAction(() => {
+      const proposal = proposals.find((item) => item.id === id);
+      if (!proposal) {
+        toast.error("Trade signal not found");
         return;
       }
-      toast.success("Paper trade opened");
+      void submitAgentVenueExecution(proposal)
+        .then((result) => {
+          if (result.ok) {
+            toast.success("Trade request sent to venue");
+            return;
+          }
+          toast.error(
+            result.serverRequest
+              ? `${result.message} ${
+                  result.duplicate ? "Request already saved." : "Request saved."
+                }`
+              : result.message,
+          );
+        })
+        .catch(() => {
+          toast.error("Venue setup check failed");
+        });
     });
   };
 
@@ -196,6 +408,36 @@ export default function AgentDetailPage() {
         return;
       }
       toast.success("Paper trade closed");
+      void syncAgentExecution(updated).then((synced) => {
+        if (!synced.ok) {
+          toast.info("Paper trade closed locally; backend sync is pending", {
+            details: synced.message,
+          });
+        }
+      });
+    });
+  };
+
+  const closeAllOpenPaperTrades = () => {
+    startAction(() => {
+      const closed = closeOpenMockAgentExecutions({
+        walletName: name,
+        agentId,
+      });
+      if (closed.length === 0) {
+        toast.error("No open paper trades to close");
+        return;
+      }
+      toast.success(
+        `${closed.length} open paper trade${closed.length === 1 ? "" : "s"} closed`,
+      );
+      void Promise.all(closed.map((execution) => syncAgentExecution(execution))).then(
+        (results) => {
+          if (!results.every((result) => result.ok)) {
+            toast.info("Paper trades closed locally; backend sync is pending");
+          }
+        },
+      );
     });
   };
 
@@ -244,7 +486,7 @@ export default function AgentDetailPage() {
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
               Agent Trading · {display}
             </p>
-            <h1 className="hidden md:block mt-1 truncate font-display text-display-xs leading-tight text-text-strong">
+            <h1 className="mt-1 truncate font-display text-lg leading-tight text-text-strong md:text-display-xs">
               {agent.name}
             </h1>
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -256,28 +498,119 @@ export default function AgentDetailPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <LinkButton href={`/app/wallet/${encodedWallet}/agents/proposals/new`} Icon={Send}>
-              New signal
+            <LinkButton
+              href={
+                agent.kind === "mock"
+                  ? `/app/wallet/${encodedWallet}/agents/start?agent=${encodeURIComponent(agent.id)}`
+                  : `/app/wallet/${encodedWallet}/agents/proposals/new?agent=${encodeURIComponent(agent.id)}`
+              }
+              Icon={agent.kind === "mock" ? Play : Send}
+            >
+              {agent.kind === "mock" ? "Start trading" : "New idea"}
             </LinkButton>
-            <LinkButton href={`/app/wallet/${encodedWallet}/agents/sessions/new`} Icon={Clock}>
-              Start session
+            <LinkButton href={`/app/wallet/${encodedWallet}/agents/sessions/new?agent=${encodeURIComponent(agent.id)}`} Icon={Clock}>
+              Give allowance
             </LinkButton>
             <LinkButton href={`/app/wallet/${encodedWallet}/agents/${encodeURIComponent(agent.id)}/strategy`} Icon={ShieldCheck}>
-              Strategy
+              Trading plan
             </LinkButton>
+            {agent.kind !== "mock" ? (
+              <LinkButton href={`/app/wallet/${encodedWallet}/agents/${encodeURIComponent(agent.id)}/connection`} Icon={Plug}>
+                Connection
+              </LinkButton>
+            ) : null}
           </div>
         </div>
       </header>
 
-      <section className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        <Metric label="PnL" value={formatSignedUsd(scorecard?.realizedPnlUsd ?? "0")} />
-        <Metric label="Trust score" value={String(leaderboard?.score ?? 50)} />
-        <Metric label="Executed" value={String(scorecard?.executed ?? 0)} />
-        <Metric label="Open positions" value={String(openPositions)} />
-        <Metric label="Blocked signals" value={String(blockedSignals)} />
-        <Metric label="Active sessions" value={String(activeSessions)} />
-        <Metric label="Today PnL" value={formatSignedUsd(risk?.dailyRealizedPnlUsd ?? "0")} />
+      <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <Metric label="Profit/loss" value={formatSignedUsd(scorecard?.realizedPnlUsd ?? "0")} />
+        <Metric label="Score" value={String(leaderboard?.score ?? 50)} />
+        <Metric
+          label="New ideas"
+          value={
+            inboxSummary?.status === "unavailable"
+              ? "Offline"
+              : String(inboxSummary?.count ?? 0)
+          }
+        />
+        <Metric label="Trades" value={String(scorecard?.executed ?? 0)} />
+        <Metric label="Open trades" value={String(openPositions)} />
+        <Metric label="Stopped ideas" value={String(blockedSignals)} />
+        <Metric label="Current allowance" value={String(activeSessions)} />
+        <Metric label="Today P/L" value={formatSignedUsd(risk?.dailyRealizedPnlUsd ?? "0")} />
+        <Metric
+          label="7-day P/L"
+          value={formatSignedUsd(libraryMetrics?.sevenDayPnlUsd ?? "0")}
+        />
+        <Metric
+          label="Win rate"
+          value={
+            libraryMetrics?.winRatePct == null
+              ? "New"
+              : `${libraryMetrics.winRatePct}%`
+          }
+        />
+        <Metric label="Age" value={`${libraryMetrics?.ageDays ?? 0}d`} />
+        <Metric
+          label="Last trade"
+          value={
+            libraryMetrics?.lastTradedAt
+              ? formatShortDate(libraryMetrics.lastTradedAt)
+              : "None"
+          }
+        />
       </section>
+
+      {readiness ? (
+        <ReadinessPanel
+          readiness={readiness}
+          walletEncoded={encodedWallet}
+          agentId={agent.id}
+        />
+      ) : null}
+
+      {allocation && libraryMetrics ? (
+        <AllowanceDecisionPanel
+          recommendation={allocation}
+          metrics={libraryMetrics}
+          activeSession={activeSession}
+          walletEncoded={encodedWallet}
+          agentId={agent.id}
+        />
+      ) : null}
+
+      <KillSwitchPanel
+        paused={emergencyPaused}
+        pending={pending}
+        onToggle={setKillSwitch}
+      />
+
+      {inboxSummary?.count ? (
+        <section className="rounded-card border border-warning/25 bg-warning/[0.08] p-4 shadow-card-rest">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-warning/[0.12] text-warning">
+                <Inbox className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-text-strong">
+                  {inboxSummary.count} queued signal{inboxSummary.count === 1 ? "" : "s"}
+                </p>
+                <p className="mt-1 text-sm leading-relaxed text-text-soft">
+                  Review bot signals before they become trade signals.
+                </p>
+              </div>
+            </div>
+            <LinkButton
+              href={`/app/wallet/${encodedWallet}/agents/${encodeURIComponent(agent.id)}/connection`}
+              Icon={Plug}
+            >
+              Review inbox
+            </LinkButton>
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-3 lg:grid-cols-[1fr_1.2fr]">
         <Panel title="Agent Profile" Icon={Bot}>
@@ -342,6 +675,24 @@ export default function AgentDetailPage() {
         </Panel>
       </section>
 
+      <section className="grid gap-3 lg:grid-cols-2">
+        <ScoreBreakdownPanel leaderboard={leaderboard} />
+        <NextAllowancePanel
+          recommendation={allocation}
+          scorecard={scorecard}
+          blockedProposals={blockedProposals}
+        />
+      </section>
+
+      <section className="grid gap-3 lg:grid-cols-2">
+        <RecentTradesPanel
+          executions={executions}
+          pending={pending}
+          onClose={closePaperTrade}
+        />
+        <StoppedIdeasPanel proposals={blockedProposals} />
+      </section>
+
       <Panel title="Strategy Playbook" Icon={ShieldCheck}>
         {agent.strategy ? (
           <div className="grid gap-3 text-sm">
@@ -387,6 +738,7 @@ export default function AgentDetailPage() {
             <SessionRow
               key={session.id}
               session={session}
+              policy={policy}
               pending={pending}
               onRevoke={revokeSession}
               onRenew={renewSession}
@@ -408,6 +760,7 @@ export default function AgentDetailPage() {
               onReject={rejectSignal}
               onRecheck={recheckSignal}
               onExecute={openPaperTrade}
+              onSubmitVenue={submitVenueTrade}
             />
           ))
         ) : (
@@ -416,6 +769,22 @@ export default function AgentDetailPage() {
       </EntitySection>
 
       <EntitySection title="Paper Trades">
+        {openPositions > 0 ? (
+          <div className="rounded-soft border border-rose-500/25 bg-rose-500/[0.08] px-3 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-medium text-text-strong">
+                {openPositions} open paper position{openPositions === 1 ? "" : "s"}
+              </p>
+              <ActionButton
+                label="Close all open"
+                Icon={X}
+                disabled={pending}
+                tone="danger"
+                onClick={closeAllOpenPaperTrades}
+              />
+            </div>
+          </div>
+        ) : null}
         {executions.length > 0 ? (
           executions.slice(0, 8).map((execution) => (
             <ExecutionRow
@@ -486,6 +855,400 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ReadinessPanel({
+  readiness,
+  walletEncoded,
+  agentId,
+}: {
+  readiness: AgentTradingReadiness;
+  walletEncoded: string;
+  agentId: string;
+}) {
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            className={clsx(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+              readiness.status === "ready"
+                ? "bg-accent/10 text-accent"
+                : readiness.status === "blocked"
+                  ? "bg-rose-500/[0.08] text-rose-300"
+                  : "bg-warning/[0.08] text-warning",
+            )}
+          >
+            {readiness.status === "ready" ? (
+              <Check className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+            )}
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-sm font-semibold text-text-strong">
+                Trading Readiness
+              </h2>
+              <Badge tone={readinessBadgeTone(readiness.status)}>
+                {readiness.score}% · {readiness.headline}
+              </Badge>
+            </div>
+            <p className="mt-1 text-sm leading-relaxed text-text-soft">
+              {readiness.summary}
+            </p>
+          </div>
+        </div>
+        <LinkButton
+          href={readinessHref(walletEncoded, agentId, readiness.primaryAction)}
+          Icon={ArrowRight}
+        >
+          {readinessActionLabel(readiness.primaryAction)}
+        </LinkButton>
+      </div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        {readiness.items.map((item) => (
+          <div
+            key={item.id}
+            className="rounded-soft border border-border-soft bg-canvas px-3 py-2"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className={clsx(
+                  "h-2 w-2 rounded-full",
+                  item.status === "pass"
+                    ? "bg-accent"
+                    : item.status === "block"
+                      ? "bg-rose-400"
+                      : "bg-warning",
+                )}
+              />
+              <p className="text-xs font-semibold text-text-strong">{item.label}</p>
+              <Badge tone={item.status === "pass" ? "success" : item.status === "block" ? "danger" : "warning"}>
+                {item.status === "pass" ? "Ready" : item.status === "block" ? "Blocked" : "Setup"}
+              </Badge>
+            </div>
+            <p className="mt-1 text-xs leading-relaxed text-text-soft">
+              {item.message}
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AllowanceDecisionPanel({
+  recommendation,
+  metrics,
+  activeSession,
+  walletEncoded,
+  agentId,
+}: {
+  recommendation: AgentAllocationRecommendation;
+  metrics: AgentLibraryMetrics;
+  activeSession?: AgentSessionGrant;
+  walletEncoded: string;
+  agentId: string;
+}) {
+  const startHref = activeSession
+    ? `/app/wallet/${walletEncoded}/agents/start?agent=${encodeURIComponent(agentId)}`
+    : `/app/wallet/${walletEncoded}/agents/sessions/new?agent=${encodeURIComponent(agentId)}`;
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+            <Trophy className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-sm font-semibold text-text-strong">
+                Allowance recommendation
+              </h2>
+              <Badge tone={allocationBadgeTone(recommendation.action)}>
+                {allocationActionLabel(recommendation.action)}
+              </Badge>
+            </div>
+            <p className="mt-1 text-sm leading-relaxed text-text-soft">
+              {plainAllowanceSummary(recommendation)}
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <LinkButton href={startHref} Icon={activeSession ? Play : Clock}>
+            {activeSession ? "Start trading" : "Give allowance"}
+          </LinkButton>
+          <LinkButton href={`/app/wallet/${walletEncoded}/agents/library`} Icon={Trophy}>
+            Agent Library
+          </LinkButton>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <ScoreRow label="Allowance level" value={recommendation.tier.label} />
+        <ScoreRow
+          label="Trade size"
+          value={formatUsd(recommendation.limits.maxNotionalUsd)}
+        />
+        <ScoreRow label="Open trades" value={recommendation.limits.maxOpenPositions} />
+        <ScoreRow label="Time window" value={`${recommendation.limits.sessionHours}h`} />
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        <div>
+          <p className="text-xs font-semibold text-text-strong">Why this allowance?</p>
+          <ul className="mt-2 grid gap-1.5">
+            {recommendation.reasons.slice(0, 5).map((reason) => (
+              <li key={reason} className="flex items-start gap-2 text-xs text-text-soft">
+                <Check className="mt-0.5 h-3 w-3 shrink-0 text-accent" aria-hidden="true" />
+                <span>{plainMetricText(reason)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-text-strong">Recent proof</p>
+          <div className="mt-2 grid gap-1.5 text-xs text-text-soft">
+            <span>7-day profit/loss: {formatSignedUsd(metrics.sevenDayPnlUsd)}</span>
+            <span>
+              Win rate: {metrics.winRatePct == null ? "not enough trades yet" : `${metrics.winRatePct}%`}
+            </span>
+            <span>Completed trades: {metrics.closedTrades}</span>
+            <span>Open trades now: {metrics.openTrades}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ScoreBreakdownPanel({
+  leaderboard,
+}: {
+  leaderboard?: AgentLeaderboardEntry;
+}) {
+  const inputs = leaderboard?.rankInputs;
+  const rows = [
+    { label: "Profit score", value: inputs?.returnScore ?? 50 },
+    { label: "Safety score", value: inputs?.complianceScore ?? 50 },
+    { label: "Largest fall score", value: inputs?.drawdownScore ?? 50 },
+    { label: "Follow-through score", value: inputs?.executionScore ?? 50 },
+    { label: "Manual change penalty", value: inputs?.trustPenalty ?? 0 },
+  ];
+  return (
+    <Panel title="Score Breakdown" Icon={Trophy}>
+      <div className="grid gap-2">
+        {rows.map((row) => (
+          <div key={row.label}>
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="font-medium text-text-soft">{row.label}</span>
+              <span className="font-semibold text-text-strong">{formatNumber(row.value)}</span>
+            </div>
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-canvas">
+              <div
+                className={clsx(
+                  "h-full rounded-full",
+                  row.label.includes("penalty") ? "bg-warning" : "bg-accent",
+                )}
+                style={{ width: `${Math.min(100, Math.max(0, row.value))}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+function NextAllowancePanel({
+  recommendation,
+  scorecard,
+  blockedProposals,
+}: {
+  recommendation: AgentAllocationRecommendation | null;
+  scorecard?: AgentScorecard;
+  blockedProposals: AgentTradeProposal[];
+}) {
+  const gaps = recommendation?.nextTierGaps ?? [];
+  const suggestions = gaps.length > 0 ? gaps.map(plainMetricText) : [];
+  if ((scorecard?.blocked ?? 0) > 0) {
+    suggestions.push("Fewer stopped ideas will make the next allowance easier to approve.");
+  }
+  if ((scorecard?.executed ?? 0) === 0) {
+    suggestions.push("Complete a few small practice trades first.");
+  }
+  return (
+    <Panel title="Next Allowance" Icon={ShieldCheck}>
+      {recommendation?.nextTier ? (
+        <p className="text-sm leading-relaxed text-text-soft">
+          Next level:{" "}
+          <span className="font-semibold text-text-strong">
+            {recommendation.nextTier.label}
+          </span>
+        </p>
+      ) : (
+        <p className="text-sm leading-relaxed text-text-soft">
+          This agent is already at the highest allowance level for now.
+        </p>
+      )}
+      <div className="mt-3 grid gap-2">
+        {suggestions.length > 0 ? (
+          suggestions.slice(0, 5).map((item) => (
+            <div
+              key={item}
+              className="rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs leading-relaxed text-text-soft"
+            >
+              {item}
+            </div>
+          ))
+        ) : (
+          <div className="rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs text-text-soft">
+            Keep the same performance while trading a little longer.
+          </div>
+        )}
+      </div>
+      {blockedProposals[0] ? (
+        <p className="mt-3 text-xs leading-relaxed text-text-soft">
+          Latest stopped idea: {blockedProposals[0].market} {blockedProposals[0].side}
+          {blockedProposals[0].policyViolations?.[0]?.message
+            ? ` — ${blockedProposals[0].policyViolations[0].message}`
+            : ""}
+        </p>
+      ) : null}
+    </Panel>
+  );
+}
+
+function RecentTradesPanel({
+  executions,
+  pending,
+  onClose,
+}: {
+  executions: AgentExecutionRecord[];
+  pending: boolean;
+  onClose: (id: string, pnlUsd: string) => void;
+}) {
+  return (
+    <Panel title="Recent Trade History" Icon={Clock}>
+      <div className="grid gap-2">
+        {executions.length > 0 ? (
+          executions.slice(0, 4).map((execution) => (
+            <ExecutionRow
+              key={execution.id}
+              execution={execution}
+              pending={pending}
+              onClose={onClose}
+            />
+          ))
+        ) : (
+          <EmptyLine text="No trades yet." />
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+function StoppedIdeasPanel({
+  proposals,
+}: {
+  proposals: AgentTradeProposal[];
+}) {
+  return (
+    <Panel title="Stopped Ideas" Icon={AlertTriangle}>
+      <div className="grid gap-2">
+        {proposals.length > 0 ? (
+          proposals.slice(0, 4).map((proposal) => (
+            <div
+              key={proposal.id}
+              className="rounded-soft border border-rose-500/25 bg-rose-500/[0.06] px-3 py-2"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-text-strong">
+                  {proposal.market} · {proposal.side}
+                </p>
+                <Badge tone="danger">Stopped</Badge>
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-text-soft">
+                {proposal.policyViolations?.[0]?.message ??
+                  "This idea was outside the current allowance."}
+              </p>
+            </div>
+          ))
+        ) : (
+          <EmptyLine text="No stopped ideas yet." />
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+function KillSwitchPanel({
+  paused,
+  pending,
+  onToggle,
+}: {
+  paused: boolean;
+  pending: boolean;
+  onToggle: (enabled: boolean) => void;
+}) {
+  return (
+    <section
+      className={clsx(
+        "rounded-card border p-4 shadow-card-rest",
+        paused
+          ? "border-rose-500/30 bg-rose-500/[0.08]"
+          : "border-border-soft bg-surface-raised",
+      )}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            className={clsx(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+              paused ? "bg-rose-500/[0.12] text-rose-300" : "bg-accent/10 text-accent",
+            )}
+          >
+            {paused ? (
+              <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+            )}
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-text-strong">
+              {paused ? "Agent Trading is paused" : "Agent Trading is armed"}
+            </p>
+            <p className="mt-1 text-sm leading-relaxed text-text-soft">
+              {paused
+                ? "The kill switch is on. New agent signals cannot open paper trades."
+                : "Use the kill switch to stop all agent trading immediately."}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => onToggle(!paused)}
+          className={clsx(
+            "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border px-3 py-2 text-xs font-medium",
+            "transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+            paused
+              ? "border-accent/30 text-accent hover:bg-accent/[0.08]"
+              : "border-rose-500/30 text-rose-300 hover:bg-rose-500/[0.08]",
+          )}
+        >
+          {paused ? (
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+          ) : (
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          )}
+          {paused ? "Resume agent trading" : "Pause all agents"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
@@ -523,18 +1286,27 @@ function EntitySection({
 
 function SessionRow({
   session,
+  policy,
   pending,
   onRevoke,
   onRenew,
 }: {
   session: AgentSessionGrant;
+  policy: AgentVaultPolicy | null;
   pending: boolean;
   onRevoke: (id: string) => void;
   onRenew: (id: string) => void;
 }) {
-  const active = session.status === "active" && session.expiresAt > Date.now();
+  const timeActive = session.status === "active" && session.expiresAt > Date.now();
+  const bindingStatus = policy
+    ? agentSessionPolicyBindingStatus(session, policy)
+    : "missing";
+  const active = timeActive && bindingStatus === "current";
+  const stale = timeActive && bindingStatus !== "current";
   const status = active
     ? "Active"
+    : stale
+      ? "Needs renewal"
     : session.status === "active" && session.expiresAt <= Date.now()
       ? "Expired"
       : capitalize(session.status);
@@ -544,14 +1316,18 @@ function SessionRow({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold text-text-strong">{status} session</p>
-            <Badge tone={active ? "success" : "default"}>{status}</Badge>
+            <Badge tone={active ? "success" : stale ? "warning" : "default"}>
+              {status}
+            </Badge>
           </div>
           <p className="mt-1 text-xs text-text-soft">
             {session.allowedMarkets?.join(", ") || "Allowed markets"} · ${session.maxNotionalUsd ?? "limit"} ·{" "}
             {session.maxLeverage ?? "limit"}x
           </p>
           <p className="mt-2 text-[11px] text-text-soft">
-            Expires {new Date(session.expiresAt).toLocaleString()}
+            {stale
+              ? "Risk limits changed after this session was issued."
+              : `Expires ${new Date(session.expiresAt).toLocaleString()}`}
           </p>
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -584,6 +1360,7 @@ function ProposalRow({
   onReject,
   onRecheck,
   onExecute,
+  onSubmitVenue,
 }: {
   proposal: AgentTradeProposal;
   pending: boolean;
@@ -591,6 +1368,7 @@ function ProposalRow({
   onReject: (id: string) => void;
   onRecheck: (id: string) => void;
   onExecute: (id: string) => void;
+  onSubmitVenue: (id: string) => void;
 }) {
   return (
     <div className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
@@ -641,12 +1419,22 @@ function ProposalRow({
             </>
           ) : null}
           {proposal.status === "approved" ? (
-            <ActionButton
-              label="Open paper trade"
-              Icon={Play}
-              disabled={pending}
-              onClick={() => onExecute(proposal.id)}
-            />
+            canOpenLocalAgentExecution(proposal.venue) ? (
+              <ActionButton
+                label="Open paper trade"
+                Icon={Play}
+                disabled={pending}
+                onClick={() => onExecute(proposal.id)}
+              />
+            ) : (
+              <ActionButton
+                label="Send to venue"
+                Icon={Plug}
+                disabled={pending}
+                onClick={() => onSubmitVenue(proposal.id)}
+                title={executionUnavailableReason(proposal.venue) ?? undefined}
+              />
+            )
           ) : null}
         </div>
       </div>
@@ -736,18 +1524,21 @@ function ActionButton({
   disabled,
   tone = "default",
   onClick,
+  title,
 }: {
   label: string;
   Icon: typeof Check;
   disabled: boolean;
   tone?: "default" | "danger";
   onClick: () => void;
+  title?: string;
 }) {
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
+      title={title}
       className={clsx(
         "inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border px-2 py-1 text-[11px] font-medium",
         "transition-colors duration-base ease-out-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised disabled:cursor-not-allowed disabled:opacity-60",
@@ -847,6 +1638,52 @@ function venueLabel(venue: TradingVenue): string {
   }
 }
 
+function readinessBadgeTone(
+  status: AgentTradingReadiness["status"],
+): "default" | "success" | "warning" | "danger" {
+  switch (status) {
+    case "ready":
+      return "success";
+    case "blocked":
+      return "danger";
+    case "needs_setup":
+      return "warning";
+  }
+}
+
+function readinessHref(
+  walletEncoded: string,
+  agentId: string,
+  action: AgentReadinessAction,
+): string {
+  switch (action) {
+    case "risk_limits":
+      return `/app/wallet/${walletEncoded}/agents/policy`;
+    case "strategy":
+      return `/app/wallet/${walletEncoded}/agents/${encodeURIComponent(agentId)}/strategy`;
+    case "session":
+      return `/app/wallet/${walletEncoded}/agents/sessions/new`;
+    case "agent":
+    case "none":
+      return `/app/wallet/${walletEncoded}/agents/${encodeURIComponent(agentId)}`;
+  }
+}
+
+function readinessActionLabel(action: AgentReadinessAction): string {
+  switch (action) {
+    case "risk_limits":
+      return "Risk limits";
+    case "strategy":
+      return "Strategy";
+    case "session":
+      return "Start session";
+    case "agent":
+      return "Details";
+    case "none":
+      return "Details";
+  }
+}
+
 function strategyModeLabel(mode: AgentTradingMode): string {
   switch (mode) {
     case "read_only":
@@ -858,6 +1695,85 @@ function strategyModeLabel(mode: AgentTradingMode): string {
     default:
       return "Strategy";
   }
+}
+
+function allocationBadgeTone(
+  action: AgentAllocationRecommendation["action"],
+): "default" | "success" | "warning" | "danger" {
+  switch (action) {
+    case "promote":
+      return "success";
+    case "demote":
+      return "danger";
+    case "review":
+      return "warning";
+    case "hold":
+    case "start":
+      return "default";
+  }
+}
+
+function allocationActionLabel(
+  action: AgentAllocationRecommendation["action"],
+): string {
+  switch (action) {
+    case "promote":
+      return "Raise allowance";
+    case "demote":
+      return "Lower allowance";
+    case "hold":
+      return "Keep allowance";
+    case "review":
+      return "Review first";
+    case "start":
+      return "Start small";
+  }
+}
+
+function plainAllowanceSummary(
+  recommendation: AgentAllocationRecommendation,
+): string {
+  const limits = recommendation.limits;
+  const size = formatUsd(limits.maxNotionalUsd);
+  const openTrades = `${limits.maxOpenPositions} open trade${
+    limits.maxOpenPositions === 1 ? "" : "s"
+  }`;
+  const window = `${limits.sessionHours} hour${
+    limits.sessionHours === 1 ? "" : "s"
+  }`;
+  const core = `${recommendation.tier.label}: allow up to ${size} per trade, ${limits.maxLeverage}x, ${openTrades}, for ${window}.`;
+  switch (recommendation.action) {
+    case "promote":
+      return `This agent has earned a larger allowance. ${core}`;
+    case "demote":
+      return `This agent should use a smaller allowance next. ${core}`;
+    case "hold":
+      return `The current allowance still fits this agent. ${core}`;
+    case "review":
+      return `Review the setup before giving more control. ${core}`;
+    case "start":
+      return `Start with a small human-approved allowance. ${core}`;
+  }
+}
+
+function plainMetricText(value: string): string {
+  return value
+    .replace("executed trades", "completed trades")
+    .replace("more executed trades", "more completed trades")
+    .replace("trust score", "score")
+    .replace("maximum drawdown", "largest fall")
+    .replace("drawdown", "largest fall")
+    .replace("violation rate", "stopped-idea rate")
+    .replace("rule violations", "stopped ideas")
+    .replace("human overrides", "manual changes")
+    .replace("positive realized PnL", "positive profit/loss")
+    .replace("PnL", "profit/loss");
+}
+
+function formatUsd(value: string): string {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return "$0";
+  return `$${parsed.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 }
 
 function formatSignedUsd(value: string): string {
@@ -872,6 +1788,13 @@ function formatNumber(value: number): string {
   return Number.isFinite(value)
     ? value.toLocaleString("en-US", { maximumFractionDigits: 2 })
     : "0";
+}
+
+function formatShortDate(value: number): string {
+  return new Date(value).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function capitalize(value: string): string {

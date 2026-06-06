@@ -2,13 +2,15 @@
 
 import { FormEvent, useMemo, useState, useTransition } from "react";
 import clsx from "clsx";
-import { useParams, useRouter } from "next/navigation";
-import { Bot, Lock, Save } from "lucide-react";
+import Link from "next/link";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft, Bot, Lock, Plug, Save } from "lucide-react";
 import { encryptStatus } from "@/lib/encrypt/client";
 import {
   encryptAgentProfile,
   newAgentId,
   saveAgent,
+  syncAgentProfile,
   type AgentKind,
   type AgentProfile,
 } from "@/lib/agents";
@@ -16,15 +18,16 @@ import { toDisplayName } from "@/lib/retail/walletNames";
 import { useToast } from "@/components/ui/Toast";
 
 const AGENT_KINDS: Array<{ value: AgentKind; label: string }> = [
-  { value: "mock", label: "Paper agent" },
-  { value: "api", label: "API agent" },
-  { value: "hermes", label: "Autonomous agent" },
-  { value: "manual", label: "Manual trader" },
+  { value: "mock", label: "Built-in practice trader" },
+  { value: "api", label: "Connected trader" },
+  { value: "hermes", label: "Independent trader" },
+  { value: "manual", label: "Person" },
 ];
 
 export default function NewAgentPage() {
   const params = useParams<{ name: string }>();
   const router = useRouter();
+  const search = useSearchParams();
   const toast = useToast();
   const encrypt = encryptStatus();
   const [pending, startTransition] = useTransition();
@@ -37,9 +40,11 @@ export default function NewAgentPage() {
     }
   }, [params?.name]);
   const display = toDisplayName(name);
+  const encoded = encodeURIComponent(name);
+  const advanced = search.get("mode") === "advanced";
 
   const [agentName, setAgentName] = useState("");
-  const [kind, setKind] = useState<AgentKind>("mock");
+  const [kind, setKind] = useState<AgentKind>(advanced ? "api" : "mock");
   const [identityPubkey, setIdentityPubkey] = useState("");
   const [endpoint, setEndpoint] = useState("");
   const [description, setDescription] = useState("");
@@ -49,7 +54,7 @@ export default function NewAgentPage() {
     startTransition(async () => {
       const cleanName = agentName.trim();
       if (!cleanName) {
-        toast.error("Agent name is required");
+        toast.error("Give your trader a name");
         return;
       }
       const now = Date.now();
@@ -69,12 +74,19 @@ export default function NewAgentPage() {
       try {
         const encrypted = await encryptAgentProfile(draft);
         saveAgent(encrypted);
-        toast.success(`${cleanName} registered`);
+        const synced = await syncAgentProfile(encrypted);
+        if (synced.ok) {
+          toast.success(`${cleanName} added`);
+        } else {
+          toast.info("Your trader is saved on this device for now", {
+            details: synced.message,
+          });
+        }
         router.push(
           `/app/wallet/${encodeURIComponent(name)}/agents/${encodeURIComponent(draft.id)}/strategy`,
         );
       } catch (err) {
-        toast.error("Could not register agent", {
+        toast.error("Could not add trader", {
           details: err instanceof Error ? err.message : String(err),
         });
       }
@@ -83,17 +95,27 @@ export default function NewAgentPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-      <header className="flex flex-col gap-2">
-        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-          Agent Trading · {display}
-        </p>
-        <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
-          Register agent
-        </h1>
-        <p className="max-w-2xl text-sm leading-relaxed text-text-soft">
-          Create a trading agent profile. The agent can submit signals now;
-          execution still requires approval, a trading session, and risk limits.
-        </p>
+      <header className="flex flex-col gap-3">
+        <Link
+          href={`/app/wallet/${encoded}/agents/library`}
+          className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-text-soft transition-colors hover:text-accent"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+          Agent Library
+        </Link>
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            Automated Trading · {display}
+          </p>
+          <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
+            {advanced ? "Connect an outside trader" : "Create your own trader"}
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-soft">
+            {advanced
+              ? "For experienced users bringing an existing trader. It can send ideas, but ClearSig keeps control of the money."
+              : "Describe the trader you want. You will shape its trading plan and give it a small practice allowance next."}
+          </p>
+        </div>
       </header>
 
       <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
@@ -103,10 +125,12 @@ export default function NewAgentPage() {
           </span>
           <div>
             <p className="text-sm font-semibold text-text-strong">
-              Agent profile
+              {advanced ? "Outside trader" : "Your trader"}
             </p>
             <p className="mt-1 text-xs leading-relaxed text-text-soft">
-              Private notes use the app’s privacy layer when available.
+              {advanced
+                ? "ClearSig will create a protected place for this trader to send ideas."
+                : "Start with a simple description. You can change its plan before it begins."}
             </p>
           </div>
         </div>
@@ -122,55 +146,70 @@ export default function NewAgentPage() {
             />
           </label>
 
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-text-soft">Agent type</span>
-            <select
-              value={kind}
-              onChange={(event) => setKind(event.target.value as AgentKind)}
-              className={INPUT_CLASS}
-            >
-              {AGENT_KINDS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          {advanced ? (
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-text-soft">Trader type</span>
+              <select
+                value={kind}
+                onChange={(event) => setKind(event.target.value as AgentKind)}
+                className={INPUT_CLASS}
+              >
+                {AGENT_KINDS.filter((option) => option.value !== "mock").map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
 
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-text-soft">
-              Agent public key
-            </span>
-            <input
-              value={identityPubkey}
-              onChange={(event) => setIdentityPubkey(event.target.value)}
-              placeholder="Optional"
-              className={INPUT_CLASS}
-            />
-          </label>
-
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-text-soft">Agent endpoint</span>
-            <input
-              value={endpoint}
-              onChange={(event) => setEndpoint(event.target.value)}
-              placeholder="https://agent.example.com"
-              className={INPUT_CLASS}
-            />
-          </label>
-
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-text-soft">
-              Strategy notes
+              What should it focus on?
             </span>
             <textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="What this agent should watch or trade."
+              placeholder="What this trader should watch or trade."
               rows={4}
               className={clsx(INPUT_CLASS, "resize-none leading-relaxed")}
             />
           </label>
+
+          {advanced ? (
+            <div className="rounded-soft border border-border-soft bg-canvas px-3 py-3">
+              <div className="flex items-start gap-2">
+                <Plug className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden="true" />
+                <p className="text-xs leading-relaxed text-text-soft">
+                  These public details are optional. The protected idea connection
+                  is created after the trader is added.
+                </p>
+              </div>
+              <div className="mt-3 grid gap-4">
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-text-soft">
+                    Public identity
+                  </span>
+                  <input
+                    value={identityPubkey}
+                    onChange={(event) => setIdentityPubkey(event.target.value)}
+                    placeholder="Optional"
+                    className={INPUT_CLASS}
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-text-soft">Home address</span>
+                  <input
+                    value={endpoint}
+                    onChange={(event) => setEndpoint(event.target.value)}
+                    placeholder="https://example.com"
+                    className={INPUT_CLASS}
+                  />
+                </label>
+              </div>
+            </div>
+          ) : null}
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border-soft pt-4">
             <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-text-soft">
@@ -189,7 +228,11 @@ export default function NewAgentPage() {
               )}
             >
               <Save size={13} aria-hidden="true" />
-              {pending ? "Saving" : "Save agent"}
+              {pending
+                ? "Saving"
+                : advanced
+                  ? "Connect trader and continue"
+                  : "Create trader and continue"}
             </button>
           </div>
         </form>

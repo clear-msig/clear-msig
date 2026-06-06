@@ -11,6 +11,13 @@ const COINGECKO_URL =
   "https://api.coingecko.com/api/v3/simple/price?" +
   `ids=${COINGECKO_IDS.join(",")}` +
   "&vs_currencies=usd";
+const FALLBACK_PRICES_USD: Record<string, number> = {
+  SOL: 150,
+  ETH: 3000,
+  BTC: 90000,
+  ZEC: 30,
+  USDC: 1,
+};
 
 interface CoinGeckoResponse {
   [coinId: string]: { usd?: number };
@@ -26,10 +33,11 @@ export async function GET() {
 
     if (!resp.ok) {
       const detail = await resp.text().catch(() => "");
-      return NextResponse.json(
-        { error: `CoinGecko HTTP ${resp.status}`, detail: detail.slice(0, 200) },
-        { status: 502 },
-      );
+      console.warn("[api/prices] CoinGecko fallback", {
+        status: resp.status,
+        detail: detail.slice(0, 200),
+      });
+      return fallbackPrices();
     }
 
     const json = (await resp.json()) as CoinGeckoResponse;
@@ -53,10 +61,16 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error("[api/prices] CoinGecko fetch failed", error);
-    return NextResponse.json(
-      { error: "Unable to load live prices." },
-      { status: 502 },
-    );
+    console.warn("[api/prices] CoinGecko fetch failed; using fallback prices", error);
+    return fallbackPrices();
   }
+}
+
+function fallbackPrices(): NextResponse {
+  return NextResponse.json(FALLBACK_PRICES_USD, {
+    headers: {
+      "Cache-Control": "public, s-maxage=30, stale-while-revalidate=300",
+      "x-clearsig-price-source": "fallback",
+    },
+  });
 }

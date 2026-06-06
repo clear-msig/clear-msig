@@ -89,6 +89,7 @@ describe("agent policy evaluator", () => {
         maxLeverage: 2,
         allowedMarkets: ["BTC-PERP"],
         allowedVenues: ["mock_perps"],
+        policyHash: defaultAgentVaultPolicy("vault", now).policyHash,
         createdAt: now,
         updatedAt: now,
         version: 1,
@@ -128,6 +129,38 @@ describe("agent policy evaluator", () => {
     );
   });
 
+  it("blocks every signal when the kill switch is on", () => {
+    const result = evaluateAgentTradeProposal({
+      agent: agent(),
+      proposal: proposal(),
+      policy: {
+        ...defaultAgentVaultPolicy("vault", now),
+        emergencyPaused: true,
+      },
+      risk: { openPositions: 0 },
+      now,
+    });
+
+    expect(result.decision).toBe("blocked");
+    expect(result.violations.map((v) => v.code)).toContain("emergency_paused");
+  });
+
+  it("blocks trading while wallet safety rules are incomplete", () => {
+    const result = evaluateAgentTradeProposal({
+      agent: agent(),
+      proposal: proposal(),
+      policy: {
+        ...defaultAgentVaultPolicy("vault", now),
+        maxNotionalUsd: "",
+      },
+      risk: { openPositions: 0 },
+      now,
+    });
+
+    expect(result.decision).toBe("blocked");
+    expect(result.violations.map((v) => v.code)).toContain("policy_incomplete");
+  });
+
   it("applies session limits as a tighter bound", () => {
     const result = evaluateAgentTradeProposal({
       agent: agent(),
@@ -151,6 +184,78 @@ describe("agent policy evaluator", () => {
 
     expect(result.decision).toBe("blocked");
     expect(result.violations.map((v) => v.code)).toContain("notional_too_large");
+  });
+
+  it("blocks a practice account excluded by the current allowance", () => {
+    const policy = {
+      ...defaultAgentVaultPolicy("vault", now),
+      allowedVenues: ["mock_perps", "hyperliquid_testnet"] as const,
+    };
+    const result = evaluateAgentTradeProposal({
+      agent: agent(),
+      proposal: proposal({ venue: "hyperliquid_testnet" }),
+      policy: { ...policy, allowedVenues: [...policy.allowedVenues] },
+      session: {
+        id: "session-venue-bound",
+        walletName: "vault",
+        agentId: "agent-alpha",
+        status: "active",
+        startsAt: now,
+        expiresAt: now + 60 * 60 * 1000,
+        allowedVenues: ["mock_perps"],
+        policyHash: policy.policyHash,
+        createdAt: now,
+        updatedAt: now,
+        version: 1,
+      },
+      risk: { openPositions: 0 },
+      now,
+    });
+
+    expect(result.decision).toBe("blocked");
+    expect(result.violations.map((v) => v.code)).toContain("venue_not_allowed");
+  });
+
+  it("blocks trading when safety rules allow no markets", () => {
+    const result = evaluateAgentTradeProposal({
+      agent: agent(),
+      proposal: proposal(),
+      policy: {
+        ...defaultAgentVaultPolicy("vault", now),
+        allowedMarkets: [],
+      },
+      risk: { openPositions: 0 },
+      now,
+    });
+
+    expect(result.decision).toBe("blocked");
+    expect(result.violations.map((v) => v.code)).toContain("market_not_allowed");
+  });
+
+  it("requires human approval when a bounded session has a stale policy hash", () => {
+    const policy = defaultAgentVaultPolicy("vault", now);
+    const result = evaluateAgentTradeProposal({
+      agent: agent(),
+      proposal: proposal(),
+      policy,
+      session: {
+        id: "session-stale",
+        walletName: "vault",
+        agentId: "agent-alpha",
+        status: "active",
+        startsAt: now,
+        expiresAt: now + 60 * 60 * 1000,
+        policyHash: "older-policy-hash",
+        createdAt: now,
+        updatedAt: now,
+        version: 1,
+      },
+      risk: { openPositions: 0 },
+      now,
+    });
+
+    expect(result.decision).toBe("requires_human_approval");
+    expect(result.violations.map((v) => v.code)).toContain("session_policy_stale");
   });
 
   it("blocks active cooldowns", () => {

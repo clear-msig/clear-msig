@@ -8,6 +8,10 @@ import type {
   AgentVaultPolicy,
   TradingVenue,
 } from "@/lib/agents/types";
+import {
+  agentSessionPolicyBindingStatus,
+  bindAgentVaultPolicyHash,
+} from "@/lib/agents/policyHash";
 
 interface EvaluateArgs {
   agent: AgentProfile;
@@ -40,6 +44,21 @@ export function evaluateAgentTradeProposal({
 
   if (!policy.enabled) {
     addBlock("policy_disabled", "Agent trading policy is disabled for this vault.");
+  }
+  if (
+    parsePositiveDecimal(policy.maxNotionalUsd) == null ||
+    !Number.isFinite(policy.maxLeverage) ||
+    policy.maxLeverage <= 0 ||
+    !Number.isFinite(policy.maxOpenPositionsPerAgent) ||
+    policy.maxOpenPositionsPerAgent <= 0 ||
+    !Number.isFinite(policy.maxSessionHours) ||
+    policy.maxSessionHours <= 0 ||
+    parsePositiveDecimal(policy.dailyLossCapUsd) == null
+  ) {
+    addBlock(
+      "policy_incomplete",
+      "Finish the wallet safety rules before allowing trading.",
+    );
   }
   if (policy.emergencyPaused) {
     addBlock("emergency_paused", "Agent trading is paused by the vault kill switch.");
@@ -195,10 +214,10 @@ function evaluateStrategy({
     );
   }
 
-  if (strategy.mode === "paper" && proposal.venue !== "mock_perps") {
+  if (strategy.mode === "paper" && proposal.venue === "bulktrade_mock") {
     addBlock(
       "strategy_venue_not_allowed",
-      "Paper trading mode only allows Paper Perps.",
+      "This practice trader is not prepared for bulk practice trades.",
     );
   }
 }
@@ -241,6 +260,17 @@ function evaluateSession({
       severity: "block",
     });
   }
+  const bindingStatus = agentSessionPolicyBindingStatus(session, policy);
+  if (bindingStatus !== "current") {
+    violations.push({
+      code: "session_policy_stale",
+      message:
+        bindingStatus === "missing"
+          ? "Agent session is missing its policy commitment. Renew it before bounded execution."
+          : "Agent session was issued under an older vault policy. Renew it before bounded execution.",
+      severity: "approval",
+    });
+  }
   if (policy.maxSessionHours > 0) {
     const maxSessionMs = policy.maxSessionHours * 60 * 60 * 1000;
     if (session.expiresAt - session.startsAt > maxSessionMs) {
@@ -267,10 +297,10 @@ function evaluateVenueAndMarket({
   violations: AgentPolicyViolation[];
 }) {
   const allowedVenues = intersectOrPolicy(policy.allowedVenues, session?.allowedVenues);
-  if (allowedVenues.length > 0 && !allowedVenues.includes(proposal.venue)) {
+  if (!allowedVenues.includes(proposal.venue)) {
     violations.push({
       code: "venue_not_allowed",
-      message: `Venue ${proposal.venue} is not allowed for this vault.`,
+      message: "This practice account is not allowed by the current safety rules and allowance.",
       severity: "block",
     });
   }
@@ -279,10 +309,10 @@ function evaluateVenueAndMarket({
     policy.allowedMarkets.map(normalizeMarket),
     session?.allowedMarkets?.map(normalizeMarket),
   );
-  if (allowedMarkets.length > 0 && !allowedMarkets.includes(market)) {
+  if (!allowedMarkets.includes(market)) {
     violations.push({
       code: "market_not_allowed",
-      message: `Market ${market} is not allowed for this vault.`,
+      message: `${market} is not allowed by the current safety rules and allowance.`,
       severity: "block",
     });
   }
@@ -290,7 +320,6 @@ function evaluateVenueAndMarket({
 
 function intersectOrPolicy<T>(policyValues: T[], sessionValues: T[] | undefined): T[] {
   if (!sessionValues || sessionValues.length === 0) return policyValues;
-  if (policyValues.length === 0) return sessionValues;
   return policyValues.filter((value) => sessionValues.includes(value));
 }
 
@@ -330,7 +359,7 @@ export function defaultAgentVaultPolicy(
   walletName: string,
   now = Date.now(),
 ): AgentVaultPolicy {
-  return {
+  return bindAgentVaultPolicyHash({
     id: `agent-policy:${walletName}`,
     walletName,
     enabled: true,
@@ -348,5 +377,5 @@ export function defaultAgentVaultPolicy(
     createdAt: now,
     updatedAt: now,
     version: 1,
-  };
+  });
 }

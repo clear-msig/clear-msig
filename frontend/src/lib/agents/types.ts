@@ -1,5 +1,4 @@
 import type { EncryptedPayload } from "@/lib/encrypt/client";
-
 export type AgentVersion = 1;
 
 export type AgentKind =
@@ -52,12 +51,56 @@ export type AgentExecutionStatus =
   | "open"
   | "closed";
 
+export type AgentExecutionMode = "paper" | "testnet";
+export type AgentAllocationTierId = "probation" | "trusted" | "proven";
+
+export type AgentExecutionAdapterStatus =
+  | "ready"
+  | "backend_required";
+
+export type AgentOwnerActionKind =
+  | "grant_allowance"
+  | "start_automatic_trading"
+  | "submit_venue_trade"
+  | "pause_agent"
+  | "pause_all_trading"
+  | "close_practice_trade"
+  | "close_all_practice_trades";
+
+export type AgentOwnerApprovalMethod =
+  | "browser_confirm"
+  | "wallet_signature";
+
+export interface AgentOwnerApprovalDetail {
+  label: string;
+  value: string;
+}
+
+export interface AgentOwnerApproval {
+  id: string;
+  walletName: string;
+  agentId?: string;
+  action: AgentOwnerActionKind;
+  summary: string;
+  details: AgentOwnerApprovalDetail[];
+  targetType?: "agent" | "session" | "proposal" | "execution" | "policy" | "venue";
+  targetId?: string;
+  approvalMethod: AgentOwnerApprovalMethod;
+  approvedBy?: string | null;
+  signature?: string | null;
+  approvalHash: string;
+  createdAt: number;
+  version: AgentVersion;
+}
+
 export interface AgentProfile {
   id: string;
   walletName: string;
   name: string;
   kind: AgentKind;
   status: AgentStatus;
+  /// Set only for prepared ClearSig traders chosen from the Trader Library.
+  libraryTraderId?: string;
   /// Optional public signing / API identity for the agent. This is
   /// not custody. It only identifies the agent that authored an intent.
   identityPubkey?: string;
@@ -87,9 +130,13 @@ export interface AgentTradeProposal {
   thesis?: string;
   encryptedThesis?: EncryptedPayload;
   confidence: number;
+  clientSignalId?: string;
   expiresAt: number;
   evaluationDecision?: AgentPolicyDecision;
   policyViolations?: AgentPolicyViolation[];
+  /// SHA-256 commitment to the vault policy used when this signal was
+  /// evaluated. Future Solana/Ika grants can bind execution to this digest.
+  policyHash?: string;
   status: AgentProposalStatus;
   createdAt: number;
   updatedAt: number;
@@ -107,6 +154,10 @@ export interface AgentExecutionRecord {
   orderType: TradeOrderType;
   notionalUsd: string;
   leverage: number;
+  executionMode?: AgentExecutionMode;
+  adapterStatus?: AgentExecutionAdapterStatus;
+  externalOrderId?: string | null;
+  policyHash?: string;
   status: AgentExecutionStatus;
   openedAt: number;
   closedAt?: number | null;
@@ -116,6 +167,9 @@ export interface AgentExecutionRecord {
 
 export type AgentAuditEventKind =
   | "agent_status_changed"
+  | "connection_key_rotated"
+  | "owner_action_approved"
+  | "policy_emergency_pause_changed"
   | "proposal_created"
   | "proposal_approved"
   | "proposal_rejected"
@@ -123,6 +177,7 @@ export type AgentAuditEventKind =
   | "proposal_executed"
   | "execution_opened"
   | "execution_closed"
+  | "execution_bulk_closed"
   | "session_status_changed"
   | "session_renewed";
 
@@ -138,9 +193,48 @@ export interface AgentAuditEvent {
   version: AgentVersion;
 }
 
+export interface AgentConnectionKit {
+  walletName: string;
+  agentId: string;
+  signalKey: string;
+  managementKey: string;
+  autoImportSessionSignals: boolean;
+  createdAt: number;
+  updatedAt: number;
+  version: AgentVersion;
+}
+
+export interface AgentSignalInboxItem {
+  id: string;
+  walletName: string;
+  agentId: string;
+  payload: {
+    clientSignalId?: string;
+    submittedAt?: number;
+    venue: TradingVenue;
+    market: string;
+    side: TradeSide;
+    orderType?: TradeOrderType;
+    notionalUsd: string;
+    leverage: number;
+    entryPrice?: string | null;
+    stopLossPrice?: string | null;
+    takeProfitPrice?: string | null;
+    confidence?: number;
+    expiresInMinutes?: number;
+    thesis?: string;
+  };
+  receivedAt: number;
+  version: AgentVersion;
+}
+
 export interface AgentVaultPolicy {
   id: string;
   walletName: string;
+  /// Stable SHA-256 commitment to the plaintext policy controls. This is
+  /// deliberately kept alongside encrypted policy fields so authority grants
+  /// can prove which private rule set they were bound to.
+  policyHash?: string;
   enabled: boolean;
   emergencyPaused: boolean;
   allowedVenues: TradingVenue[];
@@ -180,6 +274,10 @@ export interface AgentSessionGrant {
   maxNotionalUsd?: string;
   maxLeverage?: number;
   maxOpenPositions?: number;
+  /// Human-approved leaderboard allocation tier used to prefill this grant.
+  allocationTierId?: AgentAllocationTierId;
+  /// Policy hash the session was issued under.
+  policyHash?: string;
   createdAt: number;
   updatedAt: number;
   version: AgentVersion;
@@ -200,11 +298,13 @@ export type AgentPolicyDecision =
 
 export type AgentPolicyViolationCode =
   | "policy_disabled"
+  | "policy_incomplete"
   | "emergency_paused"
   | "agent_not_active"
   | "session_missing"
   | "session_inactive"
   | "session_expired"
+  | "session_policy_stale"
   | "venue_not_allowed"
   | "market_not_allowed"
   | "invalid_notional"
@@ -266,4 +366,33 @@ export interface AgentLeaderboardEntry {
     executionScore: number;
     trustPenalty: number;
   };
+}
+
+export type AgentReadinessStatus = "ready" | "needs_setup" | "blocked";
+
+export type AgentReadinessItemStatus = "pass" | "todo" | "block";
+
+export type AgentReadinessAction =
+  | "none"
+  | "risk_limits"
+  | "strategy"
+  | "session"
+  | "agent";
+
+export interface AgentReadinessItem {
+  id: string;
+  label: string;
+  status: AgentReadinessItemStatus;
+  message: string;
+  action: AgentReadinessAction;
+}
+
+export interface AgentTradingReadiness {
+  agentId: string;
+  status: AgentReadinessStatus;
+  headline: string;
+  summary: string;
+  score: number;
+  primaryAction: AgentReadinessAction;
+  items: AgentReadinessItem[];
 }
