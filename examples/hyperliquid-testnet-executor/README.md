@@ -40,7 +40,7 @@ the computer from asking the helper to place a trade.
 Create one:
 
 ```bash
-openssl rand -hex 32
+python3 generate_token.py
 ```
 
 Put the same result in two private, ignored files:
@@ -49,6 +49,49 @@ Put the same result in two private, ignored files:
 - `CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_TOKEN` in `frontend/.env.local`
 
 Never put the result in an `.env.example` file.
+
+## Where To Get Each Value
+
+Use these three values for `frontend/.env.local`:
+
+```env
+CLEARSIG_HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS=<1-main-practice-account-address>
+CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_URL=http://127.0.0.1:4010
+CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_TOKEN=<3-shared-password-you-created>
+```
+
+Use these three values for `examples/hyperliquid-testnet-executor/.env`:
+
+```env
+HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS=<1-same-main-practice-account-address>
+HYPERLIQUID_TESTNET_API_WALLET_PRIVATE_KEY=<2-separate-api-wallet-private-key>
+CLEARSIG_EXECUTOR_TOKEN=<3-same-shared-password-you-created>
+```
+
+1. `HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS` /
+   `CLEARSIG_HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS`
+   - Get it from the main Hyperliquid practice account that owns the practice
+     funds.
+   - It is public. ClearSig uses it to read balance, open trades, and live
+     practice P/L.
+   - It should look like `0x` followed by 40 letters or numbers.
+
+2. `HYPERLIQUID_TESTNET_API_WALLET_PRIVATE_KEY`
+   - Get it from the separate API wallet approved by that main Hyperliquid
+     practice account.
+   - Keep it only in the helper `.env` file. Do not put it in
+     `frontend/.env.local`, browser code, chat, or GitHub.
+   - If this value was ever pasted somewhere public, revoke that API wallet and
+     create a fresh one.
+
+3. `CLEARSIG_EXECUTOR_TOKEN` /
+   `CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_TOKEN`
+   - Create it yourself with `python3 generate_token.py`.
+   - Hyperliquid does not provide this value.
+   - Paste the exact same generated value into both private env files.
+
+`CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_URL` is the helper address. For local
+testing, use `http://127.0.0.1:4010`.
 
 ## Where Trades And Profit Appear
 
@@ -106,7 +149,7 @@ Do not put real values in `.env.example`.
 Create a strong shared password with a password manager or:
 
 ```bash
-openssl rand -hex 32
+python3 generate_token.py
 ```
 
 Start the helper:
