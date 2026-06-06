@@ -207,12 +207,12 @@ export default function StartTradingPage() {
   ).filter((event) => event.agentId === selectedAgent?.id);
   const openExecutions = executions.filter((execution) => execution.status === "open");
   const closedExecutions = executions.filter((execution) => execution.status === "closed");
-  const submittedVenueRequests =
+  const venueRequests =
     outside?.requests?.filter(
-      (request) =>
-        request.status === "submitted" &&
-        request.request.agentId === selectedAgent?.id,
+      (request) => request.request.agentId === selectedAgent?.id,
     ) ?? [];
+  const submittedVenueRequests =
+    venueRequests.filter((request) => request.status === "submitted");
   const activeAllowance = selectedAgent
     ? sessions.find(
         (session) =>
@@ -675,6 +675,7 @@ export default function StartTradingPage() {
         marketSnapshot={marketSnapshot}
         marketStatus={marketStatus}
         accountSnapshot={outside?.accountSnapshot ?? null}
+        venueRequests={venueRequests}
         submittedVenueRequests={submittedVenueRequests.length}
         pending={pending}
         onPauseAgent={pauseThisTrader}
@@ -889,6 +890,7 @@ function TradingControlRoom({
   marketSnapshot,
   marketStatus,
   accountSnapshot,
+  venueRequests,
   submittedVenueRequests,
   pending,
   onPauseAgent,
@@ -906,6 +908,7 @@ function TradingControlRoom({
   marketSnapshot: AgentMarketDataSnapshot | null;
   marketStatus: string;
   accountSnapshot: AgentVenueReadiness["accountSnapshot"] | null;
+  venueRequests: NonNullable<AgentVenueReadiness["requests"]>;
   submittedVenueRequests: number;
   pending: boolean;
   onPauseAgent: () => void;
@@ -1054,6 +1057,26 @@ function TradingControlRoom({
             ) : (
               <EmptyControlLine text="No Hyperliquid practice positions are open right now." />
             )}
+          </div>
+          <div className="mt-4 border-t border-border-soft pt-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-text-strong">Venue activity</p>
+              <span className="text-[11px] text-text-soft">
+                {venueRequests.length} request{venueRequests.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <div className="grid gap-2">
+              {venueRequests.length > 0 ? (
+                venueRequests.slice(0, 5).map((request, index) => (
+                  <VenueRequestRow
+                    key={request.id ?? `${request.request.proposalId}:${index}`}
+                    request={request}
+                  />
+                ))
+              ) : (
+                <EmptyControlLine text="No venue trade requests have been sent yet." />
+              )}
+            </div>
           </div>
         </CollapsibleControlPanel>
       ) : null}
@@ -1261,6 +1284,55 @@ function VenuePositionRow({
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function VenueRequestRow({
+  request,
+}: {
+  request: NonNullable<AgentVenueReadiness["requests"]>[number];
+}) {
+  const submitted = request.status === "submitted";
+  const rejected = request.status === "rejected" || request.status === "adapter_error";
+  const market = request.request.market ?? "Trade";
+  const size = request.request.notionalUsd ? formatUsd(request.request.notionalUsd) : "Size unknown";
+  return (
+    <div className="min-w-0 rounded-soft border border-border-soft bg-canvas px-3 py-2">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="break-words text-xs font-semibold text-text-strong">
+            {market} {request.request.side ?? ""}
+          </p>
+          <p className="mt-1 break-words text-[11px] text-text-soft">
+            {size}
+            {typeof request.request.leverage === "number" ? ` · ${request.request.leverage}x` : ""}
+            {request.artifact?.orderId ? ` · Order ${request.artifact.orderId}` : ""}
+          </p>
+        </div>
+        <span
+          className={clsx(
+            "rounded-full border px-2 py-1 text-[10px] font-medium",
+            submitted
+              ? "border-accent/30 bg-accent/[0.08] text-accent"
+              : rejected
+                ? "border-warning/30 bg-warning/[0.08] text-warning"
+                : "border-border-soft text-text-soft",
+          )}
+        >
+          {venueRequestStatusLabel(request.status)}
+        </span>
+      </div>
+      {request.message ? (
+        <p className="mt-2 break-words text-xs leading-relaxed text-text-soft">
+          {request.message}
+        </p>
+      ) : null}
+      {request.updatedAt ? (
+        <p className="mt-1 text-[11px] text-text-muted">
+          {new Date(request.updatedAt).toLocaleString()}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -1542,6 +1614,23 @@ function venueLabel(venue: TradingLaunchVenue | AgentExecutionRecord["venue"]): 
       return "Hyperliquid practice";
     case "bulktrade_mock":
       return "Bulk practice";
+  }
+}
+
+function venueRequestStatusLabel(status: string): string {
+  switch (status) {
+    case "submitted":
+      return "Submitted";
+    case "waiting_for_setup":
+      return "Waiting for setup";
+    case "adapter_not_connected":
+      return "Connection pending";
+    case "adapter_error":
+      return "Connection error";
+    case "rejected":
+      return "Stopped";
+    default:
+      return status.replaceAll("_", " ");
   }
 }
 

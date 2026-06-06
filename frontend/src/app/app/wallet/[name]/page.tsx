@@ -24,7 +24,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { proposerDisplayName } from "@/lib/retail/proposerName";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ArrowRight, Banknote, Bell, ChevronDown, Coins, Download, Layers, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users } from "lucide-react";
+import { Activity, ArrowRight, Banknote, Bell, Bot, ChevronDown, Coins, Download, Layers, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users } from "lucide-react";
 import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -977,7 +977,7 @@ function Hero({
           />
 
           <div
-            className="grid grid-cols-3 gap-2 sm:gap-3"
+            className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3"
             role="group"
             aria-label="Wallet actions"
           >
@@ -998,6 +998,12 @@ function Hero({
               icon={<ShieldCheck className="h-5 w-5" strokeWidth={1.75} />}
               label="Rules"
               hint="Controls"
+            />
+            <HeroActionTile
+              href={`/app/wallet/${encoded}/agents`}
+              icon={<Bot className="h-5 w-5" strokeWidth={1.75} />}
+              label="Agent Trading"
+              hint="Automate"
             />
           </div>
         </div>
@@ -1035,7 +1041,7 @@ function HeroActionTile({
       <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/10 text-accent transition-colors duration-base ease-out-soft group-hover:bg-accent/15">
         {icon}
       </span>
-      <span className="text-[13px] font-semibold leading-none text-text-strong">
+      <span className="text-center text-[13px] font-semibold leading-tight text-text-strong">
         {label}
       </span>
       {hint && (
@@ -1533,6 +1539,12 @@ function Actions({
           icon={ShieldCheck}
           title="Rules"
           body="Approvals, rules, limits, and notifications."
+        />
+        <ActionRow
+          href={`/app/wallet/${encoded}/agents`}
+          icon={Bot}
+          title="Agent Trading"
+          body="Choose traders, set allowances, and watch trades."
         />
         <ActionRow
           href={`/app/wallet/${encoded}/settings`}

@@ -71,6 +71,34 @@ describe("client execution handoff", () => {
           observedAt: 1_780_000_000_000,
           message: "Hyperliquid testnet account is reachable and funded.",
         },
+        requests: [
+          {
+            id: "request-1",
+            status: "submitted",
+            message: "Hyperliquid testnet order 123 was filled.",
+            readinessState: "ready",
+            artifact: {
+              exchange: "hyperliquid_testnet",
+              orderId: "123",
+              status: "filled",
+              market: "BTC-PERP",
+              side: "long",
+              submittedAt: 1_780_000_001_000,
+            },
+            createdAt: 1_780_000_001_000,
+            updatedAt: 1_780_000_001_000,
+            request: {
+              walletName: "vault",
+              agentId: "agent-alpha",
+              proposalId: "proposal-1",
+              venue: "hyperliquid_testnet",
+              market: "BTC-PERP",
+              side: "long",
+              notionalUsd: "250",
+              leverage: 1,
+            },
+          },
+        ],
       })),
     );
 
@@ -79,6 +107,7 @@ describe("client execution handoff", () => {
     expect(readiness?.state).toBe("not_configured");
     expect(readiness?.accountProbe?.state).toBe("empty");
     expect(readiness?.accountSnapshot?.positions[0]?.market).toBe("BTC-PERP");
+    expect(readiness?.requests?.[0]?.artifact?.orderId).toBe("123");
     expect(fetch).toHaveBeenCalledWith("/api/agent-execution/hyperliquid_testnet");
   });
 

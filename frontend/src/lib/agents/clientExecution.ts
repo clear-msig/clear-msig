@@ -8,6 +8,7 @@ import type {
   HyperliquidTestnetAccountProbe,
   HyperliquidTestnetAccountSnapshot,
   HyperliquidTestnetExecutorProbe,
+  HyperliquidTestnetOrderArtifact,
 } from "@/lib/agents/serverHyperliquidTestnet";
 
 export type AgentVenueReadiness = AgentServerExecutionReadiness & {
@@ -15,12 +16,22 @@ export type AgentVenueReadiness = AgentServerExecutionReadiness & {
   accountSnapshot?: HyperliquidTestnetAccountSnapshot | null;
   executorProbe?: HyperliquidTestnetExecutorProbe | null;
   requests?: Array<{
+    id?: string;
     status: string;
+    message?: string;
+    readinessState?: string;
+    artifact?: HyperliquidTestnetOrderArtifact;
+    createdAt?: number;
+    updatedAt?: number;
     request: {
       walletName: string;
       agentId: string;
       proposalId: string;
       venue: AgentTradeProposal["venue"];
+      market?: string;
+      side?: AgentTradeProposal["side"];
+      notionalUsd?: string;
+      leverage?: number;
     };
   }>;
 };
