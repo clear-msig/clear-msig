@@ -223,6 +223,11 @@ Phase 5 has started with the execution adapter boundary:
   agent track records become simple raise, fund, lower, keep, or review
   allowance recommendations. Recommendations are still bounded by the current
   vault policy and route through the owner-approved allowance form.
+- trade ideas now carry a structured decision journal. It records why the
+  agent wanted the trade, technical/fundamental/news context, risk and exit
+  logic, policy-check outcome, and evidence tags. The overview and trade
+  history show this explanation so users can judge whether the agent is trading
+  logically, not just whether a trade won or lost.
 - paper execution records are now part of backend agent state too. Opening,
   rechecking into, and closing paper trades sync execution records server-side;
   backend risk snapshots use open executions instead of trusting proposal

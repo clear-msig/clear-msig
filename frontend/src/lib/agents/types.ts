@@ -21,6 +21,40 @@ export type TradeSide = "long" | "short";
 
 export type TradeOrderType = "market" | "limit";
 
+export type AgentTradeDecisionEvidenceKind =
+  | "market_data"
+  | "technical"
+  | "fundamental"
+  | "news"
+  | "macro"
+  | "strategy"
+  | "risk";
+
+export interface AgentTradeDecisionEvidence {
+  id: string;
+  kind: AgentTradeDecisionEvidenceKind;
+  label: string;
+  summary: string;
+  source?: string;
+  observedAt?: number;
+}
+
+export interface AgentTradeDecisionJournal {
+  summary: string;
+  entryReason: string;
+  technicalSummary?: string;
+  fundamentalSummary?: string;
+  newsSummary?: string;
+  riskPlan: string;
+  exitPlan: string;
+  invalidation: string;
+  policySummary: string;
+  confidenceRationale: string;
+  evidence: AgentTradeDecisionEvidence[];
+  createdAt: number;
+  version: AgentVersion;
+}
+
 export type AgentTradingMode =
   | "read_only"
   | "paper"
@@ -150,6 +184,7 @@ export interface AgentTradeProposal {
   takeProfitPrice?: string | null;
   thesis?: string;
   encryptedThesis?: EncryptedPayload;
+  decisionJournal?: AgentTradeDecisionJournal;
   confidence: number;
   clientSignalId?: string;
   expiresAt: number;

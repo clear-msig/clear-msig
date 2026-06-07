@@ -2029,6 +2029,13 @@ function ProposalCard({
               {proposal.policyViolations[0]?.message}
             </p>
           ) : null}
+          {proposal.decisionJournal ? (
+            <DecisionJournalSummary proposal={proposal} />
+          ) : proposal.thesis ? (
+            <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-text-soft">
+              {proposal.thesis}
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <span className="text-[11px] font-medium text-text-soft">
@@ -2046,6 +2053,51 @@ function ProposalCard({
         </div>
       </div>
     </li>
+  );
+}
+
+function DecisionJournalSummary({ proposal }: { proposal: AgentTradeProposal }) {
+  const journal = proposal.decisionJournal;
+  if (!journal) return null;
+  return (
+    <div className="mt-3 rounded-soft border border-border-soft bg-canvas p-3">
+      <p className="text-[11px] font-semibold text-text-strong">
+        Why this trade
+      </p>
+      <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-text-soft">
+        {journal.summary}
+      </p>
+      <div className="mt-2 grid gap-1.5 sm:grid-cols-3">
+        <MiniReason label="Risk" value={journal.riskPlan} />
+        <MiniReason label="Exit" value={journal.exitPlan} />
+        <MiniReason label="Rules" value={journal.policySummary} />
+      </div>
+      {journal.evidence.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {journal.evidence.slice(0, 4).map((item) => (
+            <span
+              key={item.id}
+              className="rounded-full border border-border-soft bg-surface-raised px-2 py-0.5 text-[10px] font-medium text-text-soft"
+            >
+              {evidenceLabel(item.kind)}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function MiniReason({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-soft border border-border-soft bg-surface-raised px-2 py-1.5">
+      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-soft">
+        {label}
+      </p>
+      <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-text-strong">
+        {value}
+      </p>
+    </div>
   );
 }
 
@@ -2380,6 +2432,27 @@ function tradingPlaceLabel(venue: TradingVenue): string {
       return "Hyperliquid Testnet";
     case "bulktrade_mock":
       return "Built-in practice";
+  }
+}
+
+function evidenceLabel(
+  kind: NonNullable<AgentTradeProposal["decisionJournal"]>["evidence"][number]["kind"],
+): string {
+  switch (kind) {
+    case "market_data":
+      return "Market data";
+    case "technical":
+      return "Technical";
+    case "fundamental":
+      return "Fundamental";
+    case "news":
+      return "News";
+    case "macro":
+      return "Macro";
+    case "strategy":
+      return "Strategy";
+    case "risk":
+      return "Risk";
   }
 }
 

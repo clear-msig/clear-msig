@@ -12,6 +12,7 @@ import {
   closeOpenMockAgentExecutions,
   estimateAgentOpenTradePerformance,
   listAgentExecutions,
+  listAgentProposals,
   listAgents,
   subscribeAgents,
   summarizeAgentTradePerformance,
@@ -19,6 +20,7 @@ import {
   type AgentExecutionRecord,
   type AgentMarketDataSnapshot,
   type AgentProfile,
+  type AgentTradeProposal,
 } from "@/lib/agents";
 import { loadAgentMarketDataSnapshots } from "@/lib/agents/clientMarketData";
 import { toDisplayName } from "@/lib/retail/walletNames";
@@ -34,6 +36,7 @@ export default function AgentTradesPage() {
   const display = toDisplayName(name);
   const [agents, setAgents] = useState<AgentProfile[]>([]);
   const [executions, setExecutions] = useState<AgentExecutionRecord[]>([]);
+  const [proposals, setProposals] = useState<AgentTradeProposal[]>([]);
   const [marketByMarket, setMarketByMarket] = useState<Record<string, AgentMarketDataSnapshot>>({});
   const [filter, setFilter] = useState<TradeFilter>("open");
   const [agentFilter, setAgentFilter] = useState("all");
@@ -42,6 +45,7 @@ export default function AgentTradesPage() {
     const refresh = () => {
       setAgents(listAgents(name));
       setExecutions(listAgentExecutions(name));
+      setProposals(listAgentProposals(name));
     };
     refresh();
     return subscribeAgents(refresh);
@@ -195,6 +199,7 @@ export default function AgentTradesPage() {
               key={execution.id}
               execution={execution}
               agent={agents.find((item) => item.id === execution.agentId)}
+              proposal={proposals.find((item) => item.id === execution.proposalId)}
               marketSnapshot={marketByMarket[execution.market.trim().toUpperCase()] ?? null}
               pending={pending}
               onClose={closeTrade}
@@ -213,12 +218,14 @@ export default function AgentTradesPage() {
 function TradeRow({
   execution,
   agent,
+  proposal,
   marketSnapshot,
   pending,
   onClose,
 }: {
   execution: AgentExecutionRecord;
   agent?: AgentProfile;
+  proposal?: AgentTradeProposal;
   marketSnapshot: AgentMarketDataSnapshot | null;
   pending: boolean;
   onClose: (id: string, pnlUsd: string) => void;
@@ -253,6 +260,24 @@ function TradeRow({
           <Metric label="Move" value={performance ? `${formatNumber(performance.movePct)}%` : "-"} compact />
         </div>
       </div>
+      {proposal?.decisionJournal ? (
+        <div className="mt-3 rounded-soft border border-border-soft bg-canvas p-3">
+          <p className="text-[11px] font-semibold text-text-strong">
+            Why it entered
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-text-soft">
+            {proposal.decisionJournal.summary}
+          </p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            <MiniReason label="Risk" value={proposal.decisionJournal.riskPlan} />
+            <MiniReason label="Exit" value={proposal.decisionJournal.exitPlan} />
+            <MiniReason
+              label="Rules"
+              value={proposal.decisionJournal.policySummary}
+            />
+          </div>
+        </div>
+      ) : null}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border-soft pt-3">
         <div className="flex flex-wrap gap-3 text-[11px] text-text-soft">
           <span>Opened {new Date(execution.openedAt).toLocaleString()}</span>
@@ -287,6 +312,19 @@ function TradeRow({
         )}
       </div>
     </article>
+  );
+}
+
+function MiniReason({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-soft border border-border-soft bg-surface-raised px-2 py-1.5">
+      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-soft">
+        {label}
+      </p>
+      <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-text-strong">
+        {value}
+      </p>
+    </div>
   );
 }
 

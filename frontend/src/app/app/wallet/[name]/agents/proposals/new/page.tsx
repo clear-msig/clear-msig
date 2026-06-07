@@ -10,6 +10,7 @@ import {
   encryptAgentTradeProposal,
   evaluateAgentTradeProposal,
   findAgent,
+  buildAgentTradeDecisionJournal,
   getAgentVaultPolicy,
   agentRiskSnapshot,
   listAgents,
@@ -69,6 +70,10 @@ export default function NewAgentProposalPage() {
   const [confidence, setConfidence] = useState("70");
   const [expiresMinutes, setExpiresMinutes] = useState("15");
   const [thesis, setThesis] = useState("");
+  const [technicalSummary, setTechnicalSummary] = useState("");
+  const [fundamentalSummary, setFundamentalSummary] = useState("");
+  const [newsSummary, setNewsSummary] = useState("");
+  const [riskPlan, setRiskPlan] = useState("");
   const [preview, setPreview] = useState<AgentPolicyEvaluation | null>(null);
 
   useEffect(() => {
@@ -130,7 +135,22 @@ export default function NewAgentProposalPage() {
       risk: agentRiskSnapshot(name, agent.id),
       now,
     });
-    return { proposal, evaluation };
+    return {
+      proposal: {
+        ...proposal,
+        decisionJournal: buildAgentTradeDecisionJournal({
+          agent,
+          proposal,
+          evaluation,
+          technicalSummary,
+          fundamentalSummary,
+          newsSummary,
+          riskPlan,
+          now,
+        }),
+      },
+      evaluation,
+    };
   };
 
   const previewProposal = () => {
@@ -328,6 +348,36 @@ export default function NewAgentProposalPage() {
             />
           </label>
 
+          <fieldset className="grid gap-3 rounded-card border border-border-soft bg-canvas p-3 sm:grid-cols-2">
+            <legend className="px-1 text-xs font-semibold text-text-strong">
+              Research notes
+            </legend>
+            <TextAreaField
+              label="Technical read"
+              value={technicalSummary}
+              onChange={setTechnicalSummary}
+              placeholder="Trend, support, breakout, momentum, funding, volume."
+            />
+            <TextAreaField
+              label="Fundamental read"
+              value={fundamentalSummary}
+              onChange={setFundamentalSummary}
+              placeholder="Protocol, launch, liquidity, earnings, treasury, token supply."
+            />
+            <TextAreaField
+              label="News / macro context"
+              value={newsSummary}
+              onChange={setNewsSummary}
+              placeholder="US macro, geopolitics, regulation, war risk, major headlines."
+            />
+            <TextAreaField
+              label="Risk plan"
+              value={riskPlan}
+              onChange={setRiskPlan}
+              placeholder="What can go wrong, invalidation, position sizing logic."
+            />
+          </fieldset>
+
           {preview ? <DecisionPreview preview={preview} /> : null}
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border-soft pt-4">
@@ -415,6 +465,31 @@ function TextField({
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         className={INPUT_CLASS}
+      />
+    </label>
+  );
+}
+
+function TextAreaField({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-text-soft">{label}</span>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        rows={3}
+        className={clsx(INPUT_CLASS, "resize-none leading-relaxed")}
       />
     </label>
   );

@@ -28,6 +28,7 @@ import {
   closeOpenMockAgentExecutions,
   createClearSigLibraryPracticeIdea,
   createBrowserOwnerApproval,
+  buildAgentTradeDecisionJournal,
   decryptAgentVaultPolicy,
   estimateAgentOpenTradePerformance,
   evaluateAgentTradeProposal,
@@ -502,6 +503,12 @@ export default function StartTradingPage() {
               : "blocked",
         evaluationDecision: evaluation.decision,
         policyViolations: evaluation.violations,
+        decisionJournal: buildAgentTradeDecisionJournal({
+          agent: selectedAgent,
+          proposal: draft,
+          evaluation,
+          marketData: marketSnapshot,
+        }),
         updatedAt: Date.now(),
       };
       const result =
