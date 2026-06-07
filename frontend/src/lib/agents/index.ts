@@ -6,6 +6,7 @@ export * from "@/lib/agents/scoring";
 export * from "@/lib/agents/allocation";
 export * from "@/lib/agents/libraryMetrics";
 export * from "@/lib/agents/funding";
+export * from "@/lib/agents/scout";
 export * from "@/lib/agents/decisionJournal";
 export * from "@/lib/agents/postTradeReview";
 export * from "@/lib/agents/traderLibrary";

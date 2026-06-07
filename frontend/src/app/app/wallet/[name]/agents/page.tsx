@@ -39,6 +39,8 @@ import {
   agentSessionPolicyBindingStatus,
   approveAgentProposal,
   buildAgentBetaReadiness,
+  buildAgentScoutProposal,
+  buildAgentScoutReports,
   buildAgentTradingReadiness,
   closeMockAgentExecution,
   closeOpenMockAgentExecutions,
@@ -55,16 +57,20 @@ import {
   listAgentSessions,
   listAgents,
   isAgentSessionCurrent,
+  newAgentProposalId,
   openAgentPaperTrade,
   rejectAgentProposal,
   recheckAgentProposal,
   renewAgentSession,
+  saveAgentProposal,
+  saveAgentProposalAndExecuteIfAllowed,
   setAgentVaultEmergencyPause,
   setupAgentBetaDemo,
   subscribeAgents,
   syncAgentEmergencyPause,
   syncAgentExecution,
   syncAgentProfile,
+  syncAgentProposal,
   syncAgentProposalApproval,
   syncAgentProposalRejection,
   syncAgentSession,
@@ -85,6 +91,7 @@ import {
   type AgentMarketDataSnapshot,
   type AgentReadinessAction,
   type AgentProposalStatus,
+  type AgentScoutReport,
   type TradingVenue,
   type AgentTradingReadiness,
   type AgentAllocationRecommendation,
@@ -274,30 +281,38 @@ export default function AgentsPage() {
     () => executions.filter((execution) => execution.status === "open"),
     [executions],
   );
-  const openMarketKey = useMemo(
+  const watchedMarketKey = useMemo(
     () =>
-      openExecutionRecords
-        .map((execution) => execution.market.trim().toUpperCase())
+      Array.from(
+        new Set([
+          ...openExecutionRecords.map((execution) => execution.market.trim().toUpperCase()),
+          ...agents
+            .filter((agent) => agent.status === "active")
+            .flatMap((agent) => agent.strategy?.allowedMarkets ?? [])
+            .map((market) => market.trim().toUpperCase()),
+        ]),
+      )
         .filter(Boolean)
         .sort()
+        .slice(0, 8)
         .join("|"),
-    [openExecutionRecords],
+    [agents, openExecutionRecords],
   );
 
   useEffect(() => {
-    const openMarkets = openMarketKey ? openMarketKey.split("|") : [];
-    if (openMarkets.length === 0) {
+    const watchedMarkets = watchedMarketKey ? watchedMarketKey.split("|") : [];
+    if (watchedMarkets.length === 0) {
       setMarketByMarket({});
       return;
     }
     let cancelled = false;
-    void loadAgentMarketDataSnapshots(openMarkets).then((snapshots) => {
+    void loadAgentMarketDataSnapshots(watchedMarkets).then((snapshots) => {
       if (!cancelled) setMarketByMarket(snapshots);
     });
     return () => {
       cancelled = true;
     };
-  }, [openMarketKey]);
+  }, [watchedMarketKey]);
 
   const motionProps = reduce
     ? {}
@@ -325,6 +340,20 @@ export default function AgentsPage() {
     );
   }, [agents, name, policy, sessions]);
   const readyAgents = readiness.filter((item) => item.status === "ready").length;
+  const scoutReports = useMemo<AgentScoutReport[]>(() => {
+    if (!policy) return [];
+    const now = Date.now();
+    return buildAgentScoutReports({
+      agents,
+      policy,
+      sessions,
+      marketByMarket,
+      risksByAgent: Object.fromEntries(
+        agents.map((agent) => [agent.id, agentRiskSnapshot(name, agent.id)]),
+      ),
+      now,
+    }).slice(0, 3);
+  }, [agents, marketByMarket, name, policy, sessions]);
   const gettingStartedSteps = useMemo<GettingStartedStep[]>(() => {
     const firstAgent = agents[0];
     const firstReadiness = firstAgent
@@ -459,6 +488,68 @@ export default function AgentsPage() {
     proposals,
     sessions,
   ]);
+
+  const prepareScoutIdea = (report: AgentScoutReport) => {
+    startAction(async () => {
+      if (!policy) {
+        toast.error("Finish safety rules before preparing scout ideas");
+        return;
+      }
+      const agent = agents.find((item) => item.id === report.agentId);
+      if (!agent) {
+        toast.error("Trader not found");
+        return;
+      }
+      const now = Date.now();
+      const activeSession =
+        sessions.find(
+          (session) =>
+            session.agentId === agent.id &&
+            isAgentSessionCurrent(session, policy, now),
+        ) ?? null;
+      const built = buildAgentScoutProposal({
+        report,
+        agent,
+        policy,
+        session: activeSession,
+        risk: agentRiskSnapshot(name, agent.id),
+        id: newAgentProposalId(),
+        now,
+      });
+      const result =
+        built.evaluation.decision === "allowed" &&
+        canOpenLocalAgentExecution(built.proposal.venue)
+          ? saveAgentProposalAndExecuteIfAllowed(built.proposal)
+          : { proposal: saveAgentProposal(built.proposal), execution: null };
+      const syncedProposal = await syncAgentProposal(result.proposal);
+      if (result.execution) {
+        const syncedExecution = await syncAgentExecution(result.execution);
+        if (syncedProposal.ok && syncedExecution.ok) {
+          toast.success("Scout idea opened as a practice trade");
+          void refreshBackendState();
+        } else {
+          toast.info("Scout idea opened on this device for now");
+        }
+        return;
+      }
+      if (built.evaluation.decision === "allowed") {
+        toast.success("Scout idea is ready", {
+          details: canOpenLocalAgentExecution(built.proposal.venue)
+            ? undefined
+            : "Send it to the connected practice venue from Recent trade ideas.",
+        });
+      } else if (built.evaluation.decision === "requires_human_approval") {
+        toast.info("Scout idea needs approval");
+      } else {
+        toast.info("ClearSig stopped the scout idea", {
+          details: built.evaluation.violations[0]?.message,
+        });
+      }
+      if (syncedProposal.ok) {
+        void refreshBackendState();
+      }
+    });
+  };
 
   const setKillSwitch = (enabled: boolean) => {
     startAction(() => {
@@ -931,6 +1022,14 @@ export default function AgentsPage() {
         />
       ) : null}
 
+      {scoutReports.length > 0 ? (
+        <ScoutPanel
+          reports={scoutReports}
+          pending={pendingAction}
+          onPrepare={prepareScoutIdea}
+        />
+      ) : null}
+
       <LiveVenuePanel
         readiness={liveVenueReadiness}
         loading={liveVenueLoading}
@@ -1220,6 +1319,170 @@ function ReadinessPanel({
         })}
       </div>
     </section>
+  );
+}
+
+function ScoutPanel({
+  reports,
+  pending,
+  onPrepare,
+}: {
+  reports: AgentScoutReport[];
+  pending: boolean;
+  onPrepare: (report: AgentScoutReport) => void;
+}) {
+  const ready = reports.filter((report) => report.status === "ready").length;
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+              <BrainCircuit className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <div>
+              <h2 className="text-sm font-semibold text-text-strong">
+                Agent scout
+              </h2>
+              <p className="mt-0.5 text-xs text-text-soft">
+                {ready} ready · {reports.length} watching
+              </p>
+            </div>
+          </div>
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-text-soft">
+            Active traders are scanning their allowed markets and turning the
+            best read into a risk-checked practice idea.
+          </p>
+        </div>
+        <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
+          Scout · Analyze · Gate
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        {reports.map((report) => (
+          <ScoutCard
+            key={report.id}
+            report={report}
+            pending={pending}
+            onPrepare={onPrepare}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ScoutCard({
+  report,
+  pending,
+  onPrepare,
+}: {
+  report: AgentScoutReport;
+  pending: boolean;
+  onPrepare: (report: AgentScoutReport) => void;
+}) {
+  return (
+    <article className="rounded-soft border border-border-soft bg-canvas p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-text-strong">
+            {report.market} · {report.side}
+          </p>
+          <p className="mt-0.5 text-xs text-text-soft">{report.agentName}</p>
+        </div>
+        <ScoutStatusPill status={report.status} />
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <ScoutMiniMetric label="Score" value={`${report.score}/100`} />
+        <ScoutMiniMetric
+          label="Mark"
+          value={report.snapshot ? formatUsd(report.snapshot.markPriceUsd) : "Waiting"}
+        />
+        <ScoutMiniMetric
+          label="Funding"
+          value={
+            report.snapshot?.fundingRatePct == null
+              ? "Unknown"
+              : `${report.snapshot.fundingRatePct}%`
+          }
+        />
+      </div>
+      <p className="mt-3 line-clamp-3 text-xs leading-relaxed text-text-soft">
+        {report.thesis}
+      </p>
+      <div className="mt-3 grid gap-2">
+        <ScoutMiniReason label="Risk" value={report.riskPlan} />
+        <ScoutMiniReason label="Gate" value={report.policySummary} />
+      </div>
+      <button
+        type="button"
+        disabled={pending || report.status === "blocked"}
+        onClick={() => onPrepare(report)}
+        className={clsx(
+          "mt-3 inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-soft px-3 py-2 text-xs font-medium",
+          "transition-colors duration-base ease-out-soft",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+          "disabled:cursor-not-allowed disabled:opacity-60",
+          report.status === "ready"
+            ? "bg-accent text-text-on-accent hover:bg-accent-hover"
+            : "border border-border-soft text-text-strong hover:border-accent/60 hover:text-accent",
+        )}
+      >
+        <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+        {report.status === "ready" ? "Prepare and open" : "Prepare idea"}
+      </button>
+    </article>
+  );
+}
+
+function ScoutStatusPill({ status }: { status: AgentScoutReport["status"] }) {
+  const label =
+    status === "ready"
+      ? "Ready"
+      : status === "needs_approval"
+        ? "Approval"
+        : status === "blocked"
+          ? "Stopped"
+          : "Watching";
+  return (
+    <span
+      className={clsx(
+        "rounded-full border px-2 py-0.5 text-[10px] font-medium",
+        status === "ready" && "border-accent/30 bg-accent/[0.08] text-accent",
+        status === "needs_approval" && "border-warning/30 bg-warning/[0.08] text-warning",
+        status === "blocked" && "border-rose-500/30 bg-rose-500/[0.08] text-rose-300",
+        status === "watching" && "border-border-soft bg-surface-raised text-text-soft",
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+function ScoutMiniMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-soft border border-border-soft bg-surface-raised px-2 py-1.5">
+      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-soft">
+        {label}
+      </p>
+      <p className="mt-0.5 truncate text-[11px] font-semibold text-text-strong">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function ScoutMiniReason({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-soft border border-border-soft bg-surface-raised px-2 py-1.5">
+      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-soft">
+        {label}
+      </p>
+      <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-text-strong">
+        {value}
+      </p>
+    </div>
   );
 }
 

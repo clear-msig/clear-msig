@@ -232,6 +232,10 @@ Phase 5 has started with the execution adapter boundary:
   records whether the setup won, lost, or went flat, whether the thesis held,
   how risk compared with the plan, and what the agent should learn before users
   compare it for funding or leaderboard placement.
+- the Agent Trading overview now has an Agent Scout layer. Active traders scan
+  their allowed markets with available market data, rank the best setup, show
+  thesis/risk/policy context, and can turn the scout read into a normal
+  ClearSig-checked proposal or paper trade.
 - paper execution records are now part of backend agent state too. Opening,
   rechecking into, and closing paper trades sync execution records server-side;
   backend risk snapshots use open executions instead of trusting proposal
