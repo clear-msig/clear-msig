@@ -10,6 +10,8 @@ export * from "@/lib/agents/demoHistory";
 export * from "@/lib/agents/storage";
 export * from "@/lib/agents/readiness";
 export * from "@/lib/agents/launchReadiness";
+export * from "@/lib/agents/betaReadiness";
+export * from "@/lib/agents/tradePerformance";
 export * from "@/lib/agents/intake";
 export * from "@/lib/agents/executionAdapters";
 export * from "@/lib/agents/serverExecutionAdapters";

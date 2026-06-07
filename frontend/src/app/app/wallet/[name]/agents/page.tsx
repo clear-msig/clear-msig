@@ -11,6 +11,7 @@ import {
   Bot,
   BrainCircuit,
   Check,
+  ClipboardList,
   Clock,
   Database,
   Inbox,
@@ -34,6 +35,7 @@ import {
   agentRiskSnapshot,
   agentSessionPolicyBindingStatus,
   approveAgentProposal,
+  buildAgentBetaReadiness,
   buildAgentTradingReadiness,
   closeMockAgentExecution,
   closeOpenMockAgentExecutions,
@@ -41,8 +43,10 @@ import {
   estimateAgentOpenTradePerformance,
   executionUnavailableReason,
   getAgentVaultPolicy,
+  listAgentConnectionKits,
   listAgentEvents,
   listAgentExecutions,
+  listAgentOwnerApprovals,
   listAgentProposals,
   listAgentScorecards,
   listAgentSessions,
@@ -79,6 +83,7 @@ import {
   type TradingVenue,
   type AgentTradingReadiness,
   type AgentAllocationRecommendation,
+  type AgentBetaReadiness,
 } from "@/lib/agents";
 import {
   loadAgentInboxSummary,
@@ -388,6 +393,61 @@ export default function AgentsPage() {
       ]),
     );
   }, [agents, leaderboard, policy, scorecards, sessions]);
+  const betaReadiness = useMemo<AgentBetaReadiness | null>(() => {
+    if (!policy) return null;
+    const openMarkets = Array.from(
+      new Set(
+        openExecutionRecords
+          .map((execution) => execution.market.trim().toUpperCase())
+          .filter(Boolean),
+      ),
+    );
+    const connected =
+      liveVenueReadiness?.state === "ready" &&
+      liveVenueReadiness.executorProbe?.state === "ready" &&
+      liveVenueReadiness.accountProbe?.state === "funded";
+    return buildAgentBetaReadiness({
+      agents,
+      policy,
+      sessions,
+      executions,
+      proposals,
+      approvals: listAgentOwnerApprovals(name),
+      connections: listAgentConnectionKits(name),
+      backend: {
+        state: backendStatus.state,
+        storage: backendStatus.storage,
+      },
+      marketData: {
+        openMarkets: openMarkets.length,
+        pricedOpenMarkets: openMarkets.filter((market) => marketByMarket[market]).length,
+      },
+      venue: {
+        state: liveVenueLoading
+          ? "checking"
+          : connected
+            ? "connected"
+            : liveVenueReadiness
+              ? "needs_setup"
+              : "unavailable",
+      },
+      walletHref: `/app/wallet/${encoded}`,
+    });
+  }, [
+    agents,
+    backendStatus.state,
+    backendStatus.storage,
+    encoded,
+    executions,
+    liveVenueLoading,
+    liveVenueReadiness,
+    marketByMarket,
+    name,
+    openExecutionRecords,
+    policy,
+    proposals,
+    sessions,
+  ]);
 
   const setKillSwitch = (enabled: boolean) => {
     startAction(() => {
@@ -753,6 +813,28 @@ export default function AgentsPage() {
           Give allowance
         </Link>
         <Link
+          href={`/app/wallet/${encoded}/agents/trades`}
+          className={clsx(
+            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
+            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+          )}
+        >
+          <TrendingUp size={13} aria-hidden="true" />
+          Trades
+        </Link>
+        <Link
+          href={`/app/wallet/${encoded}/agents/approvals`}
+          className={clsx(
+            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
+            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+          )}
+        >
+          <ClipboardList size={13} aria-hidden="true" />
+          Approvals
+        </Link>
+        <Link
           href={`/app/wallet/${encoded}/agents/policy`}
           className={clsx(
             "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
@@ -789,6 +871,10 @@ export default function AgentsPage() {
       />
 
       <BackendPersistencePanel status={backendStatus} />
+
+      {betaReadiness ? (
+        <BetaReadinessPanel readiness={betaReadiness} />
+      ) : null}
 
       {agents.length === 0 ? (
         <EmptyAgents
@@ -1406,6 +1492,117 @@ function BackendPersistencePanel({
         >
           {checking ? "Checking" : synced ? "Saved" : "This device"}
         </span>
+      </div>
+    </section>
+  );
+}
+
+function BetaReadinessPanel({
+  readiness,
+}: {
+  readiness: AgentBetaReadiness;
+}) {
+  const ready = readiness.status === "ready";
+  const blocked = readiness.status === "blocked";
+  const topChecks = readiness.checks
+    .filter((check) => check.status !== "pass")
+    .slice(0, 4);
+  const visibleChecks =
+    topChecks.length > 0 ? topChecks : readiness.checks.slice(0, 4);
+  return (
+    <section
+      className={clsx(
+        "rounded-card border p-4 shadow-card-rest",
+        ready
+          ? "border-accent/30 bg-accent/[0.06]"
+          : blocked
+            ? "border-rose-500/30 bg-rose-500/[0.08]"
+            : "border-warning/30 bg-warning/[0.07]",
+      )}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            className={clsx(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+              ready
+                ? "bg-accent/10 text-accent"
+                : blocked
+                  ? "bg-rose-500/[0.12] text-rose-300"
+                  : "bg-warning/[0.12] text-warning",
+            )}
+          >
+            {ready ? (
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+            )}
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-sm font-semibold text-text-strong">
+                Public beta readiness
+              </h2>
+              <span
+                className={clsx(
+                  "rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                  ready
+                    ? "border-accent/30 bg-accent/[0.08] text-accent"
+                    : blocked
+                      ? "border-rose-500/30 bg-rose-500/[0.08] text-rose-300"
+                      : "border-warning/30 bg-warning/[0.08] text-warning",
+                )}
+              >
+                {readiness.score}% · {readiness.headline}
+              </span>
+            </div>
+            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-text-soft">
+              {readiness.summary}
+            </p>
+          </div>
+        </div>
+        <Link
+          href={topChecks[0]?.href ?? readiness.checks[0]?.href ?? "#"}
+          className="inline-flex min-h-9 items-center justify-center gap-1 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
+        >
+          Review
+          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </Link>
+      </div>
+      <div className="mt-4 grid gap-2 md:grid-cols-2">
+        {visibleChecks.map((check) => (
+          <div
+            key={check.id}
+            className="rounded-soft border border-border-soft bg-canvas px-3 py-2"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className={clsx(
+                  "h-2 w-2 rounded-full",
+                  check.status === "pass"
+                    ? "bg-accent"
+                    : check.status === "block"
+                      ? "bg-rose-400"
+                      : "bg-warning",
+                )}
+              />
+              <p className="text-xs font-semibold text-text-strong">
+                {check.label}
+              </p>
+              {check.href ? (
+                <Link
+                  href={check.href}
+                  className="text-[11px] font-medium text-accent hover:text-accent-hover"
+                >
+                  Open
+                </Link>
+              ) : null}
+            </div>
+            <p className="mt-1 text-xs leading-relaxed text-text-soft">
+              {check.message}
+            </p>
+          </div>
+        ))}
       </div>
     </section>
   );

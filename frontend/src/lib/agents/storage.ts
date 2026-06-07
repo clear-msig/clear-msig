@@ -156,6 +156,12 @@ export function getAgentConnectionKit(
   return kit;
 }
 
+export function listAgentConnectionKits(walletName: string): AgentConnectionKit[] {
+  return Object.values(readAll().connectionsByWallet[walletName] ?? {}).sort(
+    (a, b) => b.updatedAt - a.updatedAt,
+  );
+}
+
 export function rotateAgentSignalKey(
   walletName: string,
   agentId: string,
