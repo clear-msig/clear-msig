@@ -190,7 +190,7 @@ export function buildAgentBetaReadiness({
             : venue.state === "unavailable"
               ? "Outside venue diagnostics are unavailable; built-in paper trading can still be tested."
               : "Outside testnet venue needs setup; built-in paper trading can still be tested.",
-      href: `${walletHref}/agents/start?venue=hyperliquid_testnet`,
+      href: `${walletHref}/agents/hyperliquid`,
     },
     {
       id: "activity",

@@ -31,6 +31,7 @@ import {
   decryptAgentVaultPolicy,
   estimateAgentOpenTradePerformance,
   evaluateAgentTradeProposal,
+  getAgentHyperliquidSetupSettings,
   getAgentConnectionKit,
   getAgentVaultPolicy,
   isAgentSessionCurrent,
@@ -171,6 +172,7 @@ export default function StartTradingPage() {
         ? loadAgentVenueReadiness("hyperliquid_testnet", {
             walletName: name,
             agentId: selected.id,
+            accountAddress: getAgentHyperliquidSetupSettings(name).accountAddress,
           }).catch(() => null)
         : Promise.resolve(null),
       loadAgentBackendState(name).catch(() => null),
@@ -1634,22 +1636,9 @@ function actionForStep({
       );
     case "account":
     case "funding":
-      return (
-        <a
-          href="https://app.hyperliquid-testnet.xyz/"
-          target="_blank"
-          rel="noreferrer"
-          className={STEP_BUTTON_CLASS}
-        >
-          Open Hyperliquid practice
-          <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-        </a>
-      );
     case "protected_connection":
       return (
-        <span className="rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-soft">
-          Host action needed
-        </span>
+        <StepLink href={`${base}/hyperliquid`} label="Set up Hyperliquid" />
       );
     case "first_idea":
       if (agent?.kind === "mock") {

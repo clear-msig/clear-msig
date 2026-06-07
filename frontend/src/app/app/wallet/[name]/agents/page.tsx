@@ -69,6 +69,7 @@ import {
   syncAgentSession,
   syncAgentSessionStatus,
   loadAgentBackendState,
+  getAgentHyperliquidSetupSettings,
   updateAgentSessionStatus,
   updateAgentStatus,
   type AgentAuditEvent,
@@ -248,7 +249,10 @@ export default function AgentsPage() {
   useEffect(() => {
     let cancelled = false;
     setLiveVenueLoading(true);
-    loadAgentVenueReadiness("hyperliquid_testnet")
+    const setup = getAgentHyperliquidSetupSettings(name);
+    loadAgentVenueReadiness("hyperliquid_testnet", {
+      accountAddress: setup.accountAddress,
+    })
       .then((readiness) => {
         if (!cancelled) setLiveVenueReadiness(readiness);
       })
@@ -261,7 +265,7 @@ export default function AgentsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [name]);
 
   const openExecutionRecords = useMemo(
     () => executions.filter((execution) => execution.status === "open"),
@@ -860,6 +864,17 @@ export default function AgentsPage() {
           Trades
         </Link>
         <Link
+          href={`/app/wallet/${encoded}/agents/hyperliquid`}
+          className={clsx(
+            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
+            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+          )}
+        >
+          <Plug size={13} aria-hidden="true" />
+          Hyperliquid
+        </Link>
+        <Link
           href={`/app/wallet/${encoded}/agents/approvals`}
           className={clsx(
             "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
@@ -1346,10 +1361,10 @@ function LiveVenuePanel({
             {loading ? "Checking" : connected ? "Connected" : "Needs setup"}
           </span>
           <Link
-            href={`/app/wallet/${walletEncoded}/agents/start?venue=hyperliquid_testnet`}
+            href={`/app/wallet/${walletEncoded}/agents/hyperliquid`}
             className="inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-border-soft px-2 py-1 text-[11px] font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
           >
-            Set up and check
+            Set up Hyperliquid
             <ArrowRight className="h-3 w-3" aria-hidden="true" />
           </Link>
         </div>

@@ -14,6 +14,7 @@ export * from "@/lib/agents/betaReadiness";
 export * from "@/lib/agents/tradePerformance";
 export * from "@/lib/agents/betaDemoSetup";
 export * from "@/lib/agents/betaFeedback";
+export * from "@/lib/agents/hyperliquidSetup";
 export * from "@/lib/agents/intake";
 export * from "@/lib/agents/executionAdapters";
 export * from "@/lib/agents/serverExecutionAdapters";

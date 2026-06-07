@@ -63,7 +63,7 @@ export interface AgentServerExecutionResult {
 
 export async function loadAgentVenueReadiness(
   venue: AgentTradeProposal["venue"],
-  options: { walletName?: string; agentId?: string } = {},
+  options: { walletName?: string; agentId?: string; accountAddress?: string } = {},
 ): Promise<AgentVenueReadiness | null> {
   const response = await fetch(apiPath(venue, options));
   const body = (await response.json()) as {
@@ -181,15 +181,19 @@ export function reconcileAgentVenueRequest(
 
 function apiPath(
   venue: AgentTradeProposal["venue"],
-  options: { walletName?: string; agentId?: string } = {},
+  options: { walletName?: string; agentId?: string; accountAddress?: string } = {},
 ): string {
   const path = `/api/agent-execution/${encodeURIComponent(venue)}`;
-  if (!options.walletName || !options.agentId) return path;
-  const query = new URLSearchParams({
-    walletName: options.walletName,
-    agentId: options.agentId,
-  });
-  return `${path}?${query.toString()}`;
+  const query = new URLSearchParams();
+  if (options.walletName && options.agentId) {
+    query.set("walletName", options.walletName);
+    query.set("agentId", options.agentId);
+  }
+  if ("accountAddress" in options && options.accountAddress) {
+    query.set("accountAddress", options.accountAddress);
+  }
+  const queryString = query.toString();
+  return queryString ? `${path}?${queryString}` : path;
 }
 
 function formatSignedUsd(value: string): string {

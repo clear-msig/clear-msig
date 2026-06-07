@@ -46,11 +46,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
     venue === "hyperliquid_testnet"
       ? readHyperliquidTestnetExecutorConfig()
       : { config: null };
+  const accountAddress =
+    request.nextUrl.searchParams.get("accountAddress")?.trim() ||
+    process.env.CLEARSIG_HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS;
   const accountSnapshot =
     venue === "hyperliquid_testnet"
       ? await fetchHyperliquidTestnetAccountSnapshot({
-          accountAddress:
-            process.env.CLEARSIG_HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS,
+          accountAddress,
         })
       : null;
   return NextResponse.json({
@@ -61,8 +63,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         ? hyperliquidProbeFromSnapshot(accountSnapshot)
         : venue === "hyperliquid_testnet"
           ? await probeHyperliquidTestnetAccount({
-              accountAddress:
-                process.env.CLEARSIG_HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS,
+              accountAddress,
             })
           : null,
     accountSnapshot,

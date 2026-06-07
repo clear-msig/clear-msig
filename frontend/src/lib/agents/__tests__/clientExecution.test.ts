@@ -112,6 +112,31 @@ describe("client execution handoff", () => {
     expect(fetch).toHaveBeenCalledWith("/api/agent-execution/hyperliquid_testnet");
   });
 
+  it("loads venue readiness for a pasted public account address", async () => {
+    const fetchMock = vi.fn(async () =>
+      response({
+        ok: true,
+        readiness: {
+          venue: "hyperliquid_testnet",
+          label: "Hyperliquid Testnet",
+          state: "ready",
+          canSubmit: true,
+          missingEnvVars: [],
+          message: "Ready.",
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await loadAgentVenueReadiness("hyperliquid_testnet", {
+      accountAddress: "0x1111111111111111111111111111111111111111",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/agent-execution/hyperliquid_testnet?accountAddress=0x1111111111111111111111111111111111111111",
+    );
+  });
+
   it("submits an approved proposal as a server execution request", async () => {
     const fetchMock = vi.fn(async () =>
       response(
