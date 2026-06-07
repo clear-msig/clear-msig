@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   loadAgentVenueReadiness,
+  reconcileAgentVenueRequest,
   submitAgentVenueExecution,
 } from "@/lib/agents/clientExecution";
 import type { AgentTradeProposal } from "@/lib/agents";
@@ -161,6 +162,58 @@ describe("client execution handoff", () => {
           approvedAt: 1_700_000_100,
         }),
       }),
+    );
+  });
+
+  it("reconciles submitted venue requests against live account positions", () => {
+    const request = {
+      status: "submitted",
+      message: "Order filled.",
+      request: {
+        walletName: "vault",
+        agentId: "agent-alpha",
+        proposalId: "proposal-1",
+        venue: "hyperliquid_testnet" as const,
+        market: "BTC-PERP",
+        side: "long" as const,
+        notionalUsd: "250",
+        leverage: 1,
+      },
+    };
+    const accountSnapshot = {
+      state: "funded" as const,
+      accountAddress: "0x1111111111111111111111111111111111111111",
+      accountValueUsd: "1000",
+      withdrawableUsd: "800",
+      totalPositionValueUsd: "250",
+      unrealizedPnlUsd: "12.5",
+      positions: [
+        {
+          market: "BTC-PERP",
+          side: "long" as const,
+          size: "0.01",
+          entryPriceUsd: "60000",
+          positionValueUsd: "606.58",
+          unrealizedPnlUsd: "12.5",
+          returnOnEquityPct: "2.1",
+          liquidationPriceUsd: "45000",
+        },
+      ],
+      observedAt: 1_780_000_000_000,
+      message: "Hyperliquid testnet account is reachable and funded.",
+    };
+
+    expect(reconcileAgentVenueRequest(request, accountSnapshot).state).toBe(
+      "running_on_exchange",
+    );
+    expect(
+      reconcileAgentVenueRequest(
+        { ...request, request: { ...request.request, market: "ETH-PERP" } },
+        accountSnapshot,
+      ).state,
+    ).toBe("not_open_on_exchange");
+    expect(reconcileAgentVenueRequest(request, null).state).toBe(
+      "waiting_for_account",
     );
   });
 });

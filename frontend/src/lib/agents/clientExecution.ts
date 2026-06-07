@@ -36,6 +36,18 @@ export type AgentVenueReadiness = AgentServerExecutionReadiness & {
   }>;
 };
 
+export type AgentVenueRequestRecord = NonNullable<AgentVenueReadiness["requests"]>[number];
+
+export interface AgentVenueRequestReconciliation {
+  state:
+    | "not_submitted"
+    | "running_on_exchange"
+    | "not_open_on_exchange"
+    | "waiting_for_account";
+  label: string;
+  message: string;
+}
+
 export interface AgentServerExecutionResult {
   ok: boolean;
   message: string;
@@ -127,6 +139,46 @@ export async function submitAgentVenueExecution(
   };
 }
 
+export function reconcileAgentVenueRequest(
+  request: AgentVenueRequestRecord,
+  accountSnapshot: HyperliquidTestnetAccountSnapshot | null | undefined,
+): AgentVenueRequestReconciliation {
+  if (request.status !== "submitted") {
+    return {
+      state: "not_submitted",
+      label: "Not submitted",
+      message: request.message ?? "ClearSig has not submitted this request to the venue.",
+    };
+  }
+  if (!accountSnapshot || accountSnapshot.state === "missing_address" || accountSnapshot.state === "unavailable") {
+    return {
+      state: "waiting_for_account",
+      label: "Checking venue",
+      message: accountSnapshot?.message ?? "ClearSig is waiting for the venue account state.",
+    };
+  }
+  const market = request.request.market?.toUpperCase();
+  const side = request.request.side;
+  const matchingPosition = accountSnapshot.positions.find(
+    (position) =>
+      position.market.toUpperCase() === market &&
+      (!side || position.side === side),
+  );
+  if (matchingPosition) {
+    return {
+      state: "running_on_exchange",
+      label: "Running",
+      message: `${matchingPosition.market} ${matchingPosition.side} is open on Hyperliquid with ${formatSignedUsd(matchingPosition.unrealizedPnlUsd ?? "0")} live P/L.`,
+    };
+  }
+  return {
+    state: "not_open_on_exchange",
+    label: "Not open now",
+    message:
+      "ClearSig submitted this request, but the matching Hyperliquid position is not open now. It may have closed, failed at the venue, or not filled.",
+  };
+}
+
 function apiPath(
   venue: AgentTradeProposal["venue"],
   options: { walletName?: string; agentId?: string } = {},
@@ -138,4 +190,12 @@ function apiPath(
     agentId: options.agentId,
   });
   return `${path}?${query.toString()}`;
+}
+
+function formatSignedUsd(value: string): string {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed === 0) return "$0";
+  return `${parsed > 0 ? "+" : "-"}$${Math.abs(parsed).toLocaleString("en-US", {
+    maximumFractionDigits: 2,
+  })}`;
 }

@@ -66,6 +66,7 @@ import {
 } from "@/lib/agents";
 import {
   loadAgentVenueReadiness,
+  reconcileAgentVenueRequest,
   submitAgentVenueExecution,
   type AgentVenueReadiness,
 } from "@/lib/agents/clientExecution";
@@ -121,6 +122,8 @@ export default function StartTradingPage() {
   const [marketSnapshot, setMarketSnapshot] = useState<AgentMarketDataSnapshot | null>(null);
   const [marketStatus, setMarketStatus] = useState("Checking market data");
   const [approvalRequest, setApprovalRequest] = useState<AgentOwnerApprovalInput | null>(null);
+  const [approvalApproveLabel, setApprovalApproveLabel] = useState("Approve");
+  const [automaticTradingBusy, setAutomaticTradingBusy] = useState(false);
   const approvalResolver = useRef<((approval: AgentOwnerApproval | null) => void) | null>(null);
   const [loading, setLoading] = useState(true);
   const selectedAgent = agents.find((agent) => agent.id === agentId) ?? null;
@@ -270,10 +273,11 @@ export default function StartTradingPage() {
   const complete = steps.every((step) => step.status === "done");
 
   const requestOwnerApproval = useCallback(
-    (input: AgentOwnerApprovalInput) =>
+    (input: AgentOwnerApprovalInput, approveLabel = "Approve") =>
       new Promise<AgentOwnerApproval | null>((resolve) => {
         approvalResolver.current?.(null);
         approvalResolver.current = resolve;
+        setApprovalApproveLabel(approveLabel);
         setApprovalRequest(input);
       }),
     [],
@@ -283,6 +287,7 @@ export default function StartTradingPage() {
     approvalResolver.current?.(null);
     approvalResolver.current = null;
     setApprovalRequest(null);
+    setApprovalApproveLabel("Approve");
   }, []);
 
   const approveOwnerRequest = useCallback(async () => {
@@ -313,6 +318,7 @@ export default function StartTradingPage() {
       approvalResolver.current?.(approval);
       approvalResolver.current = null;
       setApprovalRequest(null);
+      setApprovalApproveLabel("Approve");
     } catch (error) {
       toast.error("Could not approve action", {
         details: error instanceof Error ? error.message : String(error),
@@ -351,7 +357,9 @@ export default function StartTradingPage() {
   const enableAutomaticTrading = () => {
     if (!selectedAgent) return;
     startTransition(async () => {
+      setAutomaticTradingBusy(true);
       try {
+        toast.info("Review the approval to turn on automatic trading");
         const approval = await requestOwnerApproval({
           walletName: name,
           agentId: selectedAgent.id,
@@ -363,7 +371,7 @@ export default function StartTradingPage() {
             { label: "Trader", value: selectedAgent.name },
             { label: "Practice account", value: venueLabel(venue) },
           ],
-        });
+        }, "Approve and turn on");
         if (!approval) return;
         await setAgentAutomaticTrading(name, selectedAgent.id, true);
         toast.success("Automatic trading is on");
@@ -372,6 +380,8 @@ export default function StartTradingPage() {
         toast.error("Could not turn on automatic trading", {
           details: error instanceof Error ? error.message : String(error),
         });
+      } finally {
+        setAutomaticTradingBusy(false);
       }
     });
   };
@@ -658,6 +668,7 @@ export default function StartTradingPage() {
                 enableAutomaticTrading,
                 askBuiltInTraderForIdea,
                 pending,
+                automaticTradingBusy,
               })}
             />
           ))}
@@ -704,6 +715,7 @@ export default function StartTradingPage() {
       <OwnerApprovalDialog
         request={approvalRequest}
         approvalMode={canSign ? "wallet" : "browser"}
+        approveLabel={approvalApproveLabel}
         onCancel={cancelOwnerApproval}
         onApprove={() => void approveOwnerRequest()}
       />
@@ -1071,6 +1083,7 @@ function TradingControlRoom({
                   <VenueRequestRow
                     key={request.id ?? `${request.request.proposalId}:${index}`}
                     request={request}
+                    accountSnapshot={accountSnapshot}
                   />
                 ))
               ) : (
@@ -1290,11 +1303,14 @@ function VenuePositionRow({
 
 function VenueRequestRow({
   request,
+  accountSnapshot,
 }: {
   request: NonNullable<AgentVenueReadiness["requests"]>[number];
+  accountSnapshot: AgentVenueReadiness["accountSnapshot"] | null;
 }) {
   const submitted = request.status === "submitted";
   const rejected = request.status === "rejected" || request.status === "adapter_error";
+  const reconciliation = reconcileAgentVenueRequest(request, accountSnapshot);
   const market = request.request.market ?? "Trade";
   const size = request.request.notionalUsd ? formatUsd(request.request.notionalUsd) : "Size unknown";
   return (
@@ -1323,6 +1339,21 @@ function VenueRequestRow({
           {venueRequestStatusLabel(request.status)}
         </span>
       </div>
+      {submitted ? (
+        <div
+          className={clsx(
+            "mt-2 rounded-soft border px-2 py-1.5 text-xs leading-relaxed",
+            reconciliation.state === "running_on_exchange"
+              ? "border-accent/25 bg-accent/[0.08] text-text-strong"
+              : reconciliation.state === "not_open_on_exchange"
+                ? "border-warning/30 bg-warning/[0.08] text-warning"
+                : "border-border-soft text-text-soft",
+          )}
+        >
+          <span className="font-semibold">{reconciliation.label}:</span>{" "}
+          {reconciliation.message}
+        </div>
+      ) : null}
       {request.message ? (
         <p className="mt-2 break-words text-xs leading-relaxed text-text-soft">
           {request.message}
@@ -1387,6 +1418,7 @@ function actionForStep({
   enableAutomaticTrading,
   askBuiltInTraderForIdea,
   pending,
+  automaticTradingBusy,
 }: {
   step: TradingLaunchStep;
   walletEncoded: string;
@@ -1397,6 +1429,7 @@ function actionForStep({
   enableAutomaticTrading: () => void;
   askBuiltInTraderForIdea: () => void;
   pending: boolean;
+  automaticTradingBusy: boolean;
 }): React.ReactNode {
   const base = `/app/wallet/${walletEncoded}/agents`;
   switch (step.id) {
@@ -1427,11 +1460,11 @@ function actionForStep({
       return (
         <button
           type="button"
-          disabled={pending || !agent}
+          disabled={pending || automaticTradingBusy || !agent}
           onClick={enableAutomaticTrading}
           className={STEP_BUTTON_CLASS}
         >
-          Turn on automatic trading
+          {automaticTradingBusy ? "Turning on..." : "Turn on automatic trading"}
           <Play className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
       );
