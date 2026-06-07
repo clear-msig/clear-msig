@@ -11,6 +11,7 @@ import {
   Bot,
   BrainCircuit,
   Check,
+  CircleDollarSign,
   ClipboardList,
   Clock,
   Database,
@@ -846,15 +847,15 @@ export default function AgentsPage() {
           Try an idea
         </Link>
         <Link
-          href={`/app/wallet/${encoded}/agents/sessions/new`}
+          href={`/app/wallet/${encoded}/agents/funding`}
           className={clsx(
             "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
             "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
           )}
         >
-          <Clock size={13} aria-hidden="true" />
-          Give allowance
+          <CircleDollarSign size={13} aria-hidden="true" />
+          Fund traders
         </Link>
         <Link
           href={`/app/wallet/${encoded}/agents/trades`}

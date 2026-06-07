@@ -219,6 +219,10 @@ Phase 5 has started with the execution adapter boundary:
   persistence with clear fallback messaging if the server store is unavailable.
 - the Agent Trading overview shows backend persistence status and whether the
   durable store is Redis-backed or local-memory development storage.
+- the Agent Trading overview now points retail users to a funding screen where
+  agent track records become simple raise, fund, lower, keep, or review
+  allowance recommendations. Recommendations are still bounded by the current
+  vault policy and route through the owner-approved allowance form.
 - paper execution records are now part of backend agent state too. Opening,
   rechecking into, and closing paper trades sync execution records server-side;
   backend risk snapshots use open executions instead of trusting proposal
