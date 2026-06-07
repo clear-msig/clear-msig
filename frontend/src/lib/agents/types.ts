@@ -108,6 +108,23 @@ export type AgentExecutionStatus =
 export type AgentExecutionMode = "paper" | "testnet";
 export type AgentAllocationTierId = "probation" | "trusted" | "proven";
 
+export type AgentPostTradeOutcome = "win" | "loss" | "flat";
+export type AgentTradeThesisVerdict =
+  | "confirmed"
+  | "invalidated"
+  | "inconclusive";
+
+export interface AgentPostTradeReview {
+  outcome: AgentPostTradeOutcome;
+  thesisVerdict: AgentTradeThesisVerdict;
+  summary: string;
+  lesson: string;
+  riskReview: string;
+  realizedPnlUsd: string;
+  reviewedAt: number;
+  version: AgentVersion;
+}
+
 export type AgentExecutionAdapterStatus =
   | "ready"
   | "backend_required";
@@ -215,6 +232,7 @@ export interface AgentExecutionRecord {
   adapterStatus?: AgentExecutionAdapterStatus;
   externalOrderId?: string | null;
   policyHash?: string;
+  postTradeReview?: AgentPostTradeReview;
   status: AgentExecutionStatus;
   openedAt: number;
   closedAt?: number | null;

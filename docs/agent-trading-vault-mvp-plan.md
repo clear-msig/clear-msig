@@ -228,6 +228,10 @@ Phase 5 has started with the execution adapter boundary:
   logic, policy-check outcome, and evidence tags. The overview and trade
   history show this explanation so users can judge whether the agent is trading
   logically, not just whether a trade won or lost.
+- closed paper trades now generate a structured post-trade review. The review
+  records whether the setup won, lost, or went flat, whether the thesis held,
+  how risk compared with the plan, and what the agent should learn before users
+  compare it for funding or leaderboard placement.
 - paper execution records are now part of backend agent state too. Opening,
   rechecking into, and closing paper trades sync execution records server-side;
   backend risk snapshots use open executions instead of trusting proposal

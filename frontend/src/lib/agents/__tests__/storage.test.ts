@@ -218,6 +218,8 @@ describe("agent paper execution storage", () => {
 
     const closed = closeMockAgentExecution("vault", first.execution?.id ?? "", "42.5");
     expect(closed?.status).toBe("closed");
+    expect(closed?.postTradeReview?.outcome).toBe("win");
+    expect(closed?.postTradeReview?.summary).toContain("Momentum breakout");
     expect(agentRiskSnapshot("vault", profile.id).openPositions).toBe(0);
     expect(listAgentScorecards("vault")[0]?.realizedPnlUsd).toBe("42.5");
   });

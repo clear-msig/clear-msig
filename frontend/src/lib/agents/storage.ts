@@ -5,6 +5,7 @@ import {
   canOpenLocalAgentExecution,
   executionModeForVenue,
 } from "@/lib/agents/executionAdapters";
+import { buildAgentPostTradeReview } from "@/lib/agents/postTradeReview";
 import { evaluateAgentTradeProposal } from "@/lib/agents/policy";
 import { defaultAgentVaultPolicy } from "@/lib/agents/policy";
 import {
@@ -799,11 +800,18 @@ export function closeMockAgentExecution(
   if (!execution || execution.status === "closed") return execution ?? null;
   const now = Date.now();
   const pnl = normalizePnl(realizedPnlUsd);
+  const proposal = findExecutionProposal(shape, walletName, execution);
   const updated: AgentExecutionRecord = {
     ...execution,
     status: "closed",
     closedAt: now,
     realizedPnlUsd: pnl,
+    postTradeReview: buildAgentPostTradeReview({
+      execution,
+      proposal,
+      realizedPnlUsd: pnl,
+      now,
+    }),
   };
   list[idx] = updated;
   shape.executionsByWallet[walletName] = list;
@@ -837,6 +845,7 @@ export function closeOpenMockAgentExecutions({
   const now = Date.now();
   const pnl = normalizePnl(realizedPnlUsd);
   const closed: AgentExecutionRecord[] = [];
+  const proposals = shape.proposalsByWallet[walletName] ?? [];
   shape.executionsByWallet[walletName] = list.map((execution) => {
     if (
       execution.status !== "open" ||
@@ -849,6 +858,12 @@ export function closeOpenMockAgentExecutions({
       status: "closed",
       closedAt: now,
       realizedPnlUsd: pnl,
+      postTradeReview: buildAgentPostTradeReview({
+        execution,
+        proposal: proposals.find((item) => item.id === execution.proposalId),
+        realizedPnlUsd: pnl,
+        now,
+      }),
     };
     closed.push(updated);
     updateScorecardForClosedExecution(shape, updated);
@@ -1157,6 +1172,16 @@ function executionFromProposal(
     realizedPnlUsd: "0",
     version: 1,
   }, proposal);
+}
+
+function findExecutionProposal(
+  shape: StoredShape,
+  walletName: string,
+  execution: AgentExecutionRecord,
+): AgentTradeProposal | undefined {
+  return (shape.proposalsByWallet[walletName] ?? []).find(
+    (proposal) => proposal.id === execution.proposalId,
+  );
 }
 
 function canExecuteProposal(shape: StoredShape, proposal: AgentTradeProposal): boolean {

@@ -278,6 +278,9 @@ function TradeRow({
           </div>
         </div>
       ) : null}
+      {execution.postTradeReview ? (
+        <PostTradeReview review={execution.postTradeReview} />
+      ) : null}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border-soft pt-3">
         <div className="flex flex-wrap gap-3 text-[11px] text-text-soft">
           <span>Opened {new Date(execution.openedAt).toLocaleString()}</span>
@@ -312,6 +315,35 @@ function TradeRow({
         )}
       </div>
     </article>
+  );
+}
+
+function PostTradeReview({
+  review,
+}: {
+  review: NonNullable<AgentExecutionRecord["postTradeReview"]>;
+}) {
+  return (
+    <div className="mt-3 rounded-soft border border-border-soft bg-canvas p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold text-text-strong">
+          Post-trade review
+        </p>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge tone={postTradeOutcomeTone(review.outcome)}>
+            {postTradeOutcomeLabel(review.outcome)}
+          </Badge>
+          <Badge>{postTradeVerdictLabel(review.thesisVerdict)}</Badge>
+        </div>
+      </div>
+      <p className="mt-2 text-xs leading-relaxed text-text-soft">
+        {review.summary}
+      </p>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <MiniReason label="Risk review" value={review.riskReview} />
+        <MiniReason label="Lesson" value={review.lesson} />
+      </div>
+    </div>
   );
 }
 
@@ -352,20 +384,45 @@ function Badge({
   tone = "default",
 }: {
   children: ReactNode;
-  tone?: "default" | "success";
+  tone?: "default" | "success" | "danger" | "warning";
 }) {
   return (
     <span
       className={clsx(
         "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium",
-        tone === "success"
-          ? "border-accent/30 bg-accent/[0.08] text-accent"
-          : "border-border-soft bg-canvas text-text-soft",
+        tone === "success" && "border-accent/30 bg-accent/[0.08] text-accent",
+        tone === "danger" && "border-danger/30 bg-danger/[0.06] text-danger",
+        tone === "warning" && "border-warning/30 bg-warning/[0.08] text-warning",
+        tone === "default" && "border-border-soft bg-canvas text-text-soft",
       )}
     >
       {children}
     </span>
   );
+}
+
+function postTradeOutcomeTone(
+  outcome: NonNullable<AgentExecutionRecord["postTradeReview"]>["outcome"],
+): "success" | "danger" | "warning" {
+  if (outcome === "win") return "success";
+  if (outcome === "loss") return "danger";
+  return "warning";
+}
+
+function postTradeOutcomeLabel(
+  outcome: NonNullable<AgentExecutionRecord["postTradeReview"]>["outcome"],
+): string {
+  if (outcome === "win") return "Win";
+  if (outcome === "loss") return "Loss";
+  return "Flat";
+}
+
+function postTradeVerdictLabel(
+  verdict: NonNullable<AgentExecutionRecord["postTradeReview"]>["thesisVerdict"],
+): string {
+  if (verdict === "confirmed") return "Thesis held";
+  if (verdict === "invalidated") return "Thesis missed";
+  return "Inconclusive";
 }
 
 function decodeParam(value: string | undefined): string {
