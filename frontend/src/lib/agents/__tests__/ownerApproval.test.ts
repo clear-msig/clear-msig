@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { ownerApprovalSignableText } from "@/lib/agents/ownerApproval";
+import {
+  createBrowserOwnerApproval,
+  ownerApprovalSignableText,
+} from "@/lib/agents/ownerApproval";
 
 describe("agent owner approval messages", () => {
   it("builds a readable wallet signing message", () => {
@@ -26,5 +29,29 @@ describe("agent owner approval messages", () => {
     expect(text).toContain("Target: session/session-1");
     expect(text).toContain("Trader: Agent Alpha");
     expect(text).toContain("Size: $250");
+  });
+
+  it("separates browser approvals from signed wallet approvals in the hash", async () => {
+    const base = {
+      walletName: "demo",
+      agentId: "agent-alpha",
+      action: "start_automatic_trading" as const,
+      summary: "Turn on automatic trading",
+      targetType: "agent" as const,
+      targetId: "agent-alpha",
+      now: Date.UTC(2026, 5, 1, 12, 0, 0),
+      details: [{ label: "Trader", value: "Agent Alpha" }],
+    };
+
+    const browser = await createBrowserOwnerApproval(base);
+    const signed = await createBrowserOwnerApproval({
+      ...base,
+      approvedBy: "signer-pubkey",
+      signature: "deadbeef",
+    });
+
+    expect(browser.approvalMethod).toBe("browser_confirm");
+    expect(signed.approvalMethod).toBe("wallet_signature");
+    expect(browser.approvalHash).not.toBe(signed.approvalHash);
   });
 });

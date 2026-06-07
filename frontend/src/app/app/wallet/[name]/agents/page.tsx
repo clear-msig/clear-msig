@@ -22,6 +22,7 @@ import {
   Send,
   ShieldCheck,
   SlidersHorizontal,
+  TrendingUp,
   Trophy,
   X,
 } from "lucide-react";
@@ -37,6 +38,7 @@ import {
   closeMockAgentExecution,
   closeOpenMockAgentExecutions,
   canOpenLocalAgentExecution,
+  estimateAgentOpenTradePerformance,
   executionUnavailableReason,
   getAgentVaultPolicy,
   listAgentEvents,
@@ -71,6 +73,7 @@ import {
   type AgentTradeProposal,
   type AgentVaultPolicy,
   type AgentKind,
+  type AgentMarketDataSnapshot,
   type AgentReadinessAction,
   type AgentProposalStatus,
   type TradingVenue,
@@ -86,6 +89,7 @@ import {
   submitAgentVenueExecution,
   type AgentVenueReadiness,
 } from "@/lib/agents/clientExecution";
+import { loadAgentMarketDataSnapshots } from "@/lib/agents/clientMarketData";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 type BackendPersistenceStatus = {
@@ -135,6 +139,7 @@ export default function AgentsPage() {
   const [scorecards, setScorecards] = useState<AgentScorecard[]>([]);
   const [proposalCount, setProposalCount] = useState(0);
   const [inboxSummaries, setInboxSummaries] = useState<Record<string, AgentInboxSummary>>({});
+  const [marketByMarket, setMarketByMarket] = useState<Record<string, AgentMarketDataSnapshot>>({});
   const [liveVenueReadiness, setLiveVenueReadiness] =
     useState<AgentVenueReadiness | null>(null);
   const [liveVenueLoading, setLiveVenueLoading] = useState(true);
@@ -249,6 +254,35 @@ export default function AgentsPage() {
     };
   }, []);
 
+  const openExecutionRecords = useMemo(
+    () => executions.filter((execution) => execution.status === "open"),
+    [executions],
+  );
+  const openMarketKey = useMemo(
+    () =>
+      openExecutionRecords
+        .map((execution) => execution.market.trim().toUpperCase())
+        .filter(Boolean)
+        .sort()
+        .join("|"),
+    [openExecutionRecords],
+  );
+
+  useEffect(() => {
+    const openMarkets = openMarketKey ? openMarketKey.split("|") : [];
+    if (openMarkets.length === 0) {
+      setMarketByMarket({});
+      return;
+    }
+    let cancelled = false;
+    void loadAgentMarketDataSnapshots(openMarkets).then((snapshots) => {
+      if (!cancelled) setMarketByMarket(snapshots);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [openMarketKey]);
+
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
@@ -256,7 +290,7 @@ export default function AgentsPage() {
   const activeSessions = policy
     ? sessions.filter((session) => isAgentSessionCurrent(session, policy)).length
     : 0;
-  const openExecutions = executions.filter((execution) => execution.status === "open").length;
+  const openExecutions = openExecutionRecords.length;
   const queuedSignals = Object.values(inboxSummaries).reduce(
     (total, summary) => total + summary.count,
     0,
@@ -828,6 +862,15 @@ export default function AgentsPage() {
         </section>
       ) : null}
 
+      {openExecutionRecords.length > 0 ? (
+        <OpenTradeMonitor
+          executions={openExecutionRecords}
+          marketByMarket={marketByMarket}
+          pending={pendingAction}
+          onClose={closeExecution}
+        />
+      ) : null}
+
       {executions.length > 0 ? (
         <section className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -846,16 +889,17 @@ export default function AgentsPage() {
               </button>
             ) : null}
           </div>
-          <ul className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2">
             {executions.slice(0, 4).map((execution) => (
               <ExecutionCard
                 key={execution.id}
                 execution={execution}
+                marketSnapshot={marketByMarket[execution.market.trim().toUpperCase()] ?? null}
                 pending={pendingAction}
                 onClose={closeExecution}
               />
             ))}
-          </ul>
+          </div>
         </section>
       ) : null}
 
@@ -1367,6 +1411,78 @@ function BackendPersistencePanel({
   );
 }
 
+function OpenTradeMonitor({
+  executions,
+  marketByMarket,
+  pending,
+  onClose,
+}: {
+  executions: AgentExecutionRecord[];
+  marketByMarket: Record<string, AgentMarketDataSnapshot>;
+  pending: boolean;
+  onClose: (id: string, pnlUsd: string) => void;
+}) {
+  const estimates = executions
+    .map((execution) => ({
+      execution,
+      performance: estimateAgentOpenTradePerformance(
+        execution,
+        marketByMarket[execution.market.trim().toUpperCase()] ?? null,
+      ),
+    }))
+    .filter((item) => item.performance);
+  const estimatedPnl = estimates.reduce(
+    (sum, item) => sum + Number(item.performance?.unrealizedPnlUsd ?? 0),
+    0,
+  );
+  const pricedCount = estimates.length;
+
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+            <TrendingUp className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-text-strong">
+              Open trade performance
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
+              {pricedCount > 0
+                ? `${pricedCount} of ${executions.length} open practice trade${executions.length === 1 ? "" : "s"} have a fresh mark. Estimated open P/L is ${formatSignedUsd(String(estimatedPnl))}.`
+                : "Waiting for a market mark before estimating open practice P/L."}
+            </p>
+          </div>
+        </div>
+        <span
+          className={clsx(
+            "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+            estimatedPnl > 0
+              ? "border-accent/30 bg-accent/[0.08] text-accent"
+              : estimatedPnl < 0
+                ? "border-rose-500/30 bg-rose-500/[0.08] text-rose-300"
+                : "border-border-soft bg-canvas text-text-soft",
+          )}
+        >
+          {formatSignedUsd(String(estimatedPnl))}
+        </span>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        {executions.slice(0, 4).map((execution) => (
+          <ExecutionCard
+            key={execution.id}
+            execution={execution}
+            marketSnapshot={marketByMarket[execution.market.trim().toUpperCase()] ?? null}
+            pending={pending}
+            onClose={onClose}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function AgentCard({
   agent,
   walletEncoded,
@@ -1394,6 +1510,7 @@ function AgentCard({
       : agent.status === "paused"
         ? "border-warning/30 bg-warning/[0.08] text-warning"
         : "border-rose-500/30 bg-rose-500/[0.08] text-rose-500";
+  const published = agent.publishing?.status === "published";
 
   return (
     <li className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
@@ -1414,6 +1531,11 @@ function AgentCard({
             >
               {agent.status}
             </span>
+            {published ? (
+              <span className="inline-flex items-center rounded-full border border-accent/30 bg-accent/[0.08] px-1.5 py-0.5 text-[10px] font-medium text-accent">
+                Published
+              </span>
+            ) : null}
           </div>
           <p className="mt-1 text-xs capitalize text-text-soft">
               {agentKindLabel(agent.kind)}
@@ -1537,6 +1659,17 @@ function AgentCard({
             >
               Details
               <ArrowRight className="h-3 w-3" aria-hidden="true" />
+            </Link>
+            <Link
+              href={`/app/wallet/${walletEncoded}/agents/${encodeURIComponent(agent.id)}#publishing`}
+              className={clsx(
+                "inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-border-soft px-2 py-1 text-[11px] font-medium text-text-strong",
+                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+              )}
+            >
+              <Send className="h-3 w-3" aria-hidden="true" />
+              {published ? "Profile" : "Publish"}
             </Link>
             {agent.kind === "mock" ? (
               <Link
@@ -1769,18 +1902,21 @@ function ActionButton({
 
 function ExecutionCard({
   execution,
+  marketSnapshot,
   pending,
   onClose,
 }: {
   execution: AgentExecutionRecord;
+  marketSnapshot: AgentMarketDataSnapshot | null;
   pending: boolean;
   onClose: (id: string, pnlUsd: string) => void;
 }) {
   const [pnlUsd, setPnlUsd] = useState("");
   const isOpen = execution.status === "open";
   const pnl = Number(execution.realizedPnlUsd || 0);
+  const performance = estimateAgentOpenTradePerformance(execution, marketSnapshot);
   return (
-    <li className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+    <article className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
       <div className="flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
           <Play className="h-4 w-4" aria-hidden="true" strokeWidth={1.75} />
@@ -1798,6 +1934,23 @@ function ExecutionCard({
             {tradingPlaceLabel(execution.venue)} · ${execution.notionalUsd} ·{" "}
             {execution.leverage}x
           </p>
+          {isOpen ? (
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <ScoreStat label="Entry" value={formatUsd(execution.entryPrice ?? "0")} />
+              <ScoreStat
+                label="Mark"
+                value={performance ? formatUsd(performance.markPriceUsd) : "Waiting"}
+              />
+              <ScoreStat
+                label="Est. P/L"
+                value={performance ? formatSignedUsd(performance.unrealizedPnlUsd) : "Unknown"}
+              />
+              <ScoreStat
+                label="Move"
+                value={performance ? `${formatNumber(performance.movePct)}%` : "Unknown"}
+              />
+            </div>
+          ) : null}
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-text-soft">
             <span>Opened {new Date(execution.openedAt).toLocaleString()}</span>
             {!isOpen ? (
@@ -1830,7 +1983,9 @@ function ExecutionCard({
               <button
                 type="button"
                 disabled={pending}
-                onClick={() => onClose(execution.id, pnlUsd)}
+                onClick={() =>
+                  onClose(execution.id, pnlUsd || performance?.unrealizedPnlUsd || "0")
+                }
                 className={clsx(
                   "inline-flex min-h-8 items-center justify-center rounded-soft border border-border-soft px-2 py-1 text-[11px] font-medium text-text-strong",
                   "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
@@ -1844,7 +1999,7 @@ function ExecutionCard({
           ) : null}
         </div>
       </div>
-    </li>
+    </article>
   );
 }
 
@@ -1969,6 +2124,12 @@ function formatSignedUsd(value: string): string {
   return `${parsed > 0 ? "+" : "-"}$${Math.abs(parsed).toLocaleString("en-US", {
     maximumFractionDigits: 2,
   })}`;
+}
+
+function formatUsd(value: string): string {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return "$0";
+  return `$${parsed.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 }
 
 function formatNumber(value: number): string {

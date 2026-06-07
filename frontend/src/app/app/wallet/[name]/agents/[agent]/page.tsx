@@ -1073,7 +1073,10 @@ function ReadinessPanel({
   agentId: string;
 }) {
   return (
-    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+    <section
+      id="publishing"
+      className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest"
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <span

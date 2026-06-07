@@ -33,7 +33,9 @@ export async function createBrowserOwnerApproval(
     details,
     targetType: input.targetType ?? null,
     targetId: input.targetId ?? null,
+    approvalMethod: input.signature ? "wallet_signature" : "browser_confirm",
     approvedBy: input.approvedBy ?? null,
+    signature: input.signature ?? null,
     createdAt,
     version: 1,
   };
