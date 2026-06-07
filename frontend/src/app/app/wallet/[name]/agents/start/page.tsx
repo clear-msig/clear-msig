@@ -129,6 +129,7 @@ export default function StartTradingPage() {
   const [marketStatus, setMarketStatus] = useState("Checking market data");
   const [approvalRequest, setApprovalRequest] = useState<AgentOwnerApprovalInput | null>(null);
   const [approvalApproveLabel, setApprovalApproveLabel] = useState("Approve");
+  const [approvalMode, setApprovalMode] = useState<"wallet" | "browser" | null>(null);
   const [approvalBusy, setApprovalBusy] = useState(false);
   const [automaticTradingBusy, setAutomaticTradingBusy] = useState(false);
   const approvalResolver = useRef<((approval: AgentOwnerApproval | null) => void) | null>(null);
@@ -307,11 +308,16 @@ export default function StartTradingPage() {
   }, [openMarketKey]);
 
   const requestOwnerApproval = useCallback(
-    (input: AgentOwnerApprovalInput, approveLabel = "Approve") =>
+    (
+      input: AgentOwnerApprovalInput,
+      approveLabel = "Approve",
+      mode?: "wallet" | "browser",
+    ) =>
       new Promise<AgentOwnerApproval | null>((resolve) => {
         approvalResolver.current?.(null);
         approvalResolver.current = resolve;
         setApprovalApproveLabel(approveLabel);
+        setApprovalMode(mode ?? null);
         setApprovalRequest(input);
       }),
     [],
@@ -322,6 +328,7 @@ export default function StartTradingPage() {
     approvalResolver.current = null;
     setApprovalRequest(null);
     setApprovalApproveLabel("Approve");
+    setApprovalMode(null);
   }, []);
 
   const approveOwnerRequest = useCallback(async () => {
@@ -330,7 +337,7 @@ export default function StartTradingPage() {
     try {
       const createdAt = Date.now();
       const signed =
-        canSign
+        (approvalMode ?? (canSign ? "wallet" : "browser")) === "wallet"
           ? await signBytes(
               new TextEncoder().encode(
                 ownerApprovalSignableText(approvalRequest, createdAt),
@@ -354,6 +361,7 @@ export default function StartTradingPage() {
       approvalResolver.current = null;
       setApprovalRequest(null);
       setApprovalApproveLabel("Approve");
+      setApprovalMode(null);
     } catch (error) {
       toast.error("Could not approve action", {
         details: error instanceof Error ? error.message : String(error),
@@ -361,7 +369,7 @@ export default function StartTradingPage() {
     } finally {
       setApprovalBusy(false);
     }
-  }, [approvalRequest, canSign, signBytes, toast]);
+  }, [approvalMode, approvalRequest, canSign, signBytes, toast]);
 
   const placeFirstOutsideTrade = (proposal: AgentTradeProposal) => {
     startTransition(async () => {
@@ -411,26 +419,40 @@ export default function StartTradingPage() {
         let approval: AgentOwnerApproval | null;
         if (canSign) {
           toast.info("Approve automatic trading in your wallet");
-          const createdAt = Date.now();
-          const signed = await signBytes(
-            new TextEncoder().encode(ownerApprovalSignableText(input, createdAt)),
-          );
-          approval = await createBrowserOwnerApproval({
-            ...input,
-            now: createdAt,
-            approvedBy: signed.signer_pubkey,
-            signature: signed.signature,
-          });
-          saveAgentOwnerApproval(approval);
-          const synced = await syncAgentOwnerApproval(approval);
-          if (!synced.ok) {
-            toast.info("Approval saved on this device for now", {
-              details: synced.message,
+          try {
+            const createdAt = Date.now();
+            const signed = await signBytes(
+              new TextEncoder().encode(ownerApprovalSignableText(input, createdAt)),
+            );
+            approval = await createBrowserOwnerApproval({
+              ...input,
+              now: createdAt,
+              approvedBy: signed.signer_pubkey,
+              signature: signed.signature,
             });
+            saveAgentOwnerApproval(approval);
+            const synced = await syncAgentOwnerApproval(approval);
+            if (!synced.ok) {
+              toast.info("Approval saved on this device for now", {
+                details: synced.message,
+              });
+            }
+          } catch (error) {
+            toast.info("Wallet signing did not complete", {
+              details:
+                error instanceof Error
+                  ? `${error.message}. Use the ClearSig approval instead.`
+                  : "Use the ClearSig approval instead.",
+            });
+            approval = await requestOwnerApproval(
+              input,
+              "Confirm and turn on",
+              "browser",
+            );
           }
         } else {
           toast.info("Review the approval to turn on automatic trading");
-          approval = await requestOwnerApproval(input, "Approve and turn on");
+          approval = await requestOwnerApproval(input, "Approve and turn on", "browser");
         }
         if (!approval) return;
         const updated = await setAgentAutomaticTrading(name, selectedAgent.id, true);
@@ -785,7 +807,7 @@ export default function StartTradingPage() {
 
       <OwnerApprovalDialog
         request={approvalRequest}
-        approvalMode={canSign ? "wallet" : "browser"}
+        approvalMode={approvalMode ?? (canSign ? "wallet" : "browser")}
         approveLabel={approvalApproveLabel}
         busy={approvalBusy}
         onCancel={cancelOwnerApproval}
