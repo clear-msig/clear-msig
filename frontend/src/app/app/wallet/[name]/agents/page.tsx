@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import clsx from "clsx";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
@@ -16,6 +16,7 @@ import {
   Database,
   Inbox,
   Lock,
+  MessageSquare,
   Plug,
   Plus,
   Play,
@@ -23,6 +24,7 @@ import {
   Send,
   ShieldCheck,
   SlidersHorizontal,
+  Sparkles,
   TrendingUp,
   Trophy,
   X,
@@ -57,6 +59,7 @@ import {
   recheckAgentProposal,
   renewAgentSession,
   setAgentVaultEmergencyPause,
+  setupAgentBetaDemo,
   subscribeAgents,
   syncAgentEmergencyPause,
   syncAgentExecution,
@@ -119,6 +122,7 @@ type GettingStartedStep = {
 
 export default function AgentsPage() {
   const params = useParams<{ name: string }>();
+  const router = useRouter();
   const reduce = useReducedMotion();
   const toast = useToast();
   const [pendingAction, startAction] = useTransition();
@@ -468,6 +472,24 @@ export default function AgentsPage() {
     });
   };
 
+  const startBetaDemo = () => {
+    startAction(() => {
+      try {
+        const result = setupAgentBetaDemo({ walletName: name });
+        toast.success("Beta demo is ready", {
+          details: result.firstTradeOpened
+            ? "A demo agent, safe allowance, open paper trade, and trade history are ready to inspect."
+            : "A demo agent, safe allowance, and trade history are ready to inspect.",
+        });
+        router.push(`/app/wallet/${encoded}/agents/trades`);
+      } catch (error) {
+        toast.error("Could not start beta demo", {
+          details: error instanceof Error ? error.message : String(error),
+        });
+      }
+    });
+  };
+
   const submitVenueProposal = (id: string) => {
     startAction(() => {
       const proposal = proposals.find((item) => item.id === id);
@@ -767,12 +789,26 @@ export default function AgentsPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Link
-          href={`/app/wallet/${encoded}/agents/library`}
+        <button
+          type="button"
+          disabled={pendingAction}
+          onClick={startBetaDemo}
           className={clsx(
             "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest sm:flex-none",
             "transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
             "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+            "disabled:cursor-not-allowed disabled:opacity-60",
+          )}
+        >
+          <Sparkles size={13} aria-hidden="true" />
+          Start beta demo
+        </button>
+        <Link
+          href={`/app/wallet/${encoded}/agents/library`}
+          className={clsx(
+            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
+            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
           )}
         >
@@ -833,6 +869,17 @@ export default function AgentsPage() {
         >
           <ClipboardList size={13} aria-hidden="true" />
           Approvals
+        </Link>
+        <Link
+          href={`/app/wallet/${encoded}/agents/feedback`}
+          className={clsx(
+            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
+            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+          )}
+        >
+          <MessageSquare size={13} aria-hidden="true" />
+          Feedback
         </Link>
         <Link
           href={`/app/wallet/${encoded}/agents/policy`}
