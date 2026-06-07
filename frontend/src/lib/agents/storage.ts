@@ -5,7 +5,7 @@ import {
   canOpenLocalAgentExecution,
   executionModeForVenue,
 } from "@/lib/agents/executionAdapters";
-import { buildAgentPostTradeReview } from "@/lib/agents/postTradeReview";
+import { closeAgentExecutionRecord } from "@/lib/agents/executionClose";
 import { evaluateAgentTradeProposal } from "@/lib/agents/policy";
 import { defaultAgentVaultPolicy } from "@/lib/agents/policy";
 import {
@@ -801,18 +801,12 @@ export function closeMockAgentExecution(
   const now = Date.now();
   const pnl = normalizePnl(realizedPnlUsd);
   const proposal = findExecutionProposal(shape, walletName, execution);
-  const updated: AgentExecutionRecord = {
-    ...execution,
-    status: "closed",
-    closedAt: now,
+  const updated = closeAgentExecutionRecord({
+    execution,
+    proposal,
     realizedPnlUsd: pnl,
-    postTradeReview: buildAgentPostTradeReview({
-      execution,
-      proposal,
-      realizedPnlUsd: pnl,
-      now,
-    }),
-  };
+    now,
+  });
   list[idx] = updated;
   shape.executionsByWallet[walletName] = list;
   updateScorecardForClosedExecution(shape, updated);
@@ -853,18 +847,12 @@ export function closeOpenMockAgentExecutions({
     ) {
       return execution;
     }
-    const updated: AgentExecutionRecord = {
-      ...execution,
-      status: "closed",
-      closedAt: now,
+    const updated = closeAgentExecutionRecord({
+      execution,
+      proposal: proposals.find((item) => item.id === execution.proposalId),
       realizedPnlUsd: pnl,
-      postTradeReview: buildAgentPostTradeReview({
-        execution,
-        proposal: proposals.find((item) => item.id === execution.proposalId),
-        realizedPnlUsd: pnl,
-        now,
-      }),
-    };
+      now,
+    });
     closed.push(updated);
     updateScorecardForClosedExecution(shape, updated);
     appendEvent(shape, {

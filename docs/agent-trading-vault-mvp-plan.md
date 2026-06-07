@@ -19,6 +19,16 @@ The MVP therefore has two modes:
 Anything outside the session or policy limits is blocked or escalated back to
 human approval.
 
+Product language:
+
+- Agent Trading is the ClearSig-governed trading system for users. The user
+  chooses the agent, allowance, markets, venues, size, leverage, stop rules,
+  kill switch, and approval requirements.
+- Automatic Trading is an agent taking trading actions on the user's behalf
+  inside those predetermined ClearSig rules. That includes preparing ideas,
+  opening allowed trades, closing trades at approved exits, and recording the
+  reasoning and result.
+
 ## Non-Negotiable Boundaries
 
 - Agents never receive raw wallet custody.
@@ -236,6 +246,9 @@ Phase 5 has started with the execution adapter boundary:
   their allowed markets with available market data, rank the best setup, show
   thesis/risk/policy context, and can turn the scout read into a normal
   ClearSig-checked proposal or paper trade.
+- automatic trade management can now detect approved stop-loss or take-profit
+  exits on open paper trades and close those trades through the same execution
+  record path, including post-trade reviews and backend sync.
 - paper execution records are now part of backend agent state too. Opening,
   rechecking into, and closing paper trades sync execution records server-side;
   backend risk snapshots use open executions instead of trusting proposal

@@ -8,6 +8,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, Check, Clock, X } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import {
+  closeAgentExecutionRecord,
   closeMockAgentExecution,
   closeOpenMockAgentExecutions,
   estimateAgentOpenTradePerformance,
@@ -86,10 +87,20 @@ export default function AgentTradesPage() {
 
   const closeTrade = (id: string, pnlUsd: string) => {
     startTransition(() => {
-      const updated = closeMockAgentExecution(name, id, pnlUsd);
+      const local = closeMockAgentExecution(name, id, pnlUsd);
+      const execution = executions.find((item) => item.id === id);
+      const proposal = proposals.find((item) => item.id === execution?.proposalId);
+      const updated = local ?? (execution
+        ? closeAgentExecutionRecord({ execution, proposal, realizedPnlUsd: pnlUsd })
+        : null);
       if (!updated) {
         toast.error("Practice trade not found");
         return;
+      }
+      if (!local) {
+        setExecutions((current) =>
+          current.map((item) => (item.id === updated.id ? updated : item)),
+        );
       }
       toast.success("Practice trade closed");
       void syncAgentExecution(updated).then((synced) => {
@@ -104,10 +115,33 @@ export default function AgentTradesPage() {
 
   const closeAllOpen = () => {
     startTransition(() => {
-      const closed = closeOpenMockAgentExecutions({ walletName: name });
+      const localClosed = closeOpenMockAgentExecutions({ walletName: name });
+      const localClosedIds = new Set(localClosed.map((execution) => execution.id));
+      const fallbackClosed = executions
+        .filter(
+          (execution) =>
+            execution.status === "open" && !localClosedIds.has(execution.id),
+        )
+        .map((execution) =>
+          closeAgentExecutionRecord({
+            execution,
+            proposal: proposals.find((item) => item.id === execution.proposalId),
+            realizedPnlUsd: "0",
+          }),
+        );
+      const closed = [...localClosed, ...fallbackClosed];
       if (closed.length === 0) {
         toast.error("No open practice trades to close");
         return;
+      }
+      if (fallbackClosed.length > 0) {
+        setExecutions((current) =>
+          current.map(
+            (execution) =>
+              fallbackClosed.find((closedExecution) => closedExecution.id === execution.id) ??
+              execution,
+          ),
+        );
       }
       toast.success(`${closed.length} open practice trade${closed.length === 1 ? "" : "s"} closed`);
       void Promise.all(closed.map((execution) => syncAgentExecution(execution))).then(

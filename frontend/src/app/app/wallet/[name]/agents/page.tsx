@@ -38,6 +38,7 @@ import {
   agentRiskSnapshot,
   agentSessionPolicyBindingStatus,
   approveAgentProposal,
+  buildAgentAutomaticExitDecisions,
   buildAgentBetaReadiness,
   buildAgentScoutProposal,
   buildAgentScoutReports,
@@ -80,6 +81,7 @@ import {
   updateAgentSessionStatus,
   updateAgentStatus,
   type AgentAuditEvent,
+  type AgentAutomaticExitDecision,
   type AgentExecutionRecord,
   type AgentLeaderboardEntry,
   type AgentProfile,
@@ -96,6 +98,7 @@ import {
   type AgentTradingReadiness,
   type AgentAllocationRecommendation,
   type AgentBetaReadiness,
+  closeAgentExecutionRecord,
 } from "@/lib/agents";
 import {
   loadAgentInboxSummary,
@@ -354,6 +357,15 @@ export default function AgentsPage() {
       now,
     }).slice(0, 3);
   }, [agents, marketByMarket, name, policy, sessions]);
+  const automaticExitDecisions = useMemo(
+    () =>
+      buildAgentAutomaticExitDecisions({
+        executions: openExecutionRecords,
+        proposals,
+        marketByMarket,
+      }),
+    [marketByMarket, openExecutionRecords, proposals],
+  );
   const gettingStartedSteps = useMemo<GettingStartedStep[]>(() => {
     const firstAgent = agents[0];
     const firstReadiness = firstAgent
@@ -558,7 +570,7 @@ export default function AgentsPage() {
       void syncAgentEmergencyPause(name, enabled).then((synced) => {
         if (synced.ok) {
           toast.success(
-            enabled ? "All automated trading stopped" : "Automated trading allowed again",
+            enabled ? "All automatic actions stopped" : "Automatic actions allowed again",
           );
           void refreshBackendState();
         } else {
@@ -725,10 +737,20 @@ export default function AgentsPage() {
 
   const closeExecution = (id: string, pnlUsd: string) => {
     startAction(() => {
-      const updated = closeMockAgentExecution(name, id, pnlUsd);
+      const local = closeMockAgentExecution(name, id, pnlUsd);
+      const execution = executions.find((item) => item.id === id);
+      const proposal = proposals.find((item) => item.id === execution?.proposalId);
+      const updated = local ?? (execution
+        ? closeAgentExecutionRecord({ execution, proposal, realizedPnlUsd: pnlUsd })
+        : null);
       if (!updated) {
         toast.error("Practice trade not found");
         return;
+      }
+      if (!local) {
+        setExecutions((current) =>
+          current.map((item) => (item.id === updated.id ? updated : item)),
+        );
       }
       toast.success("Practice trade closed");
       void syncAgentExecution(updated).then((synced) => {
@@ -745,10 +767,30 @@ export default function AgentsPage() {
 
   const closeAllOpenPaperTrades = () => {
     startAction(() => {
-      const closed = closeOpenMockAgentExecutions({ walletName: name });
+      const localClosed = closeOpenMockAgentExecutions({ walletName: name });
+      const localClosedIds = new Set(localClosed.map((execution) => execution.id));
+      const fallbackClosed = openExecutionRecords
+        .filter((execution) => !localClosedIds.has(execution.id))
+        .map((execution) =>
+          closeAgentExecutionRecord({
+            execution,
+            proposal: proposals.find((item) => item.id === execution.proposalId),
+            realizedPnlUsd: "0",
+          }),
+        );
+      const closed = [...localClosed, ...fallbackClosed];
       if (closed.length === 0) {
         toast.error("No open practice trades to close");
         return;
+      }
+      if (fallbackClosed.length > 0) {
+        setExecutions((current) =>
+          current.map(
+            (execution) =>
+              fallbackClosed.find((closedExecution) => closedExecution.id === execution.id) ??
+              execution,
+          ),
+        );
       }
       toast.success(
         `${closed.length} open practice trade${closed.length === 1 ? "" : "s"} closed`,
@@ -759,6 +801,49 @@ export default function AgentsPage() {
             void refreshBackendState();
           } else {
             toast.info("Practice trades saved on this device for now");
+          }
+        },
+      );
+    });
+  };
+
+  const closeAutomaticExitTrades = () => {
+    startAction(() => {
+      if (automaticExitDecisions.length === 0) {
+        toast.info("No automatic exits are ready");
+        return;
+      }
+      const closed = automaticExitDecisions.map((decision) => {
+        const local = closeMockAgentExecution(
+          name,
+          decision.execution.id,
+          decision.realizedPnlUsd,
+        );
+        return (
+          local ??
+          closeAgentExecutionRecord({
+            execution: decision.execution,
+            proposal: decision.proposal,
+            realizedPnlUsd: decision.realizedPnlUsd,
+          })
+        );
+      });
+      setExecutions((current) =>
+        current.map(
+          (execution) =>
+            closed.find((closedExecution) => closedExecution.id === execution.id) ??
+            execution,
+        ),
+      );
+      toast.success(
+        `${closed.length} automatic exit${closed.length === 1 ? "" : "s"} closed`,
+      );
+      void Promise.all(closed.map((execution) => syncAgentExecution(execution))).then(
+        (results) => {
+          if (results.every((result) => result.ok)) {
+            void refreshBackendState();
+          } else {
+            toast.info("Automatic exits closed on this device for now");
           }
         },
       );
@@ -840,10 +925,10 @@ export default function AgentsPage() {
       <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div className="flex flex-col gap-1">
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-            Automated Trading · {display}
+            Agent Trading · {display}
           </p>
           <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
-            Automated Trading
+            Agent Trading
           </h1>
           <p className="max-w-2xl text-xs leading-relaxed text-text-soft sm:text-sm">
             Let an agent prove itself with practice money first. You choose the
@@ -1119,8 +1204,10 @@ export default function AgentsPage() {
         <OpenTradeMonitor
           executions={openExecutionRecords}
           marketByMarket={marketByMarket}
+          automaticExits={automaticExitDecisions}
           pending={pendingAction}
           onClose={closeExecution}
+          onCloseAutomaticExits={closeAutomaticExitTrades}
         />
       ) : null}
 
@@ -1520,7 +1607,7 @@ function KillSwitchPanel({
           </span>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-text-strong">
-              {paused ? "All automated trading is stopped" : "Automated trading is allowed"}
+              {paused ? "All automatic actions are stopped" : "Automatic actions are allowed"}
             </p>
             <p className="mt-1 text-sm leading-relaxed text-text-soft">
               {paused
@@ -1942,13 +2029,17 @@ function BetaReadinessPanel({
 function OpenTradeMonitor({
   executions,
   marketByMarket,
+  automaticExits,
   pending,
   onClose,
+  onCloseAutomaticExits,
 }: {
   executions: AgentExecutionRecord[];
   marketByMarket: Record<string, AgentMarketDataSnapshot>;
+  automaticExits: AgentAutomaticExitDecision[];
   pending: boolean;
   onClose: (id: string, pnlUsd: string) => void;
+  onCloseAutomaticExits: () => void;
 }) {
   const estimates = executions
     .map((execution) => ({
@@ -1996,6 +2087,27 @@ function OpenTradeMonitor({
           {formatSignedUsd(String(estimatedPnl))}
         </span>
       </div>
+      {automaticExits.length > 0 ? (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-soft border border-accent/25 bg-accent/[0.06] px-3 py-2">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-text-strong">
+              Automatic exit ready
+            </p>
+            <p className="mt-0.5 text-xs leading-relaxed text-text-soft">
+              {automaticExits[0]?.summary}
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={onCloseAutomaticExits}
+            className="inline-flex min-h-8 items-center justify-center gap-1 rounded-soft bg-accent px-2.5 py-1.5 text-[11px] font-medium text-text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Check className="h-3.5 w-3.5" aria-hidden="true" />
+            Close automatically
+          </button>
+        </div>
+      ) : null}
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         {executions.slice(0, 4).map((execution) => (
           <ExecutionCard

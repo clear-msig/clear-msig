@@ -34,6 +34,7 @@ import {
   approveAgentProposal,
   buildAgentTradingReadiness,
   canOpenLocalAgentExecution,
+  closeAgentExecutionRecord,
   closeMockAgentExecution,
   closeOpenMockAgentExecutions,
   estimateAgentOpenTradePerformance,
@@ -449,10 +450,20 @@ export default function AgentDetailPage() {
 
   const closePaperTrade = (id: string, pnlUsd: string) => {
     startAction(() => {
-      const updated = closeMockAgentExecution(name, id, pnlUsd);
+      const local = closeMockAgentExecution(name, id, pnlUsd);
+      const execution = executions.find((item) => item.id === id);
+      const proposal = proposals.find((item) => item.id === execution?.proposalId);
+      const updated = local ?? (execution
+        ? closeAgentExecutionRecord({ execution, proposal, realizedPnlUsd: pnlUsd })
+        : null);
       if (!updated) {
         toast.error("Paper trade not found");
         return;
+      }
+      if (!local) {
+        setExecutions((current) =>
+          current.map((item) => (item.id === updated.id ? updated : item)),
+        );
       }
       toast.success("Paper trade closed");
       void syncAgentExecution(updated).then((synced) => {
@@ -467,13 +478,36 @@ export default function AgentDetailPage() {
 
   const closeAllOpenPaperTrades = () => {
     startAction(() => {
-      const closed = closeOpenMockAgentExecutions({
+      const localClosed = closeOpenMockAgentExecutions({
         walletName: name,
         agentId,
       });
+      const localClosedIds = new Set(localClosed.map((execution) => execution.id));
+      const fallbackClosed = executions
+        .filter(
+          (execution) =>
+            execution.status === "open" && !localClosedIds.has(execution.id),
+        )
+        .map((execution) =>
+          closeAgentExecutionRecord({
+            execution,
+            proposal: proposals.find((item) => item.id === execution.proposalId),
+            realizedPnlUsd: "0",
+          }),
+        );
+      const closed = [...localClosed, ...fallbackClosed];
       if (closed.length === 0) {
         toast.error("No open paper trades to close");
         return;
+      }
+      if (fallbackClosed.length > 0) {
+        setExecutions((current) =>
+          current.map(
+            (execution) =>
+              fallbackClosed.find((closedExecution) => closedExecution.id === execution.id) ??
+              execution,
+          ),
+        );
       }
       toast.success(
         `${closed.length} open paper trade${closed.length === 1 ? "" : "s"} closed`,

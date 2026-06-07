@@ -24,6 +24,7 @@ import {
   agentRiskSnapshot,
   buildAgentTradingReadiness,
   buildTradingLaunchSteps,
+  closeAgentExecutionRecord,
   closeMockAgentExecution,
   closeOpenMockAgentExecutions,
   createClearSigLibraryPracticeIdea,
@@ -597,7 +598,11 @@ export default function StartTradingPage() {
         ],
       });
       if (!approval) return;
-      const updated = closeMockAgentExecution(name, id, pnlUsd);
+      const local = closeMockAgentExecution(name, id, pnlUsd);
+      const proposal = proposals.find((item) => item.id === trade?.proposalId);
+      const updated = local ?? (trade
+        ? closeAgentExecutionRecord({ execution: trade, proposal, realizedPnlUsd: pnlUsd })
+        : null);
       if (!updated) {
         toast.error("Practice trade not found");
         return;
@@ -624,10 +629,21 @@ export default function StartTradingPage() {
         ],
       });
       if (!approval) return;
-      const closed = closeOpenMockAgentExecutions({
+      const localClosed = closeOpenMockAgentExecutions({
         walletName: name,
         agentId: selectedAgent.id,
       });
+      const localClosedIds = new Set(localClosed.map((execution) => execution.id));
+      const fallbackClosed = openExecutions
+        .filter((execution) => !localClosedIds.has(execution.id))
+        .map((execution) =>
+          closeAgentExecutionRecord({
+            execution,
+            proposal: proposals.find((item) => item.id === execution.proposalId),
+            realizedPnlUsd: "0",
+          }),
+        );
+      const closed = [...localClosed, ...fallbackClosed];
       if (closed.length === 0) {
         toast.info("No open practice trades to close");
         return;
@@ -646,7 +662,7 @@ export default function StartTradingPage() {
           className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-text-soft transition-colors hover:text-accent"
         >
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-          Automated Trading
+          Agent Trading
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
