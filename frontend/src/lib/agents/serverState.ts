@@ -843,6 +843,9 @@ function executionRecordMismatch(
   ) {
     return "Paper execution risk values do not match the approved proposal.";
   }
+  if ((proposal.entryPrice ?? null) !== (execution.entryPrice ?? null)) {
+    return "Paper execution entry price does not match the approved proposal.";
+  }
   return null;
 }
 
@@ -860,6 +863,7 @@ function executionUpdateMismatch(
     previous.orderType !== incoming.orderType ||
     previous.notionalUsd !== incoming.notionalUsd ||
     previous.leverage !== incoming.leverage ||
+    (previous.entryPrice ?? null) !== (incoming.entryPrice ?? null) ||
     previous.executionMode !== incoming.executionMode ||
     previous.adapterStatus !== incoming.adapterStatus ||
     previous.externalOrderId !== incoming.externalOrderId ||

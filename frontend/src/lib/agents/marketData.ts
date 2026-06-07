@@ -1,3 +1,5 @@
+import type { AgentExecutionRecord } from "@/lib/agents/types";
+
 export type AgentMarketDataProviderId = "mock" | "hyperliquid";
 
 export interface AgentMarketDataSnapshot {
@@ -14,6 +16,12 @@ export interface AgentMarketDataSnapshot {
 export interface AgentMarketDataValidation {
   snapshot: AgentMarketDataSnapshot | null;
   errors: string[];
+}
+
+export interface AgentOpenTradePerformance {
+  markPriceUsd: string;
+  unrealizedPnlUsd: string;
+  movePct: number;
 }
 
 export function normalizeAgentMarket(
@@ -107,6 +115,38 @@ export function agentMarketDataFreshnessError(
   return null;
 }
 
+export function estimateAgentOpenTradePerformance(
+  execution: AgentExecutionRecord,
+  snapshot: AgentMarketDataSnapshot | null,
+): AgentOpenTradePerformance | null {
+  if (
+    execution.status !== "open" ||
+    !snapshot ||
+    snapshot.market.trim().toUpperCase() !== execution.market.trim().toUpperCase()
+  ) {
+    return null;
+  }
+  const entry = Number(execution.entryPrice ?? 0);
+  const mark = Number(snapshot.markPriceUsd);
+  const notional = Number(execution.notionalUsd);
+  if (
+    !Number.isFinite(entry) ||
+    entry <= 0 ||
+    !Number.isFinite(mark) ||
+    mark <= 0 ||
+    !Number.isFinite(notional)
+  ) {
+    return null;
+  }
+  const direction = execution.side === "long" ? 1 : -1;
+  const movePct = ((mark - entry) / entry) * 100 * direction;
+  return {
+    markPriceUsd: snapshot.markPriceUsd,
+    unrealizedPnlUsd: String(roundMoney((notional * movePct) / 100)),
+    movePct,
+  };
+}
+
 function providerValue(value: unknown): AgentMarketDataProviderId | null {
   return value === "mock" || value === "hyperliquid" ? value : null;
 }
@@ -126,6 +166,10 @@ function decimalString(value: unknown): string | null {
   const raw = String(value).trim();
   const parsed = Number(raw);
   return raw && Number.isFinite(parsed) ? raw : null;
+}
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 function nullableDecimalString(value: unknown): string | null {

@@ -139,6 +139,7 @@ function executionFromProposal(proposal: AgentTradeProposal): AgentExecutionReco
     orderType: proposal.orderType,
     notionalUsd: proposal.notionalUsd,
     leverage: proposal.leverage,
+    entryPrice: proposal.entryPrice ?? null,
     executionMode: "paper",
     adapterStatus: "ready",
     externalOrderId: null,

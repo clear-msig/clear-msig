@@ -29,6 +29,7 @@ import {
   createClearSigLibraryPracticeIdea,
   createBrowserOwnerApproval,
   decryptAgentVaultPolicy,
+  estimateAgentOpenTradePerformance,
   evaluateAgentTradeProposal,
   getAgentConnectionKit,
   getAgentVaultPolicy,
@@ -77,6 +78,7 @@ import {
   setAgentAutomaticTrading,
   type AgentInboxSummary,
 } from "@/lib/agents/clientInbox";
+import { loadAgentMarketDataSnapshots } from "@/lib/agents/clientMarketData";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import type { AgentServerWalletState } from "@/lib/agents/serverState";
 import { toDisplayName } from "@/lib/retail/walletNames";
@@ -123,6 +125,7 @@ export default function StartTradingPage() {
   const [savedState, setSavedState] = useState<AgentServerWalletState | null>(null);
   const [connectionKit, setConnectionKit] = useState<AgentConnectionKit | null>(null);
   const [marketSnapshot, setMarketSnapshot] = useState<AgentMarketDataSnapshot | null>(null);
+  const [marketByMarket, setMarketByMarket] = useState<Record<string, AgentMarketDataSnapshot>>({});
   const [marketStatus, setMarketStatus] = useState("Checking market data");
   const [approvalRequest, setApprovalRequest] = useState<AgentOwnerApprovalInput | null>(null);
   const [approvalApproveLabel, setApprovalApproveLabel] = useState("Approve");
@@ -282,6 +285,26 @@ export default function StartTradingPage() {
       proposal.venue === "hyperliquid_testnet" && proposal.status === "approved",
   );
   const complete = steps.every((step) => step.status === "done");
+  const openMarketKey = openExecutions
+    .map((execution) => execution.market.trim().toUpperCase())
+    .filter(Boolean)
+    .sort()
+    .join("|");
+
+  useEffect(() => {
+    const openMarkets = openMarketKey ? openMarketKey.split("|") : [];
+    if (openMarkets.length === 0) {
+      setMarketByMarket({});
+      return;
+    }
+    let cancelled = false;
+    void loadAgentMarketDataSnapshots(openMarkets).then((snapshots) => {
+      if (!cancelled) setMarketByMarket(snapshots);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [openMarketKey]);
 
   const requestOwnerApproval = useCallback(
     (input: AgentOwnerApprovalInput, approveLabel = "Approve") =>
@@ -370,11 +393,10 @@ export default function StartTradingPage() {
 
   const enableAutomaticTrading = () => {
     if (!selectedAgent) return;
-    startTransition(async () => {
+    void (async () => {
       setAutomaticTradingBusy(true);
       try {
-        toast.info("Review the approval to turn on automatic trading");
-        const approval = await requestOwnerApproval({
+        const input: AgentOwnerApprovalInput = {
           walletName: name,
           agentId: selectedAgent.id,
           action: "start_automatic_trading",
@@ -385,7 +407,31 @@ export default function StartTradingPage() {
             { label: "Trader", value: selectedAgent.name },
             { label: "Practice account", value: venueLabel(venue) },
           ],
-        }, "Approve and turn on");
+        };
+        let approval: AgentOwnerApproval | null;
+        if (canSign) {
+          toast.info("Approve automatic trading in your wallet");
+          const createdAt = Date.now();
+          const signed = await signBytes(
+            new TextEncoder().encode(ownerApprovalSignableText(input, createdAt)),
+          );
+          approval = await createBrowserOwnerApproval({
+            ...input,
+            now: createdAt,
+            approvedBy: signed.signer_pubkey,
+            signature: signed.signature,
+          });
+          saveAgentOwnerApproval(approval);
+          const synced = await syncAgentOwnerApproval(approval);
+          if (!synced.ok) {
+            toast.info("Approval saved on this device for now", {
+              details: synced.message,
+            });
+          }
+        } else {
+          toast.info("Review the approval to turn on automatic trading");
+          approval = await requestOwnerApproval(input, "Approve and turn on");
+        }
         if (!approval) return;
         const updated = await setAgentAutomaticTrading(name, selectedAgent.id, true);
         setConnectionKit(updated);
@@ -398,7 +444,7 @@ export default function StartTradingPage() {
       } finally {
         setAutomaticTradingBusy(false);
       }
-    });
+    })();
   };
 
   const askBuiltInTraderForIdea = () => {
@@ -708,6 +754,7 @@ export default function StartTradingPage() {
         closedExecutions={closedExecutions}
         events={events}
         marketSnapshot={marketSnapshot}
+        marketByMarket={marketByMarket}
         marketStatus={marketStatus}
         accountSnapshot={outside?.accountSnapshot ?? null}
         venueRequests={venueRequests}
@@ -972,6 +1019,7 @@ function TradingControlRoom({
   closedExecutions,
   events,
   marketSnapshot,
+  marketByMarket,
   marketStatus,
   accountSnapshot,
   venueRequests,
@@ -990,6 +1038,7 @@ function TradingControlRoom({
   closedExecutions: AgentExecutionRecord[];
   events: AgentAuditEvent[];
   marketSnapshot: AgentMarketDataSnapshot | null;
+  marketByMarket: Record<string, AgentMarketDataSnapshot>;
   marketStatus: string;
   accountSnapshot: AgentVenueReadiness["accountSnapshot"] | null;
   venueRequests: NonNullable<AgentVenueReadiness["requests"]>;
@@ -1223,6 +1272,7 @@ function TradingControlRoom({
                 <OpenTradeRow
                   key={execution.id}
                   execution={execution}
+                  marketSnapshot={marketByMarket[execution.market.trim().toUpperCase()] ?? null}
                   pending={pending}
                   onClose={onCloseOne}
                 />
@@ -1291,14 +1341,17 @@ function CollapsibleControlPanel({
 
 function OpenTradeRow({
   execution,
+  marketSnapshot,
   pending,
   onClose,
 }: {
   execution: AgentExecutionRecord;
+  marketSnapshot: AgentMarketDataSnapshot | null;
   pending: boolean;
   onClose: (id: string, pnlUsd: string) => void;
 }) {
   const [pnlUsd, setPnlUsd] = useState("");
+  const performance = estimateAgentOpenTradePerformance(execution, marketSnapshot);
   return (
     <div className="min-w-0 rounded-soft border border-border-soft bg-canvas px-3 py-3">
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
@@ -1309,6 +1362,23 @@ function OpenTradeRow({
           <p className="mt-1 break-words text-xs text-text-soft">
             {venueLabel(execution.venue)} · {formatUsd(execution.notionalUsd)} · {execution.leverage}x
           </p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            <ControlStat
+              label="Entry"
+              value={formatUsd(execution.entryPrice)}
+              highlight={Boolean(execution.entryPrice)}
+            />
+            <ControlStat
+              label="Mark"
+              value={performance ? formatUsd(performance.markPriceUsd) : "Waiting"}
+              highlight={Boolean(performance)}
+            />
+            <ControlStat
+              label="Est. P/L"
+              value={performance ? formatSignedUsd(performance.unrealizedPnlUsd) : "Unknown"}
+              highlight={Boolean(performance && Number(performance.unrealizedPnlUsd) !== 0)}
+            />
+          </div>
           <p className="mt-1 break-words text-[11px] text-text-soft">
             Opened {new Date(execution.openedAt).toLocaleString()}
           </p>
@@ -1324,7 +1394,7 @@ function OpenTradeRow({
           <button
             type="button"
             disabled={pending}
-            onClick={() => onClose(execution.id, pnlUsd)}
+            onClick={() => onClose(execution.id, pnlUsd || performance?.unrealizedPnlUsd || "0")}
             className={CONTROL_BUTTON_CLASS}
           >
             Close

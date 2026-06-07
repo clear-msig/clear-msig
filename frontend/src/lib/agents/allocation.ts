@@ -296,12 +296,12 @@ function allocationSummary(
   tier: AgentAllocationTier,
   limits: AgentAllocationLimits,
 ): string {
-  const authority = `${tier.label}: up to $${Number(limits.maxNotionalUsd).toLocaleString("en-US")} per trade, ${limits.maxLeverage}x leverage, ${limits.maxOpenPositions} open position${limits.maxOpenPositions === 1 ? "" : "s"}, for ${limits.sessionHours} hours`;
-  if (action === "promote") return `Eligible to promote. ${authority}.`;
-  if (action === "demote") return `Reduce the next session. ${authority}.`;
-  if (action === "hold") return `Current session matches the recommendation. ${authority}.`;
-  if (action === "review") return `Review current session limits. ${authority}.`;
-  return `Start with a human-approved bounded session. ${authority}.`;
+  const authority = `${tier.label}: fund up to $${Number(limits.maxNotionalUsd).toLocaleString("en-US")} per trade, ${limits.maxLeverage}x leverage, ${limits.maxOpenPositions} open position${limits.maxOpenPositions === 1 ? "" : "s"}, for ${limits.sessionHours} hours`;
+  if (action === "promote") return `Eligible to increase funding. ${authority}.`;
+  if (action === "demote") return `Reduce the next funding window. ${authority}.`;
+  if (action === "hold") return `Current funding window matches the recommendation. ${authority}.`;
+  if (action === "review") return `Review current funding limits. ${authority}.`;
+  return `Start with a human-approved bounded funding window. ${authority}.`;
 }
 
 function minPositive(first: number, second: number): number {

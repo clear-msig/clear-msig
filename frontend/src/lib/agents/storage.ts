@@ -252,6 +252,114 @@ export function updateAgentStatus(
   return updated;
 }
 
+export function publishAgentProfile(
+  walletName: string,
+  id: string,
+  publicSummary?: string,
+): AgentProfile | null {
+  const shape = readAll();
+  const list = shape.agentsByWallet[walletName] ?? [];
+  const idx = list.findIndex((agent) => agent.id === id);
+  if (idx < 0) return null;
+  const agent = list[idx];
+  if (!agent) return null;
+  const now = Date.now();
+  const slug =
+    agent.publishing?.slug ??
+    `${slugPart(agent.name || "agent")}-${slugPart(agent.id)}`;
+  const updated: AgentProfile = {
+    ...agent,
+    publishing: {
+      status: "published",
+      slug,
+      publicSummary:
+        publicSummary?.trim() ||
+        agent.publishing?.publicSummary ||
+        agent.description?.trim() ||
+        `${agent.name} trading profile`,
+      visibleMetrics: [
+        "score",
+        "realized_pnl",
+        "closed_trades",
+        "open_trades",
+        "win_rate",
+        "safety_stops",
+        "allocation_tier",
+      ],
+      publishedAt: agent.publishing?.publishedAt ?? now,
+      updatedAt: now,
+      version: 1,
+    },
+    updatedAt: now,
+  };
+  list[idx] = updated;
+  shape.agentsByWallet[walletName] = list;
+  appendEvent(shape, {
+    id: newAgentEventId(),
+    walletName,
+    agentId: id,
+    kind: "agent_profile_published",
+    message: `${agent.name} publishing profile turned on.`,
+    createdAt: now,
+    version: 1,
+  });
+  writeAll(shape);
+  return updated;
+}
+
+export function unpublishAgentProfile(
+  walletName: string,
+  id: string,
+): AgentProfile | null {
+  const shape = readAll();
+  const list = shape.agentsByWallet[walletName] ?? [];
+  const idx = list.findIndex((agent) => agent.id === id);
+  if (idx < 0) return null;
+  const agent = list[idx];
+  if (!agent) return null;
+  const now = Date.now();
+  const updated: AgentProfile = {
+    ...agent,
+    publishing: {
+      status: "draft",
+      slug:
+        agent.publishing?.slug ??
+        `${slugPart(agent.name || "agent")}-${slugPart(agent.id)}`,
+      publicSummary:
+        agent.publishing?.publicSummary ||
+        agent.description?.trim() ||
+        `${agent.name} trading profile`,
+      visibleMetrics:
+        agent.publishing?.visibleMetrics ?? [
+          "score",
+          "realized_pnl",
+          "closed_trades",
+          "open_trades",
+          "win_rate",
+          "safety_stops",
+          "allocation_tier",
+        ],
+      publishedAt: agent.publishing?.publishedAt,
+      updatedAt: now,
+      version: 1,
+    },
+    updatedAt: now,
+  };
+  list[idx] = updated;
+  shape.agentsByWallet[walletName] = list;
+  appendEvent(shape, {
+    id: newAgentEventId(),
+    walletName,
+    agentId: id,
+    kind: "agent_profile_unpublished",
+    message: `${agent.name} publishing profile turned off.`,
+    createdAt: now,
+    version: 1,
+  });
+  writeAll(shape);
+  return updated;
+}
+
 export function getAgentVaultPolicy(walletName: string): AgentVaultPolicy {
   return normalizePolicy(
     readAll().policiesByWallet[walletName] ?? defaultAgentVaultPolicy(walletName),
@@ -1033,6 +1141,7 @@ function executionFromProposal(
     orderType: proposal.orderType,
     notionalUsd: proposal.notionalUsd,
     leverage: proposal.leverage,
+    entryPrice: proposal.entryPrice ?? null,
     executionMode: executionModeForVenue(proposal.venue),
     adapterStatus: adapter.status,
     externalOrderId: null,
@@ -1391,6 +1500,15 @@ function normalizePnl(value: string): string {
 
 function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+function slugPart(value: string): string {
+  const slug = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || "agent";
 }
 
 function formatSignedUsd(value: string): string {

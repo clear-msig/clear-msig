@@ -14,6 +14,7 @@ import {
   listAgentSessions,
   listAgentScorecards,
   openAgentPaperTrade,
+  publishAgentProfile,
   recheckAgentProposal,
   renewAgentSession,
   rotateAgentSignalKey,
@@ -26,6 +27,7 @@ import {
   setAgentVaultEmergencyPause,
   updateAgentConnectionSettings,
   updateAgentStatus,
+  unpublishAgentProfile,
   type AgentProfile,
   type AgentOwnerApproval,
   type AgentTradeProposal,
@@ -89,6 +91,7 @@ function proposal(id: string, market = "BTC-PERP"): AgentTradeProposal {
     orderType: "market",
     notionalUsd: "250",
     leverage: 1,
+    entryPrice: "67000",
     stopLossPrice: "65000",
     takeProfitPrice: null,
     thesis: "Momentum breakout.",
@@ -112,6 +115,28 @@ afterEach(() => {
 });
 
 describe("agent paper execution storage", () => {
+  it("publishes and unpublishes an agent profile with audit history", () => {
+    stubBrowserStorage();
+    saveAgent(agent());
+
+    const published = publishAgentProfile(
+      "vault",
+      "agent-alpha",
+      "Public profile for user testing.",
+    );
+    expect(published?.publishing?.status).toBe("published");
+    expect(published?.publishing?.slug).toBe("agent-alpha-agent-alpha");
+    expect(published?.publishing?.publicSummary).toBe("Public profile for user testing.");
+
+    const draft = unpublishAgentProfile("vault", "agent-alpha");
+    expect(draft?.publishing?.status).toBe("draft");
+    expect(draft?.publishing?.slug).toBe("agent-alpha-agent-alpha");
+    expect(listAgentEvents("vault").map((event) => event.kind)).toEqual([
+      "agent_profile_published",
+      "agent_profile_unpublished",
+    ]);
+  });
+
   it("records owner approvals with an audit event", () => {
     stubBrowserStorage();
     const approval: AgentOwnerApproval = {
@@ -179,6 +204,7 @@ describe("agent paper execution storage", () => {
     expect(first.execution?.status).toBe("open");
     expect(first.execution?.executionMode).toBe("paper");
     expect(first.execution?.adapterStatus).toBe("ready");
+    expect(first.execution?.entryPrice).toBe("67000");
     expect(listAgentSessions("vault")[0]?.policyHash).toBeTruthy();
     expect(first.proposal.policyHash).toBeTruthy();
     expect(first.execution?.policyHash).toBe(first.proposal.policyHash);

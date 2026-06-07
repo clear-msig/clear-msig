@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import clsx from "clsx";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -14,14 +14,17 @@ import {
   ShieldCheck,
   Sparkles,
   Trophy,
+  TrendingUp,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import {
   agentLeaderboard,
   agentLibraryMetrics,
+  estimateAgentOpenTradePerformance,
   getAgentVaultPolicy,
   isAgentSessionCurrent,
   listAgentExecutions,
+  listAgentProposals,
   listAgentScorecards,
   listAgentSessions,
   CLEARSIG_TRADER_LIBRARY,
@@ -34,15 +37,19 @@ import {
   seedClearSigAgentDemoHistory,
   syncAgentProfile,
   type AgentAllocationRecommendation,
+  type AgentExecutionRecord,
   type AgentLibraryMetrics,
   type AgentLeaderboardEntry,
+  type AgentMarketDataSnapshot,
   type AgentProfile,
+  type AgentTradeProposal,
   type AgentScorecard,
   type AgentSessionGrant,
   type TradingVenue,
   type ClearSigTraderRisk,
   type ClearSigTraderTemplate,
 } from "@/lib/agents";
+import { loadAgentMarketDataSnapshots } from "@/lib/agents/clientMarketData";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 type LibraryWindow = "7d" | "30d" | "all";
@@ -54,6 +61,8 @@ type TrackedAgentItem = {
   allocation: AgentAllocationRecommendation;
   currentSession?: AgentSessionGrant;
   metrics: AgentLibraryMetrics;
+  executions: AgentExecutionRecord[];
+  stoppedProposals: AgentTradeProposal[];
 };
 
 export default function TraderLibraryPage() {
@@ -63,6 +72,7 @@ export default function TraderLibraryPage() {
   const [pending, startTransition] = useTransition();
   const [window, setWindow] = useState<LibraryWindow>("7d");
   const [market, setMarket] = useState("all");
+  const [marketByMarket, setMarketByMarket] = useState<Record<string, AgentMarketDataSnapshot>>({});
   const [, setRefreshKey] = useState(0);
   const name = useMemo(() => decodeParam(params?.name), [params?.name]);
   const encoded = encodeURIComponent(name);
@@ -73,6 +83,29 @@ export default function TraderLibraryPage() {
   const policy = getAgentVaultPolicy(name);
   const sessions = listAgentSessions(name);
   const executions = listAgentExecutions(name);
+  const proposals = listAgentProposals(name);
+  const openMarketKey = executions
+    .filter((execution) => execution.status === "open")
+    .map((execution) => execution.market.trim().toUpperCase())
+    .filter(Boolean)
+    .sort()
+    .join("|");
+
+  useEffect(() => {
+    const markets = openMarketKey ? openMarketKey.split("|") : [];
+    if (markets.length === 0) {
+      setMarketByMarket({});
+      return;
+    }
+    let cancelled = false;
+    void loadAgentMarketDataSnapshots(markets).then((snapshots) => {
+      if (!cancelled) setMarketByMarket(snapshots);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [openMarketKey]);
+
   const trackedAgents: TrackedAgentItem[] = chosen
     .map((agent) => {
       const scorecard = scorecards.find((item) => item.agentId === agent.id);
@@ -93,6 +126,10 @@ export default function TraderLibraryPage() {
         scorecard,
         executions,
       });
+      const agentExecutions = executions.filter((execution) => execution.agentId === agent.id);
+      const stoppedProposals = proposals.filter(
+        (proposal) => proposal.agentId === agent.id && proposal.status === "blocked",
+      );
       return {
         agent,
         scorecard,
@@ -101,6 +138,8 @@ export default function TraderLibraryPage() {
         allocation,
         currentSession,
         metrics,
+        executions: agentExecutions,
+        stoppedProposals,
       };
     })
     .sort((a, b) => librarySort(a, b));
@@ -284,6 +323,9 @@ export default function TraderLibraryPage() {
                 allocation={item.allocation}
                 currentSession={item.currentSession}
                 metrics={item.metrics}
+                executions={item.executions}
+                marketByMarket={marketByMarket}
+                stoppedProposals={item.stoppedProposals}
                 window={window}
               />
             ))}
@@ -494,6 +536,9 @@ function TrackedAgentCard({
   allocation,
   currentSession,
   metrics,
+  executions,
+  marketByMarket,
+  stoppedProposals,
   window,
 }: {
   walletEncoded: string;
@@ -504,6 +549,9 @@ function TrackedAgentCard({
   allocation: AgentAllocationRecommendation;
   currentSession?: AgentSessionGrant;
   metrics: AgentLibraryMetrics;
+  executions: AgentExecutionRecord[];
+  marketByMarket: Record<string, AgentMarketDataSnapshot>;
+  stoppedProposals: AgentTradeProposal[];
   window: LibraryWindow;
 }) {
   const hasCurrentAllowance = Boolean(currentSession);
@@ -523,8 +571,15 @@ function TrackedAgentCard({
     : allocation.action === "promote" ||
         allocation.action === "demote" ||
         allocation.action === "review"
-      ? "Review allowance"
-      : "Give allowance";
+      ? "Review funding"
+      : "Fund agent";
+  const latestExecutions = [...executions]
+    .sort((a, b) => (b.closedAt ?? b.openedAt) - (a.closedAt ?? a.openedAt))
+    .slice(0, 4);
+  const latestStops = [...stoppedProposals]
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .slice(0, 3);
+  const published = agent.publishing?.status === "published";
   return (
     <article className="flex flex-col rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
       <div className="flex items-start justify-between gap-3">
@@ -536,6 +591,11 @@ function TrackedAgentCard({
             <span className={clsx("rounded-full border px-2 py-1 text-[10px] font-medium", agentStatusTone(agent.status))}>
               {agent.status}
             </span>
+            {published ? (
+              <span className="rounded-full border border-accent/30 bg-accent/[0.08] px-2 py-1 text-[10px] font-medium text-accent">
+                Published
+              </span>
+            ) : null}
           </div>
           <p className="mt-1 text-xs text-text-soft">
             {agent.libraryTraderId ? "Prepared ClearSig agent" : "Custom agent"}
@@ -594,7 +654,7 @@ function TrackedAgentCard({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold text-text-strong">
-              Suggested allowance
+              Funding recommendation
             </p>
             <p className="mt-1 max-w-xl text-xs leading-relaxed text-text-soft">
               {allocation.summary}
@@ -612,7 +672,7 @@ function TrackedAgentCard({
         ) : null}
         <div className="mt-3 rounded-soft border border-border-soft bg-canvas px-3 py-2">
           <p className="text-[11px] font-semibold text-text-strong">
-            Why this allowance?
+            Why this funding level?
           </p>
           <ul className="mt-1 grid gap-1 text-[11px] leading-relaxed text-text-soft">
             {allocation.reasons.slice(0, 4).map((reason) => (
@@ -621,6 +681,43 @@ function TrackedAgentCard({
           </ul>
         </div>
       </div>
+
+      <details className="mt-4 rounded-soft border border-border-soft bg-canvas px-3 py-3">
+        <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 text-xs font-semibold text-text-strong marker:hidden">
+          <span className="inline-flex items-center gap-1.5">
+            <TrendingUp className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+            Trade tape
+          </span>
+          <span className="text-[11px] font-medium text-text-soft">
+            {latestExecutions.length} recent · {latestStops.length} stopped
+          </span>
+        </summary>
+        <div className="mt-3 grid gap-2 border-t border-border-soft pt-3">
+          {latestExecutions.length > 0 ? (
+            latestExecutions.map((execution) => (
+              <LibraryTradeRow
+                key={execution.id}
+                execution={execution}
+                marketSnapshot={marketByMarket[execution.market.trim().toUpperCase()] ?? null}
+              />
+            ))
+          ) : (
+            <p className="rounded-soft border border-dashed border-border-soft bg-surface-raised px-3 py-2 text-xs text-text-soft">
+              No trades recorded yet.
+            </p>
+          )}
+          {latestStops.length > 0 ? (
+            <div className="mt-1 grid gap-1.5">
+              <p className="text-[11px] font-semibold text-text-strong">
+                Stopped ideas
+              </p>
+              {latestStops.map((proposal) => (
+                <LibraryStopRow key={proposal.id} proposal={proposal} />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </details>
 
       <div className="mt-4 flex flex-wrap gap-2">
         <Link
@@ -638,6 +735,84 @@ function TrackedAgentCard({
         </Link>
       </div>
     </article>
+  );
+}
+
+function LibraryTradeRow({
+  execution,
+  marketSnapshot,
+}: {
+  execution: AgentExecutionRecord;
+  marketSnapshot: AgentMarketDataSnapshot | null;
+}) {
+  const pnl = Number(execution.realizedPnlUsd || 0);
+  const isOpen = execution.status === "open";
+  const performance = estimateAgentOpenTradePerformance(execution, marketSnapshot);
+  return (
+    <div className="rounded-soft border border-border-soft bg-surface-raised px-3 py-2">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="break-words text-xs font-semibold text-text-strong">
+            {execution.market} · {execution.side}
+          </p>
+          <p className="mt-0.5 text-[11px] text-text-soft">
+            {formatUsd(execution.notionalUsd)} · {execution.leverage}x · {venueLabel(execution.venue)}
+          </p>
+        </div>
+        <span
+          className={clsx(
+            "rounded-full border px-2 py-1 text-[10px] font-medium",
+            isOpen && performance
+              ? Number(performance.unrealizedPnlUsd) > 0
+                ? "border-accent/30 bg-accent/[0.08] text-accent"
+                : Number(performance.unrealizedPnlUsd) < 0
+                  ? "border-rose-500/30 bg-rose-500/[0.08] text-rose-300"
+                  : "border-border-soft text-text-soft"
+              : isOpen
+                ? "border-warning/30 bg-warning/[0.08] text-warning"
+              : pnl > 0
+                ? "border-accent/30 bg-accent/[0.08] text-accent"
+                : pnl < 0
+                  ? "border-rose-500/30 bg-rose-500/[0.08] text-rose-300"
+                  : "border-border-soft text-text-soft",
+          )}
+        >
+          {isOpen
+            ? performance
+              ? formatSignedUsd(performance.unrealizedPnlUsd)
+              : "Open"
+            : formatSignedUsd(execution.realizedPnlUsd)}
+        </span>
+      </div>
+      {isOpen ? (
+        <p className="mt-1 text-[11px] text-text-soft">
+          Entry {formatUsd(execution.entryPrice ?? "0")} · Mark{" "}
+          {performance ? formatUsd(performance.markPriceUsd) : "waiting"}
+        </p>
+      ) : null}
+      <p className="mt-1 text-[11px] text-text-muted">
+        {isOpen ? "Opened" : "Closed"}{" "}
+        {new Date((execution.closedAt ?? execution.openedAt)).toLocaleString()}
+      </p>
+    </div>
+  );
+}
+
+function LibraryStopRow({ proposal }: { proposal: AgentTradeProposal }) {
+  return (
+    <div className="rounded-soft border border-warning/25 bg-warning/[0.06] px-3 py-2">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="break-words text-xs font-semibold text-text-strong">
+          {proposal.market} · {proposal.side}
+        </p>
+        <span className="rounded-full border border-warning/30 px-2 py-1 text-[10px] font-medium text-warning">
+          Stopped
+        </span>
+      </div>
+      <p className="mt-1 text-[11px] leading-relaxed text-text-soft">
+        {proposal.policyViolations?.[0]?.message ?? "Stopped by safety rules."}
+      </p>
+    </div>
   );
 }
 
@@ -781,8 +956,25 @@ function formatSignedUsd(value: string): string {
   return "$0";
 }
 
+function formatUsd(value: string): string {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return "$0";
+  return `$${parsed.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+}
+
 function formatNumber(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function venueLabel(venue: TradingVenue): string {
+  switch (venue) {
+    case "mock_perps":
+      return "Built-in practice";
+    case "hyperliquid_testnet":
+      return "Hyperliquid practice";
+    case "bulktrade_mock":
+      return "Bulk practice";
+  }
 }
 
 function sessionAllowsVenue(

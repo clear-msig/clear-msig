@@ -38,6 +38,26 @@ export interface AgentStrategyProfile {
   updatedAt: number;
 }
 
+export type AgentPublishingStatus = "draft" | "published";
+
+export interface AgentPublishingProfile {
+  status: AgentPublishingStatus;
+  slug: string;
+  publicSummary: string;
+  visibleMetrics: Array<
+    | "score"
+    | "realized_pnl"
+    | "closed_trades"
+    | "open_trades"
+    | "win_rate"
+    | "safety_stops"
+    | "allocation_tier"
+  >;
+  publishedAt?: number;
+  updatedAt: number;
+  version: AgentVersion;
+}
+
 export type AgentProposalStatus =
   | "draft"
   | "blocked"
@@ -105,6 +125,7 @@ export interface AgentProfile {
   /// not custody. It only identifies the agent that authored an intent.
   identityPubkey?: string;
   endpoint?: string;
+  publishing?: AgentPublishingProfile;
   description?: string;
   strategy?: AgentStrategyProfile;
   encryptedDescription?: EncryptedPayload;
@@ -154,6 +175,7 @@ export interface AgentExecutionRecord {
   orderType: TradeOrderType;
   notionalUsd: string;
   leverage: number;
+  entryPrice?: string | null;
   executionMode?: AgentExecutionMode;
   adapterStatus?: AgentExecutionAdapterStatus;
   externalOrderId?: string | null;
@@ -167,6 +189,8 @@ export interface AgentExecutionRecord {
 
 export type AgentAuditEventKind =
   | "agent_status_changed"
+  | "agent_profile_published"
+  | "agent_profile_unpublished"
   | "connection_key_rotated"
   | "owner_action_approved"
   | "policy_emergency_pause_changed"

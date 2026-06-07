@@ -12,8 +12,11 @@ import {
   Bot,
   Check,
   Clock,
+  Copy,
+  Globe,
   Inbox,
   Lock,
+  PencilLine,
   Plug,
   Play,
   RefreshCw,
@@ -33,6 +36,7 @@ import {
   canOpenLocalAgentExecution,
   closeMockAgentExecution,
   closeOpenMockAgentExecutions,
+  estimateAgentOpenTradePerformance,
   executionUnavailableReason,
   findAgent,
   getAgentVaultPolicy,
@@ -44,6 +48,7 @@ import {
   listAgentSessions,
   isAgentSessionCurrent,
   openAgentPaperTrade,
+  publishAgentProfile,
   rejectAgentProposal,
   recommendAgentAllocation,
   recheckAgentProposal,
@@ -59,12 +64,14 @@ import {
   syncAgentSessionStatus,
   updateAgentSessionStatus,
   updateAgentStatus,
+  unpublishAgentProfile,
   type AgentAuditEvent,
   type AgentAllocationRecommendation,
   type AgentExecutionRecord,
   type AgentKind,
   type AgentLeaderboardEntry,
   type AgentLibraryMetrics,
+  type AgentMarketDataSnapshot,
   type AgentReadinessAction,
   type AgentRiskSnapshot,
   type AgentProfile,
@@ -76,12 +83,14 @@ import {
   type AgentTradingMode,
   type AgentVaultPolicy,
   type TradingVenue,
+  saveAgent,
 } from "@/lib/agents";
 import {
   loadAgentInboxSummary,
   type AgentInboxSummary,
 } from "@/lib/agents/clientInbox";
 import { submitAgentVenueExecution } from "@/lib/agents/clientExecution";
+import { loadAgentMarketDataSnapshots } from "@/lib/agents/clientMarketData";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 export default function AgentDetailPage() {
@@ -108,6 +117,12 @@ export default function AgentDetailPage() {
   const [executions, setExecutions] = useState<AgentExecutionRecord[]>([]);
   const [events, setEvents] = useState<AgentAuditEvent[]>([]);
   const [inboxSummary, setInboxSummary] = useState<AgentInboxSummary | null>(null);
+  const [marketByMarket, setMarketByMarket] = useState<Record<string, AgentMarketDataSnapshot>>({});
+  const [editingAgent, setEditingAgent] = useState(false);
+  const [agentNameDraft, setAgentNameDraft] = useState("");
+  const [agentDescriptionDraft, setAgentDescriptionDraft] = useState("");
+  const [agentEndpointDraft, setAgentEndpointDraft] = useState("");
+  const [agentIdentityDraft, setAgentIdentityDraft] = useState("");
 
   useEffect(() => {
     const refresh = () => {
@@ -136,10 +151,16 @@ export default function AgentDetailPage() {
             })
           : null,
       );
+      if (nextAgent && !editingAgent) {
+        setAgentNameDraft(nextAgent.name);
+        setAgentDescriptionDraft(nextAgent.description ?? "");
+        setAgentEndpointDraft(nextAgent.endpoint ?? "");
+        setAgentIdentityDraft(nextAgent.identityPubkey ?? "");
+      }
     };
     refresh();
     return subscribeAgents(refresh);
-  }, [agentId, name]);
+  }, [agentId, editingAgent, name]);
 
   useEffect(() => {
     if (!agent) {
@@ -167,6 +188,32 @@ export default function AgentDetailPage() {
       cancelled = true;
     };
   }, [agent, name]);
+
+  const openMarketKey = useMemo(
+    () =>
+      executions
+        .filter((execution) => execution.status === "open")
+        .map((execution) => execution.market.trim().toUpperCase())
+        .filter(Boolean)
+        .sort()
+        .join("|"),
+    [executions],
+  );
+
+  useEffect(() => {
+    const openMarkets = openMarketKey ? openMarketKey.split("|") : [];
+    if (openMarkets.length === 0) {
+      setMarketByMarket({});
+      return;
+    }
+    let cancelled = false;
+    void loadAgentMarketDataSnapshots(openMarkets).then((snapshots) => {
+      if (!cancelled) setMarketByMarket(snapshots);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [openMarketKey]);
 
   const activeSessions = policy
     ? sessions.filter((session) => isAgentSessionCurrent(session, policy)).length
@@ -441,6 +488,93 @@ export default function AgentDetailPage() {
     });
   };
 
+  const setPublished = (enabled: boolean) => {
+    startAction(() => {
+      const updated = enabled
+        ? publishAgentProfile(name, agentId)
+        : unpublishAgentProfile(name, agentId);
+      if (!updated) {
+        toast.error("Trading agent not found");
+        return;
+      }
+      void syncAgentProfile(updated).then((synced) => {
+        if (synced.ok) {
+          toast.success(enabled ? "Agent profile published" : "Agent profile unpublished");
+        } else {
+          toast.info("Publishing changed locally; backend sync is pending", {
+            details: synced.message,
+          });
+        }
+      });
+    });
+  };
+
+  const copyPublishedProfile = () => {
+    if (!agent?.publishing) return;
+    const text = publishedProfileText({
+      agent,
+      leaderboard,
+      scorecard,
+      openPositions,
+      libraryMetrics,
+      allocation,
+    });
+    void navigator.clipboard
+      .writeText(text)
+      .then(() => toast.success("Published profile copied"))
+      .catch(() => toast.error("Could not copy published profile"));
+  };
+
+  const beginEditAgent = () => {
+    if (!agent) return;
+    setAgentNameDraft(agent.name);
+    setAgentDescriptionDraft(agent.description ?? "");
+    setAgentEndpointDraft(agent.endpoint ?? "");
+    setAgentIdentityDraft(agent.identityPubkey ?? "");
+    setEditingAgent(true);
+  };
+
+  const cancelEditAgent = () => {
+    if (agent) {
+      setAgentNameDraft(agent.name);
+      setAgentDescriptionDraft(agent.description ?? "");
+      setAgentEndpointDraft(agent.endpoint ?? "");
+      setAgentIdentityDraft(agent.identityPubkey ?? "");
+    }
+    setEditingAgent(false);
+  };
+
+  const saveAgentChanges = () => {
+    if (!agent) return;
+    const nameDraft = agentNameDraft.trim();
+    if (!nameDraft) {
+      toast.error("Agent name is required");
+      return;
+    }
+    startAction(() => {
+      const updated: AgentProfile = {
+        ...agent,
+        name: nameDraft,
+        description: cleanOptional(agentDescriptionDraft),
+        endpoint: cleanOptional(agentEndpointDraft),
+        identityPubkey: cleanOptional(agentIdentityDraft),
+        updatedAt: Date.now(),
+      };
+      saveAgent(updated);
+      setAgent(updated);
+      setEditingAgent(false);
+      void syncAgentProfile(updated).then((synced) => {
+        if (synced.ok) {
+          toast.success("Agent updated");
+        } else {
+          toast.info("Agent updated locally; backend sync is pending", {
+            details: synced.message,
+          });
+        }
+      });
+    });
+  };
+
   if (!agent) {
     return (
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
@@ -580,6 +714,15 @@ export default function AgentDetailPage() {
         />
       ) : null}
 
+      <PublishingPanel
+        agent={agent}
+        walletEncoded={encodedWallet}
+        pending={pending}
+        onPublish={() => setPublished(true)}
+        onUnpublish={() => setPublished(false)}
+        onCopy={copyPublishedProfile}
+      />
+
       <KillSwitchPanel
         paused={emergencyPaused}
         pending={pending}
@@ -614,43 +757,106 @@ export default function AgentDetailPage() {
 
       <section className="grid gap-3 lg:grid-cols-[1fr_1.2fr]">
         <Panel title="Agent Profile" Icon={Bot}>
-          <div className="grid gap-3 text-sm">
-            <InfoRow label="Type" value={agentKindLabel(agent.kind)} />
-            <InfoRow label="Status" value={agent.status} />
-            <InfoRow label="Public key" value={agent.identityPubkey || "Not set"} />
-            <InfoRow label="Endpoint" value={agent.endpoint || "Not set"} />
-            <InfoRow label="Created" value={new Date(agent.createdAt).toLocaleString()} />
-            {agent.description ? (
-              <div>
-                <p className="text-xs font-medium text-text-soft">Strategy notes</p>
-                <p className="mt-1 text-sm leading-relaxed text-text-strong">{agent.description}</p>
+          {editingAgent ? (
+            <div className="grid gap-3">
+              <label className="grid gap-1.5">
+                <span className="text-xs font-medium text-text-soft">Name</span>
+                <input
+                  value={agentNameDraft}
+                  onChange={(event) => setAgentNameDraft(event.target.value)}
+                  className={PROFILE_INPUT_CLASS}
+                />
+              </label>
+              <label className="grid gap-1.5">
+                <span className="text-xs font-medium text-text-soft">Description</span>
+                <textarea
+                  value={agentDescriptionDraft}
+                  onChange={(event) => setAgentDescriptionDraft(event.target.value)}
+                  rows={3}
+                  className={PROFILE_INPUT_CLASS}
+                />
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1.5">
+                  <span className="text-xs font-medium text-text-soft">Endpoint</span>
+                  <input
+                    value={agentEndpointDraft}
+                    onChange={(event) => setAgentEndpointDraft(event.target.value)}
+                    className={PROFILE_INPUT_CLASS}
+                  />
+                </label>
+                <label className="grid gap-1.5">
+                  <span className="text-xs font-medium text-text-soft">Public identity</span>
+                  <input
+                    value={agentIdentityDraft}
+                    onChange={(event) => setAgentIdentityDraft(event.target.value)}
+                    className={PROFILE_INPUT_CLASS}
+                  />
+                </label>
               </div>
-            ) : null}
-          </div>
+            </div>
+          ) : (
+            <div className="grid gap-3 text-sm">
+              <InfoRow label="Type" value={agentKindLabel(agent.kind)} />
+              <InfoRow label="Status" value={agent.status} />
+              <InfoRow label="Public key" value={agent.identityPubkey || "Not set"} />
+              <InfoRow label="Endpoint" value={agent.endpoint || "Not set"} />
+              <InfoRow label="Created" value={new Date(agent.createdAt).toLocaleString()} />
+              {agent.description ? (
+                <div>
+                  <p className="text-xs font-medium text-text-soft">Strategy notes</p>
+                  <p className="mt-1 text-sm leading-relaxed text-text-strong">{agent.description}</p>
+                </div>
+              ) : null}
+            </div>
+          )}
           <div className="mt-4 flex flex-wrap gap-1.5 border-t border-border-soft pt-4">
-            {agent.status === "active" ? (
+            {editingAgent ? (
+              <>
+                <ActionButton
+                  label="Save changes"
+                  Icon={Check}
+                  disabled={pending}
+                  onClick={saveAgentChanges}
+                />
+                <ActionButton
+                  label="Cancel"
+                  Icon={X}
+                  disabled={pending}
+                  onClick={cancelEditAgent}
+                />
+              </>
+            ) : (
+              <ActionButton
+                label="Change agent"
+                Icon={PencilLine}
+                disabled={pending}
+                onClick={beginEditAgent}
+              />
+            )}
+            {!editingAgent && agent.status === "active" ? (
               <ActionButton
                 label="Pause"
                 Icon={Clock}
                 disabled={pending}
                 onClick={() => setStatus("paused")}
               />
-            ) : agent.status === "paused" ? (
+            ) : !editingAgent && agent.status === "paused" ? (
               <ActionButton
                 label="Resume"
                 Icon={Check}
                 disabled={pending}
                 onClick={() => setStatus("active")}
               />
-            ) : (
+            ) : !editingAgent ? (
               <ActionButton
                 label="Reactivate"
                 Icon={RefreshCw}
                 disabled={pending}
                 onClick={() => setStatus("active")}
               />
-            )}
-            {agent.status !== "revoked" ? (
+            ) : null}
+            {!editingAgent && agent.status !== "revoked" ? (
               <ActionButton
                 label="Revoke"
                 Icon={X}
@@ -687,6 +893,7 @@ export default function AgentDetailPage() {
       <section className="grid gap-3 lg:grid-cols-2">
         <RecentTradesPanel
           executions={executions}
+          marketByMarket={marketByMarket}
           pending={pending}
           onClose={closePaperTrade}
         />
@@ -790,6 +997,7 @@ export default function AgentDetailPage() {
             <ExecutionRow
               key={execution.id}
               execution={execution}
+              marketSnapshot={marketByMarket[execution.market.trim().toUpperCase()] ?? null}
               pending={pending}
               onClose={closePaperTrade}
             />
@@ -963,7 +1171,7 @@ function AllowanceDecisionPanel({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-sm font-semibold text-text-strong">
-                Allowance recommendation
+                Funding recommendation
               </h2>
               <Badge tone={allocationBadgeTone(recommendation.action)}>
                 {allocationActionLabel(recommendation.action)}
@@ -996,7 +1204,7 @@ function AllowanceDecisionPanel({
 
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
         <div>
-          <p className="text-xs font-semibold text-text-strong">Why this allowance?</p>
+          <p className="text-xs font-semibold text-text-strong">Why this funding level?</p>
           <ul className="mt-2 grid gap-1.5">
             {recommendation.reasons.slice(0, 5).map((reason) => (
               <li key={reason} className="flex items-start gap-2 text-xs text-text-soft">
@@ -1018,6 +1226,100 @@ function AllowanceDecisionPanel({
           </div>
         </div>
       </div>
+    </section>
+  );
+}
+
+function PublishingPanel({
+  agent,
+  walletEncoded,
+  pending,
+  onPublish,
+  onUnpublish,
+  onCopy,
+}: {
+  agent: AgentProfile;
+  walletEncoded: string;
+  pending: boolean;
+  onPublish: () => void;
+  onUnpublish: () => void;
+  onCopy: () => void;
+}) {
+  const published = agent.publishing?.status === "published";
+  const slug = agent.publishing?.slug ?? "not-published";
+  const previewHref = `/app/wallet/${walletEncoded}/agents/${encodeURIComponent(agent.id)}`;
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            className={clsx(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+              published ? "bg-accent/10 text-accent" : "bg-canvas text-text-soft",
+            )}
+          >
+            <Globe className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-sm font-semibold text-text-strong">
+                Agent publishing
+              </h2>
+              <Badge tone={published ? "success" : "default"}>
+                {published ? "Published" : "Draft"}
+              </Badge>
+            </div>
+            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-text-soft">
+              Publish a test profile that shows this agent&apos;s score, funding
+              tier, P/L, trades, win rate, and safety stops. It does not grant
+              trading authority or expose connection keys.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {published ? (
+            <>
+              <ActionButton
+                label="Copy profile"
+                Icon={Copy}
+                disabled={pending}
+                onClick={onCopy}
+              />
+              <ActionButton
+                label="Unpublish"
+                Icon={X}
+                disabled={pending}
+                tone="danger"
+                onClick={onUnpublish}
+              />
+            </>
+          ) : (
+            <ActionButton
+              label="Publish"
+              Icon={Globe}
+              disabled={pending}
+              onClick={onPublish}
+            />
+          )}
+        </div>
+      </div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        <ScoreRow label="Profile slug" value={slug} />
+        <ScoreRow
+          label="Visible metrics"
+          value={published ? String(agent.publishing?.visibleMetrics.length ?? 0) : "None"}
+        />
+        <ScoreRow
+          label="Preview"
+          value={published ? previewHref : "Publish first"}
+        />
+      </div>
+      {published ? (
+        <p className="mt-3 text-xs leading-relaxed text-text-soft">
+          Published {formatShortDate(agent.publishing?.publishedAt ?? Date.now())}.
+          Current testing link: {previewHref}
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -1121,10 +1423,12 @@ function NextAllowancePanel({
 
 function RecentTradesPanel({
   executions,
+  marketByMarket,
   pending,
   onClose,
 }: {
   executions: AgentExecutionRecord[];
+  marketByMarket: Record<string, AgentMarketDataSnapshot>;
   pending: boolean;
   onClose: (id: string, pnlUsd: string) => void;
 }) {
@@ -1136,6 +1440,7 @@ function RecentTradesPanel({
             <ExecutionRow
               key={execution.id}
               execution={execution}
+              marketSnapshot={marketByMarket[execution.market.trim().toUpperCase()] ?? null}
               pending={pending}
               onClose={onClose}
             />
@@ -1444,16 +1749,19 @@ function ProposalRow({
 
 function ExecutionRow({
   execution,
+  marketSnapshot,
   pending,
   onClose,
 }: {
   execution: AgentExecutionRecord;
+  marketSnapshot: AgentMarketDataSnapshot | null;
   pending: boolean;
   onClose: (id: string, pnlUsd: string) => void;
 }) {
   const [pnlUsd, setPnlUsd] = useState("");
   const open = execution.status === "open";
   const pnl = Number(execution.realizedPnlUsd || 0);
+  const performance = estimateAgentOpenTradePerformance(execution, marketSnapshot);
   return (
     <div className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1467,6 +1775,19 @@ function ExecutionRow({
           <p className="mt-1 text-xs text-text-soft">
             {venueLabel(execution.venue)} · ${execution.notionalUsd} · {execution.leverage}x
           </p>
+          {open ? (
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <ScoreRow label="Entry" value={formatUsd(execution.entryPrice ?? "0")} />
+              <ScoreRow
+                label="Mark"
+                value={performance ? formatUsd(performance.markPriceUsd) : "Waiting"}
+              />
+              <ScoreRow
+                label="Est. P/L"
+                value={performance ? formatSignedUsd(performance.unrealizedPnlUsd) : "Unknown"}
+              />
+            </div>
+          ) : null}
           <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-text-soft">
             <span>Opened {new Date(execution.openedAt).toLocaleString()}</span>
             {!open ? (
@@ -1489,7 +1810,7 @@ function ExecutionRow({
               label="Close position"
               Icon={X}
               disabled={pending}
-              onClick={() => onClose(execution.id, pnlUsd)}
+              onClick={() => onClose(execution.id, pnlUsd || performance?.unrealizedPnlUsd || "0")}
             />
           </div>
         ) : null}
@@ -1741,18 +2062,18 @@ function plainAllowanceSummary(
   const window = `${limits.sessionHours} hour${
     limits.sessionHours === 1 ? "" : "s"
   }`;
-  const core = `${recommendation.tier.label}: allow up to ${size} per trade, ${limits.maxLeverage}x, ${openTrades}, for ${window}.`;
+  const core = `${recommendation.tier.label}: fund up to ${size} per trade, ${limits.maxLeverage}x, ${openTrades}, for ${window}.`;
   switch (recommendation.action) {
     case "promote":
-      return `This agent has earned a larger allowance. ${core}`;
+      return `This agent has earned a larger funding window. ${core}`;
     case "demote":
-      return `This agent should use a smaller allowance next. ${core}`;
+      return `This agent should use a smaller funding window next. ${core}`;
     case "hold":
-      return `The current allowance still fits this agent. ${core}`;
+      return `The current funding window still fits this agent. ${core}`;
     case "review":
       return `Review the setup before giving more control. ${core}`;
     case "start":
-      return `Start with a small human-approved allowance. ${core}`;
+      return `Start with a small human-approved funding window. ${core}`;
   }
 }
 
@@ -1768,6 +2089,45 @@ function plainMetricText(value: string): string {
     .replace("human overrides", "manual changes")
     .replace("positive realized PnL", "positive profit/loss")
     .replace("PnL", "profit/loss");
+}
+
+function publishedProfileText({
+  agent,
+  leaderboard,
+  scorecard,
+  openPositions,
+  libraryMetrics,
+  allocation,
+}: {
+  agent: AgentProfile;
+  leaderboard?: AgentLeaderboardEntry;
+  scorecard?: AgentScorecard;
+  openPositions: number;
+  libraryMetrics: AgentLibraryMetrics | null;
+  allocation: AgentAllocationRecommendation | null;
+}): string {
+  const publishing = agent.publishing;
+  return [
+    `${agent.name} by ClearSig`,
+    publishing?.publicSummary ?? agent.description ?? "Published agent profile",
+    "",
+    `Profile: ${publishing?.slug ?? agent.id}`,
+    `Status: ${agent.status}`,
+    `Score: ${leaderboard?.score ?? 50}`,
+    `Profit/loss: ${formatSignedUsd(scorecard?.realizedPnlUsd ?? "0")}`,
+    `Closed trades: ${libraryMetrics?.closedTrades ?? 0}`,
+    `Open trades: ${openPositions}`,
+    `Win rate: ${
+      libraryMetrics?.winRatePct == null ? "New" : `${libraryMetrics.winRatePct}%`
+    }`,
+    `Safety stops: ${scorecard?.ruleViolations ?? 0}`,
+    `Funding tier: ${allocation?.tier.label ?? "Probation"}`,
+  ].join("\n");
+}
+
+function cleanOptional(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 function formatUsd(value: string): string {
@@ -1800,3 +2160,6 @@ function formatShortDate(value: number): string {
 function capitalize(value: string): string {
   return value.length > 0 ? `${value[0]?.toUpperCase()}${value.slice(1)}` : value;
 }
+
+const PROFILE_INPUT_CLASS =
+  "min-h-10 w-full rounded-soft border border-border-soft bg-canvas px-3 py-2 text-sm text-text-strong placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25";
