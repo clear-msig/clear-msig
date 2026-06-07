@@ -7,6 +7,7 @@ interface OwnerApprovalDialogProps {
   request: AgentOwnerApprovalInput | null;
   approveLabel?: string;
   approvalMode?: "wallet" | "browser";
+  busy?: boolean;
   onCancel: () => void;
   onApprove: () => void;
 }
@@ -15,6 +16,7 @@ export function OwnerApprovalDialog({
   request,
   approveLabel = "Approve",
   approvalMode = "browser",
+  busy = false,
   onCancel,
   onApprove,
 }: OwnerApprovalDialogProps) {
@@ -39,6 +41,7 @@ export function OwnerApprovalDialog({
           <button
             type="button"
             onClick={onCancel}
+            disabled={busy}
             className="flex h-8 w-8 items-center justify-center rounded-full border border-border-soft text-text-soft transition-colors hover:border-accent/60 hover:text-accent"
             aria-label="Cancel approval"
           >
@@ -66,6 +69,7 @@ export function OwnerApprovalDialog({
           <button
             type="button"
             onClick={onCancel}
+            disabled={busy}
             className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent disabled:opacity-60"
           >
             Cancel
@@ -73,9 +77,10 @@ export function OwnerApprovalDialog({
           <button
             type="button"
             onClick={onApprove}
-            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-accent/40 bg-accent px-3 py-2 text-xs font-semibold text-text-on-accent transition-colors hover:bg-accent/90"
+            disabled={busy}
+            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-accent/40 bg-accent px-3 py-2 text-xs font-semibold text-text-on-accent transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {approveLabel}
+            {busy ? "Approving..." : approveLabel}
             <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         </div>

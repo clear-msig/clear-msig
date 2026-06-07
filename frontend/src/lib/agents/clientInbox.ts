@@ -110,19 +110,50 @@ export async function setAgentAutomaticTrading(
   enabled: boolean,
 ): Promise<AgentConnectionKit> {
   const kit = getAgentConnectionKit(walletName, agentId);
-  await registerInbox(
-    apiPath(walletName, agentId),
-    kit.signalKey,
-    kit.managementKey,
-    enabled,
-  );
+  const previous = kit.autoImportSessionSignals;
   const updated = updateAgentConnectionSettings(walletName, agentId, {
     autoImportSessionSignals: enabled,
   });
   if (!updated) {
     throw new Error("Trader connection not found.");
   }
+  await registerInbox(
+    apiPath(walletName, agentId),
+    updated.signalKey,
+    updated.managementKey,
+    enabled,
+  ).catch((error) => {
+    updateAgentConnectionSettings(walletName, agentId, {
+      autoImportSessionSignals: previous,
+    });
+    throw error;
+  });
   return updated;
+}
+
+export async function syncAgentAutomaticTrading(
+  walletName: string,
+  agentId: string,
+): Promise<AgentConnectionKit> {
+  const kit = getAgentConnectionKit(walletName, agentId);
+  await registerInbox(
+    apiPath(walletName, agentId),
+    kit.signalKey,
+    kit.managementKey,
+    kit.autoImportSessionSignals,
+  );
+  return kit;
+}
+
+export async function loadAgentConnectionKit(
+  walletName: string,
+  agentId: string,
+): Promise<AgentConnectionKit> {
+  const kit = await syncAgentAutomaticTrading(walletName, agentId);
+  if (!kit.managementKey) {
+    throw new Error("Owner-only connection key is not ready.");
+  }
+  return kit;
 }
 
 async function registerInbox(

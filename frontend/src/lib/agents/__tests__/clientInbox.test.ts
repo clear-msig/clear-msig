@@ -13,9 +13,28 @@ function makeLocalStorageStub() {
   };
 }
 
+function makeFailingLocalStorageStub() {
+  return {
+    getItem: () => null,
+    setItem: () => {
+      throw new Error("local storage unavailable");
+    },
+    clear: vi.fn(),
+  };
+}
+
 function stubBrowserStorage() {
   vi.stubGlobal("window", {
     localStorage: makeLocalStorageStub(),
+    dispatchEvent: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  } as never);
+}
+
+function stubFailingBrowserStorage() {
+  vi.stubGlobal("window", {
+    localStorage: makeFailingLocalStorageStub(),
     dispatchEvent: vi.fn(),
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
@@ -75,5 +94,17 @@ describe("agent inbox client", () => {
     expect(
       getAgentConnectionKit("vault", "agent-alpha").autoImportSessionSignals,
     ).toBe(false);
+  });
+
+  it("does not register the server inbox when the local setting cannot be saved", async () => {
+    stubFailingBrowserStorage();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      setAgentAutomaticTrading("vault", "agent-alpha", true),
+    ).rejects.toThrow("Trader connection not found.");
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

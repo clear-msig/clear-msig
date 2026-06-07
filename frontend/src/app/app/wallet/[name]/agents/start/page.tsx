@@ -52,6 +52,7 @@ import {
   setAgentVaultEmergencyPause,
   updateAgentStatus,
   type AgentAuditEvent,
+  type AgentConnectionKit,
   type AgentExecutionRecord,
   type AgentMarketDataSnapshot,
   type AgentOwnerApproval,
@@ -71,6 +72,7 @@ import {
   type AgentVenueReadiness,
 } from "@/lib/agents/clientExecution";
 import {
+  loadAgentConnectionKit,
   loadAgentInboxSummary,
   setAgentAutomaticTrading,
   type AgentInboxSummary,
@@ -119,10 +121,12 @@ export default function StartTradingPage() {
   const [inbox, setInbox] = useState<AgentInboxSummary | null>(null);
   const [outside, setOutside] = useState<AgentVenueReadiness | null>(null);
   const [savedState, setSavedState] = useState<AgentServerWalletState | null>(null);
+  const [connectionKit, setConnectionKit] = useState<AgentConnectionKit | null>(null);
   const [marketSnapshot, setMarketSnapshot] = useState<AgentMarketDataSnapshot | null>(null);
   const [marketStatus, setMarketStatus] = useState("Checking market data");
   const [approvalRequest, setApprovalRequest] = useState<AgentOwnerApprovalInput | null>(null);
   const [approvalApproveLabel, setApprovalApproveLabel] = useState("Approve");
+  const [approvalBusy, setApprovalBusy] = useState(false);
   const [automaticTradingBusy, setAutomaticTradingBusy] = useState(false);
   const approvalResolver = useRef<((approval: AgentOwnerApproval | null) => void) | null>(null);
   const [loading, setLoading] = useState(true);
@@ -152,7 +156,10 @@ export default function StartTradingPage() {
         : null,
     );
 
-    const [nextInbox, nextOutside, nextSavedState, nextMarket] = await Promise.all([
+    const [nextConnectionKit, nextInbox, nextOutside, nextSavedState, nextMarket] = await Promise.all([
+      selected
+        ? loadAgentConnectionKit(name, selected.id).catch(() => getAgentConnectionKit(name, selected.id))
+        : Promise.resolve(null),
       selected
         ? loadAgentInboxSummary(name, selected.id).catch(() => null)
         : Promise.resolve(null),
@@ -170,6 +177,7 @@ export default function StartTradingPage() {
           })
         : Promise.resolve({ snapshot: null, message: "Choose an agent first" }),
     ]);
+    setConnectionKit(nextConnectionKit);
     setInbox(nextInbox);
     setOutside(nextOutside);
     setSavedState(
@@ -238,6 +246,11 @@ export default function StartTradingPage() {
               request.request.agentId === selectedAgent?.id,
           ),
         );
+  const automaticTradingOn = selectedAgent
+    ? connectionKit?.agentId === selectedAgent.id
+      ? connectionKit.autoImportSessionSignals
+      : getAgentConnectionKit(name, selectedAgent.id).autoImportSessionSignals
+    : false;
   const steps = buildTradingLaunchSteps(venue, {
     hasTrader: Boolean(selectedAgent),
     traderActive: selectedAgent?.status === "active",
@@ -250,9 +263,7 @@ export default function StartTradingPage() {
     allowanceReady:
       Boolean(activeAllowance) &&
       Boolean(activeAllowance && sessionAllowsVenue(activeAllowance, venue, policy)),
-    automaticTradingOn: selectedAgent
-      ? getAgentConnectionKit(name, selectedAgent.id).autoImportSessionSignals
-      : false,
+    automaticTradingOn,
     accountReady:
       venue === "mock_perps" ||
       Boolean(outside?.accountProbe?.accountAddress),
@@ -292,6 +303,7 @@ export default function StartTradingPage() {
 
   const approveOwnerRequest = useCallback(async () => {
     if (!approvalRequest) return;
+    setApprovalBusy(true);
     try {
       const createdAt = Date.now();
       const signed =
@@ -323,6 +335,8 @@ export default function StartTradingPage() {
       toast.error("Could not approve action", {
         details: error instanceof Error ? error.message : String(error),
       });
+    } finally {
+      setApprovalBusy(false);
     }
   }, [approvalRequest, canSign, signBytes, toast]);
 
@@ -373,7 +387,8 @@ export default function StartTradingPage() {
           ],
         }, "Approve and turn on");
         if (!approval) return;
-        await setAgentAutomaticTrading(name, selectedAgent.id, true);
+        const updated = await setAgentAutomaticTrading(name, selectedAgent.id, true);
+        setConnectionKit(updated);
         toast.success("Automatic trading is on");
         await refresh();
       } catch (error) {
@@ -653,6 +668,15 @@ export default function StartTradingPage() {
         </div>
 
         <ol className="mt-4 grid gap-2">
+          <AutomaticTradingStatus
+            agent={selectedAgent}
+            enabled={automaticTradingOn}
+            busy={automaticTradingBusy}
+            approvalOpen={
+              approvalRequest?.action === "start_automatic_trading" &&
+              approvalRequest.agentId === selectedAgent?.id
+            }
+          />
           {steps.map((step, index) => (
             <LaunchStepRow
               key={step.id}
@@ -716,6 +740,7 @@ export default function StartTradingPage() {
         request={approvalRequest}
         approvalMode={canSign ? "wallet" : "browser"}
         approveLabel={approvalApproveLabel}
+        busy={approvalBusy}
         onCancel={cancelOwnerApproval}
         onApprove={() => void approveOwnerRequest()}
       />
@@ -762,8 +787,55 @@ function LaunchStepRow({
         </div>
         <p className="mt-0.5 break-words text-xs leading-relaxed text-text-soft">{step.description}</p>
       </div>
-      {step.status === "current" ? action : null}
+      {step.status === "current" ? <div className="w-full sm:w-auto">{action}</div> : null}
       {step.status === "waiting" ? <Circle className="h-3.5 w-3.5 text-text-muted" aria-hidden="true" /> : null}
+    </li>
+  );
+}
+
+function AutomaticTradingStatus({
+  agent,
+  enabled,
+  busy,
+  approvalOpen,
+}: {
+  agent: AgentProfile | null;
+  enabled: boolean;
+  busy: boolean;
+  approvalOpen: boolean;
+}) {
+  const tone = enabled
+    ? "border-accent/30 bg-accent/[0.08] text-accent"
+    : approvalOpen || busy
+      ? "border-warning/30 bg-warning/[0.08] text-warning"
+      : "border-border-soft bg-canvas text-text-soft";
+  const label = enabled
+    ? "Automatic trading is on"
+    : approvalOpen
+      ? "Approval is open"
+      : busy
+        ? "Turning on automatic trading"
+        : agent
+          ? "Automatic trading is off"
+          : "Choose a trader first";
+  const detail = enabled
+    ? "Incoming ideas can be accepted automatically only when they fit the current allowance and safety rules."
+    : approvalOpen
+      ? "Review the owner approval dialog to let ClearSig act inside the allowance."
+      : busy
+        ? "ClearSig is preparing the owner approval and syncing the trader connection."
+        : agent
+          ? "New ideas will wait for review until this is turned on."
+          : "The automatic setting belongs to one selected trader.";
+  return (
+    <li className={clsx("rounded-soft border px-3 py-2.5", tone)}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-semibold">{label}</p>
+        <span className="rounded-full border border-current/25 px-2 py-0.5 text-[10px] font-medium">
+          Automation
+        </span>
+      </div>
+      <p className="mt-1 text-xs leading-relaxed text-text-soft">{detail}</p>
     </li>
   );
 }
@@ -1692,7 +1764,7 @@ function formatCompactUsd(value: string | number | null | undefined): string {
 }
 
 const STEP_BUTTON_CLASS =
-  "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto";
 
 const CONTROL_BUTTON_CLASS =
   "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60";
