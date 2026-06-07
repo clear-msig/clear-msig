@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildAgentHyperliquidSetupSummary,
   getAgentHyperliquidSetupSettings,
-  hyperliquidExecutorEnvTemplate,
   saveAgentHyperliquidSetupSettings,
 } from "@/lib/agents/hyperliquidSetup";
 
@@ -71,12 +70,5 @@ describe("Hyperliquid setup helpers", () => {
       "ready",
       "ready",
     ]);
-  });
-
-  it("builds a host env template without hiding the public address", () => {
-    expect(hyperliquidExecutorEnvTemplate(address)).toContain(address);
-    expect(hyperliquidExecutorEnvTemplate(address)).toContain(
-      "CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_TOKEN",
-    );
   });
 });

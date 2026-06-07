@@ -9,7 +9,6 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
-  Copy,
   ExternalLink,
   RefreshCw,
   Server,
@@ -20,7 +19,6 @@ import { useToast } from "@/components/ui/Toast";
 import {
   buildAgentHyperliquidSetupSummary,
   getAgentHyperliquidSetupSettings,
-  hyperliquidExecutorEnvTemplate,
   saveAgentHyperliquidSetupSettings,
   type AgentHyperliquidSetupSettings,
   type AgentHyperliquidSetupStep,
@@ -48,7 +46,6 @@ export default function HyperliquidSetupPage() {
   const [accountDraft, setAccountDraft] = useState("");
   const [readiness, setReadiness] = useState<AgentVenueReadiness | null>(null);
   const [checking, setChecking] = useState(true);
-  const [copied, setCopied] = useState(false);
 
   const checkReadiness = useCallback(async (accountAddress: string) => {
     setChecking(true);
@@ -81,7 +78,6 @@ export default function HyperliquidSetupPage() {
     settings.accountAddress;
   const accountSnapshot = readiness?.accountSnapshot ?? null;
   const executor = readiness?.executorProbe ?? null;
-  const envTemplate = hyperliquidExecutorEnvTemplate(settings.accountAddress);
 
   const saveAndCheck = () => {
     try {
@@ -97,19 +93,6 @@ export default function HyperliquidSetupPage() {
         details: error instanceof Error ? error.message : String(error),
       });
     }
-  };
-
-  const copyEnv = () => {
-    void navigator.clipboard.writeText(envTemplate).then(
-      () => {
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 1600);
-        toast.success("Host settings copied");
-      },
-      () => {
-        toast.error("Could not copy host settings");
-      },
-    );
   };
 
   return (
@@ -178,7 +161,7 @@ export default function HyperliquidSetupPage() {
               htmlFor="hyperliquid-account"
               className="text-xs font-semibold text-text-strong"
             >
-              Public Hyperliquid testnet account
+              Practice account address
             </label>
             <div className="mt-2 flex flex-col gap-2 sm:flex-row">
               <input
@@ -245,7 +228,7 @@ export default function HyperliquidSetupPage() {
         />
         <Metric
           label="Executor"
-          value={executor?.state === "ready" ? "Ready" : executor?.state === "not_configured" ? "Needs host" : "Checking"}
+          value={executor?.state === "ready" ? "Ready" : executor?.state === "not_configured" ? "Pending" : "Checking"}
           highlight={executor?.state === "ready"}
         />
       </section>
@@ -298,37 +281,65 @@ export default function HyperliquidSetupPage() {
         <div className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-start gap-3">
-              <Server className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+              <Server
+                className={clsx(
+                  "mt-0.5 h-4 w-4 shrink-0",
+                  executor?.state === "ready" ? "text-accent" : "text-warning",
+                )}
+                aria-hidden="true"
+              />
               <div>
                 <h2 className="text-sm font-semibold text-text-strong">
-                  Host-only protected connection
+                  Protected trading connection
                 </h2>
                 <p className="mt-1 text-sm leading-relaxed text-text-soft">
-                  These belong in `frontend/.env.local` or the deployment host.
-                  Do not expose executor tokens in the browser.
+                  ClearSig manages the private executor connection outside this
+                  screen. You only need to prepare the practice account and keep
+                  your safety rules tight.
                 </p>
               </div>
             </div>
+            <span
+              className={clsx(
+                "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+                executor?.state === "ready"
+                  ? "border-accent/30 bg-accent/[0.08] text-accent"
+                  : "border-warning/30 bg-warning/[0.08] text-warning",
+              )}
+            >
+              {executor?.state === "ready" ? "Connected" : "Checking"}
+            </span>
+          </div>
+          <div className="mt-4 rounded-soft border border-border-soft bg-canvas p-3">
+            <p className="text-xs font-semibold text-text-strong">
+              {executor?.state === "ready"
+                ? "Ready for protected practice trades"
+                : "No action needed in this screen"}
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-text-soft">
+              {executor?.state === "ready"
+                ? "The server-side connection is available. ClearSig can submit only approved trades that fit your allowance."
+                : "If this stays unavailable after your account is funded, ClearSig needs to finish the protected connection for this workspace."}
+            </p>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={copyEnv}
-              className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-soft border border-border-soft px-2.5 py-1.5 text-[11px] font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
+              onClick={() => void checkReadiness(settings.accountAddress)}
+              disabled={checking}
+              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-              {copied ? "Copied" : "Copy"}
+              <RefreshCw className={clsx("h-3.5 w-3.5", checking && "animate-spin")} aria-hidden="true" />
+              Check connection
             </button>
+            <Link
+              href={`/app/wallet/${encoded}/agents/start?venue=hyperliquid_testnet`}
+              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
+            >
+              Continue
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </Link>
           </div>
-          <pre className="mt-4 overflow-x-auto rounded-soft border border-border-soft bg-canvas p-3 text-[11px] leading-relaxed text-text-strong">
-            {envTemplate}
-          </pre>
-          {readiness?.missingEnvVars?.length ? (
-            <div className="mt-3 rounded-soft border border-warning/30 bg-warning/[0.08] p-3">
-              <p className="text-xs font-semibold text-warning">Missing host settings</p>
-              <p className="mt-1 break-words text-xs leading-relaxed text-text-soft">
-                {readiness.missingEnvVars.join(", ")}
-              </p>
-            </div>
-          ) : null}
         </div>
       </section>
     </div>

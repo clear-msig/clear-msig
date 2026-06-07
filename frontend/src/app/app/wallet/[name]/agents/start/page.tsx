@@ -791,7 +791,7 @@ export default function StartTradingPage() {
       />
 
       {venue === "hyperliquid_testnet" ? (
-        <HyperliquidHelp readiness={outside} />
+        <HyperliquidHelp readiness={outside} walletEncoded={encoded} />
       ) : (
         <section className="rounded-card border border-accent/25 bg-accent/[0.05] p-4">
           <div className="flex items-start gap-3">
@@ -911,16 +911,21 @@ function AutomaticTradingStatus({
   );
 }
 
-function HyperliquidHelp({ readiness }: { readiness: AgentVenueReadiness | null }) {
+function HyperliquidHelp({
+  readiness,
+  walletEncoded,
+}: {
+  readiness: AgentVenueReadiness | null;
+  walletEncoded: string;
+}) {
   const account = readiness?.accountProbe;
   const protectedConnection = readiness?.executorProbe;
-  const missingEnvVars = readiness?.missingEnvVars ?? [];
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
       <h2 className="text-sm font-semibold text-text-strong">Hyperliquid practice account</h2>
       <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
         ClearSig never asks for the protected trading wallet secret in this screen.
-        The person hosting ClearSig keeps it in the protected connection.
+        ClearSig keeps that private connection outside the setup flow.
       </p>
       <div className="mt-4 grid gap-2 sm:grid-cols-3">
         <CheckStat
@@ -935,7 +940,7 @@ function HyperliquidHelp({ readiness }: { readiness: AgentVenueReadiness | null 
         />
         <CheckStat
           label="Protected connection"
-          value={protectedConnection?.state === "ready" ? "Ready" : "Needs host"}
+          value={protectedConnection?.state === "ready" ? "Ready" : "Pending"}
           ready={protectedConnection?.state === "ready"}
         />
       </div>
@@ -943,8 +948,8 @@ function HyperliquidHelp({ readiness }: { readiness: AgentVenueReadiness | null 
         {[
           "Open Hyperliquid practice and sign in with a separate practice account.",
           "Add practice funds to that account.",
-          "Create a separate trading wallet for ClearSig. Do not give it to the trader.",
-          "Ask the ClearSig host to connect that trading wallet using the local setup guide.",
+          "Save that account address in ClearSig so it can check funds and positions.",
+          "ClearSig manages the protected trading connection outside this screen.",
           "Come back here and choose Check again. ClearSig confirms every step before trading.",
         ].map((instruction, index) => (
           <li key={instruction} className="flex items-start gap-3 text-xs leading-relaxed text-text-soft">
@@ -955,33 +960,14 @@ function HyperliquidHelp({ readiness }: { readiness: AgentVenueReadiness | null 
           </li>
         ))}
       </ol>
-      {readiness && (missingEnvVars.length > 0 || protectedConnection?.state !== "ready") ? (
+      {readiness && protectedConnection?.state !== "ready" ? (
         <div className="mt-4 rounded-soft border border-warning/30 bg-warning/[0.08] p-3">
-          <p className="text-xs font-semibold text-warning">Host setup needed</p>
+          <p className="text-xs font-semibold text-warning">Protected connection pending</p>
           <p className="mt-1 text-xs leading-relaxed text-text-soft">
-            Add these private values to `frontend/.env.local`, then restart ClearSig
-            on port 3000.
+            You can prepare the practice account now. If this still shows as
+            pending after the account is funded, ClearSig needs to finish the
+            protected connection for this workspace.
           </p>
-          <dl className="mt-3 grid gap-2">
-            <SetupValueRow
-              label="Account address"
-              value="CLEARSIG_HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS"
-              hint="Copy this from the main Hyperliquid practice account that owns the funds."
-              missing={missingEnvVars.includes("CLEARSIG_HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS")}
-            />
-            <SetupValueRow
-              label="Helper address"
-              value="CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_URL"
-              hint="Use http://127.0.0.1:4010 when the helper runs on this computer."
-              missing={missingEnvVars.includes("CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_URL")}
-            />
-            <SetupValueRow
-              label="Shared password"
-              value="CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_TOKEN"
-              hint="Create it with python3 examples/hyperliquid-testnet-executor/generate_token.py."
-              missing={missingEnvVars.includes("CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_TOKEN")}
-            />
-          </dl>
         </div>
       ) : null}
       <div className="mt-4 flex flex-wrap gap-2">
@@ -994,43 +980,15 @@ function HyperliquidHelp({ readiness }: { readiness: AgentVenueReadiness | null 
           Open Hyperliquid practice
           <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
         </a>
-        <span className="inline-flex min-h-9 items-center rounded-soft border border-border-soft px-3 py-2 text-xs text-text-soft">
-          Host setup guide: examples/hyperliquid-testnet-executor/README.md
-        </span>
+        <Link
+          href={`/app/wallet/${walletEncoded}/agents/hyperliquid`}
+          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
+        >
+          Setup guide
+          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </Link>
       </div>
     </section>
-  );
-}
-
-function SetupValueRow({
-  label,
-  value,
-  hint,
-  missing,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  missing: boolean;
-}) {
-  return (
-    <div className="min-w-0 rounded-soft border border-border-soft bg-canvas px-3 py-2">
-      <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-soft">
-        {label}
-      </dt>
-      <dd className="mt-1 break-all font-mono text-[11px] text-text-strong">
-        {value}
-      </dd>
-      <p className="mt-1 text-xs leading-relaxed text-text-soft">{hint}</p>
-      <p
-        className={clsx(
-          "mt-1 text-[11px] font-medium",
-          missing ? "text-warning" : "text-accent",
-        )}
-      >
-        {missing ? "Missing now" : "Present"}
-      </p>
-    </div>
   );
 }
 

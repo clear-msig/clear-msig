@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import clsx from "clsx";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
@@ -124,6 +124,7 @@ type GettingStartedStep = {
 export default function AgentsPage() {
   const params = useParams<{ name: string }>();
   const router = useRouter();
+  const search = useSearchParams();
   const reduce = useReducedMotion();
   const toast = useToast();
   const [pendingAction, startAction] = useTransition();
@@ -138,6 +139,7 @@ export default function AgentsPage() {
   const encoded = encodeURIComponent(name);
   const display = toDisplayName(name);
   const encrypt = encryptStatus();
+  const showDeveloperSurfaces = search.get("debug") === "1";
 
   const [agents, setAgents] = useState<AgentProfile[]>([]);
   const [policy, setPolicy] = useState<AgentVaultPolicy | null>(null);
@@ -793,21 +795,23 @@ export default function AgentsPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          disabled={pendingAction}
-          onClick={startBetaDemo}
-          className={clsx(
-            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest sm:flex-none",
-            "transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
-            "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-            "disabled:cursor-not-allowed disabled:opacity-60",
-          )}
-        >
-          <Sparkles size={13} aria-hidden="true" />
-          Start beta demo
-        </button>
+        {showDeveloperSurfaces ? (
+          <button
+            type="button"
+            disabled={pendingAction}
+            onClick={startBetaDemo}
+            className={clsx(
+              "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest sm:flex-none",
+              "transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
+              "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+              "disabled:cursor-not-allowed disabled:opacity-60",
+            )}
+          >
+            <Sparkles size={13} aria-hidden="true" />
+            Seed demo
+          </button>
+        ) : null}
         <Link
           href={`/app/wallet/${encoded}/agents/library`}
           className={clsx(
@@ -932,10 +936,11 @@ export default function AgentsPage() {
         walletEncoded={encoded}
       />
 
-      <BackendPersistencePanel status={backendStatus} />
-
-      {betaReadiness ? (
-        <BetaReadinessPanel readiness={betaReadiness} />
+      {showDeveloperSurfaces ? (
+        <>
+          <BackendPersistencePanel status={backendStatus} />
+          {betaReadiness ? <BetaReadinessPanel readiness={betaReadiness} /> : null}
+        </>
       ) : null}
 
       {agents.length === 0 ? (
@@ -1603,7 +1608,7 @@ function BetaReadinessPanel({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-sm font-semibold text-text-strong">
-                Public beta readiness
+                Developer readiness
               </h2>
               <span
                 className={clsx(

@@ -95,7 +95,7 @@ export function buildAgentHyperliquidSetupSummary(
       message: connectionReady
         ? "The server-side executor is reachable."
         : connectionBlocked
-          ? "The host still needs to finish the protected server connection."
+          ? "The protected trading connection is not ready yet."
           : readiness?.executorProbe?.message ??
             readiness?.message ??
             "ClearSig is checking the server-side executor.",
@@ -108,18 +108,10 @@ export function buildAgentHyperliquidSetupSummary(
     headline: ready
       ? "Hyperliquid practice is ready"
       : blocked
-        ? "Host setup needed"
+        ? "Protected connection pending"
         : "Finish Hyperliquid practice setup",
     steps,
   };
-}
-
-export function hyperliquidExecutorEnvTemplate(accountAddress: string): string {
-  return [
-    `CLEARSIG_HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS=${accountAddress || "0x..."}`,
-    "CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_URL=https://your-executor.example",
-    "CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_TOKEN=keep-this-secret",
-  ].join("\n");
 }
 
 function readAll(): Record<string, AgentHyperliquidSetupSettings> {
