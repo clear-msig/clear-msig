@@ -13,6 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
+  Bot,
   Globe,
   ShieldCheck,
   Wallet as WalletIcon,
@@ -87,10 +88,16 @@ export default function WalletSettingsPage() {
   const items: SettingItem[] = [
     {
       href: `/app/wallet/${encoded}/policy`,
-      label: "Policy flow",
-      hint: "Members, approvals, spending rules, limits, and advanced checks.",
+      label: "Rules and limits",
+      hint: "Members, approvals, spending limits, and safety checks.",
       Icon: ShieldCheck,
       status: rulesStatus,
+    },
+    {
+      href: `/app/wallet/${encoded}/agents`,
+      label: "Agent Trading",
+      hint: "Register trading agents, review trade signals, and control risk limits.",
+      Icon: Bot,
     },
     {
       href: `/app/wallet/${encoded}/chains`,
@@ -131,8 +138,8 @@ export default function WalletSettingsPage() {
       </motion.header>
 
       <p className="max-w-2xl text-sm text-text-soft sm:text-base">
-        Wallet settings are for administration. Money controls live in
-        the policy flow so members do not have to hunt across pages.
+        Wallet settings are for setup. Money controls live in one rules area
+        so members do not have to hunt across pages.
       </p>
 
       <ul className="flex flex-col gap-2">

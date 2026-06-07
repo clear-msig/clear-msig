@@ -15,7 +15,7 @@ pub struct IntentConfig<'a> {
 /// Build a SOL transfer intent.
 ///
 /// Params: {0} = destination (address), {1} = amount (u64)
-/// Message: "transfer {1} lamports to {0}"
+/// Message: "transfer {1:10^9} SOL to {0}"
 pub fn build(config: &IntentConfig<'_>) -> BuiltIntent {
     let mut b = IntentBuilder::new();
 
@@ -50,7 +50,7 @@ pub fn build(config: &IntentConfig<'_>) -> BuiltIntent {
     ix.add_param_segment(1, DataEncoding::LittleEndianU64);
     ix.finish();
 
-    b.set_template("transfer {1} lamports to {0}");
+    b.set_template("transfer {1:10^9} SOL to {0}");
     b.build()
 }
 
@@ -80,7 +80,7 @@ mod tests {
         assert_eq!(built.instructions.len(), 1);
         assert_eq!(built.data_segments.len(), 2);
 
-        assert_eq!(built.template_str(), "transfer {1} lamports to {0}");
+        assert_eq!(built.template_str(), "transfer {1:10^9} SOL to {0}");
 
         // Verify vault account source
         assert_eq!(built.accounts[1].source_type, AccountSourceType::Vault);

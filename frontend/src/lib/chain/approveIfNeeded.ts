@@ -45,12 +45,18 @@ export interface ApproveDecision {
   status: ProposalStatus | null;
 }
 
+export interface ApproveIfNeededOptions {
+  approvers?: readonly string[];
+  approverPubkey?: string | null;
+}
+
 const POLL_ATTEMPTS = 4;
 const POLL_DELAY_MS = 300;
 
 export async function approveIfNeeded(
   connection: Connection,
   proposalPda: string,
+  options: ApproveIfNeededOptions = {},
 ): Promise<ApproveDecision> {
   if (!proposalPda) {
     return { needsApproveSignature: true, status: null };
@@ -64,6 +70,23 @@ export async function approveIfNeeded(
         new PublicKey(proposalPda),
       );
       if (account) {
+        if (
+          account.status === ProposalStatus.Active &&
+          options.approverPubkey &&
+          options.approvers
+        ) {
+          const approverIndex = options.approvers.indexOf(options.approverPubkey);
+          if (
+            approverIndex >= 0 &&
+            approverIndex < 16 &&
+            (account.approvalBitmap & (1 << approverIndex)) !== 0
+          ) {
+            return {
+              needsApproveSignature: false,
+              status: account.status,
+            };
+          }
+        }
         return {
           needsApproveSignature: account.status !== ProposalStatus.Approved,
           status: account.status,

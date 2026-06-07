@@ -52,8 +52,6 @@ export function useRemoveMember() {
       if (!wallet.publicKey) {
         throw new Error("Connect your wallet first");
       }
-      const me = wallet.publicKey.toBase58();
-
       const walletData = await fetchWalletByName(connection, walletName);
       if (!walletData) throw new Error("Couldn't load wallet");
 
@@ -68,6 +66,23 @@ export function useRemoveMember() {
       );
       const intent = target?.account as IntentAccount | undefined;
       if (!intent) throw new Error("No spending rule on this wallet");
+      const governanceIntent = intents.find(
+        (it) => it.account !== null && it.account.intentIndex === 2,
+      )?.account as IntentAccount | undefined;
+      const signerPk = governanceIntent
+        ? wallet.pickSigner(governanceIntent.approvers)
+        : wallet.pickSigner(intent.approvers);
+      if (!signerPk) {
+        throw new Error(
+          "None of your connected wallets can approve member changes for this wallet.",
+        );
+      }
+      const me = signerPk.toBase58();
+      if (governanceIntent && !governanceIntent.proposers.includes(me)) {
+        throw new Error(
+          "Your connected wallet can approve this wallet, but it cannot propose member changes.",
+        );
+      }
 
       // Don't try to drop someone who isn't actually a member.
       const wasApprover = intent.approvers.includes(friendAddress);
@@ -147,7 +162,7 @@ export function useRemoveMember() {
       });
 
       // 2. Sign - first wallet popup.
-      const signed = await signDescriptor(dry);
+      const signed = await signDescriptor(dry, { preferSigner: signerPk });
 
       // 3. Submit propose.
       const submitted = await backendApi.submit.updateIntent(walletName, {
@@ -169,14 +184,19 @@ export function useRemoveMember() {
       //    (the program flips the proposer's bit when proposer is
       //    in approvers; with threshold=1 this lands the proposal
       //    Approved directly).
-      const decision = await approveIfNeeded(connection, proposal);
+      const decision = await approveIfNeeded(connection, proposal, {
+        approvers: governanceIntent?.approvers ?? intent.approvers,
+        approverPubkey: me,
+      });
       if (decision.needsApproveSignature) {
         const approveDry = await backendApi.prepare.approveProposal(
           walletName,
           proposal,
           { actor_pubkey: me },
         );
-        const approveSigned = await signDescriptor(approveDry);
+        const approveSigned = await signDescriptor(approveDry, {
+          preferSigner: signerPk,
+        });
         await backendApi.submit.approveProposal(walletName, proposal, {
           ...approveSigned,
           expiry: approveDry.expiry,

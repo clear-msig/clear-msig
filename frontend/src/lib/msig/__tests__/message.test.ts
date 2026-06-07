@@ -134,4 +134,22 @@ describe("buildSignableMessage", () => {
     const unwrapped = unwrapOffchain(out.wrapped);
     expect(Array.from(unwrapped)).toEqual(Array.from(out.body));
   });
+
+  it("can return plain body bytes for software-wallet compatibility", () => {
+    const out = buildSignableMessage(
+      {
+        action: "propose",
+        expiry: 0,
+        walletName: "t",
+        proposalIndex: 0,
+        intent: intent(IntentType.RemoveIntent),
+        paramsData: new Uint8Array([3]),
+      },
+      "plain_v2",
+    );
+    expect(out.bodyText).toBe(
+      "expires 1970-01-01 00:00:00: propose remove intent 3 | wallet: t proposal: 0"
+    );
+    expect(Array.from(out.wrapped)).toEqual(Array.from(out.body));
+  });
 });

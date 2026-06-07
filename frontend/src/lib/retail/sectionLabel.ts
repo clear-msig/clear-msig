@@ -21,6 +21,7 @@ const SUB_LABELS: Record<string, string> = {
   rules: "Rules",
   allowances: "Allowances",
   policy: "Rules",
+  agents: "Agent Trading",
 };
 
 export function getSectionLabel(pathname: string): string {

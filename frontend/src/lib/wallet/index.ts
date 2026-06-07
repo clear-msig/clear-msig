@@ -30,6 +30,17 @@ import { isSolanaWallet } from "@dynamic-labs/solana-core";
 import { createSolanaConnection } from "@/lib/solana/cluster";
 import { useLedger } from "@/lib/wallet/LedgerProvider";
 
+function walletConnectorId(wallet: unknown): string {
+  const c = (wallet as {
+    connector?: { key?: string; name?: string; overrideKey?: string };
+  })?.connector;
+  return (c?.key ?? c?.overrideKey ?? c?.name ?? "").toLowerCase();
+}
+
+function isCompatibleEmbeddedWallet(wallet: unknown): boolean {
+  return /turnkey/.test(walletConnectorId(wallet));
+}
+
 /// Drop-in replacement for `useWallet()` from @solana/wallet-adapter-react.
 /// Returns a Solana wallet view derived from Dynamic's primary wallet,
 /// or any Solana wallet attached to the logged-in user. signMessage
@@ -47,18 +58,6 @@ export function useWallet() {
   const allWallets = useUserWallets();
   const ledger = useLedger();
 
-  const walletConnectorId = (wallet: unknown): string => {
-    const c = (wallet as {
-      connector?: { key?: string; name?: string; overrideKey?: string };
-    })?.connector;
-    return (c?.key ?? c?.overrideKey ?? c?.name ?? "").toLowerCase();
-  };
-
-  const isLegacyEmbeddedWallet = (wallet: unknown): boolean =>
-    /dynamicwaas/.test(walletConnectorId(wallet));
-  const isCompatibleEmbeddedWallet = (wallet: unknown): boolean =>
-    /turnkey/.test(walletConnectorId(wallet));
-
   // Prefer the active wallet when it's Solana; otherwise grab any
   // Solana wallet the user has minted (e.g. they logged in via email,
   // primary is EVM, but a Solana embedded wallet was also minted).
@@ -67,7 +66,7 @@ export function useWallet() {
       (w) => w && isSolanaWallet(w) && isCompatibleEmbeddedWallet(w),
     );
     if (compatible) return compatible;
-    if (primaryWallet && isSolanaWallet(primaryWallet) && !isLegacyEmbeddedWallet(primaryWallet)) {
+    if (primaryWallet && isSolanaWallet(primaryWallet)) {
       return primaryWallet;
     }
     const anySolana = allWallets.find((w) => w && isSolanaWallet(w));
@@ -83,27 +82,16 @@ export function useWallet() {
     }
   }, [solanaWallet]);
 
-  // Detect signers that cannot sign clear-msig's offchain-wrapped
-  // messages. One known case today:
-  //
-  //   "waas"    - Dynamic's WaaS-SVM connector. Its signMessage decodes
-  //               the input bytes as UTF-8 (Buffer.from(bytes).toString())
-  //               before signing, which corrupts our envelope's leading
-  //               `\xff` byte. Caught by the local ed25519 verify in
-  //               useSignWithWallet (the signature is over different
-  //               bytes than we asked for).
-  //
-  // Consumers gate banners and CTAs on `signerIssue` so users see the
-  // explanation before the failed sign.
+  // Historical note: older Dynamic WaaS Solana signers corrupted the
+  // wrapped offchain envelope's leading 0xff byte. The app now defaults
+  // software wallets to plain_v2 (ASCII body bytes) and locally verifies
+  // every returned signature before submit, so connector-name blocking is
+  // no longer correct. If any signer still mutates bytes, signBytes throws
+  // `wallet_signed_wrong_bytes` with a targeted recovery message.
   const signerIssue = useMemo<"waas" | null>(() => {
     if (ledger.session) return null; // Ledger always wins.
-    if (!solanaWallet) return null;
-    // Duck-type the connector identifier; the SDK's WalletConnector type
-    // doesn't expose `overrideKey` in its public types but the value is
-    // set at runtime (e.g. 'dynamicwaas' on the WaaS connector).
-    if (isLegacyEmbeddedWallet(solanaWallet)) return "waas";
     return null;
-  }, [solanaWallet, ledger.session]);
+  }, [ledger.session]);
 
   const walletConnectorKey = useMemo(() => walletConnectorId(solanaWallet), [solanaWallet]);
   const isPhantomWallet = /phantom/.test(walletConnectorKey);

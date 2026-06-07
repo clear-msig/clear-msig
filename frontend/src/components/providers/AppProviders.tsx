@@ -29,9 +29,6 @@ type Props = {
 
 export function AppProviders({ children }: Props) {
   const configGaps = validateConfig();
-  if (configGaps.length > 0) {
-    return <ConfigGapBanner gaps={configGaps} />;
-  }
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -75,6 +72,10 @@ export function AppProviders({ children }: Props) {
   useEffect(() => {
     applyTheme(getStoredTheme());
   }, [pathname]);
+
+  if (configGaps.length > 0) {
+    return <ConfigGapBanner gaps={configGaps} />;
+  }
 
   const environmentId = process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID;
 

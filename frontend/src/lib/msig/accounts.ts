@@ -133,8 +133,13 @@ export function parseIntent(data: Uint8Array): IntentAccount {
   }
 
   const template = new TextDecoder().decode(
-    bytePool.subarray(templateOffset, templateOffset + templateLen)
+    checkedSlice(bytePool, templateOffset, templateLen, "template")
   );
+  checkedSlice(bytePool, txTemplateOffset, txTemplateLen, "tx_template");
+  for (let i = 0; i < params.length; i++) {
+    const p = params[i]!;
+    checkedSlice(bytePool, p.nameOffset, p.nameLen, `param[${i}].name`);
+  }
   const policyCiphertextIds = decodePolicyCiphertexts(policyCiphertexts);
 
   return {
@@ -164,6 +169,21 @@ export function parseIntent(data: Uint8Array): IntentAccount {
     bytePool,
     template,
   };
+}
+
+function checkedSlice(
+  data: Uint8Array,
+  offset: number,
+  len: number,
+  label: string,
+): Uint8Array {
+  const end = offset + len;
+  if (!Number.isSafeInteger(offset) || !Number.isSafeInteger(len) || offset < 0 || len < 0 || end > data.length) {
+    throw new Error(
+      `parseIntent: ${label} range ${offset}..${end} outside byte_pool length ${data.length}`,
+    );
+  }
+  return data.subarray(offset, end);
 }
 
 function decodePolicyCiphertexts(data: Uint8Array): string[] {

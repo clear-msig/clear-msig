@@ -49,7 +49,7 @@ export async function apiRequest<TResponse, TBody = unknown>(
   callerSignal?.addEventListener("abort", onCallerAbort);
 
   try {
-    const response = await fetch(`${appConfig.backendApiUrl}${path}`, {
+    const response = await fetch(`${backendRequestBase()}${path}`, {
       method,
       headers: {
         "Content-Type": "application/json"
@@ -85,4 +85,8 @@ export async function apiRequest<TResponse, TBody = unknown>(
     clearTimeout(timer);
     callerSignal?.removeEventListener("abort", onCallerAbort);
   }
+}
+
+function backendRequestBase(): string {
+  return typeof window === "undefined" ? appConfig.backendApiUrl : "/api/backend";
 }

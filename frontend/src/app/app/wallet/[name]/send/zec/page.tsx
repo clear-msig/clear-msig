@@ -184,7 +184,17 @@ export default function ZcashSendPage() {
     mutationFn: async () => {
       if (!wallet.publicKey) throw new Error("Connect your wallet first");
       if (!zcashBinding) throw new Error("Bind Zcash to this wallet first");
-      const signerPk = wallet.publicKey;
+      const addIntent = (intentsQuery.data ?? []).find(
+        (it) => it.account?.intentType === IntentType.AddIntent,
+      );
+      const signerPk = addIntent?.account
+        ? wallet.pickSigner(addIntent.account.proposers)
+        : wallet.publicKey;
+      if (!signerPk) {
+        throw new Error(
+          "None of your connected wallets is in this wallet's proposer list.",
+        );
+      }
       const enc = new TextEncoder();
       const encrypted = await encryptPolicyBatch([
         { plaintext: enc.encode(JSON.stringify([signerPk.toBase58()])), fheType: "ebytes" },
@@ -217,11 +227,19 @@ export default function ZcashSendPage() {
       }
       const decision = await approveIfNeeded(connection, proposal);
       if (decision.needsApproveSignature) {
+        const approverPk = addIntent?.account
+          ? wallet.pickSigner(addIntent.account.approvers)
+          : signerPk;
+        if (!approverPk) {
+          throw new Error(
+            "The setup proposal landed, but none of your connected wallets can approve it.",
+          );
+        }
         const approveDry = await backendApi.prepare.approveProposal(name, proposal, {
-          actor_pubkey: signerPk.toBase58(),
+          actor_pubkey: approverPk.toBase58(),
         });
         const approveSigned = await signDescriptor(approveDry, {
-          preferSigner: signerPk,
+          preferSigner: approverPk,
         });
         await backendApi.submit.approveProposal(name, proposal, {
           ...approveSigned,
@@ -263,7 +281,12 @@ export default function ZcashSendPage() {
       if (recipientDecoded.network !== zcashNetwork) {
         throw new Error("Recipient network does not match the wallet's Zcash network");
       }
-      const signerPk = wallet.publicKey;
+      const proposerPk = wallet.pickSigner(zcashIntent.proposers);
+      if (!proposerPk) {
+        throw new Error(
+          "None of your connected wallets is in this wallet's proposer list.",
+        );
+      }
 
       const dry = await backendApi.prepare.createProposal(name, {
         intent_index: zcashIntent.intentIndex,
@@ -275,9 +298,9 @@ export default function ZcashSendPage() {
           `recipient_pkh=${bytesToHex(effectiveRecipient)}`,
           `send_amount_zat=${amountZats.toString()}`,
         ],
-        actor_pubkey: signerPk.toBase58(),
+        actor_pubkey: proposerPk.toBase58(),
       });
-      const signed = await signDescriptor(dry, { preferSigner: signerPk });
+      const signed = await signDescriptor(dry, { preferSigner: proposerPk });
       const submitted = await backendApi.submit.createProposal(name, {
         ...signed,
         params_data_hex: dry.params_data_hex,
@@ -290,11 +313,17 @@ export default function ZcashSendPage() {
       }
       const decision = await approveIfNeeded(connection, proposal);
       if (decision.needsApproveSignature) {
+        const approverPk = wallet.pickSigner(zcashIntent.approvers);
+        if (!approverPk) {
+          throw new Error(
+            "The proposal landed, but none of your connected wallets can approve it.",
+          );
+        }
         const approveDry = await backendApi.prepare.approveProposal(name, proposal, {
-          actor_pubkey: signerPk.toBase58(),
+          actor_pubkey: approverPk.toBase58(),
         });
         const approveSigned = await signDescriptor(approveDry, {
-          preferSigner: signerPk,
+          preferSigner: approverPk,
         });
         await backendApi.submit.approveProposal(name, proposal, {
           ...approveSigned,

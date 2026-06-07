@@ -166,10 +166,10 @@ export async function rebuildAndVerifyMessage(
     throw new MessageVerificationError(
       "message_mismatch",
       "Backend-supplied signable message does not match the locally rebuilt bytes. The bytes shown to your wallet would not match the action you confirmed. Aborting.",
-      { expected: toHex(expected), got: toHex(wrapped) },
+      { expected: toHex(expected), got: toHex(flavor === "offchain_v1" ? wrapped : body) },
     );
   }
-  return wrapped;
+  return flavor === "offchain_v1" ? wrapped : body;
 }
 
 function equalBytes(a: Uint8Array, b: Uint8Array): boolean {

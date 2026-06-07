@@ -1,0 +1,133 @@
+export type TradingLaunchVenue = "mock_perps" | "hyperliquid_testnet";
+
+export type TradingLaunchStepId =
+  | "trader"
+  | "plan"
+  | "safety"
+  | "allowance"
+  | "automatic"
+  | "account"
+  | "funding"
+  | "protected_connection"
+  | "first_idea"
+  | "first_trade";
+
+export interface TradingLaunchChecks {
+  hasTrader: boolean;
+  traderActive: boolean;
+  planReady: boolean;
+  safetyReady: boolean;
+  allowanceReady: boolean;
+  automaticTradingOn: boolean;
+  accountReady: boolean;
+  accountFunded: boolean;
+  protectedConnectionReady: boolean;
+  hasTraderIdea: boolean;
+  firstTradePlaced: boolean;
+}
+
+export interface TradingLaunchStep {
+  id: TradingLaunchStepId;
+  label: string;
+  description: string;
+  owner: "you" | "trader" | "host" | "clearsig";
+  status: "done" | "current" | "waiting";
+}
+
+export function buildTradingLaunchSteps(
+  venue: TradingLaunchVenue,
+  checks: TradingLaunchChecks,
+): TradingLaunchStep[] {
+  const drafts: Array<Omit<TradingLaunchStep, "status"> & { done: boolean }> = [
+    {
+      id: "trader",
+      label: "Choose an active trader",
+      description: "Add a trader and make sure it is allowed to work.",
+      owner: "you",
+      done: checks.hasTrader && checks.traderActive,
+    },
+    {
+      id: "plan",
+      label: "Finish its trading plan",
+      description: "Tell it what it may trade, when it may act, and when it must stop.",
+      owner: "you",
+      done: checks.planReady,
+    },
+    {
+      id: "safety",
+      label: "Allow this practice account",
+      description: "Your safety rules must allow the chosen practice account.",
+      owner: "you",
+      done: checks.safetyReady,
+    },
+    {
+      id: "allowance",
+      label: "Give a current practice allowance",
+      description: "Choose the amount, open trades, and time this trader may use.",
+      owner: "you",
+      done: checks.allowanceReady,
+    },
+  ];
+
+  if (venue === "hyperliquid_testnet") {
+    drafts.push(
+      {
+        id: "account",
+        label: "Connect a Hyperliquid practice account",
+        description: "Use a separate practice account. Never use your main wallet.",
+        owner: "you",
+        done: checks.accountReady,
+      },
+      {
+        id: "funding",
+        label: "Add practice funds",
+        description: "Hyperliquid needs practice funds before it can place a trade.",
+        owner: "you",
+        done: checks.accountFunded,
+      },
+      {
+        id: "protected_connection",
+        label: "Confirm the protected trading connection",
+        description: "The person hosting ClearSig connects the separate trading wallet and keeps its secret private.",
+        owner: "host",
+        done: checks.protectedConnectionReady,
+      },
+    );
+  }
+
+  drafts.push(
+    {
+      id: "automatic",
+      label: "Turn on automatic trading",
+      description: "ClearSig may act without asking each time, but only inside the current allowance.",
+      owner: "you",
+      done: checks.automaticTradingOn,
+    },
+    {
+      id: "first_idea",
+      label: "Receive the trader's first idea",
+      description: "Connect the trader and ask it to send one small practice idea.",
+      owner: "trader",
+      done: checks.hasTraderIdea,
+    },
+    {
+      id: "first_trade",
+      label: "Place the first practice trade",
+      description:
+        venue === "hyperliquid_testnet"
+          ? "ClearSig checks the idea again, then Hyperliquid places the practice trade."
+          : "ClearSig checks the idea again, then opens the built-in practice trade.",
+      owner: "clearsig",
+      done: checks.firstTradePlaced,
+    },
+  );
+
+  const currentIndex = drafts.findIndex((step) => !step.done);
+  return drafts.map((step, index) => ({
+    id: step.id,
+    label: step.label,
+    description: step.description,
+    owner: step.owner,
+    status: step.done ? "done" : index === currentIndex ? "current" : "waiting",
+  }));
+}

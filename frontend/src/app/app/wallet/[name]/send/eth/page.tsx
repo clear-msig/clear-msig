@@ -359,12 +359,10 @@ function SendEthPage() {
       if (!recipientValid || !effectiveRecipient)
         throw new Error("Recipient must be a valid 0x address or .eth name");
 
-      // Resolve which signer pubkey the wallet's approver list
-      // expects (Ledger vs Dynamic embedded). See useWallet.pickSigner.
-      const signerPk = wallet.pickSigner(ethIntent.account.approvers);
-      if (!signerPk) {
+      const proposerPk = wallet.pickSigner(ethIntent.account.proposers);
+      if (!proposerPk) {
         throw new Error(
-          "None of your connected wallets is in this wallet's approver list. " +
+          "None of your connected wallets is in this wallet's proposer list. " +
             "Disconnect the Ledger or sign in with the wallet that originally created this multisig.",
         );
       }
@@ -383,12 +381,12 @@ function SendEthPage() {
           `value_wei=${amountWei.toString()}`,
           `data=`,
         ],
-        actor_pubkey: signerPk.toBase58(),
+        actor_pubkey: proposerPk.toBase58(),
       });
 
       // 3. Sign on Solana. Proves to the program that this user is
       //    a proposer + counts as their approval.
-      const signed = await signDescriptor(dry, { preferSigner: signerPk });
+      const signed = await signDescriptor(dry, { preferSigner: proposerPk });
 
       // 4. Submit. Lands the proposal Approved on chain (program's
       //    auto-approve when proposer-in-approvers).
@@ -403,18 +401,27 @@ function SendEthPage() {
         throw new Error("Backend didn't return a proposal address from submit");
       }
       const intent = ethIntent.account;
+      const approverPk = wallet.pickSigner(intent.approvers);
 
       // Old-program fallback: re-sign approve if the propose did not
       // auto-approve. With the upgrade this branch never fires.
-      const decision = await approveIfNeeded(connection, proposal);
+      const decision = await approveIfNeeded(connection, proposal, {
+        approvers: intent.approvers,
+        approverPubkey: approverPk?.toBase58() ?? null,
+      });
       if (decision.needsApproveSignature) {
+        if (!approverPk) {
+          throw new Error(
+            "The proposal landed, but none of your connected wallets can approve it.",
+          );
+        }
         const approveDry = await backendApi.prepare.approveProposal(
           walletName,
           proposal,
-          { actor_pubkey: signerPk.toBase58() },
+          { actor_pubkey: approverPk.toBase58() },
         );
         const approveSigned = await signDescriptor(approveDry, {
-          preferSigner: signerPk,
+          preferSigner: approverPk,
         });
         await backendApi.submit.approveProposal(walletName, proposal, {
           ...approveSigned,
@@ -431,7 +438,10 @@ function SendEthPage() {
       });
       if (policyPlan.evaluation?.matched) {
         if (policyPlan.rule?.action === "require-extra-approvers") {
-          const seen = new Set<string>([signerPk.toBase58()]);
+          const seen = new Set<string>([
+            proposerPk.toBase58(),
+            ...(approverPk ? [approverPk.toBase58()] : []),
+          ]);
           const extraApprovers = policyPlan.extraApprovers.filter((addr) => {
             const normalized = addr.trim();
             if (!normalized || seen.has(normalized)) return false;

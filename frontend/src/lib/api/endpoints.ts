@@ -193,7 +193,7 @@ export function executeProposalStreamUrl(
   if (params.grpc_url) q.set("grpc_url", params.grpc_url);
   if (params.rpc_url) q.set("rpc_url", params.rpc_url);
   if (params.broadcast !== undefined) q.set("broadcast", String(params.broadcast));
-  const base = appConfig.backendApiUrl;
+  const base = typeof window === "undefined" ? appConfig.backendApiUrl : "/api/backend";
   const path = `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/execute/stream`;
   return `${base}${path}${q.toString() ? "?" + q.toString() : ""}`;
 }

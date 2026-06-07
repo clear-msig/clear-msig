@@ -620,6 +620,20 @@ mod tests {
     }
 
     #[test]
+    fn test_hyperliquid_intent_from_file() {
+        let built = load_example("../../../examples/intents/hyperliquid_transfer.json")
+            .to_built()
+            .unwrap();
+        assert_eq!(built.chain_kind, 5); // HyperliquidEvm
+        assert_eq!(built.tx_template_len, 32); // EIP-1559 envelope template
+        assert_eq!(built.params.len(), 4);
+        assert_eq!(
+            built.template_str(),
+            "send {2:10^18} HYPE to {1} (nonce {0})"
+        );
+    }
+
+    #[test]
     fn test_chain_template_mismatch_rejected() {
         let json = serde_json::json!({
             "proposers": [], "approvers": [],

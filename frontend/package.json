@@ -7,7 +7,7 @@
     "build": "NODE_OPTIONS=\"--max-old-space-size=4096 --dns-result-order=ipv4first\" next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit --incremental false",
     "test": "vitest run",
     "test:watch": "vitest"
   },

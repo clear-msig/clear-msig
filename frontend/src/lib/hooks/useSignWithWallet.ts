@@ -19,8 +19,10 @@ import {
   rebuildAndVerifyMessage,
   MessageVerificationError,
 } from "@/lib/msig";
+import { messageFlavorForSigner } from "@/lib/hooks/signFlavor";
 import { LedgerError } from "@/lib/wallet/ledger";
 import type { DryRunDescriptor } from "@/lib/api/types";
+import type { MessageFlavor } from "@/lib/msig/offchain";
 
 export interface SignOptions {
   /// When provided, route the sign through the signer whose pubkey
@@ -37,6 +39,10 @@ export interface SignedPayload {
   signer_pubkey: string;
   /// Hex-encoded 64-byte ed25519 signature.
   signature: string;
+  /// Byte layout that was signed. The backend forwards this to the CLI
+  /// so pre-signed verification uses the same layout instead of
+  /// guessing via fallback.
+  message_flavor?: "offchain_v1" | "plain_v2";
 }
 
 export class WalletSignError extends Error {
@@ -50,8 +56,9 @@ export class WalletSignError extends Error {
     | "ledger_transport"
     | "ledger_unsupported"
     | "unknown"
-  | "message_mismatch"
-  | "wallet_signed_wrong_bytes"
+    | "message_mismatch"
+    | "stale_request"
+    | "wallet_signed_wrong_bytes";
   /// Set when `code === "message_mismatch"` - the bytes the backend
   /// asked us to sign did not match the bytes the frontend rebuilt
   /// from chain state. Includes both for debugging.
@@ -81,7 +88,13 @@ export class WalletSignError extends Error {
 /// `descriptor.message_hex` before invoking the wallet. See
 /// `rebuildAndVerifyMessage` and SECURITY.md surface A.
 export function useSignWithWallet() {
-  const { signMessage, publicKey, connected } = useWallet();
+  const {
+    signMessage,
+    publicKey,
+    connected,
+    isLedger,
+    ledgerPublicKey,
+  } = useWallet();
   const { connection } = useConnection();
 
   const signBytes = useCallback(
@@ -165,30 +178,47 @@ export function useSignWithWallet() {
       descriptor: DryRunDescriptor,
       options?: SignOptions,
     ): Promise<SignedPayload> => {
-      let bytes: Uint8Array;
+      ensureDescriptorFresh(descriptor);
+      const flavor = messageFlavorForSigner({
+        preferSigner: options?.preferSigner,
+        isLedger,
+        ledgerPublicKey,
+      });
       try {
-        bytes = await rebuildAndVerifyMessage(
+        return await signDescriptorWithFlavor(
           descriptor,
-          connection,
-          // The deployed program verifies the canonical Solana offchain
-          // envelope. Some wallet UIs render that as raw hex, but signing
-          // the envelope keeps browser, CLI, and on-chain verification on
-          // the same byte sequence.
-          "offchain_v1",
+          options,
+          flavor,
         );
       } catch (err) {
-        if (err instanceof MessageVerificationError) {
-          throw new WalletSignError(
-            "message_mismatch",
-            err.message,
-            { expectedHex: err.expected, gotHex: err.got },
+        if (
+          flavor === "plain_v2" &&
+          isLedger &&
+          err instanceof WalletSignError &&
+          err.code === "wallet_signed_wrong_bytes"
+        ) {
+          return signDescriptorWithFlavor(
+            descriptor,
+            options,
+            "offchain_v1",
+          );
+        }
+        if (
+          flavor === "offchain_v1" &&
+          !isLedger &&
+          err instanceof WalletSignError &&
+          err.code === "wallet_signed_wrong_bytes"
+        ) {
+          return signDescriptorWithFlavor(
+            descriptor,
+            options,
+            "plain_v2",
           );
         }
         throw err;
       }
-      return signBytes(bytes, options);
     },
-    [connection, signBytes],
+    [connection, isLedger, ledgerPublicKey, signBytes],
   );
 
   return {
@@ -196,6 +226,43 @@ export function useSignWithWallet() {
     signDescriptor,
     canSign: Boolean(connected && publicKey && signMessage),
   };
+
+  async function signDescriptorWithFlavor(
+    descriptor: DryRunDescriptor,
+    options: SignOptions | undefined,
+    flavor: MessageFlavor,
+  ): Promise<SignedPayload> {
+    let bytes: Uint8Array;
+    try {
+      bytes = await rebuildAndVerifyMessage(
+        descriptor,
+        connection,
+        flavor,
+      );
+    } catch (err) {
+      if (err instanceof MessageVerificationError) {
+        throw new WalletSignError(
+          "message_mismatch",
+          err.message,
+          { expectedHex: err.expected, gotHex: err.got },
+        );
+      }
+      throw err;
+    }
+    const signed = await signBytes(bytes, options);
+    ensureDescriptorFresh(descriptor);
+    return { ...signed, message_flavor: flavor };
+  }
+}
+
+function ensureDescriptorFresh(descriptor: DryRunDescriptor) {
+  const secondsLeft = descriptor.expiry - Math.floor(Date.now() / 1000);
+  if (secondsLeft <= 15) {
+    throw new WalletSignError(
+      "stale_request",
+      "This signing request has expired or is too close to expiry. Refresh and try again.",
+    );
+  }
 }
 
 /// Translate any throwable from the underlying wallet/device into a

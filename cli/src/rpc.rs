@@ -4,9 +4,16 @@ use solana_client::rpc_client::RpcClient;
 use solana_commitment_config::CommitmentConfig;
 use solana_instruction::Instruction;
 use solana_pubkey::Pubkey;
+use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_signature::Signature;
 use solana_signer::Signer;
 use solana_transaction::Transaction;
+
+/// The default Solana compute budget is 200k CUs. The member-update
+/// flows routinely consume that ceiling during proposal signing and
+/// simulation, so we give every CLI transaction a wider headroom by
+/// default instead of making each call site remember to opt in.
+const DEFAULT_COMPUTE_UNIT_LIMIT: u32 = 600_000;
 
 pub fn client(config: &RuntimeConfig) -> RpcClient {
     RpcClient::new_with_commitment(&config.rpc_url, CommitmentConfig::confirmed())
@@ -84,17 +91,7 @@ pub fn send_instruction(
     config: &RuntimeConfig,
     instruction: Instruction,
 ) -> Result<Signature> {
-    let recent_blockhash = rpc.get_latest_blockhash()?;
-    let transaction = Transaction::new_signed_with_payer(
-        &[instruction],
-        Some(&config.payer.pubkey()),
-        &[&config.payer],
-        recent_blockhash,
-    );
-    let signature = rpc
-        .send_and_confirm_transaction(&transaction)
-        .with_context(|| "sending transaction")?;
-    Ok(signature)
+    send_instructions(rpc, config, vec![instruction])
 }
 
 #[allow(dead_code)]
@@ -103,6 +100,7 @@ pub fn send_instructions(
     config: &RuntimeConfig,
     instructions: Vec<Instruction>,
 ) -> Result<Signature> {
+    let instructions = with_compute_budget(instructions);
     let recent_blockhash = rpc.get_latest_blockhash()?;
     let transaction = Transaction::new_signed_with_payer(
         &instructions,
@@ -114,4 +112,33 @@ pub fn send_instructions(
         .send_and_confirm_transaction(&transaction)
         .with_context(|| "sending transaction")?;
     Ok(signature)
+}
+
+fn with_compute_budget(mut instructions: Vec<Instruction>) -> Vec<Instruction> {
+    let budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(DEFAULT_COMPUTE_UNIT_LIMIT);
+    instructions.insert(0, budget_ix);
+    instructions
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solana_instruction::AccountMeta;
+
+    #[test]
+    fn prepends_compute_budget_instruction() {
+        let ix = Instruction {
+            program_id: Pubkey::new_unique(),
+            accounts: vec![AccountMeta::new(Pubkey::new_unique(), false)],
+            data: vec![1, 2, 3],
+        };
+
+        let prepared = with_compute_budget(vec![ix.clone()]);
+        assert_eq!(prepared.len(), 2);
+        assert_eq!(prepared[1], ix);
+        assert_eq!(
+            prepared[0].program_id,
+            ComputeBudgetInstruction::set_compute_unit_limit(1).program_id
+        );
+    }
 }

@@ -33,6 +33,7 @@ import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import {
   IntentType,
+  ProposalStatus,
   toHex,
   findProposalAddress,
   findVaultAddress,
@@ -41,6 +42,7 @@ import { toDisplayName } from "@/lib/retail/walletNames";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
 import { PublicKey } from "@solana/web3.js";
 import { fetchWalletByName } from "@/lib/chain/wallets";
+import { fetchProposal } from "@/lib/chain/proposals";
 import { listIntents } from "@/lib/chain/intents";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import {
@@ -317,7 +319,11 @@ function SendPage() {
     if (!intentsQuery.data) return null;
     return (
       intentsQuery.data.find(
-        (it) => it.account !== null && it.account.intentType === IntentType.Custom,
+        (it) =>
+          it.account !== null &&
+          it.account.intentType === IntentType.Custom &&
+          it.account.chainKind === 0 &&
+          it.account.approved,
       ) ?? null
     );
   }, [intentsQuery.data]);
@@ -512,19 +518,16 @@ function SendPage() {
         throw new Error("Connect your wallet first");
       if (!firstIntent || !firstIntent.account)
         throw new Error("Spending isn't set up for this wallet");
-      // Resolve which of our pubkeys the wallet's approvers list
-      // expects. With both Ledger and a Dynamic embedded wallet
-      // available, the default Ledger-preferred pubkey may not be in
-      // approvers - signing with it lands a signature the on-chain
-      // verifier rejects. pickSigner picks the matching pubkey, or
-      // null when neither is acceptable.
-      const signerPk = wallet.pickSigner(
-        firstIntent.account.approvers,
+      // Propose and approve are separate roles. Many retail wallets use
+      // the same member for both, but split-role wallets must sign the
+      // proposal with a proposer and the follow-up vote with an approver.
+      const proposerPk = wallet.pickSigner(
+        firstIntent.account.proposers,
       );
-      if (!signerPk) {
+      if (!proposerPk) {
         throw new Error(
-          "This connected wallet cannot approve sends for this shared wallet. " +
-            "Switch to a wallet that can approve here, or ask an owner to add this wallet.",
+          "This connected wallet cannot propose sends for this shared wallet. " +
+            "Switch to a wallet that can propose here, or ask an owner to add this wallet.",
         );
       }
       const destination =
@@ -578,16 +581,13 @@ function SendPage() {
         ],
         // Tells the CLI which identity to validate against during
         // dry-run; without this it uses its filesystem keypair which
-        // isn't in any user's proposers list. Use the resolved
-        // signer pubkey so the CLI checks the right identity (the
-        // default `wallet.publicKey` may not be the one we'll sign
-        // with, see pickSigner above).
-        actor_pubkey: signerPk.toBase58(),
+        // isn't in any user's proposers list.
+        actor_pubkey: proposerPk.toBase58(),
       });
 
       // 2. Sign with the user's wallet.
       setPhase("signing");
-      const signed = await signDescriptor(dry, { preferSigner: signerPk });
+      const signed = await signDescriptor(dry, { preferSigner: proposerPk });
 
       // 3. Submit propose: lands the proposal on chain in Active
       //    state with empty bitmap. Propose does not auto-flip the
@@ -623,27 +623,45 @@ function SendPage() {
       }
 
       const proposal = (submitted as Record<string, unknown>)?.proposal;
-      const me = signerPk.toBase58();
       if (typeof proposal !== "string" || proposal.length === 0) {
         return submitted;
       }
       const intent = firstIntent.account;
+      const approverPk = wallet.pickSigner(intent.approvers);
+      const approver = approverPk?.toBase58() ?? null;
 
       // 4. If the user is also an approver, flip their bit - but
       //    only if propose didn't already do it on chain (program
       //    auto-approves proposer when proposer ∈ approvers).
-      const userIsApprover = intent.approvers.includes(me);
-      const decision = await approveIfNeeded(connection, proposal);
-      if (userIsApprover && decision.needsApproveSignature) {
+      const userIsApprover = approver !== null;
+      const decision = await approveIfNeeded(connection, proposal, {
+        approvers: intent.approvers,
+        approverPubkey: approver,
+      });
+      let needsOwnApprove =
+        userIsApprover && decision.needsApproveSignature;
+      if (userIsApprover && decision.status === null) {
+        const observedStatus = await waitForProposalStatus(
+          connection,
+          proposal,
+        );
+        needsOwnApprove = observedStatus === ProposalStatus.Active;
+      }
+      if (needsOwnApprove) {
+        if (!approverPk || !approver) {
+          throw new Error(
+            "This connected wallet cannot approve sends for this shared wallet.",
+          );
+        }
         setPhase("approving");
         try {
           const approveDry = await backendApi.prepare.approveProposal(
             walletName,
             proposal,
-            { actor_pubkey: me },
+            { actor_pubkey: approver },
           );
           const approveSigned = await signDescriptor(approveDry, {
-            preferSigner: signerPk,
+            preferSigner: approverPk,
           });
           await backendApi.submit.approveProposal(walletName, proposal, {
             ...approveSigned,
@@ -667,7 +685,10 @@ function SendPage() {
       });
       if (policyPlan.evaluation?.matched) {
         if (policyPlan.rule?.action === "require-extra-approvers") {
-          const alreadyCovered = new Set<string>([me]);
+          const alreadyCovered = new Set<string>([
+            proposerPk.toBase58(),
+            ...(approver ? [approver] : []),
+          ]);
           const uniqueExtraApprovers = policyPlan.extraApprovers.filter((addr) => {
             const normalized = addr.trim();
             if (!normalized || alreadyCovered.has(normalized)) return false;
@@ -719,17 +740,32 @@ function SendPage() {
         }
       }
 
-      // 5. If the proposal has reached threshold (either from the
-      //    program's auto-approve or our explicit approve above),
-      //    execute now so the SOL actually moves.
-      const approvalsAfterUs =
-        (userIsApprover ? 1 : 0) /* propose either auto-set or we just set it */;
-      if (approvalsAfterUs >= intent.approvalThreshold) {
+      // 5. Execute only after the proposal account says it is
+      //    Approved. Do not infer this from a local approval count:
+      //    old/new program versions, RPC lag, policy-added approvers,
+      //    and explicit approve retries can all make local counting
+      //    wrong. The chain account is the source of truth.
+      const statusBeforeExecute = await waitForProposalStatus(
+        connection,
+        proposal,
+      );
+      if (statusBeforeExecute === ProposalStatus.Approved) {
         setPhase("executing");
         let executed: unknown;
         try {
           executed = await backendApi.executeProposal(walletName, proposal, {});
         } catch (err) {
+          // If an RPC race means the backend still sees Active while
+          // our read briefly saw Approved, keep the request on chain
+          // and show the waiting-for-approvals state instead of
+          // turning a valid proposal into a scary failed send.
+          if (isProposalNotApprovedError(err)) {
+            return {
+              ...submitted,
+              executedTxid: null,
+              awaitingApprovers: true,
+            };
+          }
           // Don't swallow - without this the user sees a "Sent" UX
           // even though the SOL never moved (balance stays the same
           // and they think the dashboard is broken). Re-throw with
@@ -842,6 +878,27 @@ function SendPage() {
     },
     onError: (err) => {
       console.error("[send]", err);
+      const backendPayload = (err as {
+        payload?: {
+          code?: number;
+          error?: string;
+          kind?: string;
+          request_id?: string;
+          stderr?: string;
+          stdout?: string;
+        };
+        requestId?: string;
+      })?.payload;
+      if (backendPayload) {
+        console.error("[send backend]", {
+          requestId: (err as { requestId?: string })?.requestId,
+          code: backendPayload.code,
+          kind: backendPayload.kind,
+          error: backendPayload.error,
+          stderr: backendPayload.stderr,
+          stdout: backendPayload.stdout,
+        });
+      }
       const executeFailedProposal = readExecuteFailureProposal(err);
       const fe = friendlyError(err, "send");
       // When the proposal reached chain but the execute step blew
@@ -852,9 +909,9 @@ function SendPage() {
         toast.error(
           "Request created, but the send did not finish",
           {
-            details:
-              fe.body +
-              ` Open this request in the dashboard to retry it.`,
+            details: [fe.body, "Open this request in the dashboard to retry it."]
+              .filter(Boolean)
+              .join(" "),
           },
         );
       } else {
@@ -1754,6 +1811,50 @@ async function findProposalIfLanded(
     await new Promise((r) => setTimeout(r, 800));
   }
   return null;
+}
+
+async function waitForProposalStatus(
+  connection: import("@solana/web3.js").Connection,
+  proposalPda: string,
+): Promise<ProposalStatus | null> {
+  let pubkey: PublicKey;
+  try {
+    pubkey = new PublicKey(proposalPda);
+  } catch {
+    return null;
+  }
+
+  for (let i = 0; i < 6; i++) {
+    try {
+      const account = await fetchProposal(connection, pubkey);
+      if (account) return account.status;
+    } catch {
+      // Public RPC can lag or briefly reject reads around a fresh
+      // write. Retry instead of converting transient read trouble
+      // into a failed send.
+    }
+    await new Promise((r) => setTimeout(r, 500 + i * 250));
+  }
+  return null;
+}
+
+function isProposalNotApprovedError(err: unknown): boolean {
+  const parts = [
+    err instanceof Error ? err.message : "",
+    (err as { payload?: { error?: string; stderr?: string; stdout?: string } })?.payload?.error,
+    (err as { payload?: { error?: string; stderr?: string; stdout?: string } })?.payload?.stderr,
+    (err as { payload?: { error?: string; stderr?: string; stdout?: string } })?.payload?.stdout,
+  ]
+    .filter(Boolean)
+    .join("\n")
+    .toLowerCase();
+
+  return (
+    parts.includes("proposalnotapproved") ||
+    parts.includes("proposal is not in an approved state") ||
+    // WalletError::ProposalNotApproved = 6005 = 0x1775.
+    parts.includes("custom program error: 0x1775")
+  );
 }
 
 // ─── Stage 3: sent ─────────────────────────────────────────────────

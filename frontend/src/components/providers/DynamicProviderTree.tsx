@@ -18,6 +18,7 @@ import {
   useUserWallets,
   type DynamicContextProps,
 } from "@dynamic-labs/sdk-react-core";
+import { DynamicWaasEVMConnectors } from "@dynamic-labs/waas-evm";
 import { TurnkeySolanaWalletConnectors } from "@dynamic-labs/embedded-wallet-solana";
 import { SolanaWalletConnectors } from "@dynamic-labs/solana";
 import { isSolanaWallet } from "@dynamic-labs/solana-core";
@@ -182,6 +183,7 @@ export default function DynamicProviderTree({ environmentId, children }: Props) 
     walletConnectors: [
       SolanaWalletConnectors,
       TurnkeySolanaWalletConnectors,
+      DynamicWaasEVMConnectors,
     ],
     initialAuthenticationMode: "connect-and-sign",
     deviceRegistrationModal: { enabled: false },
