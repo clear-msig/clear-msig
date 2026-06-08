@@ -107,6 +107,7 @@ export type AgentExecutionStatus =
 
 export type AgentExecutionMode = "paper" | "testnet";
 export type AgentAllocationTierId = "probation" | "trusted" | "proven";
+export type AgentTrackRecordSource = "paper" | "testnet" | "verified_live";
 
 export type AgentPostTradeOutcome = "win" | "loss" | "flat";
 export type AgentTradeThesisVerdict =
@@ -441,6 +442,7 @@ export interface AgentScorecard {
 export interface AgentLeaderboardEntry {
   agentId: string;
   walletName: string;
+  trackRecordSource?: AgentTrackRecordSource;
   score: number;
   rankInputs: {
     returnScore: number;

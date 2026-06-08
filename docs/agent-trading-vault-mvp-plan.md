@@ -442,6 +442,10 @@ controlled paper testing, public paper testing, and live-capital readiness.
    - Paper, testnet, and verified live records must never be blended. Public
      profiles and allocation recommendations must label the track-record
      source clearly.
+   - Current implementation: Agent Library now computes separate Paper,
+     Testnet, and Verified live track-record lanes from recorded proposals and
+     executions. Users can switch the visible source before comparing score,
+     rank, P/L, win rate, trade tape, and allowance recommendations.
 9. **Compliance disclosures**
    - Users need clear disclosures for simulation, automation, leverage,
      creator-owned agents, performance fees, data limits, and the fact that

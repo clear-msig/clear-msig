@@ -20,7 +20,10 @@ import { useToast } from "@/components/ui/Toast";
 import {
   agentLeaderboard,
   agentLibraryMetrics,
+  AGENT_TRACK_RECORD_SOURCES,
+  buildAgentTrackRecordBook,
   estimateAgentOpenTradePerformance,
+  executionTrackRecordSource,
   getAgentVaultPolicy,
   isAgentSessionCurrent,
   listAgentExecutions,
@@ -32,6 +35,7 @@ import {
   encryptAgentProfile,
   listAgents,
   newAgentId,
+  proposalTrackRecordSource,
   recommendAgentAllocation,
   saveAgent,
   seedClearSigAgentDemoHistory,
@@ -42,6 +46,8 @@ import {
   type AgentLeaderboardEntry,
   type AgentMarketDataSnapshot,
   type AgentProfile,
+  type AgentTrackRecordBook,
+  type AgentTrackRecordSource,
   type AgentTradeProposal,
   type AgentScorecard,
   type AgentSessionGrant,
@@ -72,6 +78,7 @@ export default function TraderLibraryPage() {
   const [pending, startTransition] = useTransition();
   const [window, setWindow] = useState<LibraryWindow>("7d");
   const [market, setMarket] = useState("all");
+  const [trackSource, setTrackSource] = useState<AgentTrackRecordSource>("paper");
   const [marketByMarket, setMarketByMarket] = useState<Record<string, AgentMarketDataSnapshot>>({});
   const [, setRefreshKey] = useState(0);
   const name = useMemo(() => decodeParam(params?.name), [params?.name]);
@@ -84,6 +91,21 @@ export default function TraderLibraryPage() {
   const sessions = listAgentSessions(name);
   const executions = listAgentExecutions(name);
   const proposals = listAgentProposals(name);
+  const trackRecordBook = useMemo(
+    () =>
+      buildAgentTrackRecordBook({
+        agents: chosen,
+        proposals,
+        executions,
+      }),
+    [chosen, executions, proposals],
+  );
+  const selectedLane =
+    trackRecordBook.lanes.find((lane) => lane.source === trackSource) ??
+    trackRecordBook.lanes.find((lane) => lane.source === trackRecordBook.primarySource) ??
+    trackRecordBook.lanes[0];
+  const selectedScorecards = selectedLane?.scorecards ?? scorecards;
+  const selectedLeaderboard = selectedLane?.leaderboard ?? leaderboard;
   const openMarketKey = executions
     .filter((execution) => execution.status === "open")
     .map((execution) => execution.market.trim().toUpperCase())
@@ -109,30 +131,39 @@ export default function TraderLibraryPage() {
   const trackedAgents: TrackedAgentItem[] = chosen
     .map((agent) => {
       const scorecard = scorecards.find((item) => item.agentId === agent.id);
-      const rank = leaderboard.findIndex((item) => item.agentId === agent.id) + 1;
-      const leader = leaderboard.find((item) => item.agentId === agent.id);
+      const sourceScorecard =
+        selectedScorecards.find((item) => item.agentId === agent.id) ?? scorecard;
+      const rank = selectedLeaderboard.findIndex((item) => item.agentId === agent.id) + 1;
+      const leader = selectedLeaderboard.find((item) => item.agentId === agent.id);
       const currentSession = sessions.find((session) =>
         isAgentSessionCurrent(session, policy) && session.agentId === agent.id,
       );
       const allocation = recommendAgentAllocation({
         agent,
-        scorecard,
+        scorecard: sourceScorecard,
         leaderboard: leader,
         currentSession,
         policy,
       });
+      const agentExecutions = executions.filter(
+        (execution) =>
+          execution.agentId === agent.id &&
+          executionTrackRecordSource(execution) === trackSource,
+      );
       const metrics = agentLibraryMetrics({
         agent,
-        scorecard,
-        executions,
+        scorecard: sourceScorecard,
+        executions: agentExecutions,
       });
-      const agentExecutions = executions.filter((execution) => execution.agentId === agent.id);
       const stoppedProposals = proposals.filter(
-        (proposal) => proposal.agentId === agent.id && proposal.status === "blocked",
+        (proposal) =>
+          proposal.agentId === agent.id &&
+          proposal.status === "blocked" &&
+          proposalTrackRecordSource(proposal) === trackSource,
       );
       return {
         agent,
-        scorecard,
+        scorecard: sourceScorecard,
         leaderboard: leader,
         rank,
         allocation,
@@ -303,11 +334,14 @@ export default function TraderLibraryPage() {
           <LibraryFilters
             window={window}
             market={market}
+            trackSource={trackSource}
+            trackRecordBook={trackRecordBook}
             markets={marketOptions}
             trackedCount={filteredTrackedAgents.length}
             totalCount={trackedAgents.length}
             onWindowChange={setWindow}
             onMarketChange={setMarket}
+            onTrackSourceChange={setTrackSource}
           />
         </div>
         {filteredTrackedAgents.length > 0 ? (
@@ -475,22 +509,48 @@ function TraderCard({
 function LibraryFilters({
   window,
   market,
+  trackSource,
+  trackRecordBook,
   markets,
   trackedCount,
   totalCount,
   onWindowChange,
   onMarketChange,
+  onTrackSourceChange,
 }: {
   window: LibraryWindow;
   market: string;
+  trackSource: AgentTrackRecordSource;
+  trackRecordBook: AgentTrackRecordBook;
   markets: string[];
   trackedCount: number;
   totalCount: number;
   onWindowChange: (window: LibraryWindow) => void;
   onMarketChange: (market: string) => void;
+  onTrackSourceChange: (source: AgentTrackRecordSource) => void;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <div className="inline-flex rounded-soft border border-border-soft bg-canvas p-1">
+        {AGENT_TRACK_RECORD_SOURCES.map((source) => {
+          const lane = trackRecordBook.lanes.find((item) => item.source === source);
+          return (
+            <button
+              key={source}
+              type="button"
+              onClick={() => onTrackSourceChange(source)}
+              className={clsx(
+                "min-h-8 rounded-[6px] px-2.5 text-[11px] font-medium transition-colors",
+                trackSource === source
+                  ? "bg-surface-raised text-text-strong shadow-card-rest"
+                  : "text-text-soft hover:text-text-strong",
+              )}
+            >
+              {lane?.label ?? source}
+            </button>
+          );
+        })}
+      </div>
       <div className="inline-flex rounded-soft border border-border-soft bg-canvas p-1">
         {(["7d", "30d", "all"] as const).map((item) => (
           <button
@@ -522,6 +582,10 @@ function LibraryFilters({
       </select>
       <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
         {trackedCount}/{totalCount} tracked
+      </span>
+      <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
+        {trackRecordBook.lanes.find((lane) => lane.source === trackSource)?.tradeCount ?? 0}{" "}
+        trades
       </span>
     </div>
   );

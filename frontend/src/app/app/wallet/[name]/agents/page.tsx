@@ -561,13 +561,7 @@ export default function AgentsPage() {
           macro: false,
           rateLimited: true,
         },
-        leaderboardMode: executions.some(
-          (execution) =>
-            execution.executionMode === "testnet" ||
-            execution.venue === "hyperliquid_testnet",
-        )
-          ? "mixed"
-          : "paper_only",
+        leaderboardMode: "separated",
         compliance: "draft",
         moderation: "none",
         abuseControls: {
