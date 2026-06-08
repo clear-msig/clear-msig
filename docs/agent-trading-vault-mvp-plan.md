@@ -28,11 +28,23 @@ Product language:
   inside those predetermined ClearSig rules. That includes preparing ideas,
   opening allowed trades, closing trades at approved exits, and recording the
   reasoning and result.
+- Creator-owned agents are not hosted or trained by ClearSig by default.
+  Agent creators can use any model, framework, training data, market data,
+  research pipeline, or hosting provider they choose. ClearSig receives their
+  signed trade decisions and decides whether those decisions are allowed to
+  execute for each user.
+- ClearSig's role is the permissioned executor, identity/registry layer,
+  evidence journal, audit trail, leaderboard, allocation gate, and payout
+  accounting layer. The incentive for creators is to improve their own agents
+  because better performance can attract user allocations and future
+  performance fees.
 
 ## Non-Negotiable Boundaries
 
 - Agents never receive raw wallet custody.
 - Agents never bypass ClearSig policy.
+- ClearSig does not need to host a creator's agent runtime, private model,
+  data pipeline, exchange keys, or training infrastructure.
 - Solana remains the authority layer.
 - Ika remains the cross-chain signing and execution direction.
 - Encrypt remains the privacy/policy data path.
@@ -53,8 +65,10 @@ Frontend domain modules:
 Backend modules later:
 
 - agent identity routes,
+- creator-owned agent registry and publishing routes,
 - agent proposal routes,
 - session grant routes,
+- signed agent decision inbox / webhook routes,
 - mock venue execution route,
 - Hyperliquid testnet adapter.
 
@@ -329,6 +343,68 @@ Phase 6 has started with policy hash binding:
   private policy commitment, so it can be toggled immediately even when policy
   controls are encrypted.
 
+## Phase 7: Creator-Owned Agent Network
+
+ClearSig should support a Bring Your Own Agent model before it considers
+hosting agent runtimes. Creators can train, fine-tune, prompt, host, or run
+their agents anywhere. ClearSig only accepts structured decisions from those
+agents and executes for users when the decision passes the user's current
+rules.
+
+This is achievable if ClearSig standardizes the boundary:
+
+- **Agent identity:** every published agent has a creator profile, public
+  signing identity, endpoint metadata, risk disclosures, supported venues, and
+  supported markets.
+- **Decision protocol:** external agents submit signed trade decisions, not
+  wallet actions. A decision must include market, side, size request, stop,
+  target, confidence, thesis, evidence used, data timestamps, and an idempotent
+  client signal ID.
+- **Evidence journal:** agents may use any model or private data source, but
+  the decision sent to ClearSig must explain what evidence influenced the
+  trade. ClearSig stores this as the decision journal so users can judge
+  reasoning quality.
+- **Risk gate:** ClearSig re-evaluates every decision against user allowance,
+  market, venue, notional, leverage, stop-loss, take-profit, open positions,
+  cooldown, daily loss cap, kill switch, and policy hash. Agent-provided
+  status is never trusted.
+- **Execution boundary:** the agent never receives user custody or venue
+  credentials. If allowed, ClearSig or a protected executor places the order
+  and records the execution artifact.
+- **Track record:** leaderboard and funding decisions use ClearSig-observed
+  behavior: allowed/blocked decisions, opened trades, closed PnL, drawdown,
+  stop discipline, duplicate attempts, evidence quality, and post-trade
+  reviews.
+- **Creator economics:** published agents can later earn a platform/performance
+  fee only from user-approved allocations and verified realized performance.
+  The creator's off-platform model quality becomes their competitive advantage.
+
+Infrastructure ClearSig needs:
+
+1. Public agent registry with creator identity, disclosures, strategy summary,
+   supported markets, and signing key rotation.
+2. Signed decision API and SDK examples for common agent stacks. The SDK should
+   make it easy for creators to submit decisions from any LLM, quant engine,
+   hosted service, local process, or cron runner.
+3. Decision schema validation with required evidence, freshness, duplicate
+   protection, and per-agent rate limits.
+4. Creator dashboard for published-agent status, blocked reasons, fills,
+   closed-trade reviews, user allocations, and pending payout accounting.
+5. User marketplace pages that compare agents by ClearSig-recorded results,
+   not creator claims.
+6. Fee accounting design for future real-capital allocations. No automatic
+   fee distribution ships until legal, security, tax, and venue reconciliation
+   requirements are reviewed.
+
+What ClearSig should not promise in the MVP:
+
+- hosting arbitrary agent code,
+- training creator models,
+- guaranteeing creator data quality,
+- giving agents custody,
+- letting agents trade outside user-approved rules,
+- ranking agents from self-reported performance.
+
 ## Demo-Ready Build Order
 
 The next work stays in this order so the product proves one complete workflow
@@ -341,6 +417,10 @@ before adding more venues or autonomous capital:
      Signal key, and run the documented scenarios.
    - Current implementation:
      `examples/agent-signal-runner`.
+   - Next implementation: add a creator-owned agent SDK/README that explains
+     the non-hosted model, required signed decision fields, evidence journal
+     requirements, freshness/idempotency rules, and the fact that ClearSig is
+     the permissioned executor.
 2. **Repeatable paper-trading demo**
    - Codex/build: keep setup readiness, policy decisions, execution, PnL,
      scorecards, and audit events connected and testable.
@@ -381,7 +461,14 @@ before adding more venues or autonomous capital:
      overrides. Every recommended limit is clamped to the vault policy and
      opens a prefilled session review; no recommendation automatically grants
      authority or transfers funds.
-6. **Real-capital authority hardening**
+6. **Published external-agent registry**
+   - Codex/build: add public creator profile fields, supported markets,
+     signing-key metadata, evidence requirements, user-facing disclosures, and
+     registry status for outside agents.
+   - Operator/user: publish an externally hosted agent, verify its signing
+     identity, submit decisions through the SDK, and confirm the marketplace
+     only shows ClearSig-observed performance.
+7. **Real-capital authority hardening**
    - Codex/build: add wallet-signed backend mutations, on-chain grants and
      revocation, signed agent intents, confidential enforcement, and durable
      venue reconciliation.
