@@ -556,7 +556,7 @@ export default function AgentsPage() {
           ? "local_profiles"
           : "none",
         creatorPayouts: "not_started",
-        externalVerification: connections.length > 0 ? "signal_key" : "none",
+        externalVerification: connections.length > 0 ? "signed_decisions" : "none",
         marketIntelligence: {
           news: false,
           macro: false,

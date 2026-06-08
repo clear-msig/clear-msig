@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin, clientIp } from "@/lib/api/guard";
 import { checkRateLimit } from "@/lib/api/rateLimit";
 import { normalizeAgentSignalPayload } from "@/lib/agents/intake";
+import { verifyAgentSignalSignature } from "@/lib/agents/signalSignature";
 import {
   enqueueAgentSignal,
   agentAutomaticTradingEnabled,
@@ -175,6 +176,29 @@ export async function POST(request: NextRequest, context: RouteContext) {
       { status: 400 },
     );
   }
+  const submittedSignature =
+    request.headers.get("x-clearsig-signal-signature")?.trim() ??
+    readStringField(body, "signature");
+  const verification = submittedSignature
+    ? verifyAgentSignalSignature({
+        signal: parsed.payload,
+        signalKey,
+        signature: submittedSignature,
+      })
+    : null;
+  if (verification && !verification.ok) {
+    return NextResponse.json(
+      {
+        error: "Signal signature failed verification.",
+        details: [verification.message],
+        verification: {
+          scheme: verification.scheme,
+          status: "failed",
+        },
+      },
+      { status: 401 },
+    );
+  }
 
   let result;
   try {
@@ -234,6 +258,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
           ? "accepted_but_not_placed"
           : "queued_for_clearsig_risk_check",
     automatic,
+    verification: verification
+      ? {
+          scheme: verification.scheme,
+          status: "signed_decision",
+          message: verification.message,
+        }
+      : {
+          scheme: "signal_key_only",
+          status: "accepted_without_signature",
+          message: "Signal key verified. Signed decision envelope was not supplied.",
+        },
   });
 }
 

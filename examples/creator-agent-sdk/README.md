@@ -82,7 +82,9 @@ auto-reviewed.
 ## Submit
 
 Copy the Signal endpoint and Signal key from the ClearSig agent connection
-screen. The key is submit-only.
+screen. The key is submit-only. The SDK signs the exact decision payload with
+an HMAC envelope by default, and ClearSig verifies that signature before
+queuing the signal.
 
 ```js
 await submitTradeDecision({

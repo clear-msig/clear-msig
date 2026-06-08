@@ -434,6 +434,10 @@ controlled paper testing, public paper testing, and live-capital readiness.
    - Submit-only signal keys are a start, but public creator agents need signed
      decisions, verified signing identity, key rotation, freshness checks,
      replay protection, and endpoint review.
+   - Current implementation: creator SDK submissions now include an
+     `hmac_sha256_v1` signed-decision envelope by default. The signal API
+     verifies the signature against the registered submit-only key and rejects
+     mismatched signatures before queuing the decision.
 7. **Real market, news, and macro data ingestion**
    - The data layer must support provider-neutral prices, funding, open
      interest, volume, news/events, macro context, timestamps, freshness, and

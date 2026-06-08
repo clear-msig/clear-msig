@@ -1,5 +1,8 @@
+import { createHmac } from "node:crypto";
+
 const DEFAULT_TIMEOUT_MS = 10_000;
 const SAFE_ID = /^[A-Za-z0-9._:-]{1,80}$/;
+export const CLEARSIG_SIGNAL_SIGNATURE_SCHEME = "hmac_sha256_v1";
 
 export function createClientSignalId({
   agentId = "agent",
@@ -88,10 +91,22 @@ export function validateTradeDecision(decision) {
   return errors;
 }
 
+export function signTradeDecision({ decision, signalKey }) {
+  if (!signalKey) throw new Error("signalKey is required.");
+  const errors = validateTradeDecision(decision);
+  if (errors.length > 0) {
+    throw new Error(`Decision failed validation: ${errors.join(" ")}`);
+  }
+  return createHmac("sha256", signalKey)
+    .update(canonicalTradeDecision(decision))
+    .digest("hex");
+}
+
 export async function submitTradeDecision({
   endpoint,
   signalKey,
   decision,
+  signed = true,
   fetchImpl = fetch,
   timeoutMs = DEFAULT_TIMEOUT_MS,
 }) {
@@ -101,14 +116,24 @@ export async function submitTradeDecision({
   if (errors.length > 0) {
     throw new Error(`Decision failed validation: ${errors.join(" ")}`);
   }
+  const signature = signed ? signTradeDecision({ decision, signalKey }) : null;
 
   const response = await fetchImpl(endpoint, {
     method: "POST",
     headers: {
       "content-type": "application/json",
       "x-clearsig-signal-key": signalKey,
+      ...(signature ? { "x-clearsig-signal-signature": signature } : {}),
     },
-    body: JSON.stringify({ signal: decision }),
+    body: JSON.stringify(
+      signature
+        ? {
+            signal: decision,
+            signature,
+            signatureScheme: CLEARSIG_SIGNAL_SIGNATURE_SCHEME,
+          }
+        : { signal: decision },
+    ),
     signal: AbortSignal.timeout(timeoutMs),
   });
   const body = await readJson(response);
@@ -119,6 +144,10 @@ export async function submitTradeDecision({
     );
   }
   return body;
+}
+
+export function canonicalTradeDecision(decision) {
+  return JSON.stringify(stableValue(decision));
 }
 
 function validateEndpoint(endpoint) {
@@ -147,6 +176,17 @@ async function readJson(response) {
 function stripEmpty(input) {
   return Object.fromEntries(
     Object.entries(input).filter(([, value]) => value !== "" && value != null),
+  );
+}
+
+function stableValue(value) {
+  if (Array.isArray(value)) return value.map(stableValue);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => [key, stableValue(item)]),
   );
 }
 

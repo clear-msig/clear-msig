@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   createClientSignalId,
   createTradeDecision,
+  signTradeDecision,
   submitTradeDecision,
   validateTradeDecision,
 } from "./sdk.mjs";
@@ -54,7 +55,27 @@ test("requires evidence fields creators should provide", () => {
   assert(errors.includes("invalidation is required."));
 });
 
-test("submits with only the submit-only signal key", async () => {
+test("signs trade decisions with the submit-only signal key", () => {
+  const decision = createTradeDecision({
+    clientSignalId: "decision-1",
+    submittedAt: 1_800_000_000_000,
+    market: "BTC-PERP",
+    side: "long",
+    notionalUsd: "250",
+    leverage: 1,
+    stopLossPrice: "68000",
+    thesis: "BTC reclaimed support.",
+    riskPlan: "Small size with stop.",
+    invalidation: "Support fails.",
+  });
+
+  assert.match(
+    signTradeDecision({ decision, signalKey: "submit-only-key" }),
+    /^[a-f0-9]{64}$/,
+  );
+});
+
+test("submits with the submit-only signal key and signed decision", async () => {
   const requests = [];
   const response = await submitTradeDecision({
     endpoint: "http://localhost:3000/api/agent-signals/vault/agent-alpha",
@@ -89,5 +110,7 @@ test("submits with only the submit-only signal key", async () => {
 
   assert.equal(response.id, "queued-1");
   assert.equal(requests[0].request.headers["x-clearsig-signal-key"], "submit-only-key");
+  assert.match(requests[0].request.headers["x-clearsig-signal-signature"], /^[a-f0-9]{64}$/);
   assert.equal(JSON.parse(requests[0].request.body).signal.clientSignalId, "decision-1");
+  assert.equal(JSON.parse(requests[0].request.body).signatureScheme, "hmac_sha256_v1");
 });
