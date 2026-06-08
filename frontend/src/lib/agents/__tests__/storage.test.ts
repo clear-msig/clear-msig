@@ -13,6 +13,7 @@ import {
   listAgentOwnerApprovals,
   listAgentSessions,
   listAgentScorecards,
+  moderateAgentPublishingProfile,
   openAgentPaperTrade,
   publishAgentProfile,
   recheckAgentProposal,
@@ -125,14 +126,26 @@ describe("agent paper execution storage", () => {
       "Public profile for user testing.",
     );
     expect(published?.publishing?.status).toBe("published");
+    expect(published?.publishing?.moderation?.status).toBe("pending_review");
     expect(published?.publishing?.slug).toBe("agent-alpha-agent-alpha");
     expect(published?.publishing?.publicSummary).toBe("Public profile for user testing.");
 
+    const approved = moderateAgentPublishingProfile({
+      walletName: "vault",
+      id: "agent-alpha",
+      status: "approved",
+      reason: "Ready for test marketplace.",
+    });
+    expect(approved?.publishing?.moderation?.status).toBe("approved");
+    expect(approved?.publishing?.moderation?.reason).toBe("Ready for test marketplace.");
+
     const draft = unpublishAgentProfile("vault", "agent-alpha");
     expect(draft?.publishing?.status).toBe("draft");
+    expect(draft?.publishing?.moderation?.status).toBe("approved");
     expect(draft?.publishing?.slug).toBe("agent-alpha-agent-alpha");
     expect(listAgentEvents("vault").map((event) => event.kind)).toEqual([
       "agent_profile_published",
+      "agent_profile_moderated",
       "agent_profile_unpublished",
     ]);
   });

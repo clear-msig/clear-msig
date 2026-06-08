@@ -457,6 +457,10 @@ controlled paper testing, public paper testing, and live-capital readiness.
 10. **Admin moderation**
    - ClearSig needs admin workflows to review, pause, delist, investigate, and
      audit published agents before a public marketplace is open.
+   - Current implementation: published agent profiles now carry marketplace
+     moderation status. Profiles start as pending review, can be approved,
+     paused, or delisted from the agent detail page, and every moderation
+     change is written to the agent audit log.
 11. **Abuse and rate-limit controls**
    - Agent APIs need origin checks, per-agent rate limits, signal-key controls,
      bounded body sizes, freshness checks, duplicate protection, signed

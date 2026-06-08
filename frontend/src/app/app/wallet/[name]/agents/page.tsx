@@ -566,7 +566,13 @@ export default function AgentsPage() {
         compliance: hasAgentComplianceAcknowledgement(name, "mock_perps")
           ? "user_disclosures"
           : "draft",
-        moderation: "none",
+        moderation: agents.some((agent) => agent.publishing?.status === "published")
+          ? agents
+              .filter((agent) => agent.publishing?.status === "published")
+              .every((agent) => agent.publishing?.moderation)
+            ? "active"
+            : "admin_review"
+          : "none",
         abuseControls: {
           sameOrigin: true,
           rateLimits: true,

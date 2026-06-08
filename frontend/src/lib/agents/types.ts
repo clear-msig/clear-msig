@@ -73,11 +73,26 @@ export interface AgentStrategyProfile {
 }
 
 export type AgentPublishingStatus = "draft" | "published";
+export type AgentModerationStatus =
+  | "pending_review"
+  | "approved"
+  | "paused"
+  | "delisted";
+
+export interface AgentPublishingModeration {
+  status: AgentModerationStatus;
+  reason?: string;
+  reviewedBy?: string;
+  reviewedAt?: number;
+  updatedAt: number;
+  version: AgentVersion;
+}
 
 export interface AgentPublishingProfile {
   status: AgentPublishingStatus;
   slug: string;
   publicSummary: string;
+  moderation?: AgentPublishingModeration;
   visibleMetrics: Array<
     | "score"
     | "realized_pnl"
@@ -245,6 +260,7 @@ export type AgentAuditEventKind =
   | "agent_status_changed"
   | "agent_profile_published"
   | "agent_profile_unpublished"
+  | "agent_profile_moderated"
   | "connection_key_rotated"
   | "owner_action_approved"
   | "policy_emergency_pause_changed"

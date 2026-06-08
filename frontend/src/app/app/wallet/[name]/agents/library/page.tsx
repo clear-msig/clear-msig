@@ -644,6 +644,7 @@ function TrackedAgentCard({
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, 3);
   const published = agent.publishing?.status === "published";
+  const moderationStatus = agent.publishing?.moderation?.status;
   return (
     <article className="flex flex-col rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
       <div className="flex items-start justify-between gap-3">
@@ -656,8 +657,23 @@ function TrackedAgentCard({
               {agent.status}
             </span>
             {published ? (
-              <span className="rounded-full border border-accent/30 bg-accent/[0.08] px-2 py-1 text-[10px] font-medium text-accent">
-                Published
+              <span
+                className={clsx(
+                  "rounded-full border px-2 py-1 text-[10px] font-medium",
+                  moderationStatus === "approved"
+                    ? "border-accent/30 bg-accent/[0.08] text-accent"
+                    : moderationStatus === "delisted"
+                      ? "border-rose-500/30 bg-rose-500/[0.08] text-rose-300"
+                      : "border-warning/30 bg-warning/[0.08] text-warning",
+                )}
+              >
+                {moderationStatus === "approved"
+                  ? "Approved"
+                  : moderationStatus === "delisted"
+                    ? "Delisted"
+                    : moderationStatus === "paused"
+                      ? "Paused"
+                      : "Pending review"}
               </span>
             ) : null}
           </div>
