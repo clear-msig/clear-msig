@@ -1208,7 +1208,7 @@ function AllowanceDecisionPanel({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-sm font-semibold text-text-strong">
-                Funding recommendation
+                Allowance recommendation
               </h2>
               <Badge tone={allocationBadgeTone(recommendation.action)}>
                 {allocationActionLabel(recommendation.action)}
@@ -1241,7 +1241,7 @@ function AllowanceDecisionPanel({
 
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
         <div>
-          <p className="text-xs font-semibold text-text-strong">Why this funding level?</p>
+          <p className="text-xs font-semibold text-text-strong">Why this allowance level?</p>
           <ul className="mt-2 grid gap-1.5">
             {recommendation.reasons.slice(0, 5).map((reason) => (
               <li key={reason} className="flex items-start gap-2 text-xs text-text-soft">
@@ -1307,8 +1307,8 @@ function PublishingPanel({
               </Badge>
             </div>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-text-soft">
-              Publish a test profile that shows this agent&apos;s score, funding
-              tier, P/L, trades, win rate, and safety stops. It does not grant
+              Publish a test profile that shows this agent&apos;s score, allowance
+              level, P/L, trades, win rate, and safety stops. It does not grant
               trading authority or expose connection keys.
             </p>
           </div>
@@ -2099,18 +2099,18 @@ function plainAllowanceSummary(
   const window = `${limits.sessionHours} hour${
     limits.sessionHours === 1 ? "" : "s"
   }`;
-  const core = `${recommendation.tier.label}: fund up to ${size} per trade, ${limits.maxLeverage}x, ${openTrades}, for ${window}.`;
+  const core = `${recommendation.tier.label}: allow up to ${size} per trade, ${limits.maxLeverage}x, ${openTrades}, for ${window}.`;
   switch (recommendation.action) {
     case "promote":
-      return `This agent has earned a larger funding window. ${core}`;
+      return `This agent has earned a larger allowance window. ${core}`;
     case "demote":
-      return `This agent should use a smaller funding window next. ${core}`;
+      return `This agent should use a smaller allowance window next. ${core}`;
     case "hold":
-      return `The current funding window still fits this agent. ${core}`;
+      return `The current allowance window still fits this agent. ${core}`;
     case "review":
       return `Review the setup before giving more control. ${core}`;
     case "start":
-      return `Start with a small human-approved funding window. ${core}`;
+      return `Start with a small human-approved allowance window. ${core}`;
   }
 }
 
@@ -2158,7 +2158,7 @@ function publishedProfileText({
       libraryMetrics?.winRatePct == null ? "New" : `${libraryMetrics.winRatePct}%`
     }`,
     `Safety stops: ${scorecard?.ruleViolations ?? 0}`,
-    `Funding tier: ${allocation?.tier.label ?? "Probation"}`,
+    `Allowance level: ${allocation?.tier.label ?? "Probation"}`,
   ].join("\n");
 }
 

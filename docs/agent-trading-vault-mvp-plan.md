@@ -405,6 +405,55 @@ What ClearSig should not promise in the MVP:
 - letting agents trade outside user-approved rules,
 - ranking agents from self-reported performance.
 
+## Phase 8: Market-Ready Launch Gates
+
+These gates are now locked into the shipping path. They are tracked in code by
+`frontend/src/lib/agents/marketReadiness.ts` so the product can distinguish
+controlled paper testing, public paper testing, and live-capital readiness.
+
+1. **Production-grade persistence**
+   - Public beta requires Redis or database-backed agent state. Browser,
+     process-memory, or local-only storage is allowed only for development.
+2. **Wallet-signed permissions for agent-state changes**
+   - Fund-impacting mutations must require owner wallet signatures. This
+     includes allowance grants, automatic-trading starts, venue handoffs, trade
+     closing, kill switches, and future revocation flows.
+3. **Live exchange reconciliation**
+   - A trade is not considered verified live performance until ClearSig can
+     reconcile exchange fills, positions, fees, funding, closed PnL, and order
+     artifacts against the protected venue adapter.
+4. **Creator marketplace**
+   - Published agents need creator identity, strategy summary, supported
+     markets, supported venues, public profile status, disclosures, and
+     signing-key metadata before broad discovery.
+5. **Creator payouts**
+   - No payout flow ships for real capital until high-water marks, performance
+     fee rules, disputes, taxes, legal review, and venue reconciliation are
+     complete.
+6. **External agent verification**
+   - Submit-only signal keys are a start, but public creator agents need signed
+     decisions, verified signing identity, key rotation, freshness checks,
+     replay protection, and endpoint review.
+7. **Real market, news, and macro data ingestion**
+   - The data layer must support provider-neutral prices, funding, open
+     interest, volume, news/events, macro context, timestamps, freshness, and
+     provider quality controls. Agents must cite what data they used.
+8. **Paper/live leaderboard separation**
+   - Paper, testnet, and verified live records must never be blended. Public
+     profiles and allocation recommendations must label the track-record
+     source clearly.
+9. **Compliance disclosures**
+   - Users need clear disclosures for simulation, automation, leverage,
+     creator-owned agents, performance fees, data limits, and the fact that
+     past performance does not guarantee future returns.
+10. **Admin moderation**
+   - ClearSig needs admin workflows to review, pause, delist, investigate, and
+     audit published agents before a public marketplace is open.
+11. **Abuse and rate-limit controls**
+   - Agent APIs need origin checks, per-agent rate limits, signal-key controls,
+     bounded body sizes, freshness checks, duplicate protection, signed
+     decisions, and abuse monitoring.
+
 ## Demo-Ready Build Order
 
 The next work stays in this order so the product proves one complete workflow

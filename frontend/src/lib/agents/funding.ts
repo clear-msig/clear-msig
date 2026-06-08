@@ -152,7 +152,7 @@ function fundingHeadline(
     case "keep":
       return `${allocation.tier.label} still fits`;
     case "review":
-      return "Review before funding";
+      return "Review before allowance";
     case "fund":
       return `Start ${allocation.tier.label}`;
   }
@@ -190,7 +190,7 @@ function fundingCtaLabel(action: AgentFundingAction, hasSession: boolean): strin
     case "review":
       return "Review trader";
     case "fund":
-      return "Fund trader";
+      return "Set allowance";
   }
 }
 

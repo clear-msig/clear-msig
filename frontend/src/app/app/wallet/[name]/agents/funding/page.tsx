@@ -57,10 +57,10 @@ export default function AgentFundingPage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Funding · {display}
+              Practice allocation · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
-              Fund traders by performance
+              Set allowances by performance
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-soft">
               ClearSig recommends small, time-boxed practice allowances from
@@ -115,7 +115,7 @@ export default function AgentFundingPage() {
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
             <div>
               <p className="text-sm font-semibold text-text-strong">
-                Funding is in review mode
+                Allowances are in review mode
               </p>
               <p className="mt-1 text-sm leading-relaxed text-text-soft">
                 Turn on safety rules and make sure the kill switch is off before
@@ -134,7 +134,7 @@ export default function AgentFundingPage() {
         ) : (
           <div className="rounded-card border border-dashed border-border-soft bg-surface-raised p-6">
             <p className="text-sm font-semibold text-text-strong">
-              No traders to fund yet
+              No traders need allowances yet
             </p>
             <p className="mt-1 text-sm leading-relaxed text-text-soft">
               Choose a prepared trader or create your own, then ClearSig can
@@ -261,7 +261,7 @@ function FundingCard({
             </p>
           ) : (
             <p className="mt-1 text-xs leading-relaxed text-text-soft">
-              This trader is already at the highest practice funding level.
+              This trader is already at the highest practice allowance level.
             </p>
           )}
         </div>
