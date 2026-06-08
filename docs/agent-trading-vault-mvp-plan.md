@@ -450,6 +450,10 @@ controlled paper testing, public paper testing, and live-capital readiness.
    - Users need clear disclosures for simulation, automation, leverage,
      creator-owned agents, performance fees, data limits, and the fact that
      past performance does not guarantee future returns.
+   - Current implementation: Start Trading now requires per-wallet,
+     per-practice-venue disclosure acknowledgement before automatic trading.
+     The disclosure gate covers simulation/testnet limits, automation,
+     leverage, creator-owned agents, data limitations, and future creator fees.
 10. **Admin moderation**
    - ClearSig needs admin workflows to review, pause, delist, investigate, and
      audit published agents before a public marketplace is open.

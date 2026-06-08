@@ -50,6 +50,7 @@ import {
   estimateAgentOpenTradePerformance,
   executionUnavailableReason,
   getAgentVaultPolicy,
+  hasAgentComplianceAcknowledgement,
   listAgentConnectionKits,
   listAgentEvents,
   listAgentExecutions,
@@ -562,7 +563,9 @@ export default function AgentsPage() {
           rateLimited: true,
         },
         leaderboardMode: "separated",
-        compliance: "draft",
+        compliance: hasAgentComplianceAcknowledgement(name, "mock_perps")
+          ? "user_disclosures"
+          : "draft",
         moderation: "none",
         abuseControls: {
           sameOrigin: true,

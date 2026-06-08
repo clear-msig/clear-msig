@@ -17,6 +17,7 @@ export * from "@/lib/agents/launchReadiness";
 export * from "@/lib/agents/betaReadiness";
 export * from "@/lib/agents/marketReadiness";
 export * from "@/lib/agents/trackRecord";
+export * from "@/lib/agents/compliance";
 export * from "@/lib/agents/tradePerformance";
 export * from "@/lib/agents/automaticTradeManagement";
 export * from "@/lib/agents/betaDemoSetup";
