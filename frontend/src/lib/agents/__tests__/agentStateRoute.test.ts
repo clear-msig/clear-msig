@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { PublicKey } from "@solana/web3.js";
 import nacl from "tweetnacl";
-import { POST as mutateAgentState } from "@/app/api/agent-state/[name]/route";
+import {
+  GET as readAgentState,
+  POST as mutateAgentState,
+} from "@/app/api/agent-state/[name]/route";
 import { ownerApprovalSignableText } from "@/lib/agents/ownerApproval";
 import { defaultAgentVaultPolicy } from "@/lib/agents/policy";
 import {
@@ -30,9 +33,36 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllEnvs();
 });
 
 describe("agent state route owner authority", () => {
+  it("returns a persistence error when production state is not durable", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "");
+    vi.stubEnv("CLEARSIG_ALLOW_AGENT_MEMORY_STATE", "");
+
+    const response = await readAgentState(
+      new NextRequest("http://localhost/api/agent-state/prod-vault", {
+        headers: { host: "localhost", origin: "http://localhost" },
+      }),
+      { params: Promise.resolve({ name: "prod-vault" }) },
+    );
+    const body = (await response.json()) as {
+      error?: string;
+      persistence?: { storage?: string; durable?: boolean };
+    };
+
+    expect(response.status).toBe(503);
+    expect(body.error).toContain("requires Redis");
+    expect(body.persistence).toMatchObject({
+      storage: "memory",
+      durable: false,
+    });
+  });
+
   it("requires wallet approval before closing a durable trade record", async () => {
     const walletName = "route-state-close-no-approval";
     const opened = await seedOpenExecution(walletName);

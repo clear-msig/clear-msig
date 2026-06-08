@@ -411,9 +411,21 @@ These gates are now locked into the shipping path. They are tracked in code by
 `frontend/src/lib/agents/marketReadiness.ts` so the product can distinguish
 controlled paper testing, public paper testing, and live-capital readiness.
 
+Locked public-beta build order:
+
+1. Production persistence hard gate. **Completed.**
+2. Public agent profile pages.
+3. Creator marketplace registry.
+4. Real market/news/macro data layer.
+5. Notifications.
+6. Admin beta dashboard.
+
 1. **Production-grade persistence**
    - Public beta requires Redis or database-backed agent state. Browser,
      process-memory, or local-only storage is allowed only for development.
+   - Current implementation: production runtime now rejects agent backend state
+     reads and writes unless Redis is configured. Memory state remains available
+     only for development or an explicit local escape hatch.
 2. **Wallet-signed permissions for agent-state changes**
    - Fund-impacting mutations must require owner wallet signatures. This
      includes allowance grants, automatic-trading starts, venue handoffs, trade

@@ -3,7 +3,9 @@ import { assertSameOrigin, clientIp } from "@/lib/api/guard";
 import { checkRateLimit } from "@/lib/api/rateLimit";
 import {
   AgentServerStateConflictError,
+  AgentServerStatePersistenceError,
   agentServerLeaderboard,
+  agentServerStatePersistenceStatus,
   agentServerStateStorageMode,
   approveAgentServerProposal,
   getAgentServerWalletState,
@@ -40,10 +42,26 @@ export async function GET(request: NextRequest, context: RouteContext) {
   if (blocked) return blocked;
 
   const walletName = decodeRouteParam((await context.params).name);
-  const state = await getAgentServerWalletState(walletName);
+  let state;
+  try {
+    state = await getAgentServerWalletState(walletName);
+  } catch (error) {
+    if (error instanceof AgentServerStatePersistenceError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: error.message,
+          persistence: agentServerStatePersistenceStatus(),
+        },
+        { status: 503 },
+      );
+    }
+    throw error;
+  }
   return NextResponse.json({
     ok: true,
     storage: agentServerStateStorageMode(),
+    persistence: agentServerStatePersistenceStatus(),
     state,
     leaderboard: await agentServerLeaderboard(walletName),
   });
@@ -236,6 +254,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
       });
     }
   } catch (error) {
+    if (error instanceof AgentServerStatePersistenceError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          persistence: agentServerStatePersistenceStatus(),
+        },
+        { status: 503 },
+      );
+    }
     if (error instanceof AgentServerStateConflictError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }

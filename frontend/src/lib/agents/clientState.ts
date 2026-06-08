@@ -11,6 +11,13 @@ import type { AgentServerWalletState } from "@/lib/agents/serverState";
 
 export interface AgentBackendStateSnapshot {
   storage: "redis" | "memory";
+  persistence?: {
+    storage: "redis" | "memory";
+    durable: boolean;
+    memoryAllowed: boolean;
+    production: boolean;
+    message: string;
+  };
   state: AgentServerWalletState;
   leaderboard: AgentLeaderboardEntry[];
 }
@@ -41,6 +48,7 @@ export async function loadAgentBackendState(
       message: "Backend state loaded.",
       value: {
         storage: body.storage === "redis" ? "redis" : "memory",
+        persistence: persistenceField(body.persistence),
         state: body.state as AgentServerWalletState,
         leaderboard: Array.isArray(body.leaderboard)
           ? (body.leaderboard as AgentLeaderboardEntry[])
@@ -50,6 +58,21 @@ export async function loadAgentBackendState(
   } catch (error) {
     return failed(error, "Backend state is unavailable.");
   }
+}
+
+function persistenceField(value: unknown): AgentBackendStateSnapshot["persistence"] {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  return {
+    storage: record.storage === "redis" ? "redis" : "memory",
+    durable: record.durable === true,
+    memoryAllowed: record.memoryAllowed === true,
+    production: record.production === true,
+    message:
+      typeof record.message === "string"
+        ? record.message
+        : "Backend persistence status is unavailable.",
+  };
 }
 
 export function syncAgentProfile(
