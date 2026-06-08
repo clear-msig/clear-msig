@@ -300,6 +300,12 @@ export interface AgentSignalInboxItem {
     confidence?: number;
     expiresInMinutes?: number;
     thesis?: string;
+    technicalSummary?: string;
+    fundamentalSummary?: string;
+    newsSummary?: string;
+    riskPlan?: string;
+    exitPlan?: string;
+    invalidation?: string;
   };
   receivedAt: number;
   version: AgentVersion;

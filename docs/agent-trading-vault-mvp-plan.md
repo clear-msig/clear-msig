@@ -417,10 +417,10 @@ before adding more venues or autonomous capital:
      Signal key, and run the documented scenarios.
    - Current implementation:
      `examples/agent-signal-runner`.
-   - Next implementation: add a creator-owned agent SDK/README that explains
-     the non-hosted model, required signed decision fields, evidence journal
-     requirements, freshness/idempotency rules, and the fact that ClearSig is
-     the permissioned executor.
+   - Current implementation: `examples/creator-agent-sdk` explains the
+     non-hosted model and provides a dependency-free decision helper for
+     evidence-rich trade decisions, freshness/idempotency fields, and
+     submit-only ClearSig signal delivery.
 2. **Repeatable paper-trading demo**
    - Codex/build: keep setup readiness, policy decisions, execution, PnL,
      scorecards, and audit events connected and testable.

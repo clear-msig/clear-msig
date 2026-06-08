@@ -19,6 +19,7 @@ import { submitAgentVenueExecution } from "@/lib/agents/clientExecution";
 import { encryptStatus } from "@/lib/encrypt/client";
 import {
   agentRiskSnapshot,
+  buildAgentTradeDecisionJournal,
   buildAgentTradeProposalFromSignal,
   canOpenLocalAgentExecution,
   decryptAgentVaultPolicy,
@@ -203,6 +204,8 @@ export default function AgentConnectionPage() {
   ): Promise<{
     proposal: AgentTradeProposal;
     evaluation: AgentPolicyEvaluation;
+    signal: AgentSignalInboxItem["payload"];
+    agent: AgentProfile;
   } | null> => {
     const currentAgent = agent ?? findAgent(name, agentId);
     if (!currentAgent) {
@@ -233,12 +236,14 @@ export default function AgentConnectionPage() {
       now,
     });
     if (options.updateFormErrors) setErrors([]);
-    return { proposal, evaluation };
+    return { proposal, evaluation, signal: payload, agent: currentAgent };
   }, [agent, agentId, name]);
 
   const buildDraft = async (json = signalJson): Promise<{
     proposal: AgentTradeProposal;
     evaluation: AgentPolicyEvaluation;
+    signal: AgentSignalInboxItem["payload"];
+    agent: AgentProfile;
   } | null> => {
     const parsed = parseAgentSignalJson(json);
     if (!parsed.payload) {
@@ -296,6 +301,17 @@ export default function AgentConnectionPage() {
         status,
         evaluationDecision: draft.evaluation.decision,
         policyViolations: draft.evaluation.violations,
+        decisionJournal: buildAgentTradeDecisionJournal({
+          agent: draft.agent,
+          proposal: draft.proposal,
+          evaluation: draft.evaluation,
+          technicalSummary: draft.signal.technicalSummary,
+          fundamentalSummary: draft.signal.fundamentalSummary,
+          newsSummary: draft.signal.newsSummary,
+          riskPlan: draft.signal.riskPlan,
+          exitPlan: draft.signal.exitPlan,
+          invalidation: draft.signal.invalidation,
+        }),
         updatedAt: Date.now(),
       };
       try {
