@@ -60,6 +60,7 @@ export interface AgentServerExecutionGateResult {
 }
 
 export class AgentServerStateConflictError extends Error {}
+export class AgentServerStatePersistenceError extends Error {}
 
 const STATES = new Map<string, AgentServerWalletState>();
 const MAX_EVENTS_PER_WALLET = 200;
@@ -71,6 +72,7 @@ export async function getAgentServerWalletState(
   walletName: string,
 ): Promise<AgentServerWalletState> {
   const normalized = normalizeWalletName(walletName);
+  assertDurableStateAvailable();
   const state = await readState(normalized);
   return state ?? emptyState(normalized);
 }
@@ -639,6 +641,30 @@ export function agentServerStateStorageMode(): "redis" | "memory" {
   return readUpstashEnv() ? "redis" : "memory";
 }
 
+export function agentServerStatePersistenceStatus(): {
+  storage: "redis" | "memory";
+  durable: boolean;
+  memoryAllowed: boolean;
+  production: boolean;
+  message: string;
+} {
+  const storage = agentServerStateStorageMode();
+  const production = isProductionRuntime();
+  const memoryAllowed = isMemoryStateAllowed();
+  return {
+    storage,
+    durable: storage === "redis",
+    memoryAllowed,
+    production,
+    message:
+      storage === "redis"
+        ? "Agent state is using Redis."
+        : production && !memoryAllowed
+          ? "Agent state requires Redis in production."
+          : "Agent state is using development memory storage.",
+  };
+}
+
 function evaluateProposalFromState(
   state: AgentServerWalletState,
   proposal: AgentTradeProposal,
@@ -766,12 +792,31 @@ async function readState(walletName: string): Promise<AgentServerWalletState | n
 }
 
 async function writeState(state: AgentServerWalletState): Promise<void> {
+  assertDurableStateAvailable();
   const redis = readUpstashEnv();
   if (redis) {
     await redisSet(stateRedisKey(state.walletName), state, redis);
     return;
   }
   STATES.set(state.walletName, normalizeState(state));
+}
+
+function assertDurableStateAvailable(): void {
+  if (readUpstashEnv() || isMemoryStateAllowed()) return;
+  throw new AgentServerStatePersistenceError(
+    "Agent state requires Redis in production. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN, or set CLEARSIG_ALLOW_AGENT_MEMORY_STATE=1 only for development.",
+  );
+}
+
+function isMemoryStateAllowed(): boolean {
+  return (
+    !isProductionRuntime() ||
+    process.env.CLEARSIG_ALLOW_AGENT_MEMORY_STATE === "1"
+  );
+}
+
+function isProductionRuntime(): boolean {
+  return process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production";
 }
 
 function findDuplicateClientSignal(

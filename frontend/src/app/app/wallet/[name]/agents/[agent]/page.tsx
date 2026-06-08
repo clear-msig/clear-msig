@@ -48,6 +48,7 @@ import {
   listAgentScorecards,
   listAgentSessions,
   isAgentSessionCurrent,
+  moderateAgentPublishingProfile,
   openAgentPaperTrade,
   publishAgentProfile,
   rejectAgentProposal,
@@ -73,6 +74,7 @@ import {
   type AgentLeaderboardEntry,
   type AgentLibraryMetrics,
   type AgentMarketDataSnapshot,
+  type AgentModerationStatus,
   type AgentReadinessAction,
   type AgentRiskSnapshot,
   type AgentProfile,
@@ -543,6 +545,33 @@ export default function AgentDetailPage() {
     });
   };
 
+  const setPublishingModeration = (
+    status: AgentModerationStatus,
+    reason?: string,
+  ) => {
+    startAction(() => {
+      const updated = moderateAgentPublishingProfile({
+        walletName: name,
+        id: agentId,
+        status,
+        reason,
+      });
+      if (!updated) {
+        toast.error("Publish the agent profile before moderating it");
+        return;
+      }
+      void syncAgentProfile(updated).then((synced) => {
+        if (synced.ok) {
+          toast.success(`Marketplace status set to ${moderationLabel(status)}`);
+        } else {
+          toast.info("Marketplace review changed locally; backend sync is pending", {
+            details: synced.message,
+          });
+        }
+      });
+    });
+  };
+
   const copyPublishedProfile = () => {
     if (!agent?.publishing) return;
     const text = publishedProfileText({
@@ -754,6 +783,7 @@ export default function AgentDetailPage() {
         pending={pending}
         onPublish={() => setPublished(true)}
         onUnpublish={() => setPublished(false)}
+        onModerate={setPublishingModeration}
         onCopy={copyPublishedProfile}
       />
 
@@ -1208,7 +1238,7 @@ function AllowanceDecisionPanel({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-sm font-semibold text-text-strong">
-                Funding recommendation
+                Allowance recommendation
               </h2>
               <Badge tone={allocationBadgeTone(recommendation.action)}>
                 {allocationActionLabel(recommendation.action)}
@@ -1241,7 +1271,7 @@ function AllowanceDecisionPanel({
 
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
         <div>
-          <p className="text-xs font-semibold text-text-strong">Why this funding level?</p>
+          <p className="text-xs font-semibold text-text-strong">Why this allowance level?</p>
           <ul className="mt-2 grid gap-1.5">
             {recommendation.reasons.slice(0, 5).map((reason) => (
               <li key={reason} className="flex items-start gap-2 text-xs text-text-soft">
@@ -1273,6 +1303,7 @@ function PublishingPanel({
   pending,
   onPublish,
   onUnpublish,
+  onModerate,
   onCopy,
 }: {
   agent: AgentProfile;
@@ -1280,9 +1311,11 @@ function PublishingPanel({
   pending: boolean;
   onPublish: () => void;
   onUnpublish: () => void;
+  onModerate: (status: AgentModerationStatus, reason?: string) => void;
   onCopy: () => void;
 }) {
   const published = agent.publishing?.status === "published";
+  const moderation = agent.publishing?.moderation;
   const slug = agent.publishing?.slug ?? "not-published";
   const previewHref = `/app/wallet/${walletEncoded}/agents/${encodeURIComponent(agent.id)}`;
   return (
@@ -1305,11 +1338,17 @@ function PublishingPanel({
               <Badge tone={published ? "success" : "default"}>
                 {published ? "Published" : "Draft"}
               </Badge>
+              {published ? (
+                <Badge tone={moderationBadgeTone(moderation?.status)}>
+                  {moderationLabel(moderation?.status ?? "pending_review")}
+                </Badge>
+              ) : null}
             </div>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-text-soft">
-              Publish a test profile that shows this agent&apos;s score, funding
-              tier, P/L, trades, win rate, and safety stops. It does not grant
-              trading authority or expose connection keys.
+              Publish a test profile that shows this agent&apos;s score, allowance
+              level, P/L, trades, win rate, and safety stops. Marketplace review
+              can approve, pause, or delist the profile without granting trading
+              authority or exposing connection keys.
             </p>
           </div>
         </div>
@@ -1321,6 +1360,45 @@ function PublishingPanel({
                 Icon={Copy}
                 disabled={pending}
                 onClick={onCopy}
+              />
+              <ActionButton
+                label="Approve"
+                Icon={ShieldCheck}
+                disabled={pending}
+                onClick={() =>
+                  onModerate("approved", "Profile passed marketplace review.")
+                }
+              />
+              <ActionButton
+                label="Review"
+                Icon={Clock}
+                disabled={pending}
+                onClick={() =>
+                  onModerate(
+                    "pending_review",
+                    "Profile is waiting for marketplace review.",
+                  )
+                }
+              />
+              <ActionButton
+                label="Pause listing"
+                Icon={AlertTriangle}
+                disabled={pending}
+                onClick={() =>
+                  onModerate(
+                    "paused",
+                    "Profile is paused while ClearSig reviews recent behavior.",
+                  )
+                }
+              />
+              <ActionButton
+                label="Delist"
+                Icon={X}
+                disabled={pending}
+                tone="danger"
+                onClick={() =>
+                  onModerate("delisted", "Profile is hidden from marketplace discovery.")
+                }
               />
               <ActionButton
                 label="Unpublish"
@@ -1347,15 +1425,26 @@ function PublishingPanel({
           value={published ? String(agent.publishing?.visibleMetrics.length ?? 0) : "None"}
         />
         <ScoreRow
+          label="Marketplace review"
+          value={published ? moderationLabel(moderation?.status ?? "pending_review") : "Not published"}
+        />
+        <ScoreRow
           label="Preview"
           value={published ? previewHref : "Publish first"}
         />
       </div>
       {published ? (
-        <p className="mt-3 text-xs leading-relaxed text-text-soft">
-          Published {formatShortDate(agent.publishing?.publishedAt ?? Date.now())}.
-          Current testing link: {previewHref}
-        </p>
+        <div className="mt-3 rounded-soft border border-border-soft bg-canvas px-3 py-2">
+          <p className="text-xs leading-relaxed text-text-soft">
+            Published {formatShortDate(agent.publishing?.publishedAt ?? Date.now())}.
+            Current testing link: {previewHref}
+          </p>
+          {moderation?.reason ? (
+            <p className="mt-1 text-xs leading-relaxed text-text-soft">
+              Review note: {moderation.reason}
+            </p>
+          ) : null}
+        </div>
       ) : null}
     </section>
   );
@@ -2088,6 +2177,34 @@ function allocationActionLabel(
   }
 }
 
+function moderationLabel(status: AgentModerationStatus): string {
+  switch (status) {
+    case "pending_review":
+      return "Pending review";
+    case "approved":
+      return "Approved";
+    case "paused":
+      return "Paused";
+    case "delisted":
+      return "Delisted";
+  }
+}
+
+function moderationBadgeTone(
+  status: AgentModerationStatus | undefined,
+): "default" | "success" | "warning" | "danger" {
+  switch (status) {
+    case "approved":
+      return "success";
+    case "delisted":
+      return "danger";
+    case "paused":
+    case "pending_review":
+    case undefined:
+      return "warning";
+  }
+}
+
 function plainAllowanceSummary(
   recommendation: AgentAllocationRecommendation,
 ): string {
@@ -2099,18 +2216,18 @@ function plainAllowanceSummary(
   const window = `${limits.sessionHours} hour${
     limits.sessionHours === 1 ? "" : "s"
   }`;
-  const core = `${recommendation.tier.label}: fund up to ${size} per trade, ${limits.maxLeverage}x, ${openTrades}, for ${window}.`;
+  const core = `${recommendation.tier.label}: allow up to ${size} per trade, ${limits.maxLeverage}x, ${openTrades}, for ${window}.`;
   switch (recommendation.action) {
     case "promote":
-      return `This agent has earned a larger funding window. ${core}`;
+      return `This agent has earned a larger allowance window. ${core}`;
     case "demote":
-      return `This agent should use a smaller funding window next. ${core}`;
+      return `This agent should use a smaller allowance window next. ${core}`;
     case "hold":
-      return `The current funding window still fits this agent. ${core}`;
+      return `The current allowance window still fits this agent. ${core}`;
     case "review":
       return `Review the setup before giving more control. ${core}`;
     case "start":
-      return `Start with a small human-approved funding window. ${core}`;
+      return `Start with a small human-approved allowance window. ${core}`;
   }
 }
 
@@ -2150,6 +2267,7 @@ function publishedProfileText({
     "",
     `Profile: ${publishing?.slug ?? agent.id}`,
     `Status: ${agent.status}`,
+    `Marketplace review: ${moderationLabel(publishing?.moderation?.status ?? "pending_review")}`,
     `Score: ${leaderboard?.score ?? 50}`,
     `Profit/loss: ${formatSignedUsd(scorecard?.realizedPnlUsd ?? "0")}`,
     `Closed trades: ${libraryMetrics?.closedTrades ?? 0}`,
@@ -2158,7 +2276,7 @@ function publishedProfileText({
       libraryMetrics?.winRatePct == null ? "New" : `${libraryMetrics.winRatePct}%`
     }`,
     `Safety stops: ${scorecard?.ruleViolations ?? 0}`,
-    `Funding tier: ${allocation?.tier.label ?? "Probation"}`,
+    `Allowance level: ${allocation?.tier.label ?? "Probation"}`,
   ].join("\n");
 }
 

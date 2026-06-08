@@ -20,6 +20,7 @@ import type {
   AgentConnectionKit,
   AgentExecutionRecord,
   AgentLeaderboardEntry,
+  AgentModerationStatus,
   AgentOwnerApproval,
   AgentPolicyEvaluation,
   AgentProposalStatus,
@@ -293,6 +294,12 @@ export function publishAgentProfile(
         "safety_stops",
         "allocation_tier",
       ],
+      moderation: agent.publishing?.moderation ?? {
+        status: "pending_review",
+        reason: "Newly published profiles need marketplace review before broad discovery.",
+        updatedAt: now,
+        version: 1,
+      },
       publishedAt: agent.publishing?.publishedAt ?? now,
       updatedAt: now,
       version: 1,
@@ -307,6 +314,57 @@ export function publishAgentProfile(
     agentId: id,
     kind: "agent_profile_published",
     message: `${agent.name} publishing profile turned on.`,
+    createdAt: now,
+    version: 1,
+  });
+  writeAll(shape);
+  return updated;
+}
+
+export function moderateAgentPublishingProfile({
+  walletName,
+  id,
+  status,
+  reason,
+  reviewedBy = "ClearSig admin",
+}: {
+  walletName: string;
+  id: string;
+  status: AgentModerationStatus;
+  reason?: string;
+  reviewedBy?: string;
+}): AgentProfile | null {
+  const shape = readAll();
+  const list = shape.agentsByWallet[walletName] ?? [];
+  const idx = list.findIndex((agent) => agent.id === id);
+  if (idx < 0) return null;
+  const agent = list[idx];
+  if (!agent?.publishing) return null;
+  const now = Date.now();
+  const updated: AgentProfile = {
+    ...agent,
+    publishing: {
+      ...agent.publishing,
+      moderation: {
+        status,
+        reason: reason?.trim() || moderationReason(status),
+        reviewedBy,
+        reviewedAt: now,
+        updatedAt: now,
+        version: 1,
+      },
+      updatedAt: now,
+    },
+    updatedAt: now,
+  };
+  list[idx] = updated;
+  shape.agentsByWallet[walletName] = list;
+  appendEvent(shape, {
+    id: newAgentEventId(),
+    walletName,
+    agentId: id,
+    kind: "agent_profile_moderated",
+    message: `${agent.name} marketplace review set to ${moderationLabel(status)}.`,
     createdAt: now,
     version: 1,
   });
@@ -346,6 +404,7 @@ export function unpublishAgentProfile(
           "safety_stops",
           "allocation_tier",
         ],
+      moderation: agent.publishing?.moderation,
       publishedAt: agent.publishing?.publishedAt,
       updatedAt: now,
       version: 1,
@@ -365,6 +424,23 @@ export function unpublishAgentProfile(
   });
   writeAll(shape);
   return updated;
+}
+
+function moderationReason(status: AgentModerationStatus): string {
+  switch (status) {
+    case "pending_review":
+      return "Profile is waiting for marketplace review.";
+    case "approved":
+      return "Profile passed marketplace review.";
+    case "paused":
+      return "Profile is paused while ClearSig reviews recent behavior.";
+    case "delisted":
+      return "Profile is hidden from marketplace discovery.";
+  }
+}
+
+function moderationLabel(status: AgentModerationStatus): string {
+  return status.replace("_", " ");
 }
 
 export function getAgentVaultPolicy(walletName: string): AgentVaultPolicy {

@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { buildAgentTradeDecisionJournal } from "@/lib/agents/decisionJournal";
 import {
   evaluateAgentServerProposal,
   getAgentServerWalletState,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/agents/serverInbox";
 import type {
   AgentPolicyEvaluation,
+  AgentProfile,
   AgentSignalInboxItem,
   AgentTradeProposal,
 } from "@/lib/agents/types";
@@ -58,7 +60,7 @@ export async function importAgentInboxSignals({
       continue;
     }
 
-    const evaluation = await evaluateAgentServerProposal(draft);
+    const evaluation = await evaluateAgentServerProposal(draft.proposal);
     if (!evaluation) {
       skipped.push({
         item,
@@ -75,8 +77,23 @@ export async function importAgentInboxSignals({
       continue;
     }
 
+    const proposalWithJournal: AgentTradeProposal = {
+      ...draft.proposal,
+      decisionJournal: buildAgentTradeDecisionJournal({
+        agent: draft.agent,
+        proposal: draft.proposal,
+        evaluation,
+        technicalSummary: item.payload.technicalSummary,
+        fundamentalSummary: item.payload.fundamentalSummary,
+        newsSummary: item.payload.newsSummary,
+        riskPlan: item.payload.riskPlan,
+        exitPlan: item.payload.exitPlan,
+        invalidation: item.payload.invalidation,
+      }),
+    };
+
     const saved: AgentServerProposalSaveResult =
-      await saveAgentServerProposal(draft);
+      await saveAgentServerProposal(proposalWithJournal);
     imported.push({
       item,
       proposal: saved.proposal,
@@ -94,7 +111,7 @@ export async function importAgentInboxSignals({
 
 async function buildServerProposalFromInboxItem(
   item: AgentSignalInboxItem,
-): Promise<AgentTradeProposal | null> {
+): Promise<{ proposal: AgentTradeProposal; agent: AgentProfile } | null> {
   const state = await getAgentServerWalletState(item.walletName);
   const agent = state.agents.find((entry) => entry.id === item.agentId);
   if (!agent) return null;
@@ -109,26 +126,29 @@ async function buildServerProposalFromInboxItem(
     submittedAt + Math.max(1, item.payload.expiresInMinutes ?? 15) * 60 * 1000;
 
   return {
-    id: newServerProposalId(),
-    walletName: item.walletName,
-    agentId: agent.id,
-    venue: item.payload.venue,
-    market: item.payload.market.trim().toUpperCase(),
-    side: item.payload.side,
-    orderType: item.payload.orderType ?? "market",
-    notionalUsd: item.payload.notionalUsd.trim(),
-    leverage: item.payload.leverage,
-    entryPrice: item.payload.entryPrice ?? null,
-    stopLossPrice: item.payload.stopLossPrice ?? null,
-    takeProfitPrice: item.payload.takeProfitPrice ?? null,
-    thesis: item.payload.thesis?.trim() || undefined,
-    confidence: clamp(item.payload.confidence ?? 70, 0, 100),
-    clientSignalId: item.payload.clientSignalId,
-    expiresAt,
-    status: "draft",
-    createdAt: submittedAt,
-    updatedAt: now,
-    version: 1,
+    agent,
+    proposal: {
+      id: newServerProposalId(),
+      walletName: item.walletName,
+      agentId: agent.id,
+      venue: item.payload.venue,
+      market: item.payload.market.trim().toUpperCase(),
+      side: item.payload.side,
+      orderType: item.payload.orderType ?? "market",
+      notionalUsd: item.payload.notionalUsd.trim(),
+      leverage: item.payload.leverage,
+      entryPrice: item.payload.entryPrice ?? null,
+      stopLossPrice: item.payload.stopLossPrice ?? null,
+      takeProfitPrice: item.payload.takeProfitPrice ?? null,
+      thesis: item.payload.thesis?.trim() || undefined,
+      confidence: clamp(item.payload.confidence ?? 70, 0, 100),
+      clientSignalId: item.payload.clientSignalId,
+      expiresAt,
+      status: "draft",
+      createdAt: submittedAt,
+      updatedAt: now,
+      version: 1,
+    },
   };
 }
 
