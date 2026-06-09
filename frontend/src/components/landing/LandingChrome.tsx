@@ -32,8 +32,9 @@ const NAV_ITEMS: {
   { href: "/#bento", label: "Product" },
   { href: "/#why", label: "Why Clear" },
   { href: "/#methodology", label: "How it works" },
+  { href: "/#agents", label: "Agents", tag: "NEW" },
   { href: "/#secure", label: "Secure", tag: "NEW" },
-  { href: "/#pricing", label: "Pricing" },
+  { href: "/#pricing", label: "Revenue" },
   { href: "https://github.com/clear-msig/clear-msig", label: "GitHub", external: true },
 ];
 
