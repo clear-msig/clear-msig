@@ -30,6 +30,8 @@ describe("agent signal intake", () => {
     expect(result.payload?.side).toBe("long");
     expect(result.payload?.clientSignalId).toMatch(/^signal-/);
     expect(result.payload?.submittedAt).toEqual(expect.any(Number));
+    expect(result.payload?.technicalSummary).toContain("reclaimed support");
+    expect(result.payload?.riskPlan).toContain("Small notional");
   });
 
   it("rejects malformed or unsafe signal values", () => {

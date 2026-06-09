@@ -42,6 +42,7 @@ import {
   buildAgentBetaReadiness,
   buildAgentScoutProposal,
   buildAgentScoutReports,
+  buildAgentMarketReadiness,
   buildAgentTradingReadiness,
   closeMockAgentExecution,
   closeOpenMockAgentExecutions,
@@ -49,6 +50,7 @@ import {
   estimateAgentOpenTradePerformance,
   executionUnavailableReason,
   getAgentVaultPolicy,
+  hasAgentComplianceAcknowledgement,
   listAgentConnectionKits,
   listAgentEvents,
   listAgentExecutions,
@@ -91,6 +93,7 @@ import {
   type AgentVaultPolicy,
   type AgentKind,
   type AgentMarketDataSnapshot,
+  type AgentMarketReadiness,
   type AgentReadinessAction,
   type AgentProposalStatus,
   type AgentScoutReport,
@@ -482,6 +485,102 @@ export default function AgentsPage() {
             : liveVenueReadiness
               ? "needs_setup"
               : "unavailable",
+      },
+      walletHref: `/app/wallet/${encoded}`,
+    });
+  }, [
+    agents,
+    backendStatus.state,
+    backendStatus.storage,
+    encoded,
+    executions,
+    liveVenueLoading,
+    liveVenueReadiness,
+    marketByMarket,
+    name,
+    openExecutionRecords,
+    policy,
+    proposals,
+    sessions,
+  ]);
+  const marketReadiness = useMemo<AgentMarketReadiness | null>(() => {
+    if (!policy) return null;
+    const openMarkets = Array.from(
+      new Set(
+        openExecutionRecords
+          .map((execution) => execution.market.trim().toUpperCase())
+          .filter(Boolean),
+      ),
+    );
+    const connected =
+      liveVenueReadiness?.state === "ready" &&
+      liveVenueReadiness.executorProbe?.state === "ready" &&
+      liveVenueReadiness.accountProbe?.state === "funded";
+    const snapshots = Object.values(marketByMarket);
+    const approvals = listAgentOwnerApprovals(name);
+    const connections = listAgentConnectionKits(name);
+    return buildAgentMarketReadiness({
+      agents,
+      policy,
+      sessions,
+      executions,
+      proposals,
+      approvals,
+      connections,
+      backend: {
+        state: backendStatus.state,
+        storage: backendStatus.storage,
+      },
+      marketData: {
+        openMarkets: openMarkets.length,
+        pricedOpenMarkets: openMarkets.filter((market) => marketByMarket[market]).length,
+        liveMarkets: snapshots.filter((snapshot) => snapshot.source === "live").length,
+        hasFundingRates: snapshots.some((snapshot) => snapshot.fundingRatePct != null),
+      },
+      venue: {
+        state: liveVenueLoading
+          ? "checking"
+          : connected
+            ? "connected"
+            : liveVenueReadiness
+              ? "needs_setup"
+              : "unavailable",
+      },
+      operations: {
+        walletSignedMutations: approvals.some(
+          (approval) => approval.approvalMethod === "wallet_signature" && approval.signature,
+        )
+          ? "partial"
+          : "none",
+        creatorRegistry: agents.some((agent) => agent.publishing?.status === "published")
+          ? "local_profiles"
+          : "none",
+        creatorPayouts: "not_started",
+        externalVerification: connections.length > 0 ? "signed_decisions" : "none",
+        marketIntelligence: {
+          news: false,
+          macro: false,
+          rateLimited: true,
+        },
+        leaderboardMode: "separated",
+        compliance: hasAgentComplianceAcknowledgement(name, "mock_perps")
+          ? "user_disclosures"
+          : "draft",
+        moderation: agents.some((agent) => agent.publishing?.status === "published")
+          ? agents
+              .filter((agent) => agent.publishing?.status === "published")
+              .every((agent) => agent.publishing?.moderation)
+            ? "active"
+            : "admin_review"
+          : "none",
+        abuseControls: {
+          sameOrigin: true,
+          rateLimits: true,
+          signalKeys: connections.length > 0,
+          replayProtection: proposals.some((proposal) => Boolean(proposal.clientSignalId)),
+          signedSignals: false,
+        },
+        venueReconciliation: connected ? "testnet_snapshots" : "requested",
       },
       walletHref: `/app/wallet/${encoded}`,
     });
@@ -1031,7 +1130,7 @@ export default function AgentsPage() {
           )}
         >
           <CircleDollarSign size={13} aria-hidden="true" />
-          Fund traders
+          Practice allocation
         </Link>
         <Link
           href={`/app/wallet/${encoded}/agents/trades`}
@@ -1125,6 +1224,7 @@ export default function AgentsPage() {
         <>
           <BackendPersistencePanel status={backendStatus} />
           {betaReadiness ? <BetaReadinessPanel readiness={betaReadiness} /> : null}
+          {marketReadiness ? <MarketReadinessPanel readiness={marketReadiness} /> : null}
         </>
       ) : null}
 
@@ -2022,6 +2122,135 @@ function BetaReadinessPanel({
           </div>
         ))}
       </div>
+    </section>
+  );
+}
+
+function MarketReadinessPanel({
+  readiness,
+}: {
+  readiness: AgentMarketReadiness;
+}) {
+  const blockers = readiness.checks
+    .filter((check) => check.status === "block")
+    .slice(0, 5);
+  const nextChecks =
+    blockers.length > 0
+      ? blockers
+      : readiness.checks.filter((check) => check.status === "todo").slice(0, 5);
+
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            className={clsx(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+              readiness.status === "ready"
+                ? "bg-accent/10 text-accent"
+                : readiness.status === "blocked"
+                  ? "bg-rose-500/[0.12] text-rose-300"
+                  : "bg-warning/[0.12] text-warning",
+            )}
+          >
+            {readiness.status === "ready" ? (
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <Database className="h-4 w-4" aria-hidden="true" />
+            )}
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-sm font-semibold text-text-strong">
+                Market readiness
+              </h2>
+              <span
+                className={clsx(
+                  "rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                  readiness.status === "ready"
+                    ? "border-accent/30 bg-accent/[0.08] text-accent"
+                    : readiness.status === "blocked"
+                      ? "border-rose-500/30 bg-rose-500/[0.08] text-rose-300"
+                      : "border-warning/30 bg-warning/[0.08] text-warning",
+                )}
+              >
+                {readiness.score}% · {readiness.headline}
+              </span>
+            </div>
+            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-text-soft">
+              {readiness.summary}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-2 md:grid-cols-3">
+        {readiness.phases.map((phase) => (
+          <div
+            key={phase.id}
+            className="rounded-soft border border-border-soft bg-canvas px-3 py-2"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-text-strong">
+                {phase.label}
+              </p>
+              <span
+                className={clsx(
+                  "rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                  phase.status === "ready"
+                    ? "border-accent/30 bg-accent/[0.08] text-accent"
+                    : phase.status === "blocked"
+                      ? "border-rose-500/30 bg-rose-500/[0.08] text-rose-300"
+                      : "border-warning/30 bg-warning/[0.08] text-warning",
+                )}
+              >
+                {phase.score}%
+              </span>
+            </div>
+            <p className="mt-1 text-xs leading-relaxed text-text-soft">
+              {phase.summary}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {nextChecks.length > 0 ? (
+        <div className="mt-4 grid gap-2 md:grid-cols-2">
+          {nextChecks.map((check) => (
+            <div
+              key={check.id}
+              className="rounded-soft border border-border-soft bg-canvas px-3 py-2"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={clsx(
+                    "h-2 w-2 rounded-full",
+                    check.status === "block" ? "bg-rose-400" : "bg-warning",
+                  )}
+                />
+                <p className="text-xs font-semibold text-text-strong">
+                  {check.label}
+                </p>
+                <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-muted">
+                  {check.category}
+                </span>
+                {check.href ? (
+                  <Link
+                    href={check.href}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-accent hover:text-accent-hover"
+                  >
+                    Open
+                    <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                  </Link>
+                ) : null}
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-text-soft">
+                {check.message}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }

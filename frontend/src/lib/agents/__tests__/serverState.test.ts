@@ -5,6 +5,8 @@ import { ownerApprovalSignableText } from "@/lib/agents/ownerApproval";
 import { defaultAgentVaultPolicy } from "@/lib/agents/policy";
 import {
   agentServerLeaderboard,
+  agentServerStatePersistenceStatus,
+  AgentServerStatePersistenceError,
   approveAgentServerProposal,
   getAgentServerWalletState,
   hasAgentServerWalletSignedOwnerApproval,
@@ -179,9 +181,41 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllEnvs();
 });
 
 describe("agent backend state persistence", () => {
+  it("allows memory state in development but blocks it in production", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("VERCEL_ENV", "");
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "");
+
+    expect(agentServerStatePersistenceStatus()).toMatchObject({
+      storage: "memory",
+      durable: false,
+      memoryAllowed: true,
+      production: false,
+    });
+    await expect(getAgentServerWalletState("dev-memory-state")).resolves.toMatchObject({
+      walletName: "dev-memory-state",
+    });
+
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("CLEARSIG_ALLOW_AGENT_MEMORY_STATE", "");
+
+    expect(agentServerStatePersistenceStatus()).toMatchObject({
+      storage: "memory",
+      durable: false,
+      memoryAllowed: false,
+      production: true,
+    });
+    await expect(getAgentServerWalletState("prod-memory-state")).rejects.toBeInstanceOf(
+      AgentServerStatePersistenceError,
+    );
+  });
+
   it("persists owner approvals once and adds an audit event", async () => {
     const walletName = "server-vault-approvals";
 

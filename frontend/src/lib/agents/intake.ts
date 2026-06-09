@@ -24,6 +24,12 @@ export interface AgentSignalPayload {
   confidence?: number;
   expiresInMinutes?: number;
   thesis?: string;
+  technicalSummary?: string;
+  fundamentalSummary?: string;
+  newsSummary?: string;
+  riskPlan?: string;
+  exitPlan?: string;
+  invalidation?: string;
 }
 
 export interface AgentSignalParseResult {
@@ -50,6 +56,12 @@ export function sampleAgentSignalPayload(): AgentSignalPayload {
     confidence: 72,
     expiresInMinutes: 15,
     thesis: "Momentum breakout with defined invalidation.",
+    technicalSummary: "Price reclaimed support with momentum improving.",
+    fundamentalSummary: "No conflicting fundamental catalyst was supplied.",
+    newsSummary: "No major adverse news catalyst was supplied.",
+    riskPlan: "Small notional, 1x leverage, defined stop and target.",
+    exitPlan: "Exit at target, stop, or if the support reclaim fails.",
+    invalidation: "Invalid if price trades through the stop loss.",
   };
 }
 
@@ -128,6 +140,12 @@ export function normalizeAgentSignalPayload(
       confidence,
       expiresInMinutes,
       thesis: optionalString(source.thesis) ?? undefined,
+      technicalSummary: optionalString(source.technicalSummary) ?? undefined,
+      fundamentalSummary: optionalString(source.fundamentalSummary) ?? undefined,
+      newsSummary: optionalString(source.newsSummary) ?? undefined,
+      riskPlan: optionalString(source.riskPlan) ?? undefined,
+      exitPlan: optionalString(source.exitPlan) ?? undefined,
+      invalidation: optionalString(source.invalidation) ?? undefined,
     },
     errors: [],
   };

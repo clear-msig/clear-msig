@@ -22,7 +22,9 @@ import { OwnerApprovalDialog } from "@/components/agents/OwnerApprovalDialog";
 import { useToast } from "@/components/ui/Toast";
 import {
   agentRiskSnapshot,
+  acknowledgeAgentComplianceDisclosures,
   buildAgentTradingReadiness,
+  buildAgentComplianceReadiness,
   buildTradingLaunchSteps,
   closeAgentExecutionRecord,
   closeMockAgentExecution,
@@ -56,6 +58,7 @@ import {
   setAgentVaultEmergencyPause,
   updateAgentStatus,
   type AgentAuditEvent,
+  type AgentComplianceReadiness,
   type AgentConnectionKit,
   type AgentExecutionRecord,
   type AgentMarketDataSnapshot,
@@ -135,6 +138,7 @@ export default function StartTradingPage() {
   const [approvalMode, setApprovalMode] = useState<"wallet" | "browser" | null>(null);
   const [approvalBusy, setApprovalBusy] = useState(false);
   const [automaticTradingBusy, setAutomaticTradingBusy] = useState(false);
+  const [disclosureRefresh, setDisclosureRefresh] = useState(0);
   const approvalResolver = useRef<((approval: AgentOwnerApproval | null) => void) | null>(null);
   const [loading, setLoading] = useState(true);
   const selectedAgent = agents.find((agent) => agent.id === agentId) ?? null;
@@ -259,6 +263,10 @@ export default function StartTradingPage() {
       ? connectionKit.autoImportSessionSignals
       : getAgentConnectionKit(name, selectedAgent.id).autoImportSessionSignals
     : false;
+  const complianceReadiness = useMemo(
+    () => buildAgentComplianceReadiness(name, venue),
+    [disclosureRefresh, name, venue],
+  );
   const steps = buildTradingLaunchSteps(venue, {
     hasTrader: Boolean(selectedAgent),
     traderActive: selectedAgent?.status === "active",
@@ -271,6 +279,7 @@ export default function StartTradingPage() {
     allowanceReady:
       Boolean(activeAllowance) &&
       Boolean(activeAllowance && sessionAllowsVenue(activeAllowance, venue, policy)),
+    disclosuresAccepted: complianceReadiness.accepted,
     automaticTradingOn,
     accountReady:
       venue === "mock_perps" ||
@@ -375,6 +384,15 @@ export default function StartTradingPage() {
     }
   }, [approvalMode, approvalRequest, canSign, signBytes, toast]);
 
+  const acceptDisclosures = () => {
+    acknowledgeAgentComplianceDisclosures({
+      walletName: name,
+      venue,
+    });
+    setDisclosureRefresh((value) => value + 1);
+    toast.success("Trading disclosures accepted");
+  };
+
   const placeFirstOutsideTrade = (proposal: AgentTradeProposal) => {
     startTransition(async () => {
       const approval = await requestOwnerApproval({
@@ -405,6 +423,10 @@ export default function StartTradingPage() {
 
   const enableAutomaticTrading = () => {
     if (!selectedAgent) return;
+    if (!complianceReadiness.accepted) {
+      toast.error("Review the trading disclosures first");
+      return;
+    }
     void (async () => {
       setAutomaticTradingBusy(true);
       try {
@@ -736,6 +758,12 @@ export default function StartTradingPage() {
         ) : null}
       </section>
 
+      <ComplianceDisclosurePanel
+        readiness={complianceReadiness}
+        pending={pending}
+        onAccept={acceptDisclosures}
+      />
+
       <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -782,6 +810,7 @@ export default function StartTradingPage() {
                 venue,
                 approvedOutsideIdea,
                 placeFirstOutsideTrade,
+                acceptDisclosures,
                 enableAutomaticTrading,
                 askBuiltInTraderForIdea,
                 pending,
@@ -884,6 +913,97 @@ function LaunchStepRow({
       {step.status === "current" ? <div className="w-full sm:w-auto">{action}</div> : null}
       {step.status === "waiting" ? <Circle className="h-3.5 w-3.5 text-text-muted" aria-hidden="true" /> : null}
     </li>
+  );
+}
+
+function ComplianceDisclosurePanel({
+  readiness,
+  pending,
+  onAccept,
+}: {
+  readiness: AgentComplianceReadiness;
+  pending: boolean;
+  onAccept: () => void;
+}) {
+  return (
+    <section
+      className={clsx(
+        "rounded-card border p-4 shadow-card-rest sm:p-5",
+        readiness.accepted
+          ? "border-accent/25 bg-accent/[0.05]"
+          : "border-warning/30 bg-warning/[0.07]",
+      )}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            className={clsx(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+              readiness.accepted
+                ? "bg-accent/10 text-accent"
+                : "bg-warning/[0.12] text-warning",
+            )}
+          >
+            {readiness.accepted ? (
+              <Check className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+            )}
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-text-strong">
+              Trading disclosures
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
+              {readiness.accepted
+                ? "You accepted the current practice-trading disclosures for this wallet and venue."
+                : "Review these before allowing an agent to act automatically."}
+            </p>
+          </div>
+        </div>
+        {readiness.accepted ? (
+          <span className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-1 text-[11px] font-medium text-accent">
+            Accepted
+          </span>
+        ) : (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={onAccept}
+            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Accept disclosures
+            <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        )}
+      </div>
+      <div className="mt-4 grid gap-2 md:grid-cols-2">
+        {readiness.required.map((item) => {
+          const accepted = !readiness.missing.some((missing) => missing.id === item.id);
+          return (
+            <div
+              key={item.id}
+              className="rounded-soft border border-border-soft bg-canvas px-3 py-2"
+            >
+              <div className="flex items-center gap-2">
+                <span
+                  className={clsx(
+                    "h-2 w-2 rounded-full",
+                    accepted ? "bg-accent" : "bg-warning",
+                  )}
+                />
+                <p className="text-xs font-semibold text-text-strong">
+                  {item.label}
+                </p>
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-text-soft">
+                {item.summary}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -1562,6 +1682,7 @@ function actionForStep({
   venue,
   approvedOutsideIdea,
   placeFirstOutsideTrade,
+  acceptDisclosures,
   enableAutomaticTrading,
   askBuiltInTraderForIdea,
   pending,
@@ -1573,6 +1694,7 @@ function actionForStep({
   venue: TradingLaunchVenue;
   approvedOutsideIdea?: AgentTradeProposal;
   placeFirstOutsideTrade: (proposal: AgentTradeProposal) => void;
+  acceptDisclosures: () => void;
   enableAutomaticTrading: () => void;
   askBuiltInTraderForIdea: () => void;
   pending: boolean;
@@ -1602,6 +1724,18 @@ function actionForStep({
           href={`${base}/sessions/new?agent=${encodeURIComponent(agent?.id ?? "")}&venue=${venue}`}
           label="Give allowance"
         />
+      );
+    case "disclosures":
+      return (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={acceptDisclosures}
+          className={STEP_BUTTON_CLASS}
+        >
+          Accept disclosures
+          <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
       );
     case "automatic":
       return (

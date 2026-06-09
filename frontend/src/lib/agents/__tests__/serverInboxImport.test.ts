@@ -89,6 +89,8 @@ describe("server inbox import", () => {
         confidence: 72,
         expiresInMinutes: 15,
         thesis: "Momentum breakout.",
+        technicalSummary: "BTC reclaimed support.",
+        riskPlan: "Small position with defined stop.",
       },
     });
 
@@ -103,6 +105,12 @@ describe("server inbox import", () => {
     expect(imported.imported).toHaveLength(1);
     expect(imported.removed).toBe(1);
     expect(imported.imported[0]?.proposal.status).toBe("approved");
+    expect(imported.imported[0]?.proposal.decisionJournal?.technicalSummary).toBe(
+      "BTC reclaimed support.",
+    );
+    expect(imported.imported[0]?.proposal.decisionJournal?.riskPlan).toBe(
+      "Small position with defined stop.",
+    );
     expect(state.proposals).toHaveLength(1);
     expect(await listAgentInboxSignals(walletName, "agent-alpha")).toHaveLength(0);
   });

@@ -4,6 +4,7 @@ import { POST as submitAgentSignal } from "@/app/api/agent-signals/[name]/[agent
 import { defaultAgentVaultPolicy } from "@/lib/agents/policy";
 import { executeAllowedAgentProposal } from "@/lib/agents/serverAutomaticExecution";
 import { registerAgentSignalKey } from "@/lib/agents/serverInbox";
+import { signAgentSignalPayload } from "@/lib/agents/signalSignature";
 import {
   getAgentServerWalletState,
   saveAgentServerProfile,
@@ -101,6 +102,59 @@ describe("automatic allowed execution", () => {
     expect(body.status).toBe("accepted_and_placed");
     expect(state.executions).toHaveLength(1);
     expect(state.proposals[0]?.status).toBe("executed");
+  });
+
+  it("rejects an external trader signal with a mismatched signature", async () => {
+    const routeWalletName = "signed-signal-route";
+    await registerAgentSignalKey({
+      walletName: routeWalletName,
+      agentId: "agent-alpha",
+      signalKey: "signal-key",
+      managementKey: "management-key",
+      autoImportSessionSignals: false,
+    });
+    const signal = {
+      clientSignalId: "signed-route-1",
+      submittedAt: now,
+      venue: "mock_perps" as const,
+      market: "BTC-PERP",
+      side: "long" as const,
+      orderType: "market" as const,
+      notionalUsd: "250",
+      leverage: 1,
+      stopLossPrice: "65000",
+      confidence: 72,
+      expiresInMinutes: 15,
+    };
+    const signature = signAgentSignalPayload({
+      signal,
+      signalKey: "different-key",
+    });
+
+    const response = await submitAgentSignal(
+      new NextRequest(
+        `http://localhost/api/agent-signals/${routeWalletName}/agent-alpha`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-clearsig-signal-key": "signal-key",
+            "x-clearsig-signal-signature": signature,
+          },
+          body: JSON.stringify({ signal }),
+        },
+      ),
+      {
+        params: Promise.resolve({
+          name: routeWalletName,
+          agent: "agent-alpha",
+        }),
+      },
+    );
+    const body = (await response.json()) as { error?: string };
+
+    expect(response.status).toBe(401);
+    expect(body.error).toBe("Signal signature failed verification.");
   });
 });
 

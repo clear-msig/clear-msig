@@ -5,6 +5,7 @@ export type TradingLaunchStepId =
   | "plan"
   | "safety"
   | "allowance"
+  | "disclosures"
   | "automatic"
   | "account"
   | "funding"
@@ -18,6 +19,7 @@ export interface TradingLaunchChecks {
   planReady: boolean;
   safetyReady: boolean;
   allowanceReady: boolean;
+  disclosuresAccepted: boolean;
   automaticTradingOn: boolean;
   accountReady: boolean;
   accountFunded: boolean;
@@ -66,6 +68,14 @@ export function buildTradingLaunchSteps(
       description: "Choose the amount, open trades, and time this trader may use.",
       owner: "you",
       done: checks.allowanceReady,
+    },
+    {
+      id: "disclosures",
+      label: "Review trading disclosures",
+      description:
+        "Confirm what practice trading, automation, leverage, creator agents, and future fees mean.",
+      owner: "you",
+      done: checks.disclosuresAccepted,
     },
   ];
 

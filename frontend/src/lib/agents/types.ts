@@ -73,11 +73,26 @@ export interface AgentStrategyProfile {
 }
 
 export type AgentPublishingStatus = "draft" | "published";
+export type AgentModerationStatus =
+  | "pending_review"
+  | "approved"
+  | "paused"
+  | "delisted";
+
+export interface AgentPublishingModeration {
+  status: AgentModerationStatus;
+  reason?: string;
+  reviewedBy?: string;
+  reviewedAt?: number;
+  updatedAt: number;
+  version: AgentVersion;
+}
 
 export interface AgentPublishingProfile {
   status: AgentPublishingStatus;
   slug: string;
   publicSummary: string;
+  moderation?: AgentPublishingModeration;
   visibleMetrics: Array<
     | "score"
     | "realized_pnl"
@@ -107,6 +122,7 @@ export type AgentExecutionStatus =
 
 export type AgentExecutionMode = "paper" | "testnet";
 export type AgentAllocationTierId = "probation" | "trusted" | "proven";
+export type AgentTrackRecordSource = "paper" | "testnet" | "verified_live";
 
 export type AgentPostTradeOutcome = "win" | "loss" | "flat";
 export type AgentTradeThesisVerdict =
@@ -244,6 +260,7 @@ export type AgentAuditEventKind =
   | "agent_status_changed"
   | "agent_profile_published"
   | "agent_profile_unpublished"
+  | "agent_profile_moderated"
   | "connection_key_rotated"
   | "owner_action_approved"
   | "policy_emergency_pause_changed"
@@ -300,6 +317,12 @@ export interface AgentSignalInboxItem {
     confidence?: number;
     expiresInMinutes?: number;
     thesis?: string;
+    technicalSummary?: string;
+    fundamentalSummary?: string;
+    newsSummary?: string;
+    riskPlan?: string;
+    exitPlan?: string;
+    invalidation?: string;
   };
   receivedAt: number;
   version: AgentVersion;
@@ -435,6 +458,7 @@ export interface AgentScorecard {
 export interface AgentLeaderboardEntry {
   agentId: string;
   walletName: string;
+  trackRecordSource?: AgentTrackRecordSource;
   score: number;
   rankInputs: {
     returnScore: number;
