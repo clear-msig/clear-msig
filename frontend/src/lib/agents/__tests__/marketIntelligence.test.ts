@@ -80,6 +80,39 @@ describe("agent market intelligence", () => {
       impact: "bullish",
     });
   });
+
+  it("shows coverage gaps without marking news and macro as connected", () => {
+    const snapshot = buildAgentMarketIntelligenceSnapshot({
+      marketData: marketData(),
+      items: [
+        {
+          id: "gap-news",
+          kind: "news",
+          label: "BTC news feed not connected",
+          summary: "No external news provider is configured.",
+          source: "coverage-gap",
+          impact: "neutral",
+          observedAt: now,
+        },
+        {
+          id: "gap-macro",
+          kind: "macro",
+          label: "Macro feed not connected",
+          summary: "No external macro provider is configured.",
+          source: "coverage-gap",
+          impact: "neutral",
+          observedAt: now,
+        },
+      ],
+      now,
+    });
+
+    expect(snapshot.items.some((item) => item.source === "coverage-gap")).toBe(true);
+    expect(snapshot.coverage.news).toBe(false);
+    expect(snapshot.coverage.macro).toBe(false);
+    expect(snapshot.summary).toContain("news feed not connected");
+    expect(summarizeNewsForScout(snapshot)).toContain("not connected");
+  });
 });
 
 function marketData(): AgentMarketDataSnapshot {
@@ -94,4 +127,3 @@ function marketData(): AgentMarketDataSnapshot {
     volume24hUsd: "5000000",
   };
 }
-

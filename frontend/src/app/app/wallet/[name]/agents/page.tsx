@@ -1327,6 +1327,12 @@ export default function AgentsPage() {
         />
       ) : null}
 
+      {Object.values(intelligenceByMarket).length > 0 ? (
+        <MarketIntelligencePanel
+          snapshots={Object.values(intelligenceByMarket)}
+        />
+      ) : null}
+
       <LiveVenuePanel
         readiness={liveVenueReadiness}
         loading={liveVenueLoading}
@@ -1797,6 +1803,118 @@ function ScoutPanel({
   );
 }
 
+function MarketIntelligencePanel({
+  snapshots,
+}: {
+  snapshots: AgentMarketIntelligenceSnapshot[];
+}) {
+  const connectedNews = snapshots.filter((snapshot) => snapshot.coverage.news).length;
+  const connectedMacro = snapshots.filter((snapshot) => snapshot.coverage.macro).length;
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+              <Database className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <div>
+              <h2 className="text-sm font-semibold text-text-strong">
+                Market intelligence
+              </h2>
+              <p className="mt-0.5 text-xs text-text-soft">
+                {snapshots.length} market{snapshots.length === 1 ? "" : "s"} · news {connectedNews > 0 ? "connected" : "not connected"} · macro {connectedMacro > 0 ? "connected" : "not connected"}
+              </p>
+            </div>
+          </div>
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-text-soft">
+            These are the exact data points the scout can cite before preparing
+            a practice idea.
+          </p>
+        </div>
+        <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
+          Price · Funding · News · Macro
+        </span>
+      </div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        {snapshots.slice(0, 4).map((snapshot) => (
+          <article
+            key={snapshot.market}
+            className="rounded-soft border border-border-soft bg-canvas p-3"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold text-text-strong">
+                  {snapshot.market}
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-text-soft">
+                  {snapshot.summary}
+                </p>
+              </div>
+              <span
+                className={clsx(
+                  "rounded-full border px-2 py-1 text-[10px] font-medium",
+                  snapshot.freshnessWarnings.length > 0
+                    ? "border-warning/30 bg-warning/[0.08] text-warning"
+                    : "border-accent/30 bg-accent/[0.08] text-accent",
+                )}
+              >
+                {snapshot.marketData.source === "live" ? "Live market" : "Practice market"}
+              </span>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <ScoutMiniMetric
+                label="Mark"
+                value={formatUsd(snapshot.marketData.markPriceUsd)}
+              />
+              <ScoutMiniMetric
+                label="Funding"
+                value={
+                  snapshot.marketData.fundingRatePct == null
+                    ? "Unknown"
+                    : `${snapshot.marketData.fundingRatePct}%`
+                }
+              />
+              <ScoutMiniMetric label="Items" value={String(snapshot.items.length)} />
+            </div>
+            <div className="mt-3 grid gap-2">
+              {snapshot.items.slice(0, 5).map((item) => (
+                <div
+                  key={`${item.kind}:${item.id}`}
+                  className="rounded-soft border border-border-soft bg-surface-raised px-2 py-1.5"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={clsx(
+                        "rounded-full border px-1.5 py-0.5 text-[10px] font-medium capitalize",
+                        item.source === "coverage-gap"
+                          ? "border-warning/30 bg-warning/[0.08] text-warning"
+                          : item.impact === "bullish"
+                            ? "border-accent/30 bg-accent/[0.08] text-accent"
+                            : item.impact === "bearish"
+                              ? "border-danger/30 bg-danger/[0.06] text-danger"
+                              : "border-border-soft bg-canvas text-text-soft",
+                      )}
+                    >
+                      {item.kind.replace("_", " ")}
+                    </span>
+                    <p className="min-w-0 flex-1 truncate text-[11px] font-semibold text-text-strong">
+                      {item.label}
+                    </p>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-text-soft">
+                    {item.summary}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ScoutCard({
   report,
   pending,
@@ -1836,6 +1954,8 @@ function ScoutCard({
         {report.thesis}
       </p>
       <div className="mt-3 grid gap-2">
+        <ScoutMiniReason label="News" value={report.newsSummary} />
+        <ScoutMiniReason label="Macro" value={report.fundamentalSummary} />
         <ScoutMiniReason label="Risk" value={report.riskPlan} />
         <ScoutMiniReason label="Gate" value={report.policySummary} />
       </div>

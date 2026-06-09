@@ -131,4 +131,43 @@ describe("server agent market-data adapters", () => {
       else process.env.CLEARSIG_AGENT_MACRO_JSON_URL = previousMacro;
     }
   });
+
+  it("returns visible coverage gaps for live market data when feeds are not configured", async () => {
+    const previousNews = process.env.CLEARSIG_AGENT_NEWS_JSON_URL;
+    const previousMacro = process.env.CLEARSIG_AGENT_MACRO_JSON_URL;
+    delete process.env.CLEARSIG_AGENT_NEWS_JSON_URL;
+    delete process.env.CLEARSIG_AGENT_MACRO_JSON_URL;
+    try {
+      const intelligence = await fetchAgentMarketIntelligence({
+        provider: "hyperliquid",
+        market: "BTC-PERP",
+        now: 1_780_000_000_000,
+        fetchImpl: async () =>
+          new Response(
+            JSON.stringify([
+              { universe: [{ name: "BTC", szDecimals: 5, maxLeverage: 40 }] },
+              [
+                {
+                  markPx: "67500",
+                  funding: "0.0001",
+                  openInterest: "100",
+                  dayNtlVlm: "32000000",
+                },
+              ],
+            ]),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+      });
+
+      expect(intelligence.items.some((item) => item.source === "coverage-gap")).toBe(true);
+      expect(intelligence.coverage.news).toBe(false);
+      expect(intelligence.coverage.macro).toBe(false);
+      expect(intelligence.summary).toContain("news feed not connected");
+    } finally {
+      if (previousNews == null) delete process.env.CLEARSIG_AGENT_NEWS_JSON_URL;
+      else process.env.CLEARSIG_AGENT_NEWS_JSON_URL = previousNews;
+      if (previousMacro == null) delete process.env.CLEARSIG_AGENT_MACRO_JSON_URL;
+      else process.env.CLEARSIG_AGENT_MACRO_JSON_URL = previousMacro;
+    }
+  });
 });

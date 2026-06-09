@@ -64,6 +64,8 @@ export function buildAgentMarketIntelligenceSnapshot({
   });
   const news = normalizedItems.filter((item) => item.kind === "news");
   const macro = normalizedItems.filter((item) => item.kind === "macro");
+  const connectedNews = news.filter(isConnectedIntelligenceItem);
+  const connectedMacro = macro.filter(isConnectedIntelligenceItem);
   return {
     provider: marketData.provider,
     market: marketData.market,
@@ -74,8 +76,8 @@ export function buildAgentMarketIntelligenceSnapshot({
       marketData: true,
       funding: marketData.fundingRatePct != null,
       liquidity: marketData.openInterestUsd != null || marketData.volume24hUsd != null,
-      news: news.length > 0,
-      macro: macro.length > 0,
+      news: connectedNews.length > 0,
+      macro: connectedMacro.length > 0,
     },
     freshnessWarnings: freshness ? [freshness] : [],
     summary: intelligenceSummary({ marketData, news, macro }),
@@ -202,10 +204,26 @@ function intelligenceSummary({
   const parts = [
     `${marketData.market} mark ${formatUsd(marketData.markPriceUsd)}`,
     marketData.fundingRatePct == null ? null : `funding ${marketData.fundingRatePct}%`,
-    news.length > 0 ? `${news.length} news item${news.length === 1 ? "" : "s"}` : null,
-    macro.length > 0 ? `${macro.length} macro item${macro.length === 1 ? "" : "s"}` : null,
+    connectedCount(news) > 0
+      ? `${connectedCount(news)} news item${connectedCount(news) === 1 ? "" : "s"}`
+      : news.length > 0
+        ? "news feed not connected"
+        : null,
+    connectedCount(macro) > 0
+      ? `${connectedCount(macro)} macro item${connectedCount(macro) === 1 ? "" : "s"}`
+      : macro.length > 0
+        ? "macro feed not connected"
+        : null,
   ].filter(Boolean);
   return parts.join(", ");
+}
+
+function connectedCount(items: AgentMarketIntelligenceItem[]): number {
+  return items.filter(isConnectedIntelligenceItem).length;
+}
+
+function isConnectedIntelligenceItem(item: AgentMarketIntelligenceItem): boolean {
+  return item.source !== "coverage-gap";
 }
 
 function dedupeItems(items: AgentMarketIntelligenceItem[]): AgentMarketIntelligenceItem[] {

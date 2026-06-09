@@ -281,7 +281,8 @@ async function fetchConfiguredIntelligenceItems({
     ])
   ).flat();
 
-  if (configured.length > 0 || provider !== "mock") return configured;
+  if (configured.length > 0) return configured;
+  if (provider !== "mock") return coverageGapIntelligenceItems(market, now);
   return mockIntelligenceItems(market, now);
 }
 
@@ -339,6 +340,35 @@ function mockIntelligenceItems(market: string, now: number): AgentMarketIntellig
       summary:
         "No live macro provider is configured; this deterministic item keeps agent explanations structured in demos.",
       source: "mock",
+      impact: "neutral",
+      observedAt: now,
+    },
+  ];
+}
+
+function coverageGapIntelligenceItems(
+  market: string,
+  now: number,
+): AgentMarketIntelligenceItem[] {
+  const asset = market.replace("-PERP", "");
+  return [
+    {
+      id: `coverage-gap-news:${market}`,
+      kind: "news",
+      label: `${asset} news feed not connected`,
+      summary:
+        "ClearSig has live price, funding, open-interest, and volume data, but no external news feed is configured for this workspace yet.",
+      source: "coverage-gap",
+      impact: "neutral",
+      observedAt: now,
+    },
+    {
+      id: `coverage-gap-macro:${market}`,
+      kind: "macro",
+      label: "Macro feed not connected",
+      summary:
+        "ClearSig has not connected a macro/geopolitical feed for this workspace yet, so the scout must avoid claiming macro confirmation.",
+      source: "coverage-gap",
       impact: "neutral",
       observedAt: now,
     },
