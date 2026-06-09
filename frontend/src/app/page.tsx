@@ -46,7 +46,6 @@ import {
   LandingBackToTop,
   LandingScrollProgress,
 } from "@/components/landing/LandingScrollUI";
-import { PricingSection } from "@/components/landing/PricingSection";
 import { SecureSection } from "@/components/landing/SecureSection";
 import { BrandMark } from "@/components/retail/BrandMark";
 import { ClearCMark } from "@/components/landing/ClearCMark";
@@ -126,8 +125,6 @@ export default function HomePage() {
         <AgentControlSection fadeIn={fadeIn} />
 
         <SecureSection />
-
-        <PricingSection />
 
         <Footer fadeIn={fadeIn} />
       </main>
