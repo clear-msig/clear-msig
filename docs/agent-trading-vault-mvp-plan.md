@@ -415,7 +415,7 @@ Locked public-beta build order:
 
 1. Production persistence hard gate. **Completed.**
 2. Public agent profile pages. **Completed.**
-3. Creator marketplace registry.
+3. Creator marketplace registry. **Completed.**
 4. Real market/news/macro data layer.
 5. Notifications.
 6. Admin beta dashboard.
@@ -443,6 +443,11 @@ Locked public-beta build order:
      delisted profiles stay hidden. Profiles show separated paper/testnet/live
      lanes, public decision journals, recent trades, and ClearSig disclosures
      without exposing owner-only controls or connection secrets.
+   - Current implementation: `/agents` and `/api/agent-marketplace` now expose
+     a moderated creator registry from an explicit wallet allowlist. The
+     registry ranks only approved public profiles, keeps paper/testnet/live
+     records separated, supports market/source filters, and avoids scanning
+     arbitrary user wallets.
 5. **Creator payouts**
    - No payout flow ships for real capital until high-water marks, performance
      fee rules, disputes, taxes, legal review, and venue reconciliation are
