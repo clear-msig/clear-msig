@@ -6,6 +6,7 @@ import {
 } from "@/lib/agents/hyperliquidSetup";
 
 const address = "0x1111111111111111111111111111111111111111";
+const agentWallet = "0x2222222222222222222222222222222222222222";
 
 beforeEach(() => {
   const store = new Map<string, string>();
@@ -27,15 +28,23 @@ describe("Hyperliquid setup helpers", () => {
   it("stores a public testnet account address", () => {
     saveAgentHyperliquidSetupSettings("vault", {
       accountAddress: address.toUpperCase(),
+      agentWalletAddress: agentWallet.toUpperCase(),
     });
 
     expect(getAgentHyperliquidSetupSettings("vault").accountAddress).toBe(address);
+    expect(getAgentHyperliquidSetupSettings("vault").agentWalletAddress).toBe(agentWallet);
   });
 
   it("rejects invalid account addresses", () => {
     expect(() =>
       saveAgentHyperliquidSetupSettings("vault", { accountAddress: "bad" }),
     ).toThrow("valid 0x");
+    expect(() =>
+      saveAgentHyperliquidSetupSettings("vault", {
+        accountAddress: address,
+        agentWalletAddress: address,
+      }),
+    ).toThrow("separate API wallet");
   });
 
   it("summarizes setup from readiness probes", () => {
@@ -58,14 +67,16 @@ describe("Hyperliquid setup helpers", () => {
         executorProbe: {
           state: "ready",
           accountAddress: address,
+          agentWalletAddress: agentWallet,
           message: "Ready",
         },
       },
-      { accountAddress: address, updatedAt: 1, version: 1 },
+      { accountAddress: address, agentWalletAddress: agentWallet, updatedAt: 1, version: 1 },
     );
 
     expect(summary.status).toBe("ready");
     expect(summary.steps.map((step) => step.status)).toEqual([
+      "ready",
       "ready",
       "ready",
       "ready",

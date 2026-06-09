@@ -4,6 +4,7 @@ const STORAGE_KEY = "clear.agents.hyperliquidSetup.v1";
 
 export interface AgentHyperliquidSetupSettings {
   accountAddress: string;
+  agentWalletAddress: string;
   updatedAt: number;
   version: 1;
 }
@@ -11,7 +12,7 @@ export interface AgentHyperliquidSetupSettings {
 export type AgentHyperliquidSetupStepStatus = "ready" | "todo" | "blocked";
 
 export interface AgentHyperliquidSetupStep {
-  id: "account" | "funding" | "connection";
+  id: "account" | "funding" | "agent_wallet" | "connection";
   label: string;
   status: AgentHyperliquidSetupStepStatus;
   message: string;
@@ -31,6 +32,7 @@ export function getAgentHyperliquidSetupSettings(
   if (existing) return existing;
   return {
     accountAddress: "",
+    agentWalletAddress: "",
     updatedAt: 0,
     version: 1,
   };
@@ -38,15 +40,24 @@ export function getAgentHyperliquidSetupSettings(
 
 export function saveAgentHyperliquidSetupSettings(
   walletName: string,
-  settings: Pick<AgentHyperliquidSetupSettings, "accountAddress">,
+  settings: Pick<AgentHyperliquidSetupSettings, "accountAddress"> &
+    Partial<Pick<AgentHyperliquidSetupSettings, "agentWalletAddress">>,
 ): AgentHyperliquidSetupSettings {
   const accountAddress = settings.accountAddress.trim().toLowerCase();
+  const agentWalletAddress = (settings.agentWalletAddress ?? "").trim().toLowerCase();
   if (accountAddress && !isEvmAddress(accountAddress)) {
     throw new Error("Enter a valid 0x Hyperliquid testnet account address.");
+  }
+  if (agentWalletAddress && !isEvmAddress(agentWalletAddress)) {
+    throw new Error("Enter a valid 0x Hyperliquid API wallet address.");
+  }
+  if (accountAddress && agentWalletAddress && accountAddress === agentWalletAddress) {
+    throw new Error("Use a separate API wallet address from the funded account.");
   }
   const all = readAll();
   const updated: AgentHyperliquidSetupSettings = {
     accountAddress,
+    agentWalletAddress,
     updatedAt: Date.now(),
     version: 1,
   };
@@ -63,8 +74,11 @@ export function buildAgentHyperliquidSetupSummary(
     readiness?.accountProbe?.accountAddress ?? settings.accountAddress;
   const accountReady = Boolean(accountAddress);
   const funded = readiness?.accountProbe?.state === "funded";
+  const agentWalletReady = Boolean(settings.agentWalletAddress);
   const connectionReady =
-    readiness?.state === "ready" && readiness.executorProbe?.state === "ready";
+    readiness?.state === "ready" &&
+    readiness.executorProbe?.state === "ready" &&
+    Boolean(readiness.executorProbe.agentWalletAddress);
   const connectionBlocked =
     readiness?.state === "not_configured" ||
     readiness?.executorProbe?.state === "not_configured";
@@ -89,13 +103,23 @@ export function buildAgentHyperliquidSetupSummary(
           : "Add a practice account before checking funds.",
     },
     {
+      id: "agent_wallet",
+      label: "Approved API wallet",
+      status: agentWalletReady ? "ready" : accountReady ? "todo" : "blocked",
+      message: agentWalletReady
+        ? `Delegated signer ${shortAddress(settings.agentWalletAddress)} is recorded.`
+        : accountReady
+          ? "Approve a separate Hyperliquid API wallet public address for this account, then paste it here."
+          : "Add the funded practice account before recording its delegated signer.",
+    },
+    {
       id: "connection",
-      label: "Protected connection",
+      label: "Protected executor",
       status: connectionReady ? "ready" : connectionBlocked ? "blocked" : "todo",
       message: connectionReady
-        ? "The server-side executor is reachable."
+        ? "The server-side executor is reachable and reports the approved API wallet."
         : connectionBlocked
-          ? "The protected trading connection is not ready yet."
+          ? "The protected executor is missing the account, API wallet, URL, token, or private signing key."
           : readiness?.executorProbe?.message ??
             readiness?.message ??
             "ClearSig is checking the server-side executor.",
@@ -122,10 +146,11 @@ function readAll(): Record<string, AgentHyperliquidSetupSettings> {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
     return Object.fromEntries(
-      Object.entries(parsed as Record<string, unknown>).filter(
-        (entry): entry is [string, AgentHyperliquidSetupSettings] =>
-          typeof entry[0] === "string" && isSettings(entry[1]),
-      ),
+      Object.entries(parsed as Record<string, unknown>)
+        .map(([key, value]) => [key, normalizeSettings(value)] as const)
+        .filter((entry): entry is readonly [string, AgentHyperliquidSetupSettings] =>
+          Boolean(entry[1]),
+        ),
     );
   } catch {
     return {};
@@ -137,14 +162,23 @@ function writeAll(settings: Record<string, AgentHyperliquidSetupSettings>): void
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
 }
 
-function isSettings(input: unknown): input is AgentHyperliquidSetupSettings {
-  if (!input || typeof input !== "object" || Array.isArray(input)) return false;
+function normalizeSettings(input: unknown): AgentHyperliquidSetupSettings | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
   const item = input as Record<string, unknown>;
-  return (
-    typeof item.accountAddress === "string" &&
-    typeof item.updatedAt === "number" &&
-    item.version === 1
-  );
+  if (
+    typeof item.accountAddress !== "string" ||
+    typeof item.updatedAt !== "number" ||
+    item.version !== 1
+  ) {
+    return null;
+  }
+  return {
+    accountAddress: item.accountAddress,
+    agentWalletAddress:
+      typeof item.agentWalletAddress === "string" ? item.agentWalletAddress : "",
+    updatedAt: item.updatedAt,
+    version: 1,
+  };
 }
 
 function isEvmAddress(value: string): boolean {

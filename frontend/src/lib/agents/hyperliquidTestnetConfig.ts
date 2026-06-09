@@ -1,5 +1,6 @@
 export interface HyperliquidTestnetExecutorConfig {
   accountAddress: string;
+  agentWalletAddress: string;
   executorUrl: string;
   executorToken: string;
 }
@@ -14,9 +15,21 @@ export function readHyperliquidTestnetExecutorConfig(
     env.CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_URL?.trim() ?? "";
   const executorToken =
     env.CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_TOKEN?.trim() ?? "";
+  const agentWalletAddress =
+    env.CLEARSIG_HYPERLIQUID_TESTNET_AGENT_WALLET_ADDRESS?.trim() ?? "";
 
   if (!isEvmAddress(accountAddress)) {
     errors.push("Hyperliquid testnet account address is missing or invalid.");
+  }
+  if (!isEvmAddress(agentWalletAddress)) {
+    errors.push("Hyperliquid testnet API wallet address is missing or invalid.");
+  }
+  if (
+    isEvmAddress(accountAddress) &&
+    isEvmAddress(agentWalletAddress) &&
+    accountAddress.toLowerCase() === agentWalletAddress.toLowerCase()
+  ) {
+    errors.push("Hyperliquid testnet API wallet must be separate from the funded account.");
   }
   if (!isHttpUrl(executorUrl)) {
     errors.push("Hyperliquid testnet executor URL is missing or invalid.");
@@ -29,6 +42,7 @@ export function readHyperliquidTestnetExecutorConfig(
   return {
     config: {
       accountAddress: accountAddress.toLowerCase(),
+      agentWalletAddress: agentWalletAddress.toLowerCase(),
       executorUrl: executorUrl.replace(/\/+$/, ""),
       executorToken,
     },

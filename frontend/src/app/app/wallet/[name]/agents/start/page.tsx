@@ -1351,8 +1351,9 @@ function HyperliquidHelp({
         {[
           "Open Hyperliquid practice and sign in with a separate practice account.",
           "Add practice funds to that account.",
-          "Save that account address in ClearSig so it can check funds and positions.",
-          "ClearSig manages the protected trading connection outside this screen.",
+          "Approve a separate Hyperliquid API wallet public address for agent trading.",
+          "Save the account address and approved API wallet address in ClearSig so it can check delegation and positions.",
+          "ClearSig manages the protected executor and private API wallet key outside this screen.",
           "Come back here and choose Check again. ClearSig confirms every step before trading.",
         ].map((instruction, index) => (
           <li key={instruction} className="flex items-start gap-3 text-xs leading-relaxed text-text-soft">

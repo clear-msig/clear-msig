@@ -38,11 +38,20 @@ Product language:
   accounting layer. The incentive for creators is to improve their own agents
   because better performance can attract user allocations and future
   performance fees.
+- Hyperliquid execution follows a delegated API-wallet model. The funded
+  account address is where collateral and positions live. The API/agent wallet
+  public address is the delegated signer approved by that account. The API
+  wallet private key must live only in a protected executor or user-owned
+  runtime, never in the browser or public agent metadata. ClearSig still
+  re-checks allowance, policy, market, leverage, cooldown, and kill switch
+  before every order.
 
 ## Non-Negotiable Boundaries
 
 - Agents never receive raw wallet custody.
 - Agents never bypass ClearSig policy.
+- Public keys alone do not trade. They identify approved delegated signers;
+  the corresponding private signing key must stay isolated and policy-gated.
 - ClearSig does not need to host a creator's agent runtime, private model,
   data pipeline, exchange keys, or training infrastructure.
 - Solana remains the authority layer.
