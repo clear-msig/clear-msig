@@ -1,4 +1,9 @@
 import type { AgentMarketDataSnapshot } from "@/lib/agents/marketData";
+import {
+  summarizeMacroForScout,
+  summarizeNewsForScout,
+  type AgentMarketIntelligenceSnapshot,
+} from "@/lib/agents/marketIntelligence";
 import { buildAgentTradeDecisionJournal } from "@/lib/agents/decisionJournal";
 import { evaluateAgentTradeProposal } from "@/lib/agents/policy";
 import type {
@@ -35,6 +40,7 @@ export interface AgentScoutReport {
   policySummary: string;
   nextAction: string;
   snapshot?: AgentMarketDataSnapshot | null;
+  intelligence?: AgentMarketIntelligenceSnapshot | null;
   evaluation?: AgentPolicyEvaluation;
   observedAt: number;
 }
@@ -44,6 +50,7 @@ export interface BuildAgentScoutReportsInput {
   policy: AgentVaultPolicy;
   sessions: AgentSessionGrant[];
   marketByMarket: Record<string, AgentMarketDataSnapshot>;
+  intelligenceByMarket?: Record<string, AgentMarketIntelligenceSnapshot>;
   risksByAgent: Record<string, AgentRiskSnapshot>;
   now?: number;
 }
@@ -68,6 +75,7 @@ export function buildAgentScoutReports({
   policy,
   sessions,
   marketByMarket,
+  intelligenceByMarket = {},
   risksByAgent,
   now = Date.now(),
 }: BuildAgentScoutReportsInput): AgentScoutReport[] {
@@ -86,6 +94,7 @@ export function buildAgentScoutReports({
         policy,
         session,
         marketByMarket,
+        intelligenceByMarket,
         risk: risksByAgent[agent.id],
         now,
       });
@@ -146,6 +155,7 @@ function buildAgentScoutReport({
   policy,
   session,
   marketByMarket,
+  intelligenceByMarket,
   risk,
   now,
 }: {
@@ -153,12 +163,14 @@ function buildAgentScoutReport({
   policy: AgentVaultPolicy;
   session?: AgentSessionGrant;
   marketByMarket: Record<string, AgentMarketDataSnapshot>;
+  intelligenceByMarket: Record<string, AgentMarketIntelligenceSnapshot>;
   risk?: AgentRiskSnapshot;
   now: number;
 }): AgentScoutReport {
   const markets = candidateMarkets(agent, policy, session);
   const snapshot = bestSnapshot(markets, marketByMarket);
   const market = snapshot?.market ?? markets[0] ?? "BTC-PERP";
+  const intelligence = intelligenceByMarket[market] ?? null;
   const side = suggestedSide(agent, snapshot);
   const venue = suggestedVenue(policy, session);
   const draft = baseScoutProposal({
@@ -202,8 +214,10 @@ function buildAgentScoutReport({
     thesis: thesisFor({ agent, market, side, snapshot }),
     technicalSummary,
     fundamentalSummary:
-      "This pass uses the agent playbook, active allowance, and venue market data. External fundamentals are not connected to this scout yet.",
+      summarizeMacroForScout(intelligence) ??
+      "This pass uses the agent playbook, active allowance, and venue market data. External macro/fundamental providers are not connected to this scout yet.",
     newsSummary:
+      summarizeNewsForScout(intelligence) ??
       "No connected news feed was used for this pass; the trade idea must stand on observable market data and the agent rules.",
     riskPlan,
     exitPlan: exitRead({ draft }),
@@ -211,8 +225,9 @@ function buildAgentScoutReport({
     policySummary,
     nextAction: nextActionFor(status),
     snapshot,
+    intelligence,
     evaluation,
-    observedAt: snapshot?.observedAt ?? now,
+    observedAt: intelligence?.observedAt ?? snapshot?.observedAt ?? now,
   };
 }
 

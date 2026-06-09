@@ -93,6 +93,7 @@ import {
   type AgentVaultPolicy,
   type AgentKind,
   type AgentMarketDataSnapshot,
+  type AgentMarketIntelligenceSnapshot,
   type AgentMarketReadiness,
   type AgentReadinessAction,
   type AgentProposalStatus,
@@ -112,7 +113,10 @@ import {
   submitAgentVenueExecution,
   type AgentVenueReadiness,
 } from "@/lib/agents/clientExecution";
-import { loadAgentMarketDataSnapshots } from "@/lib/agents/clientMarketData";
+import {
+  loadAgentMarketDataSnapshots,
+  loadAgentMarketIntelligenceSnapshots,
+} from "@/lib/agents/clientMarketData";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 type BackendPersistenceStatus = {
@@ -166,6 +170,7 @@ export default function AgentsPage() {
   const [proposalCount, setProposalCount] = useState(0);
   const [inboxSummaries, setInboxSummaries] = useState<Record<string, AgentInboxSummary>>({});
   const [marketByMarket, setMarketByMarket] = useState<Record<string, AgentMarketDataSnapshot>>({});
+  const [intelligenceByMarket, setIntelligenceByMarket] = useState<Record<string, AgentMarketIntelligenceSnapshot>>({});
   const [liveVenueReadiness, setLiveVenueReadiness] =
     useState<AgentVenueReadiness | null>(null);
   const [liveVenueLoading, setLiveVenueLoading] = useState(true);
@@ -309,11 +314,15 @@ export default function AgentsPage() {
     const watchedMarkets = watchedMarketKey ? watchedMarketKey.split("|") : [];
     if (watchedMarkets.length === 0) {
       setMarketByMarket({});
+      setIntelligenceByMarket({});
       return;
     }
     let cancelled = false;
     void loadAgentMarketDataSnapshots(watchedMarkets).then((snapshots) => {
       if (!cancelled) setMarketByMarket(snapshots);
+    });
+    void loadAgentMarketIntelligenceSnapshots(watchedMarkets).then((snapshots) => {
+      if (!cancelled) setIntelligenceByMarket(snapshots);
     });
     return () => {
       cancelled = true;
@@ -354,12 +363,13 @@ export default function AgentsPage() {
       policy,
       sessions,
       marketByMarket,
+      intelligenceByMarket,
       risksByAgent: Object.fromEntries(
         agents.map((agent) => [agent.id, agentRiskSnapshot(name, agent.id)]),
       ),
       now,
     }).slice(0, 3);
-  }, [agents, marketByMarket, name, policy, sessions]);
+  }, [agents, intelligenceByMarket, marketByMarket, name, policy, sessions]);
   const automaticExitDecisions = useMemo(
     () =>
       buildAgentAutomaticExitDecisions({
@@ -517,6 +527,7 @@ export default function AgentsPage() {
       liveVenueReadiness.executorProbe?.state === "ready" &&
       liveVenueReadiness.accountProbe?.state === "funded";
     const snapshots = Object.values(marketByMarket);
+    const intelligence = Object.values(intelligenceByMarket);
     const approvals = listAgentOwnerApprovals(name);
     const connections = listAgentConnectionKits(name);
     return buildAgentMarketReadiness({
@@ -558,8 +569,8 @@ export default function AgentsPage() {
         creatorPayouts: "not_started",
         externalVerification: connections.length > 0 ? "signed_decisions" : "none",
         marketIntelligence: {
-          news: false,
-          macro: false,
+          news: intelligence.some((snapshot) => snapshot.coverage.news),
+          macro: intelligence.some((snapshot) => snapshot.coverage.macro),
           rateLimited: true,
         },
         leaderboardMode: "separated",
@@ -592,6 +603,7 @@ export default function AgentsPage() {
     executions,
     liveVenueLoading,
     liveVenueReadiness,
+    intelligenceByMarket,
     marketByMarket,
     name,
     openExecutionRecords,

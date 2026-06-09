@@ -416,7 +416,7 @@ Locked public-beta build order:
 1. Production persistence hard gate. **Completed.**
 2. Public agent profile pages. **Completed.**
 3. Creator marketplace registry. **Completed.**
-4. Real market/news/macro data layer.
+4. Real market/news/macro data layer. **Completed.**
 5. Notifications.
 6. Admin beta dashboard.
 
@@ -464,6 +464,13 @@ Locked public-beta build order:
    - The data layer must support provider-neutral prices, funding, open
      interest, volume, news/events, macro context, timestamps, freshness, and
      provider quality controls. Agents must cite what data they used.
+   - Current implementation: market-data snapshots now compose into normalized
+     market-intelligence snapshots. Hyperliquid supplies live price, funding,
+     open-interest, and volume data; configured JSON feeds
+     `CLEARSIG_AGENT_NEWS_JSON_URL` and `CLEARSIG_AGENT_MACRO_JSON_URL` can add
+     source-attributed news and macro items. Scout reports and trade decision
+     journals cite connected news/macro context when available and clearly state
+     when those providers are absent.
 8. **Paper/live leaderboard separation**
    - Paper, testnet, and verified live records must never be blended. Public
      profiles and allocation recommendations must label the track-record

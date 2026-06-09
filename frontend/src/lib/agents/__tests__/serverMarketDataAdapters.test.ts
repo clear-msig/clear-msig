@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   fetchAgentMarketData,
+  fetchAgentMarketIntelligence,
   serverAgentMarketDataReadiness,
 } from "@/lib/agents";
 
@@ -88,5 +89,46 @@ describe("server agent market-data adapters", () => {
           }),
       }),
     ).rejects.toThrow("malformed");
+  });
+
+  it("combines configured news and macro feeds with market data", async () => {
+    const previousNews = process.env.CLEARSIG_AGENT_NEWS_JSON_URL;
+    const previousMacro = process.env.CLEARSIG_AGENT_MACRO_JSON_URL;
+    process.env.CLEARSIG_AGENT_NEWS_JSON_URL = "https://feeds.example/news.json";
+    process.env.CLEARSIG_AGENT_MACRO_JSON_URL = "https://feeds.example/macro.json";
+    try {
+      const intelligence = await fetchAgentMarketIntelligence({
+        provider: "mock",
+        market: "BTC-PERP",
+        now: 1_780_000_000_000,
+        fetchImpl: async (input) =>
+          new Response(
+            JSON.stringify({
+              items: [
+                {
+                  market: "BTC-PERP",
+                  title: String(input).includes("macro") ? "DXY softer" : "BTC ETF flow",
+                  summary: String(input).includes("macro")
+                    ? "Macro backdrop improved."
+                    : "ETF inflows improved.",
+                  impact: "bullish",
+                  publishedAt: 1_780_000_000_000,
+                },
+              ],
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+      });
+
+      expect(intelligence.coverage.news).toBe(true);
+      expect(intelligence.coverage.macro).toBe(true);
+      expect(intelligence.items.some((item) => item.label === "BTC ETF flow")).toBe(true);
+      expect(intelligence.items.some((item) => item.label === "DXY softer")).toBe(true);
+    } finally {
+      if (previousNews == null) delete process.env.CLEARSIG_AGENT_NEWS_JSON_URL;
+      else process.env.CLEARSIG_AGENT_NEWS_JSON_URL = previousNews;
+      if (previousMacro == null) delete process.env.CLEARSIG_AGENT_MACRO_JSON_URL;
+      else process.env.CLEARSIG_AGENT_MACRO_JSON_URL = previousMacro;
+    }
   });
 });
