@@ -1129,6 +1129,16 @@ export default function AgentsPage() {
         />
       </div>
 
+      <FeatureAccessPanel
+        walletEncoded={encoded}
+        agents={agents}
+        notifications={agentNotificationSummary.notifications.length}
+        marketSnapshots={Object.values(marketByMarket)}
+        intelligenceSnapshots={Object.values(intelligenceByMarket)}
+        onStartDemo={startBetaDemo}
+        pending={pendingAction}
+      />
+
       <div className="flex flex-wrap items-center gap-2">
         {showDeveloperSurfaces ? (
           <button
@@ -1190,6 +1200,17 @@ export default function AgentsPage() {
         >
           <CircleDollarSign size={13} aria-hidden="true" />
           Practice allocation
+        </Link>
+        <Link
+          href="/agents"
+          className={clsx(
+            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
+            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+          )}
+        >
+          <Trophy size={13} aria-hidden="true" />
+          Marketplace
         </Link>
         <Link
           href={`/app/wallet/${encoded}/agents/trades`}
@@ -1256,17 +1277,15 @@ export default function AgentsPage() {
         />
       ) : null}
 
-      {agentNotificationSummary.notifications.length > 0 ? (
-        <AgentNotificationsPanel
-          notifications={agentNotificationSummary.notifications}
-          seenIds={seenAgentNotifications}
-          unreadCount={unreadAgentNotifications.length}
-          critical={agentNotificationSummary.critical}
-          warning={agentNotificationSummary.warning}
-          onMarkSeen={markAgentNoticeSeen}
-          onMarkAllSeen={markAllAgentNoticesSeen}
-        />
-      ) : null}
+      <AgentNotificationsPanel
+        notifications={agentNotificationSummary.notifications}
+        seenIds={seenAgentNotifications}
+        unreadCount={unreadAgentNotifications.length}
+        critical={agentNotificationSummary.critical}
+        warning={agentNotificationSummary.warning}
+        onMarkSeen={markAgentNoticeSeen}
+        onMarkAllSeen={markAllAgentNoticesSeen}
+      />
 
       {agents.length > 0 ? (
         <ReadinessPanel
@@ -1303,6 +1322,8 @@ export default function AgentsPage() {
         <EmptyAgents
           browseHref={`/app/wallet/${encoded}/agents/library`}
           createHref={`/app/wallet/${encoded}/agents/new`}
+          pending={pendingAction}
+          onStartDemo={startBetaDemo}
         />
       ) : (
         <section className="flex flex-col gap-3">
@@ -1497,6 +1518,128 @@ function GettingStartedPanel({ steps }: { steps: GettingStartedStep[] }) {
         })}
       </ol>
     </section>
+  );
+}
+
+function FeatureAccessPanel({
+  walletEncoded,
+  agents,
+  notifications,
+  marketSnapshots,
+  intelligenceSnapshots,
+  pending,
+  onStartDemo,
+}: {
+  walletEncoded: string;
+  agents: AgentProfile[];
+  notifications: number;
+  marketSnapshots: AgentMarketDataSnapshot[];
+  intelligenceSnapshots: AgentMarketIntelligenceSnapshot[];
+  pending: boolean;
+  onStartDemo: () => void;
+}) {
+  const publishedAgents = agents.filter((agent) => agent.publishing?.status === "published");
+  const newsConnected = intelligenceSnapshots.some((snapshot) => snapshot.coverage.news);
+  const macroConnected = intelligenceSnapshots.some((snapshot) => snapshot.coverage.macro);
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-text-strong">Test the shipped surfaces</h2>
+          <p className="mt-1 max-w-3xl text-sm leading-relaxed text-text-soft">
+            These are now reachable without hidden routes. Some cards still need
+            trading state, so the demo setup can create safe practice data.
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={onStartDemo}
+          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+          Try demo setup
+        </button>
+      </div>
+      <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+        <FeatureAccessCard
+          title="Marketplace"
+          body="Browse approved public agents and separated track records."
+          status="Open"
+          href="/agents"
+          Icon={Trophy}
+        />
+        <FeatureAccessCard
+          title="Public profiles"
+          body={
+            publishedAgents.length > 0
+              ? `${publishedAgents.length} published profile${publishedAgents.length === 1 ? "" : "s"} in this wallet.`
+              : "Publish and approve an agent to make its public profile visible."
+          }
+          status={publishedAgents.length > 0 ? "Ready" : "Needs published agent"}
+          href={
+            publishedAgents[0]?.publishing
+              ? `/agents/${walletEncoded}/${encodeURIComponent(publishedAgents[0].publishing.slug)}`
+              : `/app/wallet/${walletEncoded}/agents/library`
+          }
+          Icon={ShieldCheck}
+        />
+        <FeatureAccessCard
+          title="Market intelligence"
+          body={`${marketSnapshots.length} priced market${marketSnapshots.length === 1 ? "" : "s"} · news ${newsConnected ? "on" : "not connected"} · macro ${macroConnected ? "on" : "not connected"}.`}
+          status={marketSnapshots.length > 0 ? "Visible in scout" : "Needs active trader"}
+          href={`/app/wallet/${walletEncoded}/agents/start`}
+          Icon={Database}
+        />
+        <FeatureAccessCard
+          title="Notifications"
+          body={
+            notifications > 0
+              ? `${notifications} current trading notice${notifications === 1 ? "" : "s"}.`
+              : "No active trading notices yet. Demo setup can create testable state."
+          }
+          status={notifications > 0 ? "Ready" : "Empty"}
+          href={`/app/wallet/${walletEncoded}/agents`}
+          Icon={Bell}
+        />
+      </div>
+    </section>
+  );
+}
+
+function FeatureAccessCard({
+  title,
+  body,
+  status,
+  href,
+  Icon,
+}: {
+  title: string;
+  body: string;
+  status: string;
+  href: string;
+  Icon: typeof Bot;
+}) {
+  return (
+    <Link
+      href={href}
+      className="rounded-soft border border-border-soft bg-canvas p-3 transition-colors hover:border-accent/50"
+    >
+      <div className="flex items-start gap-2">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-semibold text-text-strong">{title}</p>
+            <span className="rounded-full border border-border-soft px-1.5 py-0.5 text-[10px] font-medium text-text-soft">
+              {status}
+            </span>
+          </div>
+          <p className="mt-1 text-xs leading-relaxed text-text-soft">{body}</p>
+        </div>
+      </div>
+    </Link>
   );
 }
 
@@ -1871,6 +2014,18 @@ function AgentNotificationsPanel({
         </div>
       </div>
 
+      {notifications.length === 0 ? (
+        <div className="mt-4 rounded-soft border border-dashed border-border-soft bg-canvas px-3 py-3">
+          <p className="text-xs font-semibold text-text-strong">
+            No trading notices right now
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-text-soft">
+            Notices appear here when a trade needs approval, an idea is blocked,
+            a trade opens or closes, an allowance is near expiry, or marketplace
+            review changes.
+          </p>
+        </div>
+      ) : (
       <ul className="mt-4 grid gap-2">
         {notifications.slice(0, 5).map((notification) => {
           const seen = seenIds.has(notification.id);
@@ -1925,6 +2080,7 @@ function AgentNotificationsPanel({
           );
         })}
       </ul>
+      )}
     </section>
   );
 }
@@ -2090,9 +2246,13 @@ function MetricCard({
 function EmptyAgents({
   browseHref,
   createHref,
+  pending,
+  onStartDemo,
 }: {
   browseHref: string;
   createHref: string;
+  pending: boolean;
+  onStartDemo: () => void;
 }) {
   return (
     <div className="rounded-card border border-dashed border-border-soft bg-surface-raised p-8 text-center shadow-card-rest">
@@ -2121,6 +2281,15 @@ function EmptyAgents({
           <Plus size={13} aria-hidden="true" />
           Create your own
         </Link>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={onStartDemo}
+          className="inline-flex items-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <Sparkles size={13} aria-hidden="true" />
+          Try demo setup
+        </button>
       </div>
     </div>
   );
@@ -2673,6 +2842,33 @@ function AgentCard({
                   Review allowance
                 </Link>
               ) : null}
+            </div>
+          ) : null}
+          {agent.publishing?.status === "published" ? (
+            <div className="mt-3 rounded-soft border border-border-soft bg-canvas px-3 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-semibold text-text-strong">
+                    Public profile
+                  </p>
+                  <p className="mt-0.5 text-xs text-text-soft">
+                    {agent.publishing.moderation?.status === "approved"
+                      ? "Visible in the public profile and marketplace."
+                      : `Waiting for ${agent.publishing.moderation?.status?.replace("_", " ") ?? "review"}.`}
+                  </p>
+                </div>
+                <Link
+                  href={
+                    agent.publishing.moderation?.status === "approved"
+                      ? `/agents/${walletEncoded}/${encodeURIComponent(agent.publishing.slug)}`
+                      : `/app/wallet/${walletEncoded}/agents/${encodeURIComponent(agent.id)}#publishing`
+                  }
+                  className="inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-border-soft px-2 py-1 text-[11px] font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
+                >
+                  {agent.publishing.moderation?.status === "approved" ? "Open profile" : "Review"}
+                  <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                </Link>
+              </div>
             </div>
           ) : null}
           <div className="mt-3 flex flex-wrap gap-1.5">

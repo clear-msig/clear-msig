@@ -420,6 +420,11 @@ Locked public-beta build order:
 5. Notifications. **Completed.**
 6. Admin beta dashboard.
 
+Feature discoverability pass: **Completed.** Agent Trading now exposes direct
+entry points for marketplace, public profiles, market intelligence, notifications,
+and demo setup so testers do not need hidden routes or debug flags to exercise
+the shipped surfaces.
+
 1. **Production-grade persistence**
    - Public beta requires Redis or database-backed agent state. Browser,
      process-memory, or local-only storage is allowed only for development.
