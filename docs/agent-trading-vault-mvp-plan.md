@@ -425,6 +425,13 @@ entry points for marketplace, public profiles, market intelligence, notification
 and demo setup so testers do not need hidden routes or debug flags to exercise
 the shipped surfaces.
 
+Better user onboarding: **Completed.** The Agent Trading overview now leads
+with the retail beta path: choose an agent, start trading, browse the
+marketplace, and watch trades. Advanced setup surfaces such as manual ideas,
+practice allocation tuning, Hyperliquid setup, approvals, feedback, and safety
+rules are grouped under an advanced controls drawer instead of competing with
+the beginner flow.
+
 1. **Production-grade persistence**
    - Public beta requires Redis or database-backed agent state. Browser,
      process-memory, or local-only storage is allowed only for development.
@@ -439,6 +446,12 @@ the shipped surfaces.
    - A trade is not considered verified live performance until ClearSig can
      reconcile exchange fills, positions, fees, funding, closed PnL, and order
      artifacts against the protected venue adapter.
+   - Current implementation: venue readiness now returns a reconciliation
+     summary for Hyperliquid testnet that compares submitted ClearSig requests
+     with live open positions, flags missing exchange order IDs, warns about
+     unmatched venue positions, and blocks trust when venue account state is
+     unavailable. The Agent Trading overview exposes this as a visible venue
+     check.
 4. **Creator marketplace**
    - Published agents need creator identity, strategy summary, supported
      markets, supported venues, public profile status, disclosures, and
@@ -512,6 +525,11 @@ the shipped surfaces.
    - Agent APIs need origin checks, per-agent rate limits, signal-key controls,
      bounded body sizes, freshness checks, duplicate protection, signed
      decisions, and abuse monitoring.
+   - Current implementation: signal registration can now store an endpoint
+     origin allowlist. Signal enqueue rejects missing retry metadata, stale or
+     future timestamps, disallowed origins, and per-agent bursts while keeping
+     idempotent duplicate retries harmless. The signal API returns explicit
+     abuse flags and 429s rate-limited submissions.
 
 ## Demo-Ready Build Order
 

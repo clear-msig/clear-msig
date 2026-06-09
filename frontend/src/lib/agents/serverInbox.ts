@@ -6,6 +6,7 @@ interface RegisteredAgentKey {
   keyHash: string;
   managementKeyHash: string;
   autoImportSessionSignals?: boolean;
+  allowedOrigins?: string[];
   registeredAt: number;
 }
 
@@ -17,11 +18,18 @@ interface UpstashEnv {
 export interface AgentSignalEnqueueResult {
   item: AgentSignalInboxItem;
   duplicate: boolean;
+  accepted: boolean;
+  abuseFlags: string[];
 }
 
 const REGISTRY = new Map<string, RegisteredAgentKey>();
 const INBOX = new Map<string, AgentSignalInboxItem[]>();
+const RATE_WINDOWS = new Map<string, number[]>();
 const MAX_ITEMS_PER_AGENT = 50;
+const DEFAULT_SIGNAL_LIMIT = 30;
+const RATE_WINDOW_MS = 60_000;
+const MAX_SIGNAL_FUTURE_SKEW_MS = 5 * 60_000;
+const MAX_SIGNAL_AGE_MS = 24 * 60 * 60_000;
 
 export async function registerAgentSignalKey({
   walletName,
@@ -29,17 +37,20 @@ export async function registerAgentSignalKey({
   signalKey,
   managementKey,
   autoImportSessionSignals = false,
+  allowedOrigins = [],
 }: {
   walletName: string;
   agentId: string;
   signalKey: string;
   managementKey: string;
   autoImportSessionSignals?: boolean;
+  allowedOrigins?: string[];
 }): Promise<void> {
   const value: RegisteredAgentKey = {
     keyHash: hashSignalKey(signalKey),
     managementKeyHash: hashSignalKey(managementKey),
     autoImportSessionSignals,
+    allowedOrigins: normalizeOrigins(allowedOrigins),
     registeredAt: Date.now(),
   };
   const redis = readUpstashEnv();
@@ -110,26 +121,45 @@ export async function enqueueAgentSignal({
   walletName,
   agentId,
   payload,
+  origin,
+  now = Date.now(),
 }: {
   walletName: string;
   agentId: string;
   payload: AgentSignalPayload;
+  origin?: string | null;
+  now?: number;
 }): Promise<AgentSignalEnqueueResult> {
   const key = inboxKey(walletName, agentId);
+  const registered = await readRegisteredAgentKey(walletName, agentId);
+  const abuseFlags = signalAbuseFlags({
+    payload,
+    registered,
+    origin,
+    now,
+  });
   const item: AgentSignalInboxItem = {
     id: newInboxItemId(),
     walletName,
     agentId,
     payload,
-    receivedAt: Date.now(),
+    receivedAt: now,
     version: 1,
   };
+  if (abuseFlags.length > 0) {
+    return { item, duplicate: false, accepted: false, abuseFlags };
+  }
   const redis = readUpstashEnv();
   if (redis) {
     const redisKey = inboxRedisKey(walletName, agentId);
     const list = await redisGet<AgentSignalInboxItem[]>(redisKey, redis);
     const existing = findDuplicateSignal(list ?? [], payload.clientSignalId);
-    if (existing) return { item: existing, duplicate: true };
+    if (existing) return { item: existing, duplicate: true, accepted: true, abuseFlags: [] };
+    const rateFlags = signalRateFlags(key, now);
+    if (rateFlags.length > 0) {
+      return { item, duplicate: false, accepted: false, abuseFlags: rateFlags };
+    }
+    rememberRateWindow(key, now);
     if (payload.clientSignalId) {
       const claimed = await redisSetNx(
         idempotencyRedisKey(walletName, agentId, payload.clientSignalId),
@@ -138,17 +168,22 @@ export async function enqueueAgentSignal({
         redis,
       );
       if (!claimed) {
-        return { item, duplicate: true };
+        return { item, duplicate: true, accepted: true, abuseFlags: [] };
       }
     }
     await redisSet(redisKey, [item, ...(list ?? [])].slice(0, MAX_ITEMS_PER_AGENT), redis);
-    return { item, duplicate: false };
+    return { item, duplicate: false, accepted: true, abuseFlags: [] };
   }
   const list = INBOX.get(key) ?? [];
   const existing = findDuplicateSignal(list, payload.clientSignalId);
-  if (existing) return { item: existing, duplicate: true };
+  if (existing) return { item: existing, duplicate: true, accepted: true, abuseFlags: [] };
+  const rateFlags = signalRateFlags(key, now);
+  if (rateFlags.length > 0) {
+    return { item, duplicate: false, accepted: false, abuseFlags: rateFlags };
+  }
+  rememberRateWindow(key, now);
   INBOX.set(key, [item, ...list].slice(0, MAX_ITEMS_PER_AGENT));
-  return { item, duplicate: false };
+  return { item, duplicate: false, accepted: true, abuseFlags: [] };
 }
 
 export async function listAgentInboxSignals(
@@ -184,6 +219,75 @@ export async function removeAgentInboxSignals(
 
 export function agentInboxStorageMode(): "redis" | "memory" {
   return readUpstashEnv() ? "redis" : "memory";
+}
+
+async function readRegisteredAgentKey(
+  walletName: string,
+  agentId: string,
+): Promise<RegisteredAgentKey | undefined> {
+  const redis = readUpstashEnv();
+  return redis
+    ? (await redisGet<RegisteredAgentKey>(registryRedisKey(walletName, agentId), redis)) ?? undefined
+    : REGISTRY.get(inboxKey(walletName, agentId));
+}
+
+function signalAbuseFlags({
+  payload,
+  registered,
+  origin,
+  now,
+}: {
+  payload: AgentSignalPayload;
+  registered?: RegisteredAgentKey;
+  origin?: string | null;
+  now: number;
+}): string[] {
+  const flags: string[] = [];
+  const submittedAt = Number(payload.submittedAt ?? now);
+  if (!payload.clientSignalId?.trim()) flags.push("missing_client_signal_id");
+  if (!Number.isFinite(submittedAt)) {
+    flags.push("missing_submitted_at");
+  } else {
+    if (submittedAt > now + MAX_SIGNAL_FUTURE_SKEW_MS) flags.push("submitted_at_future");
+    if (submittedAt < now - MAX_SIGNAL_AGE_MS) flags.push("submitted_at_stale");
+  }
+  const allowedOrigins = registered?.allowedOrigins ?? [];
+  const normalizedOrigin = normalizeOrigin(origin);
+  if (allowedOrigins.length > 0 && (!normalizedOrigin || !allowedOrigins.includes(normalizedOrigin))) {
+    flags.push("origin_not_allowed");
+  }
+  return flags;
+}
+
+function signalRateFlags(key: string, now: number): string[] {
+  const current =
+    RATE_WINDOWS.get(key)?.filter((timestamp) => timestamp > now - RATE_WINDOW_MS) ??
+    [];
+  const limit = Number(process.env.CLEARSIG_AGENT_SIGNAL_LIMIT_PER_MINUTE ?? DEFAULT_SIGNAL_LIMIT);
+  if (current.length >= (Number.isFinite(limit) && limit > 0 ? limit : DEFAULT_SIGNAL_LIMIT)) {
+    return ["rate_limit_exceeded"];
+  }
+  return [];
+}
+
+function rememberRateWindow(key: string, now: number): void {
+  const current = RATE_WINDOWS.get(key)?.filter((timestamp) => timestamp > now - RATE_WINDOW_MS) ?? [];
+  RATE_WINDOWS.set(key, [...current, now]);
+}
+
+function normalizeOrigins(values: string[]): string[] {
+  return Array.from(
+    new Set(values.map((value) => normalizeOrigin(value)).filter((value): value is string => Boolean(value))),
+  );
+}
+
+function normalizeOrigin(value: string | null | undefined): string | null {
+  if (!value?.trim()) return null;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return value.trim().replace(/\/+$/, "");
+  }
 }
 
 function inboxKey(walletName: string, agentId: string): string {

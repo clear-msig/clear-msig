@@ -12,6 +12,7 @@ import {
   Bot,
   BrainCircuit,
   Check,
+  ChevronDown,
   CircleDollarSign,
   ClipboardList,
   Clock,
@@ -1180,28 +1181,6 @@ export default function AgentsPage() {
           Start trading
         </Link>
         <Link
-          href={`/app/wallet/${encoded}/agents/proposals/new`}
-          className={clsx(
-            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
-            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <Send size={13} aria-hidden="true" />
-          Try an idea
-        </Link>
-        <Link
-          href={`/app/wallet/${encoded}/agents/funding`}
-          className={clsx(
-            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
-            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <CircleDollarSign size={13} aria-hidden="true" />
-          Practice allocation
-        </Link>
-        <Link
           href="/agents"
           className={clsx(
             "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
@@ -1223,50 +1202,83 @@ export default function AgentsPage() {
           <TrendingUp size={13} aria-hidden="true" />
           Trades
         </Link>
-        <Link
-          href={`/app/wallet/${encoded}/agents/hyperliquid`}
-          className={clsx(
-            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
-            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <Plug size={13} aria-hidden="true" />
-          Hyperliquid
-        </Link>
-        <Link
-          href={`/app/wallet/${encoded}/agents/approvals`}
-          className={clsx(
-            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
-            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <ClipboardList size={13} aria-hidden="true" />
-          Approvals
-        </Link>
-        <Link
-          href={`/app/wallet/${encoded}/agents/feedback`}
-          className={clsx(
-            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
-            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <MessageSquare size={13} aria-hidden="true" />
-          Feedback
-        </Link>
-        <Link
-          href={`/app/wallet/${encoded}/agents/policy`}
-          className={clsx(
-            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
-            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <SlidersHorizontal size={13} aria-hidden="true" />
-          Safety rules
-        </Link>
+        <details className="group w-full rounded-card border border-border-soft bg-surface-raised px-3 py-2 shadow-card-rest">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold text-text-strong">
+            <span>Advanced controls</span>
+            <ChevronDown
+              className="h-3.5 w-3.5 text-text-soft transition-transform group-open:rotate-180"
+              aria-hidden="true"
+            />
+          </summary>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Link
+              href={`/app/wallet/${encoded}/agents/proposals/new`}
+              className={clsx(
+                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
+                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+              )}
+            >
+              <Send size={13} aria-hidden="true" />
+              Try an idea
+            </Link>
+            <Link
+              href={`/app/wallet/${encoded}/agents/funding`}
+              className={clsx(
+                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
+                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+              )}
+            >
+              <CircleDollarSign size={13} aria-hidden="true" />
+              Practice allocation
+            </Link>
+            <Link
+              href={`/app/wallet/${encoded}/agents/hyperliquid`}
+              className={clsx(
+                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
+                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+              )}
+            >
+              <Plug size={13} aria-hidden="true" />
+              Hyperliquid
+            </Link>
+            <Link
+              href={`/app/wallet/${encoded}/agents/approvals`}
+              className={clsx(
+                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
+                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+              )}
+            >
+              <ClipboardList size={13} aria-hidden="true" />
+              Approvals
+            </Link>
+            <Link
+              href={`/app/wallet/${encoded}/agents/feedback`}
+              className={clsx(
+                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
+                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+              )}
+            >
+              <MessageSquare size={13} aria-hidden="true" />
+              Feedback
+            </Link>
+            <Link
+              href={`/app/wallet/${encoded}/agents/policy`}
+              className={clsx(
+                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
+                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+              )}
+            >
+              <SlidersHorizontal size={13} aria-hidden="true" />
+              Safety rules
+            </Link>
+          </div>
+        </details>
       </div>
 
       {policy ? (
@@ -2099,6 +2111,7 @@ function LiveVenuePanel({
     readiness.executorProbe?.state === "ready" &&
     readiness.accountProbe?.state === "funded";
   const unavailable = !loading && !readiness;
+  const reconciliation = readiness?.reconciliation ?? null;
   const title = loading
     ? "Checking practice account"
     : connected
@@ -2170,6 +2183,56 @@ function LiveVenuePanel({
           </Link>
         </div>
       </div>
+      {reconciliation ? (
+        <div className="mt-4 grid gap-2 border-t border-border-soft pt-3 sm:grid-cols-4">
+          <div className="rounded-soft border border-border-soft bg-canvas px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+              Venue check
+            </p>
+            <p
+              className={clsx(
+                "mt-1 text-xs font-semibold",
+                reconciliation.status === "healthy"
+                  ? "text-accent"
+                  : reconciliation.status === "blocked"
+                    ? "text-danger"
+                    : "text-warning",
+              )}
+            >
+              {reconciliation.label}
+            </p>
+          </div>
+          <div className="rounded-soft border border-border-soft bg-canvas px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+              Submitted
+            </p>
+            <p className="mt-1 text-xs font-semibold text-text-strong">
+              {reconciliation.submittedRequests}
+            </p>
+          </div>
+          <div className="rounded-soft border border-border-soft bg-canvas px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+              Live positions
+            </p>
+            <p className="mt-1 text-xs font-semibold text-text-strong">
+              {reconciliation.exchangeOpenPositions}
+            </p>
+          </div>
+          <div className="rounded-soft border border-border-soft bg-canvas px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+              Mismatches
+            </p>
+            <p className="mt-1 text-xs font-semibold text-text-strong">
+              {reconciliation.unmatchedPositions + reconciliation.missingOrderIds}
+            </p>
+          </div>
+          {reconciliation.issues.length > 0 ? (
+            <p className="text-xs leading-relaxed text-text-soft sm:col-span-4">
+              {reconciliation.message}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }

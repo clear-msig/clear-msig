@@ -22,6 +22,7 @@ import {
   hasAgentServerWalletSignedOwnerApproval,
   validateAgentServerExecutionHandoff,
 } from "@/lib/agents/serverState";
+import { buildAgentVenueReconciliationSummary } from "@/lib/agents/venueReconciliation";
 import type { TradingVenue } from "@/lib/agents/types";
 
 const MAX_BODY_BYTES = 6_000;
@@ -55,6 +56,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
           accountAddress,
         })
       : null;
+  const requests = await readRequestHistory(request);
   return NextResponse.json({
     ok: true,
     readiness,
@@ -72,7 +74,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
         ? await probeHyperliquidTestnetExecutor({ config: configured.config })
         : null,
     storage: agentServerExecutionStorageMode(),
-    requests: await readRequestHistory(request),
+    requests,
+    reconciliation: buildAgentVenueReconciliationSummary({
+      venue,
+      requests,
+      accountSnapshot,
+    }),
   });
 }
 
