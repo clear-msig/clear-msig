@@ -40,6 +40,7 @@ export interface HyperliquidTestnetAccountSnapshot {
 export interface HyperliquidTestnetExecutorProbe {
   state: "not_configured" | "unavailable" | "ready";
   accountAddress: string | null;
+  agentWalletAddress: string | null;
   message: string;
 }
 
@@ -57,6 +58,7 @@ export interface HyperliquidTestnetExecutorRequest {
   network: "testnet";
   idempotencyKey: string;
   accountAddress: string;
+  agentWalletAddress: string;
   intent: AgentServerExecutionRequest;
   controls: {
     maxSlippageBps: number;
@@ -185,6 +187,7 @@ export async function probeHyperliquidTestnetExecutor({
     return {
       state: "not_configured",
       accountAddress: null,
+      agentWalletAddress: null,
       message: "The protected Hyperliquid practice connection has not been set up.",
     };
   }
@@ -198,23 +201,27 @@ export async function probeHyperliquidTestnetExecutor({
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const body = (await response.json()) as Record<string, unknown>;
     const accountAddress = stringValue(body.accountAddress).toLowerCase();
+    const agentWalletAddress = stringValue(body.agentWalletAddress).toLowerCase();
     if (
       body.ok !== true ||
       body.network !== "testnet" ||
-      accountAddress !== config.accountAddress
+      accountAddress !== config.accountAddress ||
+      agentWalletAddress !== config.agentWalletAddress
     ) {
-      throw new Error("Protected connection returned an unexpected account.");
+      throw new Error("Protected connection returned an unexpected account or API wallet.");
     }
     return {
       state: "ready",
       accountAddress,
-      message: "The protected Hyperliquid practice connection is ready.",
+      agentWalletAddress,
+      message: "The protected Hyperliquid practice connection is ready with the approved API wallet.",
     };
   } catch {
     return {
       state: "unavailable",
       accountAddress: config.accountAddress,
-      message: "The protected Hyperliquid practice connection could not be reached.",
+      agentWalletAddress: config.agentWalletAddress,
+      message: "The protected Hyperliquid practice connection or API wallet could not be verified.",
     };
   }
 }
@@ -232,6 +239,7 @@ export function buildHyperliquidTestnetExecutorRequest(
       )
       .digest("hex"),
     accountAddress: config.accountAddress,
+    agentWalletAddress: config.agentWalletAddress,
     intent: request,
     controls: {
       maxSlippageBps: 50,

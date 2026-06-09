@@ -20,6 +20,7 @@ import {
   buildAgentHyperliquidSetupSummary,
   getAgentHyperliquidSetupSettings,
   saveAgentHyperliquidSetupSettings,
+  updateAgentHyperliquidDelegationStatus,
   type AgentHyperliquidSetupSettings,
   type AgentHyperliquidSetupStep,
 } from "@/lib/agents";
@@ -31,6 +32,8 @@ import { toDisplayName } from "@/lib/retail/walletNames";
 
 const EMPTY_SETTINGS: AgentHyperliquidSetupSettings = {
   accountAddress: "",
+  agentWalletAddress: "",
+  delegationStatus: "not_started",
   updatedAt: 0,
   version: 1,
 };
@@ -44,6 +47,7 @@ export default function HyperliquidSetupPage() {
   const [settings, setSettings] =
     useState<AgentHyperliquidSetupSettings>(EMPTY_SETTINGS);
   const [accountDraft, setAccountDraft] = useState("");
+  const [agentWalletDraft, setAgentWalletDraft] = useState("");
   const [readiness, setReadiness] = useState<AgentVenueReadiness | null>(null);
   const [checking, setChecking] = useState(true);
 
@@ -65,6 +69,7 @@ export default function HyperliquidSetupPage() {
     const loaded = getAgentHyperliquidSetupSettings(name);
     setSettings(loaded);
     setAccountDraft(loaded.accountAddress);
+    setAgentWalletDraft(loaded.agentWalletAddress);
     void checkReadiness(loaded.accountAddress);
   }, [checkReadiness, name]);
 
@@ -78,18 +83,50 @@ export default function HyperliquidSetupPage() {
     settings.accountAddress;
   const accountSnapshot = readiness?.accountSnapshot ?? null;
   const executor = readiness?.executorProbe ?? null;
+  const agentWalletAddress =
+    executor?.agentWalletAddress ?? settings.agentWalletAddress;
 
   const saveAndCheck = () => {
     try {
       const saved = saveAgentHyperliquidSetupSettings(name, {
         accountAddress: accountDraft,
+        agentWalletAddress: agentWalletDraft,
       });
       setSettings(saved);
       setAccountDraft(saved.accountAddress);
-      toast.success(saved.accountAddress ? "Hyperliquid account saved" : "Account cleared");
+      setAgentWalletDraft(saved.agentWalletAddress);
+      toast.success(saved.accountAddress ? "Hyperliquid delegation saved" : "Hyperliquid setup cleared");
       void checkReadiness(saved.accountAddress);
     } catch (error) {
       toast.error("Could not save Hyperliquid account", {
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
+  const setDelegationStatus = (
+    status: "active" | "rotation_required" | "revoked",
+  ) => {
+    try {
+      const updated = updateAgentHyperliquidDelegationStatus({
+        walletName: name,
+        status,
+        reason:
+          status === "rotation_required"
+            ? "Rotate this API wallet before further beta trading."
+            : undefined,
+      });
+      setSettings(updated);
+      toast.success(
+        status === "active"
+          ? "API wallet marked active"
+          : status === "revoked"
+            ? "API wallet marked revoked"
+            : "API wallet marked for rotation",
+      );
+      void checkReadiness(updated.accountAddress);
+    } catch (error) {
+      toast.error("Could not update API wallet status", {
         details: error instanceof Error ? error.message : String(error),
       });
     }
@@ -140,8 +177,8 @@ export default function HyperliquidSetupPage() {
             </div>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-soft">
               This stores only the public account address in your browser.
-              Private executor tokens and trading wallet secrets stay on the
-              server.
+              Private executor tokens and the API wallet private key must never
+              enter this browser.
             </p>
           </div>
           <button
@@ -183,6 +220,37 @@ export default function HyperliquidSetupPage() {
                 <Check className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             </div>
+            <label
+              htmlFor="hyperliquid-agent-wallet"
+              className="mt-4 block text-xs font-semibold text-text-strong"
+            >
+              Approved API wallet address
+            </label>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <input
+                id="hyperliquid-agent-wallet"
+                value={agentWalletDraft}
+                onChange={(event) => setAgentWalletDraft(event.target.value)}
+                placeholder="0x... delegated API wallet"
+                autoComplete="off"
+                spellCheck={false}
+                className="min-h-10 min-w-0 flex-1 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 font-mono text-xs text-text-strong outline-none transition-colors placeholder:text-text-muted focus:border-accent focus:ring-2 focus:ring-accent/25"
+              />
+              <a
+                href="https://app.hyperliquid-testnet.xyz/API"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-soft border border-border-soft px-4 py-2 text-xs font-semibold text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
+              >
+                Approve on Hyperliquid
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              </a>
+            </div>
+            <p className="mt-2 text-xs leading-relaxed text-text-soft">
+              This should be the public address of a separate API/agent wallet
+              approved by the funded account. The private key belongs only in
+              the protected executor or a user-owned agent runtime.
+            </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <a
                 href="https://app.hyperliquid-testnet.xyz/"
@@ -211,11 +279,122 @@ export default function HyperliquidSetupPage() {
         </div>
       </section>
 
+      <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+        <div className="flex items-start gap-3">
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-text-strong">
+              Delegation model
+            </h2>
+            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-text-soft">
+              This follows the standard AI trading pattern: user funds stay in
+              the trading account, a separate API wallet is approved as the
+              signer, ClearSig checks every action against allowance and safety
+              rules, and the private signing key stays out of the browser.
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-2 md:grid-cols-4">
+          <MiniMetric label="Funds live in" value="Hyperliquid account" />
+          <MiniMetric label="Signer identity" value="Approved API wallet" />
+          <MiniMetric label="Limits enforced by" value="ClearSig policy" />
+          <MiniMetric label="Private key location" value="Protected executor" />
+        </div>
+      </section>
+
+      <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-text-strong">
+              Delegated signer lifecycle
+            </h2>
+            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-text-soft">
+              Rotate or revoke the approved API wallet whenever it is exposed,
+              no longer needed, or no longer matches the protected executor.
+              Revoke on Hyperliquid first, then mark the status here for
+              ClearSig checks and operator review.
+            </p>
+          </div>
+          <span
+            className={clsx(
+              "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+              settings.delegationStatus === "active"
+                ? "border-accent/30 bg-accent/[0.08] text-accent"
+                : settings.delegationStatus === "revoked"
+                  ? "border-danger/30 bg-danger/[0.06] text-danger"
+                  : settings.delegationStatus === "rotation_required"
+                    ? "border-warning/30 bg-warning/[0.08] text-warning"
+                    : "border-border-soft bg-canvas text-text-soft",
+            )}
+          >
+            {delegationStatusLabel(settings.delegationStatus)}
+          </span>
+        </div>
+        <div className="mt-4 grid gap-2 md:grid-cols-4">
+          <MiniMetric
+            label="Approved"
+            value={settings.approvedAt ? formatDate(settings.approvedAt) : "-"}
+          />
+          <MiniMetric
+            label="Revoked"
+            value={settings.revokedAt ? formatDate(settings.revokedAt) : "-"}
+          />
+          <MiniMetric
+            label="Rotation note"
+            value={settings.rotationReason ?? "None"}
+          />
+          <MiniMetric
+            label="Current signer"
+            value={settings.agentWalletAddress ? shortAddress(settings.agentWalletAddress) : "Not set"}
+          />
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={!settings.agentWalletAddress || settings.delegationStatus === "active"}
+            onClick={() => setDelegationStatus("active")}
+            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Mark active
+          </button>
+          <button
+            type="button"
+            disabled={!settings.agentWalletAddress || settings.delegationStatus === "rotation_required"}
+            onClick={() => setDelegationStatus("rotation_required")}
+            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-warning/30 px-3 py-2 text-xs font-medium text-warning transition-colors hover:bg-warning/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Require rotation
+          </button>
+          <button
+            type="button"
+            disabled={!settings.agentWalletAddress || settings.delegationStatus === "revoked"}
+            onClick={() => setDelegationStatus("revoked")}
+            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-danger/30 px-3 py-2 text-xs font-medium text-danger transition-colors hover:bg-danger/[0.06] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Mark revoked
+          </button>
+          <a
+            href="https://app.hyperliquid-testnet.xyz/API"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
+          >
+            Manage on Hyperliquid
+            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+          </a>
+        </div>
+      </section>
+
       <section className="grid gap-3 md:grid-cols-4">
         <Metric
           label="Account"
           value={accountAddress ? shortAddress(accountAddress) : "Not set"}
           highlight={Boolean(accountAddress)}
+        />
+        <Metric
+          label="API wallet"
+          value={agentWalletAddress ? shortAddress(agentWalletAddress) : "Not approved"}
+          highlight={Boolean(agentWalletAddress)}
         />
         <Metric
           label="Account value"
@@ -225,11 +404,6 @@ export default function HyperliquidSetupPage() {
         <Metric
           label="Withdrawable"
           value={formatUsd(accountSnapshot?.withdrawableUsd)}
-        />
-        <Metric
-          label="Executor"
-          value={executor?.state === "ready" ? "Ready" : executor?.state === "not_configured" ? "Pending" : "Checking"}
-          highlight={executor?.state === "ready"}
         />
       </section>
 
@@ -295,7 +469,7 @@ export default function HyperliquidSetupPage() {
                 <p className="mt-1 text-sm leading-relaxed text-text-soft">
                   ClearSig manages the private executor connection outside this
                   screen. You only need to prepare the practice account and keep
-                  your safety rules tight.
+                  your API wallet delegation plus safety rules tight.
                 </p>
               </div>
             </div>
@@ -319,7 +493,7 @@ export default function HyperliquidSetupPage() {
             <p className="mt-1 text-xs leading-relaxed text-text-soft">
               {executor?.state === "ready"
                 ? "The server-side connection is available. ClearSig can submit only approved trades that fit your allowance."
-                : "If this stays unavailable after your account is funded, ClearSig needs to finish the protected connection for this workspace."}
+                : "If this stays unavailable after your account is funded and the API wallet is approved, ClearSig needs to finish the protected executor for this workspace."}
             </p>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -480,8 +654,31 @@ function formatSignedUsd(value: string | number | null | undefined): string {
   })}`;
 }
 
+function formatDate(value: number): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
 function signedTone(value: string | number | null | undefined): string {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed === 0) return "text-text-strong";
   return parsed > 0 ? "text-accent" : "text-rose-300";
+}
+
+function delegationStatusLabel(
+  status: AgentHyperliquidSetupSettings["delegationStatus"],
+): string {
+  switch (status) {
+    case "active":
+      return "Active";
+    case "rotation_required":
+      return "Rotation required";
+    case "revoked":
+      return "Revoked";
+    case "not_started":
+      return "Not started";
+  }
 }

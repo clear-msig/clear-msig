@@ -25,6 +25,7 @@ const request: AgentServerExecutionRequest = {
 
 const config = {
   accountAddress: "0x1111111111111111111111111111111111111111",
+  agentWalletAddress: "0x2222222222222222222222222222222222222222",
   executorUrl: "http://127.0.0.1:4010",
   executorToken: "executor-secret",
 };
@@ -35,6 +36,7 @@ describe("Hyperliquid testnet server boundary", () => {
     expect(
       readHyperliquidTestnetExecutorConfig({
         CLEARSIG_HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS: config.accountAddress,
+        CLEARSIG_HYPERLIQUID_TESTNET_AGENT_WALLET_ADDRESS: config.agentWalletAddress,
         CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_URL: config.executorUrl,
         CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_TOKEN: config.executorToken,
       }).config,
@@ -47,6 +49,8 @@ describe("Hyperliquid testnet server boundary", () => {
 
     expect(first).toEqual(second);
     expect(first.idempotencyKey).toMatch(/^[a-f0-9]{64}$/);
+    expect(first.accountAddress).toBe(config.accountAddress);
+    expect(first.agentWalletAddress).toBe(config.agentWalletAddress);
     expect(first.controls.maxSlippageBps).toBe(50);
   });
 
@@ -130,6 +134,7 @@ describe("Hyperliquid testnet server boundary", () => {
             ok: true,
             network: "testnet",
             accountAddress: config.accountAddress,
+            agentWalletAddress: config.agentWalletAddress,
           }),
           { status: 200, headers: { "content-type": "application/json" } },
         ),
@@ -137,6 +142,7 @@ describe("Hyperliquid testnet server boundary", () => {
 
     expect(probe.state).toBe("ready");
     expect(probe.accountAddress).toBe(config.accountAddress);
+    expect(probe.agentWalletAddress).toBe(config.agentWalletAddress);
   });
 
   it("submits only to the isolated executor and validates its artifact", async () => {
@@ -152,6 +158,8 @@ describe("Hyperliquid testnet server boundary", () => {
         });
         const body = JSON.parse(String(init?.body));
         expect(body.intent.proposalId).toBe("proposal-1");
+        expect(body.accountAddress).toBe(config.accountAddress);
+        expect(body.agentWalletAddress).toBe(config.agentWalletAddress);
         return new Response(
           JSON.stringify({
             artifact: {

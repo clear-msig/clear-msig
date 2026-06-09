@@ -83,6 +83,52 @@ describe("agent scout", () => {
           volume24hUsd: "5000000",
         },
       },
+      intelligenceByMarket: {
+        "BTC-PERP": {
+          provider: "hyperliquid",
+          market: "BTC-PERP",
+          observedAt: now,
+          marketData: {
+            provider: "hyperliquid",
+            source: "live",
+            market: "BTC-PERP",
+            observedAt: now,
+            markPriceUsd: "70000",
+            fundingRatePct: "0.01",
+            openInterestUsd: "2000000",
+            volume24hUsd: "5000000",
+          },
+          items: [
+            {
+              id: "news-1",
+              kind: "news",
+              label: "ETF flow",
+              summary: "BTC ETF inflows improved.",
+              source: "news-provider",
+              impact: "bullish",
+              observedAt: now,
+            },
+            {
+              id: "macro-1",
+              kind: "macro",
+              label: "DXY softer",
+              summary: "Dollar weakness supports risk assets.",
+              source: "macro-provider",
+              impact: "bullish",
+              observedAt: now,
+            },
+          ],
+          coverage: {
+            marketData: true,
+            funding: true,
+            liquidity: true,
+            news: true,
+            macro: true,
+          },
+          freshnessWarnings: [],
+          summary: "BTC-PERP mark $70,000, funding 0.01%, 1 news item, 1 macro item",
+        },
+      },
       now,
     });
 
@@ -104,6 +150,8 @@ describe("agent scout", () => {
     expect(built.proposal.status).toBe("approved");
     expect(built.proposal.decisionJournal?.summary).toContain("scouted BTC-PERP");
     expect(built.proposal.decisionJournal?.evidence.some((item) => item.kind === "market_data")).toBe(true);
+    expect(built.proposal.decisionJournal?.newsSummary).toContain("ETF flow");
+    expect(built.proposal.decisionJournal?.fundamentalSummary).toContain("DXY softer");
   });
 
   it("shows blocked when the active safety policy cannot allow the idea", () => {

@@ -3,6 +3,12 @@ import {
   type AgentMarketDataProviderId,
   type AgentMarketDataSnapshot,
 } from "@/lib/agents/marketData";
+import {
+  buildAgentMarketIntelligenceSnapshot,
+  normalizeAgentMarketIntelligenceItems,
+  type AgentMarketIntelligenceItem,
+  type AgentMarketIntelligenceSnapshot,
+} from "@/lib/agents/marketIntelligence";
 
 export type AgentMarketDataAdapterState = "ready" | "not_connected";
 
@@ -97,6 +103,31 @@ export async function fetchAgentMarketData({
     observedAt: now,
     ...values,
   };
+}
+
+export async function fetchAgentMarketIntelligence({
+  provider,
+  market,
+  now = Date.now(),
+  fetchImpl = fetch,
+}: {
+  provider: AgentMarketDataProviderId;
+  market: string;
+  now?: number;
+  fetchImpl?: typeof fetch;
+}): Promise<AgentMarketIntelligenceSnapshot> {
+  const marketData = await fetchAgentMarketData({ provider, market, now, fetchImpl });
+  const items = await fetchConfiguredIntelligenceItems({
+    market: marketData.market,
+    provider,
+    now,
+    fetchImpl,
+  });
+  return buildAgentMarketIntelligenceSnapshot({
+    marketData,
+    items,
+    now,
+  });
 }
 
 async function fetchHyperliquidMarketData({
@@ -216,6 +247,132 @@ function decimal(value: unknown): string | null {
 function formatDecimal(value: number): string {
   if (!Number.isFinite(value)) return "0";
   return value.toFixed(8).replace(/\.?0+$/, "");
+}
+
+async function fetchConfiguredIntelligenceItems({
+  market,
+  provider,
+  now,
+  fetchImpl,
+}: {
+  market: string;
+  provider: AgentMarketDataProviderId;
+  now: number;
+  fetchImpl: typeof fetch;
+}): Promise<AgentMarketIntelligenceItem[]> {
+  const configured = (
+    await Promise.all([
+      fetchConfiguredFeed({
+        url: process.env.CLEARSIG_AGENT_NEWS_JSON_URL,
+        market,
+        kind: "news",
+        source: "configured-news",
+        now,
+        fetchImpl,
+      }),
+      fetchConfiguredFeed({
+        url: process.env.CLEARSIG_AGENT_MACRO_JSON_URL,
+        market,
+        kind: "macro",
+        source: "configured-macro",
+        now,
+        fetchImpl,
+      }),
+    ])
+  ).flat();
+
+  if (configured.length > 0) return configured;
+  if (provider !== "mock") return coverageGapIntelligenceItems(market, now);
+  return mockIntelligenceItems(market, now);
+}
+
+async function fetchConfiguredFeed({
+  url,
+  market,
+  kind,
+  source,
+  now,
+  fetchImpl,
+}: {
+  url?: string;
+  market: string;
+  kind: "news" | "macro";
+  source: string;
+  now: number;
+  fetchImpl: typeof fetch;
+}): Promise<AgentMarketIntelligenceItem[]> {
+  const trimmed = url?.trim();
+  if (!trimmed) return [];
+  const response = await fetchImpl(trimmed, {
+    method: "GET",
+    headers: { accept: "application/json" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(MARKET_DATA_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(`${kind} intelligence returned HTTP ${response.status}.`);
+  }
+  return normalizeAgentMarketIntelligenceItems(await response.json(), {
+    market,
+    kind,
+    source,
+    now,
+  });
+}
+
+function mockIntelligenceItems(market: string, now: number): AgentMarketIntelligenceItem[] {
+  const asset = market.replace("-PERP", "");
+  return [
+    {
+      id: `mock-news:${market}`,
+      kind: "news",
+      label: `${asset} beta news pulse`,
+      summary:
+        "No live news provider is configured; this deterministic item marks the news slot for local beta testing.",
+      source: "mock",
+      impact: "neutral",
+      observedAt: now,
+    },
+    {
+      id: `mock-macro:${market}`,
+      kind: "macro",
+      label: "Macro beta context",
+      summary:
+        "No live macro provider is configured; this deterministic item keeps agent explanations structured in demos.",
+      source: "mock",
+      impact: "neutral",
+      observedAt: now,
+    },
+  ];
+}
+
+function coverageGapIntelligenceItems(
+  market: string,
+  now: number,
+): AgentMarketIntelligenceItem[] {
+  const asset = market.replace("-PERP", "");
+  return [
+    {
+      id: `coverage-gap-news:${market}`,
+      kind: "news",
+      label: `${asset} news feed not connected`,
+      summary:
+        "ClearSig has live price, funding, open-interest, and volume data, but no external news feed is configured for this workspace yet.",
+      source: "coverage-gap",
+      impact: "neutral",
+      observedAt: now,
+    },
+    {
+      id: `coverage-gap-macro:${market}`,
+      kind: "macro",
+      label: "Macro feed not connected",
+      summary:
+        "ClearSig has not connected a macro/geopolitical feed for this workspace yet, so the scout must avoid claiming macro confirmation.",
+      source: "coverage-gap",
+      impact: "neutral",
+      observedAt: now,
+    },
+  ];
 }
 
 export function isAgentMarketDataProviderId(

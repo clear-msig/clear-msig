@@ -4,6 +4,7 @@ import type {
   AgentTradeProposal,
   AgentServerExecutionReadiness,
 } from "@/lib/agents";
+import type { AgentVenueReconciliationSummary } from "@/lib/agents/venueReconciliation";
 import type {
   HyperliquidTestnetAccountProbe,
   HyperliquidTestnetAccountSnapshot,
@@ -15,6 +16,7 @@ export type AgentVenueReadiness = AgentServerExecutionReadiness & {
   accountProbe?: HyperliquidTestnetAccountProbe | null;
   accountSnapshot?: HyperliquidTestnetAccountSnapshot | null;
   executorProbe?: HyperliquidTestnetExecutorProbe | null;
+  reconciliation?: AgentVenueReconciliationSummary | null;
   requests?: Array<{
     id?: string;
     status: string;
@@ -71,6 +73,7 @@ export async function loadAgentVenueReadiness(
     accountProbe?: HyperliquidTestnetAccountProbe | null;
     accountSnapshot?: HyperliquidTestnetAccountSnapshot | null;
     executorProbe?: HyperliquidTestnetExecutorProbe | null;
+    reconciliation?: AgentVenueReconciliationSummary | null;
     requests?: AgentVenueReadiness["requests"];
   };
   if (!response.ok) return null;
@@ -80,6 +83,7 @@ export async function loadAgentVenueReadiness(
         accountProbe: body.accountProbe,
         accountSnapshot: body.accountSnapshot,
         executorProbe: body.executorProbe,
+        reconciliation: body.reconciliation ?? null,
         requests: Array.isArray(body.requests) ? body.requests : [],
       }
     : null;

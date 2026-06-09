@@ -86,6 +86,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         signalKey,
         managementKey,
         autoImportSessionSignals: readBooleanField(body, "autoImportSessionSignals"),
+        allowedOrigins: readStringArrayField(body, "allowedOrigins"),
       });
     } catch (error) {
       console.error("[agent-signals] register failed", error);
@@ -206,12 +207,24 @@ export async function POST(request: NextRequest, context: RouteContext) {
       walletName,
       agentId,
       payload: parsed.payload,
+      origin: request.headers.get("origin") ?? request.headers.get("referer"),
     });
   } catch (error) {
     console.error("[agent-signals] enqueue failed", error);
     return NextResponse.json(
       { error: "Could not queue signal." },
       { status: 503 },
+    );
+  }
+  if (!result.accepted) {
+    return NextResponse.json(
+      {
+        error: "Signal rejected by ClearSig abuse controls.",
+        abuseFlags: result.abuseFlags,
+      },
+      {
+        status: result.abuseFlags.includes("rate_limit_exceeded") ? 429 : 403,
+      },
     );
   }
   let automatic:
@@ -250,6 +263,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     id: result.item.id,
     duplicate: result.duplicate,
     receivedAt: result.item.receivedAt,
+    abuseFlags: result.abuseFlags,
     status: result.duplicate
       ? "duplicate_ignored"
       : automatic?.placed

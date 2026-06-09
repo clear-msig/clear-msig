@@ -8,14 +8,17 @@ import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
   AlertTriangle,
+  Bell,
   Bot,
   BrainCircuit,
   Check,
+  ChevronDown,
   CircleDollarSign,
   ClipboardList,
   Clock,
   Database,
   Inbox,
+  KeyRound,
   Lock,
   MessageSquare,
   Plug,
@@ -40,6 +43,7 @@ import {
   approveAgentProposal,
   buildAgentAutomaticExitDecisions,
   buildAgentBetaReadiness,
+  buildAgentNotifications,
   buildAgentScoutProposal,
   buildAgentScoutReports,
   buildAgentMarketReadiness,
@@ -79,7 +83,11 @@ import {
   syncAgentSession,
   syncAgentSessionStatus,
   loadAgentBackendState,
+  markAgentNotificationSeen,
+  markAllAgentNotificationsSeen,
+  readSeenAgentNotificationIds,
   getAgentHyperliquidSetupSettings,
+  subscribeAgentNotifications,
   updateAgentSessionStatus,
   updateAgentStatus,
   type AgentAuditEvent,
@@ -93,7 +101,9 @@ import {
   type AgentVaultPolicy,
   type AgentKind,
   type AgentMarketDataSnapshot,
+  type AgentMarketIntelligenceSnapshot,
   type AgentMarketReadiness,
+  type AgentNotification,
   type AgentReadinessAction,
   type AgentProposalStatus,
   type AgentScoutReport,
@@ -112,7 +122,10 @@ import {
   submitAgentVenueExecution,
   type AgentVenueReadiness,
 } from "@/lib/agents/clientExecution";
-import { loadAgentMarketDataSnapshots } from "@/lib/agents/clientMarketData";
+import {
+  loadAgentMarketDataSnapshots,
+  loadAgentMarketIntelligenceSnapshots,
+} from "@/lib/agents/clientMarketData";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 type BackendPersistenceStatus = {
@@ -166,6 +179,10 @@ export default function AgentsPage() {
   const [proposalCount, setProposalCount] = useState(0);
   const [inboxSummaries, setInboxSummaries] = useState<Record<string, AgentInboxSummary>>({});
   const [marketByMarket, setMarketByMarket] = useState<Record<string, AgentMarketDataSnapshot>>({});
+  const [intelligenceByMarket, setIntelligenceByMarket] = useState<Record<string, AgentMarketIntelligenceSnapshot>>({});
+  const [seenAgentNotifications, setSeenAgentNotifications] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [liveVenueReadiness, setLiveVenueReadiness] =
     useState<AgentVenueReadiness | null>(null);
   const [liveVenueLoading, setLiveVenueLoading] = useState(true);
@@ -229,6 +246,12 @@ export default function AgentsPage() {
   useEffect(() => {
     void refreshBackendState();
   }, [refreshBackendState]);
+
+  useEffect(() => {
+    const refresh = () => setSeenAgentNotifications(readSeenAgentNotificationIds(name));
+    refresh();
+    return subscribeAgentNotifications(refresh);
+  }, [name]);
 
   useEffect(() => {
     if (agents.length === 0) {
@@ -309,11 +332,15 @@ export default function AgentsPage() {
     const watchedMarkets = watchedMarketKey ? watchedMarketKey.split("|") : [];
     if (watchedMarkets.length === 0) {
       setMarketByMarket({});
+      setIntelligenceByMarket({});
       return;
     }
     let cancelled = false;
     void loadAgentMarketDataSnapshots(watchedMarkets).then((snapshots) => {
       if (!cancelled) setMarketByMarket(snapshots);
+    });
+    void loadAgentMarketIntelligenceSnapshots(watchedMarkets).then((snapshots) => {
+      if (!cancelled) setIntelligenceByMarket(snapshots);
     });
     return () => {
       cancelled = true;
@@ -354,12 +381,13 @@ export default function AgentsPage() {
       policy,
       sessions,
       marketByMarket,
+      intelligenceByMarket,
       risksByAgent: Object.fromEntries(
         agents.map((agent) => [agent.id, agentRiskSnapshot(name, agent.id)]),
       ),
       now,
     }).slice(0, 3);
-  }, [agents, marketByMarket, name, policy, sessions]);
+  }, [agents, intelligenceByMarket, marketByMarket, name, policy, sessions]);
   const automaticExitDecisions = useMemo(
     () =>
       buildAgentAutomaticExitDecisions({
@@ -369,6 +397,37 @@ export default function AgentsPage() {
       }),
     [marketByMarket, openExecutionRecords, proposals],
   );
+  const agentNotificationSummary = useMemo(
+    () =>
+      buildAgentNotifications({
+        walletName: name,
+        walletHref: `/app/wallet/${encoded}`,
+        agents,
+        proposals,
+        sessions,
+        executions,
+        events,
+        policy,
+      }),
+    [agents, encoded, events, executions, name, policy, proposals, sessions],
+  );
+  const unreadAgentNotifications = agentNotificationSummary.notifications.filter(
+    (notification) => !seenAgentNotifications.has(notification.id),
+  );
+  const markAgentNoticeSeen = useCallback(
+    (id: string) => {
+      markAgentNotificationSeen(name, id);
+      setSeenAgentNotifications(readSeenAgentNotificationIds(name));
+    },
+    [name],
+  );
+  const markAllAgentNoticesSeen = useCallback(() => {
+    markAllAgentNotificationsSeen(
+      name,
+      agentNotificationSummary.notifications.map((notification) => notification.id),
+    );
+    setSeenAgentNotifications(readSeenAgentNotificationIds(name));
+  }, [agentNotificationSummary.notifications, name]);
   const gettingStartedSteps = useMemo<GettingStartedStep[]>(() => {
     const firstAgent = agents[0];
     const firstReadiness = firstAgent
@@ -517,6 +576,7 @@ export default function AgentsPage() {
       liveVenueReadiness.executorProbe?.state === "ready" &&
       liveVenueReadiness.accountProbe?.state === "funded";
     const snapshots = Object.values(marketByMarket);
+    const intelligence = Object.values(intelligenceByMarket);
     const approvals = listAgentOwnerApprovals(name);
     const connections = listAgentConnectionKits(name);
     return buildAgentMarketReadiness({
@@ -558,8 +618,8 @@ export default function AgentsPage() {
         creatorPayouts: "not_started",
         externalVerification: connections.length > 0 ? "signed_decisions" : "none",
         marketIntelligence: {
-          news: false,
-          macro: false,
+          news: intelligence.some((snapshot) => snapshot.coverage.news),
+          macro: intelligence.some((snapshot) => snapshot.coverage.macro),
           rateLimited: true,
         },
         leaderboardMode: "separated",
@@ -592,6 +652,7 @@ export default function AgentsPage() {
     executions,
     liveVenueLoading,
     liveVenueReadiness,
+    intelligenceByMarket,
     marketByMarket,
     name,
     openExecutionRecords,
@@ -1070,6 +1131,16 @@ export default function AgentsPage() {
         />
       </div>
 
+      <FeatureAccessPanel
+        walletEncoded={encoded}
+        agents={agents}
+        notifications={agentNotificationSummary.notifications.length}
+        marketSnapshots={Object.values(marketByMarket)}
+        intelligenceSnapshots={Object.values(intelligenceByMarket)}
+        onStartDemo={startBetaDemo}
+        pending={pendingAction}
+      />
+
       <div className="flex flex-wrap items-center gap-2">
         {showDeveloperSurfaces ? (
           <button
@@ -1111,26 +1182,15 @@ export default function AgentsPage() {
           Start trading
         </Link>
         <Link
-          href={`/app/wallet/${encoded}/agents/proposals/new`}
+          href="/agents"
           className={clsx(
             "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
             "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
           )}
         >
-          <Send size={13} aria-hidden="true" />
-          Try an idea
-        </Link>
-        <Link
-          href={`/app/wallet/${encoded}/agents/funding`}
-          className={clsx(
-            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
-            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <CircleDollarSign size={13} aria-hidden="true" />
-          Practice allocation
+          <Trophy size={13} aria-hidden="true" />
+          Marketplace
         </Link>
         <Link
           href={`/app/wallet/${encoded}/agents/trades`}
@@ -1143,50 +1203,105 @@ export default function AgentsPage() {
           <TrendingUp size={13} aria-hidden="true" />
           Trades
         </Link>
-        <Link
-          href={`/app/wallet/${encoded}/agents/hyperliquid`}
-          className={clsx(
-            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
-            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <Plug size={13} aria-hidden="true" />
-          Hyperliquid
-        </Link>
-        <Link
-          href={`/app/wallet/${encoded}/agents/approvals`}
-          className={clsx(
-            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
-            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <ClipboardList size={13} aria-hidden="true" />
-          Approvals
-        </Link>
-        <Link
-          href={`/app/wallet/${encoded}/agents/feedback`}
-          className={clsx(
-            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
-            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <MessageSquare size={13} aria-hidden="true" />
-          Feedback
-        </Link>
-        <Link
-          href={`/app/wallet/${encoded}/agents/policy`}
-          className={clsx(
-            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
-            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <SlidersHorizontal size={13} aria-hidden="true" />
-          Safety rules
-        </Link>
+        <details className="group w-full rounded-card border border-border-soft bg-surface-raised px-3 py-2 shadow-card-rest">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold text-text-strong">
+            <span>Advanced controls</span>
+            <ChevronDown
+              className="h-3.5 w-3.5 text-text-soft transition-transform group-open:rotate-180"
+              aria-hidden="true"
+            />
+          </summary>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Link
+              href={`/app/wallet/${encoded}/agents/proposals/new`}
+              className={clsx(
+                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
+                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+              )}
+            >
+              <Send size={13} aria-hidden="true" />
+              Try an idea
+            </Link>
+            <Link
+              href={`/app/wallet/${encoded}/agents/funding`}
+              className={clsx(
+                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
+                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+              )}
+            >
+              <CircleDollarSign size={13} aria-hidden="true" />
+              Practice allocation
+            </Link>
+            <Link
+              href={`/app/wallet/${encoded}/agents/hyperliquid`}
+              className={clsx(
+                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
+                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+              )}
+            >
+              <Plug size={13} aria-hidden="true" />
+              Hyperliquid
+            </Link>
+            <Link
+              href={`/app/wallet/${encoded}/agents/solana`}
+              className={clsx(
+                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
+                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+              )}
+            >
+              <KeyRound size={13} aria-hidden="true" />
+              Solana delegation
+            </Link>
+            <Link
+              href={`/app/wallet/${encoded}/agents/approvals`}
+              className={clsx(
+                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
+                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+              )}
+            >
+              <ClipboardList size={13} aria-hidden="true" />
+              Approvals
+            </Link>
+            <Link
+              href={`/app/wallet/${encoded}/agents/feedback`}
+              className={clsx(
+                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
+                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+              )}
+            >
+              <MessageSquare size={13} aria-hidden="true" />
+              Feedback
+            </Link>
+            <Link
+              href={`/app/wallet/${encoded}/agents/admin`}
+              className={clsx(
+                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
+                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+              )}
+            >
+              <ClipboardList size={13} aria-hidden="true" />
+              Admin
+            </Link>
+            <Link
+              href={`/app/wallet/${encoded}/agents/policy`}
+              className={clsx(
+                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
+                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+              )}
+            >
+              <SlidersHorizontal size={13} aria-hidden="true" />
+              Safety rules
+            </Link>
+          </div>
+        </details>
       </div>
 
       {policy ? (
@@ -1196,6 +1311,16 @@ export default function AgentsPage() {
           onToggle={setKillSwitch}
         />
       ) : null}
+
+      <AgentNotificationsPanel
+        notifications={agentNotificationSummary.notifications}
+        seenIds={seenAgentNotifications}
+        unreadCount={unreadAgentNotifications.length}
+        critical={agentNotificationSummary.critical}
+        warning={agentNotificationSummary.warning}
+        onMarkSeen={markAgentNoticeSeen}
+        onMarkAllSeen={markAllAgentNoticesSeen}
+      />
 
       {agents.length > 0 ? (
         <ReadinessPanel
@@ -1211,6 +1336,12 @@ export default function AgentsPage() {
           reports={scoutReports}
           pending={pendingAction}
           onPrepare={prepareScoutIdea}
+        />
+      ) : null}
+
+      {Object.values(intelligenceByMarket).length > 0 ? (
+        <MarketIntelligencePanel
+          snapshots={Object.values(intelligenceByMarket)}
         />
       ) : null}
 
@@ -1232,6 +1363,8 @@ export default function AgentsPage() {
         <EmptyAgents
           browseHref={`/app/wallet/${encoded}/agents/library`}
           createHref={`/app/wallet/${encoded}/agents/new`}
+          pending={pendingAction}
+          onStartDemo={startBetaDemo}
         />
       ) : (
         <section className="flex flex-col gap-3">
@@ -1429,6 +1562,128 @@ function GettingStartedPanel({ steps }: { steps: GettingStartedStep[] }) {
   );
 }
 
+function FeatureAccessPanel({
+  walletEncoded,
+  agents,
+  notifications,
+  marketSnapshots,
+  intelligenceSnapshots,
+  pending,
+  onStartDemo,
+}: {
+  walletEncoded: string;
+  agents: AgentProfile[];
+  notifications: number;
+  marketSnapshots: AgentMarketDataSnapshot[];
+  intelligenceSnapshots: AgentMarketIntelligenceSnapshot[];
+  pending: boolean;
+  onStartDemo: () => void;
+}) {
+  const publishedAgents = agents.filter((agent) => agent.publishing?.status === "published");
+  const newsConnected = intelligenceSnapshots.some((snapshot) => snapshot.coverage.news);
+  const macroConnected = intelligenceSnapshots.some((snapshot) => snapshot.coverage.macro);
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-text-strong">Test the shipped surfaces</h2>
+          <p className="mt-1 max-w-3xl text-sm leading-relaxed text-text-soft">
+            These are now reachable without hidden routes. Some cards still need
+            trading state, so the demo setup can create safe practice data.
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={onStartDemo}
+          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+          Try demo setup
+        </button>
+      </div>
+      <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+        <FeatureAccessCard
+          title="Marketplace"
+          body="Browse approved public agents and separated track records."
+          status="Open"
+          href="/agents"
+          Icon={Trophy}
+        />
+        <FeatureAccessCard
+          title="Public profiles"
+          body={
+            publishedAgents.length > 0
+              ? `${publishedAgents.length} published profile${publishedAgents.length === 1 ? "" : "s"} in this wallet.`
+              : "Publish and approve an agent to make its public profile visible."
+          }
+          status={publishedAgents.length > 0 ? "Ready" : "Needs published agent"}
+          href={
+            publishedAgents[0]?.publishing
+              ? `/agents/${walletEncoded}/${encodeURIComponent(publishedAgents[0].publishing.slug)}`
+              : `/app/wallet/${walletEncoded}/agents/library`
+          }
+          Icon={ShieldCheck}
+        />
+        <FeatureAccessCard
+          title="Market intelligence"
+          body={`${marketSnapshots.length} priced market${marketSnapshots.length === 1 ? "" : "s"} · news ${newsConnected ? "on" : "not connected"} · macro ${macroConnected ? "on" : "not connected"}.`}
+          status={marketSnapshots.length > 0 ? "Visible in scout" : "Needs active trader"}
+          href={`/app/wallet/${walletEncoded}/agents/start`}
+          Icon={Database}
+        />
+        <FeatureAccessCard
+          title="Notifications"
+          body={
+            notifications > 0
+              ? `${notifications} current trading notice${notifications === 1 ? "" : "s"}.`
+              : "No active trading notices yet. Demo setup can create testable state."
+          }
+          status={notifications > 0 ? "Ready" : "Empty"}
+          href={`/app/wallet/${walletEncoded}/agents`}
+          Icon={Bell}
+        />
+      </div>
+    </section>
+  );
+}
+
+function FeatureAccessCard({
+  title,
+  body,
+  status,
+  href,
+  Icon,
+}: {
+  title: string;
+  body: string;
+  status: string;
+  href: string;
+  Icon: typeof Bot;
+}) {
+  return (
+    <Link
+      href={href}
+      className="rounded-soft border border-border-soft bg-canvas p-3 transition-colors hover:border-accent/50"
+    >
+      <div className="flex items-start gap-2">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-semibold text-text-strong">{title}</p>
+            <span className="rounded-full border border-border-soft px-1.5 py-0.5 text-[10px] font-medium text-text-soft">
+              {status}
+            </span>
+          </div>
+          <p className="mt-1 text-xs leading-relaxed text-text-soft">{body}</p>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 function ReadinessPanel({
   readiness,
   agents,
@@ -1560,6 +1815,118 @@ function ScoutPanel({
   );
 }
 
+function MarketIntelligencePanel({
+  snapshots,
+}: {
+  snapshots: AgentMarketIntelligenceSnapshot[];
+}) {
+  const connectedNews = snapshots.filter((snapshot) => snapshot.coverage.news).length;
+  const connectedMacro = snapshots.filter((snapshot) => snapshot.coverage.macro).length;
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+              <Database className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <div>
+              <h2 className="text-sm font-semibold text-text-strong">
+                Market intelligence
+              </h2>
+              <p className="mt-0.5 text-xs text-text-soft">
+                {snapshots.length} market{snapshots.length === 1 ? "" : "s"} · news {connectedNews > 0 ? "connected" : "not connected"} · macro {connectedMacro > 0 ? "connected" : "not connected"}
+              </p>
+            </div>
+          </div>
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-text-soft">
+            These are the exact data points the scout can cite before preparing
+            a practice idea.
+          </p>
+        </div>
+        <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
+          Price · Funding · News · Macro
+        </span>
+      </div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        {snapshots.slice(0, 4).map((snapshot) => (
+          <article
+            key={snapshot.market}
+            className="rounded-soft border border-border-soft bg-canvas p-3"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold text-text-strong">
+                  {snapshot.market}
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-text-soft">
+                  {snapshot.summary}
+                </p>
+              </div>
+              <span
+                className={clsx(
+                  "rounded-full border px-2 py-1 text-[10px] font-medium",
+                  snapshot.freshnessWarnings.length > 0
+                    ? "border-warning/30 bg-warning/[0.08] text-warning"
+                    : "border-accent/30 bg-accent/[0.08] text-accent",
+                )}
+              >
+                {snapshot.marketData.source === "live" ? "Live market" : "Practice market"}
+              </span>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <ScoutMiniMetric
+                label="Mark"
+                value={formatUsd(snapshot.marketData.markPriceUsd)}
+              />
+              <ScoutMiniMetric
+                label="Funding"
+                value={
+                  snapshot.marketData.fundingRatePct == null
+                    ? "Unknown"
+                    : `${snapshot.marketData.fundingRatePct}%`
+                }
+              />
+              <ScoutMiniMetric label="Items" value={String(snapshot.items.length)} />
+            </div>
+            <div className="mt-3 grid gap-2">
+              {snapshot.items.slice(0, 5).map((item) => (
+                <div
+                  key={`${item.kind}:${item.id}`}
+                  className="rounded-soft border border-border-soft bg-surface-raised px-2 py-1.5"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={clsx(
+                        "rounded-full border px-1.5 py-0.5 text-[10px] font-medium capitalize",
+                        item.source === "coverage-gap"
+                          ? "border-warning/30 bg-warning/[0.08] text-warning"
+                          : item.impact === "bullish"
+                            ? "border-accent/30 bg-accent/[0.08] text-accent"
+                            : item.impact === "bearish"
+                              ? "border-danger/30 bg-danger/[0.06] text-danger"
+                              : "border-border-soft bg-canvas text-text-soft",
+                      )}
+                    >
+                      {item.kind.replace("_", " ")}
+                    </span>
+                    <p className="min-w-0 flex-1 truncate text-[11px] font-semibold text-text-strong">
+                      {item.label}
+                    </p>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-text-soft">
+                    {item.summary}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ScoutCard({
   report,
   pending,
@@ -1599,6 +1966,8 @@ function ScoutCard({
         {report.thesis}
       </p>
       <div className="mt-3 grid gap-2">
+        <ScoutMiniReason label="News" value={report.newsSummary} />
+        <ScoutMiniReason label="Macro" value={report.fundamentalSummary} />
         <ScoutMiniReason label="Risk" value={report.riskPlan} />
         <ScoutMiniReason label="Gate" value={report.policySummary} />
       </div>
@@ -1740,6 +2109,137 @@ function KillSwitchPanel({
   );
 }
 
+function AgentNotificationsPanel({
+  notifications,
+  seenIds,
+  unreadCount,
+  critical,
+  warning,
+  onMarkSeen,
+  onMarkAllSeen,
+}: {
+  notifications: AgentNotification[];
+  seenIds: Set<string>;
+  unreadCount: number;
+  critical: number;
+  warning: number;
+  onMarkSeen: (id: string) => void;
+  onMarkAllSeen: () => void;
+}) {
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            className={clsx(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+              critical > 0
+                ? "bg-rose-500/[0.10] text-rose-300"
+                : warning > 0
+                  ? "bg-warning/[0.08] text-warning"
+                  : "bg-accent/10 text-accent",
+            )}
+          >
+            <Bell className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-text-strong">
+              Trading notifications
+            </h2>
+            <p className="mt-1 text-sm leading-relaxed text-text-soft">
+              {unreadCount > 0
+                ? `${unreadCount} unread notice${unreadCount === 1 ? "" : "s"} need attention.`
+                : "All current trading notices have been read."}
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
+            {critical} urgent · {warning} warning
+          </span>
+          {unreadCount > 0 ? (
+            <button
+              type="button"
+              onClick={onMarkAllSeen}
+              className="inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-border-soft px-2 py-1 text-[11px] font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
+            >
+              Mark all read
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      {notifications.length === 0 ? (
+        <div className="mt-4 rounded-soft border border-dashed border-border-soft bg-canvas px-3 py-3">
+          <p className="text-xs font-semibold text-text-strong">
+            No trading notices right now
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-text-soft">
+            Notices appear here when a trade needs approval, an idea is blocked,
+            a trade opens or closes, an allowance is near expiry, or marketplace
+            review changes.
+          </p>
+        </div>
+      ) : (
+      <ul className="mt-4 grid gap-2">
+        {notifications.slice(0, 5).map((notification) => {
+          const seen = seenIds.has(notification.id);
+          return (
+            <li
+              key={notification.id}
+              className={clsx(
+                "rounded-soft border px-3 py-3",
+                seen
+                  ? "border-border-soft bg-canvas"
+                  : notification.severity === "critical"
+                    ? "border-rose-500/30 bg-rose-500/[0.08]"
+                    : notification.severity === "warning"
+                      ? "border-warning/30 bg-warning/[0.08]"
+                      : "border-accent/20 bg-accent/[0.05]",
+              )}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <Link
+                  href={notification.href}
+                  onClick={() => onMarkSeen(notification.id)}
+                  className="min-w-0 flex-1"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs font-semibold text-text-strong">
+                      {notification.title}
+                    </p>
+                    {!seen ? (
+                      <span className="rounded-full bg-accent px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-text-on-accent">
+                        New
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-text-soft">
+                    {notification.body}
+                  </p>
+                  <p className="mt-1 text-[11px] text-text-soft">
+                    {formatAgentNoticeTime(notification.createdAt)}
+                  </p>
+                </Link>
+                {!seen ? (
+                  <button
+                    type="button"
+                    onClick={() => onMarkSeen(notification.id)}
+                    className="inline-flex min-h-8 items-center justify-center rounded-soft border border-border-soft px-2 py-1 text-[11px] font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
+                  >
+                    Read
+                  </button>
+                ) : null}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      )}
+    </section>
+  );
+}
+
 function LiveVenuePanel({
   readiness,
   loading,
@@ -1754,6 +2254,7 @@ function LiveVenuePanel({
     readiness.executorProbe?.state === "ready" &&
     readiness.accountProbe?.state === "funded";
   const unavailable = !loading && !readiness;
+  const reconciliation = readiness?.reconciliation ?? null;
   const title = loading
     ? "Checking practice account"
     : connected
@@ -1825,6 +2326,56 @@ function LiveVenuePanel({
           </Link>
         </div>
       </div>
+      {reconciliation ? (
+        <div className="mt-4 grid gap-2 border-t border-border-soft pt-3 sm:grid-cols-4">
+          <div className="rounded-soft border border-border-soft bg-canvas px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+              Venue check
+            </p>
+            <p
+              className={clsx(
+                "mt-1 text-xs font-semibold",
+                reconciliation.status === "healthy"
+                  ? "text-accent"
+                  : reconciliation.status === "blocked"
+                    ? "text-danger"
+                    : "text-warning",
+              )}
+            >
+              {reconciliation.label}
+            </p>
+          </div>
+          <div className="rounded-soft border border-border-soft bg-canvas px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+              Submitted
+            </p>
+            <p className="mt-1 text-xs font-semibold text-text-strong">
+              {reconciliation.submittedRequests}
+            </p>
+          </div>
+          <div className="rounded-soft border border-border-soft bg-canvas px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+              Live positions
+            </p>
+            <p className="mt-1 text-xs font-semibold text-text-strong">
+              {reconciliation.exchangeOpenPositions}
+            </p>
+          </div>
+          <div className="rounded-soft border border-border-soft bg-canvas px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+              Mismatches
+            </p>
+            <p className="mt-1 text-xs font-semibold text-text-strong">
+              {reconciliation.unmatchedPositions + reconciliation.missingOrderIds}
+            </p>
+          </div>
+          {reconciliation.issues.length > 0 ? (
+            <p className="text-xs leading-relaxed text-text-soft sm:col-span-4">
+              {reconciliation.message}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -1901,9 +2452,13 @@ function MetricCard({
 function EmptyAgents({
   browseHref,
   createHref,
+  pending,
+  onStartDemo,
 }: {
   browseHref: string;
   createHref: string;
+  pending: boolean;
+  onStartDemo: () => void;
 }) {
   return (
     <div className="rounded-card border border-dashed border-border-soft bg-surface-raised p-8 text-center shadow-card-rest">
@@ -1932,6 +2487,15 @@ function EmptyAgents({
           <Plus size={13} aria-hidden="true" />
           Create your own
         </Link>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={onStartDemo}
+          className="inline-flex items-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <Sparkles size={13} aria-hidden="true" />
+          Try demo setup
+        </button>
       </div>
     </div>
   );
@@ -2484,6 +3048,33 @@ function AgentCard({
                   Review allowance
                 </Link>
               ) : null}
+            </div>
+          ) : null}
+          {agent.publishing?.status === "published" ? (
+            <div className="mt-3 rounded-soft border border-border-soft bg-canvas px-3 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-semibold text-text-strong">
+                    Public profile
+                  </p>
+                  <p className="mt-0.5 text-xs text-text-soft">
+                    {agent.publishing.moderation?.status === "approved"
+                      ? "Visible in the public profile and marketplace."
+                      : `Waiting for ${agent.publishing.moderation?.status?.replace("_", " ") ?? "review"}.`}
+                  </p>
+                </div>
+                <Link
+                  href={
+                    agent.publishing.moderation?.status === "approved"
+                      ? `/agents/${walletEncoded}/${encodeURIComponent(agent.publishing.slug)}`
+                      : `/app/wallet/${walletEncoded}/agents/${encodeURIComponent(agent.id)}#publishing`
+                  }
+                  className="inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-border-soft px-2 py-1 text-[11px] font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
+                >
+                  {agent.publishing.moderation?.status === "approved" ? "Open profile" : "Review"}
+                  <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                </Link>
+              </div>
             </div>
           ) : null}
           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -3078,6 +3669,16 @@ function formatNumber(value: number): string {
   return Number.isFinite(value)
     ? value.toLocaleString("en-US", { maximumFractionDigits: 2 })
     : "0";
+}
+
+function formatAgentNoticeTime(value: number): string {
+  const deltaMs = Date.now() - value;
+  const minutes = Math.max(0, Math.round(deltaMs / 60_000));
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return new Date(value).toLocaleDateString();
 }
 
 function SessionCard({

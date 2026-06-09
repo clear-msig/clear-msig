@@ -38,11 +38,24 @@ Product language:
   accounting layer. The incentive for creators is to improve their own agents
   because better performance can attract user allocations and future
   performance fees.
+- Hyperliquid execution follows a delegated API-wallet model. The funded
+  account address is where collateral and positions live. The API/agent wallet
+  public address is the delegated signer approved by that account. The API
+  wallet private key must live only in a protected executor or user-owned
+  runtime, never in the browser or public agent metadata. ClearSig still
+  re-checks allowance, policy, market, leverage, cooldown, and kill switch
+  before every order.
+- Delegated API wallets need lifecycle controls. ClearSig tracks whether the
+  signer is active, needs rotation, or has been revoked; users must revoke or
+  rotate the signer on Hyperliquid and then update ClearSig so the beta flow,
+  operator view, and executor checks stop trusting stale keys.
 
 ## Non-Negotiable Boundaries
 
 - Agents never receive raw wallet custody.
 - Agents never bypass ClearSig policy.
+- Public keys alone do not trade. They identify approved delegated signers;
+  the corresponding private signing key must stay isolated and policy-gated.
 - ClearSig does not need to host a creator's agent runtime, private model,
   data pipeline, exchange keys, or training infrastructure.
 - Solana remains the authority layer.
@@ -342,6 +355,15 @@ Phase 6 has started with policy hash binding:
 - emergency pause remains a public revocation/kill-switch state outside the
   private policy commitment, so it can be toggled immediately even when policy
   controls are encrypted.
+- Solana-style agent delegation setup is now tracked per wallet and agent. The
+  setup captures the agent signer public key, allowed venues, allowed markets,
+  max notional, leverage, open-position limit, expiry, current policy hash, and
+  lifecycle state. This gives ClearSig the same standard boundary as serious
+  delegated-agent products: the agent has an identity for signed intents, while
+  ClearSig remains the rule engine and future on-chain authority layer.
+- Delegations can be marked active, rotation-required, or revoked from the UI.
+  A stale policy hash, expired grant, revoked signer, or rotation-required
+  signer blocks readiness before any Solana/Ika executor path should trust it.
 
 ## Phase 7: Creator-Owned Agent Network
 
@@ -414,11 +436,31 @@ controlled paper testing, public paper testing, and live-capital readiness.
 Locked public-beta build order:
 
 1. Production persistence hard gate. **Completed.**
-2. Public agent profile pages.
-3. Creator marketplace registry.
-4. Real market/news/macro data layer.
-5. Notifications.
-6. Admin beta dashboard.
+2. Public agent profile pages. **Completed.**
+3. Creator marketplace registry. **Completed.**
+4. Real market/news/macro data layer. **Completed.**
+5. Notifications. **Completed.**
+6. Admin beta dashboard. **Completed.**
+
+Feature discoverability pass: **Completed.** Agent Trading now exposes direct
+entry points for marketplace, public profiles, market intelligence, notifications,
+and demo setup so testers do not need hidden routes or debug flags to exercise
+the shipped surfaces.
+
+Better user onboarding: **Completed.** The Agent Trading overview now leads
+with the retail beta path: choose an agent, start trading, browse the
+marketplace, and watch trades. Advanced setup surfaces such as manual ideas,
+practice allocation tuning, Hyperliquid setup, approvals, feedback, and safety
+rules are grouped under an advanced controls drawer instead of competing with
+the beginner flow.
+
+Beta journey polish: **Completed.** Start Trading now shows the full public
+beta journey in one sequence, keeps practice/testnet labels visible, and
+surfaces trust/failure notices for paused trading, missing market data, venue
+reconciliation issues, pending venue requests, and protected executor errors.
+The Trades and Marketplace surfaces label paper, testnet, and verified-live
+evidence separately so testers cannot confuse simulated behavior with real
+capital performance.
 
 1. **Production-grade persistence**
    - Public beta requires Redis or database-backed agent state. Browser,
@@ -434,10 +476,26 @@ Locked public-beta build order:
    - A trade is not considered verified live performance until ClearSig can
      reconcile exchange fills, positions, fees, funding, closed PnL, and order
      artifacts against the protected venue adapter.
+   - Current implementation: venue readiness now returns a reconciliation
+     summary for Hyperliquid testnet that compares submitted ClearSig requests
+     with live open positions, flags missing exchange order IDs, warns about
+     unmatched venue positions, and blocks trust when venue account state is
+     unavailable. The Agent Trading overview exposes this as a visible venue
+     check.
 4. **Creator marketplace**
    - Published agents need creator identity, strategy summary, supported
      markets, supported venues, public profile status, disclosures, and
      signing-key metadata before broad discovery.
+   - Current implementation: approved published agents now have wallet-scoped
+     public profile pages and a JSON profile API. Draft, pending, paused, and
+     delisted profiles stay hidden. Profiles show separated paper/testnet/live
+     lanes, public decision journals, recent trades, and ClearSig disclosures
+     without exposing owner-only controls or connection secrets.
+   - Current implementation: `/agents` and `/api/agent-marketplace` now expose
+     a moderated creator registry from an explicit wallet allowlist. The
+     registry ranks only approved public profiles, keeps paper/testnet/live
+     records separated, supports market/source filters, and avoids scanning
+     arbitrary user wallets.
 5. **Creator payouts**
    - No payout flow ships for real capital until high-water marks, performance
      fee rules, disputes, taxes, legal review, and venue reconciliation are
@@ -454,6 +512,13 @@ Locked public-beta build order:
    - The data layer must support provider-neutral prices, funding, open
      interest, volume, news/events, macro context, timestamps, freshness, and
      provider quality controls. Agents must cite what data they used.
+   - Current implementation: market-data snapshots now compose into normalized
+     market-intelligence snapshots. Hyperliquid supplies live price, funding,
+     open-interest, and volume data; configured JSON feeds
+     `CLEARSIG_AGENT_NEWS_JSON_URL` and `CLEARSIG_AGENT_MACRO_JSON_URL` can add
+     source-attributed news and macro items. Scout reports and trade decision
+     journals cite connected news/macro context when available and clearly state
+     when those providers are absent.
 8. **Paper/live leaderboard separation**
    - Paper, testnet, and verified live records must never be blended. Public
      profiles and allocation recommendations must label the track-record
@@ -462,7 +527,16 @@ Locked public-beta build order:
      Testnet, and Verified live track-record lanes from recorded proposals and
      executions. Users can switch the visible source before comparing score,
      rank, P/L, win rate, trade tape, and allowance recommendations.
-9. **Compliance disclosures**
+9. **Agent notifications**
+   - Users need a durable operational notice layer for trades needing approval,
+     blocked ideas, open/closed trades, expiring allowances, kill-switch events,
+     and marketplace review changes. These notices must outlive transient
+     toasts and point users back to the affected agent or trade.
+   - Current implementation: the Agent Trading dashboard now derives priority
+     notifications from durable agent state, supports local read/unread state,
+     and exposes urgent/warning counts with direct links to the relevant
+     trading surface.
+10. **Compliance disclosures**
    - Users need clear disclosures for simulation, automation, leverage,
      creator-owned agents, performance fees, data limits, and the fact that
      past performance does not guarantee future returns.
@@ -470,17 +544,25 @@ Locked public-beta build order:
      per-practice-venue disclosure acknowledgement before automatic trading.
      The disclosure gate covers simulation/testnet limits, automation,
      leverage, creator-owned agents, data limitations, and future creator fees.
-10. **Admin moderation**
+11. **Admin moderation**
    - ClearSig needs admin workflows to review, pause, delist, investigate, and
      audit published agents before a public marketplace is open.
    - Current implementation: published agent profiles now carry marketplace
      moderation status. Profiles start as pending review, can be approved,
      paused, or delisted from the agent detail page, and every moderation
      change is written to the agent audit log.
-11. **Abuse and rate-limit controls**
+   - Current implementation: `/app/wallet/[wallet]/agents/admin` now provides
+     a beta operator dashboard with launch blockers, venue health, moderation
+     queue, risky agents, tester feedback, and market-readiness checks.
+12. **Abuse and rate-limit controls**
    - Agent APIs need origin checks, per-agent rate limits, signal-key controls,
      bounded body sizes, freshness checks, duplicate protection, signed
      decisions, and abuse monitoring.
+   - Current implementation: signal registration can now store an endpoint
+     origin allowlist. Signal enqueue rejects missing retry metadata, stale or
+     future timestamps, disallowed origins, and per-agent bursts while keeping
+     idempotent duplicate retries harmless. The signal API returns explicit
+     abuse flags and 429s rate-limited submissions.
 
 ## Demo-Ready Build Order
 

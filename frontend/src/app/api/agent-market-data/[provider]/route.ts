@@ -3,6 +3,7 @@ import { clientIp } from "@/lib/api/guard";
 import { checkRateLimit } from "@/lib/api/rateLimit";
 import {
   fetchAgentMarketData,
+  fetchAgentMarketIntelligence,
   isAgentMarketDataProviderId,
   serverAgentMarketDataReadiness,
 } from "@/lib/agents/serverMarketDataAdapters";
@@ -36,7 +37,25 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 
   const market = request.nextUrl.searchParams.get("market") ?? "";
+  const includeIntelligence =
+    request.nextUrl.searchParams.get("include") === "intelligence";
   try {
+    if (includeIntelligence) {
+      const intelligence = await fetchAgentMarketIntelligence({ provider, market });
+      return NextResponse.json(
+        {
+          ok: true,
+          readiness,
+          snapshot: intelligence.marketData,
+          intelligence,
+        },
+        {
+          headers: {
+            "Cache-Control": "no-store",
+          },
+        },
+      );
+    }
     const snapshot = await fetchAgentMarketData({ provider, market });
     return NextResponse.json(
       { ok: true, readiness, snapshot },
