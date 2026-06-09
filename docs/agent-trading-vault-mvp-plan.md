@@ -417,7 +417,7 @@ Locked public-beta build order:
 2. Public agent profile pages. **Completed.**
 3. Creator marketplace registry. **Completed.**
 4. Real market/news/macro data layer. **Completed.**
-5. Notifications.
+5. Notifications. **Completed.**
 6. Admin beta dashboard.
 
 1. **Production-grade persistence**
@@ -479,7 +479,16 @@ Locked public-beta build order:
      Testnet, and Verified live track-record lanes from recorded proposals and
      executions. Users can switch the visible source before comparing score,
      rank, P/L, win rate, trade tape, and allowance recommendations.
-9. **Compliance disclosures**
+9. **Agent notifications**
+   - Users need a durable operational notice layer for trades needing approval,
+     blocked ideas, open/closed trades, expiring allowances, kill-switch events,
+     and marketplace review changes. These notices must outlive transient
+     toasts and point users back to the affected agent or trade.
+   - Current implementation: the Agent Trading dashboard now derives priority
+     notifications from durable agent state, supports local read/unread state,
+     and exposes urgent/warning counts with direct links to the relevant
+     trading surface.
+10. **Compliance disclosures**
    - Users need clear disclosures for simulation, automation, leverage,
      creator-owned agents, performance fees, data limits, and the fact that
      past performance does not guarantee future returns.
@@ -487,14 +496,14 @@ Locked public-beta build order:
      per-practice-venue disclosure acknowledgement before automatic trading.
      The disclosure gate covers simulation/testnet limits, automation,
      leverage, creator-owned agents, data limitations, and future creator fees.
-10. **Admin moderation**
+11. **Admin moderation**
    - ClearSig needs admin workflows to review, pause, delist, investigate, and
      audit published agents before a public marketplace is open.
    - Current implementation: published agent profiles now carry marketplace
      moderation status. Profiles start as pending review, can be approved,
      paused, or delisted from the agent detail page, and every moderation
      change is written to the agent audit log.
-11. **Abuse and rate-limit controls**
+12. **Abuse and rate-limit controls**
    - Agent APIs need origin checks, per-agent rate limits, signal-key controls,
      bounded body sizes, freshness checks, duplicate protection, signed
      decisions, and abuse monitoring.

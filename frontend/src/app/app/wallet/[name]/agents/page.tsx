@@ -8,6 +8,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
   AlertTriangle,
+  Bell,
   Bot,
   BrainCircuit,
   Check,
@@ -40,6 +41,7 @@ import {
   approveAgentProposal,
   buildAgentAutomaticExitDecisions,
   buildAgentBetaReadiness,
+  buildAgentNotifications,
   buildAgentScoutProposal,
   buildAgentScoutReports,
   buildAgentMarketReadiness,
@@ -79,7 +81,11 @@ import {
   syncAgentSession,
   syncAgentSessionStatus,
   loadAgentBackendState,
+  markAgentNotificationSeen,
+  markAllAgentNotificationsSeen,
+  readSeenAgentNotificationIds,
   getAgentHyperliquidSetupSettings,
+  subscribeAgentNotifications,
   updateAgentSessionStatus,
   updateAgentStatus,
   type AgentAuditEvent,
@@ -95,6 +101,7 @@ import {
   type AgentMarketDataSnapshot,
   type AgentMarketIntelligenceSnapshot,
   type AgentMarketReadiness,
+  type AgentNotification,
   type AgentReadinessAction,
   type AgentProposalStatus,
   type AgentScoutReport,
@@ -171,6 +178,9 @@ export default function AgentsPage() {
   const [inboxSummaries, setInboxSummaries] = useState<Record<string, AgentInboxSummary>>({});
   const [marketByMarket, setMarketByMarket] = useState<Record<string, AgentMarketDataSnapshot>>({});
   const [intelligenceByMarket, setIntelligenceByMarket] = useState<Record<string, AgentMarketIntelligenceSnapshot>>({});
+  const [seenAgentNotifications, setSeenAgentNotifications] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [liveVenueReadiness, setLiveVenueReadiness] =
     useState<AgentVenueReadiness | null>(null);
   const [liveVenueLoading, setLiveVenueLoading] = useState(true);
@@ -234,6 +244,12 @@ export default function AgentsPage() {
   useEffect(() => {
     void refreshBackendState();
   }, [refreshBackendState]);
+
+  useEffect(() => {
+    const refresh = () => setSeenAgentNotifications(readSeenAgentNotificationIds(name));
+    refresh();
+    return subscribeAgentNotifications(refresh);
+  }, [name]);
 
   useEffect(() => {
     if (agents.length === 0) {
@@ -379,6 +395,37 @@ export default function AgentsPage() {
       }),
     [marketByMarket, openExecutionRecords, proposals],
   );
+  const agentNotificationSummary = useMemo(
+    () =>
+      buildAgentNotifications({
+        walletName: name,
+        walletHref: `/app/wallet/${encoded}`,
+        agents,
+        proposals,
+        sessions,
+        executions,
+        events,
+        policy,
+      }),
+    [agents, encoded, events, executions, name, policy, proposals, sessions],
+  );
+  const unreadAgentNotifications = agentNotificationSummary.notifications.filter(
+    (notification) => !seenAgentNotifications.has(notification.id),
+  );
+  const markAgentNoticeSeen = useCallback(
+    (id: string) => {
+      markAgentNotificationSeen(name, id);
+      setSeenAgentNotifications(readSeenAgentNotificationIds(name));
+    },
+    [name],
+  );
+  const markAllAgentNoticesSeen = useCallback(() => {
+    markAllAgentNotificationsSeen(
+      name,
+      agentNotificationSummary.notifications.map((notification) => notification.id),
+    );
+    setSeenAgentNotifications(readSeenAgentNotificationIds(name));
+  }, [agentNotificationSummary.notifications, name]);
   const gettingStartedSteps = useMemo<GettingStartedStep[]>(() => {
     const firstAgent = agents[0];
     const firstReadiness = firstAgent
@@ -1209,6 +1256,18 @@ export default function AgentsPage() {
         />
       ) : null}
 
+      {agentNotificationSummary.notifications.length > 0 ? (
+        <AgentNotificationsPanel
+          notifications={agentNotificationSummary.notifications}
+          seenIds={seenAgentNotifications}
+          unreadCount={unreadAgentNotifications.length}
+          critical={agentNotificationSummary.critical}
+          warning={agentNotificationSummary.warning}
+          onMarkSeen={markAgentNoticeSeen}
+          onMarkAllSeen={markAllAgentNoticesSeen}
+        />
+      ) : null}
+
       {agents.length > 0 ? (
         <ReadinessPanel
           readiness={readiness}
@@ -1748,6 +1807,124 @@ function KillSwitchPanel({
           {paused ? "Allow trading again" : "Stop all trading"}
         </button>
       </div>
+    </section>
+  );
+}
+
+function AgentNotificationsPanel({
+  notifications,
+  seenIds,
+  unreadCount,
+  critical,
+  warning,
+  onMarkSeen,
+  onMarkAllSeen,
+}: {
+  notifications: AgentNotification[];
+  seenIds: Set<string>;
+  unreadCount: number;
+  critical: number;
+  warning: number;
+  onMarkSeen: (id: string) => void;
+  onMarkAllSeen: () => void;
+}) {
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            className={clsx(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+              critical > 0
+                ? "bg-rose-500/[0.10] text-rose-300"
+                : warning > 0
+                  ? "bg-warning/[0.08] text-warning"
+                  : "bg-accent/10 text-accent",
+            )}
+          >
+            <Bell className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-text-strong">
+              Trading notifications
+            </h2>
+            <p className="mt-1 text-sm leading-relaxed text-text-soft">
+              {unreadCount > 0
+                ? `${unreadCount} unread notice${unreadCount === 1 ? "" : "s"} need attention.`
+                : "All current trading notices have been read."}
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
+            {critical} urgent · {warning} warning
+          </span>
+          {unreadCount > 0 ? (
+            <button
+              type="button"
+              onClick={onMarkAllSeen}
+              className="inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-border-soft px-2 py-1 text-[11px] font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
+            >
+              Mark all read
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <ul className="mt-4 grid gap-2">
+        {notifications.slice(0, 5).map((notification) => {
+          const seen = seenIds.has(notification.id);
+          return (
+            <li
+              key={notification.id}
+              className={clsx(
+                "rounded-soft border px-3 py-3",
+                seen
+                  ? "border-border-soft bg-canvas"
+                  : notification.severity === "critical"
+                    ? "border-rose-500/30 bg-rose-500/[0.08]"
+                    : notification.severity === "warning"
+                      ? "border-warning/30 bg-warning/[0.08]"
+                      : "border-accent/20 bg-accent/[0.05]",
+              )}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <Link
+                  href={notification.href}
+                  onClick={() => onMarkSeen(notification.id)}
+                  className="min-w-0 flex-1"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs font-semibold text-text-strong">
+                      {notification.title}
+                    </p>
+                    {!seen ? (
+                      <span className="rounded-full bg-accent px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-text-on-accent">
+                        New
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-text-soft">
+                    {notification.body}
+                  </p>
+                  <p className="mt-1 text-[11px] text-text-soft">
+                    {formatAgentNoticeTime(notification.createdAt)}
+                  </p>
+                </Link>
+                {!seen ? (
+                  <button
+                    type="button"
+                    onClick={() => onMarkSeen(notification.id)}
+                    className="inline-flex min-h-8 items-center justify-center rounded-soft border border-border-soft px-2 py-1 text-[11px] font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
+                  >
+                    Read
+                  </button>
+                ) : null}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }
@@ -3090,6 +3267,16 @@ function formatNumber(value: number): string {
   return Number.isFinite(value)
     ? value.toLocaleString("en-US", { maximumFractionDigits: 2 })
     : "0";
+}
+
+function formatAgentNoticeTime(value: number): string {
+  const deltaMs = Date.now() - value;
+  const minutes = Math.max(0, Math.round(deltaMs / 60_000));
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return new Date(value).toLocaleDateString();
 }
 
 function SessionCard({
