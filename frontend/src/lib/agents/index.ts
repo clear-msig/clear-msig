@@ -36,3 +36,4 @@ export * from "@/lib/agents/publicProfile";
 export * from "@/lib/agents/marketplaceRegistry";
 export * from "@/lib/agents/notifications";
 export * from "@/lib/agents/venueReconciliation";
+export * from "@/lib/agents/solanaDelegation";

@@ -18,6 +18,7 @@ import {
   Clock,
   Database,
   Inbox,
+  KeyRound,
   Lock,
   MessageSquare,
   Plug,
@@ -1243,6 +1244,17 @@ export default function AgentsPage() {
             >
               <Plug size={13} aria-hidden="true" />
               Hyperliquid
+            </Link>
+            <Link
+              href={`/app/wallet/${encoded}/agents/solana`}
+              className={clsx(
+                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
+                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+              )}
+            >
+              <KeyRound size={13} aria-hidden="true" />
+              Solana delegation
             </Link>
             <Link
               href={`/app/wallet/${encoded}/agents/approvals`}

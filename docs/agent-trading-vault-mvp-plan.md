@@ -355,6 +355,15 @@ Phase 6 has started with policy hash binding:
 - emergency pause remains a public revocation/kill-switch state outside the
   private policy commitment, so it can be toggled immediately even when policy
   controls are encrypted.
+- Solana-style agent delegation setup is now tracked per wallet and agent. The
+  setup captures the agent signer public key, allowed venues, allowed markets,
+  max notional, leverage, open-position limit, expiry, current policy hash, and
+  lifecycle state. This gives ClearSig the same standard boundary as serious
+  delegated-agent products: the agent has an identity for signed intents, while
+  ClearSig remains the rule engine and future on-chain authority layer.
+- Delegations can be marked active, rotation-required, or revoked from the UI.
+  A stale policy hash, expired grant, revoked signer, or rotation-required
+  signer blocks readiness before any Solana/Ika executor path should trust it.
 
 ## Phase 7: Creator-Owned Agent Network
 
