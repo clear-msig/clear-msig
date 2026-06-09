@@ -31,3 +31,4 @@ export * from "@/lib/agents/marketData";
 export * from "@/lib/agents/serverMarketDataAdapters";
 export * from "@/lib/agents/clientState";
 export * from "@/lib/agents/ownerApproval";
+export * from "@/lib/agents/publicProfile";

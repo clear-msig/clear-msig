@@ -94,6 +94,7 @@ import {
 } from "@/lib/agents/clientInbox";
 import { submitAgentVenueExecution } from "@/lib/agents/clientExecution";
 import { loadAgentMarketDataSnapshots } from "@/lib/agents/clientMarketData";
+import { publicProfileUrl } from "@/lib/agents/publicProfile";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 export default function AgentDetailPage() {
@@ -1317,7 +1318,10 @@ function PublishingPanel({
   const published = agent.publishing?.status === "published";
   const moderation = agent.publishing?.moderation;
   const slug = agent.publishing?.slug ?? "not-published";
-  const previewHref = `/app/wallet/${walletEncoded}/agents/${encodeURIComponent(agent.id)}`;
+  const previewHref = publicProfileUrl(
+    decodeParam(walletEncoded),
+    agent.publishing?.slug ?? agent.id,
+  );
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2265,7 +2269,7 @@ function publishedProfileText({
     `${agent.name} by ClearSig`,
     publishing?.publicSummary ?? agent.description ?? "Published agent profile",
     "",
-    `Profile: ${publishing?.slug ?? agent.id}`,
+    `Profile: ${publicProfileUrl(agent.walletName, publishing?.slug ?? agent.id)}`,
     `Status: ${agent.status}`,
     `Marketplace review: ${moderationLabel(publishing?.moderation?.status ?? "pending_review")}`,
     `Score: ${leaderboard?.score ?? 50}`,

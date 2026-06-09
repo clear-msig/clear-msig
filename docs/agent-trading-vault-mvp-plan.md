@@ -414,7 +414,7 @@ controlled paper testing, public paper testing, and live-capital readiness.
 Locked public-beta build order:
 
 1. Production persistence hard gate. **Completed.**
-2. Public agent profile pages.
+2. Public agent profile pages. **Completed.**
 3. Creator marketplace registry.
 4. Real market/news/macro data layer.
 5. Notifications.
@@ -438,6 +438,11 @@ Locked public-beta build order:
    - Published agents need creator identity, strategy summary, supported
      markets, supported venues, public profile status, disclosures, and
      signing-key metadata before broad discovery.
+   - Current implementation: approved published agents now have wallet-scoped
+     public profile pages and a JSON profile API. Draft, pending, paused, and
+     delisted profiles stay hidden. Profiles show separated paper/testnet/live
+     lanes, public decision journals, recent trades, and ClearSig disclosures
+     without exposing owner-only controls or connection secrets.
 5. **Creator payouts**
    - No payout flow ships for real capital until high-water marks, performance
      fee rules, disputes, taxes, legal review, and venue reconciliation are
