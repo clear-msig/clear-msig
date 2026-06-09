@@ -523,6 +523,21 @@ select:focus-visible {
   backdrop-filter: blur(20px);
 }
 
+.landing-shell .product-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02)),
+    #101114;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 20px 60px -28px rgba(0, 0, 0, 0.75),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.landing-shell .product-field {
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.075);
+}
+
 /* Signing-state typing dots - three lime dots that pulse one
  * after the other. Used by the landing bento "Ada is signing..."
  * row and by the /app/secure VaultMockup. Generalised (no

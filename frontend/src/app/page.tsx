@@ -24,12 +24,18 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion, useInView, useReducedMotion } from "framer-motion";
 import {
+  Activity,
   ArrowRight,
+  Bot,
   Check,
+  CircleDollarSign,
+  Gauge,
   Lock,
+  ReceiptText,
   Send,
   ShieldCheck,
   Sparkles,
+  TrendingUp,
   UserPlus,
   Users,
   X,
@@ -117,6 +123,8 @@ export default function HomePage() {
 
         <Methodology fadeIn={fadeIn} />
 
+        <AgentControlSection fadeIn={fadeIn} />
+
         <SecureSection />
 
         <PricingSection />
@@ -143,7 +151,7 @@ function Hero({ fadeIn }: { fadeIn: FadeInFn }) {
         <motion.div {...fadeIn(0)} className="flex items-center gap-2">
           <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_4px_rgba(204, 255, 0,0.4)]" />
           <span className="font-mono-tech text-[9px] uppercase tracking-[0.3em] text-white/60 sm:text-[10px] sm:tracking-[0.32em]">
-            Shared wallets · for friends and family
+            Clear signing for shared money
           </span>
         </motion.div>
 
@@ -151,18 +159,19 @@ function Hero({ fadeIn }: { fadeIn: FadeInFn }) {
           {...fadeIn(0.06)}
           className="mt-5 text-[clamp(2.75rem,9vw,7.5rem)] font-medium leading-[0.88] tracking-[-0.04em] text-white sm:mt-7 sm:leading-[0.85] sm:tracking-[-0.05em]"
         >
-          Send money
+          Control money
           <br />
           with people
           <br />
-          you <span className="italic-skew">trust</span>.
+          and <span className="italic-skew">agents</span>.
         </motion.h1>
 
         <motion.p
           {...fadeIn(0.14)}
           className="mt-6 max-w-md text-[15px] leading-relaxed text-white/60 sm:mt-8 sm:text-lg"
         >
-          A shared wallet for friends, family, or your team. Anyone can ask, everyone agrees, and nobody has to handle keys alone.
+          ClearSig turns wallets, policies, approvals, recovery, and agent
+          trading into one readable signing flow.
         </motion.p>
 
         <motion.div {...fadeIn(0.2)} className="mt-8 flex flex-wrap items-center gap-3 sm:mt-10 sm:gap-4">
@@ -188,8 +197,8 @@ function Hero({ fadeIn }: { fadeIn: FadeInFn }) {
         >
           {[
             { v: "5", l: "chains" },
-            { v: "1", l: "address" },
-            { v: "0", l: "vaults" },
+            { v: "1", l: "flow" },
+            { v: "24/7", l: "policy" },
           ].map((s) => (
             <div key={s.l}>
               <div className="text-2xl font-light tracking-tight text-white sm:text-4xl">{s.v}</div>
@@ -226,7 +235,7 @@ function HeroMockup() {
   ];
 
   return (
-    <div className="hero-mockup-wrap relative w-full max-w-md mx-auto lg:max-w-[440px] lg:mx-0 lg:ml-auto">
+    <div className="hero-mockup-wrap relative mx-auto w-full max-w-[520px] lg:mx-0 lg:ml-auto">
       {/* Ambient lime + purple backdrop glows - sit behind the card
           (-z-10) so the card looks like it's blooming out of light. */}
       <div
@@ -252,12 +261,12 @@ function HeroMockup() {
           3D tilt + fixed aspect ratio was squashing/clipping content;
           a clean flat card with strong shadow reads as a real product
           screenshot without the distortion. */}
-      <div className="hero-mockup-card relative flex flex-col overflow-hidden rounded-[2rem] p-5 sm:p-6">
+      <div className="product-card relative flex flex-col overflow-hidden rounded-[1.35rem] p-4 sm:p-5">
           {/* Inner specular highlight - mimics light hitting a tilted
               glass panel. Cheap CSS gradient, no extra DOM cost. */}
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 rounded-[2rem]"
+            className="pointer-events-none absolute inset-0 rounded-[1.35rem]"
             style={{
               background:
                 "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 35%, rgba(255,255,255,0) 70%, rgba(204, 255, 0,0.05) 100%)",
@@ -273,8 +282,8 @@ function HeroMockup() {
                 <ClearCMark size={20} variant="on-light" />
               </span>
               <div className="leading-tight">
-                <div className="text-[13px] font-semibold text-white">Family pot</div>
-                <div className="text-[11px] text-white/40">3 members</div>
+                <div className="text-[13px] font-semibold text-white">Proposal #1842</div>
+                <div className="text-[11px] text-white/40">Treasury control</div>
               </div>
             </div>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
@@ -289,7 +298,7 @@ function HeroMockup() {
               not a JSON field. The whole card is built like a
               chat receipt, which is the mental model we want. */}
           <div className="relative mt-6 text-[12px] text-white/55">
-            <span className="font-medium text-white/85">Sarah</span> is asking to send
+            <span className="font-medium text-white/85">Treasury Guard</span> requested approval
           </div>
 
           {/* Amount block. Two-line: big SOL number, dim USD below.
@@ -298,17 +307,17 @@ function HeroMockup() {
           <div className="relative mt-2 flex items-end justify-between gap-4">
             <div>
               <div className="text-[44px] font-light leading-none tracking-tight text-white sm:text-[52px]">
-                0.5 <span className="text-white/40">SOL</span>
+                $500 <span className="text-white/40">limit</span>
               </div>
-              <div className="mt-1.5 text-[12px] text-white/40">≈ $86.40</div>
+              <div className="mt-1.5 text-[12px] text-white/40">$125 used today</div>
             </div>
             <div className="flex items-center gap-2.5">
               <div className="text-right leading-tight">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-white/35">to</div>
-                <div className="text-[13px] font-semibold text-white">Maya</div>
+                <div className="text-[10px] uppercase tracking-[0.18em] text-white/35">agent</div>
+                <div className="text-[13px] font-semibold text-white">Steady BTC</div>
               </div>
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#ff5a8a] to-[#7c4dff] text-[13px] font-semibold text-white">
-                M
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#ccff00]/10 text-[13px] font-semibold text-[#ccff00] ring-1 ring-[#ccff00]/25">
+                AI
               </span>
             </div>
           </div>
@@ -316,12 +325,12 @@ function HeroMockup() {
           {/* Memo - a single human line of context. The whole point
               of clear-signing is that approvers see *meaning*, not
               hex; the memo strip drives that home. */}
-          <div className="relative mt-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
+          <div className="product-field relative mt-5 rounded-xl px-3.5 py-3">
             <div className="flex items-start gap-2 text-[12px] text-white/70">
               <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#ccff00]" strokeWidth={2.4} />
               <span>
-                <span className="text-white/45">Note - </span>
-                Saturday brunch, splitting Maya&apos;s tab.
+                <span className="text-white/45">Policy - </span>
+                BTC-PERP, max 2x leverage, stop loss required.
               </span>
             </div>
           </div>
@@ -333,7 +342,7 @@ function HeroMockup() {
           <div className="relative mt-5">
             <div className="flex items-center justify-between">
               <div className="text-[11px] font-medium text-white/55">
-                Friends approving
+                Humans approving
               </div>
               <div className="text-[11px] font-semibold text-[#ccff00]">
                 2 of 3
@@ -378,10 +387,10 @@ function HeroMockup() {
           </div>
 
           {/* Action footer */}
-          <div className="relative mt-5 flex items-center justify-between rounded-2xl border border-white/[0.08] bg-black/30 px-4 py-3">
+          <div className="product-field relative mt-5 flex items-center justify-between rounded-xl px-4 py-3">
             <div className="leading-tight">
-              <div className="text-[11px] text-white/45">Just one more</div>
-              <div className="text-[13px] font-semibold text-white">Ada to approve</div>
+              <div className="text-[11px] text-white/45">One more approval</div>
+              <div className="text-[13px] font-semibold text-white">Ada signs the policy</div>
             </div>
             <span className="rounded-full bg-[#ccff00] px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-black shadow-[0_0_10px_rgba(204, 255, 0,0.20)]">
               Approve
@@ -426,9 +435,9 @@ function Bento({ fadeIn }: { fadeIn: FadeInFn }) {
       <motion.div {...fadeIn(0)} className="mb-8 flex items-end justify-between sm:mb-10">
         <div>
           <h2 className="mt-3 max-w-2xl text-[clamp(1.75rem,4.5vw,3.5rem)] font-light leading-[1.05] tracking-[-0.03em] text-white sm:tracking-[-0.04em]">
-            Built for the way
+            One control layer
             <br />
-            <span className="text-white/40">money should move.</span>
+            <span className="text-white/40">for every action.</span>
           </h2>
         </div>
       </motion.div>
@@ -437,7 +446,7 @@ function Bento({ fadeIn }: { fadeIn: FadeInFn }) {
         {/* Large 2x2 - Verification visualization */}
         <motion.div
           {...fadeIn(0.04)}
-          className="group glass relative overflow-hidden rounded-[2.5rem] p-8 transition-colors duration-300 hover:border-[#ccff00]/40 lg:col-span-2 lg:row-span-2"
+          className="product-card group relative overflow-hidden rounded-[1.5rem] p-6 transition-colors duration-300 hover:border-[#ccff00]/40 sm:p-8 lg:col-span-2 lg:row-span-2"
         >
           <BentoLargeBars />
         </motion.div>
@@ -445,37 +454,48 @@ function Bento({ fadeIn }: { fadeIn: FadeInFn }) {
         {/* Tall 1x2 - Chain swatches */}
         <motion.div
           {...fadeIn(0.1)}
-          className="group glass relative overflow-hidden rounded-[2.5rem] p-7 transition-colors duration-300 hover:border-[#ccff00]/40 md:col-span-2 lg:col-span-1 lg:row-span-2"
+          className="product-card group relative overflow-hidden rounded-[1.5rem] p-6 transition-colors duration-300 hover:border-[#ccff00]/40 sm:p-7 md:col-span-2 lg:col-span-1 lg:row-span-2"
         >
           <BentoChainSwatches />
         </motion.div>
 
-        {/* Lime accent - Private by default */}
+        {/* Lime accent - Policy controls */}
         <motion.div
           {...fadeIn(0.16)}
-          className="relative overflow-hidden rounded-[2.5rem] bg-[#ccff00] p-7 text-black"
+          className="product-card relative overflow-hidden rounded-[1.5rem] p-6 text-white sm:p-7"
         >
-          <div className="noise-bg absolute inset-0 opacity-25 mix-blend-multiply" />
           <div className="relative">
             <div className="flex items-center gap-2">
-              <Lock className="h-4 w-4" strokeWidth={2.5} />
-              <span className="font-mono-tech text-[10px] uppercase tracking-[0.24em]">
-                policy
+              <Lock className="h-4 w-4 text-[#ccff00]" strokeWidth={2.5} />
+              <span className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/60">
+                controls
               </span>
             </div>
-            <div className="mt-12 text-2xl font-medium leading-[1.1] tracking-tight">
-              Privacy-ready.
+            <div className="mt-8 text-2xl font-light leading-[1.1] tracking-tight">
+              Rules first.
             </div>
-            <p className="mt-3 text-[13px] leading-relaxed text-black/70">
-              Policy values route through Encrypt today; on-chain privacy comes with the FHE rollout.
+            <p className="mt-3 text-[13px] leading-relaxed text-white/60">
+              Limits, allowances, budgets, and approvals stay visible before anything moves.
             </p>
+            <div className="mt-6 space-y-2">
+              {[
+                ["Daily spend", "$500"],
+                ["Leverage", "2x max"],
+                ["Signer rule", "2 of 3"],
+              ].map(([label, value]) => (
+                <div key={label} className="product-field flex items-center justify-between rounded-xl px-3 py-2">
+                  <span className="text-[11px] text-white/45">{label}</span>
+                  <span className="text-[12px] font-semibold text-white">{value}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </motion.div>
 
         {/* Small glass - Ledger */}
         <motion.div
           {...fadeIn(0.22)}
-          className="group glass relative overflow-hidden rounded-[2.5rem] p-7 transition-colors duration-300 hover:border-[#ccff00]/40"
+          className="product-card group relative overflow-hidden rounded-[1.5rem] p-6 transition-colors duration-300 hover:border-[#ccff00]/40 sm:p-7"
         >
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-[#ccff00]" strokeWidth={2} />
@@ -484,10 +504,10 @@ function Bento({ fadeIn }: { fadeIn: FadeInFn }) {
             </span>
           </div>
           <div className="mt-12 text-2xl font-light leading-[1.1] tracking-tight text-white">
-            Ledger-verified.
+            Hardware ready.
           </div>
           <p className="mt-3 text-[13px] leading-relaxed text-white/60">
-            Plug in a Ledger and it shows the request word for word - what you see is what gets signed.
+            Ledger support keeps high-value approvals tied to a real signing device.
           </p>
         </motion.div>
       </div>
@@ -574,7 +594,7 @@ function BentoLargeBars() {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, amount: 0.3 }}
         transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] as const }}
-        className="receipt-scan relative mt-6 overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.025] p-5 sm:p-6"
+        className="receipt-scan product-field relative mt-6 overflow-hidden rounded-xl p-5 sm:p-6"
       >
         <div className="relative flex items-center gap-2">
           <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00]" />
@@ -583,9 +603,9 @@ function BentoLargeBars() {
           </span>
         </div>
         <p className="relative mt-3 text-[clamp(1.05rem,2.4vw,1.4rem)] font-light leading-snug tracking-[-0.01em] text-white">
-          &ldquo;Send{" "}
-          <span className="amount-glow font-medium text-[#ccff00]">5 SOL</span>{" "}
-          to <span className="font-medium">Sarah</span>,
+          &ldquo;Agent may move{" "}
+          <span className="amount-glow font-medium text-[#ccff00]">$500</span>{" "}
+          on <span className="font-medium">Hyperliquid testnet</span>,
           <br className="hidden sm:block" /> expires{" "}
           <span className="font-medium">Jan 1, 2026</span>.&rdquo;
         </p>
@@ -612,7 +632,7 @@ function BentoLargeBars() {
                     : "rgba(255,255,255,0.015)",
               }}
               transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] as const }}
-              className="flex items-center gap-3 rounded-xl border px-3 py-2.5"
+              className="product-field flex items-center gap-3 rounded-xl px-3 py-2.5"
             >
               <motion.span
                 animate={{ opacity: dim ? 0.45 : 1 }}
@@ -740,7 +760,8 @@ function BentoLargeBars() {
           <span className="text-white/40">in plain English.</span>
         </h3>
         <p className="mt-4 text-sm leading-relaxed text-white/60">
-          Every request reads as a sentence. Your friends see exactly what they&apos;re approving - no hex, no addresses, no guessing.
+          Every request reads as a sentence. Members see the policy, amount,
+          destination, and expiry before they sign.
         </p>
       </div>
 
@@ -820,12 +841,13 @@ function BentoChainSwatches() {
 
       <div className="mt-8">
         <h3 className="text-2xl font-light leading-[1.1] tracking-tight text-white">
-          One wallet.
+          One policy.
           <br />
-          <span className="text-white/40">Every chain.</span>
+          <span className="text-white/40">Native chains.</span>
         </h3>
         <p className="mt-3 text-[13px] leading-relaxed text-white/60">
-          One shared wallet handles them all. No bridges, no wrapped assets, no separate setup for each network.
+          Solana, EVM, Bitcoin, Zcash, and Hyperliquid flows stay under the
+          same approval surface.
         </p>
       </div>
 
@@ -858,17 +880,17 @@ function WhyClear({ fadeIn }: { fadeIn: FadeInFn }) {
       },
       good: {
         title: "Sign a sentence",
-        body: "“Send 5 SOL to Sarah, expires Jan 1.” That's what your wallet shows. That's what you sign.",
+        body: "The signer sees the amount, action, policy, destination, and expiry in plain language.",
       },
     },
     {
       bad: {
-        title: "Members and limits public",
-        body: "Anyone curious can look up who's in your wallet and how much they can move.",
+        title: "Agents get raw access",
+        body: "Most automation asks for broad keys, exchange access, or manual trust.",
       },
       good: {
-        title: "Privacy-ready rules",
-        body: "Policy values already flow through Encrypt hooks. Full on-chain privacy turns on with Encrypt FHE.",
+        title: "Agents get bounded authority",
+        body: "ClearSig checks markets, size, leverage, sessions, stops, and owner approval before execution.",
       },
     },
     {
@@ -878,17 +900,17 @@ function WhyClear({ fadeIn }: { fadeIn: FadeInFn }) {
       },
       good: {
         title: "One wallet, every chain",
-        body: "Ethereum, Hyperliquid, Bitcoin, Zcash - all from the same shared wallet. No bridges, no copies to set up.",
+        body: "Solana, EVM, Bitcoin, Zcash, and testnet trading flows share one policy surface.",
       },
     },
     {
       bad: {
-        title: "A spreadsheet, basically",
-        body: "Tools built for accountants and trading desks. Not for a group of friends.",
+        title: "Revenue before value",
+        body: "Seat fees charge the wallet even when nothing moves.",
       },
       good: {
-        title: "Built like a chat app",
-        body: "Avatar, name, amount. The first thing a friend sees feels like a wallet, not a dashboard.",
+        title: "Gas-fee aligned",
+        body: "ClearSig earns when approved transactions execute, with fees shown before signing.",
       },
     },
   ];
@@ -909,9 +931,8 @@ function WhyClear({ fadeIn }: { fadeIn: FadeInFn }) {
           Not your usual <span className="italic-skew">shared wallet</span>.
         </h2>
         <p className="mx-auto mt-6 max-w-2xl text-[15px] leading-relaxed text-white/55 sm:text-base">
-          Most shared wallets feel like accounting software. Clearsig keeps the
-          same safety - everyone agrees before money moves - but rebuilds the
-          rest around the people actually using it.
+          ClearSig is built for shared wallets, bounded agents, and policy
+          controlled execution. The user signs intent, not mystery payloads.
         </p>
       </motion.div>
 
@@ -1026,20 +1047,20 @@ function Methodology({ fadeIn }: { fadeIn: FadeInFn }) {
     {
       n: "01",
       Icon: Users,
-      title: "Create a wallet",
-      body: "Name it for the trip, the house, the team. Invite a few friends.",
+      title: "Create the control layer",
+      body: "Add members, chains, policies, budgets, and recovery rules.",
     },
     {
       n: "02",
       Icon: Send,
-      title: "Anyone can ask",
-      body: "Need to send money out? Tap the amount, pick who, write a note.",
+      title: "Propose an action",
+      body: "A member or agent submits a readable intent with limits and expiry.",
     },
     {
       n: "03",
       Icon: UserPlus,
-      title: "Friends approve",
-      body: "Everyone sees the request. A quick tap from each, then it sends.",
+      title: "Approve and execute",
+      body: "Owners sign the sentence, ClearSig checks policy, then execution can proceed.",
     },
   ];
 
@@ -1066,9 +1087,9 @@ function Methodology({ fadeIn }: { fadeIn: FadeInFn }) {
             {...fadeIn(0.06)}
             className="mt-6 text-[clamp(2rem,5vw,4rem)] font-light leading-[1.02] tracking-[-0.04em] text-white"
           >
-            Three steps.
+            Three checks.
             <br />
-            <span className="text-white/40">No keys to manage.</span>
+            <span className="text-white/40">No blind signing.</span>
           </motion.h2>
 
           <ol className="mt-10 space-y-3 sm:mt-12">
@@ -1118,6 +1139,190 @@ function Methodology({ fadeIn }: { fadeIn: FadeInFn }) {
  *  Footer - black with watermark + lime CTA + 3-col
  * ───────────────────────────────────────────────────────────────── */
 
+function AgentControlSection({ fadeIn }: { fadeIn: FadeInFn }) {
+  const checks = [
+    { label: "Market", value: "BTC-PERP" },
+    { label: "Size", value: "$500" },
+    { label: "Leverage", value: "2x" },
+    { label: "Stop loss", value: "Required" },
+  ];
+
+  return (
+    <section
+      id="agents"
+      className="relative z-10 grid grid-cols-1 items-center gap-10 px-5 pb-16 pt-4 sm:gap-14 sm:px-10 sm:pb-28 lg:grid-cols-12 lg:gap-12 lg:pb-32"
+    >
+      <motion.div {...fadeIn(0)} className="lg:col-span-5">
+        <span className="inline-flex items-center gap-2 rounded-full border border-[#ccff00]/30 bg-[#ccff00]/[0.06] px-3 py-1.5 font-mono-tech text-[10px] uppercase tracking-[0.24em] text-[#ccff00]">
+          <Bot className="h-3.5 w-3.5" aria-hidden="true" />
+          Agent trading vault
+        </span>
+        <h2 className="mt-6 text-[clamp(2.25rem,6vw,4.75rem)] font-medium leading-[0.92] tracking-[-0.04em] text-white">
+          Let agents act
+          <br />
+          inside your <span className="italic-skew">rules</span>.
+        </h2>
+        <p className="mt-6 max-w-xl text-[15px] leading-relaxed text-white/60 sm:text-base">
+          Agents can propose trades, earn small allowances, and execute only
+          inside limits approved by the wallet owners.
+        </p>
+        <div className="mt-8 grid gap-3 sm:grid-cols-2">
+          {["Signal inbox", "Owner approval", "Kill switch", "Scorecards"].map((item) => (
+            <div
+              key={item}
+              className="product-field rounded-xl px-4 py-3"
+            >
+              <span className="font-mono-tech text-[10px] uppercase tracking-[0.22em] text-white/45">
+                {item}
+              </span>
+            </div>
+          ))}
+        </div>
+      </motion.div>
+
+      <motion.div {...fadeIn(0.12)} className="relative lg:col-span-7">
+        <div
+          aria-hidden="true"
+          className="absolute -inset-10 -z-10 rounded-[3rem] opacity-60"
+          style={{
+            background:
+              "radial-gradient(circle at 35% 20%, rgba(204, 255, 0, 0.18) 0%, rgba(204, 255, 0, 0) 58%), radial-gradient(circle at 80% 78%, rgba(16,185,129,0.16) 0%, rgba(16,185,129,0) 62%)",
+            filter: "blur(72px)",
+          }}
+        />
+        <div className="product-card relative overflow-hidden rounded-[1.35rem] p-4 sm:p-5">
+          <div className="mb-4 flex items-center justify-between border-b border-white/[0.08] pb-3">
+            <div className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-[#febc2e]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
+            </div>
+            <span className="font-mono-tech text-[9px] uppercase tracking-[0.22em] text-white/35">
+              vault.clear.local
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] pb-4">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#ccff00]/10 text-[#ccff00] ring-1 ring-[#ccff00]/30">
+                <Bot className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-white">Steady BTC</p>
+                <p className="text-[11px] text-white/40">Practice trader</p>
+              </div>
+            </div>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#ccff00]/30 bg-[#ccff00]/[0.08] px-3 py-1 font-mono-tech text-[10px] uppercase tracking-[0.18em] text-[#ccff00]">
+              active allowance
+            </span>
+          </div>
+
+          <div className="mt-5 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="product-field rounded-xl p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-mono-tech text-[10px] uppercase tracking-[0.22em] text-white/40">
+                    New signal
+                  </p>
+                  <h3 className="mt-2 text-2xl font-light tracking-tight text-white">
+                    Long BTC-PERP
+                  </h3>
+                </div>
+                <span className="rounded-full bg-[#ccff00] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-black">
+                  Review
+                </span>
+              </div>
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                {checks.map((check) => (
+                  <div
+                    key={check.label}
+                    className="product-field rounded-xl p-3"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-white/40">{check.label}</span>
+                      <Check className="h-3.5 w-3.5 text-[#ccff00]" aria-hidden="true" />
+                    </div>
+                    <p className="mt-1 text-sm font-semibold text-white">{check.value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 rounded-xl border border-[#ccff00]/20 bg-[#ccff00]/[0.06] p-3">
+                <div className="flex items-center gap-2">
+                  <Gauge className="h-4 w-4 text-[#ccff00]" aria-hidden="true" />
+                  <p className="text-xs font-medium text-white">Policy gate passed</p>
+                </div>
+                <p className="mt-1 text-[12px] leading-relaxed text-white/55">
+                  Within market, notional, leverage, session, and stop rules.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <AgentMetric
+                icon={CircleDollarSign}
+                label="Allowance"
+                value="$500"
+                detail="4 hours left"
+              />
+              <AgentMetric
+                icon={Activity}
+                label="Risk"
+                value="1 open"
+                detail="Max 2 positions"
+              />
+              <AgentMetric
+                icon={TrendingUp}
+                label="Score"
+                value="72"
+                detail="Trusted tier pending"
+              />
+              <div className="product-field rounded-xl p-4">
+                <div className="flex items-center gap-2">
+                  <ReceiptText className="h-4 w-4 text-[#ccff00]" aria-hidden="true" />
+                  <span className="font-mono-tech text-[10px] uppercase tracking-[0.2em] text-white/45">
+                    audit
+                  </span>
+                </div>
+                <p className="mt-3 text-sm leading-relaxed text-white/70">
+                  Owner approval recorded. Execution waits for signed venue handoff.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </section>
+  );
+}
+
+function AgentMetric({
+  icon: Icon,
+  label,
+  value,
+  detail,
+}: {
+  icon: typeof Activity;
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="product-field rounded-xl p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="font-mono-tech text-[10px] uppercase tracking-[0.2em] text-white/40">
+            {label}
+          </p>
+          <p className="mt-1 text-2xl font-light text-white">{value}</p>
+        </div>
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.04] text-[#ccff00]">
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
+      </div>
+      <p className="mt-2 text-[12px] text-white/45">{detail}</p>
+    </div>
+  );
+}
+
 function Footer({ fadeIn }: { fadeIn: FadeInFn }) {
   return (
     <footer className="relative z-10 overflow-hidden bg-black px-5 pb-10 pt-20 sm:px-10 sm:pt-32">
@@ -1142,9 +1347,9 @@ function Footer({ fadeIn }: { fadeIn: FadeInFn }) {
           {...fadeIn(0.06)}
           className="mt-5 text-[clamp(2rem,6vw,5rem)] font-light leading-[0.95] tracking-[-0.04em] text-white sm:mt-6"
         >
-          Create your <span className="italic-skew">first</span>
+          Open your <span className="italic-skew">control</span>
           <br />
-          shared wallet.
+          wallet.
         </motion.h2>
 
         <motion.div {...fadeIn(0.14)} className="mt-8 flex justify-center sm:mt-10">
