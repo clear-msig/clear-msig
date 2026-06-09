@@ -45,6 +45,10 @@ Product language:
   runtime, never in the browser or public agent metadata. ClearSig still
   re-checks allowance, policy, market, leverage, cooldown, and kill switch
   before every order.
+- Delegated API wallets need lifecycle controls. ClearSig tracks whether the
+  signer is active, needs rotation, or has been revoked; users must revoke or
+  rotate the signer on Hyperliquid and then update ClearSig so the beta flow,
+  operator view, and executor checks stop trusting stale keys.
 
 ## Non-Negotiable Boundaries
 

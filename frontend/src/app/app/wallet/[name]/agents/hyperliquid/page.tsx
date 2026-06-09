@@ -20,6 +20,7 @@ import {
   buildAgentHyperliquidSetupSummary,
   getAgentHyperliquidSetupSettings,
   saveAgentHyperliquidSetupSettings,
+  updateAgentHyperliquidDelegationStatus,
   type AgentHyperliquidSetupSettings,
   type AgentHyperliquidSetupStep,
 } from "@/lib/agents";
@@ -32,6 +33,7 @@ import { toDisplayName } from "@/lib/retail/walletNames";
 const EMPTY_SETTINGS: AgentHyperliquidSetupSettings = {
   accountAddress: "",
   agentWalletAddress: "",
+  delegationStatus: "not_started",
   updatedAt: 0,
   version: 1,
 };
@@ -97,6 +99,34 @@ export default function HyperliquidSetupPage() {
       void checkReadiness(saved.accountAddress);
     } catch (error) {
       toast.error("Could not save Hyperliquid account", {
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
+  const setDelegationStatus = (
+    status: "active" | "rotation_required" | "revoked",
+  ) => {
+    try {
+      const updated = updateAgentHyperliquidDelegationStatus({
+        walletName: name,
+        status,
+        reason:
+          status === "rotation_required"
+            ? "Rotate this API wallet before further beta trading."
+            : undefined,
+      });
+      setSettings(updated);
+      toast.success(
+        status === "active"
+          ? "API wallet marked active"
+          : status === "revoked"
+            ? "API wallet marked revoked"
+            : "API wallet marked for rotation",
+      );
+      void checkReadiness(updated.accountAddress);
+    } catch (error) {
+      toast.error("Could not update API wallet status", {
         details: error instanceof Error ? error.message : String(error),
       });
     }
@@ -269,6 +299,89 @@ export default function HyperliquidSetupPage() {
           <MiniMetric label="Signer identity" value="Approved API wallet" />
           <MiniMetric label="Limits enforced by" value="ClearSig policy" />
           <MiniMetric label="Private key location" value="Protected executor" />
+        </div>
+      </section>
+
+      <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-text-strong">
+              Delegated signer lifecycle
+            </h2>
+            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-text-soft">
+              Rotate or revoke the approved API wallet whenever it is exposed,
+              no longer needed, or no longer matches the protected executor.
+              Revoke on Hyperliquid first, then mark the status here for
+              ClearSig checks and operator review.
+            </p>
+          </div>
+          <span
+            className={clsx(
+              "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+              settings.delegationStatus === "active"
+                ? "border-accent/30 bg-accent/[0.08] text-accent"
+                : settings.delegationStatus === "revoked"
+                  ? "border-danger/30 bg-danger/[0.06] text-danger"
+                  : settings.delegationStatus === "rotation_required"
+                    ? "border-warning/30 bg-warning/[0.08] text-warning"
+                    : "border-border-soft bg-canvas text-text-soft",
+            )}
+          >
+            {delegationStatusLabel(settings.delegationStatus)}
+          </span>
+        </div>
+        <div className="mt-4 grid gap-2 md:grid-cols-4">
+          <MiniMetric
+            label="Approved"
+            value={settings.approvedAt ? formatDate(settings.approvedAt) : "-"}
+          />
+          <MiniMetric
+            label="Revoked"
+            value={settings.revokedAt ? formatDate(settings.revokedAt) : "-"}
+          />
+          <MiniMetric
+            label="Rotation note"
+            value={settings.rotationReason ?? "None"}
+          />
+          <MiniMetric
+            label="Current signer"
+            value={settings.agentWalletAddress ? shortAddress(settings.agentWalletAddress) : "Not set"}
+          />
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={!settings.agentWalletAddress || settings.delegationStatus === "active"}
+            onClick={() => setDelegationStatus("active")}
+            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Mark active
+          </button>
+          <button
+            type="button"
+            disabled={!settings.agentWalletAddress || settings.delegationStatus === "rotation_required"}
+            onClick={() => setDelegationStatus("rotation_required")}
+            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-warning/30 px-3 py-2 text-xs font-medium text-warning transition-colors hover:bg-warning/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Require rotation
+          </button>
+          <button
+            type="button"
+            disabled={!settings.agentWalletAddress || settings.delegationStatus === "revoked"}
+            onClick={() => setDelegationStatus("revoked")}
+            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-danger/30 px-3 py-2 text-xs font-medium text-danger transition-colors hover:bg-danger/[0.06] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Mark revoked
+          </button>
+          <a
+            href="https://app.hyperliquid-testnet.xyz/API"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
+          >
+            Manage on Hyperliquid
+            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+          </a>
         </div>
       </section>
 
@@ -541,8 +654,31 @@ function formatSignedUsd(value: string | number | null | undefined): string {
   })}`;
 }
 
+function formatDate(value: number): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
 function signedTone(value: string | number | null | undefined): string {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed === 0) return "text-text-strong";
   return parsed > 0 ? "text-accent" : "text-rose-300";
+}
+
+function delegationStatusLabel(
+  status: AgentHyperliquidSetupSettings["delegationStatus"],
+): string {
+  switch (status) {
+    case "active":
+      return "Active";
+    case "rotation_required":
+      return "Rotation required";
+    case "revoked":
+      return "Revoked";
+    case "not_started":
+      return "Not started";
+  }
 }

@@ -861,7 +861,11 @@ export default function StartTradingPage() {
       />
 
       {venue === "hyperliquid_testnet" ? (
-        <HyperliquidHelp readiness={outside} walletEncoded={encoded} />
+        <HyperliquidHelp
+          readiness={outside}
+          walletEncoded={encoded}
+          setupSettings={getAgentHyperliquidSetupSettings(name)}
+        />
       ) : (
         <section className="rounded-card border border-accent/25 bg-accent/[0.05] p-4">
           <div className="flex items-start gap-3">
@@ -1317,12 +1321,15 @@ function AutomaticTradingStatus({
 function HyperliquidHelp({
   readiness,
   walletEncoded,
+  setupSettings,
 }: {
   readiness: AgentVenueReadiness | null;
   walletEncoded: string;
+  setupSettings: ReturnType<typeof getAgentHyperliquidSetupSettings>;
 }) {
   const account = readiness?.accountProbe;
   const protectedConnection = readiness?.executorProbe;
+  const apiWalletHealthy = setupSettings.delegationStatus === "active";
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
       <h2 className="text-sm font-semibold text-text-strong">Hyperliquid practice account</h2>
@@ -1330,7 +1337,7 @@ function HyperliquidHelp({
         ClearSig never asks for the protected trading wallet secret in this screen.
         ClearSig keeps that private connection outside the setup flow.
       </p>
-      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+      <div className="mt-4 grid gap-2 sm:grid-cols-4">
         <CheckStat
           label="Account"
           value={account?.accountAddress ? shortAddress(account.accountAddress) : "Not connected"}
@@ -1342,11 +1349,37 @@ function HyperliquidHelp({
           ready={account?.state === "funded"}
         />
         <CheckStat
+          label="API wallet"
+          value={
+            setupSettings.agentWalletAddress
+              ? setupSettings.delegationStatus === "active"
+                ? "Active"
+                : setupSettings.delegationStatus === "revoked"
+                  ? "Revoked"
+                  : "Rotate"
+              : "Needed"
+          }
+          ready={apiWalletHealthy}
+        />
+        <CheckStat
           label="Protected connection"
           value={protectedConnection?.state === "ready" ? "Ready" : "Pending"}
           ready={protectedConnection?.state === "ready"}
         />
       </div>
+      {!apiWalletHealthy && setupSettings.agentWalletAddress ? (
+        <div className="mt-4 rounded-soft border border-warning/30 bg-warning/[0.08] p-3">
+          <p className="text-xs font-semibold text-warning">
+            API wallet needs attention
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-text-soft">
+            {setupSettings.delegationStatus === "revoked"
+              ? "This delegated signer is marked revoked. Approve and record a new API wallet before testing."
+              : setupSettings.rotationReason ??
+                "Rotate this delegated signer before testing."}
+          </p>
+        </div>
+      ) : null}
       <ol className="mt-4 grid gap-2 border-t border-border-soft pt-4">
         {[
           "Open Hyperliquid practice and sign in with a separate practice account.",
