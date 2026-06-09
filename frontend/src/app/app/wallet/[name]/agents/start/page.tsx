@@ -758,6 +758,13 @@ export default function StartTradingPage() {
         ) : null}
       </section>
 
+      <BetaJourneyPanel
+        venue={venue}
+        agent={selectedAgent}
+        steps={steps}
+        complete={complete}
+      />
+
       <ComplianceDisclosurePanel
         readiness={complianceReadiness}
         pending={pending}
@@ -821,6 +828,16 @@ export default function StartTradingPage() {
         </ol>
       </section>
 
+      <LaunchRiskPanel
+        venue={venue}
+        agent={selectedAgent}
+        policyPaused={policy.emergencyPaused}
+        marketSnapshot={marketSnapshot}
+        marketStatus={marketStatus}
+        readiness={outside}
+        venueRequests={venueRequests}
+      />
+
       <TradingControlRoom
         agent={selectedAgent}
         venue={venue}
@@ -833,6 +850,7 @@ export default function StartTradingPage() {
         marketByMarket={marketByMarket}
         marketStatus={marketStatus}
         accountSnapshot={outside?.accountSnapshot ?? null}
+        reconciliation={outside?.reconciliation ?? null}
         venueRequests={venueRequests}
         submittedVenueRequests={submittedVenueRequests.length}
         pending={pending}
@@ -868,6 +886,248 @@ export default function StartTradingPage() {
         onApprove={() => void approveOwnerRequest()}
       />
     </div>
+  );
+}
+
+function BetaJourneyPanel({
+  venue,
+  agent,
+  steps,
+  complete,
+}: {
+  venue: TradingLaunchVenue;
+  agent: AgentProfile | null;
+  steps: TradingLaunchStep[];
+  complete: boolean;
+}) {
+  const done = (ids: TradingLaunchStep["id"][]) =>
+    ids.every((id) => steps.find((step) => step.id === id)?.status === "done");
+  const journey = [
+    {
+      label: "Pick trader",
+      detail: agent?.name ?? "No trader selected",
+      done: done(["trader", "plan"]),
+    },
+    {
+      label: "Set allowance",
+      detail: venueLabel(venue),
+      done: done(["safety", "allowance"]),
+    },
+    {
+      label: "Accept disclosures",
+      detail: "Practice automation terms",
+      done: done(["disclosures"]),
+    },
+    {
+      label: "Turn on automation",
+      detail: "Inside allowance only",
+      done: done(["automatic"]),
+    },
+    {
+      label: "Watch trades",
+      detail: complete ? "First trade placed" : "Waiting for first trade",
+      done: done(["first_trade"]),
+    },
+  ];
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-text-strong">
+            Public beta journey
+          </p>
+          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
+            This path uses {venueLabel(venue).toLowerCase()} and keeps agent
+            actions inside ClearSig rules.
+          </p>
+        </div>
+        <span className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-1 text-[11px] font-medium text-accent">
+          {venue === "hyperliquid_testnet" ? "Testnet practice" : "Practice only"}
+        </span>
+      </div>
+      <div className="mt-4 grid gap-2 md:grid-cols-5">
+        {journey.map((item, index) => (
+          <div
+            key={item.label}
+            className={clsx(
+              "min-w-0 rounded-soft border px-3 py-2",
+              item.done
+                ? "border-accent/25 bg-accent/[0.06]"
+                : "border-border-soft bg-canvas",
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <span
+                className={clsx(
+                  "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold",
+                  item.done
+                    ? "border-accent/30 bg-accent/10 text-accent"
+                    : "border-border-soft text-text-muted",
+                )}
+              >
+                {item.done ? <Check className="h-3 w-3" aria-hidden="true" /> : index + 1}
+              </span>
+              <p className="truncate text-xs font-semibold text-text-strong">
+                {item.label}
+              </p>
+            </div>
+            <p className="mt-1 break-words text-[11px] leading-relaxed text-text-soft">
+              {item.detail}
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function LaunchRiskPanel({
+  venue,
+  agent,
+  policyPaused,
+  marketSnapshot,
+  marketStatus,
+  readiness,
+  venueRequests,
+}: {
+  venue: TradingLaunchVenue;
+  agent: AgentProfile | null;
+  policyPaused: boolean;
+  marketSnapshot: AgentMarketDataSnapshot | null;
+  marketStatus: string;
+  readiness: AgentVenueReadiness | null;
+  venueRequests: NonNullable<AgentVenueReadiness["requests"]>;
+}) {
+  const notices: Array<{
+    id: string;
+    tone: "warning" | "danger" | "default";
+    title: string;
+    detail: string;
+  }> = [];
+  if (policyPaused) {
+    notices.push({
+      id: "policy_paused",
+      tone: "danger",
+      title: "All agent trading is paused",
+      detail: "ClearSig will not open new trades until the vault pause is lifted.",
+    });
+  }
+  if (agent?.status === "paused") {
+    notices.push({
+      id: "agent_paused",
+      tone: "warning",
+      title: "Selected trader is paused",
+      detail: "This trader cannot open new trades until it is reactivated.",
+    });
+  }
+  if (!marketSnapshot) {
+    notices.push({
+      id: "market_data",
+      tone: "warning",
+      title: "Market data not confirmed",
+      detail: marketStatus,
+    });
+  }
+  const reconciliation = readiness?.reconciliation;
+  if (venue === "hyperliquid_testnet" && reconciliation) {
+    if (reconciliation.adapterErrors > 0) {
+      notices.push({
+        id: "adapter_errors",
+        tone: "danger",
+        title: "Protected executor has errors",
+        detail: reconciliation.message,
+      });
+    } else if (reconciliation.status !== "healthy") {
+      notices.push({
+        id: "reconciliation",
+        tone: "warning",
+        title: "Venue check needs review",
+        detail: reconciliation.message,
+      });
+    }
+    if (reconciliation.pendingRequests > 0) {
+      notices.push({
+        id: "pending_requests",
+        tone: "warning",
+        title: "Venue requests are waiting",
+        detail: `${reconciliation.pendingRequests} request${reconciliation.pendingRequests === 1 ? "" : "s"} need setup or a protected connection before they can be trusted.`,
+      });
+    }
+  } else if (
+    venue === "hyperliquid_testnet" &&
+    venueRequests.some((request) => request.status === "adapter_error")
+  ) {
+    notices.push({
+      id: "adapter_errors_fallback",
+      tone: "danger",
+      title: "Protected executor has errors",
+      detail: "At least one Hyperliquid practice request failed in the protected executor.",
+    });
+  }
+
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-text-strong">
+            Trust and failure checks
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
+            ClearSig checks what could make beta testing confusing before the
+            trader acts.
+          </p>
+        </div>
+        <span
+          className={clsx(
+            "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+            notices.some((notice) => notice.tone === "danger")
+              ? "border-danger/30 bg-danger/[0.06] text-danger"
+              : notices.length > 0
+                ? "border-warning/30 bg-warning/[0.08] text-warning"
+                : "border-accent/30 bg-accent/[0.08] text-accent",
+          )}
+        >
+          {notices.length === 0 ? "Clear" : `${notices.length} notice${notices.length === 1 ? "" : "s"}`}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-2">
+        {notices.length > 0 ? (
+          notices.map((notice) => (
+            <div
+              key={notice.id}
+              className={clsx(
+                "rounded-soft border px-3 py-2",
+                notice.tone === "danger"
+                  ? "border-danger/30 bg-danger/[0.06]"
+                  : notice.tone === "warning"
+                    ? "border-warning/30 bg-warning/[0.08]"
+                    : "border-border-soft bg-canvas",
+              )}
+            >
+              <p
+                className={clsx(
+                  "text-xs font-semibold",
+                  notice.tone === "danger"
+                    ? "text-danger"
+                    : notice.tone === "warning"
+                      ? "text-warning"
+                      : "text-text-strong",
+                )}
+              >
+                {notice.title}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-text-soft">
+                {notice.detail}
+              </p>
+            </div>
+          ))
+        ) : (
+          <div className="rounded-soft border border-accent/25 bg-accent/[0.05] px-3 py-2 text-xs leading-relaxed text-text-soft">
+            No blocker is visible for this practice path right now.
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -1147,6 +1407,7 @@ function TradingControlRoom({
   marketByMarket,
   marketStatus,
   accountSnapshot,
+  reconciliation,
   venueRequests,
   submittedVenueRequests,
   pending,
@@ -1166,6 +1427,7 @@ function TradingControlRoom({
   marketByMarket: Record<string, AgentMarketDataSnapshot>;
   marketStatus: string;
   accountSnapshot: AgentVenueReadiness["accountSnapshot"] | null;
+  reconciliation: AgentVenueReadiness["reconciliation"] | null;
   venueRequests: NonNullable<AgentVenueReadiness["requests"]>;
   submittedVenueRequests: number;
   pending: boolean;
@@ -1178,9 +1440,11 @@ function TradingControlRoom({
   const live = Boolean(agent && allowance && !policyPaused && !agentPaused);
   const venuePositions = accountSnapshot?.positions ?? [];
   const reconciliationWarning =
-    venue === "hyperliquid_testnet" &&
-    submittedVenueRequests > venuePositions.length
-      ? "ClearSig has submitted more Hyperliquid practice trades than the account currently shows. Check the protected connection or exchange history."
+    venue === "hyperliquid_testnet" && reconciliation?.status !== "healthy"
+      ? reconciliation?.message
+      : venue === "hyperliquid_testnet" &&
+          submittedVenueRequests > venuePositions.length
+        ? "ClearSig has submitted more Hyperliquid practice trades than the account currently shows. Check the protected connection or exchange history."
       : null;
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
@@ -1299,6 +1563,30 @@ function TradingControlRoom({
               highlight={venuePositions.length > 0}
             />
           </div>
+          {reconciliation ? (
+            <div className="mt-3 grid gap-2 sm:grid-cols-4">
+              <ControlStat
+                label="Submitted"
+                value={String(reconciliation.submittedRequests)}
+                highlight={reconciliation.submittedRequests > 0}
+              />
+              <ControlStat
+                label="Pending"
+                value={String(reconciliation.pendingRequests)}
+                highlight={reconciliation.pendingRequests === 0}
+              />
+              <ControlStat
+                label="Executor errors"
+                value={String(reconciliation.adapterErrors)}
+                highlight={reconciliation.adapterErrors === 0}
+              />
+              <ControlStat
+                label="Mismatches"
+                value={String(reconciliation.unmatchedPositions + reconciliation.missingOrderIds)}
+                highlight={reconciliation.unmatchedPositions + reconciliation.missingOrderIds === 0}
+              />
+            </div>
+          ) : null}
           {reconciliationWarning ? (
             <div className="mt-3 rounded-soft border border-warning/30 bg-warning/[0.08] px-3 py-2 text-xs leading-relaxed text-warning">
               {reconciliationWarning}

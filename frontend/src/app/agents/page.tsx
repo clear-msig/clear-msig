@@ -169,7 +169,7 @@ function MarketplaceCard({ entry }: { entry: AgentMarketplaceEntry }) {
             <h2 className="break-words text-xl font-semibold text-text-strong">
               {entry.name}
             </h2>
-            <Badge>{entry.primarySource.replace("_", " ")}</Badge>
+            <SourceTrustBadge source={entry.primarySource} />
             {entry.identityVerified ? <Badge>Signed identity</Badge> : null}
           </div>
           <p className="mt-2 text-sm leading-relaxed text-text-soft">{entry.summary}</p>
@@ -211,6 +211,9 @@ function MarketplaceCard({ entry }: { entry: AgentMarketplaceEntry }) {
               <SmallMetric label="Score" value={lane.score == null ? "Hidden" : String(lane.score)} />
               <SmallMetric label="Trades" value={lane.closedTrades == null ? "Hidden" : String(lane.closedTrades)} />
             </div>
+            <p className="mt-2 text-[11px] leading-relaxed text-text-soft">
+              {sourceTrustSummary(lane.source)}
+            </p>
           </div>
         ))}
       </div>
@@ -278,6 +281,42 @@ function Badge({ children }: { children: ReactNode }) {
       {children}
     </span>
   );
+}
+
+function SourceTrustBadge({ source }: { source: AgentTrackRecordSource }) {
+  const tone =
+    source === "verified_live"
+      ? "border-accent/30 bg-accent/[0.08] text-accent"
+      : source === "testnet"
+        ? "border-warning/30 bg-warning/[0.08] text-warning"
+        : "border-border-soft bg-canvas text-text-soft";
+  return (
+    <span className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-medium ${tone}`}>
+      {sourceTrustLabel(source)}
+    </span>
+  );
+}
+
+function sourceTrustLabel(source: AgentTrackRecordSource): string {
+  switch (source) {
+    case "paper":
+      return "Paper evidence";
+    case "testnet":
+      return "Testnet evidence";
+    case "verified_live":
+      return "Verified live evidence";
+  }
+}
+
+function sourceTrustSummary(source: AgentTrackRecordSource): string {
+  switch (source) {
+    case "paper":
+      return "Simulated practice results; useful for behavior, not real-money proof.";
+    case "testnet":
+      return "Exchange practice results; useful for execution checks, not real capital.";
+    case "verified_live":
+      return "Live-capital results only after venue reconciliation and review.";
+  }
 }
 
 function EmptyMarketplace({ configured }: { configured: boolean }) {

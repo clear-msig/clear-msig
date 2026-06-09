@@ -68,7 +68,11 @@ describe("venue reconciliation", () => {
     });
 
     expect(summary.status).toBe("healthy");
+    expect(summary.totalRequests).toBe(1);
     expect(summary.submittedRequests).toBe(1);
+    expect(summary.pendingRequests).toBe(0);
+    expect(summary.rejectedRequests).toBe(0);
+    expect(summary.adapterErrors).toBe(0);
     expect(summary.openRequests).toBe(1);
     expect(summary.exchangeOpenPositions).toBe(1);
     expect(summary.issues).toHaveLength(0);
@@ -113,5 +117,42 @@ describe("venue reconciliation", () => {
     expect(summary.issues.map((issue) => issue.id)).toContain(
       "account_snapshot_unavailable",
     );
+  });
+
+  it("blocks reconciliation trust when protected executor errors appear", () => {
+    const summary = buildAgentVenueReconciliationSummary({
+      venue: "hyperliquid_testnet",
+      requests: [
+        submittedRequest,
+        {
+          ...submittedRequest,
+          id: "request-error",
+          status: "adapter_error",
+          message: "Executor failed.",
+          request: {
+            ...submittedRequest.request,
+            proposalId: "proposal-error",
+          },
+        },
+        {
+          ...submittedRequest,
+          id: "request-waiting",
+          status: "waiting_for_setup",
+          message: "Waiting for setup.",
+          request: {
+            ...submittedRequest.request,
+            proposalId: "proposal-waiting",
+          },
+        },
+      ],
+      accountSnapshot,
+      now,
+    });
+
+    expect(summary.status).toBe("blocked");
+    expect(summary.totalRequests).toBe(3);
+    expect(summary.pendingRequests).toBe(1);
+    expect(summary.adapterErrors).toBe(1);
+    expect(summary.issues.map((issue) => issue.id)).toContain("adapter_errors");
   });
 });

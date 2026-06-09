@@ -418,7 +418,7 @@ Locked public-beta build order:
 3. Creator marketplace registry. **Completed.**
 4. Real market/news/macro data layer. **Completed.**
 5. Notifications. **Completed.**
-6. Admin beta dashboard.
+6. Admin beta dashboard. **Completed.**
 
 Feature discoverability pass: **Completed.** Agent Trading now exposes direct
 entry points for marketplace, public profiles, market intelligence, notifications,
@@ -431,6 +431,14 @@ marketplace, and watch trades. Advanced setup surfaces such as manual ideas,
 practice allocation tuning, Hyperliquid setup, approvals, feedback, and safety
 rules are grouped under an advanced controls drawer instead of competing with
 the beginner flow.
+
+Beta journey polish: **Completed.** Start Trading now shows the full public
+beta journey in one sequence, keeps practice/testnet labels visible, and
+surfaces trust/failure notices for paused trading, missing market data, venue
+reconciliation issues, pending venue requests, and protected executor errors.
+The Trades and Marketplace surfaces label paper, testnet, and verified-live
+evidence separately so testers cannot confuse simulated behavior with real
+capital performance.
 
 1. **Production-grade persistence**
    - Public beta requires Redis or database-backed agent state. Browser,
@@ -521,6 +529,9 @@ the beginner flow.
      moderation status. Profiles start as pending review, can be approved,
      paused, or delisted from the agent detail page, and every moderation
      change is written to the agent audit log.
+   - Current implementation: `/app/wallet/[wallet]/agents/admin` now provides
+     a beta operator dashboard with launch blockers, venue health, moderation
+     queue, risky agents, tester feedback, and market-readiness checks.
 12. **Abuse and rate-limit controls**
    - Agent APIs need origin checks, per-agent rate limits, signal-key controls,
      bounded body sizes, freshness checks, duplicate protection, signed

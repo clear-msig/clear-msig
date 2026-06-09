@@ -17,7 +17,11 @@ export interface AgentVenueReconciliationSummary {
   status: AgentVenueReconciliationStatus;
   label: string;
   message: string;
+  totalRequests: number;
   submittedRequests: number;
+  pendingRequests: number;
+  rejectedRequests: number;
+  adapterErrors: number;
   openRequests: number;
   exchangeOpenPositions: number;
   missingOrderIds: number;
@@ -43,6 +47,13 @@ export function buildAgentVenueReconciliationSummary({
   maxSnapshotAgeMs?: number;
 }): AgentVenueReconciliationSummary {
   const submittedRequests = requests.filter((request) => request.status === "submitted");
+  const pendingRequests = requests.filter(
+    (request) =>
+      request.status === "waiting_for_setup" ||
+      request.status === "adapter_not_connected",
+  );
+  const rejectedRequests = requests.filter((request) => request.status === "rejected");
+  const adapterErrors = requests.filter((request) => request.status === "adapter_error");
   const openSubmittedRequests = submittedRequests.filter((request) =>
     requestMatchesAnyPosition(request, accountSnapshot),
   );
@@ -104,6 +115,22 @@ export function buildAgentVenueReconciliationSummary({
       message: `${unmatchedPositions} open venue position${unmatchedPositions === 1 ? "" : "s"} do not match a ClearSig submitted request.`,
     });
   }
+  if (adapterErrors.length > 0) {
+    issues.push({
+      id: "adapter_errors",
+      severity: "block",
+      label: "Executor errors",
+      message: `${adapterErrors.length} venue request${adapterErrors.length === 1 ? "" : "s"} failed in the protected executor.`,
+    });
+  }
+  if (rejectedRequests.length > 0) {
+    issues.push({
+      id: "rejected_requests",
+      severity: "warning",
+      label: "Rejected requests",
+      message: `${rejectedRequests.length} venue request${rejectedRequests.length === 1 ? "" : "s"} were stopped by ClearSig checks.`,
+    });
+  }
 
   const status = issues.some((issue) => issue.severity === "block")
     ? "blocked"
@@ -123,7 +150,11 @@ export function buildAgentVenueReconciliationSummary({
       status === "healthy"
         ? "Submitted requests match the latest venue state."
         : issues[0]?.message ?? "Venue reconciliation needs review.",
+    totalRequests: requests.length,
     submittedRequests: submittedRequests.length,
+    pendingRequests: pendingRequests.length,
+    rejectedRequests: rejectedRequests.length,
+    adapterErrors: adapterErrors.length,
     openRequests: openSubmittedRequests.length,
     exchangeOpenPositions: accountSnapshot?.positions.length ?? 0,
     missingOrderIds,

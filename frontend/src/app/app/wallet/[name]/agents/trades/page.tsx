@@ -194,6 +194,22 @@ export default function AgentTradesPage() {
         <Metric label="Combined P/L" value={formatSignedUsd(summary.combinedPnlUsd)} />
       </section>
 
+      <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-text-strong">
+              Trade evidence
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
+              Built-in trades are paper simulations. Hyperliquid trades shown
+              here are testnet practice records until venue reconciliation marks
+              them as live-capital evidence.
+            </p>
+          </div>
+          <Badge tone="warning">Practice/Testnet</Badge>
+        </div>
+      </section>
+
       <section className="flex flex-wrap items-center justify-between gap-3 border-y border-border-soft py-3">
         <div className="inline-flex rounded-soft border border-border-soft bg-canvas p-1">
           {(["open", "closed", "all"] as const).map((item) => (
@@ -278,6 +294,9 @@ function TradeRow({
             </p>
             <Badge tone={open ? "success" : "default"}>{open ? "Open" : "Closed"}</Badge>
             <Badge>{venueLabel(execution.venue)}</Badge>
+            <Badge tone={execution.venue === "hyperliquid_testnet" ? "warning" : "default"}>
+              {execution.venue === "hyperliquid_testnet" ? "Testnet evidence" : "Paper evidence"}
+            </Badge>
           </div>
           <p className="mt-1 text-xs text-text-soft">
             {agent?.name ?? "Unknown agent"} · {formatUsd(execution.notionalUsd)} · {execution.leverage}x
@@ -475,7 +494,7 @@ function venueLabel(venue: AgentExecutionRecord["venue"]): string {
     case "bulktrade_mock":
       return "Bulk paper";
     case "hyperliquid_testnet":
-      return "Hyperliquid";
+      return "Hyperliquid testnet";
   }
 }
 
