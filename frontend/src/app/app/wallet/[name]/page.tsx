@@ -24,7 +24,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { proposerDisplayName } from "@/lib/retail/proposerName";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ArrowRight, Banknote, Bell, Bot, ChevronDown, Coins, Download, Layers, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users } from "lucide-react";
+import { Activity, ArrowRight, Banknote, Bell, Bot, Building2, ChevronDown, Coins, CreditCard, Download, Handshake, Layers, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
 import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -80,6 +80,11 @@ import { useDisplayCurrency } from "@/lib/hooks/useDisplayCurrency";
 import { UsdHint } from "@/components/retail/UsdHint";
 import { CHAIN_CATALOG as CHAIN_CATALOG_REF } from "@/lib/retail/chains";
 import { appConfig } from "@/lib/config";
+import {
+  isProductSurfaceId,
+  productSurfaceById,
+  type ProductSurfaceId,
+} from "@/lib/productSurfaces";
 
 type WalletTab = "activity" | "holdings" | "manage";
 
@@ -88,6 +93,18 @@ function readWalletTabFromHash(): WalletTab {
   const h = window.location.hash.replace(/^#/, "");
   if (h === "holdings" || h === "manage") return h;
   return "activity";
+}
+
+function useProductSurfaceIntent(): ProductSurfaceId | null {
+  const [surface, setSurface] = useState<ProductSurfaceId | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const requested = new URLSearchParams(window.location.search).get("surface");
+    setSurface(isProductSurfaceId(requested) ? requested : null);
+  }, []);
+
+  return surface;
 }
 
 export default function WalletDetailPage() {
@@ -111,6 +128,7 @@ export default function WalletDetailPage() {
     readWalletTabFromHash,
   );
   const [loadChainHistory, setLoadChainHistory] = useState(false);
+  const productSurface = useProductSurfaceIntent();
 
   useEffect(() => {
     if (detailTab !== "activity") return;
@@ -299,6 +317,14 @@ export default function WalletDetailPage() {
         pendingApprovalCount={walletAction.length}
         reduce={!!reduce}
       />
+      {productSurface ? (
+        <ProductIntentCard
+          surface={productSurface}
+          walletName={name}
+          memberCount={memberCount}
+          reduce={!!reduce}
+        />
+      ) : null}
       <NextBestActionCard
         name={name}
         displayName={displayName}
@@ -653,6 +679,140 @@ interface NextBestActionCardProps {
   activityCount: number;
   loading: boolean;
   reduce: boolean;
+}
+
+function ProductIntentCard({
+  surface,
+  walletName,
+  memberCount,
+  reduce,
+}: {
+  surface: ProductSurfaceId;
+  walletName: string;
+  memberCount: number | null;
+  reduce: boolean;
+}) {
+  const encoded = encodeURIComponent(walletName);
+  const product = productSurfaceById(surface);
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  const config = productIntentConfig(surface, encoded, memberCount);
+  const Icon = config.Icon;
+
+  return (
+    <motion.section
+      {...motionProps}
+      transition={{ duration: 0.2, delay: 0.04 }}
+      className="rounded-card border border-accent/35 bg-accent/[0.06] p-5 shadow-card-rest"
+    >
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
+            <Icon className="h-4 w-4" strokeWidth={1.9} aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
+              {product.shortName} selected
+            </p>
+            <h2 className="mt-1 font-display text-lg font-semibold leading-tight text-text-strong">
+              {config.title}
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm text-text-soft">
+              {config.body}
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Link
+            href={config.primaryHref}
+            className="inline-flex min-h-tap items-center justify-center gap-1.5 rounded-soft bg-accent px-4 py-2 text-sm font-medium text-text-on-accent shadow-accent-rest transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          >
+            {config.primaryLabel}
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+          {config.secondaryHref ? (
+            <Link
+              href={config.secondaryHref}
+              className="inline-flex min-h-tap items-center justify-center rounded-soft border border-border-soft bg-canvas px-4 py-2 text-sm font-medium text-text-strong transition-[border-color,transform] duration-base ease-out-soft hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+            >
+              {config.secondaryLabel}
+            </Link>
+          ) : null}
+        </div>
+      </div>
+    </motion.section>
+  );
+}
+
+function productIntentConfig(
+  surface: ProductSurfaceId,
+  encodedWallet: string,
+  memberCount: number | null,
+): {
+  Icon: LucideIcon;
+  title: string;
+  body: string;
+  primaryHref: string;
+  primaryLabel: string;
+  secondaryHref?: string;
+  secondaryLabel?: string;
+} {
+  if (surface === "pro") {
+    return {
+      Icon: Building2,
+      title: "Your Pro treasury is ready.",
+      body: "Next, add teammates or define spending rules so this workspace behaves like a company treasury, not a personal wallet.",
+      primaryHref: `/app/wallet/${encodedWallet}/policy`,
+      primaryLabel: "Set rules",
+      secondaryHref: `/app/wallet/${encodedWallet}/members/add`,
+      secondaryLabel: "Add teammate",
+    };
+  }
+  if (surface === "agent") {
+    return {
+      Icon: Bot,
+      title: "Your agent vault is ready.",
+      body: "Choose an agent, connect a venue, and grant a bounded allowance before any strategy can act.",
+      primaryHref: `/app/wallet/${encodedWallet}/agents/start`,
+      primaryLabel: "Launch agent",
+    };
+  }
+  if (surface === "p2pdefi") {
+    return {
+      Icon: Handshake,
+      title: "Your P2P workspace is ready.",
+      body: "Use this wallet for counterparty-approved requests and settlement flows. Dedicated offer tooling can build on this workspace.",
+      primaryHref: `/app/wallet/${encodedWallet}/send`,
+      primaryLabel: "Start settlement",
+      secondaryHref: `/app/wallet/${encodedWallet}/members/add`,
+      secondaryLabel: "Add counterparty",
+    };
+  }
+  if (surface === "payments") {
+    return {
+      Icon: CreditCard,
+      title: "Your Payments workspace is ready.",
+      body: "Create the first payout request, then tighten recurring payment rules before routing larger flows through this wallet.",
+      primaryHref: `/app/wallet/${encodedWallet}/send`,
+      primaryLabel: "Create payment",
+      secondaryHref: `/app/wallet/${encodedWallet}/policy`,
+      secondaryLabel: "Set payout rules",
+    };
+  }
+  return {
+    Icon: Users,
+    title: "Your personal wallet is ready.",
+    body:
+      (memberCount ?? 0) <= 1
+        ? "You can use it solo now, or add someone you trust so approvals match the personal safety flow you chose."
+        : "You can send, receive, and manage trusted approvals from this wallet.",
+    primaryHref:
+      (memberCount ?? 0) <= 1
+        ? `/app/wallet/${encodedWallet}/members/add`
+        : `/app/wallet/${encodedWallet}/send`,
+    primaryLabel: (memberCount ?? 0) <= 1 ? "Add trusted person" : "Send money",
+  };
 }
 
 function NextBestActionCard({

@@ -27,6 +27,26 @@ export interface ProductSurface {
   boundaries: string[];
 }
 
+export function isProductSurfaceId(value: string | null | undefined): value is ProductSurfaceId {
+  return (
+    value === "personal" ||
+    value === "pro" ||
+    value === "agent" ||
+    value === "secure" ||
+    value === "p2pdefi" ||
+    value === "payments"
+  );
+}
+
+export function productSetupHref(id: ProductSurfaceId): string {
+  const purpose = id === "secure" ? "secure" : id === "agent" ? "agent" : "share";
+  return `/app/wallet/new?surface=${id}&purpose=${purpose}`;
+}
+
+export function productConnectHref(id: ProductSurfaceId): string {
+  return `/connect?next=${encodeURIComponent(productSetupHref(id))}`;
+}
+
 export const PRODUCT_SURFACES: ProductSurface[] = [
   {
     id: "personal",
@@ -40,7 +60,7 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     summary:
       "Create a simple shared wallet for yourself, family, friends, or a small group. No policy builder in the default path.",
     ctaLabel: "Start personal setup",
-    ctaHref: "/app/wallet/new?surface=personal&purpose=share",
+    ctaHref: productConnectHref("personal"),
     secondaryHref: "/security",
     secondaryLabel: "Review security",
     primitives: ["Multisig authority", "Device and wallet approvals", "Shared activity"],
@@ -68,7 +88,7 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     summary:
       "Protect company wallets with multiple approvers, spending rules, transparent policy controls, or encrypted policy commitments.",
     ctaLabel: "Create pro workspace",
-    ctaHref: "/app/wallet/new?surface=pro&purpose=share",
+    ctaHref: productConnectHref("pro"),
     secondaryHref: "/privacy",
     secondaryLabel: "Policy privacy",
     primitives: ["Multisig authority", "Policy engine", "Encrypt commitments"],
@@ -96,7 +116,7 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     summary:
       "Agents are not multisigs. They are identities that submit signed trade decisions into ClearSig policy gates.",
     ctaLabel: "Create agent vault",
-    ctaHref: "/app/wallet/new?surface=agent&purpose=agent",
+    ctaHref: productConnectHref("agent"),
     secondaryHref: "/agents?surface=agent",
     secondaryLabel: "Browse marketplace",
     primitives: ["Agent identity", "Policy grants", "Decision journal"],
@@ -124,7 +144,7 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     summary:
       "Protect a personal key with device and passkey thresholds. Lose one device, recover with the rest.",
     ctaLabel: "Create recovery vault",
-    ctaHref: "/app/wallet/new?surface=secure&purpose=secure",
+    ctaHref: productConnectHref("secure"),
     secondaryHref: "/security",
     secondaryLabel: "Review security",
     primitives: ["Recovery vault", "Passkey thresholds", "Sweep flow"],
@@ -152,7 +172,7 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     summary:
       "Coordinate offers, intents, counterparty approvals, and policy-checked settlement from a dedicated product path.",
     ctaLabel: "Create P2P workspace",
-    ctaHref: "/app/wallet/new?surface=p2pdefi&purpose=share",
+    ctaHref: productConnectHref("p2pdefi"),
     secondaryHref: "/security",
     secondaryLabel: "Review signing model",
     primitives: ["Signed intents", "Policy gates", "Settlement proofs"],
@@ -175,7 +195,7 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     summary:
       "Coordinate invoices, approvals, recurring payments, and business payout controls from a dedicated product path.",
     ctaLabel: "Create payments workspace",
-    ctaHref: "/app/wallet/new?surface=payments&purpose=share",
+    ctaHref: productConnectHref("payments"),
     secondaryHref: "/privacy",
     secondaryLabel: "Policy privacy",
     primitives: ["Payment intents", "Approvals", "Treasury policy"],

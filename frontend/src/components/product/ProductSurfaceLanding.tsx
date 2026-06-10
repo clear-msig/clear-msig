@@ -189,7 +189,7 @@ function ProductIconLink({ surface }: {
   const Icon = ICONS[surface.id];
   return (
     <Link
-      href={surface.path}
+      href={surface.ctaHref}
       className={clsx(
         "group flex min-h-44 flex-col items-center justify-start text-center",
         "transition-[transform,color] duration-200 hover:-translate-y-1",
@@ -206,7 +206,7 @@ function ProductIconLink({ surface }: {
         {surface.eyebrow}
       </p>
       <span className="mt-auto inline-flex items-center gap-1.5 pt-4 text-xs font-semibold text-[#ccff00]">
-        Open
+        Choose
         <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
       </span>
     </Link>

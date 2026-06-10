@@ -41,6 +41,7 @@ import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { useToast } from "@/components/ui/Toast";
 import { saveWalletAppearance } from "@/lib/retail/walletAppearance";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
+import { isProductSurfaceId } from "@/lib/productSurfaces";
 
 const SOL_TRANSFER_TEMPLATE = "examples/intents/solana_transfer.json";
 
@@ -183,6 +184,10 @@ function NewWalletContent() {
   const isBrokenSigner = wallet.signerIssue !== null;
   const signerIssue = wallet.signerIssue;
   const me = wallet.publicKey?.toBase58() ?? "";
+  const surface = useMemo(() => {
+    const requested = search.get("surface");
+    return isProductSurfaceId(requested) ? requested : null;
+  }, [search]);
 
   // Unified product entry: clear-msig is now the single create flow
   // for both shared wallets (the classic multisig) and Secure
@@ -196,7 +201,6 @@ function NewWalletContent() {
   type Purpose = "share" | "secure" | "agent";
   const initialPurpose = useMemo<Purpose | null>(() => {
     const requested = search.get("purpose");
-    const surface = search.get("surface");
     if (
       requested === "share" ||
       surface === "personal" ||
@@ -209,16 +213,9 @@ function NewWalletContent() {
     if (requested === "secure" || surface === "secure") return "secure";
     if (requested === "agent" || surface === "agent") return "agent";
     return null;
-  }, [search]);
+  }, [search, surface]);
   const [purpose, setPurpose] = useState<Purpose | null>(initialPurpose);
-  const surface = search.get("surface");
-  const lockedPurpose =
-    surface === "personal" ||
-    surface === "pro" ||
-    surface === "agent" ||
-    surface === "secure" ||
-    surface === "p2pdefi" ||
-    surface === "payments";
+  const lockedPurpose = surface !== null;
 
   const [shape, setShape] = useState<ShapeId>(
     surface === "personal" ? "just_me" : "family",
@@ -344,9 +341,7 @@ function NewWalletContent() {
             : "Sending is enabled. Open the wallet to send your first request.",
       });
       router.push(
-        purpose === "agent"
-          ? `/app/wallet/${encodeURIComponent(walletSlug)}/agents/start`
-          : `/app/wallet/${encodeURIComponent(walletSlug)}`,
+        postCreateHref(walletSlug, surface, purpose),
       );
     },
     onError: (err) => {
@@ -567,7 +562,7 @@ function NewWalletContent() {
                   type="button"
                   onClick={() =>
                     router.push(
-                      `/app/secure/new?preselect=${encodeURIComponent(s.id)}`,
+                      `/app/secure/new?surface=secure&preselect=${encodeURIComponent(s.id)}`,
                     )
                   }
                   className={clsx(
@@ -601,7 +596,7 @@ function NewWalletContent() {
               secondary path so the primary flow stays "create new
               under threshold". */}
           <Link
-            href="/app/secure/import"
+            href="/app/secure/import?surface=secure"
             className={clsx(
               "group flex items-start justify-between gap-3 rounded-soft border border-border-soft bg-canvas p-4",
               "transition-[border-color,background-color,transform] duration-base ease-out-soft",
@@ -854,6 +849,21 @@ function slug(s: string): string {
   if (bytes.length <= 64) return trimmed;
   const truncated = enc.encode(trimmed).subarray(0, 64);
   return new TextDecoder("utf-8", { fatal: false }).decode(truncated);
+}
+
+function postCreateHref(
+  walletSlug: string,
+  surface: string | null,
+  purpose: "share" | "secure" | "agent" | null,
+): string {
+  const encoded = encodeURIComponent(walletSlug);
+  if (purpose === "agent") {
+    return `/app/wallet/${encoded}/agents/start?surface=agent`;
+  }
+  if (isProductSurfaceId(surface)) {
+    return `/app/wallet/${encoded}?surface=${surface}`;
+  }
+  return `/app/wallet/${encoded}`;
 }
 
 function NewWalletSkeleton() {
