@@ -11,7 +11,7 @@
 // page - no intermediate "wallet ready" celebration, since they're
 // already inside the app and just want to use it.
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import clsx from "clsx";
@@ -163,6 +163,14 @@ function agentSetupInfo(): {
 }
 
 export default function NewWalletPage() {
+  return (
+    <Suspense fallback={<NewWalletSkeleton />}>
+      <NewWalletContent />
+    </Suspense>
+  );
+}
+
+function NewWalletContent() {
   const router = useRouter();
   const search = useSearchParams();
   const wallet = useWallet();
@@ -846,4 +854,18 @@ function slug(s: string): string {
   if (bytes.length <= 64) return trimmed;
   const truncated = enc.encode(trimmed).subarray(0, 64);
   return new TextDecoder("utf-8", { fatal: false }).decode(truncated);
+}
+
+function NewWalletSkeleton() {
+  return (
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-6">
+      <div className="hidden h-9 w-56 animate-pulse rounded bg-border-soft md:block" />
+      <div className="h-4 w-72 max-w-full animate-pulse rounded bg-border-soft" />
+      <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
+        <div className="h-5 w-32 animate-pulse rounded bg-border-soft" />
+        <div className="mt-4 h-12 w-full animate-pulse rounded-soft bg-border-soft" />
+        <div className="mt-4 h-12 w-full animate-pulse rounded-soft bg-border-soft" />
+      </div>
+    </div>
+  );
 }

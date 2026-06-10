@@ -20,7 +20,7 @@
 
 import { useEffect } from "react";
 import { useWallet } from "@/lib/wallet";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { fetchOnchainMemberships } from "@/lib/memberships/client";
 
@@ -36,7 +36,6 @@ export function useWalletGate() {
   const wallet = useWallet();
   const router = useRouter();
   const pathname = usePathname() ?? "";
-  const search = useSearchParams();
   const address = wallet.publicKey?.toBase58() ?? "";
 
   // Only need the memberships count on /connect to pick the post-
@@ -103,7 +102,10 @@ export function useWalletGate() {
     }
 
     if (isProtected(pathname)) {
-      const query = search.toString();
+      const query =
+        typeof window !== "undefined"
+          ? window.location.search.replace(/^\?/, "")
+          : "";
       const next = `${pathname}${query ? `?${query}` : ""}`;
       router.replace(`/connect?next=${encodeURIComponent(next)}`);
     }
@@ -113,7 +115,6 @@ export function useWalletGate() {
     wallet.disconnecting,
     wallet.loggedInWithoutSolana,
     pathname,
-    search,
     router,
     memberships.isLoading,
     memberships.isFetching,
