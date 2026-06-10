@@ -68,7 +68,7 @@ export function LandingAtmospherics() {
 }
 
 interface LandingNavProps {
-  /** Right-side primary CTA. Defaults to "Open app" → /welcome. Pass
+  /** Right-side primary CTA. Defaults to product choice. Pass
    *  `null` to suppress (e.g. on /welcome itself, where the user is
    *  already inside the app surface). */
   cta?: { href: string; label: string } | null;
@@ -78,7 +78,7 @@ interface LandingNavProps {
 }
 
 export function LandingNav({
-  cta = { href: "/welcome", label: "Launch app" },
+  cta = { href: "/choose", label: "Choose product" },
   status,
 }: LandingNavProps = {}) {
   const [menuOpen, setMenuOpen] = useState(false);

@@ -10,6 +10,30 @@ Proposal-only is the safest entry point, but it cannot be the whole MVP.
 Trading entries can disappear while humans are offline, so a useful MVP must
 also support bounded execution sessions.
 
+## Product Surface Split
+
+ClearSig should not present every capability inside one blended dashboard.
+The product is now split into separate surfaces that share ClearSig primitives
+under the hood:
+
+- `personal.clearsig.com`: Personal shared-wallet protection. Multiple
+  devices or wallets can protect a multisig, but the default user journey does
+  not expose policy setup.
+- `pro.clearsig.com`: Company treasury protection. Multiple devices or wallets
+  protect a multisig, and teams can choose transparent policies or encrypted
+  policy commitments.
+- `agent.clearsig.com`: Agent trading. This is not a multisig product surface.
+  It is a policy collection, identity, signed-decision, allowance, execution,
+  journal, and track-record system similar in spirit to Fordefi-style policy
+  controls.
+- `p2pdefi.clearsig.xyz` and `payments.clearsig.xyz`: future product surfaces
+  coordinated by the same base primitives.
+
+The shared primitive layer remains Solana authority, Ika execution direction,
+Encrypt/private policy data, signed intents, policy gates, audit trails, and
+execution records. The user-facing flows must stay separated so retail users,
+companies, and agent allocators are not forced through each other's controls.
+
 The MVP therefore has two modes:
 
 - Propose-only: agent submits trade intent, humans approve.

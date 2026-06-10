@@ -206,10 +206,10 @@ export default function PrivacyPage() {
             enforcement switches on when the Encrypt network support lands.
           </p>
           <Link
-            href="/welcome"
+            href="/choose"
             className="neon-cta inline-flex items-center gap-2 rounded-full px-6 py-3 text-[13px] font-bold tracking-tight"
           >
-            Try Clear
+            Choose product
             <ArrowRight className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
           </Link>
         </motion.section>
