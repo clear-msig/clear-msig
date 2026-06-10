@@ -2,6 +2,7 @@ export type ProductSurfaceId =
   | "personal"
   | "pro"
   | "agent"
+  | "secure"
   | "p2pdefi"
   | "payments";
 
@@ -37,9 +38,9 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     eyebrow: "For people and families",
     headline: "Shared wallet protection without policy stress.",
     summary:
-      "Use multiple devices or wallets to protect one multisig. No policy setup is required for the personal path.",
+      "Create a simple shared wallet for yourself, family, friends, or a small group. No policy builder in the default path.",
     ctaLabel: "Start personal setup",
-    ctaHref: "/welcome?surface=personal",
+    ctaHref: "/app/wallet/new?surface=personal&purpose=share",
     secondaryHref: "/security",
     secondaryLabel: "Review security",
     primitives: ["Multisig authority", "Device and wallet approvals", "Shared activity"],
@@ -67,7 +68,7 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     summary:
       "Protect company wallets with multiple approvers, spending rules, transparent policy controls, or encrypted policy commitments.",
     ctaLabel: "Create pro workspace",
-    ctaHref: "/app/wallet/new?surface=pro",
+    ctaHref: "/app/wallet/new?surface=pro&purpose=share",
     secondaryHref: "/privacy",
     secondaryLabel: "Policy privacy",
     primitives: ["Multisig authority", "Policy engine", "Encrypt commitments"],
@@ -94,10 +95,10 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     headline: "Policy-bound agent trading without giving agents custody.",
     summary:
       "Agents are not multisigs. They are identities that submit signed trade decisions into ClearSig policy gates.",
-    ctaLabel: "Open agent marketplace",
-    ctaHref: "/agents?surface=agent",
-    secondaryHref: "/app/wallet?surface=agent",
-    secondaryLabel: "Manage my agents",
+    ctaLabel: "Create agent vault",
+    ctaHref: "/app/wallet/new?surface=agent&purpose=agent",
+    secondaryHref: "/agents?surface=agent",
+    secondaryLabel: "Browse marketplace",
     primitives: ["Agent identity", "Policy grants", "Decision journal"],
     features: [
       "Publish or browse agent profiles",
@@ -112,21 +113,55 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     ],
   },
   {
+    id: "secure",
+    name: "ClearSig Secure",
+    shortName: "Secure",
+    host: "secure.clearsig.com",
+    path: "/secure",
+    status: "live",
+    eyebrow: "For key recovery",
+    headline: "Recoverable custody without a seed phrase ritual.",
+    summary:
+      "Protect a personal key with device and passkey thresholds. Lose one device, recover with the rest.",
+    ctaLabel: "Create recovery vault",
+    ctaHref: "/app/wallet/new?surface=secure&purpose=secure",
+    secondaryHref: "/security",
+    secondaryLabel: "Review security",
+    primitives: ["Recovery vault", "Passkey thresholds", "Sweep flow"],
+    features: [
+      "Create a personal recovery vault",
+      "Choose 1-of-1, 2-of-3, or 3-of-5 protection",
+      "Enroll passkeys and trusted devices",
+      "Recover or sweep without exposing a seed phrase in normal use",
+    ],
+    boundaries: [
+      "Not the shared spending wallet flow",
+      "No agent permissions in the recovery setup",
+      "Recovery actions stay separate from treasury policy",
+    ],
+  },
+  {
     id: "p2pdefi",
     name: "ClearSig P2P DeFi",
     shortName: "P2P DeFi",
     host: "p2pdefi.clearsig.xyz",
     path: "/p2pdefi",
-    status: "planned",
-    eyebrow: "Coming next",
+    status: "live",
+    eyebrow: "For peer-to-peer coordination",
     headline: "Peer-to-peer DeFi coordination on ClearSig primitives.",
     summary:
-      "A future surface for offers, intents, escrow-like coordination, and policy-checked settlement.",
-    ctaLabel: "Not live yet",
-    ctaHref: "/choose",
+      "Coordinate offers, intents, counterparty approvals, and policy-checked settlement from a dedicated product path.",
+    ctaLabel: "Create P2P workspace",
+    ctaHref: "/app/wallet/new?surface=p2pdefi&purpose=share",
+    secondaryHref: "/security",
+    secondaryLabel: "Review signing model",
     primitives: ["Signed intents", "Policy gates", "Settlement proofs"],
     features: ["Offer discovery", "Counterparty approvals", "Policy-checked settlement"],
-    boundaries: ["Not part of the current beta", "No live trading or escrow claim yet"],
+    boundaries: [
+      "Counterparty coordination stays separate from treasury setup",
+      "Every settlement still passes a readable ClearSig request",
+      "Marketplace and escrow claims are not mixed into core wallet UI",
+    ],
   },
   {
     id: "payments",
@@ -134,16 +169,22 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     shortName: "Payments",
     host: "payments.clearsig.xyz",
     path: "/payments",
-    status: "planned",
-    eyebrow: "Coming next",
+    status: "live",
+    eyebrow: "For invoices and payouts",
     headline: "Payment flows coordinated by ClearSig authority.",
     summary:
-      "A future surface for invoices, approvals, recurring payments, and business payout controls.",
-    ctaLabel: "Not live yet",
-    ctaHref: "/choose",
+      "Coordinate invoices, approvals, recurring payments, and business payout controls from a dedicated product path.",
+    ctaLabel: "Create payments workspace",
+    ctaHref: "/app/wallet/new?surface=payments&purpose=share",
+    secondaryHref: "/privacy",
+    secondaryLabel: "Policy privacy",
     primitives: ["Payment intents", "Approvals", "Treasury policy"],
     features: ["Invoices", "Recurring approvals", "Payout review"],
-    boundaries: ["Not part of the current beta", "No production payments promise yet"],
+    boundaries: [
+      "Payment approvals stay separate from personal recovery",
+      "Recurring payment controls stay explicit",
+      "No agent trading controls in the default payments path",
+    ],
   },
 ];
 

@@ -977,7 +977,7 @@ function Hero({
           />
 
           <div
-            className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3"
+            className="grid grid-cols-3 gap-2 sm:gap-3"
             role="group"
             aria-label="Wallet actions"
           >
@@ -998,12 +998,6 @@ function Hero({
               icon={<ShieldCheck className="h-5 w-5" strokeWidth={1.75} />}
               label="Rules"
               hint="Controls"
-            />
-            <HeroActionTile
-              href={`/app/wallet/${encoded}/agents`}
-              icon={<Bot className="h-5 w-5" strokeWidth={1.75} />}
-              label="Agent Trading"
-              hint="Automate"
             />
           </div>
         </div>
@@ -1541,10 +1535,10 @@ function Actions({
           body="Approvals, rules, limits, and notifications."
         />
         <ActionRow
-          href={`/app/wallet/${encoded}/agents`}
+          href={`/app/wallet/${encoded}/agents/start`}
           icon={Bot}
-          title="Agent Trading"
-          body="Choose traders, set allowances, and watch trades."
+          title="ClearSig Agents"
+          body="Launch the agent setup flow for this vault."
         />
         <ActionRow
           href={`/app/wallet/${encoded}/settings`}

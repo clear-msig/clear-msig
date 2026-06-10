@@ -8,8 +8,12 @@ import {
   Building2,
   Check,
   CreditCard,
+  FileText,
   Handshake,
+  KeyRound,
+  Layers,
   ShieldCheck,
+  Sparkles,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -26,50 +30,48 @@ const ICONS: Record<ProductSurfaceId, LucideIcon> = {
   personal: Users,
   pro: Building2,
   agent: Bot,
+  secure: KeyRound,
   p2pdefi: Handshake,
   payments: CreditCard,
 };
 
-export function ProductChooserPage() {
-  const live = PRODUCT_SURFACES.filter((surface) => surface.status === "live");
-  const planned = PRODUCT_SURFACES.filter((surface) => surface.status === "planned");
+const FEATURE_ICONS: LucideIcon[] = [
+  ShieldCheck,
+  Users,
+  Layers,
+  FileText,
+  Sparkles,
+  Check,
+];
 
+export function ProductChooserPage() {
   return (
     <ProductShell cta={null}>
       <section className="relative z-10 mx-auto flex min-h-[calc(100vh-96px)] w-full max-w-6xl flex-col justify-center px-5 pb-16 pt-10 sm:px-8 lg:px-10">
-        <div className="max-w-3xl">
+        <div className="max-w-4xl">
           <p className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
-            Choose your ClearSig surface
+            Choose product
           </p>
           <h1 className="mt-5 text-[clamp(2.4rem,7vw,5.8rem)] font-medium leading-[0.9] text-white">
-            One primitive layer. Separate products.
+            What are you here to do?
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-white/62 sm:text-lg">
-            Pick the experience you want. Personal wallets, company treasuries,
-            and agent trading should not feel like the same dashboard with
-            different labels.
+            Pick the product first. Sign in happens after this, and ClearSig
+            brings you back to the exact setup path you chose.
           </p>
         </div>
 
-        <div className="mt-10 grid gap-3 lg:grid-cols-3">
-          {live.map((surface) => (
-            <SurfaceCard key={surface.id} surface={surface} featured={surface.id === "agent"} />
+        <div className="mt-10 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-6">
+          {PRODUCT_SURFACES.map((surface) => (
+            <ProductIconLink key={surface.id} surface={surface} />
           ))}
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-2">
-          {planned.map((surface) => (
-            <SurfaceCard key={surface.id} surface={surface} compact />
-          ))}
-        </div>
-
-        <div className="mt-8 rounded-[1.25rem] border border-white/[0.08] bg-white/[0.03] p-4">
-          <p className="text-sm leading-relaxed text-white/58">
-            ClearSig base primitives stay shared underneath: wallet authority,
-            signed intents, policy gates, encrypted commitments, execution
-            records, and audit trails. The user-facing products stay separate.
-          </p>
-        </div>
+        <ul className="mt-10 grid gap-3 border-t border-white/[0.08] pt-6 text-sm text-white/56 sm:grid-cols-3">
+          <li>One primitive layer underneath.</li>
+          <li>Six separate product paths above it.</li>
+          <li>Your login returns to the product you picked.</li>
+        </ul>
       </section>
     </ProductShell>
   );
@@ -119,7 +121,7 @@ export function ProductSurfaceLanding({ id }: { id: ProductSurfaceId }) {
           </div>
         </div>
 
-        <aside className="self-center rounded-[1.4rem] border border-white/[0.1] bg-white/[0.04] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl">
+        <aside className="self-center">
           <div className="flex items-start gap-3">
             <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#ccff00] text-black">
               <Icon className="h-5 w-5" aria-hidden="true" strokeWidth={2.2} />
@@ -132,10 +134,10 @@ export function ProductSurfaceLanding({ id }: { id: ProductSurfaceId }) {
             </div>
           </div>
 
-          <SurfaceList title="This surface includes" items={surface.features} />
-          <SurfaceList title="Clear boundaries" items={surface.boundaries} />
+          <SurfaceIconList title="This surface includes" items={surface.features} />
+          <SurfaceIconList title="Clear boundaries" items={surface.boundaries} muted />
 
-          <div className="mt-5 rounded-2xl border border-white/[0.08] bg-black/20 p-4">
+          <div className="mt-6">
             <p className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/42">
               Shared primitives
             </p>
@@ -181,67 +183,72 @@ function ProductShell({
   );
 }
 
-function SurfaceCard({
-  surface,
-  featured = false,
-  compact = false,
-}: {
+function ProductIconLink({ surface }: {
   surface: ProductSurface;
-  featured?: boolean;
-  compact?: boolean;
 }) {
   const Icon = ICONS[surface.id];
   return (
     <Link
-      href={surface.status === "live" ? surface.path : "/choose"}
+      href={surface.path}
       className={clsx(
-        "group rounded-[1.35rem] border p-4 transition-colors",
-        featured
-          ? "border-[#ccff00]/40 bg-[#ccff00]/[0.08]"
-          : "border-white/[0.09] bg-white/[0.035] hover:border-white/[0.2]",
-        surface.status === "planned" && "cursor-default opacity-70",
+        "group flex min-h-44 flex-col items-center justify-start text-center",
+        "transition-[transform,color] duration-200 hover:-translate-y-1",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ccff00]/60 focus-visible:ring-offset-4 focus-visible:ring-offset-[#0c0c0c]",
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <span
-          className={clsx(
-            "inline-flex h-10 w-10 items-center justify-center rounded-2xl",
-            featured ? "bg-[#ccff00] text-black" : "bg-white/[0.08] text-white",
-          )}
-        >
-          <Icon className="h-5 w-5" aria-hidden="true" />
-        </span>
-        <span className="rounded-full border border-white/[0.1] px-2.5 py-1 font-mono-tech text-[9px] uppercase tracking-[0.18em] text-white/46">
-          {surface.status === "live" ? surface.host : "planned"}
-        </span>
-      </div>
-      <h2 className={clsx("mt-4 font-semibold text-white", compact ? "text-lg" : "text-xl")}>
+      <span className="inline-flex h-16 w-16 items-center justify-center rounded-[1.35rem] border border-white/[0.12] bg-white/[0.045] text-white transition-colors group-hover:border-[#ccff00]/45 group-hover:bg-[#ccff00]/10 group-hover:text-[#ccff00]">
+        <Icon className="h-7 w-7" aria-hidden="true" strokeWidth={1.85} />
+      </span>
+      <h2 className="mt-4 text-lg font-semibold text-white">
         {surface.shortName}
       </h2>
-      <p className="mt-2 text-sm leading-relaxed text-white/56">{surface.summary}</p>
-      {surface.status === "live" ? (
-        <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-[#ccff00]">
-          Open surface
-          <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-        </span>
-      ) : null}
+      <p className="mt-2 max-w-[11rem] text-xs leading-relaxed text-white/50">
+        {surface.eyebrow}
+      </p>
+      <span className="mt-auto inline-flex items-center gap-1.5 pt-4 text-xs font-semibold text-[#ccff00]">
+        Open
+        <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+      </span>
     </Link>
   );
 }
 
-function SurfaceList({ title, items }: { title: string; items: string[] }) {
+function SurfaceIconList({
+  title,
+  items,
+  muted = false,
+}: {
+  title: string;
+  items: string[];
+  muted?: boolean;
+}) {
   return (
-    <div className="mt-5">
+    <div className="mt-6">
       <p className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/42">
         {title}
       </p>
-      <div className="mt-3 grid gap-2">
-        {items.map((item) => (
-          <div key={item} className="flex items-start gap-2 text-sm leading-relaxed text-white/64">
-            <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#ccff00]" aria-hidden="true" />
-            <span>{item}</span>
-          </div>
-        ))}
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        {items.map((item, index) => {
+          const ItemIcon = FEATURE_ICONS[index % FEATURE_ICONS.length];
+          return (
+            <div
+              key={item}
+              className="flex items-start gap-2 text-sm leading-relaxed text-white/64"
+            >
+              <span
+                className={clsx(
+                  "mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg",
+                  muted
+                    ? "bg-white/[0.05] text-white/40"
+                    : "bg-[#ccff00]/10 text-[#ccff00]",
+                )}
+              >
+                <ItemIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              </span>
+              <span>{item}</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
