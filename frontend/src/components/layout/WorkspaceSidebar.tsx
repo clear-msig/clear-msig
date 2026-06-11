@@ -28,7 +28,6 @@ import { useWallet } from "@/lib/wallet";
 import {
   Activity as ActivityIcon,
   ArrowLeft,
-  Bot,
   ChevronsLeft,
   ChevronsRight,
   Contact as ContactIcon,
@@ -365,8 +364,8 @@ function WorkspaceActions({
         <Link
           href="/app/wallet/new"
           onClick={onNavigate}
-          aria-label="New shared wallet"
-          title="New shared wallet"
+          aria-label="New wallet"
+          title="New wallet"
           className={clsx(
             "flex h-10 w-10 items-center justify-center rounded-soft bg-accent text-text-on-accent shadow-accent-rest",
             "transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
@@ -401,7 +400,7 @@ function WorkspaceActions({
       <Link
         href="/app/wallet/new"
         onClick={onNavigate}
-        aria-label="New shared wallet"
+        aria-label="New wallet"
         className={clsx(
           "inline-flex items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest",
           "transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
@@ -410,7 +409,7 @@ function WorkspaceActions({
         )}
       >
         <Plus size={13} aria-hidden="true" />
-        New shared wallet
+        New wallet
       </Link>
     </div>
   );
@@ -437,7 +436,6 @@ const WALLET_SUB_NAV: { sub: string; label: string; Icon: LucideIcon }[] = [
   { sub: "", label: "Overview", Icon: WalletIcon },
   { sub: "members", label: "Members", Icon: Users },
   { sub: "activity", label: "Activity", Icon: ActivityIcon },
-  { sub: "agents", label: "Agent Trading", Icon: Bot },
   { sub: "chains", label: "Networks", Icon: Layers },
   { sub: "policy", label: "Rules", Icon: Shield },
   { sub: "settings", label: "Settings", Icon: Settings },

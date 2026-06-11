@@ -254,6 +254,7 @@ function PolicyFlow({
       label: "Approvals",
       status: threshold,
       body: "Required signatures before a request can move.",
+      enforcement: "active",
     },
     {
       href: `/app/wallet/${encoded}/members`,
@@ -261,6 +262,7 @@ function PolicyFlow({
       label: "Members",
       status: memberStatus,
       body: "Invite people and assign request or approval rights.",
+      enforcement: "active",
     },
     {
       href: `/app/wallet/${encoded}/rules`,
@@ -268,6 +270,7 @@ function PolicyFlow({
       label: "Spending rule",
       status: timelock,
       body: "The on-chain intent that powers sending.",
+      enforcement: "active",
     },
     {
       href: `/app/wallet/${encoded}/budget`,
@@ -275,6 +278,7 @@ function PolicyFlow({
       label: "Limits",
       status: budgetLabel,
       body: "Weekly, per-chain, and daily send-count caps.",
+      enforcement: "preview",
     },
     {
       href: `/app/wallet/${encoded}/allowances`,
@@ -282,13 +286,15 @@ function PolicyFlow({
       label: "Per-person caps",
       status: allowanceCount ? `${allowanceCount} set` : "Not set",
       body: "Individual spending limits for each member.",
+      enforcement: "preview",
     },
     {
       href: `/app/wallet/${encoded}/policies`,
       Icon: ListChecks,
       label: "Advanced rules",
-      status: advancedRuleCount ? `${advancedRuleCount} active` : "None",
+      status: advancedRuleCount ? `${advancedRuleCount} saved` : "None",
       body: "Extra checks for recipients, amounts, and review.",
+      enforcement: "preview",
     },
   ];
 
@@ -300,8 +306,9 @@ function PolicyFlow({
             Policy flow
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-text-soft">
-            Configure this wallet in order: members, approvals, spending
-            rule, limits, then optional advanced rules.
+            Active controls are enforced by wallet membership and signed
+            intents. Preview guardrails run in the app today and become
+            enforceable once encrypted policy execution is live.
           </p>
         </div>
         <Link
@@ -326,10 +333,11 @@ interface PolicyStep {
   label: string;
   status: string;
   body: string;
+  enforcement: "active" | "preview";
 }
 
 function PolicyStepCard({ step }: { step: PolicyStep }) {
-  const { href, Icon, label, status, body } = step;
+  const { href, Icon, label, status, body, enforcement } = step;
   return (
     <Link
       href={href}
@@ -356,9 +364,21 @@ function PolicyStepCard({ step }: { step: PolicyStep }) {
           <p className="mt-1 text-xs text-text-soft">{body}</p>
         </div>
       </div>
-      <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
-        {status}
-      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+          {status}
+        </p>
+        <span
+          className={
+            "inline-flex rounded-full border px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.18em] " +
+            (enforcement === "active"
+              ? "border-accent/30 bg-accent/10 text-accent"
+              : "border-warning/30 bg-warning/10 text-warning")
+          }
+        >
+          {enforcement === "active" ? "Active" : "Preview"}
+        </span>
+      </div>
     </Link>
   );
 }
@@ -548,8 +568,9 @@ function AllowlistCard({ walletName }: { walletName: string }) {
             Allowlist
           </h2>
           <p className="mt-1 text-sm text-text-soft">
-            When on, this wallet will only send to addresses on the list.
-            Everything else is blocked before signing.
+            When on, the app warns and blocks local sends to addresses outside
+            this list before signing. On-chain enforcement arrives with the
+            encrypted policy path.
           </p>
         </div>
       </header>

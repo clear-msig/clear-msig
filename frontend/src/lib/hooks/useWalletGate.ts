@@ -10,11 +10,9 @@
 // the canonical /app/wallet/[name]/send path.
 //
 // Connected visitors on / or /connect are forwarded into the app
-// shell. The post-connect destination depends on whether the user is
-// onboarded: if they already have at least one shared wallet, they
-// always land on /app/wallet (the dashboard) - even if a stale
-// ?next=/welcome is in the URL from a previous "Get started" tap.
-// Returning users should never be sent through the create-wallet flow.
+// shell. Explicit product/deep-link `next` destinations are preserved
+// through login; generic login falls back to the product chooser for
+// first-timers and the wallet hub for returning users.
 //
 // The membership query only fires on /connect, so consumers on other
 // pages don't pay an extra RPC. React-query dedupes by query key so
@@ -78,18 +76,21 @@ export function useWalletGate() {
           typeof window !== "undefined" ? window.location.search : "",
         );
         const next = params.get("next");
+        const safeNext = isSafeNext(next) ? next : null;
         if (hasWallets) {
-          // Already onboarded - go home, ignore any stale ?next that
-          // would have routed through /welcome's create flow.
-          router.replace("/app/wallet");
+          // Already onboarded - honor an explicit product/deep-link
+          // destination, but do not let stale generic /welcome links
+          // push returning users back through a duplicate create flow.
+          router.replace(shouldHonorNextForReturningUser(safeNext) ? safeNext! : "/app/wallet");
         } else {
-          // First-timer - honor ?next, fall back to /welcome.
+          // First-timer - honor ?next, fall back to the product
+          // chooser so they pick intent before creating anything.
           // Open-redirect hardening: require single leading "/", reject
           // protocol-relative ("//attacker.com") + scheme-prefixed
           // ("javascript:..."), and reject anything containing ":".
           // Without these gates an attacker crafts /connect?next=//evil
           // and gets the user dropped on evil.com after sign-in.
-          router.replace(isSafeNext(next) ? next! : "/welcome");
+          router.replace(safeNext ?? "/choose");
         }
         return;
       }
@@ -101,7 +102,12 @@ export function useWalletGate() {
     }
 
     if (isProtected(pathname)) {
-      router.replace(`/connect?next=${encodeURIComponent(pathname)}`);
+      const query =
+        typeof window !== "undefined"
+          ? window.location.search.replace(/^\?/, "")
+          : "";
+      const next = `${pathname}${query ? `?${query}` : ""}`;
+      router.replace(`/connect?next=${encodeURIComponent(next)}`);
     }
   }, [
     wallet.connected,
@@ -124,6 +130,15 @@ export function useWalletGate() {
     /// embedded wallet hasn't been provisioned yet.
     loggedInWithoutSolana: wallet.loggedInWithoutSolana,
   };
+}
+
+function shouldHonorNextForReturningUser(next: string | null): boolean {
+  if (!next) return false;
+  if (next === "/welcome") return false;
+  if (next.startsWith("/welcome?") && !next.includes("surface=")) {
+    return false;
+  }
+  return true;
 }
 
 /// Open-redirect guard for ?next= values supplied by /connect's

@@ -237,7 +237,7 @@ export function CommandPalette() {
               className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-xs text-white/80 aria-selected:bg-accent/15 aria-selected:text-accent"
             >
               <Plus size={14} />
-              New shared wallet
+              New wallet
             </Command.Item>
             {wallet.connected && (
               <Command.Item

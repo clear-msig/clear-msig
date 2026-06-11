@@ -45,9 +45,29 @@ export function middleware(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
 
-  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  const rewrite = productSubdomainRewrite(request);
+  const response = rewrite
+    ? NextResponse.rewrite(rewrite, { request: { headers: requestHeaders } })
+    : NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy-Report-Only", reportOnlyCsp);
   return response;
+}
+
+function productSubdomainRewrite(request: NextRequest): URL | null {
+  if (request.nextUrl.pathname !== "/") return null;
+  const host = request.headers.get("host")?.toLowerCase().split(":")[0] ?? "";
+  const target =
+    host === "personal.clearsig.com"
+      ? "/personal"
+      : host === "pro.clearsig.com"
+        ? "/pro"
+        : host === "agent.clearsig.com"
+          ? "/agent"
+          : null;
+  if (!target) return null;
+  const url = request.nextUrl.clone();
+  url.pathname = target;
+  return url;
 }
 
 function generateNonce(): string {

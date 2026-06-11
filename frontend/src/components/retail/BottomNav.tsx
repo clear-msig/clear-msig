@@ -1,7 +1,7 @@
 // BottomNav - mobile-first primary navigation.
 //
 // Four flat tabs (Home / Activity / Contacts / Account) flanking a
-// centered floating-action button for "New shared wallet".
+// centered floating-action button for "New wallet".
 //
 // The FAB visually "cuts apart" from the bar via a `ring-[6px]
 // ring-canvas` halo: the ring matches the page background, so where
@@ -123,7 +123,7 @@ export function BottomNav() {
           anchors it to the palette. */}
       <Link
         href="/app/wallet/new"
-        aria-label="Create a new shared wallet"
+        aria-label="Create a new wallet"
         className={clsx(
           "absolute left-1/2 -top-7 z-10 -translate-x-1/2",
           "flex h-14 w-14 items-center justify-center rounded-full",

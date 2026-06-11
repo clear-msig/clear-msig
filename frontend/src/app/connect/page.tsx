@@ -16,6 +16,7 @@
 
 import { Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
@@ -35,6 +36,11 @@ import {
   LandingAtmospherics,
   LandingNav,
 } from "@/components/landing/LandingChrome";
+import {
+  isProductSurfaceId,
+  productSurfaceById,
+  type ProductSurface,
+} from "@/lib/productSurfaces";
 
 export default function ConnectPageWrapper() {
   return (
@@ -50,8 +56,10 @@ function ConnectPage() {
   // The gate handles the post-connect redirect (?next or /app/wallet).
   // We just render the connect UI; the gate fires once `connected` flips.
   useWalletGate();
+  const search = useSearchParams();
   const wallet = useWallet();
   const reduce = useReducedMotion();
+  const selectedSurface = productSurfaceFromNext(search.get("next"));
 
   // Bridge state: Dynamic auth is done, wallet.connected is true, but
   // useWalletGate is still waiting for the memberships RPC to settle
@@ -98,14 +106,24 @@ function ConnectPage() {
               </div>
 
               <h1 className="mt-6 text-[clamp(2.5rem,6.5vw,5rem)] font-light leading-[0.9] tracking-[-0.05em] text-white text-balance">
-                Money you decide
-                <br />
-                on, <span className="italic-skew">together</span>.
+                {selectedSurface ? (
+                  <>
+                    Continue to
+                    <br />
+                    <span className="italic-skew">{selectedSurface.shortName}</span>.
+                  </>
+                ) : (
+                  <>
+                    Money you decide
+                    <br />
+                    on, <span className="italic-skew">together</span>.
+                  </>
+                )}
               </h1>
               <p className="mt-6 max-w-md text-base leading-relaxed text-white/60 sm:text-lg">
-                Send and approve from a wallet you share with people you
-                trust. Partners, family, your team. Every move is signed
-                by your own wallet; we never see your keys.
+                {selectedSurface
+                  ? `Sign in once. After your wallet connects, we will take you straight to ${selectedSurface.name}.`
+                  : "Send and approve from a wallet you share with people you trust. Partners, family, your team. Every move is signed by your own wallet; we never see your keys."}
               </p>
 
               {/* Floating preview cluster - pure decoration. */}
@@ -153,11 +171,21 @@ function ConnectPage() {
                     <ShieldCheck className="h-7 w-7" strokeWidth={1.75} />
                   </div>
                   <h2 className="mt-3 text-[clamp(1.75rem,3.5vw,2.5rem)] font-light leading-[1] tracking-[-0.03em] text-white">
-                    Sign in <span className="italic-skew">or</span> sign up.
+                    {selectedSurface ? (
+                      <>
+                        Sign in for{" "}
+                        <span className="italic-skew">{selectedSurface.shortName}</span>.
+                      </>
+                    ) : (
+                      <>
+                        Sign in <span className="italic-skew">or</span> sign up.
+                      </>
+                    )}
                   </h2>
                   <p className="mt-3 max-w-xs text-[15px] leading-relaxed text-white/60">
-                    Use your email, your phone, or a wallet you already
-                    have. We will set the rest up for you.
+                    {selectedSurface
+                      ? selectedSurface.summary
+                      : "Use your email, your phone, or a wallet you already have. We will set the rest up for you."}
                   </p>
 
                   {/* Replace Dynamic's default outline CTA with a
@@ -218,6 +246,17 @@ function ConnectPage() {
       </main>
     </div>
   );
+}
+
+function productSurfaceFromNext(next: string | null): ProductSurface | null {
+  if (!next || !next.startsWith("/") || next.startsWith("//")) return null;
+  try {
+    const url = new URL(next, "https://clearsig.local");
+    const surface = url.searchParams.get("surface");
+    return isProductSurfaceId(surface) ? productSurfaceById(surface) : null;
+  } catch {
+    return null;
+  }
 }
 
 // ─── Brand-aligned Dynamic CTA ─────────────────────────────────────

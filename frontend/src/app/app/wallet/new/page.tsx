@@ -11,20 +11,25 @@
 // page - no intermediate "wallet ready" celebration, since they're
 // already inside the app and just want to use it.
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import clsx from "clsx";
 import { motion, useReducedMotion } from "framer-motion";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useConnection, useWallet } from "@/lib/wallet";
 import {
   ArrowRight,
+  Bot,
+  Building2,
+  CreditCard,
+  Handshake,
   KeyRound,
   Loader2,
   ShieldCheck,
   Sparkles,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { BackendApiError } from "@/lib/api/client";
@@ -36,6 +41,7 @@ import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { useToast } from "@/components/ui/Toast";
 import { saveWalletAppearance } from "@/lib/retail/walletAppearance";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
+import { isProductSurfaceId } from "@/lib/productSurfaces";
 
 const SOL_TRANSFER_TEMPLATE = "examples/intents/solana_transfer.json";
 
@@ -103,8 +109,71 @@ const SHAPES: WalletShape[] = [
   },
 ];
 
+function defaultNameFor(surface: string | null, purpose: "share" | "secure" | "agent" | null): string {
+  if (purpose === "agent") return "Agent vault";
+  if (surface === "personal") return "My wallet";
+  if (surface === "p2pdefi") return "P2P workspace";
+  if (surface === "payments") return "Payments";
+  if (purpose === "share") return "Team";
+  return "";
+}
+
+function productSetupFor(surface: string | null): {
+  label: string;
+  body: string;
+  Icon: LucideIcon;
+} {
+  if (surface === "pro") {
+    return {
+      label: "Team treasury",
+      body: "This creates the treasury workspace. Members, thresholds, and policy controls come next.",
+      Icon: Building2,
+    };
+  }
+  if (surface === "p2pdefi") {
+    return {
+      label: "P2P DeFi workspace",
+      body: "This creates the workspace for counterparties, readable offers, and policy-checked settlement requests.",
+      Icon: Handshake,
+    };
+  }
+  if (surface === "payments") {
+    return {
+      label: "Payments workspace",
+      body: "This creates the workspace for invoices, approvals, recurring payment controls, and payout review.",
+      Icon: CreditCard,
+    };
+  }
+  return {
+    label: "Shared wallet",
+    body: "This creates a wallet your group can use together. You can invite people and adjust approvals after setup.",
+    Icon: Users,
+  };
+}
+
+function agentSetupInfo(): {
+  label: string;
+  body: string;
+  Icon: LucideIcon;
+} {
+  return {
+    label: "Agent vault",
+    body: "This creates the policy-controlled wallet agents will request access to. After setup you will choose the agent, market, and first allowance.",
+    Icon: Bot,
+  };
+}
+
 export default function NewWalletPage() {
+  return (
+    <Suspense fallback={<NewWalletSkeleton />}>
+      <NewWalletContent />
+    </Suspense>
+  );
+}
+
+function NewWalletContent() {
   const router = useRouter();
+  const search = useSearchParams();
   const wallet = useWallet();
   const { connection } = useConnection();
   const { signDescriptor } = useSignWithWallet();
@@ -115,6 +184,10 @@ export default function NewWalletPage() {
   const isBrokenSigner = wallet.signerIssue !== null;
   const signerIssue = wallet.signerIssue;
   const me = wallet.publicKey?.toBase58() ?? "";
+  const surface = useMemo(() => {
+    const requested = search.get("surface");
+    return isProductSurfaceId(requested) ? requested : null;
+  }, [search]);
 
   // Unified product entry: clear-msig is now the single create flow
   // for both shared wallets (the classic multisig) and Secure
@@ -125,11 +198,31 @@ export default function NewWalletPage() {
   // (same Ika dWallet substrate), just a simpler enrollment flow.
   // Same substrate, two product surfaces; one entry. See Fesal
   // feedback 2026-05-11.
-  type Purpose = "share" | "secure";
-  const [purpose, setPurpose] = useState<Purpose | null>(null);
+  type Purpose = "share" | "secure" | "agent";
+  const initialPurpose = useMemo<Purpose | null>(() => {
+    const requested = search.get("purpose");
+    if (
+      requested === "share" ||
+      surface === "personal" ||
+      surface === "pro" ||
+      surface === "p2pdefi" ||
+      surface === "payments"
+    ) {
+      return "share";
+    }
+    if (requested === "secure" || surface === "secure") return "secure";
+    if (requested === "agent" || surface === "agent") return "agent";
+    return null;
+  }, [search, surface]);
+  const [purpose, setPurpose] = useState<Purpose | null>(initialPurpose);
+  const lockedPurpose = surface !== null;
 
-  const [shape, setShape] = useState<ShapeId>("family");
-  const [name, setName] = useState("");
+  const [shape, setShape] = useState<ShapeId>(
+    surface === "personal" ? "just_me" : "family",
+  );
+  const [name, setName] = useState(() =>
+    defaultNameFor(surface, initialPurpose),
+  );
 
   const currentShape = useMemo(
     () => SHAPES.find((s) => s.id === shape) ?? SHAPES[0],
@@ -242,9 +335,14 @@ export default function NewWalletPage() {
       queryClient.invalidateQueries({ queryKey: ["wallet", walletSlug] });
       saveWalletAppearance(cleanName, { shape });
       toast.success(`${cleanName} is ready`, {
-        details: "Sending is enabled. Open the wallet to send your first request.",
+        details:
+          purpose === "agent"
+            ? "The vault is ready. Choose an agent and set its first policy grant."
+            : "Sending is enabled. Open the wallet to send your first request.",
       });
-      router.push(`/app/wallet/${encodeURIComponent(walletSlug)}`);
+      router.push(
+        postCreateHref(walletSlug, surface, purpose),
+      );
     },
     onError: (err) => {
       console.error("[new-wallet] setupAll failed", err);
@@ -256,6 +354,11 @@ export default function NewWalletPage() {
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  const setupInfo =
+    purpose === "agent" ? agentSetupInfo() : productSetupFor(surface);
+  const SetupIcon = setupInfo.Icon;
+  const showShapePicker =
+    purpose === "share" && (!lockedPurpose || surface === "personal");
 
   return (
     <motion.div
@@ -268,17 +371,41 @@ export default function NewWalletPage() {
       <header className="flex flex-col gap-1">
         <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
           {purpose === "share"
-            ? "New shared wallet"
+            ? surface === "personal"
+              ? "Create a personal wallet"
+              : surface === "pro"
+              ? "Create a team treasury"
+              : surface === "p2pdefi"
+                ? "Create a P2P workspace"
+                : surface === "payments"
+                  ? "Create a payments workspace"
+              : "New shared wallet"
             : purpose === "secure"
-              ? "Secure your key"
-              : "Create a wallet"}
+              ? surface === "secure"
+                ? "Set up personal recovery"
+                : "Secure your key"
+              : purpose === "agent"
+                ? "Create an agent vault"
+                : "Create a wallet"}
         </h1>
         <p className="text-xs text-text-soft sm:text-sm">
           {purpose === "share"
-            ? "Name it, pick who it’s for. You can invite friends after."
+            ? surface === "personal"
+              ? "Start simple. You can add trusted people and approvals after."
+              : surface === "pro"
+              ? "Name the treasury first. Members, thresholds, and policies come next."
+              : surface === "p2pdefi"
+                ? "Create the coordination workspace first. Counterparties and settlement rules come next."
+                : surface === "payments"
+                  ? "Create the payments workspace first. Invoices, approvals, and payout rules come next."
+              : "Name it, pick who it’s for. You can invite friends after."
+            : purpose === "agent"
+              ? "Create the policy vault first. Then choose an agent and grant bounded access."
             : purpose === null
-              ? "One engine, two shapes. Pick the one that fits."
-              : "Set a threshold and enroll your devices."}
+              ? "Pick one wallet shape. You will not have to choose again."
+              : surface === "secure"
+                ? "Pick a recovery threshold and enroll your devices."
+                : "Set a threshold and enroll your devices."}
         </p>
       </header>
 
@@ -290,7 +417,7 @@ export default function NewWalletPage() {
           trail for shared wallets, enroll/sweep for the personal
           Secure path). Shown only when no purpose chosen yet. */}
       {purpose === null && (
-        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <button
             type="button"
             onClick={() => {
@@ -348,6 +475,36 @@ export default function NewWalletPage() {
               Continue <ArrowRight className="h-3 w-3" strokeWidth={2.5} />
             </span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setPurpose("agent");
+              if (!name.trim()) setName("Agent vault");
+            }}
+            className={clsx(
+              "group flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 text-left",
+              "transition-[border-color,background-color,transform] duration-base ease-out-soft",
+              "hover:-translate-y-px hover:border-accent/40 hover:bg-accent/5",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+            )}
+          >
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent ring-1 ring-accent/20">
+              <Bot className="h-5 w-5" strokeWidth={1.75} />
+            </span>
+            <div className="flex flex-col gap-1">
+              <p className="font-display text-base font-semibold leading-tight text-text-strong">
+                Trade with agents
+              </p>
+              <p className="text-xs text-text-soft">
+                A policy vault for agent sessions. You keep custody; agents
+                submit bounded decisions.
+              </p>
+            </div>
+            <span className="mt-auto inline-flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">
+              Continue <ArrowRight className="h-3 w-3" strokeWidth={2.5} />
+            </span>
+          </button>
         </section>
       )}
 
@@ -360,13 +517,15 @@ export default function NewWalletPage() {
           one continuous flow with no double-pick. */}
       {purpose === "secure" && (
         <section className="flex flex-col gap-4">
-          <button
-            type="button"
-            onClick={() => setPurpose(null)}
-            className="self-start font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-text-soft hover:text-text-strong"
-          >
-            ← Pick a different shape
-          </button>
+          {!lockedPurpose && (
+            <button
+              type="button"
+              onClick={() => setPurpose(null)}
+              className="self-start font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-text-soft hover:text-text-strong"
+            >
+              Pick a different shape
+            </button>
+          )}
 
           <div className="rounded-card border border-border-soft bg-surface-raised p-5 sm:p-6">
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
@@ -403,7 +562,7 @@ export default function NewWalletPage() {
                   type="button"
                   onClick={() =>
                     router.push(
-                      `/app/secure/new?preselect=${encodeURIComponent(s.id)}`,
+                      `/app/secure/new?surface=secure&preselect=${encodeURIComponent(s.id)}`,
                     )
                   }
                   className={clsx(
@@ -437,7 +596,7 @@ export default function NewWalletPage() {
               secondary path so the primary flow stays "create new
               under threshold". */}
           <Link
-            href="/app/secure/import"
+            href="/app/secure/import?surface=secure"
             className={clsx(
               "group flex items-start justify-between gap-3 rounded-soft border border-border-soft bg-canvas p-4",
               "transition-[border-color,background-color,transform] duration-base ease-out-soft",
@@ -467,23 +626,25 @@ export default function NewWalletPage() {
         </section>
       )}
 
-      {/* Existing shared-wallet form. Rendered only after the user
-          picks the "Share with people" purpose. The "Secure my key"
-          path bounces to /app/secure/new before we get here. */}
-      {purpose === "share" && (
-        <button
-          type="button"
-          onClick={() => setPurpose(null)}
-          className="self-start font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-text-soft hover:text-text-strong"
-        >
-          ← Pick a different shape
-        </button>
+      {/* Shared treasury and agent vault creation both start from a
+          ClearSig wallet. The post-create route decides whether the
+          user lands on wallet overview or the agent launch flow. */}
+      {(purpose === "share" || purpose === "agent") && (
+        !lockedPurpose && (
+          <button
+            type="button"
+            onClick={() => setPurpose(null)}
+            className="self-start font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-text-soft hover:text-text-strong"
+          >
+            Pick a different shape
+          </button>
+        )
       )}
-      {purpose === "share" && (
+      {(purpose === "share" || purpose === "agent") && (
       <section className="flex flex-col gap-5 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
         <ol className="grid grid-cols-3 gap-2">
           {[
-            ["1", "Preset"],
+            ["1", showShapePicker ? "Preset" : "Workspace"],
             ["2", "Name"],
             ["3", "Create"],
           ].map(([step, label]) => (
@@ -501,64 +662,81 @@ export default function NewWalletPage() {
           ))}
         </ol>
 
-        {/* Preset picker */}
-        <div className="flex flex-col gap-3">
-          <div>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
-              Pick a starter setup
-            </span>
-            <p className="mt-1 text-xs text-text-soft">
-              This only shapes the first screen and default name. You can invite
-              people and adjust approvals after the wallet is created.
-            </p>
-          </div>
-          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {SHAPES.map((s) => {
-              const selected = shape === s.id;
-              return (
-                <li key={s.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShape(s.id);
-                      if (!name.trim() || name === currentShape.defaultName) {
-                        setName(s.defaultName);
-                      }
-                    }}
-                    aria-pressed={selected}
-                    className={clsx(
-                      "group flex h-full w-full items-start justify-between gap-3 rounded-soft border p-4 text-left",
-                      "transition-[border-color,background-color,transform] duration-base ease-out-soft",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
-                      selected
-                        ? "border-accent bg-accent/[0.08] text-accent"
-                        : "border-border-soft bg-canvas text-text-soft hover:-translate-y-px hover:border-accent/40 hover:text-text-strong",
-                    )}
-                  >
-                    <div className="min-w-0">
-                      <p className="font-display text-sm font-semibold leading-tight text-text-strong">
-                        {s.label}
-                      </p>
-                      <p className="mt-1 text-xs leading-relaxed text-text-soft">
-                        {s.blurb}
-                      </p>
-                    </div>
-                    <span
+        {showShapePicker ? (
+          <div className="flex flex-col gap-3">
+            <div>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
+                Pick a starter setup
+              </span>
+              <p className="mt-1 text-xs text-text-soft">
+                This only shapes the first screen and default name. You can invite
+                people and adjust approvals after the wallet is created.
+              </p>
+            </div>
+            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {SHAPES.map((s) => {
+                const selected = shape === s.id;
+                return (
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShape(s.id);
+                        if (!name.trim() || name === currentShape.defaultName) {
+                          setName(s.defaultName);
+                        }
+                      }}
+                      aria-pressed={selected}
                       className={clsx(
-                        "shrink-0 rounded-full border px-2 py-0.5 font-numerals text-[10px] font-semibold tabular-nums",
+                        "group flex h-full w-full items-start justify-between gap-3 rounded-soft border p-4 text-left",
+                        "transition-[border-color,background-color,transform] duration-base ease-out-soft",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
                         selected
-                          ? "border-accent/30 bg-accent/10 text-accent"
-                          : "border-border-soft bg-surface-raised text-text-soft",
+                          ? "border-accent bg-accent/[0.08] text-accent"
+                          : "border-border-soft bg-canvas text-text-soft hover:-translate-y-px hover:border-accent/40 hover:text-text-strong",
                       )}
                     >
-                      {s.expectedMembers}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+                      <div className="min-w-0">
+                        <p className="font-display text-sm font-semibold leading-tight text-text-strong">
+                          {s.label}
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-text-soft">
+                          {s.blurb}
+                        </p>
+                      </div>
+                      <span
+                        className={clsx(
+                          "shrink-0 rounded-full border px-2 py-0.5 font-numerals text-[10px] font-semibold tabular-nums",
+                          selected
+                            ? "border-accent/30 bg-accent/10 text-accent"
+                            : "border-border-soft bg-surface-raised text-text-soft",
+                        )}
+                      >
+                        {s.expectedMembers}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : (
+          <div className="rounded-soft border border-border-soft bg-canvas p-4">
+            <div className="flex items-start gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+                <SetupIcon className="h-4 w-4" strokeWidth={1.75} />
+              </span>
+              <div className="min-w-0">
+                <p className="font-display text-sm font-semibold leading-tight text-text-strong">
+                  {setupInfo.label}
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-text-soft">
+                  {setupInfo.body}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Name */}
         <div className="flex flex-col gap-2">
@@ -604,7 +782,7 @@ export default function NewWalletPage() {
             Your wallet will pop up{" "}
             <span className="font-medium text-text-strong">twice</span> - once
             to create the wallet, once to turn on sending. No funds move during
-            setup.
+            setup. {purpose === "agent" ? "Agent permissions are granted after this." : ""}
           </p>
         </div>
 
@@ -632,7 +810,7 @@ export default function NewWalletPage() {
             <>
               <Sparkles className="h-4 w-4" strokeWidth={2.25} aria-hidden="true" />
               <span className="truncate">
-                Create {cleanName || currentShape.defaultName}
+                Create {cleanName || (purpose === "agent" ? "Agent vault" : currentShape.defaultName)}
               </span>
               <ArrowRight className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
             </>
@@ -671,4 +849,33 @@ function slug(s: string): string {
   if (bytes.length <= 64) return trimmed;
   const truncated = enc.encode(trimmed).subarray(0, 64);
   return new TextDecoder("utf-8", { fatal: false }).decode(truncated);
+}
+
+function postCreateHref(
+  walletSlug: string,
+  surface: string | null,
+  purpose: "share" | "secure" | "agent" | null,
+): string {
+  const encoded = encodeURIComponent(walletSlug);
+  if (purpose === "agent") {
+    return `/app/wallet/${encoded}/agents/start?surface=agent`;
+  }
+  if (isProductSurfaceId(surface)) {
+    return `/app/wallet/${encoded}?surface=${surface}`;
+  }
+  return `/app/wallet/${encoded}`;
+}
+
+function NewWalletSkeleton() {
+  return (
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-6">
+      <div className="hidden h-9 w-56 animate-pulse rounded bg-border-soft md:block" />
+      <div className="h-4 w-72 max-w-full animate-pulse rounded bg-border-soft" />
+      <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
+        <div className="h-5 w-32 animate-pulse rounded bg-border-soft" />
+        <div className="mt-4 h-12 w-full animate-pulse rounded-soft bg-border-soft" />
+        <div className="mt-4 h-12 w-full animate-pulse rounded-soft bg-border-soft" />
+      </div>
+    </div>
+  );
 }

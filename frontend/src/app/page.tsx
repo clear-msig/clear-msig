@@ -173,7 +173,7 @@ function Hero({ fadeIn }: { fadeIn: FadeInFn }) {
 
         <motion.div {...fadeIn(0.2)} className="mt-8 flex flex-wrap items-center gap-3 sm:mt-10 sm:gap-4">
           <Link
-            href="/welcome"
+            href="/choose"
             className="neon-cta inline-flex flex-1 items-center justify-center gap-2 rounded-full px-6 py-3.5 text-[13px] font-bold tracking-tight sm:flex-none sm:px-7 sm:py-4 sm:text-[14px]"
           >
             Get started
@@ -1351,7 +1351,7 @@ function Footer({ fadeIn }: { fadeIn: FadeInFn }) {
 
         <motion.div {...fadeIn(0.14)} className="mt-8 flex justify-center sm:mt-10">
           <Link
-            href="/welcome"
+            href="/choose"
             className="neon-cta inline-flex items-center gap-3 rounded-full px-7 py-4 text-[14px] font-bold tracking-tight sm:px-9 sm:py-5 sm:text-[15px]"
           >
             Get started
@@ -1380,7 +1380,7 @@ function Footer({ fadeIn }: { fadeIn: FadeInFn }) {
           {[
             { href: "/privacy", label: "Privacy" },
             { href: "/security", label: "Security" },
-            { href: "/welcome", label: "Open app" },
+            { href: "/choose", label: "Choose product" },
           ].map((l) => (
             <Link
               key={l.label}
