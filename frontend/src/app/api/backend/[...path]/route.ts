@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin } from "@/lib/api/guard";
 import { appConfig } from "@/lib/config";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
 const ALLOWED_METHODS = new Set(["GET", "POST"]);
 
 interface RouteContext {
@@ -60,6 +64,16 @@ async function proxyBackendRequest(request: NextRequest, context: RouteContext) 
     });
   } catch (error) {
     console.error("[api/backend] proxy failed", error);
+    if (error instanceof DOMException && error.name === "AbortError") {
+      return NextResponse.json(
+        {
+          error:
+            "Backend request timed out. The operation may still finish on-chain; refresh your wallets before retrying.",
+          kind: "proxy_timeout",
+        },
+        { status: 504 },
+      );
+    }
     return NextResponse.json(
       { error: "Backend is unavailable." },
       { status: 502 },

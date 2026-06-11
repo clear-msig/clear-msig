@@ -32,7 +32,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
-import { BackendApiError } from "@/lib/api/client";
+import { BackendApiError, BackendTimeoutError } from "@/lib/api/client";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { toOnChainName } from "@/lib/retail/walletNames";
@@ -59,6 +59,41 @@ function isAlreadyInitializedCreateError(err: unknown): boolean {
     hay.includes("account already in use") ||
     hay.includes("instruction requires an uninitialized account")
   );
+}
+
+function isMaybeLandedCreateError(err: unknown): boolean {
+  if (err instanceof BackendTimeoutError) return true;
+  if (err instanceof BackendApiError) {
+    const statusish = `${err.message} ${err.payload?.kind ?? ""} ${err.payload?.error ?? ""}`.toLowerCase();
+    return (
+      statusish.includes("status 502") ||
+      statusish.includes("status 504") ||
+      statusish.includes("proxy_timeout") ||
+      statusish.includes("backend is unavailable") ||
+      statusish.includes("timed out")
+    );
+  }
+  if (err instanceof Error) {
+    const message = err.message.toLowerCase();
+    return message.includes("timed out") || message.includes("failed to fetch");
+  }
+  return false;
+}
+
+async function walletExistsAfterCreateFailure(walletSlug: string, err: unknown): Promise<boolean> {
+  if (!isMaybeLandedCreateError(err)) return false;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    if (attempt > 0) {
+      await new Promise((resolve) => window.setTimeout(resolve, 2_000));
+    }
+    try {
+      await backendApi.showWallet(walletSlug);
+      return true;
+    } catch {
+      /* keep polling briefly; the write may be one confirmation behind */
+    }
+  }
+  return false;
 }
 
 type ShapeId = "just_me" | "couple" | "family" | "roommates" | "team";
@@ -274,7 +309,16 @@ function NewWalletContent() {
           policy_ciphertexts: createIds,
         });
       } catch (err) {
-        if (!isAlreadyInitializedCreateError(err)) throw err;
+        if (isAlreadyInitializedCreateError(err)) {
+          // A previous attempt may have landed before the browser heard back.
+          // Continue into setup instead of making the user create another wallet.
+        } else if (await walletExistsAfterCreateFailure(walletSlug, err)) {
+          toast.info("Wallet create confirmed", {
+            details: "The backend response timed out, but the wallet exists. Continuing setup.",
+          });
+        } else {
+          throw err;
+        }
       }
 
       // ── popup 2: enable sending (propose AddIntent) ──

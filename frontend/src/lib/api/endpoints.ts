@@ -41,7 +41,7 @@ export const backendApi = {
   // initialized PDA and turn a partial success into a hard failure.
   createWallet: (input: CreateWalletInput) =>
     apiRequest<Record<string, unknown>, CreateWalletInput>("/wallets", "POST", input, {
-      timeoutMs: 60_000,
+      timeoutMs: 55_000,
     }),
   showWallet: (walletName: string) =>
     apiRequest<Record<string, unknown>>(`/wallets/${encodeURIComponent(walletName)}`, "GET"),
@@ -83,6 +83,7 @@ export const backendApi = {
         `/prepare/wallets/${encodeURIComponent(walletName)}/intents/add`,
         "POST",
         withFreshExpiry(input),
+        { timeoutMs: 55_000 },
       ),
     removeIntent: (walletName: string, input: PrepareRemoveIntentInput) =>
       apiRequest<DryRunDescriptor, PrepareRemoveIntentInput>(
@@ -127,7 +128,8 @@ export const backendApi = {
       apiRequest<Record<string, unknown>, SignedAddIntentInput>(
         `/wallets/${encodeURIComponent(walletName)}/intents/add`,
         "POST",
-        input
+        input,
+        { timeoutMs: 55_000 },
       ),
     removeIntent: (walletName: string, input: SignedRemoveIntentInput) =>
       apiRequest<Record<string, unknown>, SignedRemoveIntentInput>(
@@ -151,7 +153,8 @@ export const backendApi = {
       apiRequest<Record<string, unknown>, SignedApproveCancelInput>(
         `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/approve`,
         "POST",
-        input
+        input,
+        { timeoutMs: 55_000 },
       ),
     cancelProposal: (walletName: string, proposalAddress: string, input: SignedApproveCancelInput) =>
       apiRequest<Record<string, unknown>, SignedApproveCancelInput>(
@@ -166,7 +169,8 @@ export const backendApi = {
       apiRequest<Record<string, unknown>, ExecuteProposalInput>(
         `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/execute`,
         "POST",
-        input
+        input,
+        { timeoutMs: 55_000 },
       ),
     ),
 
