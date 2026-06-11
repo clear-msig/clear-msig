@@ -360,6 +360,10 @@ function NewWalletContent() {
   const showShapePicker =
     purpose === "share" && (!lockedPurpose || surface === "personal");
 
+  if (surface === "p2pdefi") {
+    return <ProductComingSoon title="P2P DeFi is coming soon" />;
+  }
+
   return (
     <motion.div
       {...motionProps}
@@ -375,10 +379,8 @@ function NewWalletContent() {
               ? "Create a personal wallet"
               : surface === "pro"
               ? "Create a team treasury"
-              : surface === "p2pdefi"
-                ? "Create a P2P workspace"
-                : surface === "payments"
-                  ? "Create a payments workspace"
+              : surface === "payments"
+                  ? "Create a payments-ready workspace"
               : "New shared wallet"
             : purpose === "secure"
               ? surface === "secure"
@@ -394,10 +396,8 @@ function NewWalletContent() {
               ? "Start simple. You can add trusted people and approvals after."
               : surface === "pro"
               ? "Name the treasury first. Members, thresholds, and policies come next."
-              : surface === "p2pdefi"
-                ? "Create the coordination workspace first. Counterparties and settlement rules come next."
-                : surface === "payments"
-                  ? "Create the payments workspace first. Invoices, approvals, and payout rules come next."
+              : surface === "payments"
+                  ? "Create the workspace first. Invoices, approvals, and payout rules come next."
               : "Name it, pick who it’s for. You can invite friends after."
             : purpose === "agent"
               ? "Create the policy vault first. Then choose an agent and grant bounded access."
@@ -864,6 +864,41 @@ function postCreateHref(
     return `/app/wallet/${encoded}?surface=${surface}`;
   }
   return `/app/wallet/${encoded}`;
+}
+
+function ProductComingSoon({ title }: { title: string }) {
+  return (
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-5 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent ring-1 ring-accent/20">
+          <Sparkles className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <p className="font-display text-lg font-semibold leading-tight text-text-strong">
+            {title}
+          </p>
+          <p className="mt-1 text-sm leading-relaxed text-text-soft">
+            We are focusing the live setup on Agents, Pro, Personal, and Secure first.
+            P2P DeFi will open after the coordination and settlement flow is ready.
+          </p>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Link
+          href="/choose"
+          className="inline-flex min-h-tap items-center justify-center rounded-soft bg-accent px-4 py-2 text-sm font-medium text-text-on-accent shadow-accent-rest hover:bg-accent-hover"
+        >
+          Choose another product
+        </Link>
+        <Link
+          href="/p2pdefi"
+          className="inline-flex min-h-tap items-center justify-center rounded-soft border border-border-soft bg-canvas px-4 py-2 text-sm font-medium text-text-strong hover:border-accent/40 hover:text-accent"
+        >
+          View P2P preview
+        </Link>
+      </div>
+    </div>
+  );
 }
 
 function NewWalletSkeleton() {

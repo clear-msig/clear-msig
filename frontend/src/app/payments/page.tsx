@@ -4,7 +4,7 @@ import { ProductSurfaceLanding } from "@/components/product/ProductSurfaceLandin
 export const metadata: Metadata = {
   title: "ClearSig Payments · Clear",
   description:
-    "Payment approvals, invoices, recurring payment controls, and payout review.",
+    "Payment approvals and payout review are being folded into ClearSig Personal, Pro, and Agents workflows.",
 };
 
 export default function PaymentsPage() {
