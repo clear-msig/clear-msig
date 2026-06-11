@@ -52,7 +52,7 @@ const PRIMARY_PRODUCT_IDS: ProductSurfaceId[] = [
 
 export function ProductChooserPage() {
   const primarySurfaces = PRIMARY_PRODUCT_IDS.map(productSurfaceById);
-  const supportingSurfaces = (["payments", "p2pdefi"] as ProductSurfaceId[]).map(
+  const supportingSurfaces = (["p2pdefi"] as ProductSurfaceId[]).map(
     productSurfaceById,
   );
 
@@ -79,7 +79,7 @@ export function ProductChooserPage() {
           ))}
         </div>
 
-        <div className="mt-10 grid gap-3 border-t border-white/[0.08] pt-6 sm:grid-cols-2">
+        <div className="mt-10 grid max-w-xl gap-3 border-t border-white/[0.08] pt-6">
           {supportingSurfaces.map((surface) => (
             <ProductSupportLink key={surface.id} surface={surface} />
           ))}
