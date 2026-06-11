@@ -43,6 +43,8 @@ struct CliRunner {
     default_destination_rpc_url: Option<String>,
 }
 
+const RPC_PROGRAM_SCAN_ATTEMPTS: usize = 4;
+
 /// Bundle of pre-signed flags that the browser produces. `params_data_hex`
 /// is optional because approve/cancel read params_data from the on-chain
 /// Proposal account instead of taking it from the caller.
@@ -724,7 +726,10 @@ async fn fetch_program_accounts_by_disc(
     program_id: &str,
     discriminator: u8,
 ) -> Result<Vec<RpcProgramAccount>, ApiError> {
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(25))
+        .build()
+        .map_err(|e| ApiError::Internal(format!("failed to build rpc client: {e}")))?;
     let disc_bytes_b58 = bs58::encode([discriminator]).into_string();
     let payload = serde_json::json!({
         "jsonrpc": "2.0",
@@ -742,32 +747,103 @@ async fn fetch_program_accounts_by_disc(
         ]
     });
 
-    let response = client
-        .post(rpc_url)
-        .json(&payload)
-        .send()
-        .await
-        .map_err(|e| ApiError::Internal(format!("rpc request failed: {e}")))?;
+    for attempt in 1..=RPC_PROGRAM_SCAN_ATTEMPTS {
+        let response = match client.post(rpc_url).json(&payload).send().await {
+            Ok(response) => response,
+            Err(error) => {
+                if attempt < RPC_PROGRAM_SCAN_ATTEMPTS && is_retryable_rpc_transport(&error) {
+                    tracing::warn!(
+                        attempt,
+                        max_attempts = RPC_PROGRAM_SCAN_ATTEMPTS,
+                        discriminator,
+                        error = %error,
+                        "retrying Solana program-account scan after transport failure"
+                    );
+                    tokio::time::sleep(rpc_retry_delay(attempt)).await;
+                    continue;
+                }
+                return Err(ApiError::Internal(format!("rpc request failed: {error}")));
+            }
+        };
 
-    let status = response.status();
-    let value: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| ApiError::InvalidOutput(format!("invalid rpc json response: {e}")))?;
+        let status = response.status();
+        let value: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| ApiError::InvalidOutput(format!("invalid rpc json response: {e}")))?;
 
-    if !status.is_success() {
-        return Err(ApiError::Internal(format!(
-            "rpc request failed with status {status}: {value}"
-        )));
+        if !status.is_success() {
+            if attempt < RPC_PROGRAM_SCAN_ATTEMPTS && is_retryable_rpc_status(status) {
+                tracing::warn!(
+                    attempt,
+                    max_attempts = RPC_PROGRAM_SCAN_ATTEMPTS,
+                    discriminator,
+                    status = %status,
+                    "retrying Solana program-account scan after rpc status"
+                );
+                tokio::time::sleep(rpc_retry_delay(attempt)).await;
+                continue;
+            }
+            return Err(ApiError::Internal(format!(
+                "rpc request failed with status {status}: {value}"
+            )));
+        }
+
+        if value.get("error").is_some() {
+            if attempt < RPC_PROGRAM_SCAN_ATTEMPTS && is_retryable_rpc_json_error(&value) {
+                tracing::warn!(
+                    attempt,
+                    max_attempts = RPC_PROGRAM_SCAN_ATTEMPTS,
+                    discriminator,
+                    error = %value,
+                    "retrying Solana program-account scan after rpc error"
+                );
+                tokio::time::sleep(rpc_retry_delay(attempt)).await;
+                continue;
+            }
+            return Err(ApiError::Internal(format!("rpc returned error: {value}")));
+        }
+
+        return serde_json::from_value::<RpcProgramAccountsResponse>(value)
+            .map(|v| v.result)
+            .map_err(|e| {
+                ApiError::InvalidOutput(format!("failed to parse rpc program accounts: {e}"))
+            });
     }
 
-    if value.get("error").is_some() {
-        return Err(ApiError::Internal(format!("rpc returned error: {value}")));
-    }
+    Err(ApiError::Internal(
+        "rpc request failed after retrying program-account scan".to_string(),
+    ))
+}
 
-    serde_json::from_value::<RpcProgramAccountsResponse>(value)
-        .map(|v| v.result)
-        .map_err(|e| ApiError::InvalidOutput(format!("failed to parse rpc program accounts: {e}")))
+fn rpc_retry_delay(attempt: usize) -> Duration {
+    Duration::from_millis(350 * attempt as u64)
+}
+
+fn is_retryable_rpc_transport(error: &reqwest::Error) -> bool {
+    error.is_timeout() || error.is_connect() || error.is_request() || error.is_body()
+}
+
+fn is_retryable_rpc_status(status: StatusCode) -> bool {
+    status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error()
+}
+
+fn is_retryable_rpc_json_error(value: &serde_json::Value) -> bool {
+    let text = value.to_string().to_lowercase();
+    [
+        "timeout",
+        "too many requests",
+        "rate limit",
+        "temporarily unavailable",
+        "node is behind",
+        "429",
+        "500",
+        "502",
+        "503",
+        "504",
+    ]
+    .iter()
+    .any(|needle| text.contains(needle))
 }
 
 async fn membership_lookup(

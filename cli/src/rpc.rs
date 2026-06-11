@@ -8,12 +8,14 @@ use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_signature::Signature;
 use solana_signer::Signer;
 use solana_transaction::Transaction;
+use std::{thread, time::Duration};
 
 /// The default Solana compute budget is 200k CUs. The member-update
 /// flows routinely consume that ceiling during proposal signing and
 /// simulation, so we give every CLI transaction a wider headroom by
 /// default instead of making each call site remember to opt in.
 const DEFAULT_COMPUTE_UNIT_LIMIT: u32 = 600_000;
+const RPC_SCAN_RETRY_ATTEMPTS: usize = 4;
 
 pub fn client(config: &RuntimeConfig) -> RpcClient {
     RpcClient::new_with_commitment(&config.rpc_url, CommitmentConfig::confirmed())
@@ -41,26 +43,40 @@ pub fn resolve_wallet_by_name(
     use solana_client::rpc_filter::{Memcmp, RpcFilterType};
 
     let program_id = crate::instructions::program_id();
-    let config = RpcProgramAccountsConfig {
-        filters: Some(vec![
-            // Discriminator byte at offset 0 = 1 (ClearWallet).
-            RpcFilterType::Memcmp(Memcmp::new_raw_bytes(0, vec![1u8])),
-        ]),
-        account_config: RpcAccountInfoConfig {
-            // None defaults to base64 — fine for our parser. We don't
-            // pull in solana-account-decoder just to name the encoding.
-            encoding: None,
-            commitment: Some(CommitmentConfig::confirmed()),
-            data_slice: None,
-            min_context_slot: None,
-        },
-        with_context: None,
-        sort_results: None,
-    };
+    let mut scan_attempt = 0usize;
+    let accounts = loop {
+        let attempt = scan_attempt + 1;
+        let config = RpcProgramAccountsConfig {
+            filters: Some(vec![
+                // Discriminator byte at offset 0 = 1 (ClearWallet).
+                RpcFilterType::Memcmp(Memcmp::new_raw_bytes(0, vec![1u8])),
+            ]),
+            account_config: RpcAccountInfoConfig {
+                // None defaults to base64 - fine for our parser. We don't
+                // pull in solana-account-decoder just to name the encoding.
+                encoding: None,
+                commitment: Some(CommitmentConfig::confirmed()),
+                data_slice: None,
+                min_context_slot: None,
+            },
+            with_context: None,
+            sort_results: None,
+        };
 
-    let accounts = rpc
-        .get_program_accounts_with_config(&program_id, config)
-        .with_context(|| "scanning ClearWallet accounts")?;
+        match rpc.get_program_accounts_with_config(&program_id, config) {
+            Ok(accounts) => break accounts,
+            Err(error) => {
+                if attempt >= RPC_SCAN_RETRY_ATTEMPTS || !is_retryable_rpc_error(&error) {
+                    return Err(error).with_context(|| "scanning ClearWallet accounts");
+                }
+                eprintln!(
+                    "devnet RPC scan failed while resolving wallet name (attempt {attempt}/{RPC_SCAN_RETRY_ATTEMPTS}); retrying..."
+                );
+                thread::sleep(rpc_retry_delay(attempt));
+            }
+        }
+        scan_attempt += 1;
+    };
 
     for (pubkey, account) in accounts {
         match crate::accounts::parse_wallet(&account.data) {
@@ -70,6 +86,29 @@ pub fn resolve_wallet_by_name(
     }
 
     Err(anyhow!("wallet `{name}` not found on-chain"))
+}
+
+fn rpc_retry_delay(attempt: usize) -> Duration {
+    Duration::from_millis(350 * attempt as u64)
+}
+
+fn is_retryable_rpc_error(error: &impl std::fmt::Display) -> bool {
+    let message = error.to_string().to_lowercase();
+    [
+        "error sending request",
+        "connection",
+        "deadline has elapsed",
+        "timed out",
+        "timeout",
+        "too many requests",
+        "429",
+        "500",
+        "502",
+        "503",
+        "504",
+    ]
+    .iter()
+    .any(|needle| message.contains(needle))
 }
 
 pub fn fetch_account_optional(rpc: &RpcClient, address: &Pubkey) -> Result<Option<Vec<u8>>> {
