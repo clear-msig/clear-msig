@@ -11,12 +11,21 @@ import {
   Check,
   Circle,
   ExternalLink,
+  FileCheck2,
+  Info,
+  Lightbulb,
   Pause,
   Play,
+  PlugZap,
   RefreshCw,
   ShieldCheck,
+  SlidersHorizontal,
+  TrendingUp,
+  UserRound,
   WalletCards,
   X,
+  Zap,
+  type LucideIcon,
 } from "lucide-react";
 import { OwnerApprovalDialog } from "@/components/agents/OwnerApprovalDialog";
 import { useToast } from "@/components/ui/Toast";
@@ -805,11 +814,10 @@ export default function StartTradingPage() {
               approvalRequest.agentId === selectedAgent?.id
             }
           />
-          {steps.map((step, index) => (
+          {steps.map((step) => (
             <LaunchStepRow
               key={step.id}
               step={step}
-              index={index}
               action={actionForStep({
                 step,
                 walletEncoded: encoded,
@@ -911,26 +919,31 @@ function BetaJourneyPanel({
       label: "Pick trader",
       detail: agent?.name ?? "No trader selected",
       done: done(["trader", "plan"]),
+      Icon: UserRound,
     },
     {
       label: "Set allowance",
       detail: venueLabel(venue),
       done: done(["safety", "allowance"]),
+      Icon: SlidersHorizontal,
     },
     {
       label: "Accept disclosures",
       detail: "Practice automation terms",
       done: done(["disclosures"]),
+      Icon: Info,
     },
     {
       label: "Turn on automation",
       detail: "Inside allowance only",
       done: done(["automatic"]),
+      Icon: Zap,
     },
     {
       label: "Watch trades",
       detail: complete ? "First trade placed" : "Waiting for first trade",
       done: done(["first_trade"]),
+      Icon: Play,
     },
   ];
   return (
@@ -950,7 +963,9 @@ function BetaJourneyPanel({
         </span>
       </div>
       <div className="mt-4 grid gap-2 md:grid-cols-5">
-        {journey.map((item, index) => (
+        {journey.map((item) => {
+          const Icon = item.Icon;
+          return (
           <div
             key={item.label}
             className={clsx(
@@ -969,7 +984,11 @@ function BetaJourneyPanel({
                     : "border-border-soft text-text-muted",
                 )}
               >
-                {item.done ? <Check className="h-3 w-3" aria-hidden="true" /> : index + 1}
+                {item.done ? (
+                  <Check className="h-3 w-3" aria-hidden="true" />
+                ) : (
+                  <Icon className="h-3 w-3" aria-hidden="true" />
+                )}
               </span>
               <p className="truncate text-xs font-semibold text-text-strong">
                 {item.label}
@@ -979,7 +998,8 @@ function BetaJourneyPanel({
               {item.detail}
             </p>
           </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
@@ -1137,13 +1157,12 @@ function LaunchRiskPanel({
 
 function LaunchStepRow({
   step,
-  index,
   action,
 }: {
   step: TradingLaunchStep;
-  index: number;
   action: React.ReactNode;
 }) {
+  const StepIcon = launchStepIcon(step.id);
   return (
     <li
       className={clsx(
@@ -1155,7 +1174,7 @@ function LaunchStepRow({
     >
       <span
         className={clsx(
-          "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold",
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border",
           step.status === "done"
             ? "border-accent/30 bg-accent/10 text-accent"
             : step.status === "current"
@@ -1163,7 +1182,11 @@ function LaunchStepRow({
               : "border-border-soft text-text-muted",
         )}
       >
-        {step.status === "done" ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : index + 1}
+        {step.status === "done" ? (
+          <Check className="h-4 w-4" aria-hidden="true" />
+        ) : (
+          <StepIcon className="h-4 w-4" aria-hidden="true" strokeWidth={1.9} />
+        )}
       </span>
       <div className="min-w-0 flex-1 basis-48">
         <div className="flex flex-wrap items-center gap-2">
@@ -1172,12 +1195,51 @@ function LaunchStepRow({
             {ownerLabel(step.owner)}
           </span>
         </div>
-        <p className="mt-0.5 break-words text-xs leading-relaxed text-text-soft">{step.description}</p>
+        <details className="group mt-1">
+          <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-[11px] font-medium text-text-soft transition-colors hover:text-accent">
+            <Info className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Info</span>
+            <ArrowRight
+              className="h-3 w-3 transition-transform group-open:rotate-90"
+              aria-hidden="true"
+            />
+          </summary>
+          <p className="mt-1.5 max-w-2xl break-words text-xs leading-relaxed text-text-soft">
+            {step.description}
+          </p>
+        </details>
       </div>
       {step.status === "current" ? <div className="w-full sm:w-auto">{action}</div> : null}
       {step.status === "waiting" ? <Circle className="h-3.5 w-3.5 text-text-muted" aria-hidden="true" /> : null}
     </li>
   );
+}
+
+function launchStepIcon(id: TradingLaunchStep["id"]): LucideIcon {
+  switch (id) {
+    case "trader":
+      return UserRound;
+    case "plan":
+      return FileCheck2;
+    case "safety":
+      return ShieldCheck;
+    case "allowance":
+      return SlidersHorizontal;
+    case "disclosures":
+      return Info;
+    case "account":
+      return WalletCards;
+    case "funding":
+      return TrendingUp;
+    case "protected_connection":
+      return PlugZap;
+    case "automatic":
+      return Zap;
+    case "first_idea":
+      return Lightbulb;
+    case "first_trade":
+      return Play;
+  }
 }
 
 function ComplianceDisclosurePanel({
@@ -1241,33 +1303,61 @@ function ComplianceDisclosurePanel({
           </button>
         )}
       </div>
-      <div className="mt-4 grid gap-2 md:grid-cols-2">
-        {readiness.required.map((item) => {
-          const accepted = !readiness.missing.some((missing) => missing.id === item.id);
-          return (
-            <div
-              key={item.id}
-              className="rounded-soft border border-border-soft bg-canvas px-3 py-2"
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className={clsx(
-                    "h-2 w-2 rounded-full",
-                    accepted ? "bg-accent" : "bg-warning",
-                  )}
-                />
-                <p className="text-xs font-semibold text-text-strong">
-                  {item.label}
-                </p>
-              </div>
-              <p className="mt-1 text-xs leading-relaxed text-text-soft">
-                {item.summary}
+      {readiness.accepted ? (
+        <details className="group mt-4 rounded-soft border border-border-soft bg-canvas px-3 py-2">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold text-text-strong">
+            <span className="inline-flex items-center gap-2">
+              <Info className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+              Review disclosure details
+            </span>
+            <ArrowRight
+              className="h-3.5 w-3.5 text-text-soft transition-transform group-open:rotate-90"
+              aria-hidden="true"
+            />
+          </summary>
+          <DisclosureItems readiness={readiness} />
+        </details>
+      ) : (
+        <DisclosureItems readiness={readiness} className="mt-4" />
+      )}
+    </section>
+  );
+}
+
+function DisclosureItems({
+  readiness,
+  className,
+}: {
+  readiness: AgentComplianceReadiness;
+  className?: string;
+}) {
+  return (
+    <div className={clsx("grid gap-2 md:grid-cols-2", className)}>
+      {readiness.required.map((item) => {
+        const accepted = !readiness.missing.some((missing) => missing.id === item.id);
+        return (
+          <div
+            key={item.id}
+            className="rounded-soft border border-border-soft bg-canvas px-3 py-2"
+          >
+            <div className="flex items-center gap-2">
+              <span
+                className={clsx(
+                  "h-2 w-2 rounded-full",
+                  accepted ? "bg-accent" : "bg-warning",
+                )}
+              />
+              <p className="text-xs font-semibold text-text-strong">
+                {item.label}
               </p>
             </div>
-          );
-        })}
-      </div>
-    </section>
+            <p className="mt-1 text-xs leading-relaxed text-text-soft">
+              {item.summary}
+            </p>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
