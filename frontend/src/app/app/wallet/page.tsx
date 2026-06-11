@@ -58,6 +58,12 @@ import { formatBalance } from "@/lib/retail/format";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
 import { UsdHint } from "@/components/retail/UsdHint";
+import { getWalletAppearance } from "@/lib/retail/walletAppearance";
+import {
+  productWorkspaceHomeHref,
+  productWorkspaceLabel,
+  walletProductSurface,
+} from "@/lib/productWorkspace";
 
 export default function WalletDashboard() {
   const wallet = useWallet();
@@ -357,11 +363,11 @@ function NextActionStrip({
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
   const walletName = wallet.wallet_name ?? "Wallet";
   const displayName = toDisplayName(walletName);
-  const encoded = encodeURIComponent(walletName);
+  const surface = walletProductSurface(getWalletAppearance(walletName)?.surface);
   const primaryHref =
     pendingCount > 0 && firstApprovalHref
       ? firstApprovalHref
-      : `/app/wallet/${encoded}`;
+      : productWorkspaceHomeHref(walletName, surface);
   const primaryLabel = pendingCount > 0 ? "Review approvals" : "Open wallet";
   const summary =
     pendingCount > 0
@@ -747,6 +753,9 @@ function WalletCard({
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
   const balance =
     balanceLamports !== null ? formatBalance(balanceLamports) : null;
+  const surface = walletProductSurface(getWalletAppearance(onChainName)?.surface);
+  const homeHref = productWorkspaceHomeHref(onChainName, surface);
+  const productLabel = surface ? productWorkspaceLabel(surface) : null;
   const [pinned, setPinned] = useState(false);
   useEffect(() => {
     setPinned(isWalletPinned(onChainName));
@@ -768,7 +777,7 @@ function WalletCard({
       className="group/card relative"
     >
       <Link
-        href={`/app/wallet/${encodeURIComponent(onChainName)}`}
+        href={homeHref}
         className={
           "group relative flex flex-col gap-3 rounded-card border bg-surface-raised p-5 shadow-card-rest " +
           "transition-[transform,box-shadow,border-color] duration-base ease-out-soft " +
@@ -818,6 +827,11 @@ function WalletCard({
             aria-hidden="true"
           />
         </div>
+        {productLabel ? (
+          <span className="inline-flex self-start rounded-full border border-border-soft bg-canvas px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-soft">
+            {productLabel}
+          </span>
+        ) : null}
         {pendingCount > 0 && (
           <div className="inline-flex items-center gap-1.5 self-start rounded-full bg-accent/10 px-2 py-1 text-xs font-medium text-accent">
             <span className="relative flex h-1.5 w-1.5">
@@ -1127,13 +1141,15 @@ function WatchedWalletsSection({
             rows.map((m) => {
               const display = toDisplayName(m.wallet_name ?? "");
               const pending = pendingByWallet.get(m.wallet) ?? 0;
+              const walletName = m.wallet_name ?? "";
+              const surface = walletProductSurface(
+                getWalletAppearance(walletName)?.surface,
+              );
               return (
                 <li key={m.wallet}>
                   <div className="group flex items-center justify-between gap-3 px-5 py-3">
                     <Link
-                      href={`/app/wallet/${encodeURIComponent(
-                        m.wallet_name ?? "",
-                      )}`}
+                      href={productWorkspaceHomeHref(walletName, surface)}
                       className="flex min-w-0 flex-1 items-center gap-3"
                     >
                       <Eye

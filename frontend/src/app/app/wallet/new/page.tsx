@@ -376,7 +376,10 @@ function NewWalletContent() {
       queryClient.invalidateQueries({ queryKey: ["my-organizations"] });
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });
       queryClient.invalidateQueries({ queryKey: ["wallet", walletSlug] });
-      saveWalletAppearance(cleanName, { shape });
+      saveWalletAppearance(walletSlug, {
+        shape,
+        surface: isProductSurfaceId(surface) ? surface : undefined,
+      });
       toast.success(`${cleanName} is ready`, {
         details:
           purpose === "agent"

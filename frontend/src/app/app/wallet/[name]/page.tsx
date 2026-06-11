@@ -71,6 +71,7 @@ import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
 import {
   getWalletAppearance,
   gradientFor,
+  saveWalletAppearance,
   SHAPE_LABEL,
 } from "@/lib/retail/walletAppearance";
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
@@ -107,6 +108,27 @@ function useProductSurfaceIntent(): ProductSurfaceId | null {
   return surface;
 }
 
+function useWalletProductSurface(walletName: string): ProductSurfaceId | null {
+  const requestedSurface = useProductSurfaceIntent();
+  const [storedSurface, setStoredSurface] = useState<ProductSurfaceId | null>(null);
+
+  useEffect(() => {
+    const appearance = getWalletAppearance(walletName);
+    const surface = isProductSurfaceId(appearance?.surface)
+      ? appearance.surface
+      : null;
+    setStoredSurface(surface);
+  }, [walletName]);
+
+  useEffect(() => {
+    if (!requestedSurface) return;
+    saveWalletAppearance(walletName, { surface: requestedSurface });
+    setStoredSurface(requestedSurface);
+  }, [requestedSurface, walletName]);
+
+  return requestedSurface ?? storedSurface;
+}
+
 export default function WalletDetailPage() {
   const params = useParams<{ name: string }>();
   const rawName = params?.name ?? "";
@@ -128,7 +150,7 @@ export default function WalletDetailPage() {
     readWalletTabFromHash,
   );
   const [loadChainHistory, setLoadChainHistory] = useState(false);
-  const productSurface = useProductSurfaceIntent();
+  const productSurface = useWalletProductSurface(name);
 
   useEffect(() => {
     if (detailTab !== "activity") return;
