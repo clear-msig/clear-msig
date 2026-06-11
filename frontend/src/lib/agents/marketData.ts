@@ -13,6 +13,19 @@ export interface AgentMarketDataSnapshot {
   volume24hUsd: string | null;
 }
 
+export interface AgentMarketUniverseItem {
+  provider: AgentMarketDataProviderId;
+  source: "mock" | "live";
+  market: string;
+  baseAsset: string;
+  observedAt: number;
+  markPriceUsd: string | null;
+  fundingRatePct: string | null;
+  openInterestUsd: string | null;
+  volume24hUsd: string | null;
+  tradable: boolean;
+}
+
 export interface AgentMarketDataValidation {
   snapshot: AgentMarketDataSnapshot | null;
   errors: string[];
