@@ -59,14 +59,14 @@ export function ProductChooserPage() {
   return (
     <ProductShell cta={null}>
       <section className="relative z-10 mx-auto flex min-h-[calc(100vh-96px)] w-full max-w-6xl flex-col justify-center px-5 pb-16 pt-10 sm:px-8 lg:px-10">
-        <div className="max-w-4xl">
+        <div className="mx-auto max-w-4xl text-center">
           <p className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
             Choose product
           </p>
           <h1 className="mt-5 text-[clamp(2.4rem,7vw,5.8rem)] font-medium leading-[0.9] text-white">
             What are you here to do?
           </h1>
-          <p className="mt-6 max-w-2xl text-base leading-relaxed text-white/62 sm:text-lg">
+          <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/62 sm:text-lg">
             Start with the strongest ClearSig flows: agent control, team
             treasury, personal shared wallets, or recovery. Sign in happens
             after you choose.
@@ -79,7 +79,7 @@ export function ProductChooserPage() {
           ))}
         </div>
 
-        <div className="mt-10 grid max-w-xl gap-3 border-t border-white/[0.08] pt-6">
+        <div className="mx-auto mt-10 grid w-full max-w-xl gap-3 border-t border-white/[0.08] pt-6">
           {supportingSurfaces.map((surface) => (
             <ProductSupportLink key={surface.id} surface={surface} />
           ))}
