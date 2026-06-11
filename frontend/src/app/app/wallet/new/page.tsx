@@ -7,9 +7,8 @@
 // but renders inside the workspace shell so users with at least one
 // wallet can spin up another without leaving the app.
 //
-// On success we route the user straight to the new wallet's detail
-// page - no intermediate "wallet ready" celebration, since they're
-// already inside the app and just want to use it.
+// On success we route the user to the first useful screen for the
+// product they chose. Product intent wins over generic wallet setup.
 
 import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
@@ -901,7 +900,7 @@ function postCreateHref(
   purpose: "share" | "secure" | "agent" | null,
 ): string {
   const encoded = encodeURIComponent(walletSlug);
-  if (purpose === "agent") {
+  if (purpose === "agent" || surface === "agent") {
     return `/app/wallet/${encoded}/agents/start?surface=agent`;
   }
   if (isProductSurfaceId(surface)) {

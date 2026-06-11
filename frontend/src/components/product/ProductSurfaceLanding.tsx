@@ -44,9 +44,9 @@ const FEATURE_ICONS: LucideIcon[] = [
 ];
 
 const PRIMARY_PRODUCT_IDS: ProductSurfaceId[] = [
-  "agent",
-  "pro",
   "personal",
+  "pro",
+  "agent",
   "secure",
 ];
 
