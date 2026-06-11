@@ -117,6 +117,7 @@ import {
   loadAgentInboxSummary,
   type AgentInboxSummary,
 } from "@/lib/agents/clientInbox";
+import { runAgentAutonomyTickClient } from "@/lib/agents/clientAutonomy";
 import {
   loadAgentVenueReadiness,
   submitAgentVenueExecution,
@@ -723,6 +724,64 @@ export default function AgentsPage() {
     });
   };
 
+  const runAutonomyScan = () => {
+    startAction(() => {
+      void runAgentAutonomyTickClient({
+        walletName: name,
+        venue: "hyperliquid_testnet",
+        maxMarkets: 80,
+        maxIdeas: 3,
+      })
+        .then((result) => {
+          if (!result.ok) {
+            toast.error("Autonomy scan failed", {
+              details: result.message,
+            });
+            return;
+          }
+          const prepared = result.proposals ?? [];
+          for (const item of prepared) {
+            saveAgentProposal(item.proposal);
+          }
+          const placed = prepared.filter((item) => item.execution?.placed).length;
+          const handoffBlocked = prepared.filter(
+            (item) => item.execution && !item.execution.placed,
+          ).length;
+          const scanDetails = `${result.scannedMarkets ?? 0} markets scanned · ${result.consideredMarkets ?? 0} tradable`;
+          if (prepared.length === 0) {
+            toast.info("No trade passed the current guardrails", {
+              details: `${scanDetails}. ${result.message}`,
+            });
+          } else if (placed > 0) {
+            toast.success(
+              `${placed} Hyperliquid practice trade${placed === 1 ? "" : "s"} sent`,
+              {
+                details:
+                  prepared.length > placed
+                    ? `${prepared.length - placed} idea${prepared.length - placed === 1 ? "" : "s"} saved for review.`
+                    : scanDetails,
+              },
+            );
+          } else {
+            toast.success(
+              `${prepared.length} guarded idea${prepared.length === 1 ? "" : "s"} prepared`,
+              {
+                details:
+                  handoffBlocked > 0
+                    ? prepared.find((item) => item.execution && !item.execution.placed)
+                        ?.execution?.message
+                    : scanDetails,
+              },
+            );
+          }
+          void refreshBackendState();
+        })
+        .catch(() => {
+          toast.error("Could not run the autonomy scan");
+        });
+    });
+  };
+
   const setKillSwitch = (enabled: boolean) => {
     startAction(() => {
       const updated = setAgentVaultEmergencyPause(name, enabled);
@@ -1181,6 +1240,21 @@ export default function AgentsPage() {
           <Play size={13} aria-hidden="true" />
           Start trading
         </Link>
+        <button
+          type="button"
+          disabled={pendingAction || agents.length === 0}
+          onClick={runAutonomyScan}
+          className={clsx(
+            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest sm:flex-none",
+            "transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
+            "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+            "disabled:cursor-not-allowed disabled:opacity-60",
+          )}
+        >
+          <BrainCircuit size={13} aria-hidden="true" />
+          Run scan
+        </button>
         <Link
           href="/agents"
           className={clsx(
