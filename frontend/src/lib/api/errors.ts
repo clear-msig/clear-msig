@@ -509,6 +509,28 @@ export function friendlyError(
     };
   }
 
+  // ── Solana RPC provider/plan limitation ──────────────────────
+  // Wallet discovery and wallet-name resolution both need
+  // `getProgramAccounts`. Some hosted RPC free tiers accept simple
+  // reads but reject this method with a 400/-32600, which used to
+  // fall through to the generic "bad request" copy below. That is
+  // misleading: the user didn't type a bad address; the backend is
+  // pointed at an RPC plan that cannot run the product.
+  if (
+    hay.includes("getprogramaccounts is not available") ||
+    (hay.includes("getprogramaccounts") &&
+      (hay.includes("free tier") ||
+        hay.includes("upgrade") ||
+        hay.includes("not available")))
+  ) {
+    return {
+      title: "Your Solana RPC plan can't scan wallets",
+      body:
+        "ClearSig needs getProgramAccounts during wallet setup. Use an RPC provider or paid plan that supports it, then redeploy the backend with CLEAR_MSIG_URL updated.",
+      durationMs: 12_000,
+    };
+  }
+
   // ── Invalid input on the backend's side (couldn't decode JSON
   //    / hex / base58, malformed proposal, etc.) ────────────────
   if (
