@@ -32,9 +32,9 @@ import { encryptStatus } from "@/lib/encrypt/client";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 const VENUES: Array<{ value: TradingVenue; label: string }> = [
-  { value: "mock_perps", label: "Built-in practice" },
-  { value: "hyperliquid_testnet", label: "Hyperliquid practice" },
-  { value: "bulktrade_mock", label: "Bulk practice" },
+  { value: "mock_perps", label: "Internal sandbox" },
+  { value: "hyperliquid_testnet", label: "Hyperliquid testnet" },
+  { value: "bulktrade_mock", label: "Bulk sandbox" },
 ];
 
 export default function NewAgentProposalPage() {
@@ -229,7 +229,7 @@ export default function NewAgentProposalPage() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <header className="flex flex-col gap-2">
         <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-          Automated Trading · {display}
+          Decision Journal · {display}
         </p>
         <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
           Try a trade idea
@@ -247,11 +247,11 @@ export default function NewAgentProposalPage() {
           </span>
           <div>
             <p className="text-sm font-semibold text-text-strong">
-              Practice idea
+              Trade idea
             </p>
             <p className="mt-1 text-xs leading-relaxed text-text-soft">
-              Start with the built-in practice account. Nothing here can move
-              real money.
+              Submit one idea and ClearSig will record why it passed, needed
+              approval, or stopped.
             </p>
           </div>
         </div>
@@ -277,7 +277,7 @@ export default function NewAgentProposalPage() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <SelectField
-              label="Where should it practice?"
+              label="Trading venue"
               value={venue}
               onChange={(value) => setVenue(value as TradingVenue)}
               options={VENUES}

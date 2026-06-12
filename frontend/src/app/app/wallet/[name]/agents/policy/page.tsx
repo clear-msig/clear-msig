@@ -19,9 +19,9 @@ import { encryptStatus } from "@/lib/encrypt/client";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 const VENUES: Array<{ value: TradingVenue; label: string }> = [
-  { value: "mock_perps", label: "Built-in practice" },
-  { value: "hyperliquid_testnet", label: "Hyperliquid practice" },
-  { value: "bulktrade_mock", label: "Bulk practice" },
+  { value: "mock_perps", label: "Internal sandbox" },
+  { value: "hyperliquid_testnet", label: "Hyperliquid testnet" },
+  { value: "bulktrade_mock", label: "Bulk sandbox" },
 ];
 
 export default function AgentPolicyPage() {
@@ -132,15 +132,11 @@ export default function AgentPolicyPage() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <header className="flex flex-col gap-2">
         <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-          Automated Trading · {display}
+          Guardrails · {display}
         </p>
         <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
-          Safety rules
+          Trading guardrails
         </h1>
-        <p className="max-w-2xl text-sm leading-relaxed text-text-soft">
-          Choose what every trader may use, the most it may risk, and when it
-          must stop.
-        </p>
       </header>
 
       <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
@@ -151,9 +147,6 @@ export default function AgentPolicyPage() {
           <div>
             <p className="text-sm font-semibold text-text-strong">
               Rules that always win
-            </p>
-            <p className="mt-1 text-xs leading-relaxed text-text-soft">
-              Every trade idea is checked against these rules before it can move forward.
             </p>
           </div>
         </div>

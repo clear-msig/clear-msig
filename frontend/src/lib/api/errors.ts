@@ -17,7 +17,7 @@
 // Add new mappings as backend errors surface in real usage. Keep
 // the body short, action-oriented, and never blame the user.
 
-import { BackendApiError } from "@/lib/api/client";
+import { BackendApiError, BackendTimeoutError } from "@/lib/api/client";
 import { WalletSignError } from "@/lib/hooks/useSignWithWallet";
 import { PolicyViolationError } from "@/lib/retail/policyEvaluation";
 import { appConfig } from "@/lib/config";
@@ -124,8 +124,41 @@ export function friendlyError(
     return { title: err.message, body: err.body };
   }
 
+  if (err instanceof BackendTimeoutError) {
+    return {
+      title:
+        context === "create-wallet"
+          ? "Wallet setup is taking longer than expected"
+          : "ClearSig is still waiting on the backend",
+      body:
+        context === "create-wallet"
+          ? "The request may still finish on-chain. Open your wallet list or wait a moment before trying again, so you do not create a duplicate."
+          : "This can happen when devnet or the command runner is slow. Wait a moment, then retry.",
+      durationMs: 10_000,
+    };
+  }
+
   const bag = bagFromError(err);
   const hay = haystack(bag);
+
+  if (
+    hay.includes("proxy_timeout") ||
+    hay.includes("status 504") ||
+    hay.includes("command timed out") ||
+    hay.includes("backend request timed out")
+  ) {
+    return {
+      title:
+        context === "create-wallet"
+          ? "Wallet setup is still processing"
+          : "ClearSig backend timed out",
+      body:
+        context === "create-wallet"
+          ? "The chain write may have landed even though the browser timed out. Refresh your wallets before retrying."
+          : "The backend took too long to answer. Wait a moment, then retry.",
+      durationMs: 10_000,
+    };
+  }
 
   // ── Network: backend unreachable ──────────────────────────────
   if (bag.isNetwork) {
@@ -473,6 +506,28 @@ export function friendlyError(
       body:
         "The wallet needs more funds to cover this. Check the balance and " +
         "either lower the amount or add money first.",
+    };
+  }
+
+  // ── Solana RPC provider/plan limitation ──────────────────────
+  // Wallet discovery and wallet-name resolution both need
+  // `getProgramAccounts`. Some hosted RPC free tiers accept simple
+  // reads but reject this method with a 400/-32600, which used to
+  // fall through to the generic "bad request" copy below. That is
+  // misleading: the user didn't type a bad address; the backend is
+  // pointed at an RPC plan that cannot run the product.
+  if (
+    hay.includes("getprogramaccounts is not available") ||
+    (hay.includes("getprogramaccounts") &&
+      (hay.includes("free tier") ||
+        hay.includes("upgrade") ||
+        hay.includes("not available")))
+  ) {
+    return {
+      title: "Your Solana RPC plan can't scan wallets",
+      body:
+        "ClearSig needs getProgramAccounts during wallet setup. Use an RPC provider or paid plan that supports it, then redeploy the backend with CLEAR_MSIG_URL updated.",
+      durationMs: 12_000,
     };
   }
 

@@ -51,6 +51,8 @@ import {
   type TimeWindow,
 } from "@/lib/retail/policy";
 import { toDisplayName } from "@/lib/retail/walletNames";
+import { getWalletAppearance } from "@/lib/retail/walletAppearance";
+import { walletProductSurface } from "@/lib/productWorkspace";
 import {
   templateFileForChainKind,
 } from "@/lib/hooks/useUpdateTimelock";
@@ -125,6 +127,8 @@ export default function PolicyPage() {
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
 
   const display = toDisplayName(name);
+  const surface = walletProductSurface(getWalletAppearance(name)?.surface);
+  const personalRules = surface === "personal";
 
   return (
     <div className="flex flex-col gap-6">
@@ -145,10 +149,12 @@ export default function PolicyPage() {
           </span>
           <div className="flex min-w-0 flex-col">
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Spending policy · {display}
+              {personalRules ? "Personal rules" : "Spending policy"} · {display}
             </p>
             <h1 className="mt-1.5 truncate font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
-              How {display} controls money
+              {personalRules
+                ? `How ${display} stays protected`
+                : `How ${display} controls money`}
             </h1>
           </div>
         </div>
@@ -161,8 +167,9 @@ export default function PolicyPage() {
       </motion.header>
 
       <p className="max-w-2xl text-sm text-text-soft sm:text-base">
-        One place for who approves, who can request, where money can go,
-        and which limits block a bad send before signing.
+        {personalRules
+          ? "Simple rules for who can approve and how sending is protected."
+          : "One place for who approves, who can request, where money can go, and which limits block a bad send before signing."}
       </p>
 
       <PolicyFlow
@@ -172,6 +179,7 @@ export default function PolicyPage() {
         advancedRuleCount={advancedRuleCount}
         budgetLabel={budgetLabel}
         allowanceCount={allowanceCount}
+        personalRules={personalRules}
       />
 
       <ThresholdCard
@@ -184,24 +192,28 @@ export default function PolicyPage() {
       <TimeWindowCard walletName={name} />
 
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <NavCard
-          href={`/app/wallet/${encodeURIComponent(name)}/budget`}
-          icon={Gauge}
-          title="Weekly spending cap"
-          body="Wallet-wide and per-chain dollar limits."
-        />
-        <NavCard
-          href={`/app/wallet/${encodeURIComponent(name)}/allowances`}
-          icon={UserCheck}
-          title="Per-person caps"
-          body="How much each friend can move on their own."
-        />
-        <NavCard
-          href={`/app/wallet/${encodeURIComponent(name)}/policies`}
-          icon={ListChecks}
-          title="Advanced policy rules"
-          body="Extra allow, deny, review, and cooldown checks."
-        />
+        {!personalRules ? (
+          <>
+            <NavCard
+              href={`/app/wallet/${encodeURIComponent(name)}/budget`}
+              icon={Gauge}
+              title="Weekly spending cap"
+              body="Wallet-wide and per-chain dollar limits."
+            />
+            <NavCard
+              href={`/app/wallet/${encodeURIComponent(name)}/allowances`}
+              icon={UserCheck}
+              title="Per-person caps"
+              body="How much each member can move on their own."
+            />
+            <NavCard
+              href={`/app/wallet/${encodeURIComponent(name)}/policies`}
+              icon={ListChecks}
+              title="Advanced policy rules"
+              body="Extra allow, deny, review, and cooldown checks."
+            />
+          </>
+        ) : null}
         <NavCard
           href="/app/settings#notifications"
           icon={Bell}
@@ -220,6 +232,7 @@ function PolicyFlow({
   advancedRuleCount,
   budgetLabel,
   allowanceCount,
+  personalRules,
 }: {
   walletName: string;
   intent: IntentAccount | null;
@@ -227,6 +240,7 @@ function PolicyFlow({
   advancedRuleCount: number;
   budgetLabel: string;
   allowanceCount: number;
+  personalRules: boolean;
 }) {
   const encoded = encodeURIComponent(walletName);
   const approverCount = intent?.approvers.length ?? 0;
@@ -272,30 +286,34 @@ function PolicyFlow({
       body: "The on-chain intent that powers sending.",
       enforcement: "active",
     },
-    {
-      href: `/app/wallet/${encoded}/budget`,
-      Icon: Gauge,
-      label: "Limits",
-      status: budgetLabel,
-      body: "Weekly, per-chain, and daily send-count caps.",
-      enforcement: "preview",
-    },
-    {
-      href: `/app/wallet/${encoded}/allowances`,
-      Icon: UserCheck,
-      label: "Per-person caps",
-      status: allowanceCount ? `${allowanceCount} set` : "Not set",
-      body: "Individual spending limits for each member.",
-      enforcement: "preview",
-    },
-    {
-      href: `/app/wallet/${encoded}/policies`,
-      Icon: ListChecks,
-      label: "Advanced rules",
-      status: advancedRuleCount ? `${advancedRuleCount} saved` : "None",
-      body: "Extra checks for recipients, amounts, and review.",
-      enforcement: "preview",
-    },
+    ...(!personalRules
+      ? [
+          {
+            href: `/app/wallet/${encoded}/budget`,
+            Icon: Gauge,
+            label: "Limits",
+            status: budgetLabel,
+            body: "Weekly, per-chain, and daily send-count caps.",
+            enforcement: "preview" as const,
+          },
+          {
+            href: `/app/wallet/${encoded}/allowances`,
+            Icon: UserCheck,
+            label: "Per-person caps",
+            status: allowanceCount ? `${allowanceCount} set` : "Not set",
+            body: "Individual spending limits for each member.",
+            enforcement: "preview" as const,
+          },
+          {
+            href: `/app/wallet/${encoded}/policies`,
+            Icon: ListChecks,
+            label: "Advanced rules",
+            status: advancedRuleCount ? `${advancedRuleCount} saved` : "None",
+            body: "Extra checks for recipients, amounts, and review.",
+            enforcement: "preview" as const,
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -306,9 +324,9 @@ function PolicyFlow({
             Policy flow
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-text-soft">
-            Active controls are enforced by wallet membership and signed
-            intents. Preview guardrails run in the app today and become
-            enforceable once encrypted policy execution is live.
+            {personalRules
+              ? "Personal rules stay focused on trusted people, approvals, and the signed spending rule."
+              : "Active controls are enforced by wallet membership and signed intents. Preview guardrails run in the app today and become enforceable once encrypted policy execution is live."}
           </p>
         </div>
         <Link

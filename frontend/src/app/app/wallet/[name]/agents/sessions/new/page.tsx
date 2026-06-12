@@ -35,9 +35,9 @@ import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 const VENUES: Array<{ value: TradingVenue; label: string }> = [
-  { value: "mock_perps", label: "Built-in practice" },
-  { value: "hyperliquid_testnet", label: "Hyperliquid practice" },
-  { value: "bulktrade_mock", label: "Bulk practice" },
+  { value: "mock_perps", label: "Internal sandbox" },
+  { value: "hyperliquid_testnet", label: "Hyperliquid testnet" },
+  { value: "bulktrade_mock", label: "Bulk sandbox" },
 ];
 
 export default function NewAgentSessionPage() {
@@ -201,9 +201,9 @@ export default function NewAgentSessionPage() {
       setSessions(listAgentSessions(name));
       const synced = await syncAgentSession(saved);
       if (synced.ok) {
-        toast.success("Practice allowance started");
+        toast.success("Allowance started");
       } else {
-        toast.info("Practice allowance saved on this device for now", {
+        toast.info("Allowance saved on this device for now", {
           details: synced.message,
         });
       }
@@ -268,7 +268,7 @@ export default function NewAgentSessionPage() {
       policy,
     );
     if (grant.allowedVenues?.length === 0) {
-      toast.error("Choose a practice account allowed by your safety rules");
+      toast.error("Choose a venue allowed by your guardrails");
       return;
     }
     if (grant.allowedMarkets?.length === 0) {
@@ -308,19 +308,14 @@ export default function NewAgentSessionPage() {
           Agent Library
         </Link>
         <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-          Automated Trading · {display}
+          Allowance · {display}
         </p>
         <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
-          Give a practice allowance
+          Set a trading allowance
         </h1>
-        <p className="max-w-2xl text-sm leading-relaxed text-text-soft">
-          Choose how much one trader may use and how long it may practice.
-          Anything outside this allowance is stopped.
-        </p>
         {requestedTier ? (
           <p className="max-w-2xl text-xs leading-relaxed text-accent">
-            Reviewing the {requestedTier.label} track-record recommendation.
-            You can tighten every value before approving it.
+            {requestedTier.label} recommendation loaded.
           </p>
         ) : null}
       </header>
@@ -371,10 +366,7 @@ export default function NewAgentSessionPage() {
           </span>
           <div>
             <p className="text-sm font-semibold text-text-strong">
-              Practice allowance
-            </p>
-            <p className="mt-1 text-xs leading-relaxed text-text-soft">
-              An allowance can only be stricter than your safety rules, never looser.
+              Trading allowance
             </p>
           </div>
         </div>
@@ -406,7 +398,7 @@ export default function NewAgentSessionPage() {
           ) : null}
 
           <fieldset className="flex flex-col gap-2">
-            <legend className="text-xs font-medium text-text-soft">Where may it practice?</legend>
+            <legend className="text-xs font-medium text-text-soft">Where may it trade?</legend>
             <div className="grid gap-2 sm:grid-cols-3">
               {VENUES.map((venue) => (
                 <label
@@ -549,11 +541,11 @@ function formatUsd(value: string | number | null | undefined): string {
 function venueLabel(value: TradingVenue): string {
   switch (value) {
     case "hyperliquid_testnet":
-      return "Hyperliquid practice";
+      return "Hyperliquid testnet";
     case "bulktrade_mock":
-      return "Bulk practice";
+      return "Bulk sandbox";
     case "mock_perps":
-      return "Built-in practice";
+      return "Internal sandbox";
   }
 }
 

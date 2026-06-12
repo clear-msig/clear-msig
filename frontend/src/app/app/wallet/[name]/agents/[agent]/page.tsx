@@ -805,9 +805,6 @@ export default function AgentDetailPage() {
                 <p className="text-sm font-semibold text-text-strong">
                   {inboxSummary.count} queued signal{inboxSummary.count === 1 ? "" : "s"}
                 </p>
-                <p className="mt-1 text-sm leading-relaxed text-text-soft">
-                  Review bot signals before they become trade signals.
-                </p>
               </div>
             </div>
             <LinkButton
@@ -993,7 +990,7 @@ export default function AgentDetailPage() {
           <div className="rounded-soft border border-dashed border-border-soft bg-canvas p-4">
             <p className="text-sm font-medium text-text-strong">No strategy playbook yet</p>
             <p className="mt-1 text-sm text-text-soft">
-              Add entry rules, exit rules, risk rules, and execution protocol before moving toward live venues.
+              Add a playbook first.
             </p>
           </div>
         )}
@@ -1169,9 +1166,6 @@ function ReadinessPanel({
                 {readiness.score}% · {readiness.headline}
               </Badge>
             </div>
-            <p className="mt-1 text-sm leading-relaxed text-text-soft">
-              {readiness.summary}
-            </p>
           </div>
         </div>
         <LinkButton
@@ -1203,9 +1197,18 @@ function ReadinessPanel({
                 {item.status === "pass" ? "Ready" : item.status === "block" ? "Blocked" : "Setup"}
               </Badge>
             </div>
-            <p className="mt-1 text-xs leading-relaxed text-text-soft">
-              {item.message}
-            </p>
+            <details className="group mt-1">
+              <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-[11px] font-medium text-text-soft transition-colors hover:text-accent">
+                Info
+                <ArrowRight
+                  className="h-3 w-3 transition-transform group-open:rotate-90"
+                  aria-hidden="true"
+                />
+              </summary>
+              <p className="mt-1.5 text-xs leading-relaxed text-text-soft">
+                {item.message}
+              </p>
+            </details>
           </div>
         ))}
       </div>
@@ -1348,12 +1351,6 @@ function PublishingPanel({
                 </Badge>
               ) : null}
             </div>
-            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-text-soft">
-              Publish a test profile that shows this agent&apos;s score, allowance
-              level, P/L, trades, win rate, and safety stops. Marketplace review
-              can approve, pause, or delist the profile without granting trading
-              authority or exposing connection keys.
-            </p>
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -1507,20 +1504,20 @@ function NextAllowancePanel({
     suggestions.push("Fewer stopped ideas will make the next allowance easier to approve.");
   }
   if ((scorecard?.executed ?? 0) === 0) {
-    suggestions.push("Complete a few small practice trades first.");
+    suggestions.push("Complete a few small guarded trades first.");
   }
   return (
     <Panel title="Next Allowance" Icon={ShieldCheck}>
       {recommendation?.nextTier ? (
-        <p className="text-sm leading-relaxed text-text-soft">
+        <p className="text-sm text-text-soft">
           Next level:{" "}
           <span className="font-semibold text-text-strong">
             {recommendation.nextTier.label}
           </span>
         </p>
       ) : (
-        <p className="text-sm leading-relaxed text-text-soft">
-          This agent is already at the highest allowance level for now.
+        <p className="text-sm text-text-soft">
+          Highest allowance level.
         </p>
       )}
       <div className="mt-3 grid gap-2">

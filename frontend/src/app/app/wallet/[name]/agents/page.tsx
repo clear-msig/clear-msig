@@ -18,9 +18,11 @@ import {
   Clock,
   Database,
   Inbox,
+  Info,
   KeyRound,
   Lock,
   MessageSquare,
+  Pause,
   Plug,
   Plus,
   Play,
@@ -32,6 +34,7 @@ import {
   TrendingUp,
   Trophy,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { encryptStatus } from "@/lib/encrypt/client";
@@ -117,6 +120,7 @@ import {
   loadAgentInboxSummary,
   type AgentInboxSummary,
 } from "@/lib/agents/clientInbox";
+import { runAgentAutonomyTickClient } from "@/lib/agents/clientAutonomy";
 import {
   loadAgentVenueReadiness,
   submitAgentVenueExecution,
@@ -139,10 +143,23 @@ type BackendPersistenceStatus = {
   updatedAt?: number;
 };
 
+const agentLaneClass = clsx(
+  "inline-flex min-h-12 items-center justify-center gap-2 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-semibold text-text-strong shadow-card-rest",
+  "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+);
+
+const agentSecondaryActionClass = clsx(
+  "inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
+  "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+);
+
 type GettingStartedStep = {
   id: string;
   label: string;
   description: string;
+  Icon: LucideIcon;
   done: boolean;
   href: string;
   actionLabel: string;
@@ -440,16 +457,18 @@ export default function AgentsPage() {
     return [
       {
         id: "trader",
-        label: "Choose your trader",
+        label: "Trader",
         description: "Pick a prepared ClearSig trader or create one of your own.",
+        Icon: Bot,
         done: Boolean(firstAgent),
         href: `/app/wallet/${encoded}/agents/library`,
         actionLabel: "Browse traders",
       },
       {
         id: "plan",
-        label: "Describe how it should trade",
-        description: "Set the markets it can watch, when it may act, and when it must stop.",
+        label: "Plan",
+        description: "Set markets, entry rules, exit rules, and kill switch logic.",
+        Icon: SlidersHorizontal,
         done: itemPassed("strategy"),
         href: firstAgent
           ? `/app/wallet/${encoded}/agents/${encodeURIComponent(firstAgent.id)}/strategy`
@@ -458,16 +477,18 @@ export default function AgentsPage() {
       },
       {
         id: "safety",
-        label: "Choose your safety rules",
-        description: "Set the most it can use, the most it can lose, and what it may trade.",
+        label: "Guardrails",
+        description: "Set venue, markets, max size, leverage, drawdown, and loss limits.",
+        Icon: ShieldCheck,
         done: itemPassed("risk-limits"),
         href: `/app/wallet/${encoded}/agents/policy`,
-        actionLabel: "Choose safety rules",
+        actionLabel: "Set guardrails",
       },
       {
         id: "allowance",
-        label: "Give it a practice allowance",
-        description: "Choose a small amount and a short time for its first safe trial.",
+        label: "Allowance",
+        description: "Give the trader a small amount and a short time window.",
+        Icon: Clock,
         done: itemPassed("session"),
         href: firstAgent
           ? `/app/wallet/${encoded}/agents/sessions/new?agent=${encodeURIComponent(firstAgent.id)}`
@@ -476,8 +497,9 @@ export default function AgentsPage() {
       },
       {
         id: "practice",
-        label: "Start trading",
-        description: "Choose a practice account, confirm every required step, and place the first practice trade.",
+        label: "Trade",
+        description: "Run a scan or start the guided practice trading flow.",
+        Icon: Play,
         done: hasFirstPractice,
         href: firstAgent
           ? `/app/wallet/${encoded}/agents/start?agent=${encodeURIComponent(firstAgent.id)}`
@@ -723,6 +745,64 @@ export default function AgentsPage() {
     });
   };
 
+  const runAutonomyScan = () => {
+    startAction(() => {
+      void runAgentAutonomyTickClient({
+        walletName: name,
+        venue: "hyperliquid_testnet",
+        maxMarkets: 80,
+        maxIdeas: 3,
+      })
+        .then((result) => {
+          if (!result.ok) {
+            toast.error("Autonomy scan failed", {
+              details: result.message,
+            });
+            return;
+          }
+          const prepared = result.proposals ?? [];
+          for (const item of prepared) {
+            saveAgentProposal(item.proposal);
+          }
+          const placed = prepared.filter((item) => item.execution?.placed).length;
+          const handoffBlocked = prepared.filter(
+            (item) => item.execution && !item.execution.placed,
+          ).length;
+          const scanDetails = `${result.scannedMarkets ?? 0} markets scanned · ${result.consideredMarkets ?? 0} tradable`;
+          if (prepared.length === 0) {
+            toast.info("No trade passed the current guardrails", {
+              details: `${scanDetails}. ${result.message}`,
+            });
+          } else if (placed > 0) {
+            toast.success(
+              `${placed} Hyperliquid testnet trade${placed === 1 ? "" : "s"} sent`,
+              {
+                details:
+                  prepared.length > placed
+                    ? `${prepared.length - placed} idea${prepared.length - placed === 1 ? "" : "s"} saved for review.`
+                    : scanDetails,
+              },
+            );
+          } else {
+            toast.success(
+              `${prepared.length} guarded idea${prepared.length === 1 ? "" : "s"} prepared`,
+              {
+                details:
+                  handoffBlocked > 0
+                    ? prepared.find((item) => item.execution && !item.execution.placed)
+                        ?.execution?.message
+                    : scanDetails,
+              },
+            );
+          }
+          void refreshBackendState();
+        })
+        .catch(() => {
+          toast.error("Could not run the autonomy scan");
+        });
+    });
+  };
+
   const setKillSwitch = (enabled: boolean) => {
     startAction(() => {
       const updated = setAgentVaultEmergencyPause(name, enabled);
@@ -770,7 +850,7 @@ export default function AgentsPage() {
       void submitAgentVenueExecution(proposal)
         .then((result) => {
           if (result.ok) {
-            toast.success("Trade request sent to the practice account");
+            toast.success("Trade request sent to the venue account");
             return;
           }
           toast.error(
@@ -783,7 +863,7 @@ export default function AgentsPage() {
           }
         })
         .catch(() => {
-          toast.error("Could not check the outside practice account");
+          toast.error("Could not check the outside venue account");
         });
     });
   };
@@ -858,7 +938,7 @@ export default function AgentsPage() {
             "Your safety rules stopped this trade idea",
         );
       } else if (result.reason === "backend_required") {
-        toast.error("Connect the outside practice account before using it");
+        toast.error("Connect the outside venue account before using it");
       } else if (result.reason === "not_approved") {
         toast.error("Approve this trade idea first");
       } else {
@@ -940,7 +1020,7 @@ export default function AgentsPage() {
         );
       const closed = [...localClosed, ...fallbackClosed];
       if (closed.length === 0) {
-        toast.error("No open practice trades to close");
+        toast.error("No open trades to close");
         return;
       }
       if (fallbackClosed.length > 0) {
@@ -1040,15 +1120,15 @@ export default function AgentsPage() {
     startAction(() => {
       const updated = updateAgentSessionStatus(name, id, "revoked");
       if (!updated) {
-        toast.error("Practice allowance not found");
+        toast.error("Allowance not found");
         return;
       }
       void syncAgentSessionStatus(name, id, "revoked").then((synced) => {
         if (synced.ok) {
-          toast.success("Practice allowance ended");
+          toast.success("Allowance ended");
           void refreshBackendState();
         } else {
-          toast.info("Practice allowance ended on this device for now", {
+          toast.info("Allowance ended on this device for now", {
             details: synced.message,
           });
         }
@@ -1065,10 +1145,10 @@ export default function AgentsPage() {
       }
       void syncAgentSession(renewed).then((synced) => {
         if (synced.ok) {
-          toast.success("Practice allowance renewed");
+          toast.success("Allowance renewed");
           void refreshBackendState();
         } else {
-          toast.info("Practice allowance renewed on this device for now", {
+          toast.info("Allowance renewed on this device for now", {
             details: synced.message,
           });
         }
@@ -1090,10 +1170,6 @@ export default function AgentsPage() {
           <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
             Agent Trading
           </h1>
-          <p className="max-w-2xl text-xs leading-relaxed text-text-soft sm:text-sm">
-            Let an agent prove itself with practice money first. You choose the
-            limits, approve more only when it earns your trust, and can stop it at any time.
-          </p>
         </div>
         <Link
           href="/privacy"
@@ -1125,87 +1201,98 @@ export default function AgentsPage() {
           Icon={Clock}
         />
         <MetricCard
-          label="Open practice trades"
+          label="Open trades"
           value={String(openExecutions)}
           Icon={Play}
         />
       </div>
 
-      <FeatureAccessPanel
-        walletEncoded={encoded}
-        agents={agents}
-        notifications={agentNotificationSummary.notifications.length}
-        marketSnapshots={Object.values(marketByMarket)}
-        intelligenceSnapshots={Object.values(intelligenceByMarket)}
-        onStartDemo={startBetaDemo}
-        pending={pendingAction}
-      />
+      <section className="flex flex-col gap-3">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <Link
+            href={`/app/wallet/${encoded}/agents/start`}
+            className={agentLaneClass}
+          >
+            <Play size={15} aria-hidden="true" />
+            <span>Trading desk</span>
+          </Link>
+          <Link
+            href={`/app/wallet/${encoded}/agents/library`}
+            className={agentLaneClass}
+          >
+            <Bot size={15} aria-hidden="true" />
+            <span>Trader profiles</span>
+          </Link>
+          <Link
+            href={`/app/wallet/${encoded}/agents/hyperliquid`}
+            className={agentLaneClass}
+          >
+            <Plug size={15} aria-hidden="true" />
+            <span>Venue</span>
+          </Link>
+          <Link
+            href={`/app/wallet/${encoded}/agents/policy`}
+            className={agentLaneClass}
+          >
+            <ShieldCheck size={15} aria-hidden="true" />
+            <span>Guardrails</span>
+          </Link>
+          <Link
+            href={`/app/wallet/${encoded}/agents/funding`}
+            className={agentLaneClass}
+          >
+            <CircleDollarSign size={15} aria-hidden="true" />
+            <span>Allowance</span>
+          </Link>
+          <Link
+            href="#kill-switch"
+            className={agentLaneClass}
+          >
+            <Pause size={15} aria-hidden="true" />
+            <span>Kill switch</span>
+          </Link>
+          <Link
+            href="#decision-journal"
+            className={agentLaneClass}
+          >
+            <ClipboardList size={15} aria-hidden="true" />
+            <span>Decision journal</span>
+          </Link>
+          <Link
+            href="#live-monitor"
+            className={agentLaneClass}
+          >
+            <TrendingUp size={15} aria-hidden="true" />
+            <span>Live monitor</span>
+          </Link>
+        </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {showDeveloperSurfaces ? (
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            disabled={pendingAction}
-            onClick={startBetaDemo}
+            disabled={pendingAction || agents.length === 0}
+            onClick={runAutonomyScan}
             className={clsx(
-              "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest sm:flex-none",
+              "inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest sm:flex-none",
               "transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
               "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
               "disabled:cursor-not-allowed disabled:opacity-60",
             )}
           >
-            <Sparkles size={13} aria-hidden="true" />
-            Seed demo
+            <BrainCircuit size={13} aria-hidden="true" />
+            Run scan
           </button>
-        ) : null}
-        <Link
-          href={`/app/wallet/${encoded}/agents/library`}
-          className={clsx(
-            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
-            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <Bot size={13} aria-hidden="true" />
-          Agent Library
-        </Link>
-        <Link
-          href={`/app/wallet/${encoded}/agents/start`}
-          className={clsx(
-            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
-            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <Play size={13} aria-hidden="true" />
-          Start trading
-        </Link>
-        <Link
-          href="/agents"
-          className={clsx(
-            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
-            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <Trophy size={13} aria-hidden="true" />
-          Marketplace
-        </Link>
-        <Link
-          href={`/app/wallet/${encoded}/agents/trades`}
-          className={clsx(
-            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
-            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <TrendingUp size={13} aria-hidden="true" />
-          Trades
-        </Link>
-        <details className="group w-full rounded-card border border-border-soft bg-surface-raised px-3 py-2 shadow-card-rest">
+          <Link
+            href="/agents"
+            className={agentSecondaryActionClass}
+          >
+            <Trophy size={13} aria-hidden="true" />
+            Marketplace
+          </Link>
+          <details className="group flex-1 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 shadow-card-rest sm:flex-none">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold text-text-strong">
-            <span>Advanced controls</span>
+            <span>Advanced</span>
             <ChevronDown
               className="h-3.5 w-3.5 text-text-soft transition-transform group-open:rotate-180"
               aria-hidden="true"
@@ -1222,28 +1309,6 @@ export default function AgentsPage() {
             >
               <Send size={13} aria-hidden="true" />
               Try an idea
-            </Link>
-            <Link
-              href={`/app/wallet/${encoded}/agents/funding`}
-              className={clsx(
-                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
-                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-              )}
-            >
-              <CircleDollarSign size={13} aria-hidden="true" />
-              Practice allocation
-            </Link>
-            <Link
-              href={`/app/wallet/${encoded}/agents/hyperliquid`}
-              className={clsx(
-                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
-                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-              )}
-            >
-              <Plug size={13} aria-hidden="true" />
-              Hyperliquid
             </Link>
             <Link
               href={`/app/wallet/${encoded}/agents/solana`}
@@ -1278,49 +1343,61 @@ export default function AgentsPage() {
               <MessageSquare size={13} aria-hidden="true" />
               Feedback
             </Link>
-            <Link
-              href={`/app/wallet/${encoded}/agents/admin`}
-              className={clsx(
-                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
-                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-              )}
-            >
-              <ClipboardList size={13} aria-hidden="true" />
-              Admin
-            </Link>
-            <Link
-              href={`/app/wallet/${encoded}/agents/policy`}
-              className={clsx(
-                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
-                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-              )}
-            >
-              <SlidersHorizontal size={13} aria-hidden="true" />
-              Safety rules
-            </Link>
+            {showDeveloperSurfaces ? (
+              <Link
+                href={`/app/wallet/${encoded}/agents/admin`}
+                className={clsx(
+                  "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
+                  "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+                )}
+              >
+                <ClipboardList size={13} aria-hidden="true" />
+                Admin
+              </Link>
+            ) : null}
+            {showDeveloperSurfaces ? (
+              <button
+                type="button"
+                disabled={pendingAction}
+                onClick={startBetaDemo}
+                className={clsx(
+                  "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
+                  "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+                  "disabled:cursor-not-allowed disabled:opacity-60",
+                )}
+              >
+                <Sparkles size={13} aria-hidden="true" />
+                Seed demo
+              </button>
+            ) : null}
           </div>
         </details>
       </div>
+      </section>
 
       {policy ? (
-        <KillSwitchPanel
-          paused={policy.emergencyPaused}
-          pending={pendingAction}
-          onToggle={setKillSwitch}
-        />
+        <section id="kill-switch" className="scroll-mt-24">
+          <KillSwitchPanel
+            paused={policy.emergencyPaused}
+            pending={pendingAction}
+            onToggle={setKillSwitch}
+          />
+        </section>
       ) : null}
 
-      <AgentNotificationsPanel
-        notifications={agentNotificationSummary.notifications}
-        seenIds={seenAgentNotifications}
-        unreadCount={unreadAgentNotifications.length}
-        critical={agentNotificationSummary.critical}
-        warning={agentNotificationSummary.warning}
-        onMarkSeen={markAgentNoticeSeen}
-        onMarkAllSeen={markAllAgentNoticesSeen}
-      />
+      {agentNotificationSummary.notifications.length > 0 ? (
+        <AgentNotificationsPanel
+          notifications={agentNotificationSummary.notifications}
+          seenIds={seenAgentNotifications}
+          unreadCount={unreadAgentNotifications.length}
+          critical={agentNotificationSummary.critical}
+          warning={agentNotificationSummary.warning}
+          onMarkSeen={markAgentNoticeSeen}
+          onMarkAllSeen={markAllAgentNoticesSeen}
+        />
+      ) : null}
 
       {agents.length > 0 ? (
         <ReadinessPanel
@@ -1345,14 +1422,25 @@ export default function AgentsPage() {
         />
       ) : null}
 
-      <LiveVenuePanel
-        readiness={liveVenueReadiness}
-        loading={liveVenueLoading}
-        walletEncoded={encoded}
-      />
+      <section id="live-monitor" className="scroll-mt-24">
+        <LiveVenuePanel
+          readiness={liveVenueReadiness}
+          loading={liveVenueLoading}
+          walletEncoded={encoded}
+        />
+      </section>
 
       {showDeveloperSurfaces ? (
         <>
+          <FeatureAccessPanel
+            walletEncoded={encoded}
+            agents={agents}
+            notifications={agentNotificationSummary.notifications.length}
+            marketSnapshots={Object.values(marketByMarket)}
+            intelligenceSnapshots={Object.values(intelligenceByMarket)}
+            onStartDemo={startBetaDemo}
+            pending={pendingAction}
+          />
           <BackendPersistencePanel status={backendStatus} />
           {betaReadiness ? <BetaReadinessPanel readiness={betaReadiness} /> : null}
           {marketReadiness ? <MarketReadinessPanel readiness={marketReadiness} /> : null}
@@ -1364,6 +1452,7 @@ export default function AgentsPage() {
           browseHref={`/app/wallet/${encoded}/agents/library`}
           createHref={`/app/wallet/${encoded}/agents/new`}
           pending={pendingAction}
+          showDemo={showDeveloperSurfaces}
           onStartDemo={startBetaDemo}
         />
       ) : (
@@ -1390,11 +1479,11 @@ export default function AgentsPage() {
         </section>
       )}
 
-      {proposals.length > 0 ? (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            Recent trade ideas
-          </h2>
+      <section id="decision-journal" className="flex scroll-mt-24 flex-col gap-3">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          Decision journal
+        </h2>
+        {proposals.length > 0 ? (
           <ul className="grid gap-3">
             {proposals.slice(0, 5).map((proposal) => (
               <ProposalCard
@@ -1409,13 +1498,17 @@ export default function AgentsPage() {
               />
             ))}
           </ul>
-        </section>
-      ) : null}
+        ) : (
+          <div className="rounded-card border border-dashed border-border-soft bg-surface-raised p-5 text-sm text-text-soft">
+            No decisions yet. Choose a trader, set an allowance, then run a scan.
+          </div>
+        )}
+      </section>
 
       {sessions.length > 0 ? (
         <section className="flex flex-col gap-3">
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            Practice allowances
+            Allowances
           </h2>
           <ul className="grid gap-3 md:grid-cols-2">
             {sessions.slice(0, 4).map((session) => (
@@ -1448,7 +1541,7 @@ export default function AgentsPage() {
         <section className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Practice trades
+              Trades
             </h2>
             {openExecutions > 0 ? (
               <button
@@ -1499,14 +1592,10 @@ function GettingStartedPanel({ steps }: { steps: GettingStartedStep[] }) {
 
   return (
     <section className="rounded-card border border-accent/25 bg-surface-raised p-4 shadow-card-rest sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-text-strong">
-            {completed === steps.length ? "Your trader is up and running" : "Your next step"}
-          </p>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
-            ClearSig keeps your money under your control. Your trader can only use
-            the amount and time you approve.
+            {completed === steps.length ? "Trading ready" : "Setup"}
           </p>
         </div>
         <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
@@ -1514,41 +1603,57 @@ function GettingStartedPanel({ steps }: { steps: GettingStartedStep[] }) {
         </span>
       </div>
 
-      <ol className="mt-4 grid gap-2">
+      <ol className="mt-4 grid gap-2 sm:grid-cols-5">
         {steps.map((step, index) => {
           const current = index === currentStep && !step.done;
+          const StepIcon = step.Icon;
           return (
             <li
               key={step.id}
               className={clsx(
-                "flex flex-wrap items-center gap-3 rounded-soft border px-3 py-3",
+                "flex min-h-[8rem] flex-col gap-3 rounded-soft border px-3 py-3",
                 current
                   ? "border-accent/40 bg-accent/[0.06]"
                   : "border-border-soft bg-canvas",
               )}
             >
-              <span
-                className={clsx(
-                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold",
-                  step.done
-                    ? "border-accent/30 bg-accent/10 text-accent"
-                    : current
-                      ? "border-accent bg-accent text-text-on-accent"
-                      : "border-border-soft text-text-muted",
-                )}
-              >
-                {step.done ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : index + 1}
-              </span>
-              <div className="min-w-[12rem] flex-1">
+              <div className="flex items-start justify-between gap-2">
+                <span
+                  className={clsx(
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border",
+                    step.done
+                      ? "border-accent/30 bg-accent/10 text-accent"
+                      : current
+                        ? "border-accent bg-accent text-text-on-accent"
+                        : "border-border-soft text-text-muted",
+                  )}
+                >
+                  {step.done ? (
+                    <Check className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <StepIcon className="h-4 w-4" aria-hidden="true" />
+                  )}
+                </span>
+                <details className="group relative">
+                  <summary className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-full text-text-soft transition-colors hover:bg-glass-mid hover:text-accent">
+                    <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span className="sr-only">{step.label} details</span>
+                  </summary>
+                  <p className="absolute right-0 z-10 mt-2 w-56 max-w-[calc(100vw-2rem)] rounded-soft border border-border-soft bg-surface-elevated p-2 text-[11px] leading-relaxed text-text-soft shadow-card-raised">
+                    {step.description}
+                  </p>
+                </details>
+              </div>
+              <div className="min-w-0">
                 <p className="text-xs font-semibold text-text-strong">{step.label}</p>
-                <p className="mt-0.5 text-xs leading-relaxed text-text-soft">
-                  {step.description}
+                <p className="mt-0.5 text-[11px] font-medium text-text-soft">
+                  {step.done ? "Done" : current ? "Next" : "Waiting"}
                 </p>
               </div>
               {current ? (
                 <Link
                   href={step.href}
-                  className="inline-flex min-h-9 items-center justify-center gap-1 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest"
+                  className="mt-auto inline-flex min-h-9 items-center justify-center gap-1 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest"
                 >
                   {step.actionLabel}
                   <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1706,10 +1811,10 @@ function ReadinessPanel({
         : "A few steps remain";
   const summary =
     readyAgents > 0
-      ? "Ready traders can open practice trades when an idea fits your safety rules."
+      ? "Ready for guarded trades."
       : blocked > 0
-        ? "Open the trader below to see what needs your attention."
-        : "Finish the next step before your trader can begin practicing.";
+        ? "Open the trader below."
+        : "Finish setup first.";
 
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
@@ -1739,9 +1844,7 @@ function ReadinessPanel({
               <p className="mt-0.5 text-xs text-text-soft">{headline}</p>
             </div>
           </div>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-text-soft">
-            {summary}
-          </p>
+          <p className="mt-2 text-xs text-text-soft">{summary}</p>
         </div>
         <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
           {setup} to finish · {blocked} stopped
@@ -1791,10 +1894,6 @@ function ScoutPanel({
               </p>
             </div>
           </div>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-text-soft">
-            Active traders are scanning their allowed markets and turning the
-            best read into a risk-checked practice idea.
-          </p>
         </div>
         <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
           Scout · Analyze · Gate
@@ -1839,10 +1938,6 @@ function MarketIntelligencePanel({
               </p>
             </div>
           </div>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-text-soft">
-            These are the exact data points the scout can cite before preparing
-            a practice idea.
-          </p>
         </div>
         <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
           Price · Funding · News · Macro
@@ -2078,10 +2173,10 @@ function KillSwitchPanel({
             <p className="text-sm font-semibold text-text-strong">
               {paused ? "All automatic actions are stopped" : "Automatic actions are allowed"}
             </p>
-            <p className="mt-1 text-sm leading-relaxed text-text-soft">
+            <p className="mt-1 text-xs text-text-soft">
               {paused
-                ? "No trader can open a new trade until you turn it back on."
-                : "You can stop every trader immediately whenever you need to."}
+                ? "No new trades can open."
+                : "Kill switch is available anytime."}
             </p>
           </div>
         </div>
@@ -2146,7 +2241,7 @@ function AgentNotificationsPanel({
             <h2 className="text-sm font-semibold text-text-strong">
               Trading notifications
             </h2>
-            <p className="mt-1 text-sm leading-relaxed text-text-soft">
+            <p className="mt-1 text-xs text-text-soft">
               {unreadCount > 0
                 ? `${unreadCount} unread notice${unreadCount === 1 ? "" : "s"} need attention.`
                 : "All current trading notices have been read."}
@@ -2256,25 +2351,25 @@ function LiveVenuePanel({
   const unavailable = !loading && !readiness;
   const reconciliation = readiness?.reconciliation ?? null;
   const title = loading
-    ? "Checking practice account"
+    ? "Checking venue account"
     : connected
-      ? `${readiness.label} practice account connected`
+      ? `${readiness.label} venue account connected`
       : readiness
-        ? `${readiness.label} practice account needs setup`
-        : "Practice account not connected";
+        ? `${readiness.label} venue account needs setup`
+        : "Venue account not connected";
   const summary = loading
-    ? "Checking whether your trader can safely place practice trades."
+    ? "Checking whether your trader can safely place trades."
     : connected
-      ? "The account has practice funds and the protected trading connection is ready."
+      ? "The account has testnet funds and the protected trading connection is ready."
       : unavailable
-        ? "The practice account check is unavailable right now."
+        ? "The venue account check is unavailable right now."
         : readiness?.accountProbe?.state === "empty"
-          ? "The account is connected, but it still needs practice funds."
+          ? "The account is connected, but it still needs testnet funds."
           : readiness?.executorProbe?.state === "unavailable"
             ? "The account is known, but the protected trading connection could not be reached."
             : readiness?.executorProbe?.message ??
               readiness?.accountProbe?.message ??
-              "Built-in practice trading works now. Connect an outside practice account when you are ready.";
+              "Internal sandbox trading works now. Connect an outside venue account when you are ready.";
 
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
@@ -2296,14 +2391,20 @@ function LiveVenuePanel({
           </span>
           <div className="min-w-0">
             <h2 className="text-sm font-semibold text-text-strong">
-              Outside practice account
+              Outside venue account
             </h2>
             <p className="mt-0.5 text-xs font-medium text-text-soft">
               {title}
             </p>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-soft">
-              {summary}
-            </p>
+            <details className="group mt-1">
+              <summary className="inline-flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-full text-text-soft transition-colors hover:bg-glass-mid hover:text-accent">
+                <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="sr-only">Outside venue account details</span>
+              </summary>
+              <p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-text-soft">
+                {summary}
+              </p>
+            </details>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -2453,11 +2554,13 @@ function EmptyAgents({
   browseHref,
   createHref,
   pending,
+  showDemo,
   onStartDemo,
 }: {
   browseHref: string;
   createHref: string;
   pending: boolean;
+  showDemo: boolean;
   onStartDemo: () => void;
 }) {
   return (
@@ -2467,10 +2570,6 @@ function EmptyAgents({
       </div>
       <p className="mt-4 font-display text-base font-semibold text-text-strong">
         No agents yet
-      </p>
-      <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-text-soft">
-        Choose a prepared ClearSig agent for the easiest start, or create your
-        own and shape its trading plan.
       </p>
       <div className="mt-4 flex flex-wrap justify-center gap-2">
         <Link
@@ -2487,15 +2586,17 @@ function EmptyAgents({
           <Plus size={13} aria-hidden="true" />
           Create your own
         </Link>
-        <button
-          type="button"
-          disabled={pending}
-          onClick={onStartDemo}
-          className="inline-flex items-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <Sparkles size={13} aria-hidden="true" />
-          Try demo setup
-        </button>
+        {showDemo ? (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={onStartDemo}
+            className="inline-flex items-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Sparkles size={13} aria-hidden="true" />
+            Try demo setup
+          </button>
+        ) : null}
       </div>
     </div>
   );
@@ -2971,12 +3072,18 @@ function AgentCard({
             ) : null}
           </div>
           <p className="mt-1 text-xs capitalize text-text-soft">
-              {agentKindLabel(agent.kind)}
+            {agentKindLabel(agent.kind)}
           </p>
           {agent.description ? (
-            <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-text-soft">
-              {agent.description}
-            </p>
+            <details className="group mt-1">
+              <summary className="inline-flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-full text-text-soft transition-colors hover:bg-glass-mid hover:text-accent">
+                <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="sr-only">{agent.name} profile</span>
+              </summary>
+              <p className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-text-soft">
+                {agent.description}
+              </p>
+            </details>
           ) : null}
           <div className="mt-3 flex flex-wrap gap-1.5">
             <span className="inline-flex items-center gap-1 rounded-full border border-border-soft bg-canvas px-2 py-0.5 text-[11px] font-medium text-text-soft">
@@ -3016,7 +3123,7 @@ function AgentCard({
                   <p className="text-[11px] font-semibold text-text-strong">
                     Recommended allowance
                   </p>
-                  <p className="mt-1 text-xs leading-relaxed text-text-soft">
+                  <p className="mt-1 line-clamp-1 text-xs text-text-soft">
                     {allocation.summary}
                   </p>
                 </div>
@@ -3034,7 +3141,7 @@ function AgentCard({
                 </span>
               </div>
               {allocation.nextTier && allocation.nextTierGaps.length > 0 ? (
-                <p className="mt-2 text-[11px] leading-relaxed text-text-soft">
+                <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-text-soft">
                   Next level: {allocation.nextTier.label} needs{" "}
                   {allocation.nextTierGaps.slice(0, 2).join(" and ")}.
                 </p>
@@ -3256,29 +3363,37 @@ function DecisionJournalSummary({ proposal }: { proposal: AgentTradeProposal }) 
   if (!journal) return null;
   return (
     <div className="mt-3 rounded-soft border border-border-soft bg-canvas p-3">
-      <p className="text-[11px] font-semibold text-text-strong">
-        Why this trade
-      </p>
-      <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-text-soft">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold text-text-strong">
+          Why this trade
+        </p>
+        <details className="group">
+          <summary className="inline-flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-full text-text-soft transition-colors hover:bg-glass-mid hover:text-accent">
+            <Info className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="sr-only">Decision details</span>
+          </summary>
+          <div className="mt-2 grid gap-1.5 sm:grid-cols-3">
+            <MiniReason label="Risk" value={journal.riskPlan} />
+            <MiniReason label="Exit" value={journal.exitPlan} />
+            <MiniReason label="Rules" value={journal.policySummary} />
+          </div>
+          {journal.evidence.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {journal.evidence.slice(0, 4).map((item) => (
+                <span
+                  key={item.id}
+                  className="rounded-full border border-border-soft bg-surface-raised px-2 py-0.5 text-[10px] font-medium text-text-soft"
+                >
+                  {evidenceLabel(item.kind)}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </details>
+      </div>
+      <p className="mt-1 line-clamp-1 text-xs text-text-soft">
         {journal.summary}
       </p>
-      <div className="mt-2 grid gap-1.5 sm:grid-cols-3">
-        <MiniReason label="Risk" value={journal.riskPlan} />
-        <MiniReason label="Exit" value={journal.exitPlan} />
-        <MiniReason label="Rules" value={journal.policySummary} />
-      </div>
-      {journal.evidence.length > 0 ? (
-        <div className="mt-2 flex flex-wrap gap-1">
-          {journal.evidence.slice(0, 4).map((item) => (
-            <span
-              key={item.id}
-              className="rounded-full border border-border-soft bg-surface-raised px-2 py-0.5 text-[10px] font-medium text-text-soft"
-            >
-              {evidenceLabel(item.kind)}
-            </span>
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -3356,14 +3471,14 @@ function ProposalActions({
       {proposal.status === "approved" ? (
         canOpenLocalAgentExecution(proposal.venue) ? (
           <ActionButton
-            label="Open practice trade"
+            label="Open guarded trade"
             Icon={Play}
             disabled={pending}
             onClick={() => onExecute(proposal.id)}
           />
         ) : (
           <ActionButton
-            label="Send to practice account"
+            label="Send to venue"
             Icon={Plug}
             disabled={pending}
             onClick={() => onSubmitVenue(proposal.id)}
@@ -3531,7 +3646,7 @@ function AuditEventRow({ event }: { event: AgentAuditEvent }) {
 function agentKindLabel(kind: AgentKind): string {
   switch (kind) {
     case "mock":
-      return "Built-in practice trader";
+      return "Internal sandbox trader";
     case "api":
       return "Connected trader";
     case "hermes":
@@ -3622,11 +3737,11 @@ function readinessActionLabel(action: AgentReadinessAction): string {
 function tradingPlaceLabel(venue: TradingVenue): string {
   switch (venue) {
     case "mock_perps":
-      return "Built-in practice";
+      return "Internal sandbox";
     case "hyperliquid_testnet":
       return "Hyperliquid Testnet";
     case "bulktrade_mock":
-      return "Built-in practice";
+      return "Internal sandbox";
   }
 }
 

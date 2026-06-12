@@ -41,8 +41,13 @@ export function productSetupHref(id: ProductSurfaceId): string {
   return `/app/wallet/new?surface=${id}&purpose=${purpose}`;
 }
 
+export function productWorkspaceHref(id: ProductSurfaceId): string {
+  if (id === "secure") return "/app/secure?surface=secure";
+  return `/app/wallet?surface=${id}`;
+}
+
 export function productConnectHref(id: ProductSurfaceId): string {
-  return `/connect?next=${encodeURIComponent(productSetupHref(id))}`;
+  return `/connect?next=${encodeURIComponent(productWorkspaceHref(id))}`;
 }
 
 export const PRODUCT_SURFACES: ProductSurface[] = [
@@ -56,8 +61,8 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     eyebrow: "For people and families",
     headline: "Shared wallet protection without policy stress.",
     summary:
-      "Create a simple shared wallet for yourself, family, friends, or a small group. No policy builder in the default path.",
-    ctaLabel: "Start personal setup",
+      "Create a simple shared wallet for yourself, family, friends, or a small group. Shared payments can come later without turning the first run into a treasury console.",
+    ctaLabel: "Enter Personal",
     ctaHref: productConnectHref("personal"),
     secondaryHref: "/security",
     secondaryLabel: "Review security",
@@ -65,8 +70,8 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     features: [
       "Create a simple shared wallet",
       "Invite trusted people or devices",
+      "Coordinate shared bills and simple payments",
       "Send only after the required approvals",
-      "Keep policy controls out of the default flow",
     ],
     boundaries: [
       "No policy builder in the first-run path",
@@ -85,7 +90,7 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     headline: "Team treasury, approvals, and payouts in one Pro workspace.",
     summary:
       "Protect company wallets with multiple approvers, policy controls, batch transfers, and bank payouts that only move after the multisig approves.",
-    ctaLabel: "Create pro workspace",
+    ctaLabel: "Enter Pro",
     ctaHref: productConnectHref("pro"),
     secondaryHref: "/privacy",
     secondaryLabel: "Policy privacy",
@@ -114,23 +119,18 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     eyebrow: "For trading agents and allocators",
     headline: "Policy-bound agent trading without giving agents custody.",
     summary:
-      "Agents are not multisigs. They are identities that submit signed trade decisions into ClearSig policy gates.",
-    ctaLabel: "Create agent vault",
+      "Let agents propose or execute only inside rules you approve. They never get raw custody.",
+    ctaLabel: "Enter Agents",
     ctaHref: productConnectHref("agent"),
     secondaryHref: "/agents?surface=agent",
     secondaryLabel: "Browse marketplace",
-    primitives: ["Agent identity", "Policy grants", "Decision journal"],
+    primitives: ["Agent identity", "Policy grants", "Kill switch"],
     features: [
-      "Publish or browse agent profiles",
-      "Give agents bounded allowances and venues",
-      "Track why trades were proposed, opened, blocked, or closed",
-      "Separate paper, testnet, and verified live records",
+      "Choose an agent and set its limits",
+      "Gate trades, funding, and payouts",
+      "Pause agent activity instantly",
     ],
-    boundaries: [
-      "Agents never directly hold user funds",
-      "Every action passes ClearSig rules before execution",
-      "Transparent or encrypted policies are creator and user choices",
-    ],
+    boundaries: [],
   },
   {
     id: "secure",
@@ -143,7 +143,7 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     headline: "Recoverable custody without a seed phrase ritual.",
     summary:
       "Protect a personal key with device and passkey thresholds. Lose one device, recover with the rest.",
-    ctaLabel: "Create recovery vault",
+    ctaLabel: "Open Secure",
     ctaHref: productConnectHref("secure"),
     secondaryHref: "/security",
     secondaryLabel: "Review security",
@@ -166,13 +166,13 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     shortName: "P2P DeFi",
     host: "p2pdefi.clearsig.xyz",
     path: "/p2pdefi",
-    status: "live",
+    status: "planned",
     eyebrow: "For peer-to-peer coordination",
-    headline: "Peer-to-peer DeFi coordination on ClearSig primitives.",
+    headline: "Peer-to-peer DeFi coordination is coming soon.",
     summary:
-      "Coordinate offers, intents, counterparty approvals, and policy-checked settlement from a dedicated product path.",
-    ctaLabel: "Create P2P workspace",
-    ctaHref: productConnectHref("p2pdefi"),
+      "P2P DeFi will bring offers, counterparty approvals, and policy-checked settlement into ClearSig after the core agent, treasury, personal, and recovery flows are sharper.",
+    ctaLabel: "Coming soon",
+    ctaHref: "/p2pdefi",
     secondaryHref: "/security",
     secondaryLabel: "Review signing model",
     primitives: ["Signed intents", "Policy gates", "Settlement proofs"],

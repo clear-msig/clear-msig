@@ -4,6 +4,7 @@ import { checkRateLimit } from "@/lib/api/rateLimit";
 import {
   fetchAgentMarketData,
   fetchAgentMarketIntelligence,
+  fetchAgentMarketUniverse,
   isAgentMarketDataProviderId,
   serverAgentMarketDataReadiness,
 } from "@/lib/agents/serverMarketDataAdapters";
@@ -36,10 +37,26 @@ export async function GET(request: NextRequest, context: RouteContext) {
     );
   }
 
-  const market = request.nextUrl.searchParams.get("market") ?? "";
-  const includeIntelligence =
-    request.nextUrl.searchParams.get("include") === "intelligence";
   try {
+    const market = request.nextUrl.searchParams.get("market") ?? "";
+    if (market.trim().toLowerCase() === "all") {
+      const rawLimit = Number(request.nextUrl.searchParams.get("limit") ?? 100);
+      const markets = await fetchAgentMarketUniverse({
+        provider,
+        limit: Number.isFinite(rawLimit) ? rawLimit : 100,
+      });
+      return NextResponse.json(
+        { ok: true, readiness, markets },
+        {
+          headers: {
+            "Cache-Control": "no-store",
+          },
+        },
+      );
+    }
+
+    const includeIntelligence =
+      request.nextUrl.searchParams.get("include") === "intelligence";
     if (includeIntelligence) {
       const intelligence = await fetchAgentMarketIntelligence({ provider, market });
       return NextResponse.json(
