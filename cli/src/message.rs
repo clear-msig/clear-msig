@@ -354,6 +354,13 @@ fn render_param(
             let bytes = param_bytes(params_data, offset, 32, "bytes32")?;
             Ok(format!("0x{}", encode_hex(bytes)))
         }
+        ParamType::Bytes => {
+            let len_bytes: [u8; 2] = param_bytes(params_data, offset, 2, "bytes length")?
+                .try_into()?;
+            let len = u16::from_le_bytes(len_bytes) as usize;
+            let bytes = param_bytes(params_data, offset + 2, len, "bytes")?;
+            Ok(format!("0x{}", encode_hex(bytes)))
+        }
     }
 }
 
@@ -398,6 +405,13 @@ fn param_size(param_type: ParamType, data: &[u8], offset: usize) -> Result<usize
                 .get(offset)
                 .ok_or(anyhow!("unexpected end of params"))? as usize;
             Ok(1 + len)
+        }
+        ParamType::Bytes => {
+            let bytes = data
+                .get(offset..offset + 2)
+                .ok_or(anyhow!("unexpected end of params"))?;
+            let len = u16::from_le_bytes([bytes[0], bytes[1]]) as usize;
+            Ok(2 + len)
         }
         ParamType::Bool | ParamType::U8 => Ok(1),
         ParamType::U16 => Ok(2),

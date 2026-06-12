@@ -224,6 +224,20 @@ impl Intent<'_> {
                         .map_err(|_| ProgramError::InvalidInstructionData)?;
                     offset += len;
                 }
+                ParamType::Bytes => {
+                    require!(
+                        offset + 2 <= params_data.len(),
+                        ProgramError::InvalidInstructionData
+                    );
+                    let len =
+                        u16::from_le_bytes([params_data[offset], params_data[offset + 1]]) as usize;
+                    offset += 2;
+                    require!(
+                        offset + len <= params_data.len(),
+                        ProgramError::InvalidInstructionData
+                    );
+                    offset += len;
+                }
                 ParamType::Bool | ParamType::U8 => {
                     require!(
                         offset < params_data.len(),

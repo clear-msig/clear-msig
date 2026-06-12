@@ -1,0 +1,10 @@
+{
+  "chain": "solana",
+  "params": [
+    { "name": "batch_payload", "type": "bytes" },
+    { "name": "nonce_value", "type": "bytes32" }
+  ],
+  "accounts": [],
+  "instructions": [],
+  "template": "batch_sol_transfer_v1"
+}

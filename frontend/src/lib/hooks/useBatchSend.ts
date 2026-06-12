@@ -1,31 +1,21 @@
 "use client";
 
-// Batch send - one input, N proposals.
+// Batch send - one input, one proposal.
 //
-// The shared-wallet equivalent of payroll: a proposer enters a list
-// of {recipient, amount} rows, then signs N times in sequence (Solana
-// wallets can't sign multiple messages in one popup yet) so each
-// recipient lands as its own SolTransfer proposal. Approvers can then
-// clear the whole batch with the existing `useBatchApprove` hook -
-// the proposals share a `batchId` (saved per-proposal under the
-// `clear-msig:batches` namespace) so the dashboard can group them.
-//
-// Why N proposals instead of one wide intent: the on-chain SolTransfer
-// template fires a single CPI per execution. A program-level batch
-// intent type is on the roadmap (one signature per actor for the
-// whole bundle); this hook is the v1 that ships against today's
-// program without contract changes.
+// Rows are encoded into one compact payload and proposed against the
+// batch_sol_transfer_v1 intent. The multisig approval bitmap applies
+// to the whole bundle, so one approver action clears all rows once
+// the wallet threshold is met.
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useQueryClient } from "@tanstack/react-query";
-import type { Connection } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { toHex } from "@/lib/msig";
-import { useSignWithWallet, type SignedPayload } from "@/lib/hooks/useSignWithWallet";
-import type { DryRunDescriptor } from "@/lib/api/types";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
+import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 
 export interface BatchSendRow {
   /// Recipient label (contact name or shortened address) for status UI.
@@ -65,6 +55,7 @@ interface BatchSendArgs {
 }
 
 const BATCH_LOG_KEY = "clear-msig:batches:v1";
+const MAX_ROWS = 50;
 
 export function useBatchSend() {
   const { signDescriptor } = useSignWithWallet();
@@ -73,23 +64,19 @@ export function useBatchSend() {
   const actorPubkey = publicKey?.toBase58();
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState<BatchSendProgress | null>(null);
-  /// Cancellation goes through a ref because React state updates are
-  /// async - by the time the next iteration reads the flag, a
-  /// state-based one would be stale.
-  const cancelRef = useRef(false);
 
   const sendBatch = useCallback(
     async ({ walletName, intentIndex, rows }: BatchSendArgs) => {
       if (rows.length === 0) {
         return { batchId: null, succeeded: 0, failed: 0, proposalPdas: [] };
       }
+      if (rows.length > MAX_ROWS) {
+        throw new Error(`A batch can include at most ${MAX_ROWS} rows.`);
+      }
 
       const batchId = generateBatchId();
-      const proposalPdas: string[] = [];
-      const failures: BatchFailure[] = [];
-      let succeeded = 0;
-      let failed = 0;
-      cancelRef.current = false;
+      const batchPayloadHex = "0x" + toHex(encodeBatchPayload(rows));
+      const nonceHex = generateNonceHex();
 
       setProgress({
         total: rows.length,
@@ -97,185 +84,56 @@ export function useBatchSend() {
         failed: 0,
         failures: [],
         done: false,
-        currentLabel: rows[0]?.label,
+        currentLabel: "Preparing one approval request",
       });
 
-      for (let i = 0; i < rows.length; i++) {
-        if (cancelRef.current) {
-          // Bail - caller hit cancel between rows. Remaining rows
-          // get marked as failures so the summary tells the user
-          // exactly what didn't go.
-          for (let j = i; j < rows.length; j++) {
-            failures.push({ row: rows[j], message: "Cancelled" });
-            failed += 1;
-          }
-          break;
-        }
-        const row = rows[i];
+      try {
+        const dry = await backendApi.prepare.createProposal(walletName, {
+          intent_index: intentIndex,
+          params: [
+            `batch_payload=${batchPayloadHex}`,
+            `nonce_value=${nonceHex}`,
+          ],
+          actor_pubkey: actorPubkey,
+        });
         setProgress({
           total: rows.length,
-          succeeded,
-          failed,
-          failures: [...failures],
-          currentLabel: row.label,
+          succeeded: 0,
+          failed: 0,
+          failures: [],
+          currentLabel: "Waiting for your signature",
           done: false,
         });
-
-        // Each proposal slot on chain is keyed by the wallet's
-        // current `proposal_index`. The CLI's `prepare` reads that
-        // index from the wallet account every call, so we have to
-        // make sure the previous submit has been observed by the RPC
-        // before the next prepare runs - otherwise both rows compute
-        // the same PDA and the second submit fails with "account
-        // already in use." Retry the prepare → sign → submit cycle a
-        // few times on transient errors before giving up on the row.
-        const result = await runRowWithRetry({
-          walletName,
-          intentIndex,
-          row,
-          signDescriptor,
-          actorPubkey,
-          connection,
+        const signed = await signDescriptor(dry);
+        const submission = await backendApi.submit.createProposal(walletName, {
+          ...signed,
+          params_data_hex: dry.params_data_hex,
+          expiry: dry.expiry,
+          intent_index: intentIndex,
         });
+        const proposalPda =
+          typeof submission?.proposal === "string" ? submission.proposal : undefined;
+        if (!proposalPda) throw new Error("Backend did not return a proposal address.");
 
-        if (result.kind === "ok") {
-          if (result.proposalPda) proposalPdas.push(result.proposalPda);
-          succeeded += 1;
-        } else {
-          failures.push({ row, message: result.message });
-          failed += 1;
-        }
-
-        setProgress({
-          total: rows.length,
-          succeeded,
-          failed,
-          failures: [...failures],
-          currentLabel: i + 1 < rows.length ? rows[i + 1].label : undefined,
-          done: false,
-        });
-
-        // Pause briefly between rows so the next prepare reads the
-        // post-submit chain state. 600ms is empirically enough for
-        // devnet `confirmed` reads to catch up; tune up if we still
-        // see PDA collisions.
-        if (i + 1 < rows.length) {
-          await sleep(600);
-        }
-      }
-
-      // Stamp the batch locally so /app/wallet can group these
-      // proposals under one row instead of N near-identical lines.
-      if (proposalPdas.length > 0) {
         appendBatchRecord({
           batchId,
           walletName,
           createdAt: Date.now(),
           totalRows: rows.length,
-          proposalPdas,
+          proposalPdas: [proposalPda],
         });
-      }
 
-      // Refresh the inbox + per-wallet proposal list so the new
-      // proposals show up immediately on the dashboard.
-      queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
-      queryClient.invalidateQueries({ queryKey: ["my-organizations"] });
+        let executed = false;
+        setProgress({
+          total: rows.length,
+          succeeded: rows.length,
+          failed: 0,
+          failures: [],
+          currentLabel: "Checking approval threshold",
+          done: false,
+        });
 
-      setProgress({
-        total: rows.length,
-        succeeded,
-        failed,
-        failures,
-        done: true,
-      });
-
-      return { batchId, succeeded, failed, proposalPdas };
-    },
-    [signDescriptor, queryClient, actorPubkey],
-  );
-
-  const cancel = useCallback(() => {
-    cancelRef.current = true;
-  }, []);
-  const reset = useCallback(() => {
-    setProgress(null);
-    cancelRef.current = false;
-  }, []);
-
-  return { sendBatch, progress, cancel, reset };
-}
-
-function generateNonceHex(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return "0x" + toHex(bytes);
-}
-
-const RETRYABLE_HINTS = [
-  "already in use",
-  "alreadyinitialized",
-  "blockhash not found",
-  "node is behind",
-  "tx simulation failed",
-  "expired",
-];
-
-interface RowAttemptResult {
-  kind: "ok" | "fail";
-  message: string;
-  proposalPda?: string;
-}
-
-interface RowAttemptArgs {
-  walletName: string;
-  intentIndex: number;
-  row: BatchSendRow;
-  signDescriptor: (descriptor: DryRunDescriptor) => Promise<SignedPayload>;
-  actorPubkey: string | undefined;
-  connection: Connection;
-}
-
-/// Run prepare → sign → submit for one row. Retries on transient
-/// chain errors (PDA collision from RPC lag, blockhash not found,
-/// "node behind" - see `RETRYABLE_HINTS`) by waiting a beat and
-/// rebuilding the message from a fresh prepare. Wallet rejections
-/// fail fast - never re-prompt the user without their click.
-async function runRowWithRetry(
-  { walletName, intentIndex, row, signDescriptor, actorPubkey, connection }: RowAttemptArgs,
-): Promise<RowAttemptResult> {
-  const maxAttempts = 3;
-  let lastMessage = "Send failed";
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const nonceHex = generateNonceHex();
-      const dry = await backendApi.prepare.createProposal(walletName, {
-        intent_index: intentIndex,
-        params: [
-          `destination=${row.destination}`,
-          `amount=${row.lamports}`,
-          `nonce_value=${nonceHex}`,
-        ],
-        actor_pubkey: actorPubkey,
-      });
-      const signed = await signDescriptor(dry);
-      const submission = await backendApi.submit.createProposal(walletName, {
-        ...signed,
-        params_data_hex: dry.params_data_hex,
-        expiry: dry.expiry,
-        intent_index: intentIndex,
-      });
-      const proposalPda =
-        typeof submission?.proposal === "string" ? submission.proposal : undefined;
-
-      // Propose may auto-approve on chain (program flips proposer
-      // bit when proposer ∈ approvers + threshold met). Skip the
-      // approve popup in that case - every saved popup × N rows is
-      // a meaningful UX win for a 50-row payroll. Best-effort: if
-      // the user rejects mid-batch we still consider the row a
-      // success (proposal's on chain, can be approved later).
-      if (proposalPda && actorPubkey) {
-        try {
+        if (actorPubkey) {
           const decision = await approveIfNeeded(connection, proposalPda);
           if (decision.needsApproveSignature) {
             const approveDry = await backendApi.prepare.approveProposal(
@@ -289,42 +147,71 @@ async function runRowWithRetry(
               expiry: approveDry.expiry,
             });
           }
-          await backendApi.executeProposal(walletName, proposalPda, {});
-        } catch (innerErr) {
-          // Per-row partial success - the proposal's on chain even if
-          // approve/execute didn't land. Surface in console for
-          // debugging without poisoning the rest of the batch.
-          console.warn(
-            `[batch-send] row ${row.label}: propose ok but approve/execute failed`,
-            innerErr,
-          );
+          const afterApproval = await approveIfNeeded(connection, proposalPda);
+          if (!afterApproval.needsApproveSignature) {
+            await backendApi.executeProposal(walletName, proposalPda, {});
+            executed = true;
+          }
         }
-      }
 
-      return { kind: "ok", message: "ok", proposalPda };
-    } catch (err) {
-      const fe = friendlyError(err, "send");
-      lastMessage = fe.title;
-      const raw = (err instanceof Error ? err.message : String(err)).toLowerCase();
-      const userRejected =
-        raw.includes("user rejected") ||
-        raw.includes("user declined") ||
-        raw.includes("cancelled the signature") ||
-        fe.title.toLowerCase().includes("cancelled");
-      if (userRejected) return { kind: "fail", message: lastMessage };
-      const retryable = RETRYABLE_HINTS.some((h) => raw.includes(h));
-      if (!retryable || attempt === maxAttempts) {
-        return { kind: "fail", message: lastMessage };
+        queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
+        queryClient.invalidateQueries({ queryKey: ["my-organizations"] });
+
+        setProgress({
+          total: rows.length,
+          succeeded: rows.length,
+          failed: 0,
+          failures: [],
+          currentLabel: executed ? "Executed" : "Awaiting remaining approvals",
+          done: true,
+        });
+
+        return { batchId, succeeded: rows.length, failed: 0, proposalPdas: [proposalPda] };
+      } catch (err) {
+        const fe = friendlyError(err, "send");
+        setProgress({
+          total: rows.length,
+          succeeded: 0,
+          failed: rows.length,
+          failures: rows.map((row) => ({ row, message: fe.title })),
+          done: true,
+        });
+        throw err;
       }
-      // Back off a bit before retrying so the chain catches up.
-      await sleep(800 * attempt);
-    }
-  }
-  return { kind: "fail", message: lastMessage };
+    },
+    [actorPubkey, connection, queryClient, signDescriptor],
+  );
+
+  const cancel = useCallback(() => {}, []);
+  const reset = useCallback(() => {
+    setProgress(null);
+  }, []);
+
+  return { sendBatch, progress, cancel, reset };
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function generateNonceHex(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return "0x" + toHex(bytes);
+}
+
+function encodeBatchPayload(rows: BatchSendRow[]): Uint8Array {
+  const payload = new Uint8Array(2 + rows.length * 40);
+  payload[0] = rows.length & 0xff;
+  payload[1] = (rows.length >> 8) & 0xff;
+  rows.forEach((row, index) => {
+    const offset = 2 + index * 40;
+    const destination = new PublicKey(row.destination).toBytes();
+    const lamports = BigInt(row.lamports);
+    if (lamports <= 0n || lamports > 0xffff_ffff_ffff_ffffn) {
+      throw new Error(`Invalid lamport amount for ${row.label}.`);
+    }
+    payload.set(destination, offset);
+    const view = new DataView(payload.buffer, payload.byteOffset + offset + 32, 8);
+    view.setBigUint64(0, lamports, true);
+  });
+  return payload;
 }
 
 function generateBatchId(): string {

@@ -9,6 +9,9 @@ use solana_pubkey::Pubkey;
 /// System Program — special-cased on chain via `declared` in
 /// `execute_custom` and not consumed from remaining_accounts.
 const SYSTEM_PROGRAM_ID: Pubkey = Pubkey::new_from_array([0u8; 32]);
+const BATCH_SOL_TRANSFER_TEMPLATE: &str = "batch_sol_transfer_v1";
+const BATCH_SOL_MAX_ROWS: usize = 50;
+const BATCH_SOL_ROW_SIZE: usize = 40;
 
 /// Resolve all remaining accounts needed for `execute` based on intent type.
 ///
@@ -85,6 +88,10 @@ fn resolve_custom_accounts(
     vault: &Pubkey,
     params_data: &[u8],
 ) -> Result<Vec<AccountMeta>> {
+    if intent.template == BATCH_SOL_TRANSFER_TEMPLATE {
+        return resolve_batch_sol_accounts(intent, params_data);
+    }
+
     let mut resolved: Vec<Pubkey> = Vec::new();
 
     // Resolve EVERY entry — even ones the program will auto-inject.
@@ -121,6 +128,55 @@ fn resolve_custom_accounts(
             }
         })
         .collect())
+}
+
+fn resolve_batch_sol_accounts(
+    intent: &IntentAccount,
+    params_data: &[u8],
+) -> Result<Vec<AccountMeta>> {
+    let first = intent
+        .params
+        .first()
+        .ok_or(anyhow!("batch SOL intent is missing payload param"))?;
+    if first.param_type != ParamType::Bytes {
+        return Err(anyhow!("batch SOL payload param must be bytes"));
+    }
+    let encoded_offset = compute_param_offset(&intent.params, params_data, 0)?;
+    let len_bytes = params_data
+        .get(encoded_offset..encoded_offset + 2)
+        .ok_or(anyhow!("batch SOL payload missing length"))?;
+    let len = u16::from_le_bytes([len_bytes[0], len_bytes[1]]) as usize;
+    let payload = params_data
+        .get(encoded_offset + 2..encoded_offset + 2 + len)
+        .ok_or(anyhow!("batch SOL payload truncated"))?;
+    if payload.len() < 2 {
+        return Err(anyhow!("batch SOL payload missing row count"));
+    }
+    let row_count = u16::from_le_bytes([payload[0], payload[1]]) as usize;
+    if row_count == 0 || row_count > BATCH_SOL_MAX_ROWS {
+        return Err(anyhow!(
+            "batch SOL row count must be 1..={BATCH_SOL_MAX_ROWS}, got {row_count}"
+        ));
+    }
+    let expected_len = 2 + row_count * BATCH_SOL_ROW_SIZE;
+    if payload.len() != expected_len {
+        return Err(anyhow!(
+            "batch SOL payload length mismatch: expected {expected_len}, got {}",
+            payload.len()
+        ));
+    }
+
+    let mut accounts = Vec::with_capacity(row_count);
+    for row_index in 0..row_count {
+        let offset = 2 + row_index * BATCH_SOL_ROW_SIZE;
+        let destination = Pubkey::new_from_array(
+            payload[offset..offset + 32]
+                .try_into()
+                .map_err(|_| anyhow!("invalid destination in batch SOL row {row_index}"))?,
+        );
+        accounts.push(AccountMeta::new(destination, false));
+    }
+    Ok(accounts)
 }
 
 fn resolve_account_source(

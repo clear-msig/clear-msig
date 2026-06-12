@@ -14,12 +14,12 @@ use crate::{
     app_state::AppState,
     contracts::api::{
         BankListItem, BankListQuery, BankResolveQuery, ChainTransferConfirmationRequest,
-        CreateRampIntentRequest, CreateRampIntentResponse, InitializePaymentResponse,
-        IntentDetailResponse, PrepareSignatureResponse, ServiceHealth,
+        CreateProPayoutBatchRequest, CreateRampIntentRequest, CreateRampIntentResponse,
+        InitializePaymentResponse, IntentDetailResponse, LinkProPayoutProposalRequest,
+        PrepareSignatureResponse, ProPayoutBatchResponse, ServiceHealth,
     },
     kora::{events::KoraWebhookEvent, signature::verify_kora_signature},
-    paystack::{events::PaystackWebhookEnvelope, signature::verify_paystack_signature},
-    services::{idempotency, intents, intents::TreasuryFallbacks, webhook_inbox},
+    services::{idempotency, intents, intents::TreasuryFallbacks, pro_payouts, webhook_inbox},
 };
 
 #[derive(Debug, Serialize)]
@@ -43,10 +43,6 @@ fn user_id_from_headers(headers: &HeaderMap) -> Result<Uuid, String> {
     Uuid::parse_str(raw).map_err(|_| "x-user-id must be a valid UUID".to_string())
 }
 
-fn active_provider(state: &AppState) -> String {
-    state.config.ramp_payment_provider.trim().to_ascii_lowercase()
-}
-
 pub fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/healthz", get(health))
@@ -62,8 +58,19 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route("/v1/ramp/bank/resolve", get(resolve_bank))
         .route("/v1/ramp/banks", get(list_banks))
+        .route("/v1/pro/bank/resolve", get(resolve_bank))
+        .route("/v1/pro/banks", get(list_banks))
+        .route("/v1/pro/payout-batches", post(create_pro_payout_batch))
+        .route("/v1/pro/payout-batches/:batch_id", get(get_pro_payout_batch))
+        .route(
+            "/v1/pro/payout-batches/:batch_id/link-proposal",
+            post(link_pro_payout_proposal),
+        )
+        .route(
+            "/v1/pro/payout-batches/:batch_id/verify",
+            post(verify_pro_payout_batch),
+        )
         .route("/v1/internal/chain/confirm", post(chain_confirm))
-        .route("/v1/webhooks/paystack", post(paystack_webhook))
         .route("/v1/webhooks/kora", post(kora_webhook))
         .with_state(state)
 }
@@ -283,7 +290,7 @@ pub async fn initialize_payment(
         }
     };
 
-    // clear-msig has no `users` table — Paystack just needs *an* email
+    // clear-msig has no `users` table; Kora just needs an email
     // for the receipt, so we synthesise a deterministic placeholder
     // from the user identifier. Operators can override per-deploy by
     // exposing a richer auth layer later.
@@ -324,22 +331,26 @@ pub async fn initialize_payment(
 
 // ── GET /v1/ramp/bank/resolve?account_number=&bank_code= ─────────────────────
 
-/// Resolves a Nigerian bank account number to an account name via Paystack.
+/// Resolves a Nigerian bank account number to an account name via Kora.
 /// No authentication required — the account number itself is not sensitive.
 pub async fn resolve_bank(
     State(state): State<AppState>,
     Query(params): Query<BankResolveQuery>,
 ) -> Response {
-    match intents::resolve_bank_account(
-        state.payment_provider.as_ref(),
-        &params.account_number,
-        &params.bank_code,
-    )
-    .await
+    match state
+        .kora_client
+        .resolve_bank_account(&params.account_number, &params.bank_code, "NG")
+        .await
     {
         Ok(result) => (
             StatusCode::OK,
-            Json(ApiEnvelope { success: true, data: result }),
+            Json(ApiEnvelope {
+                success: true,
+                data: crate::contracts::api::BankResolveResponse {
+                    account_number: result.account_number,
+                    account_name: result.account_name,
+                },
+            }),
         )
             .into_response(),
         Err(error) => (
@@ -355,7 +366,7 @@ pub async fn resolve_bank(
 
 // ── GET /v1/ramp/banks?country=nigeria ───────────────────────────────────────
 
-/// Returns the list of Paystack-supported banks for a given country.
+/// Returns the list of Kora-supported banks for a given country.
 /// Defaults to Nigeria. No user auth required — purely a lookup proxy.
 pub async fn list_banks(
     State(state): State<AppState>,
@@ -363,17 +374,16 @@ pub async fn list_banks(
 ) -> Response {
     let country = params.country.as_deref().unwrap_or("nigeria");
 
-    match state.payment_provider.list_banks(country).await {
+    match state.kora_client.list_banks(country).await {
         Ok(banks) => {
             let items: Vec<BankListItem> = banks
                 .into_iter()
-                .filter(|b| b.active.unwrap_or(true))
                 .map(|b| BankListItem {
                     name: b.name,
                     code: b.code,
                     slug: b.slug,
                     country: b.country,
-                    currency: b.currency,
+                    currency: Some("NGN".to_string()),
                 })
                 .collect();
 
@@ -394,22 +404,175 @@ pub async fn list_banks(
     }
 }
 
+pub async fn create_pro_payout_batch(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<CreateProPayoutBatchRequest>,
+) -> Response {
+    let user_id = match user_id_from_headers(&headers) {
+        Ok(user_id) => user_id,
+        Err(message) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiErrorEnvelope {
+                    success: false,
+                    error: message,
+                }),
+            )
+                .into_response()
+        }
+    };
+
+    match pro_payouts::create_batch(&state.pool, user_id, &payload).await {
+        Ok(result) => (
+            StatusCode::CREATED,
+            Json(ApiEnvelope::<ProPayoutBatchResponse> {
+                success: true,
+                data: result,
+            }),
+        )
+            .into_response(),
+        Err(error) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiErrorEnvelope {
+                success: false,
+                error: error.to_string(),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn get_pro_payout_batch(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(batch_id): Path<Uuid>,
+) -> Response {
+    let user_id = match user_id_from_headers(&headers) {
+        Ok(user_id) => user_id,
+        Err(message) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiErrorEnvelope {
+                    success: false,
+                    error: message,
+                }),
+            )
+                .into_response()
+        }
+    };
+
+    match pro_payouts::get_batch(&state.pool, user_id, batch_id).await {
+        Ok(result) => (
+            StatusCode::OK,
+            Json(ApiEnvelope::<ProPayoutBatchResponse> {
+                success: true,
+                data: result,
+            }),
+        )
+            .into_response(),
+        Err(error) => (
+            StatusCode::NOT_FOUND,
+            Json(ApiErrorEnvelope {
+                success: false,
+                error: error.to_string(),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn link_pro_payout_proposal(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(batch_id): Path<Uuid>,
+    Json(payload): Json<LinkProPayoutProposalRequest>,
+) -> Response {
+    let user_id = match user_id_from_headers(&headers) {
+        Ok(user_id) => user_id,
+        Err(message) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiErrorEnvelope {
+                    success: false,
+                    error: message,
+                }),
+            )
+                .into_response()
+        }
+    };
+
+    match pro_payouts::link_proposal(&state.pool, user_id, batch_id, &payload).await {
+        Ok(result) => (
+            StatusCode::OK,
+            Json(ApiEnvelope::<ProPayoutBatchResponse> {
+                success: true,
+                data: result,
+            }),
+        )
+            .into_response(),
+        Err(error) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiErrorEnvelope {
+                success: false,
+                error: error.to_string(),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn verify_pro_payout_batch(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(batch_id): Path<Uuid>,
+) -> Response {
+    let user_id = match user_id_from_headers(&headers) {
+        Ok(user_id) => user_id,
+        Err(message) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiErrorEnvelope {
+                    success: false,
+                    error: message,
+                }),
+            )
+                .into_response()
+        }
+    };
+
+    match pro_payouts::verify_proposal_execution(
+        &state.pool,
+        &state.config.clear_msig_backend_api_url,
+        user_id,
+        batch_id,
+    )
+    .await
+    {
+        Ok(result) => (
+            StatusCode::OK,
+            Json(ApiEnvelope::<ProPayoutBatchResponse> {
+                success: true,
+                data: result,
+            }),
+        )
+            .into_response(),
+        Err(error) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiErrorEnvelope {
+                success: false,
+                error: error.to_string(),
+            }),
+        )
+            .into_response(),
+    }
+}
+
 pub async fn kora_webhook(
     State(state): State<AppState>,
     headers: HeaderMap,
     body: String,
 ) -> Response {
-    if active_provider(&state) != "kora" {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiErrorEnvelope {
-                success: false,
-                error: "Kora webhook rejected: active provider is not kora".to_string(),
-            }),
-        )
-            .into_response();
-    }
-
     let signature = headers
         .get("x-korapay-signature")
         .and_then(|value| value.to_str().ok())
@@ -553,99 +716,4 @@ pub async fn chain_confirm(
         )
             .into_response(),
     }
-}
-
-pub async fn paystack_webhook(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    body: String,
-) -> Response {
-    if active_provider(&state) != "paystack" {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiErrorEnvelope {
-                success: false,
-                error: "Paystack webhook rejected: active provider is not paystack".to_string(),
-            }),
-        )
-            .into_response();
-    }
-
-    let signature = headers
-        .get("x-paystack-signature")
-        .and_then(|value| value.to_str().ok());
-
-    let verified = verify_paystack_signature(&state.config.paystack_webhook_secret, body.as_bytes(), signature);
-
-    let envelope: PaystackWebhookEnvelope = match serde_json::from_str(&body) {
-        Ok(parsed) => parsed,
-        Err(error) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiErrorEnvelope {
-                    success: false,
-                    error: format!("Invalid payload: {error}"),
-                }),
-            )
-                .into_response()
-        }
-    };
-
-    let provider_event_id = envelope
-        .data
-        .get("id")
-        .and_then(|value| value.as_i64())
-        .map(|value| value.to_string());
-
-    let dedupe_key = if let Some(event_id) = provider_event_id.clone() {
-        format!("{}:{}", envelope.event, event_id)
-    } else {
-        let mut hasher = Sha256::new();
-        hasher.update(body.as_bytes());
-        format!("{}:{:x}", envelope.event, hasher.finalize())
-    };
-
-    let payload_value: Value = serde_json::from_str(&body).unwrap_or_else(|_| serde_json::json!({}));
-
-    let inserted = webhook_inbox::insert_webhook_event(
-        &state.pool,
-        "paystack",
-        provider_event_id.as_deref(),
-        &envelope.event,
-        &dedupe_key,
-        verified.is_ok(),
-        &payload_value,
-    )
-    .await;
-
-    if let Err(error) = inserted {
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiErrorEnvelope {
-                success: false,
-                error: error.to_string(),
-            }),
-        )
-            .into_response();
-    }
-
-    if verified.is_err() {
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(ApiErrorEnvelope {
-                success: false,
-                error: "Invalid webhook signature".to_string(),
-            }),
-        )
-            .into_response();
-    }
-
-    (
-        StatusCode::OK,
-        Json(ApiEnvelope {
-            success: true,
-            data: serde_json::json!({"accepted": true}),
-        }),
-    )
-        .into_response()
 }

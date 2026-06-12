@@ -20,7 +20,7 @@ export default async function WelcomePage({
       ? "share"
       : surface === "secure"
         ? "secure"
-        : surface === "p2pdefi" || surface === "payments"
+        : surface === "p2pdefi"
           ? "share"
           : surface === "pro"
             ? "share"

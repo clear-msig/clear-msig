@@ -3,14 +3,11 @@ pub struct AppConfig {
     pub bind_addr: String,
     pub database_url: String,
 
-    // ── Fiat providers ────────────────────────────────────────────
-    pub paystack_secret_key: String,
-    pub paystack_base_url: String,
-    pub paystack_webhook_secret: String,
+    // ── Fiat provider ─────────────────────────────────────────────
     pub kora_secret_key: String,
     pub kora_base_url: String,
     pub kora_webhook_secret: String,
-    pub ramp_payment_provider: String,
+    pub clear_msig_backend_api_url: String,
 
     pub worker_poll_interval_ms: u64,
     pub treasury_signer_backend: String,
@@ -63,9 +60,8 @@ pub struct AppConfig {
     // ── Policy ───────────────────────────────────────────────────
     pub enable_treasury_liquidity_check: bool,
     pub onramp_max_usd_cents: i64,
-    /// Optional Paystack callback URL sent with `transaction/initialize`
-    /// so that after the user completes payment, Paystack redirects
-    /// them back to the app.
+    /// Optional callback URL sent with hosted checkout flows so that
+    /// after the user completes payment, Kora redirects them back to the app.
     pub ramp_frontend_callback_url: Option<String>,
 }
 
@@ -75,36 +71,20 @@ impl AppConfig {
             .or_else(|_| std::env::var("DATABASE_URL"))
             .map_err(|_| anyhow::anyhow!("DATABASE_URL or DATABASE_URL_DIRECT is required"))?;
 
-        let ramp_payment_provider = std::env::var("RAMP_PAYMENT_PROVIDER")
-            .unwrap_or_else(|_| "paystack".to_string())
-            .trim()
-            .to_ascii_lowercase();
-
-        if ramp_payment_provider != "paystack" && ramp_payment_provider != "kora" {
-            anyhow::bail!(
-                "Invalid RAMP_PAYMENT_PROVIDER='{}'. Allowed values: paystack | kora",
-                ramp_payment_provider
-            );
-        }
-
         Ok(Self {
             bind_addr: std::env::var("RAMP_BIND_ADDR")
                 .unwrap_or_else(|_| "0.0.0.0:8088".to_string()),
             database_url,
 
-            paystack_secret_key: std::env::var("PAYSTACK_SECRET_KEY").unwrap_or_default(),
-            paystack_base_url: std::env::var("PAYSTACK_BASE_URL")
-                .unwrap_or_else(|_| "https://api.paystack.co".to_string()),
-            paystack_webhook_secret: std::env::var("PAYSTACK_WEBHOOK_SECRET")
-                .or_else(|_| std::env::var("PAYSTACK_SECRET_KEY"))
-                .unwrap_or_default(),
             kora_secret_key: std::env::var("KORA_SECRET_KEY").unwrap_or_default(),
             kora_base_url: std::env::var("KORA_BASE_URL")
                 .unwrap_or_else(|_| "https://api.korapay.com/merchant".to_string()),
             kora_webhook_secret: std::env::var("KORA_WEBHOOK_SECRET")
                 .or_else(|_| std::env::var("KORA_SECRET_KEY"))
                 .unwrap_or_default(),
-            ramp_payment_provider,
+            clear_msig_backend_api_url: std::env::var("CLEAR_MSIG_BACKEND_API_URL")
+                .or_else(|_| std::env::var("NEXT_PUBLIC_BACKEND_API_URL"))
+                .unwrap_or_else(|_| "http://127.0.0.1:3001".to_string()),
 
             worker_poll_interval_ms: std::env::var("RAMP_WORKER_POLL_INTERVAL_MS")
                 .ok()

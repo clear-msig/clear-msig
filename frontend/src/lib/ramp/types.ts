@@ -101,6 +101,87 @@ export interface BankListItem {
   currency: string | null;
 }
 
+export interface ProPayoutItemInput {
+  amount_minor: number;
+  bank_code: string;
+  bank_account_number: string;
+  account_name?: string;
+  customer_email?: string;
+  narration?: string;
+  reference?: string;
+}
+
+export interface CreateProPayoutBatchRequest {
+  wallet_name: string;
+  wallet_address?: string;
+  chain_family: ChainFamily;
+  chain_id: string;
+  asset_symbol: string;
+  asset_amount_minor: number;
+  reference?: string;
+  narration?: string;
+  items: ProPayoutItemInput[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface LinkProPayoutProposalRequest {
+  proposal_address: string;
+}
+
+export type ProPayoutBatchStatus =
+  | "awaiting_proposal"
+  | "awaiting_execution"
+  | "ready_for_disbursement"
+  | "disbursing"
+  | "completed"
+  | "partially_failed"
+  | "failed"
+  | "cancelled"
+  | "manual_review_required";
+
+export interface ProPayoutItemResponse {
+  id: string;
+  batch_id: string;
+  row_index: number;
+  amount_minor: number;
+  bank_code: string;
+  bank_account_number: string;
+  account_name: string | null;
+  customer_email: string | null;
+  narration: string | null;
+  reference: string | null;
+  status: "pending" | "disbursing" | "completed" | "failed" | "cancelled";
+  provider: "kora";
+  provider_reference: string;
+  provider_status: string | null;
+  failure_reason: string | null;
+  requested_at: string | null;
+  completed_at: string | null;
+}
+
+export interface ProPayoutBatchResponse {
+  id: string;
+  created_by: string;
+  wallet_name: string;
+  wallet_address: string | null;
+  chain_family: ChainFamily;
+  chain_id: string;
+  asset_symbol: string;
+  asset_amount_minor: number;
+  ngn_amount_minor: number;
+  payout_currency: "NGN";
+  status: ProPayoutBatchStatus;
+  proposal_address: string | null;
+  proposal_status: string | null;
+  reference: string | null;
+  narration: string | null;
+  failure_reason: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  items: ProPayoutItemResponse[];
+}
+
 export interface ChainTransferConfirmationRequest {
   intent_id: string;
   chain_family: ChainFamily;

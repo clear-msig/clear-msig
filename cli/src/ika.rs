@@ -954,6 +954,13 @@ fn param_byte_size_at(
                 .ok_or(anyhow!("string length OOB"))? as usize;
             1 + len
         }
+        ParamType::Bytes => {
+            let bytes = params_data
+                .get(offset..offset + 2)
+                .ok_or(anyhow!("bytes length OOB"))?;
+            let len = u16::from_le_bytes([bytes[0], bytes[1]]) as usize;
+            2 + len
+        }
         ParamType::Bool | ParamType::U8 => 1,
         ParamType::U16 => 2,
         ParamType::U32 => 4,

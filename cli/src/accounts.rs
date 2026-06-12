@@ -45,6 +45,7 @@ pub struct IntentAccount {
     pub seeds: Vec<SeedEntry>,
     pub policy_ciphertexts: Vec<u8>,
     pub byte_pool: Vec<u8>,
+    pub template: String,
 }
 
 /// Deserialized Proposal account.
@@ -251,6 +252,12 @@ pub fn parse_intent(data: &[u8]) -> Result<IntentAccount> {
         }
     };
 
+    let template = byte_pool
+        .get(template_offset as usize..template_offset as usize + template_len as usize)
+        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+        .unwrap_or("")
+        .to_string();
+
     Ok(IntentAccount {
         wallet,
         bump,
@@ -275,6 +282,7 @@ pub fn parse_intent(data: &[u8]) -> Result<IntentAccount> {
         seeds,
         policy_ciphertexts,
         byte_pool,
+        template,
     })
 }
 

@@ -13,8 +13,7 @@
 // member set.
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -23,7 +22,7 @@ import { listIntents } from "@/lib/chain/intents";
 import { IntentType } from "@/lib/msig";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
-import { ArrowLeft, ArrowRight, Check, Clock, Loader2, Send, UserPlus, Wallet, Zap } from "lucide-react";
+import { ArrowRight, Check, Clock, Loader2, Send, UserPlus, Wallet, Zap } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
@@ -41,7 +40,10 @@ import { NextStepCard } from "@/components/retail/NextStepCard";
 // Backend reads template files relative to the workspace root. The
 // SolTransfer template gives the wallet a generic "send to anyone, any
 // amount" rule - what a retail user expects from "send money."
-const TEMPLATE_FILE = "examples/intents/solana_transfer.json";
+const SOL_TEMPLATE_FILE = "examples/intents/solana_transfer.json";
+const BATCH_SOL_TEMPLATE_FILE = "examples/intents/solana_batch_transfer.json";
+const SOL_TRANSFER_TEMPLATE = "transfer {1:10^9} SOL to {0}";
+const BATCH_SOL_TEMPLATE = "batch_sol_transfer_v1";
 
 export default function SetupSpendingPage() {
   const params = useParams<{ name: string }>();
@@ -54,6 +56,8 @@ export default function SetupSpendingPage() {
   }, [params?.name]);
 
   const router = useRouter();
+  const search = useSearchParams();
+  const isProSurface = search.get("surface") === "pro";
   const wallet = useWallet();
   const { connection } = useConnection();
   const { signDescriptor } = useSignWithWallet();
@@ -89,20 +93,30 @@ export default function SetupSpendingPage() {
     staleTime: 30_000,
   });
   const alreadySetUp = useMemo(() => {
-    return (intentsQuery.data ?? []).some(
+    const customs = (intentsQuery.data ?? []).filter(
       (it) => it.account?.intentType === IntentType.Custom,
     );
-  }, [intentsQuery.data]);
+    if (isProSurface) {
+      return (
+        customs.some((it) => it.account?.template === SOL_TRANSFER_TEMPLATE) &&
+        customs.some((it) => it.account?.template === BATCH_SOL_TEMPLATE)
+      );
+    }
+    return customs.length > 0;
+  }, [intentsQuery.data, isProSurface]);
   useEffect(() => {
     if (!name || intentsQuery.isLoading || walletQuery.isLoading) return;
     if (alreadySetUp) {
-      router.replace(`/app/wallet/${encodeURIComponent(name)}`);
+      router.replace(
+        `/app/wallet/${encodeURIComponent(name)}${isProSurface ? "?surface=pro" : ""}`,
+      );
     }
   }, [
     name,
     intentsQuery.isLoading,
     walletQuery.isLoading,
     alreadySetUp,
+    isProSurface,
     router,
   ]);
 
@@ -158,68 +172,73 @@ export default function SetupSpendingPage() {
         .map((p) => p.ciphertextIdentifier)
         .filter((id): id is string => typeof id === "string");
 
-      // 1. Prepare: backend builds the unsigned add-intent transaction
-      //    and returns the bytes the user has to sign.
-      const dry = await backendApi.prepare.addIntent(name, {
-        file: TEMPLATE_FILE,
-        proposers,
-        approvers,
-        threshold,
-        cancellation_threshold: 1,
-        timelock: delaySeconds,
-        policy_ciphertexts,
-      });
+      const existingCustoms = (intentsQuery.data ?? []).filter(
+        (it) => it.account?.intentType === IntentType.Custom,
+      );
+      const hasSolTransfer = existingCustoms.some(
+        (it) => it.account?.template === SOL_TRANSFER_TEMPLATE,
+      );
+      const hasBatchTransfer = existingCustoms.some(
+        (it) => it.account?.template === BATCH_SOL_TEMPLATE,
+      );
+      const templatesToAdd = isProSurface
+        ? [
+            ...(hasSolTransfer ? [] : [SOL_TEMPLATE_FILE]),
+            ...(hasBatchTransfer ? [] : [BATCH_SOL_TEMPLATE_FILE]),
+          ]
+        : existingCustoms.length > 0
+          ? []
+          : [SOL_TEMPLATE_FILE];
 
-      // 2. Sign: user's wallet pops up its sign-message UI.
-      //    preferSigner routes through the matching Ledger/Dynamic
-      //    pubkey resolved above.
-      const signed = await signDescriptor(dry, { preferSigner: signerPk });
+      let lastSubmitted: Record<string, unknown> | null = null;
+      for (const file of templatesToAdd) {
+        const dry = await backendApi.prepare.addIntent(name, {
+          file,
+          proposers,
+          approvers,
+          threshold,
+          cancellation_threshold: 1,
+          timelock: delaySeconds,
+          policy_ciphertexts,
+        });
 
-      // 3. Submit propose: lands the AddIntent proposal on chain in
-      //    `Active` status with empty approval bitmap. The proposer's
-      //    signature does NOT auto-flip an approval bit - that's a
-      //    separate step.
-      const submitted = await backendApi.submit.addIntent(name, {
-        ...signed,
-        params_data_hex: dry.params_data_hex,
-        expiry: dry.expiry,
-        file: TEMPLATE_FILE,
-      });
+        const signed = await signDescriptor(dry, { preferSigner: signerPk });
+        const submitted = await backendApi.submit.addIntent(name, {
+          ...signed,
+          params_data_hex: dry.params_data_hex,
+          expiry: dry.expiry,
+          file,
+        });
+        lastSubmitted = submitted;
 
-      const proposal = (submitted as Record<string, unknown>)?.proposal;
-      if (typeof proposal !== "string" || proposal.length === 0) {
-        throw new Error(
-          "Backend didn't return a proposal address from the propose step",
-        );
+        const proposal = (submitted as Record<string, unknown>)?.proposal;
+        if (typeof proposal !== "string" || proposal.length === 0) {
+          throw new Error(
+            "Backend didn't return a proposal address from the propose step",
+          );
+        }
+
+        const decision = await approveIfNeeded(connection, proposal);
+        if (decision.needsApproveSignature) {
+          const approveDry = await backendApi.prepare.approveProposal(
+            name,
+            proposal,
+            { actor_pubkey: me },
+          );
+          const approveSigned = await signDescriptor(approveDry, {
+            preferSigner: signerPk,
+          });
+          await backendApi.submit.approveProposal(name, proposal, {
+            ...approveSigned,
+            expiry: approveDry.expiry,
+          });
+        }
+
+        await backendApi.executeProposal(name, proposal, {});
+        await sleep(650);
       }
 
-      // 4. Approve, but only if the propose didn't already flip the
-      //    proposer's bit and meet threshold on chain. With the
-      //    auto-approve program update this is the common case for
-      //    1-of-1 wallets and the second popup goes away. Old
-      //    program → still falls through to the explicit approve.
-      const decision = await approveIfNeeded(connection, proposal);
-      if (decision.needsApproveSignature) {
-        const approveDry = await backendApi.prepare.approveProposal(
-          name,
-          proposal,
-          { actor_pubkey: me },
-        );
-        const approveSigned = await signDescriptor(approveDry, {
-          preferSigner: signerPk,
-        });
-        await backendApi.submit.approveProposal(name, proposal, {
-          ...approveSigned,
-          expiry: approveDry.expiry,
-        });
-      }
-
-      // 5. Execute: now that the proposal is Approved, run it. The
-      //    AddIntent meta-handler creates the SolTransfer intent and
-      //    bumps `wallet.intent_index`. Sponsored by the relayer -
-      //    no third user signature needed.
-      await backendApi.executeProposal(name, proposal, {});
-      return submitted;
+      return lastSubmitted ?? {};
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });
@@ -228,7 +247,11 @@ export default function SetupSpendingPage() {
       // they choose where to go next (send their first request,
       // invite someone, or back to the hub). The toast captures the
       // celebration; the card captures the next move.
-      toast.success(`${toHeadingName(name)} is ready to send`);
+      toast.success(
+        isProSurface
+          ? `${toHeadingName(name)} is ready for Pro payouts`
+          : `${toHeadingName(name)} is ready to send`,
+      );
       setShowDone(true);
     },
     onError: (err) => {
@@ -273,20 +296,26 @@ export default function SetupSpendingPage() {
                 <Check className="h-8 w-8" strokeWidth={2.5} />
               </div>
               <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
-                <span className="text-accent">{toHeadingName(name)}</span> is ready to send
+                <span className="text-accent">{toHeadingName(name)}</span>{" "}
+                is ready {isProSurface ? "for Pro transfers" : "to send"}
               </h1>
               <p className="mt-3 max-w-sm text-base text-text-soft">
-                Spending rule is on chain. The activity row you see is the
-                rule going into effect. No money has moved yet.
+                {isProSurface
+                  ? "The SOL funding and batch transfer rules are on chain. No money has moved yet."
+                  : "Spending rule is on chain. The activity row you see is the rule going into effect. No money has moved yet."}
               </p>
               <div className="mt-8 w-full">
                 <NextStepCard
                   title={`What do you want to do in ${toDisplayName(name)}?`}
                   options={[
                     {
-                      label: "Send your first request",
-                      hint: "Pick someone, enter an amount, sign once.",
-                      href: `/app/wallet/${encodeURIComponent(name)}/send`,
+                      label: isProSurface ? "Create bank payout" : "Send your first request",
+                      hint: isProSurface
+                        ? "Fund settlement from the multisig, then Kora pays NGN."
+                        : "Pick someone, enter an amount, sign once.",
+                      href: isProSurface
+                        ? `/app/wallet/${encodeURIComponent(name)}/payouts?surface=pro`
+                        : `/app/wallet/${encodeURIComponent(name)}/send`,
                       primary: true,
                       icon: Send,
                     },
@@ -298,7 +327,7 @@ export default function SetupSpendingPage() {
                     },
                     {
                       label: `Back to ${toDisplayName(name)}`,
-                      href: `/app/wallet/${encodeURIComponent(name)}`,
+                      href: `/app/wallet/${encodeURIComponent(name)}${isProSurface ? "?surface=pro" : ""}`,
                       icon: Wallet,
                     },
                   ]}
@@ -312,25 +341,28 @@ export default function SetupSpendingPage() {
             </div>
             <span aria-hidden="true" className="block h-px w-10 bg-accent" />
             <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              First-time setup
+              {isProSurface ? "Pro setup" : "First-time setup"}
             </p>
             <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-              Set up sending in <span className="text-accent">{toHeadingName(name)}</span>
+              {isProSurface ? "Enable Pro transfers in" : "Set up sending in"}{" "}
+              <span className="text-accent">{toHeadingName(name)}</span>
             </h1>
             <p className="mt-3 max-w-sm text-base text-text-soft">
-              One quick setup so this wallet can send money. Your wallet
-              will ask you to confirm. That&rsquo;s how the rule
-              becomes part of {toDisplayName(name)}.
+              {isProSurface
+                ? "One setup adds the SOL funding rule and batch transfer rule this Pro workspace needs. Your wallet will ask you to confirm."
+                : `One quick setup so this wallet can send money. Your wallet will ask you to confirm. That's how the rule becomes part of ${toDisplayName(name)}.`}
             </p>
 
             <div className="mt-6 w-full rounded-card border border-border-soft bg-surface-raised p-5 text-left shadow-card-rest">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-                What this enables
+                {isProSurface ? "What this enables" : "What this enables"}
               </p>
               <ul className="mt-3 flex flex-col gap-2 text-sm text-text-strong">
                 <li className="flex items-start gap-2">
                   <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                  Anyone in the wallet can request to send money out.
+                  {isProSurface
+                    ? "Your team can fund approved bank payouts from the multisig, then dispatch NGN through Kora."
+                    : "Anyone in the wallet can request to send money out."}
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
@@ -339,8 +371,9 @@ export default function SetupSpendingPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                  You can change this later when you have more
-                  friends.
+                  {isProSurface
+                    ? "Personal wallets stay simple; Pro carries the team workflow."
+                    : "You can change this later when you have more friends."}
                 </li>
               </ul>
             </div>
@@ -372,7 +405,7 @@ export default function SetupSpendingPage() {
 
             <div className="mt-6 flex w-full flex-col gap-3">
               <SignPayloadPreview
-                action={`Enable sending in ${toDisplayName(name)}`}
+                action={`${isProSurface ? "Enable Pro transfers" : "Enable sending"} in ${toDisplayName(name)}`}
                 details={[
                   { label: "Wallet", value: toDisplayName(name) },
                   {
@@ -405,7 +438,7 @@ export default function SetupSpendingPage() {
                 </>
               ) : (
                 <>
-                  Enable sending
+                  {isProSurface ? "Enable Pro transfers" : "Enable sending"}
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </>
               )}
@@ -416,6 +449,10 @@ export default function SetupSpendingPage() {
       </div>
     </main>
   );
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 // ─── Speed option tile ─────────────────────────────────────────────

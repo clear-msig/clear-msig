@@ -21,6 +21,9 @@ pub enum ParamType {
     /// 32-byte fixed buffer. Used for transaction hashes, BTC scriptPubKey
     /// hashes (P2WSH/P2TR), and large counters.
     Bytes32 = 10,
+    /// Variable-length byte buffer encoded as `u16 little-endian length`
+    /// followed by raw bytes. Proposal params are capped by Proposal::params_data.
+    Bytes = 11,
 }
 
 #[repr(u8)]
@@ -159,6 +162,13 @@ pub fn param_byte_size(
                 .get(offset)
                 .ok_or(ProgramError::InvalidInstructionData)? as usize;
             Ok(1 + len)
+        }
+        ParamType::Bytes => {
+            let len_bytes = params_data
+                .get(offset..offset + 2)
+                .ok_or(ProgramError::InvalidInstructionData)?;
+            let len = u16::from_le_bytes([len_bytes[0], len_bytes[1]]) as usize;
+            Ok(2 + len)
         }
         ParamType::Bool | ParamType::U8 => Ok(1),
         ParamType::U16 => Ok(2),

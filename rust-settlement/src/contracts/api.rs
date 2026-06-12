@@ -151,3 +151,82 @@ pub struct BankListQuery {
     /// ISO country name, e.g. "nigeria" (default: "nigeria")
     pub country: Option<String>,
 }
+
+// ── Pro payouts: multisig-gated Kora NGN disbursements ───────────────────────
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ProPayoutItemInput {
+    pub amount_minor: i64,
+    pub bank_code: String,
+    pub bank_account_number: String,
+    pub account_name: Option<String>,
+    pub customer_email: Option<String>,
+    pub narration: Option<String>,
+    pub reference: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct CreateProPayoutBatchRequest {
+    pub wallet_name: String,
+    pub wallet_address: Option<String>,
+    pub chain_family: ChainFamily,
+    pub chain_id: String,
+    pub asset_symbol: String,
+    pub asset_amount_minor: i64,
+    pub reference: Option<String>,
+    pub narration: Option<String>,
+    #[serde(default)]
+    pub items: Vec<ProPayoutItemInput>,
+    #[serde(default)]
+    pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct LinkProPayoutProposalRequest {
+    pub proposal_address: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ProPayoutBatchResponse {
+    pub id: Uuid,
+    pub created_by: Uuid,
+    pub wallet_name: String,
+    pub wallet_address: Option<String>,
+    pub chain_family: String,
+    pub chain_id: String,
+    pub asset_symbol: String,
+    pub asset_amount_minor: i64,
+    pub ngn_amount_minor: i64,
+    pub payout_currency: String,
+    pub status: String,
+    pub proposal_address: Option<String>,
+    pub proposal_status: Option<String>,
+    pub reference: Option<String>,
+    pub narration: Option<String>,
+    pub failure_reason: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+    pub completed_at: Option<String>,
+    pub items: Vec<ProPayoutItemResponse>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ProPayoutItemResponse {
+    pub id: Uuid,
+    pub batch_id: Uuid,
+    pub row_index: i32,
+    pub amount_minor: i64,
+    pub bank_code: String,
+    pub bank_account_number: String,
+    pub account_name: Option<String>,
+    pub customer_email: Option<String>,
+    pub narration: Option<String>,
+    pub reference: Option<String>,
+    pub status: String,
+    pub provider: String,
+    pub provider_reference: String,
+    pub provider_status: Option<String>,
+    pub failure_reason: Option<String>,
+    pub requested_at: Option<String>,
+    pub completed_at: Option<String>,
+}

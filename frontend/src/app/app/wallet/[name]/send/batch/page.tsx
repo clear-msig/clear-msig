@@ -1,20 +1,13 @@
 "use client";
 
-// Batch send - payroll-style "one input, N requests."
+// Batch send - payroll-style "one input, one approval request."
 //
 // The proposer enters {recipient, amount} rows, taps "Send batch",
-// and signs once per row in their wallet popup. Each row becomes its
-// own SolTransfer proposal under the wallet's first spending rule.
-// Rows are grouped under one batch_id locally so the dashboard can
-// render them as a single line ("Payroll • 50 requests") instead of
-// 50 near-identical rows.
-//
-// Why N proposals: the on-chain SolTransfer template fires a single
-// CPI per execution. A program-level batch-intent type (one signature
-// per actor for the whole bundle) is on the roadmap; this is the v1
-// that ships against today's program with no contract changes.
+// and signs one multisig proposal for the whole bundle. The
+// batch_sol_transfer_v1 intent fans out SOL transfers only after the
+// wallet's normal approval threshold is satisfied.
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
@@ -23,7 +16,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
   Check,
-  Loader2,
   Plus,
   Trash2,
   Users,
@@ -45,8 +37,9 @@ import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 
 // Hard cap on rows per batch - high enough for real payroll, low
-// enough to prevent runaway sign-prompt loops.
+// enough to keep one execute transaction bounded.
 const MAX_ROWS = 50;
+const BATCH_SOL_TEMPLATE = "batch_sol_transfer_v1";
 const STAGE_TRANSITION = {
   duration: 0.35,
   ease: [0.22, 1, 0.36, 1] as const,
@@ -105,17 +98,20 @@ function BatchSendPage() {
     enabled: !!walletQuery.data,
     staleTime: 30_000,
   });
-  const firstIntent = useMemo(() => {
+  const isProSurface = params.get("surface") === "pro";
+  const batchIntent = useMemo(() => {
     if (!intentsQuery.data) return null;
-    // See send/page.tsx - skip bootstrap intents (slots 0/1/2).
     return (
       intentsQuery.data.find(
-        (it) => it.account !== null && it.account.intentType === IntentType.Custom,
+        (it) =>
+          it.account !== null &&
+          it.account.intentType === IntentType.Custom &&
+          it.account.template === BATCH_SOL_TEMPLATE,
       ) ?? null
     );
   }, [intentsQuery.data]);
 
-  // No spending rule yet → render an explanatory state instead of
+  // No Pro batch rule yet → render an explanatory state instead of
   // silently routing to /setup. Same pattern as /members/add and
   // /rules - auto-redirect was disorienting.
   const needsSetup =
@@ -123,7 +119,7 @@ function BatchSendPage() {
     !intentsQuery.isLoading &&
     !walletQuery.isLoading &&
     !!walletQuery.data &&
-    firstIntent === null;
+    batchIntent === null;
 
   const [stage, setStage] = useState<Stage>("compose");
   const [drafts, setDrafts] = useState<DraftRow[]>(() => [emptyRow()]);
@@ -161,9 +157,9 @@ function BatchSendPage() {
   const canReview = validRows.length === drafts.length && validRows.length > 0;
 
   const handleSendBatch = async () => {
-    if (!firstIntent || !firstIntent.account) {
+    if (!batchIntent || !batchIntent.account) {
       toast.error("Couldn't send the batch", {
-        details: "This wallet hasn't set up a spending rule yet.",
+        details: "This wallet hasn't enabled Pro batch transfers yet.",
       });
       return;
     }
@@ -179,7 +175,7 @@ function BatchSendPage() {
     try {
       const result = await batch.sendBatch({
         walletName,
-        intentIndex: firstIntent.account.intentIndex,
+        intentIndex: batchIntent.account.intentIndex,
         rows,
       });
       setStage("done");
@@ -190,8 +186,8 @@ function BatchSendPage() {
         });
       }
     } catch (err) {
-      // sendBatch swallows row-level errors - anything thrown here is
-      // a setup-level problem (wallet disconnected mid-flight, etc.).
+      // Anything thrown here is a proposal-level problem (wallet
+      // disconnected mid-flight, stale intent, rejected signature, etc.).
       console.error("[batch-send]", err);
       const fe = friendlyError(err, "send");
       toast.error(fe.title, { details: fe.body });
@@ -214,31 +210,54 @@ function BatchSendPage() {
         transition={STAGE_TRANSITION}
         className="flex flex-col gap-5"
       >
-          {needsSetup && (
-            <div className="rounded-card border border-warning/30 bg-warning/[0.06] p-5 shadow-card-rest">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
-                Set up sending first
+          {!isProSurface && (
+            <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+                Pro operation
               </p>
               <p className="mt-2 text-sm text-text-strong">
-                Batch send needs <strong>{walletDisplay}</strong>&rsquo;s
-                spending rule to be in place. Enable sending, then come
-                back here.
+                Batch transfers live in the Pro workspace so personal wallets
+                stay focused on simple sends.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Link
-                  href={`/app/wallet/${encodeURIComponent(walletName)}/setup`}
+                  href={`/app/wallet/${encodeURIComponent(walletName)}/send/batch?surface=pro`}
                   className={
                     "inline-flex items-center gap-1.5 rounded-soft bg-accent px-3.5 py-2 text-sm font-medium text-text-on-accent shadow-accent-rest " +
                     "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98]"
                   }
                 >
-                  Enable sending
+                  Open in Pro
                   <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                 </Link>
               </div>
             </div>
           )}
-          {stage === "compose" && (
+          {isProSurface && needsSetup && (
+            <div className="rounded-card border border-warning/30 bg-warning/[0.06] p-5 shadow-card-rest">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
+                Enable batch transfers
+              </p>
+              <p className="mt-2 text-sm text-text-strong">
+                <strong>{walletDisplay}</strong> needs the Pro batch transfer
+                rule before it can create one approval request for many SOL
+                recipients.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link
+                  href={`/app/wallet/${encodeURIComponent(walletName)}/setup?surface=pro`}
+                  className={
+                    "inline-flex items-center gap-1.5 rounded-soft bg-accent px-3.5 py-2 text-sm font-medium text-text-on-accent shadow-accent-rest " +
+                    "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98]"
+                  }
+                >
+                  Enable Pro transfers
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </Link>
+              </div>
+            </div>
+          )}
+          {isProSurface && !needsSetup && stage === "compose" && (
             <ComposeStage
               walletName={walletName}
               drafts={drafts}
@@ -252,7 +271,7 @@ function BatchSendPage() {
               onReview={() => setStage("review")}
             />
           )}
-          {stage === "review" && (
+          {isProSurface && !needsSetup && stage === "review" && (
             <ReviewStage
               walletName={walletName}
               rows={validRows}
@@ -261,14 +280,14 @@ function BatchSendPage() {
               onSend={handleSendBatch}
             />
           )}
-          {stage === "sending" && (
+          {isProSurface && !needsSetup && stage === "sending" && (
             <SendingStage
               progress={batch.progress}
               onCancel={batch.cancel}
               fallbackTotal={validRows.length}
             />
           )}
-          {stage === "done" && batch.progress && (
+          {isProSurface && !needsSetup && stage === "done" && batch.progress && (
             <DoneStage
               walletName={walletName}
               progress={batch.progress}
@@ -342,8 +361,8 @@ function ComposeStage({
       </header>
 
       <p className="text-sm leading-relaxed text-text-soft">
-        Each row becomes its own request your friends can approve together -
-        ideal for payroll, splits, or event payouts.
+        One approval request covers the whole list. Ideal for payroll,
+        operational reimbursements, or event payouts.
       </p>
 
       <ul className="flex flex-col gap-3">
@@ -567,15 +586,13 @@ function ReviewStage({
           Review batch
         </p>
         <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
-          {rows.length} request{rows.length === 1 ? "" : "s"} from{" "}
+          {rows.length} recipient{rows.length === 1 ? "" : "s"} from{" "}
           {walletDisplay}
         </h1>
         <p className="text-xs text-text-soft sm:text-sm">
-          Each row becomes its own request. Your wallet will pop up{" "}
-          <span className="font-medium text-text-strong">
-            {rows.length} time{rows.length === 1 ? "" : "s"}
-          </span>{" "}
-          (once per recipient) so you can confirm each one.
+          One proposal will include every recipient. Your wallet will pop up{" "}
+          <span className="font-medium text-text-strong">once</span> so you
+          can confirm the whole batch.
         </p>
       </header>
 
@@ -677,10 +694,10 @@ function SendingStage({
       </h1>
       <p className="mt-2 max-w-sm text-base text-text-soft">
         {currentLabel
-          ? `Now: ${currentLabel}. Confirm each in your wallet popup.`
+          ? currentLabel
           : completed === 0
             ? "Getting ready. Your wallet will pop up shortly."
-            : "Wrapping up the last few."}
+            : "Finalizing the approval request."}
       </p>
 
       <div className="mt-6 w-full overflow-hidden rounded-full bg-border-soft">
@@ -695,7 +712,7 @@ function SendingStage({
         />
       </div>
       <p className="mt-2 text-sm text-text-soft">
-        {completed} of {total} processed · {succeeded} sent · {failed} failed
+        {completed} of {total} prepared · {succeeded} included · {failed} failed
       </p>
 
       <button
@@ -703,7 +720,7 @@ function SendingStage({
         onClick={onCancel}
         className="mt-6 text-sm text-text-soft transition-colors duration-base ease-out-soft hover:text-danger"
       >
-        Cancel remaining
+        Close
       </button>
     </div>
   );
@@ -723,7 +740,7 @@ function DoneStage({
   const walletDisplay = toDisplayName(walletName);
   if (!progress) return null;
   const allSucceeded = progress.failed === 0;
-  const heading = allSucceeded ? "Batch sent" : "Batch finished with issues";
+  const heading = allSucceeded ? "Batch proposed" : "Batch finished with issues";
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest">
@@ -754,12 +771,12 @@ function DoneStage({
             {progress.succeeded}
           </span>
           <span className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft">
-            of {progress.total} sent
+            of {progress.total} included
           </span>
         </p>
         <p className="mt-1.5 text-sm text-text-soft">
           {allSucceeded
-            ? "Every row landed. Friends can now approve the batch together."
+            ? "Every row is inside one approval request. The batch executes once the wallet threshold is met."
             : `${progress.failed} row${progress.failed === 1 ? "" : "s"} didn't go through. Review the list below and retry just those.`}
         </p>
 

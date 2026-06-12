@@ -467,6 +467,17 @@ impl MessageBuilder {
                 self.push_str("0x")?;
                 self.push_hex(&data[offset..offset + 32])
             }
+            ParamType::Bytes => {
+                let len_bytes = data
+                    .get(offset..offset + 2)
+                    .ok_or(ProgramError::InvalidInstructionData)?;
+                let len = u16::from_le_bytes([len_bytes[0], len_bytes[1]]) as usize;
+                self.push_str("0x")?;
+                self.push_hex(
+                    data.get(offset + 2..offset + 2 + len)
+                        .ok_or(ProgramError::InvalidInstructionData)?,
+                )
+            }
         }
     }
 

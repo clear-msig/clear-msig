@@ -27,7 +27,7 @@ pub struct KoraResolveBankResponse {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct KoraPaystackLikeBank {
+pub struct KoraBank {
     pub name: String,
     pub code: String,
     pub slug: Option<String>,
@@ -266,7 +266,7 @@ impl KoraClient {
         })
     }
 
-    pub async fn list_banks(&self, country: &str) -> anyhow::Result<Vec<KoraPaystackLikeBank>> {
+    pub async fn list_banks(&self, country: &str) -> anyhow::Result<Vec<KoraBank>> {
         #[derive(Deserialize)]
         struct ApiBank {
             name: String,
@@ -323,7 +323,7 @@ impl KoraClient {
             .data
             .unwrap_or_default()
             .into_iter()
-            .map(|item| KoraPaystackLikeBank {
+            .map(|item| KoraBank {
                 name: item.name,
                 code: item.code,
                 slug: item.slug,
@@ -340,6 +340,7 @@ impl KoraClient {
         account_number: &str,
         account_name: &str,
         customer_email: &str,
+        narration: &str,
     ) -> anyhow::Result<KoraDisburseResponse> {
         #[derive(Serialize)]
         struct Destination<'a> {
@@ -347,7 +348,7 @@ impl KoraClient {
             destination_type: &'static str,
             amount: String,
             currency: &'static str,
-            narration: &'static str,
+            narration: &'a str,
             reference: &'a str,
             bank_account: BankAccount<'a>,
             customer: Customer<'a>,
@@ -383,7 +384,7 @@ impl KoraClient {
                     destination_type: "bank_account",
                     amount,
                     currency: "NGN",
-                    narration: "DETA offramp payout",
+                    narration,
                     reference,
                     bank_account: BankAccount {
                         bank: bank_code,

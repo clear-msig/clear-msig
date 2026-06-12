@@ -120,6 +120,18 @@ pub fn encode_params(intent: &IntentAccount, raw_params: &[String]) -> Result<Ve
                 }
                 data.extend_from_slice(&bytes);
             }
+            ParamType::Bytes => {
+                let bytes = parse_hex(value)
+                    .with_context(|| format!("invalid bytes for param {name}: {value}"))?;
+                if bytes.len() > u16::MAX as usize {
+                    return Err(anyhow!(
+                        "bytes for {name} too long (max {} bytes)",
+                        u16::MAX
+                    ));
+                }
+                data.extend_from_slice(&(bytes.len() as u16).to_le_bytes());
+                data.extend_from_slice(&bytes);
+            }
         }
     }
 

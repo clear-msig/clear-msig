@@ -15,6 +15,10 @@ use crate::{
     utils::definition::*,
 };
 
+const BATCH_SOL_TRANSFER_TEMPLATE: &str = "batch_sol_transfer_v1";
+const BATCH_SOL_MAX_ROWS: usize = 50;
+const BATCH_SOL_ROW_SIZE: usize = 40;
+
 #[derive(Accounts)]
 pub struct Execute<'info> {
     /// Mutated for `intent_index` and `proposal_index` bookkeeping. The
@@ -239,6 +243,10 @@ impl<'info> Execute<'info> {
         let intent = &self.intent;
         let pool = intent.byte_pool();
 
+        if intent.template_str()? == BATCH_SOL_TRANSFER_TEMPLATE {
+            return self.execute_batch_sol(bumps, remaining);
+        }
+
         // Declared accounts available for injection (quasar rejects
         // remaining accounts that duplicate these).
         let declared: [&AccountView; 3] = [
@@ -307,6 +315,85 @@ impl<'info> Execute<'info> {
             &account_views,
             account_count,
         )
+    }
+
+    fn execute_batch_sol(
+        &self,
+        bumps: &ExecuteBumps,
+        remaining: RemainingAccounts,
+    ) -> Result<(), ProgramError> {
+        let params_data = self.proposal.params_data();
+        let intent = &self.intent;
+        let params = intent.params();
+        require!(
+            params.len() >= 1 && params[0].param_type == ParamType::Bytes,
+            ProgramError::InvalidInstructionData
+        );
+
+        let encoded_payload = intent.read_param_bytes(params_data, 0)?;
+        require!(encoded_payload.len() >= 4, ProgramError::InvalidInstructionData);
+        let payload_len = u16::from_le_bytes([encoded_payload[0], encoded_payload[1]]) as usize;
+        let payload = encoded_payload
+            .get(2..2 + payload_len)
+            .ok_or(ProgramError::InvalidInstructionData)?;
+        require!(payload.len() >= 2, ProgramError::InvalidInstructionData);
+
+        let row_count = u16::from_le_bytes([payload[0], payload[1]]) as usize;
+        require!(
+            row_count > 0 && row_count <= BATCH_SOL_MAX_ROWS,
+            ProgramError::InvalidInstructionData
+        );
+        require!(
+            payload.len() == 2 + row_count * BATCH_SOL_ROW_SIZE,
+            ProgramError::InvalidInstructionData
+        );
+
+        let vault_seeds = self.vault_seeds(bumps);
+        let mut remaining_iter = remaining.iter();
+
+        for row_index in 0..row_count {
+            let offset = 2 + row_index * BATCH_SOL_ROW_SIZE;
+            let destination = Address::new_from_array(
+                payload[offset..offset + 32]
+                    .try_into()
+                    .map_err(|_| ProgramError::InvalidInstructionData)?,
+            );
+            let amount = u64::from_le_bytes(
+                payload[offset + 32..offset + 40]
+                    .try_into()
+                    .map_err(|_| ProgramError::InvalidInstructionData)?,
+            );
+            require!(amount > 0, ProgramError::InvalidInstructionData);
+
+            let recipient = remaining_iter
+                .next()
+                .ok_or(ProgramError::NotEnoughAccountKeys)??;
+            require_keys_eq!(
+                *recipient.address(),
+                destination,
+                WalletError::AccountAddressMismatch
+            );
+            require!(recipient.is_writable(), ProgramError::Immutable);
+
+            let mut cpi = DynCpiCall::<2, 12>::new(self.system_program.address());
+            cpi.push_account(self.vault.to_account_view(), true, true)?;
+            cpi.push_account(&recipient, false, true)?;
+            let mut data = [0u8; 12];
+            data[0..4].copy_from_slice(&2u32.to_le_bytes());
+            data[4..12].copy_from_slice(&amount.to_le_bytes());
+            let ptr = cpi.data_mut() as *mut u8;
+            unsafe {
+                core::ptr::copy_nonoverlapping(data.as_ptr(), ptr, data.len());
+            }
+            cpi.set_data_len(data.len())?;
+            cpi.invoke_signed(&vault_seeds)?;
+        }
+
+        require!(
+            remaining_iter.next().is_none(),
+            WalletError::AccountCountMismatch
+        );
+        Ok(())
     }
 }
 

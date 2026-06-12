@@ -27,33 +27,22 @@ pub async fn run_payout_dispatch_pass(pool: &PgPool, payment_provider: &dyn Paym
     for row in rows {
         let intent_id: Uuid = row.get("intent_id");
         let amount_minor: i64 = row.get("estimated_ngn_amount_minor");
-        let recipient_code: Option<String> = row.try_get("recipient_code").ok();
         let bank_code: Option<String> = row.try_get("bank_code").ok();
         let account_number: Option<String> = row.try_get("account_number").ok();
         let account_name: Option<String> = row.try_get("account_name").ok();
-        let recipient_code = recipient_code.unwrap_or_default();
 
-        let provider_name = payment_provider.name();
+        let missing_bank = bank_code
+            .as_deref()
+            .map(|value| value.trim().is_empty())
+            .unwrap_or(true);
+        let missing_account = account_number
+            .as_deref()
+            .map(|value| value.trim().is_empty())
+            .unwrap_or(true);
 
-        if provider_name == "paystack" && recipient_code.trim().is_empty() {
-            warn!(%intent_id, "Skipping payout: missing recipient_code in bank snapshot");
+        if missing_bank || missing_account {
+            warn!(%intent_id, "Skipping payout: missing bank_code/account_number for Kora");
             continue;
-        }
-
-        if provider_name == "kora" {
-            let missing_bank = bank_code
-                .as_deref()
-                .map(|value| value.trim().is_empty())
-                .unwrap_or(true);
-            let missing_account = account_number
-                .as_deref()
-                .map(|value| value.trim().is_empty())
-                .unwrap_or(true);
-
-            if missing_bank || missing_account {
-                warn!(%intent_id, "Skipping payout: missing bank_code/account_number for Kora");
-                continue;
-            }
         }
 
         if amount_minor <= 0 {
@@ -67,10 +56,11 @@ pub async fn run_payout_dispatch_pass(pool: &PgPool, payment_provider: &dyn Paym
             .initiate_payout(&PayoutRequest {
                 amount_minor,
                 reference: transfer_reference.clone(),
-                recipient_code: Some(recipient_code),
                 bank_code,
                 account_number,
                 account_name,
+                customer_email: None,
+                narration: Some("Clear Pro payout".to_string()),
             })
             .await?;
 

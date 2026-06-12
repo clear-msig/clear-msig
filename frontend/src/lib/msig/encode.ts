@@ -135,6 +135,19 @@ function encodeOne(name: string, t: ParamType, value: string): Uint8Array {
       }
       return bytes;
     }
+    case ParamType.Bytes: {
+      const bytes = fromHex(value);
+      if (bytes.length > 0xffff) {
+        throw new Error(
+          `encodeParams: bytes "${name}" too long (${bytes.length} bytes, max 65535)`
+        );
+      }
+      const out = new Uint8Array(2 + bytes.length);
+      out[0] = bytes.length & 0xff;
+      out[1] = (bytes.length >> 8) & 0xff;
+      out.set(bytes, 2);
+      return out;
+    }
     default: {
       const exhaustive: never = t;
       throw new Error(`encodeParams: unknown ParamType ${exhaustive}`);

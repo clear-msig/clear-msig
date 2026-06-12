@@ -206,6 +206,7 @@ pub enum ParamTypeJson {
     U128,
     Bytes20,
     Bytes32,
+    Bytes,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -383,6 +384,7 @@ impl IntentDefinitionJson {
                 ParamTypeJson::U128 => ParamType::U128,
                 ParamTypeJson::Bytes20 => ParamType::Bytes20,
                 ParamTypeJson::Bytes32 => ParamType::Bytes32,
+                ParamTypeJson::Bytes => ParamType::Bytes,
             };
             let constraint = match &param.constraint {
                 None => None,

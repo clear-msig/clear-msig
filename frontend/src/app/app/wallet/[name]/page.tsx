@@ -24,7 +24,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { proposerDisplayName } from "@/lib/retail/proposerName";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ArrowRight, Banknote, Bell, Bot, Building2, ChevronDown, Coins, CreditCard, Download, Handshake, Layers, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
+import { Activity, ArrowRight, Banknote, Bell, Bot, Building2, ChevronDown, Coins, Download, Handshake, Layers, Send, Settings as SettingsIcon, ShieldCheck, Users, type LucideIcon } from "lucide-react";
 import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -358,6 +358,7 @@ export default function WalletDetailPage() {
         erc20Holdings={erc20HoldingsQuery.data ?? []}
         // Manage tab data
         name={name}
+        productSurface={productSurface}
         hasIntents={hasIntents}
         memberCount={memberCount}
         reduce={!!reduce}
@@ -400,6 +401,7 @@ interface WalletDetailTabsProps {
   zcashHistory: ChainTxRow[];
   erc20Holdings: Erc20Holding[];
   name: string;
+  productSurface: ProductSurfaceId | null;
   /// Tri-state to match the upstream useMemo: null while the
   /// intents query is in flight, true/false once known. NextStepsStripe
   /// already handles the null case for its loading skeleton.
@@ -421,6 +423,7 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
     zcashHistory,
     erc20Holdings,
     name,
+    productSurface,
     hasIntents,
     memberCount,
     reduce,
@@ -553,7 +556,12 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
         <div className="flex flex-col gap-4">
           <BudgetStripe name={name} />
           <QuickActionInput walletName={name} />
-          <Actions name={name} hasIntents={hasIntents} reduce={reduce} />
+          <Actions
+            name={name}
+            hasIntents={hasIntents}
+            surface={productSurface}
+            reduce={reduce}
+          />
         </div>
       )}
     </>
@@ -787,17 +795,6 @@ function productIntentConfig(
       primaryLabel: "Start settlement",
       secondaryHref: `/app/wallet/${encodedWallet}/members/add`,
       secondaryLabel: "Add counterparty",
-    };
-  }
-  if (surface === "payments") {
-    return {
-      Icon: CreditCard,
-      title: "Your Payments workspace is ready.",
-      body: "Create the first payout request, then tighten recurring payment rules before routing larger flows through this wallet.",
-      primaryHref: `/app/wallet/${encodedWallet}/send`,
-      primaryLabel: "Create payment",
-      secondaryHref: `/app/wallet/${encodedWallet}/policy`,
-      secondaryLabel: "Set payout rules",
     };
   }
   return {
@@ -1619,7 +1616,7 @@ function ChainTxHistorySection({
 //     the entire send flow). Treated as an accent prompt card so it
 //     doesn't read as just another row.
 //   • Configure       - Members / Chains / Policy / Settings
-//   • Money           - Buy with naira / Sell to bank (NGN ↔ crypto)
+//   • Pro operations  - Business payouts and batch transfers, only on the Pro surface
 //
 // Each row uses the icon + title + description + chevron pattern from
 // the Settings page so the whole product reads with one navigation
@@ -1628,11 +1625,13 @@ function ChainTxHistorySection({
 function Actions({
   name,
   hasIntents,
+  surface,
   reduce,
 }: {
   name: string;
   /// null while loading, false once we've confirmed no intents exist.
   hasIntents: boolean | null;
+  surface: ProductSurfaceId | null;
   reduce: boolean;
 }) {
   const motionProps = reduce
@@ -1708,20 +1707,22 @@ function Actions({
         />
       </ActionGroup>
 
-      <ActionGroup label="Money" description="Fiat ↔ crypto. Naira-routed for now.">
-        <ActionRow
-          href={`/app/wallet/${encoded}/buy`}
-          icon={Banknote}
-          title="Buy with naira"
-          body="Top up SOL or ETH from a Nigerian bank account."
-        />
-        <ActionRow
-          href={`/app/wallet/${encoded}/sell`}
-          icon={TrendingDown}
-          title="Sell to bank"
-          body="Off-ramp crypto back to NGN."
-        />
-      </ActionGroup>
+      {surface === "pro" ? (
+        <ActionGroup label="Pro operations" description="Team transfers and approved local payouts.">
+          <ActionRow
+            href={`/app/wallet/${encoded}/payouts`}
+            icon={Banknote}
+            title="Bank payouts"
+            body="Pay employees, vendors, or beneficiaries in NGN after approvals."
+          />
+          <ActionRow
+            href={`/app/wallet/${encoded}/send/batch?surface=pro`}
+            icon={Layers}
+            title="Batch transfers"
+            body="Prepare many SOL transfers under one approval request."
+          />
+        </ActionGroup>
+      ) : null}
     </motion.div>
   );
 }

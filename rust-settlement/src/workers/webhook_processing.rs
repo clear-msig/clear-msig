@@ -1,5 +1,50 @@
-use sqlx::{PgPool, Row};
+use sqlx::{PgPool, Postgres, Row, Transaction};
 use tracing::{error, info, warn};
+
+async fn refresh_pro_batch_status_by_reference(
+    tx: &mut Transaction<'_, Postgres>,
+    reference: &str,
+) -> anyhow::Result<()> {
+    sqlx::query(
+        r#"
+        WITH target AS (
+            SELECT batch_id
+            FROM pro_payout_items
+            WHERE provider_reference = $1
+            LIMIT 1
+        ),
+        counts AS (
+            SELECT
+                i.batch_id,
+                COUNT(*) FILTER (WHERE i.status = 'completed') AS completed,
+                COUNT(*) FILTER (WHERE i.status = 'failed') AS failed,
+                COUNT(*) AS total
+            FROM pro_payout_items i
+            JOIN target t ON t.batch_id = i.batch_id
+            GROUP BY i.batch_id
+        )
+        UPDATE pro_payout_batches b
+        SET status = CASE
+                WHEN counts.total > 0 AND counts.completed = counts.total THEN 'completed'
+                WHEN counts.failed > 0 AND counts.completed > 0 THEN 'partially_failed'
+                WHEN counts.failed = counts.total AND counts.total > 0 THEN 'failed'
+                ELSE b.status
+            END,
+            completed_at = CASE
+                WHEN counts.total > 0 AND counts.completed = counts.total THEN NOW()
+                ELSE b.completed_at
+            END,
+            updated_at = NOW()
+        FROM counts
+        WHERE b.id = counts.batch_id
+        "#,
+    )
+    .bind(reference)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
+}
 
 pub async fn run_webhook_processing_pass(pool: &PgPool) -> anyhow::Result<u64> {
     let mut tx = pool.begin().await?;
@@ -8,7 +53,7 @@ pub async fn run_webhook_processing_pass(pool: &PgPool) -> anyhow::Result<u64> {
         r#"
                 SELECT id, provider, event_type, payload
         FROM ramp_webhook_inbox
-                WHERE provider IN ('paystack', 'kora')
+                WHERE provider = 'kora'
           AND signature_valid = TRUE
           AND processed_at IS NULL
         ORDER BY received_at ASC
@@ -62,7 +107,7 @@ pub async fn run_webhook_processing_pass(pool: &PgPool) -> anyhow::Result<u64> {
             if reference.is_empty() {
                 processing_error = Some("missing_reference_for_transfer_success".to_string());
             } else {
-                match sqlx::query(
+                let ramp_rows = match sqlx::query(
                     r#"
                     UPDATE ramp_payouts
                     SET provider_status = 'success', webhook_received_at = NOW(), provider_payload = $2
@@ -74,19 +119,49 @@ pub async fn run_webhook_processing_pass(pool: &PgPool) -> anyhow::Result<u64> {
                 .execute(&mut *tx)
                 .await
                 {
-                    Ok(result) => {
-                        if result.rows_affected() == 0 {
-                            warn!(%event_id, reference = %reference, "transfer.success webhook matched no payout row");
-                            processing_error = Some("transfer_success_reference_not_found".to_string());
-                        }
-                    }
+                    Ok(result) => result.rows_affected(),
                     Err(err) => {
                         error!(%event_id, reference = %reference, error = %err, "Failed updating payout for transfer.success");
                         processing_error = Some(format!("transfer_success_update_failed: {err}"));
+                        0
                     }
+                };
+
+                let pro_rows = if processing_error.is_none() {
+                    match sqlx::query(
+                        r#"
+                        UPDATE pro_payout_items
+                        SET status = 'completed',
+                            provider_status = 'success',
+                            webhook_received_at = NOW(),
+                            completed_at = COALESCE(completed_at, NOW()),
+                            provider_payload = $2,
+                            updated_at = NOW()
+                        WHERE provider_reference = $1
+                        "#,
+                    )
+                    .bind(reference)
+                    .bind(&payload)
+                    .execute(&mut *tx)
+                    .await
+                    {
+                        Ok(result) => result.rows_affected(),
+                        Err(err) => {
+                            error!(%event_id, reference = %reference, error = %err, "Failed updating Pro payout for transfer.success");
+                            processing_error = Some(format!("pro_transfer_success_update_failed: {err}"));
+                            0
+                        }
+                    }
+                } else {
+                    0
+                };
+
+                if processing_error.is_none() && ramp_rows == 0 && pro_rows == 0 {
+                    warn!(%event_id, reference = %reference, "transfer.success webhook matched no payout row");
+                    processing_error = Some("transfer_success_reference_not_found".to_string());
                 }
 
-                if processing_error.is_none() {
+                if processing_error.is_none() && ramp_rows > 0 {
                     match sqlx::query(
                         r#"
                         UPDATE ramp_intents i
@@ -112,12 +187,17 @@ pub async fn run_webhook_processing_pass(pool: &PgPool) -> anyhow::Result<u64> {
                         }
                     }
                 }
+
+                if processing_error.is_none() && pro_rows > 0 {
+                    refresh_pro_batch_status_by_reference(&mut tx, reference).await?;
+                }
             }
         } else if payout_failure {
             if reference.is_empty() {
                 processing_error = Some("missing_reference_for_transfer_failure".to_string());
             } else {
-                match sqlx::query(
+                let provider_status = event_type.replace("transfer.", "");
+                let ramp_rows = match sqlx::query(
                     r#"
                     UPDATE ramp_payouts
                     SET provider_status = $2, webhook_received_at = NOW(), provider_payload = $3
@@ -125,24 +205,55 @@ pub async fn run_webhook_processing_pass(pool: &PgPool) -> anyhow::Result<u64> {
                     "#,
                 )
                 .bind(reference)
-                .bind(event_type.replace("transfer.", ""))
+                .bind(&provider_status)
                 .bind(&payload)
                 .execute(&mut *tx)
                 .await
                 {
-                    Ok(result) => {
-                        if result.rows_affected() == 0 {
-                            warn!(%event_id, reference = %reference, "transfer failure webhook matched no payout row");
-                            processing_error = Some("transfer_failure_reference_not_found".to_string());
-                        }
-                    }
+                    Ok(result) => result.rows_affected(),
                     Err(err) => {
                         error!(%event_id, reference = %reference, error = %err, "Failed updating payout for transfer failure webhook");
                         processing_error = Some(format!("transfer_failure_update_failed: {err}"));
+                        0
                     }
+                };
+
+                let pro_rows = if processing_error.is_none() {
+                    match sqlx::query(
+                        r#"
+                        UPDATE pro_payout_items
+                        SET status = 'failed',
+                            provider_status = $2,
+                            webhook_received_at = NOW(),
+                            provider_payload = $3,
+                            failure_reason = $2,
+                            updated_at = NOW()
+                        WHERE provider_reference = $1
+                        "#,
+                    )
+                    .bind(reference)
+                    .bind(&provider_status)
+                    .bind(&payload)
+                    .execute(&mut *tx)
+                    .await
+                    {
+                        Ok(result) => result.rows_affected(),
+                        Err(err) => {
+                            error!(%event_id, reference = %reference, error = %err, "Failed updating Pro payout for transfer failure webhook");
+                            processing_error = Some(format!("pro_transfer_failure_update_failed: {err}"));
+                            0
+                        }
+                    }
+                } else {
+                    0
+                };
+
+                if processing_error.is_none() && ramp_rows == 0 && pro_rows == 0 {
+                    warn!(%event_id, reference = %reference, "transfer failure webhook matched no payout row");
+                    processing_error = Some("transfer_failure_reference_not_found".to_string());
                 }
 
-                if processing_error.is_none() {
+                if processing_error.is_none() && ramp_rows > 0 {
                     match sqlx::query(
                         r#"
                         UPDATE ramp_intents i
@@ -167,6 +278,10 @@ pub async fn run_webhook_processing_pass(pool: &PgPool) -> anyhow::Result<u64> {
                             processing_error = Some(format!("transfer_failure_intent_update_failed: {err}"));
                         }
                     }
+                }
+
+                if processing_error.is_none() && pro_rows > 0 {
+                    refresh_pro_batch_status_by_reference(&mut tx, reference).await?;
                 }
             }
         } else if payment_success {

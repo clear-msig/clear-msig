@@ -9,10 +9,10 @@ use rust_settlement::{
     config::AppConfig,
     db,
     http::handlers::build_router,
-    paystack::client::PaystackClient,
+    kora::client::KoraClient,
     providers::build_payment_provider,
     signer::engine::SignerEngine,
-    workers::{chain_confirmation, disbursement, payout_dispatch, webhook_processing},
+    workers::{chain_confirmation, disbursement, payout_dispatch, pro_payout_dispatch, webhook_processing},
 };
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -85,17 +85,14 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let pool = db::create_pool(&config.database_url)?;
-    let paystack_client = PaystackClient::new(
-        config.paystack_base_url.clone(),
-        config.paystack_secret_key.clone(),
-    );
+    let kora_client = KoraClient::new(config.kora_base_url.clone(), config.kora_secret_key.clone());
     let payment_provider = build_payment_provider(&config)?;
     let signer_engine = SignerEngine::new(&config);
 
     let state = AppState {
         pool: pool.clone(),
         config: config.clone(),
-        paystack_client: paystack_client.clone(),
+        kora_client: kora_client.clone(),
         payment_provider: payment_provider.clone(),
         signer_engine: signer_engine.clone(),
     };
@@ -108,6 +105,8 @@ async fn main() -> anyhow::Result<()> {
     let payout_pool = pool.clone();
     let webhook_pool = pool.clone();
     let disbursement_pool = pool.clone();
+    let pro_payout_pool = pool.clone();
+    let pro_payout_kora = kora_client.clone();
     let payout_provider = payment_provider.clone();
     let disbursement_signer = signer_engine.clone();
     let poll_interval = config.worker_poll_interval_ms;
@@ -118,6 +117,18 @@ async fn main() -> anyhow::Result<()> {
             ticker.tick().await;
             if let Err(err) = chain_confirmation::run_chain_confirmation_pass(&chain_pool).await {
                 error!(error = %err, "Chain confirmation worker pass failed");
+            }
+        }
+    });
+
+    tokio::spawn(async move {
+        let mut ticker = tokio::time::interval(Duration::from_millis(poll_interval));
+        loop {
+            ticker.tick().await;
+            if let Err(err) =
+                pro_payout_dispatch::run_pro_payout_dispatch_pass(&pro_payout_pool, &pro_payout_kora).await
+            {
+                error!(error = %err, "Pro payout dispatch worker pass failed");
             }
         }
     });

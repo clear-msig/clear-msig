@@ -61,6 +61,12 @@ export const appConfig = {
     process.env.NEXT_PUBLIC_BACKEND_API_URL ?? "http://127.0.0.1:8080",
   rampApiUrl:
     process.env.NEXT_PUBLIC_RAMP_API_URL ?? "http://127.0.0.1:8088",
+  settlementTreasury: {
+    solana:
+      process.env.NEXT_PUBLIC_SETTLEMENT_SOL_TREASURY_ADDRESS ??
+      process.env.NEXT_PUBLIC_TREASURY_SOL_ADDRESS ??
+      "",
+  },
   defaultWalletName: "",
   preAlpha: {
     chain: process.env.NEXT_PUBLIC_IKA_CHAIN ?? "evm_1559",

@@ -139,6 +139,10 @@ function renderParam(
     case ParamType.Bytes32: {
       return te.encode("0x" + toHex(paramsData.subarray(offset, offset + 32)));
     }
+    case ParamType.Bytes: {
+      const len = paramsData[offset] | (paramsData[offset + 1] << 8);
+      return te.encode("0x" + toHex(paramsData.subarray(offset + 2, offset + 2 + len)));
+    }
     default: {
       const exhaustive: never = param.paramType;
       throw new Error(`renderTemplate: unknown ParamType ${exhaustive}`);

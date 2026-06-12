@@ -18,6 +18,7 @@ export const ParamType = {
   U128: 8,
   Bytes20: 9,
   Bytes32: 10,
+  Bytes: 11,
 } as const;
 export type ParamType = (typeof ParamType)[keyof typeof ParamType];
 
@@ -126,6 +127,13 @@ export function paramByteSize(
         throw new Error("paramByteSize: string length byte OOB");
       }
       return 1 + paramsData[offset];
+    }
+    case ParamType.Bytes: {
+      if (offset + 1 >= paramsData.length) {
+        throw new Error("paramByteSize: bytes length OOB");
+      }
+      const len = paramsData[offset] | (paramsData[offset + 1] << 8);
+      return 2 + len;
     }
     case ParamType.Bool:
     case ParamType.U8:

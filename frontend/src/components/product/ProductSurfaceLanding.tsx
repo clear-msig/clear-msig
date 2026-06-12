@@ -7,7 +7,6 @@ import {
   Bot,
   Building2,
   Check,
-  CreditCard,
   FileText,
   Handshake,
   KeyRound,
@@ -32,7 +31,6 @@ const ICONS: Record<ProductSurfaceId, LucideIcon> = {
   agent: Bot,
   secure: KeyRound,
   p2pdefi: Handshake,
-  payments: CreditCard,
 };
 
 const FEATURE_ICONS: LucideIcon[] = [
@@ -61,7 +59,7 @@ export function ProductChooserPage() {
           </p>
         </div>
 
-        <div className="mt-10 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="mt-10 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-5">
           {PRODUCT_SURFACES.map((surface) => (
             <ProductIconLink key={surface.id} surface={surface} />
           ))}
@@ -69,7 +67,7 @@ export function ProductChooserPage() {
 
         <ul className="mt-10 grid gap-3 border-t border-white/[0.08] pt-6 text-sm text-white/56 sm:grid-cols-3">
           <li>One primitive layer underneath.</li>
-          <li>Six separate product paths above it.</li>
+          <li>Five separate product paths above it.</li>
           <li>Your login returns to the product you picked.</li>
         </ul>
       </section>

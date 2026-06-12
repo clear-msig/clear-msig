@@ -3,8 +3,7 @@ export type ProductSurfaceId =
   | "pro"
   | "agent"
   | "secure"
-  | "p2pdefi"
-  | "payments";
+  | "p2pdefi";
 
 export type ProductSurfaceStatus = "live" | "planned";
 
@@ -33,8 +32,7 @@ export function isProductSurfaceId(value: string | null | undefined): value is P
     value === "pro" ||
     value === "agent" ||
     value === "secure" ||
-    value === "p2pdefi" ||
-    value === "payments"
+    value === "p2pdefi"
   );
 }
 
@@ -84,22 +82,24 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     path: "/pro",
     status: "live",
     eyebrow: "For companies and teams",
-    headline: "Multisig treasury controls with optional encrypted policies.",
+    headline: "Team treasury, approvals, and payouts in one Pro workspace.",
     summary:
-      "Protect company wallets with multiple approvers, spending rules, transparent policy controls, or encrypted policy commitments.",
+      "Protect company wallets with multiple approvers, policy controls, batch transfers, and bank payouts that only move after the multisig approves.",
     ctaLabel: "Create pro workspace",
     ctaHref: productConnectHref("pro"),
     secondaryHref: "/privacy",
     secondaryLabel: "Policy privacy",
-    primitives: ["Multisig authority", "Policy engine", "Encrypt commitments"],
+    primitives: ["Multisig authority", "Policy engine", "Settlement approvals"],
     features: [
       "Configure approvers and thresholds",
       "Add allowlists, limits, roles, and review flows",
+      "Prepare single or batch payouts for teams and vendors",
+      "Send approved NGN payouts through Kora after treasury approval",
       "Choose transparent or encrypted policy values",
-      "Keep treasury operations separate from consumer onboarding",
     ],
     boundaries: [
       "Policies belong here, not in the personal default path",
+      "Business payouts belong here, not in the personal default path",
       "Company controls can be explicit or confidential",
       "Agent execution is a separate product surface",
     ],
@@ -181,29 +181,6 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
       "Counterparty coordination stays separate from treasury setup",
       "Every settlement still passes a readable ClearSig request",
       "Marketplace and escrow claims are not mixed into core wallet UI",
-    ],
-  },
-  {
-    id: "payments",
-    name: "ClearSig Payments",
-    shortName: "Payments",
-    host: "payments.clearsig.xyz",
-    path: "/payments",
-    status: "live",
-    eyebrow: "For invoices and payouts",
-    headline: "Payment flows coordinated by ClearSig authority.",
-    summary:
-      "Coordinate invoices, approvals, recurring payments, and business payout controls from a dedicated product path.",
-    ctaLabel: "Create payments workspace",
-    ctaHref: productConnectHref("payments"),
-    secondaryHref: "/privacy",
-    secondaryLabel: "Policy privacy",
-    primitives: ["Payment intents", "Approvals", "Treasury policy"],
-    features: ["Invoices", "Recurring approvals", "Payout review"],
-    boundaries: [
-      "Payment approvals stay separate from personal recovery",
-      "Recurring payment controls stay explicit",
-      "No agent trading controls in the default payments path",
     ],
   },
 ];

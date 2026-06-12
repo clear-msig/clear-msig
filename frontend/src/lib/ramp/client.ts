@@ -23,11 +23,14 @@ import type {
   BankListItem,
   BankResolveResponse,
   ChainTransferConfirmationRequest,
+  CreateProPayoutBatchRequest,
   CreateRampIntentRequest,
   CreateRampIntentResponse,
   InitializePaymentResponse,
   IntentDetailResponse,
+  LinkProPayoutProposalRequest,
   PrepareSignatureResponse,
+  ProPayoutBatchResponse,
   RampApiEnvelope,
   RampApiErrorEnvelope,
 } from "@/lib/ramp/types";
@@ -211,6 +214,18 @@ export const rampApi = {
     );
   },
 
+  async listProBanks(
+    country = "nigeria",
+    signal?: AbortSignal,
+  ): Promise<BankListItem[]> {
+    return request<BankListItem[]>(
+      "GET",
+      `/v1/pro/banks?country=${encodeURIComponent(country)}`,
+      undefined,
+      { signal },
+    );
+  },
+
   async resolveBank(
     accountNumber: string,
     bankCode: string,
@@ -225,6 +240,76 @@ export const rampApi = {
       `/v1/ramp/bank/resolve?${qs}`,
       undefined,
       { signal },
+    );
+  },
+
+  async resolveProBank(
+    accountNumber: string,
+    bankCode: string,
+    signal?: AbortSignal,
+  ): Promise<BankResolveResponse> {
+    const qs = new URLSearchParams({
+      account_number: accountNumber,
+      bank_code: bankCode,
+    }).toString();
+    return request<BankResolveResponse>(
+      "GET",
+      `/v1/pro/bank/resolve?${qs}`,
+      undefined,
+      { signal },
+    );
+  },
+
+  async createProPayoutBatch(
+    pubkey: string,
+    body: CreateProPayoutBatchRequest,
+    signal?: AbortSignal,
+  ): Promise<ProPayoutBatchResponse> {
+    return request<ProPayoutBatchResponse>(
+      "POST",
+      "/v1/pro/payout-batches",
+      body,
+      { pubkey, signal },
+    );
+  },
+
+  async getProPayoutBatch(
+    pubkey: string,
+    batchId: string,
+    signal?: AbortSignal,
+  ): Promise<ProPayoutBatchResponse> {
+    return request<ProPayoutBatchResponse>(
+      "GET",
+      `/v1/pro/payout-batches/${encodeURIComponent(batchId)}`,
+      undefined,
+      { pubkey, signal },
+    );
+  },
+
+  async linkProPayoutProposal(
+    pubkey: string,
+    batchId: string,
+    body: LinkProPayoutProposalRequest,
+    signal?: AbortSignal,
+  ): Promise<ProPayoutBatchResponse> {
+    return request<ProPayoutBatchResponse>(
+      "POST",
+      `/v1/pro/payout-batches/${encodeURIComponent(batchId)}/link-proposal`,
+      body,
+      { pubkey, signal },
+    );
+  },
+
+  async verifyProPayoutBatch(
+    pubkey: string,
+    batchId: string,
+    signal?: AbortSignal,
+  ): Promise<ProPayoutBatchResponse> {
+    return request<ProPayoutBatchResponse>(
+      "POST",
+      `/v1/pro/payout-batches/${encodeURIComponent(batchId)}/verify`,
+      undefined,
+      { pubkey, signal },
     );
   },
 

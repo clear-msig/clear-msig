@@ -22,7 +22,6 @@ import {
   ArrowRight,
   Bot,
   Building2,
-  CreditCard,
   Handshake,
   KeyRound,
   Loader2,
@@ -44,6 +43,7 @@ import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBa
 import { isProductSurfaceId } from "@/lib/productSurfaces";
 
 const SOL_TRANSFER_TEMPLATE = "examples/intents/solana_transfer.json";
+const BATCH_SOL_TRANSFER_TEMPLATE = "examples/intents/solana_batch_transfer.json";
 
 function isAlreadyInitializedCreateError(err: unknown): boolean {
   const message =
@@ -113,7 +113,6 @@ function defaultNameFor(surface: string | null, purpose: "share" | "secure" | "a
   if (purpose === "agent") return "Agent vault";
   if (surface === "personal") return "My wallet";
   if (surface === "p2pdefi") return "P2P workspace";
-  if (surface === "payments") return "Payments";
   if (purpose === "share") return "Team";
   return "";
 }
@@ -135,13 +134,6 @@ function productSetupFor(surface: string | null): {
       label: "P2P DeFi workspace",
       body: "This creates the workspace for counterparties, readable offers, and policy-checked settlement requests.",
       Icon: Handshake,
-    };
-  }
-  if (surface === "payments") {
-    return {
-      label: "Payments workspace",
-      body: "This creates the workspace for invoices, approvals, recurring payment controls, and payout review.",
-      Icon: CreditCard,
     };
   }
   return {
@@ -205,8 +197,7 @@ function NewWalletContent() {
       requested === "share" ||
       surface === "personal" ||
       surface === "pro" ||
-      surface === "p2pdefi" ||
-      surface === "payments"
+      surface === "p2pdefi"
     ) {
       return "share";
     }
@@ -327,6 +318,46 @@ function NewWalletContent() {
       }
       await backendApi.executeProposal(walletSlug, proposal, {});
 
+      if (surface === "pro") {
+        await sleep(650);
+        const batchDry = await backendApi.prepare.addIntent(walletSlug, {
+          file: BATCH_SOL_TRANSFER_TEMPLATE,
+          proposers: initialMembers,
+          approvers: initialMembers,
+          threshold,
+          cancellation_threshold: 1,
+          timelock: delaySeconds,
+          policy_ciphertexts: enableIds,
+        });
+        const batchSigned = await signDescriptor(batchDry);
+        const batchSubmitted = await backendApi.submit.addIntent(walletSlug, {
+          ...batchSigned,
+          params_data_hex: batchDry.params_data_hex,
+          expiry: batchDry.expiry,
+          file: BATCH_SOL_TRANSFER_TEMPLATE,
+        });
+        const batchProposal = (batchSubmitted as Record<string, unknown>)?.proposal;
+        if (typeof batchProposal !== "string" || batchProposal.length === 0) {
+          throw new Error(
+            "Backend did not return a proposal address from enable-batch-transfers.",
+          );
+        }
+        const batchDecision = await approveIfNeeded(connection, batchProposal);
+        if (batchDecision.needsApproveSignature) {
+          const batchApproveDry = await backendApi.prepare.approveProposal(
+            walletSlug,
+            batchProposal,
+            { actor_pubkey: me },
+          );
+          const batchApproveSigned = await signDescriptor(batchApproveDry);
+          await backendApi.submit.approveProposal(walletSlug, batchProposal, {
+            ...batchApproveSigned,
+            expiry: batchApproveDry.expiry,
+          });
+        }
+        await backendApi.executeProposal(walletSlug, batchProposal, {});
+      }
+
       return { walletSlug };
     },
     onSuccess: ({ walletSlug }) => {
@@ -377,8 +408,6 @@ function NewWalletContent() {
               ? "Create a team treasury"
               : surface === "p2pdefi"
                 ? "Create a P2P workspace"
-                : surface === "payments"
-                  ? "Create a payments workspace"
               : "New shared wallet"
             : purpose === "secure"
               ? surface === "secure"
@@ -393,11 +422,9 @@ function NewWalletContent() {
             ? surface === "personal"
               ? "Start simple. You can add trusted people and approvals after."
               : surface === "pro"
-              ? "Name the treasury first. Members, thresholds, and policies come next."
+              ? "Name the treasury first. Members, thresholds, policies, and payout controls come next."
               : surface === "p2pdefi"
                 ? "Create the coordination workspace first. Counterparties and settlement rules come next."
-                : surface === "payments"
-                  ? "Create the payments workspace first. Invoices, approvals, and payout rules come next."
               : "Name it, pick who it’s for. You can invite friends after."
             : purpose === "agent"
               ? "Create the policy vault first. Then choose an agent and grant bounded access."
@@ -849,6 +876,10 @@ function slug(s: string): string {
   if (bytes.length <= 64) return trimmed;
   const truncated = enc.encode(trimmed).subarray(0, 64);
   return new TextDecoder("utf-8", { fatal: false }).decode(truncated);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function postCreateHref(
