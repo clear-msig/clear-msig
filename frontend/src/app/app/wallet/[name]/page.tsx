@@ -24,7 +24,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { proposerDisplayName } from "@/lib/retail/proposerName";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ArrowRight, Banknote, Bell, Bot, Building2, ChevronDown, Coins, CreditCard, Download, Handshake, Layers, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
+import { Activity, ArrowRight, Banknote, Bell, Bot, Building2, ChevronDown, Coins, CreditCard, Download, Handshake, Layers, Plus, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
 import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -730,6 +730,7 @@ function ProductIntentCard({
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
   const config = productIntentConfig(surface, encoded, memberCount);
   const Icon = config.Icon;
+  const compactPersonal = surface === "personal";
   const tone =
     surface === "pro"
       ? {
@@ -753,29 +754,46 @@ function ProductIntentCard({
     <motion.section
       {...motionProps}
       transition={{ duration: 0.2, delay: 0.04 }}
-      className={"rounded-card border p-5 shadow-card-rest " + tone.card}
+      className={
+        "rounded-card border shadow-card-rest " +
+        (compactPersonal ? "p-4 sm:p-5 " : "p-5 ") +
+        tone.card
+      }
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <span className={"flex h-10 w-10 shrink-0 items-center justify-center rounded-full " + tone.icon}>
             <Icon className="h-4 w-4" strokeWidth={1.9} aria-hidden="true" />
           </span>
           <div className="min-w-0">
-            <p className={"font-mono text-[10px] uppercase tracking-[0.24em] " + tone.eyebrow}>
-              {product.shortName} selected
-            </p>
-            <h2 className="mt-1 font-display text-lg font-semibold leading-tight text-text-strong">
+            {!compactPersonal ? (
+              <p className={"font-mono text-[10px] uppercase tracking-[0.24em] " + tone.eyebrow}>
+                {product.shortName} selected
+              </p>
+            ) : null}
+            <h2 className={(compactPersonal ? "" : "mt-1 ") + "truncate font-display text-lg font-semibold leading-tight text-text-strong"}>
               {config.title}
             </h2>
           </div>
         </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Link
             href={config.primaryHref}
-            className="inline-flex min-h-tap items-center justify-center gap-1.5 rounded-soft bg-accent px-4 py-2 text-sm font-medium text-text-on-accent shadow-accent-rest transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+            aria-label={config.primaryLabel}
+            title={config.primaryLabel}
+            className={
+              "inline-flex min-h-tap items-center justify-center rounded-soft bg-accent text-sm font-medium text-text-on-accent shadow-accent-rest transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
+              (compactPersonal ? "h-11 w-11 px-0 py-0" : "gap-1.5 px-4 py-2")
+            }
           >
-            {config.primaryLabel}
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            {compactPersonal ? (
+              <Plus className="h-5 w-5" aria-hidden="true" />
+            ) : (
+              <>
+                {config.primaryLabel}
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </>
+            )}
           </Link>
           {config.secondaryHref ? (
             <Link
@@ -843,12 +861,9 @@ function productIntentConfig(
   }
   return {
     Icon: Users,
-    title: "Personal wallet",
-    primaryHref:
-      (memberCount ?? 0) <= 1
-        ? `/app/wallet/${encodedWallet}/members/add`
-        : `/app/wallet/${encodedWallet}/send`,
-    primaryLabel: (memberCount ?? 0) <= 1 ? "Add trusted person" : "Send money",
+    title: "Add trusted person",
+    primaryHref: `/app/wallet/${encodedWallet}/members/add`,
+    primaryLabel: "Add trusted person",
   };
 }
 
@@ -1217,13 +1232,13 @@ function Hero({
               label={profile.balanceLabel}
             />
             {profile.stats.length > 0 ? (
-              <ul className="grid gap-2 sm:grid-cols-3">
+              <ul className="grid grid-cols-3 gap-2">
                 {profile.stats.map((stat) => (
                   <li
                     key={stat.label}
-                    className="rounded-soft border border-border-soft bg-canvas/70 px-3 py-2"
+                    className="min-w-0 rounded-soft border border-border-soft bg-canvas/70 px-2.5 py-2 sm:px-3"
                   >
-                    <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-text-soft">
+                    <p className="truncate font-mono text-[8px] uppercase tracking-[0.14em] text-text-soft sm:text-[9px] sm:tracking-[0.18em]">
                       {stat.label}
                     </p>
                     <p className="mt-1 text-sm font-semibold text-text-strong">
