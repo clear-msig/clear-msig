@@ -20,7 +20,7 @@ import { HeaderBar } from "@/components/layout/HeaderBar";
 import { DashboardHeader } from "@/components/layout/DashboardHeader";
 import { PreAlphaBanner } from "@/components/layout/PreAlphaBanner";
 import { WorkspaceSidebar } from "@/components/layout/WorkspaceSidebar";
-import { CommandPalette } from "@/components/layout/CommandPalette";
+import { CommandPaletteLoader } from "@/components/layout/CommandPaletteLoader";
 import { BottomNav } from "@/components/retail/BottomNav";
 import {
   SidebarProvider,
@@ -90,7 +90,7 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
         className="pointer-events-none fixed inset-x-0 top-0 z-[90] h-14 bg-canvas/85 backdrop-blur-md md:hidden"
       />
       <HeaderBar />
-      <CommandPalette />
+      <CommandPaletteLoader />
 
       {/* Sidebar - pinned to the viewport's left edge on md+. Owns
           its own internal scroll so a long wallet list doesn't push

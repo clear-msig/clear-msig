@@ -30,22 +30,10 @@ import { useRecentActivity } from "@/lib/hooks/useRecentActivity";
 import { ProposalStatus } from "@/lib/msig";
 import { friendlyStatus } from "@/lib/retail/labels";
 import { toDisplayName } from "@/lib/retail/walletNames";
-
-type CommandPaletteHandle = {
-  open: () => void;
-  close: () => void;
-  toggle: () => void;
-};
-
-let globalHandle: CommandPaletteHandle | null = null;
-
-/// Programmatic open (used by the mobile sidebar trigger). Returns
-/// whether the palette mounted yet.
-export function openCommandPalette(): boolean {
-  if (!globalHandle) return false;
-  globalHandle.open();
-  return true;
-}
+import {
+  COMMAND_PALETTE_OPEN_EVENT,
+  consumePendingCommandPaletteOpen,
+} from "@/components/layout/commandPaletteBus";
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
@@ -68,31 +56,16 @@ export function CommandPalette() {
     enabled: open,
   });
 
-  // Cmd-K (mac) / Ctrl-K (everywhere else) toggles the palette.
-  // Esc closes (cmdk handles that automatically when the dialog is open).
+  // The tiny loader owns Cmd-K and the sidebar Search button, so cmdk
+  // + Radix stay out of the first /app bundle. Once this chunk is
+  // loaded, it listens for future open requests directly.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const isMac = typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-      const mod = isMac ? e.metaKey : e.ctrlKey;
-      if (mod && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setOpen((o) => !o);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
-  // Expose programmatic handle for non-keyboard triggers.
-  useEffect(() => {
-    globalHandle = {
-      open: () => setOpen(true),
-      close: () => setOpen(false),
-      toggle: () => setOpen((o) => !o),
-    };
-    return () => {
-      globalHandle = null;
-    };
+    if (consumePendingCommandPaletteOpen()) {
+      setOpen(true);
+    }
+    const onOpen = () => setOpen(true);
+    window.addEventListener(COMMAND_PALETTE_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(COMMAND_PALETTE_OPEN_EVENT, onOpen);
   }, []);
 
   const close = useCallback(() => setOpen(false), []);

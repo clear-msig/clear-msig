@@ -18,7 +18,7 @@
 // pages don't pay an extra RPC. React-query dedupes by query key so
 // the dashboard's own memberships fetch shares this cache.
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useWallet } from "@/lib/wallet";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -43,6 +43,13 @@ export function useWalletGate() {
   const router = useRouter();
   const pathname = usePathname() ?? "";
   const address = wallet.publicKey?.toBase58() ?? "";
+  const explicitNext = useMemo(() => {
+    if (pathname !== "/connect") return null;
+    if (typeof window === "undefined") return null;
+    const params = new URLSearchParams(window.location.search);
+    const next = params.get("next");
+    return isSafeNext(next) ? next : null;
+  }, [pathname]);
 
   // Only need the memberships count on /connect to pick the post-
   // connect destination. Same queryKey as the dashboard's fetch so
@@ -51,7 +58,10 @@ export function useWalletGate() {
     queryKey: ["my-organizations", address],
     queryFn: () => fetchOnchainMemberships(address),
     enabled:
-      address.length > 0 && pathname === "/connect" && wallet.connected,
+      address.length > 0 &&
+      pathname === "/connect" &&
+      wallet.connected &&
+      explicitNext === null,
     staleTime: 30_000,
   });
 
@@ -74,19 +84,18 @@ export function useWalletGate() {
 
     if (wallet.connected) {
       if (pathname === "/connect") {
+        if (explicitNext) {
+          const nextSurface = productSurfaceFromPath(explicitNext);
+          if (nextSurface) {
+            saveSelectedProductSurface(nextSurface, address);
+          }
+          router.replace(explicitNext);
+          return;
+        }
         // Wait for the memberships query to settle so we don't flash
         // to /welcome before discovering existing wallets.
         if (memberships.isLoading || memberships.isFetching) return;
         const hasWallets = (memberships.data?.length ?? 0) > 0;
-        const params = new URLSearchParams(
-          typeof window !== "undefined" ? window.location.search : "",
-        );
-        const next = params.get("next");
-        const safeNext = isSafeNext(next) ? next : null;
-        const nextSurface = productSurfaceFromPath(safeNext);
-        if (nextSurface) {
-          saveSelectedProductSurface(nextSurface, address);
-        }
         if (hasWallets) {
           // Already onboarded - honor an explicit product/deep-link
           // destination, but do not let stale generic /welcome links
@@ -95,9 +104,7 @@ export function useWalletGate() {
           const fallback = storedSurface
             ? productWorkspaceHref(storedSurface)
             : "/app/wallet";
-          router.replace(
-            shouldHonorNextForReturningUser(safeNext) ? safeNext! : fallback,
-          );
+          router.replace(fallback);
         } else {
           // First-timer - honor ?next, fall back to the product
           // chooser so they pick intent before creating anything.
@@ -106,7 +113,7 @@ export function useWalletGate() {
           // ("javascript:..."), and reject anything containing ":".
           // Without these gates an attacker crafts /connect?next=//evil
           // and gets the user dropped on evil.com after sign-in.
-          router.replace(safeNext ?? "/choose");
+          router.replace("/choose");
         }
         return;
       }
@@ -131,6 +138,7 @@ export function useWalletGate() {
     wallet.disconnecting,
     wallet.loggedInWithoutSolana,
     address,
+    explicitNext,
     pathname,
     router,
     memberships.isLoading,
@@ -147,15 +155,6 @@ export function useWalletGate() {
     /// embedded wallet hasn't been provisioned yet.
     loggedInWithoutSolana: wallet.loggedInWithoutSolana,
   };
-}
-
-function shouldHonorNextForReturningUser(next: string | null): boolean {
-  if (!next) return false;
-  if (next === "/welcome") return false;
-  if (next.startsWith("/welcome?") && !next.includes("surface=")) {
-    return false;
-  }
-  return true;
 }
 
 /// Open-redirect guard for ?next= values supplied by /connect's

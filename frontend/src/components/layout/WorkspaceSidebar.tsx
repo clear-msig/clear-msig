@@ -46,7 +46,7 @@ import {
   Wallet as WalletIcon,
   type LucideIcon,
 } from "lucide-react";
-import { openCommandPalette } from "@/components/layout/CommandPalette";
+import { requestCommandPaletteOpen } from "@/components/layout/commandPaletteBus";
 import { BrandMark } from "@/components/retail/BrandMark";
 import clsx from "clsx";
 import {
@@ -351,7 +351,7 @@ function WorkspaceActions({
   onNavigate?: () => void;
 }) {
   const handleSearch = () => {
-    openCommandPalette();
+    requestCommandPaletteOpen();
   };
 
   if (!expanded) {
