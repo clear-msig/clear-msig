@@ -64,6 +64,32 @@ describe("product workspace routing", () => {
     ).toBeNull();
   });
 
+  it("keeps pro treasuries out of agent trading controls", () => {
+    const walletName = "Ops treasury#abc123";
+
+    expect(
+      productWorkspaceRedirectHref({
+        walletName,
+        surface: "pro",
+        pathname: "/app/wallet/Ops%20treasury%23abc123/agents",
+      }),
+    ).toBe("/app/wallet/Ops%20treasury%23abc123");
+    expect(
+      productWorkspaceRedirectHref({
+        walletName,
+        surface: "pro",
+        pathname: "/app/wallet/Ops%20treasury%23abc123/policy",
+      }),
+    ).toBeNull();
+    expect(
+      productWorkspaceRedirectHref({
+        walletName,
+        surface: "pro",
+        pathname: "/app/wallet/Ops%20treasury%23abc123/rules",
+      }),
+    ).toBe("/app/wallet/Ops%20treasury%23abc123/policy");
+  });
+
   it("only treats live app products as wallet product surfaces", () => {
     expect(walletProductSurface("agent")).toBe("agent");
     expect(walletProductSurface("payments")).toBeNull();

@@ -904,7 +904,7 @@ function postCreateHref(
 ): string {
   const encoded = encodeURIComponent(walletSlug);
   if (purpose === "agent" || surface === "agent") {
-    return `/app/wallet/${encoded}/agents/start?surface=agent`;
+    return `/app/wallet/${encoded}/agents?surface=agent`;
   }
   if (isProductSurfaceId(surface)) {
     return `/app/wallet/${encoded}?surface=${surface}`;

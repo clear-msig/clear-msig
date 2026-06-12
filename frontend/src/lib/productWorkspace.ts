@@ -71,6 +71,12 @@ export function productWorkspaceRedirectHref({
   if (surface === "personal") {
     return isAllowedPersonalPath(pathname, base) ? null : base;
   }
+  if (surface === "pro") {
+    if (pathname === `${base}/rules` || pathname.startsWith(`${base}/rules/`)) {
+      return `${base}/policy`;
+    }
+    return isAllowedProPath(pathname, base) ? null : base;
+  }
   if (surface === "secure") {
     return pathname === base || pathname.startsWith(`${base}/secure`)
       ? "/app/secure"
@@ -94,6 +100,38 @@ function isAllowedPersonalPath(pathname: string, base: string): boolean {
     "activity",
     "members",
     "members/add",
+    "send",
+    "send/batch",
+    "send/btc",
+    "send/erc20",
+    "send/eth",
+    "send/zec",
+    "receive",
+    "buy",
+    "sell",
+    "setup",
+    "setup/erc20",
+    "setup/eth",
+    "settings",
+  ];
+  return allowed.some((sub) => {
+    const href = sub ? `${base}/${sub}` : base;
+    if (!sub) return pathname === href;
+    return pathname === href || pathname.startsWith(`${href}/`);
+  });
+}
+
+function isAllowedProPath(pathname: string, base: string): boolean {
+  const allowed = [
+    "",
+    "activity",
+    "members",
+    "members/add",
+    "chains",
+    "chains/add",
+    "policy",
+    "policies",
+    "budget",
     "send",
     "send/batch",
     "send/btc",
