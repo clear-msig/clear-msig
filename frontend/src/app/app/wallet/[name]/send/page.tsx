@@ -1965,11 +1965,7 @@ function BudgetHint({
     // clear. Tucked into a discreet inline chip so the page stays
     // calm when nothing is wrong.
     return (
-      <p className="mt-4 inline-flex items-center gap-1.5 text-[11px] text-text-soft">
-        <span
-          className="h-1.5 w-1.5 rounded-full bg-accent/70"
-          aria-hidden="true"
-        />
+      <p className="mt-4 inline-flex items-center text-[11px] text-text-soft">
         Within {walletDisplay}&rsquo;s weekly cap
         <InfoTip
           label="Weekly cap detail"

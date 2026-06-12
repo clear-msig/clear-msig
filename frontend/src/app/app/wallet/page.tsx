@@ -1152,11 +1152,7 @@ function WalletCard({
           </span>
         ) : null}
         {pendingCount > 0 && (
-          <div className="inline-flex items-center gap-1.5 self-start rounded-full bg-accent/10 px-2 py-1 text-xs font-medium text-accent">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent/70 opacity-75" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
-            </span>
+          <div className="inline-flex items-center self-start rounded-full bg-accent/10 px-2 py-1 text-xs font-medium text-accent">
             {pendingCount} need{pendingCount === 1 ? "s" : ""} approval
           </div>
         )}

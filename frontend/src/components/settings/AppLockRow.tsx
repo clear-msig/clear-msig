@@ -156,18 +156,12 @@ function StatusPill({ on }: { on: boolean }) {
   return (
     <span
       className={clsx(
-        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+        "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium",
         on
           ? "border-accent/30 bg-accent/[0.08] text-accent"
           : "border-border-soft bg-canvas text-text-soft",
       )}
     >
-      <span
-        className={clsx(
-          "h-1.5 w-1.5 rounded-full",
-          on ? "bg-accent" : "bg-text-soft/50",
-        )}
-      />
       {on ? "Enabled" : "Disabled"}
     </span>
   );

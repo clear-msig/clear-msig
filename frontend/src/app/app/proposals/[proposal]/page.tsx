@@ -304,16 +304,10 @@ function Loaded({
           </Link>
           <span
             className={
-              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] " +
+              "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] " +
               statusChipClasses(proposal.status)
             }
           >
-            {proposal.status === ProposalStatus.Active && (
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-50" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-current" />
-              </span>
-            )}
             {statusLabel}
           </span>
         </div>

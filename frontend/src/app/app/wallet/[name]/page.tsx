@@ -142,7 +142,6 @@ export default function WalletDetailPage() {
       return rawName;
     }
   }, [rawName]);
-  const displayName = useMemo(() => toDisplayName(name), [name]);
   const reduce = useReducedMotion();
   const { connection } = useConnection();
   const [detailTab, setDetailTab] = useState<WalletTab>(
@@ -347,17 +346,6 @@ export default function WalletDetailPage() {
           reduce={!!reduce}
         />
       ) : null}
-      <NextBestActionCard
-        name={name}
-        displayName={displayName}
-        productSurface={productSurface}
-        pendingApprovalCount={walletAction.length}
-        hasIntents={hasIntents}
-        memberCount={memberCount}
-        activityCount={walletActivityAll.length}
-        loading={intentsQuery.isLoading}
-        reduce={!!reduce}
-      />
       {/* Pending approvals come right after the hero - they're the
           single highest-priority action a wallet member can take.
           Always-visible, regardless of which tab is active, so a

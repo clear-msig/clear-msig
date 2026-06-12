@@ -98,8 +98,7 @@ function ConnectPage() {
           <div className="grid w-full max-w-5xl items-center gap-12 lg:grid-cols-[1.1fr_1fr]">
             {/* Left - brand argument */}
             <motion.section {...fadeIn(0)} className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_8px_#ccff00]" />
+              <div className="flex items-center">
                 <span className="font-mono-tech text-[10px] uppercase tracking-[0.32em] text-white/60">
                   Shared wallets · signed by you
                 </span>
@@ -390,8 +389,7 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
     if (kind === "request") {
       return (
         <>
-          <div className="flex items-center gap-1.5">
-            <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00]" />
+          <div className="flex items-center">
             <p className="font-mono-tech text-[9px] uppercase tracking-[0.28em] text-[#ccff00]">
               Approved
             </p>

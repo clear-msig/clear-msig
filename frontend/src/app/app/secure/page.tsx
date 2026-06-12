@@ -116,11 +116,7 @@ export default function SecurePage() {
               {...fadeIn(0.04)}
               className="text-center lg:col-span-7 lg:text-left"
             >
-              <span className="inline-flex items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5">
-                <span
-                  aria-hidden="true"
-                  className="h-1.5 w-1.5 rounded-full bg-accent"
-                />
+              <span className="inline-flex items-center rounded-full border border-border-soft bg-surface-raised px-3 py-1.5">
                 <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-text-soft">
                   Secure · powered by Ika
                 </span>
@@ -273,11 +269,7 @@ function VaultsHero({ vaults, loading, onRefresh, fadeIn }: VaultsHeroProps) {
         className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between sm:gap-6"
       >
         <div className="min-w-0">
-          <span className="inline-flex items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5">
-            <span
-              aria-hidden="true"
-              className="h-1.5 w-1.5 rounded-full bg-accent"
-            />
+          <span className="inline-flex items-center rounded-full border border-border-soft bg-surface-raised px-3 py-1.5">
             <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-text-soft">
               Secure · powered by Ika
             </span>

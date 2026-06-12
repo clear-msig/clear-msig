@@ -870,12 +870,8 @@ function SidebarOrgLink({
         {pendingCount > 0 && (
           <span
             aria-label={`${pendingCount} need${pendingCount === 1 ? "s" : ""} approval`}
-            className="ml-auto inline-flex items-center gap-1 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-medium text-accent"
+            className="ml-auto inline-flex items-center rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-medium text-accent"
           >
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent/70 opacity-75" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
-            </span>
             {pendingCount}
           </span>
         )}
