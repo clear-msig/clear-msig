@@ -43,8 +43,13 @@ export function productSetupHref(id: ProductSurfaceId): string {
   return `/app/wallet/new?surface=${id}&purpose=${purpose}`;
 }
 
+export function productWorkspaceHref(id: ProductSurfaceId): string {
+  if (id === "secure") return "/app/secure?surface=secure";
+  return `/app/wallet?surface=${id}`;
+}
+
 export function productConnectHref(id: ProductSurfaceId): string {
-  return `/connect?next=${encodeURIComponent(productSetupHref(id))}`;
+  return `/connect?next=${encodeURIComponent(productWorkspaceHref(id))}`;
 }
 
 export const PRODUCT_SURFACES: ProductSurface[] = [
@@ -59,7 +64,7 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     headline: "Shared wallet protection without policy stress.",
     summary:
       "Create a simple shared wallet for yourself, family, friends, or a small group. Shared payments can come later without turning the first run into a treasury console.",
-    ctaLabel: "Start personal setup",
+    ctaLabel: "Enter Personal",
     ctaHref: productConnectHref("personal"),
     secondaryHref: "/security",
     secondaryLabel: "Review security",
@@ -87,7 +92,7 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     headline: "Multisig treasury controls with optional encrypted policies.",
     summary:
       "Protect company wallets, payouts, and spending rules with multiple approvers, transparent policy controls, or encrypted policy commitments.",
-    ctaLabel: "Create pro workspace",
+    ctaLabel: "Enter Pro",
     ctaHref: productConnectHref("pro"),
     secondaryHref: "/privacy",
     secondaryLabel: "Policy privacy",
@@ -115,7 +120,7 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     headline: "Policy-bound agent trading without giving agents custody.",
     summary:
       "Let agents propose or execute only inside rules you approve. They never get raw custody.",
-    ctaLabel: "Create agent vault",
+    ctaLabel: "Enter Agents",
     ctaHref: productConnectHref("agent"),
     secondaryHref: "/agents?surface=agent",
     secondaryLabel: "Browse marketplace",
@@ -138,7 +143,7 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     headline: "Recoverable custody without a seed phrase ritual.",
     summary:
       "Protect a personal key with device and passkey thresholds. Lose one device, recover with the rest.",
-    ctaLabel: "Create recovery vault",
+    ctaLabel: "Open Secure",
     ctaHref: productConnectHref("secure"),
     secondaryHref: "/security",
     secondaryLabel: "Review security",
@@ -189,7 +194,7 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     headline: "Payments belong inside the workflows people already use.",
     summary:
       "Payments are being integrated into Personal, Pro, Agents, and P2P DeFi flows instead of living as a separate first-choice product.",
-    ctaLabel: "Create Pro workspace",
+    ctaLabel: "Enter Pro",
     ctaHref: productConnectHref("pro"),
     secondaryHref: "/personal",
     secondaryLabel: "Personal shared payments",

@@ -10,7 +10,7 @@
 // On success we route the user to the first useful screen for the
 // product they chose. Product intent wins over generic wallet setup.
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import clsx from "clsx";
@@ -39,6 +39,7 @@ import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { useToast } from "@/components/ui/Toast";
 import { saveWalletAppearance } from "@/lib/retail/walletAppearance";
+import { saveSelectedProductSurface } from "@/lib/productSession";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
 import { isProductSurfaceId } from "@/lib/productSurfaces";
 
@@ -258,6 +259,11 @@ function NewWalletContent() {
     defaultNameFor(surface, initialPurpose),
   );
 
+  useEffect(() => {
+    if (!surface || !me) return;
+    saveSelectedProductSurface(surface, me);
+  }, [surface, me]);
+
   const currentShape = useMemo(
     () => SHAPES.find((s) => s.id === shape) ?? SHAPES[0],
     [shape],
@@ -380,6 +386,9 @@ function NewWalletContent() {
         shape,
         surface: isProductSurfaceId(surface) ? surface : undefined,
       });
+      if (isProductSurfaceId(surface)) {
+        saveSelectedProductSurface(surface, me);
+      }
       toast.success(`${cleanName} is ready`, {
         details:
           purpose === "agent"
