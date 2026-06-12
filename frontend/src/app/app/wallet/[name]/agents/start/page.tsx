@@ -703,10 +703,6 @@ export default function StartTradingPage() {
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
               Launch a guarded trading session
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-soft">
-              Choose the trader, venue, allowance, and automation approval.
-              ClearSig blocks anything outside the guardrails.
-            </p>
           </div>
           <button
             type="button"
@@ -786,11 +782,6 @@ export default function StartTradingPage() {
             <h2 className="text-sm font-semibold text-text-strong">
               {complete ? "Trading has started" : currentStep?.label ?? "Preparing your checklist"}
             </h2>
-            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
-              {complete
-                ? "Your trader has completed the launch checklist and placed its first guarded trade."
-                : currentStep?.description ?? "ClearSig is checking what is ready."}
-            </p>
           </div>
           <span
             className={clsx(
@@ -880,10 +871,6 @@ export default function StartTradingPage() {
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
             <div>
               <p className="text-sm font-semibold text-text-strong">No outside account needed</p>
-              <p className="mt-1 text-sm leading-relaxed text-text-soft">
-                Internal sandbox uses no real money. Once the trader sends an
-                idea inside its allowance, ClearSig can open the guarded trade.
-              </p>
             </div>
           </div>
         </section>
@@ -952,10 +939,6 @@ function BetaJourneyPanel({
         <div>
           <p className="text-sm font-semibold text-text-strong">
             Launch checklist
-          </p>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
-            This path uses {venueLabel(venue).toLowerCase()} and keeps every
-            action inside ClearSig rules.
           </p>
         </div>
         <span className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-1 text-[11px] font-medium text-accent">
@@ -1094,12 +1077,8 @@ function LaunchRiskPanel({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-text-strong">
-            Trust and failure checks
+            Pre-flight checks
           </h2>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
-            ClearSig checks what could make beta testing confusing before the
-            trader acts.
-          </p>
         </div>
         <span
           className={clsx(
@@ -1282,8 +1261,8 @@ function ComplianceDisclosurePanel({
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
               {readiness.accepted
-                ? "You accepted the current practice-trading disclosures for this wallet and venue."
-                : "Review these before allowing an agent to act automatically."}
+                ? "Accepted for this wallet and venue."
+                : "Required before automation."}
             </p>
           </div>
         </div>
@@ -1386,15 +1365,6 @@ function AutomaticTradingStatus({
         : agent
           ? "Automatic trading is off"
           : "Choose a trader first";
-  const detail = enabled
-    ? "Incoming ideas can be accepted automatically only when they fit the current allowance and safety rules."
-    : approvalOpen
-      ? "Review the owner approval dialog to let ClearSig act inside the allowance."
-      : busy
-        ? "ClearSig is preparing the owner approval and syncing the trader connection."
-        : agent
-          ? "New ideas will wait for review until this is turned on."
-          : "The automatic setting belongs to one selected trader.";
   return (
     <li className={clsx("rounded-soft border px-3 py-2.5", tone)}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1403,7 +1373,6 @@ function AutomaticTradingStatus({
           Automation
         </span>
       </div>
-      <p className="mt-1 text-xs leading-relaxed text-text-soft">{detail}</p>
     </li>
   );
 }
@@ -1423,10 +1392,6 @@ function HyperliquidHelp({
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
       <h2 className="text-sm font-semibold text-text-strong">Hyperliquid testnet account</h2>
-      <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
-        ClearSig never asks for the protected trading wallet secret in this screen.
-        ClearSig keeps that private connection outside the setup flow.
-      </p>
       <div className="mt-4 grid gap-2 sm:grid-cols-4">
         <CheckStat
           label="Account"
@@ -1464,9 +1429,9 @@ function HyperliquidHelp({
           </p>
           <p className="mt-1 text-xs leading-relaxed text-text-soft">
             {setupSettings.delegationStatus === "revoked"
-              ? "This delegated signer is marked revoked. Approve and record a new API wallet before testing."
+              ? "Approve and record a new API wallet."
               : setupSettings.rotationReason ??
-                "Rotate this delegated signer before testing."}
+                "Rotate this API wallet."}
           </p>
         </div>
       ) : null}
@@ -1484,8 +1449,7 @@ function HyperliquidHelp({
             "Add testnet funds to that account.",
             "Approve a separate Hyperliquid API wallet public address for agent trading.",
             "Save the account address and approved API wallet address in ClearSig.",
-            "ClearSig manages the protected executor and private API wallet key outside this screen.",
-            "Choose Check again. ClearSig confirms every step before trading.",
+            "Check again.",
           ].map((instruction, index) => (
             <li key={instruction} className="flex items-start gap-3 text-xs leading-relaxed text-text-soft">
               <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border-soft text-[10px] font-semibold text-text-strong">
@@ -1499,11 +1463,6 @@ function HyperliquidHelp({
       {readiness && protectedConnection?.state !== "ready" ? (
         <div className="mt-4 rounded-soft border border-warning/30 bg-warning/[0.08] p-3">
           <p className="text-xs font-semibold text-warning">Protected connection pending</p>
-          <p className="mt-1 text-xs leading-relaxed text-text-soft">
-            You can prepare the venue account now. If this still shows as
-            pending after the account is funded, ClearSig needs to finish the
-            protected connection for this workspace.
-          </p>
         </div>
       ) : null}
       <div className="mt-4 flex flex-wrap gap-2">
@@ -1598,9 +1557,6 @@ function TradingControlRoom({
               {live ? "Ready to trade" : policyPaused ? "Paused by vault" : agentPaused ? "Trader paused" : "Setup needed"}
             </span>
           </div>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
-            Watch open trades and stop the trader from one place.
-          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -1656,10 +1612,6 @@ function TradingControlRoom({
             <div className="min-w-0">
               <p className="text-xs font-semibold text-text-strong">
                 Hyperliquid account truth
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-text-soft">
-                These numbers come from the venue account itself, not from
-                ClearSig local trade history.
               </p>
             </div>
             <span

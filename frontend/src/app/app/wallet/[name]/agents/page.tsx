@@ -1170,9 +1170,6 @@ export default function AgentsPage() {
           <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
             Agent Trading
           </h1>
-          <p className="text-xs text-text-soft sm:text-sm">
-            Autonomous trading, bounded by your rules.
-          </p>
         </div>
         <Link
           href="/privacy"
@@ -2573,10 +2570,6 @@ function EmptyAgents({
       </div>
       <p className="mt-4 font-display text-base font-semibold text-text-strong">
         No agents yet
-      </p>
-      <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-text-soft">
-        Choose a prepared ClearSig agent for the easiest start, or create your
-        own and shape its trading plan.
       </p>
       <div className="mt-4 flex flex-wrap justify-center gap-2">
         <Link

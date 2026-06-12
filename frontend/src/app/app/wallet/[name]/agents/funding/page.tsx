@@ -62,11 +62,6 @@ export default function AgentFundingPage() {
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
               Set allowances by performance
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-soft">
-              ClearSig recommends small, time-boxed allowances from each
-              trader&apos;s results and your guardrails. You approve every
-              allowance before it can trade.
-            </p>
           </div>
           {topAction ? (
             <Link href={fundingHref(encoded, topAction)} className={PRIMARY_BUTTON}>
@@ -118,8 +113,7 @@ export default function AgentFundingPage() {
                 Allowances are in review mode
               </p>
               <p className="mt-1 text-sm leading-relaxed text-text-soft">
-                Turn on safety rules and make sure the kill switch is off before
-                giving a trader a new allowance.
+                Check safety rules and kill switch.
               </p>
             </div>
           </div>
@@ -137,8 +131,7 @@ export default function AgentFundingPage() {
               No traders need allowances yet
             </p>
             <p className="mt-1 text-sm leading-relaxed text-text-soft">
-              Choose a prepared trader or create your own, then ClearSig can
-              recommend a small starting allowance.
+              Choose a trader first.
             </p>
             <Link
               href={`/app/wallet/${encoded}/agents/library`}
@@ -190,7 +183,7 @@ function FundingCard({
                 </span>
               ) : null}
             </div>
-            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-text-soft">
+            <p className="mt-1 line-clamp-1 max-w-3xl text-sm text-text-soft">
               {item.summary}
             </p>
           </div>
@@ -234,11 +227,13 @@ function FundingCard({
         />
       </div>
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_0.9fr]">
+      <details className="group mt-4 rounded-soft border border-border-soft bg-canvas p-3">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-xs font-semibold text-text-strong">
+          Why this allowance?
+          <ArrowRight className="h-3.5 w-3.5 text-text-soft transition-transform group-open:rotate-90" aria-hidden="true" />
+        </summary>
+        <div className="mt-3 grid gap-3 border-t border-border-soft pt-3 lg:grid-cols-[1fr_0.9fr]">
         <div>
-          <p className="text-xs font-semibold text-text-strong">
-            Why this recommendation?
-          </p>
           <ul className="mt-2 grid gap-1.5">
             {item.allocation.reasons.slice(0, 4).map((reason) => (
               <li key={reason} className="flex items-start gap-2 text-xs leading-relaxed text-text-soft">
@@ -266,6 +261,7 @@ function FundingCard({
           )}
         </div>
       </div>
+      </details>
     </article>
   );
 }

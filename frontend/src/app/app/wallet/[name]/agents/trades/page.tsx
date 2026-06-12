@@ -200,11 +200,6 @@ export default function AgentTradesPage() {
             <h2 className="text-sm font-semibold text-text-strong">
               Trade evidence
             </h2>
-            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
-              Built-in trades are paper simulations. Hyperliquid trades shown
-              here are testnet practice records until venue reconciliation marks
-              them as live-capital evidence.
-            </p>
           </div>
           <Badge tone="warning">Practice/Testnet</Badge>
         </div>

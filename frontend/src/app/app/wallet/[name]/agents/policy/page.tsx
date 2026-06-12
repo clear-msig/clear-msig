@@ -137,10 +137,6 @@ export default function AgentPolicyPage() {
         <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
           Trading guardrails
         </h1>
-        <p className="max-w-2xl text-sm leading-relaxed text-text-soft">
-          Choose what every trader may use, the most it may risk, and when it
-          must stop.
-        </p>
       </header>
 
       <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
@@ -151,9 +147,6 @@ export default function AgentPolicyPage() {
           <div>
             <p className="text-sm font-semibold text-text-strong">
               Rules that always win
-            </p>
-            <p className="mt-1 text-xs leading-relaxed text-text-soft">
-              Every trade idea is checked against these guardrails before it can move forward.
             </p>
           </div>
         </div>

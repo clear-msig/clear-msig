@@ -313,14 +313,9 @@ export default function NewAgentSessionPage() {
         <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
           Set a trading allowance
         </h1>
-        <p className="max-w-2xl text-sm leading-relaxed text-text-soft">
-          Choose how much one trader may use, where it may trade, and how long
-          the permission lasts. Anything outside this allowance is stopped.
-        </p>
         {requestedTier ? (
           <p className="max-w-2xl text-xs leading-relaxed text-accent">
-            Reviewing the {requestedTier.label} track-record recommendation.
-            You can tighten every value before approving it.
+            {requestedTier.label} recommendation loaded.
           </p>
         ) : null}
       </header>
@@ -372,9 +367,6 @@ export default function NewAgentSessionPage() {
           <div>
             <p className="text-sm font-semibold text-text-strong">
               Trading allowance
-            </p>
-            <p className="mt-1 text-xs leading-relaxed text-text-soft">
-              An allowance can only be stricter than your safety rules, never looser.
             </p>
           </div>
         </div>
