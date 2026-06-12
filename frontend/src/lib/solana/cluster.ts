@@ -25,7 +25,7 @@
 //     as null/empty responses, not exceptions, so the wrapper
 //     ignores them.
 
-import { Commitment, Connection } from "@solana/web3.js";
+import { Commitment, Connection, type ConnectionConfig } from "@solana/web3.js";
 
 const PUBLIC_DEVNET_RPC = "https://api.devnet.solana.com";
 
@@ -104,18 +104,26 @@ export const solanaClusterFallbackRpc = PUBLIC_DEVNET_RPC;
 export function createSolanaConnection(
   commitment: Commitment = "confirmed",
 ): Connection {
+  const config: ConnectionConfig = {
+    commitment,
+    // web3.js logs every 429 retry with console.error. We handle RPC
+    // failover ourselves, so disable the internal retry loop and let
+    // the proxy below switch providers without noisy console output.
+    disableRetryOnRateLimit: true,
+  };
+
   // Same URL? No fallback needed - return a plain Connection.
   if (solanaClusterRpc === solanaClusterFallbackRpc) {
-    return new Connection(solanaClusterRpc, commitment);
+    return new Connection(solanaClusterRpc, config);
   }
 
-  const primary = new Connection(solanaClusterRpc, commitment);
+  const primary = new Connection(solanaClusterRpc, config);
   let fallback: Connection | null = null;
   let primaryFailed = false;
 
   const getFallback = (): Connection => {
     if (!fallback) {
-      fallback = new Connection(solanaClusterFallbackRpc, commitment);
+      fallback = new Connection(solanaClusterFallbackRpc, config);
     }
     return fallback;
   };
@@ -148,7 +156,7 @@ export function createSolanaConnection(
             args,
           );
         } catch (err) {
-          if (!isNetworkError(err)) throw err;
+          if (!isRecoverableRpcError(err)) throw err;
           // First network failure on the primary. Latch and retry once
           // on the fallback. If the fallback also fails, that error
           // propagates - caller's responsibility.
@@ -174,10 +182,13 @@ export function createSolanaConnection(
   }) as Connection;
 }
 
-function isNetworkError(err: unknown): boolean {
+function isRecoverableRpcError(err: unknown): boolean {
   if (!err) return false;
   const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
   return (
+    msg.includes("429") ||
+    msg.includes("too many requests") ||
+    msg.includes("rate limit") ||
     msg.includes("failed to fetch") ||
     msg.includes("connection_closed") ||
     msg.includes("err_connection") ||

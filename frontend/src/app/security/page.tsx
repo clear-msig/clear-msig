@@ -72,8 +72,7 @@ export default function SecurityPage() {
           {...fadeIn(0)}
           className="border-b border-white/[0.08] pb-12 sm:pb-16"
         >
-          <div className="flex items-center gap-2">
-            <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_4px_rgba(204,255,0,0.4)]" />
+          <div className="flex items-center">
             <span className="font-mono-tech text-[10px] uppercase tracking-[0.32em] text-white/60">
               Security · how Clear protects you
             </span>

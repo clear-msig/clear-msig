@@ -145,8 +145,7 @@ function Hero({ fadeIn }: { fadeIn: FadeInFn }) {
     <section className="relative z-10 grid grid-cols-1 gap-10 px-5 pb-16 pt-6 sm:gap-12 sm:px-10 sm:pb-28 sm:pt-16 lg:grid-cols-12 lg:gap-8 lg:pb-32 lg:pt-20">
       {/* Left - copy */}
       <div className="lg:col-span-7">
-        <motion.div {...fadeIn(0)} className="flex items-center gap-2">
-          <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_4px_rgba(204, 255, 0,0.4)]" />
+        <motion.div {...fadeIn(0)} className="flex items-center">
           <span className="font-mono-tech text-[9px] uppercase tracking-[0.3em] text-white/60 sm:text-[10px] sm:tracking-[0.32em]">
             Clear signing for shared money
           </span>
@@ -283,8 +282,7 @@ function HeroMockup() {
                 <div className="text-[11px] text-white/40">Treasury control</div>
               </div>
             </div>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_4px_rgba(204, 255, 0,0.4)]" />
+            <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
               <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-white/70">
                 live
               </span>
@@ -409,8 +407,7 @@ function HeroMockup() {
 
       {/* Floating fee chip - sits on the bottom-left edge of the
           mockup, partially overlapping. */}
-      <div className="float-slower absolute -left-3 bottom-12 z-20 hidden items-center gap-2 rounded-full border border-white/[0.10] bg-[#0c0c0c]/90 px-3.5 py-2 shadow-[0_18px_40px_-12px_rgba(0,0,0,0.6)] backdrop-blur-md sm:flex">
-        <span className="h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_4px_rgba(204, 255, 0,0.4)]" />
+      <div className="float-slower absolute -left-3 bottom-12 z-20 hidden items-center rounded-full border border-white/[0.10] bg-[#0c0c0c]/90 px-3.5 py-2 shadow-[0_18px_40px_-12px_rgba(0,0,0,0.6)] backdrop-blur-md sm:flex">
         <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/85">
           Fee &lt; $0.01
         </span>
@@ -578,8 +575,7 @@ function BentoLargeBars() {
             approvals
           </span>
         </div>
-        <span className="inline-flex items-center gap-1.5 font-mono-tech text-[10px] uppercase tracking-[0.24em] text-[#ccff00]">
-          <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00]" />
+        <span className="inline-flex items-center font-mono-tech text-[10px] uppercase tracking-[0.24em] text-[#ccff00]">
           live
         </span>
       </div>
@@ -593,8 +589,7 @@ function BentoLargeBars() {
         transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] as const }}
         className="receipt-scan product-field relative mt-6 overflow-hidden rounded-xl p-5 sm:p-6"
       >
-        <div className="relative flex items-center gap-2">
-          <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00]" />
+        <div className="relative flex items-center">
           <span className="font-mono-tech text-[9px] uppercase tracking-[0.22em] text-white/45">
             What you&apos;re signing
           </span>
@@ -848,8 +843,7 @@ function BentoChainSwatches() {
         </p>
       </div>
 
-      <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-1.5">
-        <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00]" />
+      <div className="mt-5 inline-flex items-center rounded-full border border-white/15 px-3 py-1.5">
         <span className="font-mono-tech text-[9px] uppercase tracking-[0.24em] text-white/70">
           Native, not wrapped
         </span>
@@ -963,8 +957,7 @@ function WhyClear({ fadeIn }: { fadeIn: FadeInFn }) {
             </span>
           </div>
           <div className="border-t border-white/[0.06] bg-[#ccff00]/[0.04] px-6 py-5 sm:px-8 sm:py-6 md:border-l md:border-t-0">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_4px_rgba(204, 255, 0,0.4)]" />
+            <span className="inline-flex items-center">
               <span className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-[#ccff00]">
                 With Clearsig
               </span>
@@ -1073,8 +1066,7 @@ function Methodology({ fadeIn }: { fadeIn: FadeInFn }) {
       <div className="relative grid grid-cols-1 items-center gap-12 sm:gap-16 lg:grid-cols-12 lg:gap-12">
         {/* Left - numbered list */}
         <div className="lg:col-span-6">
-          <motion.div {...fadeIn(0)} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5">
-            <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00]" />
+          <motion.div {...fadeIn(0)} className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5">
             <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-white/65">
               how it works
             </span>

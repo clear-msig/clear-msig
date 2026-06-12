@@ -775,7 +775,7 @@ function CreatingStage({
                 ) : (
                   <span
                     aria-hidden="true"
-                    className="h-1.5 w-1.5 rounded-full bg-text-soft/40"
+                    className="h-px w-3 rounded-full bg-text-soft/40"
                   />
                 )}
               </span>

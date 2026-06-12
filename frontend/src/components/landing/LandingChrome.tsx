@@ -196,8 +196,7 @@ export function LandingNav({
             CTA, mobile menu trigger. */}
         <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
           {status && (
-            <div className="hidden items-center gap-2 sm:flex">
-              <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_4px_rgba(204, 255, 0,0.4)]" />
+            <div className="hidden items-center sm:flex">
               <span className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/60">
                 {status}
               </span>
@@ -266,8 +265,7 @@ export function LandingNav({
             >
               <div className="flex items-center justify-between border-b border-white/[0.08] px-5 py-3.5">
                 {status ? (
-                  <div className="flex items-center gap-2">
-                    <span className="lime-dot h-1.5 w-1.5 rounded-full bg-[#ccff00] shadow-[0_0_4px_rgba(204, 255, 0,0.4)]" />
+                  <div className="flex items-center">
                     <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-white/60">
                       {status}
                     </span>

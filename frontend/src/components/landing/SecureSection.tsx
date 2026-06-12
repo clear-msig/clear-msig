@@ -844,16 +844,10 @@ function PhaseStatusPill({ phase, reduce }: { phase: Phase; reduce: boolean | nu
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
       className={clsx(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono-tech text-[9px] uppercase tracking-[0.22em] transition-colors duration-300",
+        "inline-flex items-center rounded-full border px-2.5 py-1 font-mono-tech text-[9px] uppercase tracking-[0.22em] transition-colors duration-300",
         classes,
       )}
     >
-      <span
-        className={clsx(
-          "lime-dot h-1 w-1 rounded-full",
-          tone === "neutral" ? "bg-white/50" : "bg-[#ccff00]",
-        )}
-      />
       {label}
     </motion.span>
   );
