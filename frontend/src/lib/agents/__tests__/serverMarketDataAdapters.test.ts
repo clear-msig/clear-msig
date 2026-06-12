@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   fetchAgentMarketData,
   fetchAgentMarketIntelligence,
+  fetchAgentMarketUniverse,
   serverAgentMarketDataReadiness,
 } from "@/lib/agents";
 
@@ -75,6 +76,74 @@ describe("server agent market-data adapters", () => {
     await expect(
       fetchAgentMarketData({ provider: "mock", market: "DOGE-PERP" }),
     ).rejects.toThrow("not available");
+  });
+
+  it("lists live Hyperliquid perp markets for autonomous scanning", async () => {
+    const markets = await fetchAgentMarketUniverse({
+      provider: "hyperliquid",
+      now: 1_780_000_000_000,
+      limit: 2,
+      fetchImpl: async () =>
+        new Response(
+          JSON.stringify([
+            {
+              universe: [
+                { name: "BTC", szDecimals: 5, maxLeverage: 40 },
+                { name: "ETH", szDecimals: 4, maxLeverage: 25 },
+                { name: "OLD", isDelisted: true },
+              ],
+            },
+            [
+              {
+                markPx: "67500",
+                funding: "0.0001",
+                openInterest: "100",
+                dayNtlVlm: "32000000",
+              },
+              {
+                markPx: "3850",
+                funding: "0.00008",
+                openInterest: "200",
+                dayNtlVlm: "14000000",
+              },
+              {
+                markPx: "1",
+                funding: "0",
+                openInterest: "10",
+                dayNtlVlm: "1",
+              },
+            ],
+          ]),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    });
+
+    expect(markets).toEqual([
+      {
+        provider: "hyperliquid",
+        source: "live",
+        market: "BTC-PERP",
+        baseAsset: "BTC",
+        observedAt: 1_780_000_000_000,
+        markPriceUsd: "67500",
+        fundingRatePct: "0.01",
+        openInterestUsd: "6750000",
+        volume24hUsd: "32000000",
+        tradable: true,
+      },
+      {
+        provider: "hyperliquid",
+        source: "live",
+        market: "ETH-PERP",
+        baseAsset: "ETH",
+        observedAt: 1_780_000_000_000,
+        markPriceUsd: "3850",
+        fundingRatePct: "0.008",
+        openInterestUsd: "770000",
+        volume24hUsd: "14000000",
+        tradable: true,
+      },
+    ]);
   });
 
   it("rejects malformed Hyperliquid metadata", async () => {

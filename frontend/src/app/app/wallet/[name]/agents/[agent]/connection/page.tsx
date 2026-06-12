@@ -266,7 +266,7 @@ export default function AgentConnectionPage() {
         const placed = await submitAgentVenueExecution(result.proposal);
         if (!placed.ok) {
           throw new Error(
-            `The idea was accepted, but the outside practice account could not place it. ${placed.message}`,
+            `The idea was accepted, but the outside venue account could not place it. ${placed.message}`,
           );
         }
       }
@@ -538,7 +538,7 @@ export default function AgentConnectionPage() {
           className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-text-soft transition-colors hover:text-accent"
         >
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-          Automated Trading
+          Agent Trading
         </Link>
         <div className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest">
           <p className="text-sm font-semibold text-text-strong">Trader not found</p>
@@ -698,7 +698,7 @@ export default function AgentConnectionPage() {
         >
           {kit?.autoImportSessionSignals
             ? autoReviewRunning
-              ? "Checking new ideas now. Only ideas inside your current allowance can become practice trades."
+              ? "Checking new ideas now. Only ideas inside your current allowance can become trades."
               : "Automatic trading is on. ClearSig checks ideas as they arrive, even when this page is closed. Anything outside the allowance waits for you."
             : "Automatic trading is off. New ideas stay here until you review them. Turn it on when you want this trader to act inside its allowance."}
         </div>

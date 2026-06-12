@@ -145,16 +145,11 @@ export default function HyperliquidSetupPage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Hyperliquid Practice - {display}
+              Venue · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
-              Hyperliquid practice setup
+              Hyperliquid testnet setup
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-soft">
-              Add one dedicated testnet account, fund it with practice
-              collateral, and let ClearSig check the protected server connection
-              before agents can trade.
-            </p>
           </div>
           <Link
             href={`/app/wallet/${encoded}/agents/start?venue=hyperliquid_testnet`}
@@ -172,14 +167,9 @@ export default function HyperliquidSetupPage() {
             <div className="flex flex-wrap items-center gap-2">
               <StatusIcon status={summary.status} checking={checking} />
               <h2 className="text-sm font-semibold text-text-strong">
-                {checking ? "Checking Hyperliquid practice" : summary.headline}
+                {checking ? "Checking Hyperliquid testnet" : summary.headline}
               </h2>
             </div>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-soft">
-              This stores only the public account address in your browser.
-              Private executor tokens and the API wallet private key must never
-              enter this browser.
-            </p>
           </div>
           <button
             type="button"
@@ -246,11 +236,6 @@ export default function HyperliquidSetupPage() {
                 <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
               </a>
             </div>
-            <p className="mt-2 text-xs leading-relaxed text-text-soft">
-              This should be the public address of a separate API/agent wallet
-              approved by the funded account. The private key belongs only in
-              the protected executor or a user-owned agent runtime.
-            </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <a
                 href="https://app.hyperliquid-testnet.xyz/"
@@ -286,12 +271,6 @@ export default function HyperliquidSetupPage() {
             <h2 className="text-sm font-semibold text-text-strong">
               Delegation model
             </h2>
-            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-text-soft">
-              This follows the standard AI trading pattern: user funds stay in
-              the trading account, a separate API wallet is approved as the
-              signer, ClearSig checks every action against allowance and safety
-              rules, and the private signing key stays out of the browser.
-            </p>
           </div>
         </div>
         <div className="mt-4 grid gap-2 md:grid-cols-4">
@@ -308,12 +287,6 @@ export default function HyperliquidSetupPage() {
             <h2 className="text-sm font-semibold text-text-strong">
               Delegated signer lifecycle
             </h2>
-            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-text-soft">
-              Rotate or revoke the approved API wallet whenever it is exposed,
-              no longer needed, or no longer matches the protected executor.
-              Revoke on Hyperliquid first, then mark the status here for
-              ClearSig checks and operator review.
-            </p>
           </div>
           <span
             className={clsx(
@@ -415,10 +388,6 @@ export default function HyperliquidSetupPage() {
               <h2 className="text-sm font-semibold text-text-strong">
                 Open Hyperliquid positions
               </h2>
-              <p className="mt-1 text-sm leading-relaxed text-text-soft">
-                When ClearSig submits a practice trade, this panel shows what
-                the exchange account reports back.
-              </p>
             </div>
           </div>
           <div className="mt-4 grid gap-2">
@@ -446,7 +415,7 @@ export default function HyperliquidSetupPage() {
               ))
             ) : (
               <div className="rounded-card border border-dashed border-border-soft bg-canvas p-5 text-sm text-text-soft">
-                No Hyperliquid practice positions are open right now.
+                No Hyperliquid testnet positions are open right now.
               </div>
             )}
           </div>
@@ -466,11 +435,6 @@ export default function HyperliquidSetupPage() {
                 <h2 className="text-sm font-semibold text-text-strong">
                   Protected trading connection
                 </h2>
-                <p className="mt-1 text-sm leading-relaxed text-text-soft">
-                  ClearSig manages the private executor connection outside this
-                  screen. You only need to prepare the practice account and keep
-                  your API wallet delegation plus safety rules tight.
-                </p>
               </div>
             </div>
             <span
@@ -487,13 +451,8 @@ export default function HyperliquidSetupPage() {
           <div className="mt-4 rounded-soft border border-border-soft bg-canvas p-3">
             <p className="text-xs font-semibold text-text-strong">
               {executor?.state === "ready"
-                ? "Ready for protected practice trades"
+                ? "Ready for protected testnet trades"
                 : "No action needed in this screen"}
-            </p>
-            <p className="mt-1 text-xs leading-relaxed text-text-soft">
-              {executor?.state === "ready"
-                ? "The server-side connection is available. ClearSig can submit only approved trades that fit your allowance."
-                : "If this stays unavailable after your account is funded and the API wallet is approved, ClearSig needs to finish the protected executor for this workspace."}
             </p>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -555,9 +514,18 @@ function SetupStepRow({ step }: { step: AgentHyperliquidSetupStep }) {
         </span>
         <div className="min-w-0">
           <p className="text-xs font-semibold text-text-strong">{step.label}</p>
-          <p className="mt-1 break-words text-xs leading-relaxed text-text-soft">
-            {step.message}
-          </p>
+          <details className="group mt-1">
+            <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-[11px] font-medium text-text-soft transition-colors hover:text-accent">
+              Info
+              <ArrowRight
+                className="h-3 w-3 transition-transform group-open:rotate-90"
+                aria-hidden="true"
+              />
+            </summary>
+            <p className="mt-1.5 break-words text-xs leading-relaxed text-text-soft">
+              {step.message}
+            </p>
+          </details>
         </div>
       </div>
     </div>

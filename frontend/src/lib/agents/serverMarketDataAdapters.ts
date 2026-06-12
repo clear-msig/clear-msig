@@ -2,6 +2,7 @@ import {
   normalizeAgentMarket,
   type AgentMarketDataProviderId,
   type AgentMarketDataSnapshot,
+  type AgentMarketUniverseItem,
 } from "@/lib/agents/marketData";
 import {
   buildAgentMarketIntelligenceSnapshot,
@@ -105,6 +106,34 @@ export async function fetchAgentMarketData({
   };
 }
 
+export async function fetchAgentMarketUniverse({
+  provider,
+  now = Date.now(),
+  fetchImpl = fetch,
+  limit = 100,
+}: {
+  provider: AgentMarketDataProviderId;
+  now?: number;
+  fetchImpl?: typeof fetch;
+  limit?: number;
+}): Promise<AgentMarketUniverseItem[]> {
+  if (provider === "hyperliquid") {
+    return fetchHyperliquidMarketUniverse({ now, fetchImpl, limit });
+  }
+
+  return Object.entries(MOCK_MARKETS)
+    .map(([market, values]) => ({
+      provider,
+      source: "mock" as const,
+      market,
+      baseAsset: hyperliquidCoinFromMarket(market),
+      observedAt: now,
+      tradable: true,
+      ...values,
+    }))
+    .slice(0, limit);
+}
+
 export async function fetchAgentMarketIntelligence({
   provider,
   market,
@@ -139,21 +168,7 @@ async function fetchHyperliquidMarketData({
   now: number;
   fetchImpl: typeof fetch;
 }): Promise<AgentMarketDataSnapshot> {
-  const response = await fetchImpl(HYPERLIQUID_INFO_URL, {
-    method: "POST",
-    headers: {
-      accept: "application/json",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ type: "metaAndAssetCtxs" }),
-    cache: "no-store",
-    signal: AbortSignal.timeout(MARKET_DATA_TIMEOUT_MS),
-  });
-  if (!response.ok) {
-    throw new Error(`Hyperliquid market data returned HTTP ${response.status}.`);
-  }
-
-  const payload: unknown = await response.json();
+  const payload = await fetchHyperliquidMetaAndAssetContexts(fetchImpl);
   const parsed = parseHyperliquidMetaAndAssetContexts(payload);
   const coin = hyperliquidCoinFromMarket(market);
   const assetIndex = parsed.universe.findIndex((asset) => asset.name === coin);
@@ -185,8 +200,67 @@ async function fetchHyperliquidMarketData({
   };
 }
 
+async function fetchHyperliquidMarketUniverse({
+  now,
+  fetchImpl,
+  limit,
+}: {
+  now: number;
+  fetchImpl: typeof fetch;
+  limit: number;
+}): Promise<AgentMarketUniverseItem[]> {
+  const payload = await fetchHyperliquidMetaAndAssetContexts(fetchImpl);
+  const parsed = parseHyperliquidMetaAndAssetContexts(payload);
+  return parsed.universe
+    .map((asset, index): AgentMarketUniverseItem | null => {
+      const context = parsed.contexts[index];
+      if (!context) return null;
+      const markPriceUsd = positiveDecimal(context.markPx);
+      const openInterest = positiveDecimal(context.openInterest);
+      const volume24hUsd = positiveDecimal(context.dayNtlVlm);
+      const funding = decimal(context.funding);
+      return {
+        provider: "hyperliquid",
+        source: "live",
+        market: `${asset.name}-PERP`,
+        baseAsset: asset.name,
+        observedAt: now,
+        markPriceUsd,
+        fundingRatePct: funding == null ? null : formatDecimal(Number(funding) * 100),
+        openInterestUsd:
+          openInterest == null || markPriceUsd == null
+            ? null
+            : formatDecimal(Number(openInterest) * Number(markPriceUsd)),
+        volume24hUsd,
+        tradable: markPriceUsd != null && !asset.isDelisted,
+      };
+    })
+    .filter((item): item is AgentMarketUniverseItem => item != null)
+    .sort((a, b) => Number(b.volume24hUsd ?? 0) - Number(a.volume24hUsd ?? 0))
+    .slice(0, Math.max(1, Math.min(250, limit)));
+}
+
+async function fetchHyperliquidMetaAndAssetContexts(
+  fetchImpl: typeof fetch,
+): Promise<unknown> {
+  const response = await fetchImpl(HYPERLIQUID_INFO_URL, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ type: "metaAndAssetCtxs" }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(MARKET_DATA_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(`Hyperliquid market data returned HTTP ${response.status}.`);
+  }
+  return response.json();
+}
+
 function parseHyperliquidMetaAndAssetContexts(input: unknown): {
-  universe: Array<{ name: string }>;
+  universe: Array<{ name: string; isDelisted: boolean }>;
   contexts: Array<{
     markPx?: unknown;
     funding?: unknown;
@@ -208,13 +282,12 @@ function parseHyperliquidMetaAndAssetContexts(input: unknown): {
   }
   const normalizedUniverse = universe
     .map((asset) =>
-      asset &&
-      typeof asset === "object" &&
-      typeof (asset as Record<string, unknown>).name === "string"
-        ? { name: String((asset as Record<string, unknown>).name).trim().toUpperCase() }
-        : null,
+      normalizeHyperliquidUniverseAsset(asset),
     )
-    .filter((asset): asset is { name: string } => asset != null && asset.name.length > 0);
+    .filter(
+      (asset): asset is { name: string; isDelisted: boolean } =>
+        asset != null && asset.name.length > 0,
+    );
   if (normalizedUniverse.length !== universe.length) {
     throw new Error("Hyperliquid returned malformed market metadata.");
   }
@@ -226,6 +299,18 @@ function parseHyperliquidMetaAndAssetContexts(input: unknown): {
       openInterest?: unknown;
       dayNtlVlm?: unknown;
     }>,
+  };
+}
+
+function normalizeHyperliquidUniverseAsset(
+  value: unknown,
+): { name: string; isDelisted: boolean } | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (typeof record.name !== "string") return null;
+  return {
+    name: record.name.trim().toUpperCase(),
+    isDelisted: record.isDelisted === true,
   };
 }
 

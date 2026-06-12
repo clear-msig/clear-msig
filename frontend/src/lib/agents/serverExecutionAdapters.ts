@@ -44,6 +44,7 @@ export interface AgentServerExecutionValidation {
 const SERVER_ENV_BY_VENUE: Partial<Record<TradingVenue, string[]>> = {
   hyperliquid_testnet: [
     "CLEARSIG_HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS",
+    "CLEARSIG_HYPERLIQUID_TESTNET_AGENT_WALLET_ADDRESS",
     "CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_URL",
     "CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_TOKEN",
   ],

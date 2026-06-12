@@ -11,12 +11,21 @@ import {
   Check,
   Circle,
   ExternalLink,
+  FileCheck2,
+  Info,
+  Lightbulb,
   Pause,
   Play,
+  PlugZap,
   RefreshCw,
   ShieldCheck,
+  SlidersHorizontal,
+  TrendingUp,
+  UserRound,
   WalletCards,
   X,
+  Zap,
+  type LucideIcon,
 } from "lucide-react";
 import { OwnerApprovalDialog } from "@/components/agents/OwnerApprovalDialog";
 import { useToast } from "@/components/ui/Toast";
@@ -96,13 +105,13 @@ const PRACTICE_CHOICES: Array<{
 }> = [
   {
     id: "mock_perps",
-    label: "Built-in practice",
-    description: "The quickest first run. No outside account or practice funds needed.",
+    label: "Internal sandbox",
+    description: "Fastest first run. No venue account or funds needed.",
   },
   {
     id: "hyperliquid_testnet",
-    label: "Hyperliquid practice",
-    description: "Places trades in a separate Hyperliquid practice account.",
+    label: "Hyperliquid testnet",
+    description: "Routes guarded trades to a separate testnet account.",
   },
 ];
 
@@ -187,7 +196,7 @@ export default function StartTradingPage() {
             agent: selected,
             venue,
           })
-        : Promise.resolve({ snapshot: null, message: "Choose an agent first" }),
+        : Promise.resolve({ snapshot: null, message: "Choose a trader first" }),
     ]);
     setConnectionKit(nextConnectionKit);
     setInbox(nextInbox);
@@ -399,7 +408,7 @@ export default function StartTradingPage() {
         walletName: name,
         agentId: proposal.agentId,
         action: "submit_venue_trade",
-        summary: "Place Hyperliquid practice trade",
+        summary: "Place Hyperliquid testnet trade",
         targetType: "proposal",
         targetId: proposal.id,
         details: [
@@ -416,7 +425,7 @@ export default function StartTradingPage() {
         await refresh();
         return;
       }
-      toast.success("The first Hyperliquid practice trade was placed");
+      toast.success("The first Hyperliquid testnet trade was placed");
       await refresh();
     });
   };
@@ -642,7 +651,7 @@ export default function StartTradingPage() {
         walletName: name,
         agentId: selectedAgent.id,
         action: "close_all_practice_trades",
-        summary: "Close all practice trades",
+        summary: "Close all open trades",
         targetType: "agent",
         targetId: selectedAgent.id,
         details: [
@@ -667,7 +676,7 @@ export default function StartTradingPage() {
         );
       const closed = [...localClosed, ...fallbackClosed];
       if (closed.length === 0) {
-        toast.info("No open practice trades to close");
+        toast.info("No open trades to close");
         return;
       }
       await Promise.all(closed.map((execution) => syncAgentExecution(execution)));
@@ -689,15 +698,11 @@ export default function StartTradingPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Start Trading · {display}
+              Trading Desk · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
-              Take your trader from setup to its first trade
+              Launch a guarded trading session
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-soft">
-              Choose where it should practice. ClearSig will check every required
-              step and show exactly who needs to act next.
-            </p>
           </div>
           <button
             type="button"
@@ -712,7 +717,7 @@ export default function StartTradingPage() {
       </header>
 
       <section className="border-y border-border-soft py-5">
-        <p className="text-xs font-semibold text-text-strong">Where should it practice?</p>
+        <p className="text-xs font-semibold text-text-strong">Trading venue</p>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {PRACTICE_CHOICES.map((choice) => (
             <button
@@ -777,11 +782,6 @@ export default function StartTradingPage() {
             <h2 className="text-sm font-semibold text-text-strong">
               {complete ? "Trading has started" : currentStep?.label ?? "Preparing your checklist"}
             </h2>
-            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
-              {complete
-                ? "Your trader has completed the full practice journey and placed its first trade."
-                : currentStep?.description ?? "ClearSig is checking what is ready."}
-            </p>
           </div>
           <span
             className={clsx(
@@ -805,11 +805,10 @@ export default function StartTradingPage() {
               approvalRequest.agentId === selectedAgent?.id
             }
           />
-          {steps.map((step, index) => (
+          {steps.map((step) => (
             <LaunchStepRow
               key={step.id}
               step={step}
-              index={index}
               action={actionForStep({
                 step,
                 walletEncoded: encoded,
@@ -872,10 +871,6 @@ export default function StartTradingPage() {
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
             <div>
               <p className="text-sm font-semibold text-text-strong">No outside account needed</p>
-              <p className="mt-1 text-sm leading-relaxed text-text-soft">
-                Built-in practice uses no real money. Once the trader sends an idea
-                inside its allowance, ClearSig can open the practice trade.
-              </p>
             </div>
           </div>
         </section>
@@ -911,26 +906,31 @@ function BetaJourneyPanel({
       label: "Pick trader",
       detail: agent?.name ?? "No trader selected",
       done: done(["trader", "plan"]),
+      Icon: UserRound,
     },
     {
       label: "Set allowance",
       detail: venueLabel(venue),
       done: done(["safety", "allowance"]),
+      Icon: SlidersHorizontal,
     },
     {
       label: "Accept disclosures",
-      detail: "Practice automation terms",
+      detail: "Automation terms",
       done: done(["disclosures"]),
+      Icon: Info,
     },
     {
       label: "Turn on automation",
       detail: "Inside allowance only",
       done: done(["automatic"]),
+      Icon: Zap,
     },
     {
       label: "Watch trades",
       detail: complete ? "First trade placed" : "Waiting for first trade",
       done: done(["first_trade"]),
+      Icon: Play,
     },
   ];
   return (
@@ -938,19 +938,17 @@ function BetaJourneyPanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-text-strong">
-            Public beta journey
-          </p>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
-            This path uses {venueLabel(venue).toLowerCase()} and keeps agent
-            actions inside ClearSig rules.
+            Launch checklist
           </p>
         </div>
         <span className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-1 text-[11px] font-medium text-accent">
-          {venue === "hyperliquid_testnet" ? "Testnet practice" : "Practice only"}
+          {venue === "hyperliquid_testnet" ? "Testnet venue" : "Sandbox venue"}
         </span>
       </div>
       <div className="mt-4 grid gap-2 md:grid-cols-5">
-        {journey.map((item, index) => (
+        {journey.map((item) => {
+          const Icon = item.Icon;
+          return (
           <div
             key={item.label}
             className={clsx(
@@ -969,7 +967,11 @@ function BetaJourneyPanel({
                     : "border-border-soft text-text-muted",
                 )}
               >
-                {item.done ? <Check className="h-3 w-3" aria-hidden="true" /> : index + 1}
+                {item.done ? (
+                  <Check className="h-3 w-3" aria-hidden="true" />
+                ) : (
+                  <Icon className="h-3 w-3" aria-hidden="true" />
+                )}
               </span>
               <p className="truncate text-xs font-semibold text-text-strong">
                 {item.label}
@@ -979,7 +981,8 @@ function BetaJourneyPanel({
               {item.detail}
             </p>
           </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
@@ -1065,7 +1068,7 @@ function LaunchRiskPanel({
       id: "adapter_errors_fallback",
       tone: "danger",
       title: "Protected executor has errors",
-      detail: "At least one Hyperliquid practice request failed in the protected executor.",
+      detail: "At least one Hyperliquid testnet request failed in the protected executor.",
     });
   }
 
@@ -1074,12 +1077,8 @@ function LaunchRiskPanel({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-text-strong">
-            Trust and failure checks
+            Pre-flight checks
           </h2>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
-            ClearSig checks what could make beta testing confusing before the
-            trader acts.
-          </p>
         </div>
         <span
           className={clsx(
@@ -1137,13 +1136,12 @@ function LaunchRiskPanel({
 
 function LaunchStepRow({
   step,
-  index,
   action,
 }: {
   step: TradingLaunchStep;
-  index: number;
   action: React.ReactNode;
 }) {
+  const StepIcon = launchStepIcon(step.id);
   return (
     <li
       className={clsx(
@@ -1155,7 +1153,7 @@ function LaunchStepRow({
     >
       <span
         className={clsx(
-          "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold",
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border",
           step.status === "done"
             ? "border-accent/30 bg-accent/10 text-accent"
             : step.status === "current"
@@ -1163,7 +1161,11 @@ function LaunchStepRow({
               : "border-border-soft text-text-muted",
         )}
       >
-        {step.status === "done" ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : index + 1}
+        {step.status === "done" ? (
+          <Check className="h-4 w-4" aria-hidden="true" />
+        ) : (
+          <StepIcon className="h-4 w-4" aria-hidden="true" strokeWidth={1.9} />
+        )}
       </span>
       <div className="min-w-0 flex-1 basis-48">
         <div className="flex flex-wrap items-center gap-2">
@@ -1172,12 +1174,51 @@ function LaunchStepRow({
             {ownerLabel(step.owner)}
           </span>
         </div>
-        <p className="mt-0.5 break-words text-xs leading-relaxed text-text-soft">{step.description}</p>
+        <details className="group mt-1">
+          <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-[11px] font-medium text-text-soft transition-colors hover:text-accent">
+            <Info className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Info</span>
+            <ArrowRight
+              className="h-3 w-3 transition-transform group-open:rotate-90"
+              aria-hidden="true"
+            />
+          </summary>
+          <p className="mt-1.5 max-w-2xl break-words text-xs leading-relaxed text-text-soft">
+            {step.description}
+          </p>
+        </details>
       </div>
       {step.status === "current" ? <div className="w-full sm:w-auto">{action}</div> : null}
       {step.status === "waiting" ? <Circle className="h-3.5 w-3.5 text-text-muted" aria-hidden="true" /> : null}
     </li>
   );
+}
+
+function launchStepIcon(id: TradingLaunchStep["id"]): LucideIcon {
+  switch (id) {
+    case "trader":
+      return UserRound;
+    case "plan":
+      return FileCheck2;
+    case "safety":
+      return ShieldCheck;
+    case "allowance":
+      return SlidersHorizontal;
+    case "disclosures":
+      return Info;
+    case "account":
+      return WalletCards;
+    case "funding":
+      return TrendingUp;
+    case "protected_connection":
+      return PlugZap;
+    case "automatic":
+      return Zap;
+    case "first_idea":
+      return Lightbulb;
+    case "first_trade":
+      return Play;
+  }
 }
 
 function ComplianceDisclosurePanel({
@@ -1220,8 +1261,8 @@ function ComplianceDisclosurePanel({
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
               {readiness.accepted
-                ? "You accepted the current practice-trading disclosures for this wallet and venue."
-                : "Review these before allowing an agent to act automatically."}
+                ? "Accepted for this wallet and venue."
+                : "Required before automation."}
             </p>
           </div>
         </div>
@@ -1241,33 +1282,61 @@ function ComplianceDisclosurePanel({
           </button>
         )}
       </div>
-      <div className="mt-4 grid gap-2 md:grid-cols-2">
-        {readiness.required.map((item) => {
-          const accepted = !readiness.missing.some((missing) => missing.id === item.id);
-          return (
-            <div
-              key={item.id}
-              className="rounded-soft border border-border-soft bg-canvas px-3 py-2"
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className={clsx(
-                    "h-2 w-2 rounded-full",
-                    accepted ? "bg-accent" : "bg-warning",
-                  )}
-                />
-                <p className="text-xs font-semibold text-text-strong">
-                  {item.label}
-                </p>
-              </div>
-              <p className="mt-1 text-xs leading-relaxed text-text-soft">
-                {item.summary}
+      {readiness.accepted ? (
+        <details className="group mt-4 rounded-soft border border-border-soft bg-canvas px-3 py-2">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold text-text-strong">
+            <span className="inline-flex items-center gap-2">
+              <Info className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+              Review disclosure details
+            </span>
+            <ArrowRight
+              className="h-3.5 w-3.5 text-text-soft transition-transform group-open:rotate-90"
+              aria-hidden="true"
+            />
+          </summary>
+          <DisclosureItems readiness={readiness} />
+        </details>
+      ) : (
+        <DisclosureItems readiness={readiness} className="mt-4" />
+      )}
+    </section>
+  );
+}
+
+function DisclosureItems({
+  readiness,
+  className,
+}: {
+  readiness: AgentComplianceReadiness;
+  className?: string;
+}) {
+  return (
+    <div className={clsx("grid gap-2 md:grid-cols-2", className)}>
+      {readiness.required.map((item) => {
+        const accepted = !readiness.missing.some((missing) => missing.id === item.id);
+        return (
+          <div
+            key={item.id}
+            className="rounded-soft border border-border-soft bg-canvas px-3 py-2"
+          >
+            <div className="flex items-center gap-2">
+              <span
+                className={clsx(
+                  "h-2 w-2 rounded-full",
+                  accepted ? "bg-accent" : "bg-warning",
+                )}
+              />
+              <p className="text-xs font-semibold text-text-strong">
+                {item.label}
               </p>
             </div>
-          );
-        })}
-      </div>
-    </section>
+            <p className="mt-1 text-xs leading-relaxed text-text-soft">
+              {item.summary}
+            </p>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -1296,15 +1365,6 @@ function AutomaticTradingStatus({
         : agent
           ? "Automatic trading is off"
           : "Choose a trader first";
-  const detail = enabled
-    ? "Incoming ideas can be accepted automatically only when they fit the current allowance and safety rules."
-    : approvalOpen
-      ? "Review the owner approval dialog to let ClearSig act inside the allowance."
-      : busy
-        ? "ClearSig is preparing the owner approval and syncing the trader connection."
-        : agent
-          ? "New ideas will wait for review until this is turned on."
-          : "The automatic setting belongs to one selected trader.";
   return (
     <li className={clsx("rounded-soft border px-3 py-2.5", tone)}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1313,7 +1373,6 @@ function AutomaticTradingStatus({
           Automation
         </span>
       </div>
-      <p className="mt-1 text-xs leading-relaxed text-text-soft">{detail}</p>
     </li>
   );
 }
@@ -1332,11 +1391,7 @@ function HyperliquidHelp({
   const apiWalletHealthy = setupSettings.delegationStatus === "active";
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
-      <h2 className="text-sm font-semibold text-text-strong">Hyperliquid practice account</h2>
-      <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
-        ClearSig never asks for the protected trading wallet secret in this screen.
-        ClearSig keeps that private connection outside the setup flow.
-      </p>
+      <h2 className="text-sm font-semibold text-text-strong">Hyperliquid testnet account</h2>
       <div className="mt-4 grid gap-2 sm:grid-cols-4">
         <CheckStat
           label="Account"
@@ -1374,37 +1429,40 @@ function HyperliquidHelp({
           </p>
           <p className="mt-1 text-xs leading-relaxed text-text-soft">
             {setupSettings.delegationStatus === "revoked"
-              ? "This delegated signer is marked revoked. Approve and record a new API wallet before testing."
+              ? "Approve and record a new API wallet."
               : setupSettings.rotationReason ??
-                "Rotate this delegated signer before testing."}
+                "Rotate this API wallet."}
           </p>
         </div>
       ) : null}
-      <ol className="mt-4 grid gap-2 border-t border-border-soft pt-4">
-        {[
-          "Open Hyperliquid practice and sign in with a separate practice account.",
-          "Add practice funds to that account.",
-          "Approve a separate Hyperliquid API wallet public address for agent trading.",
-          "Save the account address and approved API wallet address in ClearSig so it can check delegation and positions.",
-          "ClearSig manages the protected executor and private API wallet key outside this screen.",
-          "Come back here and choose Check again. ClearSig confirms every step before trading.",
-        ].map((instruction, index) => (
-          <li key={instruction} className="flex items-start gap-3 text-xs leading-relaxed text-text-soft">
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border-soft text-[10px] font-semibold text-text-strong">
-              {index + 1}
-            </span>
-            {instruction}
-          </li>
-        ))}
-      </ol>
+      <details className="group mt-4 rounded-soft border border-border-soft bg-canvas px-3 py-3">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold text-text-strong">
+          <span>Setup steps</span>
+          <ArrowRight
+            className="h-3.5 w-3.5 text-text-soft transition-transform group-open:rotate-90"
+            aria-hidden="true"
+          />
+        </summary>
+        <ol className="mt-3 grid gap-2 border-t border-border-soft pt-3">
+          {[
+            "Open Hyperliquid testnet and sign in with a separate venue account.",
+            "Add testnet funds to that account.",
+            "Approve a separate Hyperliquid API wallet public address for agent trading.",
+            "Save the account address and approved API wallet address in ClearSig.",
+            "Check again.",
+          ].map((instruction, index) => (
+            <li key={instruction} className="flex items-start gap-3 text-xs leading-relaxed text-text-soft">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border-soft text-[10px] font-semibold text-text-strong">
+                {index + 1}
+              </span>
+              {instruction}
+            </li>
+          ))}
+        </ol>
+      </details>
       {readiness && protectedConnection?.state !== "ready" ? (
         <div className="mt-4 rounded-soft border border-warning/30 bg-warning/[0.08] p-3">
           <p className="text-xs font-semibold text-warning">Protected connection pending</p>
-          <p className="mt-1 text-xs leading-relaxed text-text-soft">
-            You can prepare the practice account now. If this still shows as
-            pending after the account is funded, ClearSig needs to finish the
-            protected connection for this workspace.
-          </p>
         </div>
       ) : null}
       <div className="mt-4 flex flex-wrap gap-2">
@@ -1414,7 +1472,7 @@ function HyperliquidHelp({
           rel="noreferrer"
           className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
         >
-          Open Hyperliquid practice
+          Open Hyperliquid testnet
           <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
         </a>
         <Link
@@ -1478,7 +1536,7 @@ function TradingControlRoom({
       ? reconciliation?.message
       : venue === "hyperliquid_testnet" &&
           submittedVenueRequests > venuePositions.length
-        ? "ClearSig has submitted more Hyperliquid practice trades than the account currently shows. Check the protected connection or exchange history."
+        ? "ClearSig has submitted more Hyperliquid testnet trades than the account currently shows. Check the protected connection or exchange history."
       : null;
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
@@ -1499,9 +1557,6 @@ function TradingControlRoom({
               {live ? "Ready to trade" : policyPaused ? "Paused by vault" : agentPaused ? "Trader paused" : "Setup needed"}
             </span>
           </div>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
-            Watch open trades and stop the trader from one place.
-          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -1557,10 +1612,6 @@ function TradingControlRoom({
             <div className="min-w-0">
               <p className="text-xs font-semibold text-text-strong">
                 Hyperliquid account truth
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-text-soft">
-                These numbers come from the practice account itself, not from
-                ClearSig local trade history.
               </p>
             </div>
             <span
@@ -1635,7 +1686,7 @@ function TradingControlRoom({
                 />
               ))
             ) : (
-              <EmptyControlLine text="No Hyperliquid practice positions are open right now." />
+              <EmptyControlLine text="No Hyperliquid testnet positions are open right now." />
             )}
           </div>
           <div className="mt-4 border-t border-border-soft pt-3">
@@ -1710,7 +1761,7 @@ function TradingControlRoom({
               className={DANGER_BUTTON_CLASS}
             >
               <X className="h-3.5 w-3.5" aria-hidden="true" />
-              Close all practice trades
+              Close all open trades
             </button>
           </div>
           <div className="grid gap-2">
@@ -1725,7 +1776,7 @@ function TradingControlRoom({
                 />
               ))
             ) : (
-              <EmptyControlLine text="No open practice trades right now." />
+              <EmptyControlLine text="No open trades right now." />
             )}
           </div>
         </div>
@@ -2232,11 +2283,11 @@ async function loadStartMarketData({
 function venueLabel(venue: TradingLaunchVenue | AgentExecutionRecord["venue"]): string {
   switch (venue) {
     case "mock_perps":
-      return "Built-in practice";
+      return "Internal sandbox";
     case "hyperliquid_testnet":
-      return "Hyperliquid practice";
+      return "Hyperliquid testnet";
     case "bulktrade_mock":
-      return "Bulk practice";
+      return "Bulk sandbox";
   }
 }
 

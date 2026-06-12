@@ -17,14 +17,29 @@
 // The legacy wizard (CreateWalletCard, WalletPanel) and WorkflowTips
 // are intentionally NOT rendered here - they're being retired.
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import clsx from "clsx";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import { PublicKey } from "@solana/web3.js";
-import { ArrowRight, Bell, Eye, Pin, PinOff, Users, Wallet } from "lucide-react";
+import {
+  ArrowRight,
+  Bell,
+  Bot,
+  Building2,
+  Eye,
+  KeyRound,
+  Pin,
+  PinOff,
+  Plus,
+  ShieldCheck,
+  Users,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
 import {
   isWalletPinned,
   sortPinnedFirst,
@@ -58,12 +73,55 @@ import { formatBalance } from "@/lib/retail/format";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
 import { UsdHint } from "@/components/retail/UsdHint";
+import { getWalletAppearance } from "@/lib/retail/walletAppearance";
+import {
+  productWorkspaceHomeHref,
+  productWorkspaceLabel,
+  type WalletProductSurface,
+  walletProductSurface,
+} from "@/lib/productWorkspace";
+import {
+  isProductSurfaceId,
+  productSetupHref,
+  productSurfaceById,
+  productWorkspaceHref as productSurfaceWorkspaceHref,
+} from "@/lib/productSurfaces";
+import {
+  readSelectedProductSurface,
+  saveSelectedProductSurface,
+} from "@/lib/productSession";
 
 export default function WalletDashboard() {
+  return (
+    <Suspense fallback={<WalletDashboardShell />}>
+      <WalletDashboardContent />
+    </Suspense>
+  );
+}
+
+function WalletDashboardContent() {
   const wallet = useWallet();
   const { connection } = useConnection();
+  const search = useSearchParams();
   const address = wallet.publicKey?.toBase58() ?? "";
   const reduce = useReducedMotion();
+  const requested = search.get("surface");
+  const requestedAll = requested === "all";
+  const requestedSurface = walletProductSurface(
+    isProductSurfaceId(requested) ? requested : null,
+  );
+  const [storedSurface, setStoredSurface] =
+    useState<WalletProductSurface | null>(null);
+
+  useEffect(() => {
+    setStoredSurface(walletProductSurface(readSelectedProductSurface(address)));
+  }, [address]);
+
+  useEffect(() => {
+    if (!requestedSurface) return;
+    saveSelectedProductSurface(requestedSurface, address);
+    setStoredSurface(requestedSurface);
+  }, [requestedSurface, address]);
 
   const memberships = useQuery({
     queryKey: ["my-organizations", address],
@@ -77,6 +135,31 @@ export default function WalletDashboard() {
   const watched = useWatchedWallets();
 
   const wallets = memberships.data ?? [];
+  const selectedSurface = requestedAll
+    ? null
+    : requestedSurface ?? storedSurface;
+  const visibleWallets = useMemo(() => {
+    if (!selectedSurface) return wallets;
+    return wallets.filter(
+      (membership) =>
+        walletProductSurface(
+          getWalletAppearance(membership.wallet_name ?? "")?.surface,
+        ) === selectedSurface,
+    );
+  }, [wallets, selectedSurface]);
+  const visibleWalletPdas = useMemo(
+    () => new Set(visibleWallets.map((membership) => membership.wallet)),
+    [visibleWallets],
+  );
+  const visibleWalletNames = useMemo(
+    () =>
+      new Set(
+        visibleWallets
+          .map((membership) => membership.wallet_name)
+          .filter((name): name is string => Boolean(name)),
+      ),
+    [visibleWallets],
+  );
   const stillLoading = memberships.isLoading;
   // Distinguish "RPC errored" from "user genuinely has no wallets."
   // Without this guard, a transient memberships failure renders the
@@ -116,17 +199,42 @@ export default function WalletDashboard() {
     refetchInterval: 30_000,
   });
 
-  const showStats = !hasError && !isFirstVisit && wallets.length > 0;
-  const showRecent = !isFirstVisit && recent.rows.length > 0;
-  const showWatched = !hasError;
+  const filteredActionRows = useMemo(
+    () =>
+      selectedSurface
+        ? action.rows.filter((row) => visibleWalletNames.has(row.walletName))
+        : action.rows,
+    [action.rows, selectedSurface, visibleWalletNames],
+  );
+  const filteredRecentRows = useMemo(
+    () =>
+      selectedSurface
+        ? recent.rows.filter((row) => visibleWalletPdas.has(row.walletPda))
+        : recent.rows,
+    [recent.rows, selectedSurface, visibleWalletPdas],
+  );
+  const visiblePendingByWallet = useMemo(() => {
+    if (!selectedSurface) return recent.pendingByWallet;
+    const next = new Map<string, number>();
+    for (const membership of visibleWallets) {
+      const count = recent.pendingByWallet.get(membership.wallet) ?? 0;
+      if (count > 0) next.set(membership.wallet, count);
+    }
+    return next;
+  }, [recent.pendingByWallet, selectedSurface, visibleWallets]);
+  const filteredPendingCount = filteredActionRows.length;
+
+  const showStats = !hasError && !isFirstVisit && visibleWallets.length > 0;
+  const showRecent = !isFirstVisit && filteredRecentRows.length > 0;
+  const showWatched = !hasError && selectedSurface === null;
   const nextWallet = useMemo(() => {
-    if (wallets.length === 0) return null;
-    const ordered = sortPinnedFirst(wallets, (m) => m.wallet_name ?? "");
+    if (visibleWallets.length === 0) return null;
+    const ordered = sortPinnedFirst(visibleWallets, (m) => m.wallet_name ?? "");
     return (
-      ordered.find((m) => (recent.pendingByWallet.get(m.wallet) ?? 0) > 0) ??
+      ordered.find((m) => (visiblePendingByWallet.get(m.wallet) ?? 0) > 0) ??
       ordered[0]
     );
-  }, [wallets, recent.pendingByWallet]);
+  }, [visibleWallets, visiblePendingByWallet]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -136,21 +244,30 @@ export default function WalletDashboard() {
           Replaces the centered "Welcome back" block; gives back the
           vertical real estate to actionable content below. */}
       <Hero
-        walletCount={wallets.length}
-        pendingCount={action.rows.length}
+        walletCount={visibleWallets.length}
+        pendingCount={filteredPendingCount}
+        selectedSurface={selectedSurface}
         loading={stillLoading}
         reduce={!!reduce}
       />
+
+      {!hasError && !isFirstVisit ? (
+        <ProductWorkspaceSwitcher
+          selectedSurface={selectedSurface}
+          wallets={wallets}
+        />
+      ) : null}
 
       {/* Stats - three at-a-glance metrics. Total balance sums the
           Solana vault lamports already fetched by balancesQuery; the
           approval card flips to accent when there's anything pending. */}
       {showStats && (
         <StatsRow
-          wallets={wallets}
+          visibleWallets={visibleWallets}
           balances={balancesQuery.data}
           loadingBalances={balancesQuery.isLoading}
-          pendingCount={action.rows.length}
+          pendingCount={filteredPendingCount}
+          selectedSurface={selectedSurface}
           reduce={!!reduce}
         />
       )}
@@ -158,12 +275,13 @@ export default function WalletDashboard() {
       {!hasError && !isFirstVisit && nextWallet && (
         <NextActionStrip
           wallet={nextWallet}
-          pendingCount={action.rows.length}
+          pendingCount={filteredPendingCount}
           firstApprovalHref={
-            action.rows[0]
-              ? `/app/proposals/${action.rows[0].proposalPda}`
+            filteredActionRows[0]
+              ? `/app/proposals/${filteredActionRows[0].proposalPda}`
               : null
           }
+          selectedSurface={selectedSurface}
           reduce={!!reduce}
         />
       )}
@@ -175,14 +293,17 @@ export default function WalletDashboard() {
       {hasError ? (
         <MembershipsErrorCard onRetry={() => memberships.refetch()} />
       ) : isFirstVisit && watched.rows.length === 0 ? (
-        <FirstVisitCard />
+        <FirstVisitCard selectedSurface={selectedSurface} />
+      ) : selectedSurface && visibleWallets.length === 0 && !stillLoading ? (
+        <ProductEmptyState selectedSurface={selectedSurface} />
       ) : (
         <WalletsGrid
-          wallets={wallets}
-          pendingByWallet={recent.pendingByWallet}
+          wallets={visibleWallets}
+          pendingByWallet={visiblePendingByWallet}
           balances={balancesQuery.data}
           loadingBalances={balancesQuery.isLoading}
           loading={stillLoading}
+          selectedSurface={selectedSurface}
           reduce={!!reduce}
         />
       )}
@@ -199,7 +320,7 @@ export default function WalletDashboard() {
                 showWatched ? "lg:col-span-8" : "lg:col-span-12",
               )}
             >
-              <RecentActivitySection rows={recent.rows} reduce={!!reduce} />
+              <RecentActivitySection rows={filteredRecentRows} reduce={!!reduce} />
             </div>
           )}
           {showWatched && (
@@ -223,6 +344,23 @@ export default function WalletDashboard() {
   );
 }
 
+function WalletDashboardShell() {
+  return (
+    <div className="flex flex-col gap-6" aria-hidden="true">
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+        <div className="hidden h-10 w-64 animate-pulse rounded bg-border-soft md:block" />
+        <div className="h-4 w-44 animate-pulse rounded bg-border-soft" />
+      </div>
+      <div className="h-16 animate-pulse rounded-card border border-border-soft bg-surface-raised" />
+      <div className="h-44 animate-pulse rounded-card border border-border-soft bg-surface-raised" />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <CardSkeleton />
+        <CardSkeleton />
+      </div>
+    </div>
+  );
+}
+
 // ─── Hero ──────────────────────────────────────────────────────────
 //
 // Compact left-aligned page header. Replaces the previous centered
@@ -235,11 +373,13 @@ export default function WalletDashboard() {
 function Hero({
   walletCount,
   pendingCount,
+  selectedSurface,
   loading,
   reduce,
 }: {
   walletCount: number;
   pendingCount: number;
+  selectedSurface: WalletProductSurface | null;
   loading: boolean;
   reduce: boolean;
 }) {
@@ -249,12 +389,21 @@ function Hero({
 
   const summary = (() => {
     if (loading) return "Loading your wallets…";
-    if (walletCount === 0) return "Start a shared wallet to get going.";
-    const w = `${walletCount} ${walletCount === 1 ? "wallet" : "wallets"}`;
+    if (selectedSurface && walletCount === 0) {
+      return `No ${productWorkspaceLabel(selectedSurface).toLowerCase()} yet.`;
+    }
+    if (walletCount === 0) return "Choose a product to get going.";
+    const noun = selectedSurface
+      ? productWorkspaceLabel(selectedSurface).toLowerCase()
+      : "wallet";
+    const w = `${walletCount} ${walletCount === 1 ? noun : `${noun}s`}`;
     if (pendingCount === 0) return `${w} · all caught up`;
     const p = `${pendingCount} ${pendingCount === 1 ? "needs" : "need"} your approval`;
     return `${w} · ${p}`;
   })();
+  const title = selectedSurface
+    ? productWorkspaceLabel(selectedSurface)
+    : "Product workspaces";
 
   return (
     <motion.div
@@ -262,14 +411,85 @@ function Hero({
       transition={{ duration: 0.2 }}
       className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1"
     >
-      {/* Mobile shows "Welcome back" in the floating header pill, so
-          the page H1 only renders on md+ to avoid repeating the same
-          greeting in two places. */}
       <h1 className="hidden font-display text-display-xs leading-tight text-text-strong md:block">
-        Welcome back
+        {title}
       </h1>
       <p className="text-xs text-text-soft sm:text-sm">{summary}</p>
     </motion.div>
+  );
+}
+
+function ProductWorkspaceSwitcher({
+  selectedSurface,
+  wallets,
+}: {
+  selectedSurface: WalletProductSurface | null;
+  wallets: OnchainMembership[];
+}) {
+  const counts = useMemo(() => {
+    const next = new Map<WalletProductSurface, number>();
+    for (const membership of wallets) {
+      const surface = walletProductSurface(
+        getWalletAppearance(membership.wallet_name ?? "")?.surface,
+      );
+      if (!surface) continue;
+      next.set(surface, (next.get(surface) ?? 0) + 1);
+    }
+    return next;
+  }, [wallets]);
+  const items: Array<{ id: WalletProductSurface; Icon: LucideIcon }> = [
+    { id: "personal", Icon: Users },
+    { id: "pro", Icon: Building2 },
+    { id: "agent", Icon: Bot },
+    { id: "secure", Icon: KeyRound },
+  ];
+
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest">
+      <div className="flex items-center gap-2 overflow-x-auto">
+        <Link
+          href="/app/wallet?surface=all"
+          className={clsx(
+            "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-soft px-3 text-xs font-medium transition-colors",
+            selectedSurface === null
+              ? "bg-accent/10 text-accent"
+              : "text-text-soft hover:bg-glass-mid hover:text-text-strong",
+          )}
+        >
+          <Wallet className="h-4 w-4" aria-hidden="true" />
+          All
+          <span className="font-numerals text-[11px] tabular-nums">
+            {wallets.length}
+          </span>
+        </Link>
+        {items.map(({ id, Icon }) => {
+          const product = productSurfaceById(id);
+          const active = selectedSurface === id;
+          return (
+            <Link
+              key={id}
+              href={
+                id === "secure"
+                  ? productSurfaceWorkspaceHref(id)
+                  : `/app/wallet?surface=${id}`
+              }
+              className={clsx(
+                "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-soft px-3 text-xs font-medium transition-colors",
+                active
+                  ? "bg-accent/10 text-accent"
+                  : "text-text-soft hover:bg-glass-mid hover:text-text-strong",
+              )}
+            >
+              <Icon className="h-4 w-4" aria-hidden="true" />
+              {product.shortName}
+              <span className="font-numerals text-[11px] tabular-nums">
+                {counts.get(id) ?? 0}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -282,16 +502,18 @@ function Hero({
 // balancesQuery the wallet grid feeds off - no extra RPC.
 
 function StatsRow({
-  wallets,
+  visibleWallets,
   balances,
   loadingBalances,
   pendingCount,
+  selectedSurface,
   reduce,
 }: {
-  wallets: OnchainMembership[];
+  visibleWallets: OnchainMembership[];
   balances: Map<string, number> | undefined;
   loadingBalances: boolean;
   pendingCount: number;
+  selectedSurface: WalletProductSurface | null;
   reduce: boolean;
 }) {
   const motionProps = reduce
@@ -301,9 +523,9 @@ function StatsRow({
   const totalLamports = useMemo(() => {
     if (!balances) return 0;
     let sum = 0;
-    for (const m of wallets) sum += balances.get(m.wallet) ?? 0;
+    for (const m of visibleWallets) sum += balances.get(m.wallet) ?? 0;
     return sum;
-  }, [wallets, balances]);
+  }, [visibleWallets, balances]);
 
   const totalBalance = formatBalance(totalLamports);
   const balanceLoading = loadingBalances && balances === undefined;
@@ -318,7 +540,8 @@ function StatsRow({
         amount={totalBalance.amount}
         unit={totalBalance.ticker}
         totalLamports={totalLamports}
-        walletCount={wallets.length}
+        walletCount={visibleWallets.length}
+        selectedSurface={selectedSurface}
         loading={balanceLoading}
       />
       {/* Secondary stats - Wallets count and pending-approval bell.
@@ -327,8 +550,8 @@ function StatsRow({
       <div className="grid grid-cols-2 gap-3">
         <StatCard
           Icon={Users}
-          label="Wallets"
-          value={String(wallets.length)}
+          label={selectedSurface ? "In product" : "Wallets"}
+          value={String(visibleWallets.length)}
         />
         <StatCard
           Icon={Bell}
@@ -345,11 +568,13 @@ function NextActionStrip({
   wallet,
   pendingCount,
   firstApprovalHref,
+  selectedSurface,
   reduce,
 }: {
   wallet: OnchainMembership;
   pendingCount: number;
   firstApprovalHref: string | null;
+  selectedSurface: WalletProductSurface | null;
   reduce: boolean;
 }) {
   const motionProps = reduce
@@ -357,16 +582,22 @@ function NextActionStrip({
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
   const walletName = wallet.wallet_name ?? "Wallet";
   const displayName = toDisplayName(walletName);
-  const encoded = encodeURIComponent(walletName);
+  const surface = walletProductSurface(getWalletAppearance(walletName)?.surface);
   const primaryHref =
     pendingCount > 0 && firstApprovalHref
       ? firstApprovalHref
-      : `/app/wallet/${encoded}`;
+      : productWorkspaceHomeHref(walletName, surface);
   const primaryLabel = pendingCount > 0 ? "Review approvals" : "Open wallet";
   const summary =
     pendingCount > 0
       ? `${pendingCount} ${pendingCount === 1 ? "approval needs" : "approvals need"} your decision.`
-      : `Continue with ${displayName} or start another shared wallet.`;
+      : selectedSurface
+        ? `Continue with ${displayName} or create another ${productWorkspaceLabel(selectedSurface).toLowerCase()}.`
+        : `Continue with ${displayName} or choose another product.`;
+  const createHref = selectedSurface
+    ? productSetupHref(selectedSurface)
+    : "/choose";
+  const createLabel = selectedSurface ? "New" : "Choose product";
 
   return (
     <motion.section
@@ -392,10 +623,10 @@ function NextActionStrip({
             </Button>
           </Link>
           <Link
-            href="/app/wallet/new"
+            href={createHref}
             className="inline-flex min-h-tap items-center rounded-full px-3 text-xs font-medium text-text-soft transition-colors hover:text-text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
           >
-            New wallet
+            {createLabel}
           </Link>
         </div>
       </div>
@@ -424,14 +655,19 @@ function BalanceHeroCard({
   unit,
   totalLamports,
   walletCount,
+  selectedSurface,
   loading,
 }: {
   amount: string;
   unit: string;
   totalLamports: number;
   walletCount: number;
+  selectedSurface: WalletProductSurface | null;
   loading: boolean;
 }) {
+  const label = selectedSurface
+    ? productWorkspaceLabel(selectedSurface)
+    : "Total balance";
   return (
     <section
       className={clsx(
@@ -482,7 +718,7 @@ function BalanceHeroCard({
               <BrandMark size={14} />
             </span>
             <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Total balance
+              {label}
             </span>
           </div>
           {!loading && (
@@ -527,7 +763,7 @@ function BalanceHeroCard({
         <div className="mt-6 flex items-center gap-2">
           <span aria-hidden="true" className="block h-px w-8 bg-accent/60" />
           <span className="text-[10px] font-medium uppercase tracking-[0.28em] text-text-soft/70">
-            Clear · shared treasury
+            ClearSig · {selectedSurface ? productSurfaceById(selectedSurface).shortName : "all products"}
           </span>
         </div>
       </div>
@@ -633,25 +869,31 @@ function MembershipsErrorCard({ onRetry }: { onRetry: () => void }) {
 
 // ─── First-visit empty state ───────────────────────────────────────
 
-function FirstVisitCard() {
+function FirstVisitCard({
+  selectedSurface,
+}: {
+  selectedSurface: WalletProductSurface | null;
+}) {
+  const surface = selectedSurface ?? "personal";
+  const product = productSurfaceById(surface);
+  const Icon = PRODUCT_ICON[surface];
   return (
     <div className="rounded-card border border-border-soft bg-surface-raised p-8 shadow-card-rest">
       <div className="flex flex-col items-center gap-4 text-center">
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent/10">
-          <Users className="h-7 w-7 text-accent" strokeWidth={1.75} />
+          <Icon className="h-7 w-7 text-accent" strokeWidth={1.75} />
         </div>
         <div>
           <h2 className="font-display text-display-xs text-text-strong">
-            You don&rsquo;t have a shared wallet yet
+            Start with {product.shortName}
           </h2>
           <p className="mt-2 max-w-sm text-base text-text-soft">
-            Start one for your roommates, your trip, your family. You can
-            add friends after.
+            {product.summary}
           </p>
         </div>
-        <Link href="/app/wallet/new">
+        <Link href={productSetupHref(surface)}>
           <Button size="lg">
-            Create your first wallet
+            Create {product.shortName}
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Button>
         </Link>
@@ -659,6 +901,62 @@ function FirstVisitCard() {
     </div>
   );
 }
+
+function ProductEmptyState({
+  selectedSurface,
+}: {
+  selectedSurface: WalletProductSurface;
+}) {
+  const product = productSurfaceById(selectedSurface);
+  const Icon = PRODUCT_ICON[selectedSurface];
+
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-8">
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 gap-4">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent ring-1 ring-accent/20">
+            <Icon className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-text-soft">
+              {product.shortName}
+            </p>
+            <h2 className="mt-1 font-display text-xl font-semibold text-text-strong">
+              No {productWorkspaceLabel(selectedSurface).toLowerCase()} yet
+            </h2>
+            <p className="mt-1 max-w-xl text-sm leading-relaxed text-text-soft">
+              {PRODUCT_EMPTY_COPY[selectedSurface]}
+            </p>
+          </div>
+        </div>
+        <Link href={productSetupHref(selectedSurface)} className="shrink-0">
+          <Button size="md">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Create
+          </Button>
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+const PRODUCT_ICON: Record<WalletProductSurface, LucideIcon> = {
+  personal: Users,
+  pro: Building2,
+  agent: Bot,
+  secure: KeyRound,
+};
+
+const PRODUCT_EMPTY_COPY: Record<WalletProductSurface, string> = {
+  personal:
+    "Create a simple shared wallet for trusted people, family, and everyday approvals.",
+  pro:
+    "Create a treasury workspace with team members, policy controls, spending limits, and auditability.",
+  agent:
+    "Create an agent vault before choosing traders, venues, guardrails, allowances, and kill switch rules.",
+  secure:
+    "Secure recovery uses a dedicated recovery workspace. Create a recovery vault when you are ready.",
+};
 
 // ─── Wallets grid ──────────────────────────────────────────────────
 
@@ -668,6 +966,7 @@ interface WalletsGridProps {
   balances: Map<string, number> | undefined;
   loadingBalances: boolean;
   loading: boolean;
+  selectedSurface: WalletProductSurface | null;
   reduce: boolean;
 }
 
@@ -677,6 +976,7 @@ function WalletsGrid({
   balances,
   loadingBalances,
   loading,
+  selectedSurface,
   reduce,
 }: WalletsGridProps) {
   // Re-sort whenever the user pins/unpins. The hook subscribes to
@@ -691,7 +991,11 @@ function WalletsGrid({
 
   return (
     <section>
-      <SectionLabel>Your wallets</SectionLabel>
+      <SectionLabel>
+        {selectedSurface
+          ? `${productSurfaceById(selectedSurface).shortName} workspaces`
+          : "Your wallets"}
+      </SectionLabel>
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         {loading && wallets.length === 0 ? (
           <>
@@ -747,6 +1051,9 @@ function WalletCard({
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
   const balance =
     balanceLamports !== null ? formatBalance(balanceLamports) : null;
+  const surface = walletProductSurface(getWalletAppearance(onChainName)?.surface);
+  const homeHref = productWorkspaceHomeHref(onChainName, surface);
+  const productLabel = surface ? productWorkspaceLabel(surface) : null;
   const [pinned, setPinned] = useState(false);
   useEffect(() => {
     setPinned(isWalletPinned(onChainName));
@@ -768,7 +1075,7 @@ function WalletCard({
       className="group/card relative"
     >
       <Link
-        href={`/app/wallet/${encodeURIComponent(onChainName)}`}
+        href={homeHref}
         className={
           "group relative flex flex-col gap-3 rounded-card border bg-surface-raised p-5 shadow-card-rest " +
           "transition-[transform,box-shadow,border-color] duration-base ease-out-soft " +
@@ -818,6 +1125,11 @@ function WalletCard({
             aria-hidden="true"
           />
         </div>
+        {productLabel ? (
+          <span className="inline-flex self-start rounded-full border border-border-soft bg-canvas px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-soft">
+            {productLabel}
+          </span>
+        ) : null}
         {pendingCount > 0 && (
           <div className="inline-flex items-center gap-1.5 self-start rounded-full bg-accent/10 px-2 py-1 text-xs font-medium text-accent">
             <span className="relative flex h-1.5 w-1.5">
@@ -1127,13 +1439,15 @@ function WatchedWalletsSection({
             rows.map((m) => {
               const display = toDisplayName(m.wallet_name ?? "");
               const pending = pendingByWallet.get(m.wallet) ?? 0;
+              const walletName = m.wallet_name ?? "";
+              const surface = walletProductSurface(
+                getWalletAppearance(walletName)?.surface,
+              );
               return (
                 <li key={m.wallet}>
                   <div className="group flex items-center justify-between gap-3 px-5 py-3">
                     <Link
-                      href={`/app/wallet/${encodeURIComponent(
-                        m.wallet_name ?? "",
-                      )}`}
+                      href={productWorkspaceHomeHref(walletName, surface)}
                       className="flex min-w-0 flex-1 items-center gap-3"
                     >
                       <Eye

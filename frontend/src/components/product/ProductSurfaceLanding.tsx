@@ -18,7 +18,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import {
-  PRODUCT_SURFACES,
   productSurfaceById,
   type ProductSurface,
   type ProductSurfaceId,
@@ -44,34 +43,47 @@ const FEATURE_ICONS: LucideIcon[] = [
   Check,
 ];
 
+const PRIMARY_PRODUCT_IDS: ProductSurfaceId[] = [
+  "personal",
+  "pro",
+  "agent",
+  "secure",
+];
+
 export function ProductChooserPage() {
+  const primarySurfaces = PRIMARY_PRODUCT_IDS.map(productSurfaceById);
+  const supportingSurfaces = (["p2pdefi"] as ProductSurfaceId[]).map(
+    productSurfaceById,
+  );
+
   return (
     <ProductShell cta={null}>
       <section className="relative z-10 mx-auto flex min-h-[calc(100vh-96px)] w-full max-w-6xl flex-col justify-center px-5 pb-16 pt-10 sm:px-8 lg:px-10">
-        <div className="max-w-4xl">
+        <div className="mx-auto max-w-4xl text-center">
           <p className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
             Choose product
           </p>
           <h1 className="mt-5 text-[clamp(2.4rem,7vw,5.8rem)] font-medium leading-[0.9] text-white">
             What are you here to do?
           </h1>
-          <p className="mt-6 max-w-2xl text-base leading-relaxed text-white/62 sm:text-lg">
-            Pick the product first. Sign in happens after this, and ClearSig
-            brings you back to the exact setup path you chose.
+          <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/62 sm:text-lg">
+            Start with the strongest ClearSig flows: agent control, team
+            treasury, personal shared wallets, or recovery. Sign in happens
+            after you choose.
           </p>
         </div>
 
-        <div className="mt-10 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-6">
-          {PRODUCT_SURFACES.map((surface) => (
+        <div className="mt-10 grid grid-cols-2 gap-x-4 gap-y-8 lg:grid-cols-4">
+          {primarySurfaces.map((surface) => (
             <ProductIconLink key={surface.id} surface={surface} />
           ))}
         </div>
 
-        <ul className="mt-10 grid gap-3 border-t border-white/[0.08] pt-6 text-sm text-white/56 sm:grid-cols-3">
-          <li>One primitive layer underneath.</li>
-          <li>Six separate product paths above it.</li>
-          <li>Your login returns to the product you picked.</li>
-        </ul>
+        <div className="mx-auto mt-10 grid w-full max-w-xl gap-3 border-t border-white/[0.08] pt-6">
+          {supportingSurfaces.map((surface) => (
+            <ProductSupportLink key={surface.id} surface={surface} />
+          ))}
+        </div>
       </section>
     </ProductShell>
   );
@@ -80,13 +92,19 @@ export function ProductChooserPage() {
 export function ProductSurfaceLanding({ id }: { id: ProductSurfaceId }) {
   const surface = productSurfaceById(id);
   const Icon = ICONS[surface.id];
+  const planned = surface.status !== "live";
 
   return (
     <ProductShell>
       <section className="relative z-10 mx-auto grid min-h-[calc(100vh-96px)] w-full max-w-6xl gap-8 px-5 pb-14 pt-10 sm:px-8 lg:grid-cols-[minmax(0,1fr)_390px] lg:px-10">
         <div className="flex flex-col justify-center">
-          <p className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
-            {surface.host}
+          <p className="flex flex-wrap items-center gap-2 font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
+            <span>{surface.host}</span>
+            {planned ? (
+              <span className="rounded-full border border-white/[0.12] px-2 py-0.5 tracking-[0.18em] text-white/46">
+                Coming soon
+              </span>
+            ) : null}
           </p>
           <h1 className="mt-5 max-w-4xl text-[clamp(2.4rem,7vw,5.8rem)] font-medium leading-[0.9] text-white">
             {surface.headline}
@@ -135,7 +153,9 @@ export function ProductSurfaceLanding({ id }: { id: ProductSurfaceId }) {
           </div>
 
           <SurfaceIconList title="This surface includes" items={surface.features} />
-          <SurfaceIconList title="Clear boundaries" items={surface.boundaries} muted />
+          {surface.boundaries.length > 0 ? (
+            <SurfaceIconList title="Clear boundaries" items={surface.boundaries} muted />
+          ) : null}
 
           <div className="mt-6">
             <p className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/42">
@@ -209,6 +229,46 @@ function ProductIconLink({ surface }: {
         Choose
         <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
       </span>
+    </Link>
+  );
+}
+
+function ProductSupportLink({ surface }: { surface: ProductSurface }) {
+  const Icon = ICONS[surface.id];
+  const planned = surface.status !== "live";
+  return (
+    <Link
+      href={surface.path}
+      className={clsx(
+        "group flex min-h-24 items-center gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-4",
+        "transition-[border-color,background-color,transform] duration-200 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.055]",
+      )}
+    >
+      <span
+        className={clsx(
+          "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border",
+          planned
+            ? "border-white/[0.08] bg-white/[0.04] text-white/42"
+            : "border-[#ccff00]/25 bg-[#ccff00]/10 text-[#ccff00]",
+        )}
+      >
+        <Icon className="h-5 w-5" aria-hidden="true" strokeWidth={1.85} />
+      </span>
+      <span className="min-w-0">
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold text-white">{surface.shortName}</span>
+          <span className="rounded-full border border-white/[0.1] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/46">
+            {planned ? "Coming soon" : "Capability"}
+          </span>
+        </span>
+        <span className="mt-1 block text-xs leading-relaxed text-white/50">
+          {surface.eyebrow}
+        </span>
+      </span>
+      <ArrowRight
+        className="ml-auto h-4 w-4 shrink-0 text-white/35 transition-transform group-hover:translate-x-0.5"
+        aria-hidden="true"
+      />
     </Link>
   );
 }

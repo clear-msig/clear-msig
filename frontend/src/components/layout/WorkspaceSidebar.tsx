@@ -28,12 +28,15 @@ import { useWallet } from "@/lib/wallet";
 import {
   Activity as ActivityIcon,
   ArrowLeft,
+  Bot,
+  Building2,
   ChevronsLeft,
   ChevronsRight,
   Contact as ContactIcon,
   Home,
   Layers,
   Plus,
+  Plug,
   Search,
   Settings,
   Shield,
@@ -53,7 +56,13 @@ import {
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { avatarGradient } from "@/lib/retail/avatar";
-import { gradientFor } from "@/lib/retail/walletAppearance";
+import { getWalletAppearance, gradientFor } from "@/lib/retail/walletAppearance";
+import {
+  productWorkspaceHomeHref,
+  productWorkspaceLabel,
+  walletProductSurface,
+  type WalletProductSurface,
+} from "@/lib/productWorkspace";
 import { useSidebar } from "@/components/providers/SidebarProvider";
 
 type Props = {
@@ -96,6 +105,7 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
   const activeWalletSlug = (() => {
     const m = pathname.match(/^\/app\/wallet\/([^/]+)/);
     if (!m || !m[1]) return null;
+    if (m[1] === "new") return null;
     try {
       return decodeURIComponent(m[1]);
     } catch {
@@ -432,14 +442,51 @@ function WorkspaceActions({
 // Send / Receive intentionally omitted - the wallet Overview page
 // owns those primary actions (top of the page, focal CTAs). Putting
 // them in the sidebar too would be a double-affordance.
-const WALLET_SUB_NAV: { sub: string; label: string; Icon: LucideIcon }[] = [
-  { sub: "", label: "Overview", Icon: WalletIcon },
-  { sub: "members", label: "Members", Icon: Users },
-  { sub: "activity", label: "Activity", Icon: ActivityIcon },
-  { sub: "chains", label: "Networks", Icon: Layers },
-  { sub: "policy", label: "Rules", Icon: Shield },
-  { sub: "settings", label: "Settings", Icon: Settings },
-];
+type WalletSubNavItem = {
+  sub: string;
+  label: string;
+  Icon: LucideIcon;
+};
+
+function walletSubNav(surface: WalletProductSurface | null): WalletSubNavItem[] {
+  if (surface === "personal") {
+    return [
+      { sub: "", label: "Overview", Icon: WalletIcon },
+      { sub: "members", label: "Trusted people", Icon: Users },
+      { sub: "policy", label: "Rules", Icon: Shield },
+      { sub: "activity", label: "Activity", Icon: ActivityIcon },
+      { sub: "settings", label: "Settings", Icon: Settings },
+    ];
+  }
+  if (surface === "pro") {
+    return [
+      { sub: "", label: "Treasury", Icon: Building2 },
+      { sub: "members", label: "Team", Icon: Users },
+      { sub: "activity", label: "Activity", Icon: ActivityIcon },
+      { sub: "chains", label: "Networks", Icon: Layers },
+      { sub: "policy", label: "Rules", Icon: Shield },
+      { sub: "settings", label: "Settings", Icon: Settings },
+    ];
+  }
+  if (surface === "agent") {
+    return [
+      { sub: "agents", label: "Trading", Icon: Bot },
+      { sub: "agents/library", label: "Traders", Icon: Search },
+      { sub: "agents/hyperliquid", label: "Venue", Icon: Plug },
+      { sub: "agents/policy", label: "Guardrails", Icon: ShieldCheck },
+      { sub: "agents/trades", label: "Trades", Icon: ActivityIcon },
+      { sub: "settings", label: "Settings", Icon: Settings },
+    ];
+  }
+  return [
+    { sub: "", label: "Overview", Icon: WalletIcon },
+    { sub: "members", label: "Members", Icon: Users },
+    { sub: "activity", label: "Activity", Icon: ActivityIcon },
+    { sub: "chains", label: "Networks", Icon: Layers },
+    { sub: "policy", label: "Rules", Icon: Shield },
+    { sub: "settings", label: "Settings", Icon: Settings },
+  ];
+}
 
 function WalletScopedSidebar({
   slug,
@@ -456,6 +503,8 @@ function WalletScopedSidebar({
   const grad = gradientFor(slug, avatarGradient(slug));
   const initial = display.trim().charAt(0).toUpperCase() || "?";
   const base = `/app/wallet/${encodeURIComponent(slug)}`;
+  const surface = walletProductSurface(getWalletAppearance(slug)?.surface);
+  const navItems = walletSubNav(surface);
 
   function isActive(sub: string): boolean {
     const href = sub ? `${base}/${sub}` : base;
@@ -496,7 +545,7 @@ function WalletScopedSidebar({
         >
           {initial}
         </span>
-        {WALLET_SUB_NAV.map(({ sub, label, Icon }) => {
+        {navItems.map(({ sub, label, Icon }) => {
           const href = sub ? `${base}/${sub}` : base;
           const active = isActive(sub);
           return (
@@ -558,7 +607,7 @@ function WalletScopedSidebar({
         </span>
         <div className="flex min-w-0 flex-1 flex-col leading-tight">
           <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-text-soft">
-            Active wallet
+            {productWorkspaceLabel(surface)}
           </span>
           <span className="mt-0.5 truncate font-display text-[13px] font-semibold tracking-[-0.01em] text-text-strong">
             {display}
@@ -574,7 +623,7 @@ function WalletScopedSidebar({
         <p className="mb-1 px-3 font-mono text-[10px] uppercase tracking-[0.22em] text-text-soft">
           Manage
         </p>
-        {WALLET_SUB_NAV.map(({ sub, label, Icon }) => {
+        {navItems.map(({ sub, label, Icon }) => {
           const href = sub ? `${base}/${sub}` : base;
           const active = isActive(sub);
           return (
@@ -735,8 +784,12 @@ function SidebarOrgLink({
   expanded: boolean;
 }) {
   const onChainName = membership.wallet_name ?? "";
-  const href = onChainName ? `/app/wallet/${encodeURIComponent(onChainName)}` : "#";
-  const active = !!onChainName && pathname.startsWith(href);
+  const surface = walletProductSurface(getWalletAppearance(onChainName)?.surface);
+  const href = onChainName ? productWorkspaceHomeHref(onChainName, surface) : "#";
+  const walletBase = onChainName
+    ? `/app/wallet/${encodeURIComponent(onChainName)}`
+    : "";
+  const active = !!onChainName && pathname.startsWith(walletBase);
 
   if (!onChainName) return null;
 

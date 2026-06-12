@@ -27,6 +27,7 @@ export * from "@/lib/agents/intake";
 export * from "@/lib/agents/executionAdapters";
 export * from "@/lib/agents/executionClose";
 export * from "@/lib/agents/serverExecutionAdapters";
+export * from "@/lib/agents/serverAutonomousTrading";
 export * from "@/lib/agents/marketData";
 export * from "@/lib/agents/serverMarketDataAdapters";
 export * from "@/lib/agents/marketIntelligence";

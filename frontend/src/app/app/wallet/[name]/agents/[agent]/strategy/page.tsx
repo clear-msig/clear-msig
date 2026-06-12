@@ -20,12 +20,12 @@ const MODES: Array<{ value: AgentTradingMode; label: string; hint: string }> = [
   {
     value: "read_only",
     label: "Suggest ideas only",
-    hint: "The trader can suggest ideas, but cannot open practice trades.",
+    hint: "The trader can suggest ideas, but cannot open trades.",
   },
   {
     value: "paper",
-    label: "Practice trading",
-    hint: "The trader can open practice trades inside your safety rules.",
+    label: "Guarded trading",
+    hint: "The trader can open trades inside your safety rules.",
   },
   {
     value: "bounded_live",

@@ -29,7 +29,7 @@ services:
       - key: PORT
         value: "10000"
       - key: CLEAR_MSIG_URL
-        value: https://api.devnet.solana.com
+        sync: false
       - key: BACKEND_API_BIND
         value: 0.0.0.0:10000
       - key: CLEAR_MSIG_ATTESTATION_DIR

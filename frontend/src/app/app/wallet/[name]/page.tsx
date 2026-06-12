@@ -62,7 +62,6 @@ import { ProposalStatus } from "@/lib/msig";
 import { Button } from "@/components/retail/Button";
 import { BadgePill } from "@/components/retail/BadgePill";
 import { MemberAvatarStack } from "@/components/retail/MemberAvatar";
-import { QuickActionInput } from "@/components/retail/QuickActionInput";
 import { relativeTime } from "@/lib/util/relativeTime";
 import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
 import { formatBalance } from "@/lib/retail/format";
@@ -71,6 +70,7 @@ import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
 import {
   getWalletAppearance,
   gradientFor,
+  saveWalletAppearance,
   SHAPE_LABEL,
 } from "@/lib/retail/walletAppearance";
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
@@ -107,6 +107,27 @@ function useProductSurfaceIntent(): ProductSurfaceId | null {
   return surface;
 }
 
+function useWalletProductSurface(walletName: string): ProductSurfaceId | null {
+  const requestedSurface = useProductSurfaceIntent();
+  const [storedSurface, setStoredSurface] = useState<ProductSurfaceId | null>(null);
+
+  useEffect(() => {
+    const appearance = getWalletAppearance(walletName);
+    const surface = isProductSurfaceId(appearance?.surface)
+      ? appearance.surface
+      : null;
+    setStoredSurface(surface);
+  }, [walletName]);
+
+  useEffect(() => {
+    if (!requestedSurface) return;
+    saveWalletAppearance(walletName, { surface: requestedSurface });
+    setStoredSurface(requestedSurface);
+  }, [requestedSurface, walletName]);
+
+  return requestedSurface ?? storedSurface;
+}
+
 export default function WalletDetailPage() {
   const params = useParams<{ name: string }>();
   const rawName = params?.name ?? "";
@@ -128,7 +149,7 @@ export default function WalletDetailPage() {
     readWalletTabFromHash,
   );
   const [loadChainHistory, setLoadChainHistory] = useState(false);
-  const productSurface = useProductSurfaceIntent();
+  const productSurface = useWalletProductSurface(name);
 
   useEffect(() => {
     if (detailTab !== "activity") return;
@@ -358,8 +379,8 @@ export default function WalletDetailPage() {
         erc20Holdings={erc20HoldingsQuery.data ?? []}
         // Manage tab data
         name={name}
+        productSurface={productSurface}
         hasIntents={hasIntents}
-        memberCount={memberCount}
         reduce={!!reduce}
       />
     </div>
@@ -380,8 +401,7 @@ export default function WalletDetailPage() {
 //     per-chain on-chain history.
 //   - Holdings: the wallet's money. ERC-20 tokens today; future
 //     home for a per-chain balance breakdown.
-//   - Manage: NextSteps onboarding hints, weekly budget usage,
-//     natural-language quick action, and the multi-action grid.
+//   - Manage: product-specific icon actions for this wallet's chosen surface.
 //
 // Active tab persisted via URL hash (#activity / #holdings /
 // #manage) so a refresh / back-nav lands on the same tab and the
@@ -400,11 +420,11 @@ interface WalletDetailTabsProps {
   zcashHistory: ChainTxRow[];
   erc20Holdings: Erc20Holding[];
   name: string;
+  productSurface: ProductSurfaceId | null;
   /// Tri-state to match the upstream useMemo: null while the
   /// intents query is in flight, true/false once known. NextStepsStripe
   /// already handles the null case for its loading skeleton.
   hasIntents: boolean | null;
-  memberCount: number | null;
   reduce: boolean;
 }
 
@@ -421,8 +441,8 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
     zcashHistory,
     erc20Holdings,
     name,
+    productSurface,
     hasIntents,
-    memberCount,
     reduce,
   } = props;
 
@@ -551,9 +571,13 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
 
       {tab === "manage" && (
         <div className="flex flex-col gap-4">
-          <BudgetStripe name={name} />
-          <QuickActionInput walletName={name} />
-          <Actions name={name} hasIntents={hasIntents} reduce={reduce} />
+          {productSurface === "pro" ? <BudgetStripe name={name} /> : null}
+          <Actions
+            name={name}
+            productSurface={productSurface}
+            hasIntents={hasIntents}
+            reduce={reduce}
+          />
         </div>
       )}
     </>
@@ -774,8 +798,8 @@ function productIntentConfig(
       Icon: Bot,
       title: "Your agent vault is ready.",
       body: "Choose an agent, connect a venue, and grant a bounded allowance before any strategy can act.",
-      primaryHref: `/app/wallet/${encodedWallet}/agents/start`,
-      primaryLabel: "Launch agent",
+      primaryHref: `/app/wallet/${encodedWallet}/agents`,
+      primaryLabel: "Open trading",
     };
   }
   if (surface === "p2pdefi") {
@@ -1611,26 +1635,18 @@ function ChainTxHistorySection({
 
 // ─── Manage tab actions ────────────────────────────────────────────
 //
-// The Manage tab owns wallet-level configuration and second-tier
-// money flows. Send / Receive / Policy live in the Hero - replicating
-// them here was clutter, so this row is now strictly "things I do less
-// often, but still need":
-//   • Set up sending  - only when the wallet has no intents yet (gates
-//     the entire send flow). Treated as an accent prompt card so it
-//     doesn't read as just another row.
-//   • Configure       - Members / Chains / Policy / Settings
-//   • Money           - Buy with naira / Sell to bank (NGN ↔ crypto)
-//
-// Each row uses the icon + title + description + chevron pattern from
-// the Settings page so the whole product reads with one navigation
-// vocabulary.
+// The Manage tab owns low-frequency actions, but it must not become a
+// product switcher. Rows are generated from the wallet's selected
+// surface so Personal, Pro, and Agent vaults keep separate affordances.
 
 function Actions({
   name,
+  productSurface,
   hasIntents,
   reduce,
 }: {
   name: string;
+  productSurface: ProductSurfaceId | null;
   /// null while loading, false once we've confirmed no intents exist.
   hasIntents: boolean | null;
   reduce: boolean;
@@ -1640,6 +1656,12 @@ function Actions({
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
   const encoded = encodeURIComponent(name);
   const sendingReady = hasIntents !== false;
+  const groups = manageActionGroups(productSurface, encoded);
+  const showSetupPrompt =
+    !sendingReady &&
+    (productSurface === "personal" ||
+      productSurface === "pro" ||
+      productSurface === null);
 
   return (
     <motion.div
@@ -1647,7 +1669,7 @@ function Actions({
       transition={{ duration: 0.2 }}
       className="flex flex-col gap-5"
     >
-      {!sendingReady && (
+      {showSetupPrompt && (
         <Link
           href={`/app/wallet/${encoded}/setup`}
           className={
@@ -1675,55 +1697,217 @@ function Actions({
         </Link>
       )}
 
-      <ActionGroup label="Configure" description="Wallet-level setup.">
-        <ActionRow
-          href={`/app/wallet/${encoded}/members`}
-          icon={Users}
-          title="Members"
-          body="Who can spend, approve, and watch."
-        />
-        <ActionRow
-          href={`/app/wallet/${encoded}/chains`}
-          icon={Layers}
-          title="Networks"
-          body="Bind ETH, BTC, or Zcash."
-        />
-        <ActionRow
-          href={`/app/wallet/${encoded}/policy`}
-          icon={ShieldCheck}
-          title="Rules"
-          body="Approvals, rules, limits, and notifications."
-        />
-        <ActionRow
-          href={`/app/wallet/${encoded}/agents/start`}
-          icon={Bot}
-          title="ClearSig Agents"
-          body="Launch the agent setup flow for this vault."
-        />
-        <ActionRow
-          href={`/app/wallet/${encoded}/settings`}
-          icon={SettingsIcon}
-          title="Wallet settings"
-          body="Low-frequency wallet administration."
-        />
-      </ActionGroup>
-
-      <ActionGroup label="Money" description="Fiat ↔ crypto. Naira-routed for now.">
-        <ActionRow
-          href={`/app/wallet/${encoded}/buy`}
-          icon={Banknote}
-          title="Buy with naira"
-          body="Top up SOL or ETH from a Nigerian bank account."
-        />
-        <ActionRow
-          href={`/app/wallet/${encoded}/sell`}
-          icon={TrendingDown}
-          title="Sell to bank"
-          body="Off-ramp crypto back to NGN."
-        />
-      </ActionGroup>
+      {groups.map((group) => (
+        <ActionGroup
+          key={group.label}
+          label={group.label}
+          description={group.description}
+        >
+          {group.rows.map((row) => (
+            <ActionRow
+              key={row.href}
+              href={row.href}
+              icon={row.icon}
+              title={row.title}
+              body={row.body}
+            />
+          ))}
+        </ActionGroup>
+      ))}
     </motion.div>
   );
+}
+
+type ManageActionGroup = {
+  label: string;
+  description?: string;
+  rows: Array<{
+    href: string;
+    icon: LucideIcon;
+    title: string;
+    body: string;
+  }>;
+};
+
+function manageActionGroups(
+  surface: ProductSurfaceId | null,
+  encoded: string,
+): ManageActionGroup[] {
+  if (surface === "personal") {
+    return [
+      {
+        label: "Personal",
+        description: "Shared-wallet controls only.",
+        rows: [
+          {
+            href: `/app/wallet/${encoded}/members`,
+            icon: Users,
+            title: "Trusted people",
+            body: "Add or review people who help approve.",
+          },
+          {
+            href: `/app/wallet/${encoded}/settings`,
+            icon: SettingsIcon,
+            title: "Wallet settings",
+            body: "Name, display, and low-frequency admin.",
+          },
+        ],
+      },
+      {
+        label: "Money",
+        description: "Personal top-up and off-ramp.",
+        rows: moneyActionRows(encoded),
+      },
+    ];
+  }
+
+  if (surface === "pro") {
+    return [
+      {
+        label: "Treasury",
+        description: "Team and policy controls.",
+        rows: [
+          {
+            href: `/app/wallet/${encoded}/members`,
+            icon: Users,
+            title: "Team",
+            body: "Approvers, operators, and watchers.",
+          },
+          {
+            href: `/app/wallet/${encoded}/chains`,
+            icon: Layers,
+            title: "Networks",
+            body: "Bind ETH, BTC, or Zcash accounts.",
+          },
+          {
+            href: `/app/wallet/${encoded}/policy`,
+            icon: ShieldCheck,
+            title: "Treasury rules",
+            body: "Approvals, limits, roles, and alerts.",
+          },
+          {
+            href: `/app/wallet/${encoded}/budget`,
+            icon: Banknote,
+            title: "Spending limits",
+            body: "Weekly caps, per-chain caps, and velocity.",
+          },
+          {
+            href: `/app/wallet/${encoded}/settings`,
+            icon: SettingsIcon,
+            title: "Workspace settings",
+            body: "Low-frequency treasury administration.",
+          },
+        ],
+      },
+      {
+        label: "Money",
+        description: "Treasury top-up and off-ramp.",
+        rows: moneyActionRows(encoded),
+      },
+    ];
+  }
+
+  if (surface === "agent") {
+    return [
+      {
+        label: "Agent trading",
+        description: "Trader, venue, guardrail, and funding controls.",
+        rows: [
+          {
+            href: `/app/wallet/${encoded}/agents`,
+            icon: Bot,
+            title: "Trading desk",
+            body: "Open the Agent Trading workspace.",
+          },
+          {
+            href: `/app/wallet/${encoded}/agents/library`,
+            icon: Users,
+            title: "Traders",
+            body: "Choose or create the agent profile.",
+          },
+          {
+            href: `/app/wallet/${encoded}/agents/hyperliquid`,
+            icon: Layers,
+            title: "Venue",
+            body: "Connect the practice trading venue.",
+          },
+          {
+            href: `/app/wallet/${encoded}/agents/policy`,
+            icon: ShieldCheck,
+            title: "Guardrails",
+            body: "Markets, max size, leverage, and kill switch.",
+          },
+          {
+            href: `/app/wallet/${encoded}/agents/funding`,
+            icon: Banknote,
+            title: "Allowance",
+            body: "Bounded capital for controlled trading.",
+          },
+          {
+            href: `/app/wallet/${encoded}/settings`,
+            icon: SettingsIcon,
+            title: "Vault settings",
+            body: "Low-frequency agent vault administration.",
+          },
+        ],
+      },
+    ];
+  }
+
+  return [
+    {
+      label: "Configure",
+      description: "Wallet-level setup.",
+      rows: [
+        {
+          href: `/app/wallet/${encoded}/members`,
+          icon: Users,
+          title: "Members",
+          body: "Who can spend, approve, and watch.",
+        },
+        {
+          href: `/app/wallet/${encoded}/chains`,
+          icon: Layers,
+          title: "Networks",
+          body: "Bind ETH, BTC, or Zcash.",
+        },
+        {
+          href: `/app/wallet/${encoded}/policy`,
+          icon: ShieldCheck,
+          title: "Rules",
+          body: "Approvals, limits, and notifications.",
+        },
+        {
+          href: `/app/wallet/${encoded}/settings`,
+          icon: SettingsIcon,
+          title: "Wallet settings",
+          body: "Low-frequency wallet administration.",
+        },
+      ],
+    },
+    {
+      label: "Money",
+      description: "Fiat to crypto. Naira-routed for now.",
+      rows: moneyActionRows(encoded),
+    },
+  ];
+}
+
+function moneyActionRows(encoded: string): ManageActionGroup["rows"] {
+  return [
+    {
+      href: `/app/wallet/${encoded}/buy`,
+      icon: Banknote,
+      title: "Buy with naira",
+      body: "Top up SOL or ETH from a Nigerian bank account.",
+    },
+    {
+      href: `/app/wallet/${encoded}/sell`,
+      icon: TrendingDown,
+      title: "Sell to bank",
+      body: "Off-ramp crypto back to NGN.",
+    },
+  ];
 }
 
 function ActionGroup({

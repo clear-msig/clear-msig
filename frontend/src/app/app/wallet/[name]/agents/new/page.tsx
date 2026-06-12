@@ -4,7 +4,7 @@ import { FormEvent, useMemo, useState, useTransition } from "react";
 import clsx from "clsx";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Bot, Lock, Plug, Save } from "lucide-react";
+import { ArrowLeft, Bot, Lock, Save } from "lucide-react";
 import { encryptStatus } from "@/lib/encrypt/client";
 import {
   encryptAgentProfile,
@@ -18,7 +18,7 @@ import { toDisplayName } from "@/lib/retail/walletNames";
 import { useToast } from "@/components/ui/Toast";
 
 const AGENT_KINDS: Array<{ value: AgentKind; label: string }> = [
-  { value: "mock", label: "Built-in practice trader" },
+  { value: "mock", label: "Internal sandbox trader" },
   { value: "api", label: "Connected trader" },
   { value: "hermes", label: "Independent trader" },
   { value: "manual", label: "Person" },
@@ -105,16 +105,11 @@ export default function NewAgentPage() {
         </Link>
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-            Automated Trading · {display}
+            Trader Profile · {display}
           </p>
           <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
             {advanced ? "Connect an outside trader" : "Create your own trader"}
           </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-soft">
-            {advanced
-              ? "For experienced users bringing an existing trader. It can send ideas, but ClearSig keeps control of the money."
-              : "Describe the trader you want. You will shape its trading plan and give it a small practice allowance next."}
-          </p>
         </div>
       </header>
 
@@ -126,11 +121,6 @@ export default function NewAgentPage() {
           <div>
             <p className="text-sm font-semibold text-text-strong">
               {advanced ? "Outside trader" : "Your trader"}
-            </p>
-            <p className="mt-1 text-xs leading-relaxed text-text-soft">
-              {advanced
-                ? "ClearSig will create a protected place for this trader to send ideas."
-                : "Start with a simple description. You can change its plan before it begins."}
             </p>
           </div>
         </div>
@@ -178,14 +168,7 @@ export default function NewAgentPage() {
 
           {advanced ? (
             <div className="rounded-soft border border-border-soft bg-canvas px-3 py-3">
-              <div className="flex items-start gap-2">
-                <Plug className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden="true" />
-                <p className="text-xs leading-relaxed text-text-soft">
-                  These public details are optional. The protected idea connection
-                  is created after the trader is added.
-                </p>
-              </div>
-              <div className="mt-3 grid gap-4">
+              <div className="grid gap-4">
                 <label className="flex flex-col gap-1.5">
                   <span className="text-xs font-medium text-text-soft">
                     Public identity

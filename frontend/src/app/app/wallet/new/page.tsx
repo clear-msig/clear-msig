@@ -7,11 +7,10 @@
 // but renders inside the workspace shell so users with at least one
 // wallet can spin up another without leaving the app.
 //
-// On success we route the user straight to the new wallet's detail
-// page - no intermediate "wallet ready" celebration, since they're
-// already inside the app and just want to use it.
+// On success we route the user to the first useful screen for the
+// product they chose. Product intent wins over generic wallet setup.
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import clsx from "clsx";
@@ -32,7 +31,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
-import { BackendApiError } from "@/lib/api/client";
+import { BackendApiError, BackendTimeoutError } from "@/lib/api/client";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { toOnChainName } from "@/lib/retail/walletNames";
@@ -40,8 +39,9 @@ import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { useToast } from "@/components/ui/Toast";
 import { saveWalletAppearance } from "@/lib/retail/walletAppearance";
+import { saveSelectedProductSurface } from "@/lib/productSession";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
-import { isProductSurfaceId } from "@/lib/productSurfaces";
+import { isProductSurfaceId, type ProductSurfaceId } from "@/lib/productSurfaces";
 
 const SOL_TRANSFER_TEMPLATE = "examples/intents/solana_transfer.json";
 
@@ -59,6 +59,41 @@ function isAlreadyInitializedCreateError(err: unknown): boolean {
     hay.includes("account already in use") ||
     hay.includes("instruction requires an uninitialized account")
   );
+}
+
+function isMaybeLandedCreateError(err: unknown): boolean {
+  if (err instanceof BackendTimeoutError) return true;
+  if (err instanceof BackendApiError) {
+    const statusish = `${err.message} ${err.payload?.kind ?? ""} ${err.payload?.error ?? ""}`.toLowerCase();
+    return (
+      statusish.includes("status 502") ||
+      statusish.includes("status 504") ||
+      statusish.includes("proxy_timeout") ||
+      statusish.includes("backend is unavailable") ||
+      statusish.includes("timed out")
+    );
+  }
+  if (err instanceof Error) {
+    const message = err.message.toLowerCase();
+    return message.includes("timed out") || message.includes("failed to fetch");
+  }
+  return false;
+}
+
+async function walletExistsAfterCreateFailure(walletSlug: string, err: unknown): Promise<boolean> {
+  if (!isMaybeLandedCreateError(err)) return false;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    if (attempt > 0) {
+      await new Promise((resolve) => window.setTimeout(resolve, 2_000));
+    }
+    try {
+      await backendApi.showWallet(walletSlug);
+      return true;
+    } catch {
+      /* keep polling briefly; the write may be one confirmation behind */
+    }
+  }
+  return false;
 }
 
 type ShapeId = "just_me" | "couple" | "family" | "roommates" | "team";
@@ -109,9 +144,12 @@ const SHAPES: WalletShape[] = [
   },
 ];
 
+const PERSONAL_SHAPES = SHAPES.filter((s) => s.id !== "team");
+
 function defaultNameFor(surface: string | null, purpose: "share" | "secure" | "agent" | null): string {
   if (purpose === "agent") return "Agent vault";
   if (surface === "personal") return "My wallet";
+  if (surface === "pro") return "Team treasury";
   if (surface === "p2pdefi") return "P2P workspace";
   if (surface === "payments") return "Payments";
   if (purpose === "share") return "Team";
@@ -184,10 +222,15 @@ function NewWalletContent() {
   const isBrokenSigner = wallet.signerIssue !== null;
   const signerIssue = wallet.signerIssue;
   const me = wallet.publicKey?.toBase58() ?? "";
-  const surface = useMemo(() => {
+  const requestedSurface = useMemo<ProductSurfaceId | null>(() => {
     const requested = search.get("surface");
     return isProductSurfaceId(requested) ? requested : null;
   }, [search]);
+  const [surface, setSurface] = useState<ProductSurfaceId | null>(requestedSurface);
+
+  useEffect(() => {
+    setSurface(requestedSurface);
+  }, [requestedSurface]);
 
   // Unified product entry: clear-msig is now the single create flow
   // for both shared wallets (the classic multisig) and Secure
@@ -203,26 +246,54 @@ function NewWalletContent() {
     const requested = search.get("purpose");
     if (
       requested === "share" ||
-      surface === "personal" ||
-      surface === "pro" ||
-      surface === "p2pdefi" ||
-      surface === "payments"
+      requestedSurface === "personal" ||
+      requestedSurface === "pro" ||
+      requestedSurface === "p2pdefi" ||
+      requestedSurface === "payments"
     ) {
       return "share";
     }
-    if (requested === "secure" || surface === "secure") return "secure";
-    if (requested === "agent" || surface === "agent") return "agent";
+    if (requested === "secure" || requestedSurface === "secure") return "secure";
+    if (requested === "agent" || requestedSurface === "agent") return "agent";
     return null;
-  }, [search, surface]);
+  }, [search, requestedSurface]);
   const [purpose, setPurpose] = useState<Purpose | null>(initialPurpose);
-  const lockedPurpose = surface !== null;
+  const lockedProduct = requestedSurface !== null;
 
   const [shape, setShape] = useState<ShapeId>(
-    surface === "personal" ? "just_me" : "family",
+    requestedSurface === "personal" ? "just_me" : "team",
   );
   const [name, setName] = useState(() =>
-    defaultNameFor(surface, initialPurpose),
+    defaultNameFor(requestedSurface, initialPurpose),
   );
+
+  useEffect(() => {
+    if (!requestedSurface) return;
+    setPurpose(initialPurpose);
+    setShape(requestedSurface === "personal" ? "just_me" : "team");
+    setName(defaultNameFor(requestedSurface, initialPurpose));
+  }, [initialPurpose, requestedSurface]);
+
+  const chooseProduct = (nextSurface: "personal" | "pro" | "agent") => {
+    const nextPurpose: Purpose = nextSurface === "agent" ? "agent" : "share";
+    const nextShape: ShapeId = nextSurface === "personal" ? "just_me" : "team";
+    setSurface(nextSurface);
+    setPurpose(nextPurpose);
+    setShape(nextShape);
+    if (!name.trim()) setName(defaultNameFor(nextSurface, nextPurpose));
+  };
+
+  const chooseDifferentProduct = () => {
+    setSurface(null);
+    setPurpose(null);
+    setShape("team");
+    setName("");
+  };
+
+  useEffect(() => {
+    if (!surface || !me) return;
+    saveSelectedProductSurface(surface, me);
+  }, [surface, me]);
 
   const currentShape = useMemo(
     () => SHAPES.find((s) => s.id === shape) ?? SHAPES[0],
@@ -274,7 +345,16 @@ function NewWalletContent() {
           policy_ciphertexts: createIds,
         });
       } catch (err) {
-        if (!isAlreadyInitializedCreateError(err)) throw err;
+        if (isAlreadyInitializedCreateError(err)) {
+          // A previous attempt may have landed before the browser heard back.
+          // Continue into setup instead of making the user create another wallet.
+        } else if (await walletExistsAfterCreateFailure(walletSlug, err)) {
+          toast.info("Wallet create confirmed", {
+            details: "The backend response timed out, but the wallet exists. Continuing setup.",
+          });
+        } else {
+          throw err;
+        }
       }
 
       // ── popup 2: enable sending (propose AddIntent) ──
@@ -333,7 +413,13 @@ function NewWalletContent() {
       queryClient.invalidateQueries({ queryKey: ["my-organizations"] });
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });
       queryClient.invalidateQueries({ queryKey: ["wallet", walletSlug] });
-      saveWalletAppearance(cleanName, { shape });
+      saveWalletAppearance(walletSlug, {
+        shape,
+        surface: isProductSurfaceId(surface) ? surface : undefined,
+      });
+      if (isProductSurfaceId(surface)) {
+        saveSelectedProductSurface(surface, me);
+      }
       toast.success(`${cleanName} is ready`, {
         details:
           purpose === "agent"
@@ -358,7 +444,11 @@ function NewWalletContent() {
     purpose === "agent" ? agentSetupInfo() : productSetupFor(surface);
   const SetupIcon = setupInfo.Icon;
   const showShapePicker =
-    purpose === "share" && (!lockedPurpose || surface === "personal");
+    purpose === "share" && surface === "personal";
+
+  if (surface === "p2pdefi") {
+    return <ProductComingSoon title="P2P DeFi is coming soon" />;
+  }
 
   return (
     <motion.div
@@ -375,10 +465,8 @@ function NewWalletContent() {
               ? "Create a personal wallet"
               : surface === "pro"
               ? "Create a team treasury"
-              : surface === "p2pdefi"
-                ? "Create a P2P workspace"
-                : surface === "payments"
-                  ? "Create a payments workspace"
+              : surface === "payments"
+                  ? "Create a payments-ready workspace"
               : "New shared wallet"
             : purpose === "secure"
               ? surface === "secure"
@@ -386,7 +474,7 @@ function NewWalletContent() {
                 : "Secure your key"
               : purpose === "agent"
                 ? "Create an agent vault"
-                : "Create a wallet"}
+              : "Create a wallet"}
         </h1>
         <p className="text-xs text-text-soft sm:text-sm">
           {purpose === "share"
@@ -394,15 +482,13 @@ function NewWalletContent() {
               ? "Start simple. You can add trusted people and approvals after."
               : surface === "pro"
               ? "Name the treasury first. Members, thresholds, and policies come next."
-              : surface === "p2pdefi"
-                ? "Create the coordination workspace first. Counterparties and settlement rules come next."
-                : surface === "payments"
-                  ? "Create the payments workspace first. Invoices, approvals, and payout rules come next."
+              : surface === "payments"
+                  ? "Create the workspace first. Invoices, approvals, and payout rules come next."
               : "Name it, pick who it’s for. You can invite friends after."
             : purpose === "agent"
               ? "Create the policy vault first. Then choose an agent and grant bounded access."
             : purpose === null
-              ? "Pick one wallet shape. You will not have to choose again."
+              ? "Choose the product first. This wallet opens in that workspace after setup."
               : surface === "secure"
                 ? "Pick a recovery threshold and enroll your devices."
                 : "Set a threshold and enroll your devices."}
@@ -411,19 +497,15 @@ function NewWalletContent() {
 
       <UnsupportedSignerBanner title="You won't be able to finish creating a wallet with this sign-in" />
 
-      {/* Purpose picker — first step in the unified flow. Both routes
-          create an Ika dWallet under the same on-chain program; what
-          differs is the lifecycle (propose/approve/execute audit
-          trail for shared wallets, enroll/sweep for the personal
-          Secure path). Shown only when no purpose chosen yet. */}
+      {/* Product picker - in-app wallet creation is product-first.
+          Secure is intentionally not shown here because recovery/key
+          setup has its own surface; this flow creates workspace
+          wallets for Personal, Pro, or Agents. */}
       {purpose === null && (
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <button
             type="button"
-            onClick={() => {
-              setPurpose("share");
-              if (!name.trim()) setName(currentShape.defaultName);
-            }}
+            onClick={() => chooseProduct("personal")}
             className={clsx(
               "group flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 text-left",
               "transition-[border-color,background-color,transform] duration-base ease-out-soft",
@@ -436,11 +518,10 @@ function NewWalletContent() {
             </span>
             <div className="flex flex-col gap-1">
               <p className="font-display text-base font-semibold leading-tight text-text-strong">
-                Share with people
+                Personal
               </p>
               <p className="text-xs text-text-soft">
-                A wallet your group decides on together. Approvals,
-                allowance rules, audit trail. Friends, family, team.
+                For trusted people, family, and simple shared approvals.
               </p>
             </div>
             <span className="mt-auto inline-flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">
@@ -450,7 +531,7 @@ function NewWalletContent() {
 
           <button
             type="button"
-            onClick={() => setPurpose("secure")}
+            onClick={() => chooseProduct("pro")}
             className={clsx(
               "group flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 text-left",
               "transition-[border-color,background-color,transform] duration-base ease-out-soft",
@@ -459,16 +540,14 @@ function NewWalletContent() {
             )}
           >
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent ring-1 ring-accent/20">
-              <KeyRound className="h-5 w-5" strokeWidth={1.75} />
+              <Building2 className="h-5 w-5" strokeWidth={1.75} />
             </span>
             <div className="flex flex-col gap-1">
               <p className="font-display text-base font-semibold leading-tight text-text-strong">
-                Secure my key
+                Pro
               </p>
               <p className="text-xs text-text-soft">
-                A wallet just for you, protected by your devices and
-                passkeys. Lose one, sign with the rest. No seed phrase
-                to write down.
+                For team treasury, members, networks, and policy controls.
               </p>
             </div>
             <span className="mt-auto inline-flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">
@@ -478,10 +557,7 @@ function NewWalletContent() {
 
           <button
             type="button"
-            onClick={() => {
-              setPurpose("agent");
-              if (!name.trim()) setName("Agent vault");
-            }}
+            onClick={() => chooseProduct("agent")}
             className={clsx(
               "group flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 text-left",
               "transition-[border-color,background-color,transform] duration-base ease-out-soft",
@@ -494,11 +570,10 @@ function NewWalletContent() {
             </span>
             <div className="flex flex-col gap-1">
               <p className="font-display text-base font-semibold leading-tight text-text-strong">
-                Trade with agents
+                Agents
               </p>
               <p className="text-xs text-text-soft">
-                A policy vault for agent sessions. You keep custody; agents
-                submit bounded decisions.
+                For trading desks with guardrails, allowance, and monitoring.
               </p>
             </div>
             <span className="mt-auto inline-flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">
@@ -517,7 +592,7 @@ function NewWalletContent() {
           one continuous flow with no double-pick. */}
       {purpose === "secure" && (
         <section className="flex flex-col gap-4">
-          {!lockedPurpose && (
+          {!lockedProduct && (
             <button
               type="button"
               onClick={() => setPurpose(null)}
@@ -630,13 +705,13 @@ function NewWalletContent() {
           ClearSig wallet. The post-create route decides whether the
           user lands on wallet overview or the agent launch flow. */}
       {(purpose === "share" || purpose === "agent") && (
-        !lockedPurpose && (
+        !lockedProduct && (
           <button
             type="button"
-            onClick={() => setPurpose(null)}
+            onClick={chooseDifferentProduct}
             className="self-start font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-text-soft hover:text-text-strong"
           >
-            Pick a different shape
+            Choose a different product
           </button>
         )
       )}
@@ -674,7 +749,7 @@ function NewWalletContent() {
               </p>
             </div>
             <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {SHAPES.map((s) => {
+              {PERSONAL_SHAPES.map((s) => {
                 const selected = shape === s.id;
                 return (
                   <li key={s.id}>
@@ -857,13 +932,48 @@ function postCreateHref(
   purpose: "share" | "secure" | "agent" | null,
 ): string {
   const encoded = encodeURIComponent(walletSlug);
-  if (purpose === "agent") {
-    return `/app/wallet/${encoded}/agents/start?surface=agent`;
+  if (purpose === "agent" || surface === "agent") {
+    return `/app/wallet/${encoded}/agents?surface=agent`;
   }
   if (isProductSurfaceId(surface)) {
     return `/app/wallet/${encoded}?surface=${surface}`;
   }
   return `/app/wallet/${encoded}`;
+}
+
+function ProductComingSoon({ title }: { title: string }) {
+  return (
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-5 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent ring-1 ring-accent/20">
+          <Sparkles className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <p className="font-display text-lg font-semibold leading-tight text-text-strong">
+            {title}
+          </p>
+          <p className="mt-1 text-sm leading-relaxed text-text-soft">
+            We are focusing the live setup on Agents, Pro, Personal, and Secure first.
+            P2P DeFi will open after the coordination and settlement flow is ready.
+          </p>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Link
+          href="/choose"
+          className="inline-flex min-h-tap items-center justify-center rounded-soft bg-accent px-4 py-2 text-sm font-medium text-text-on-accent shadow-accent-rest hover:bg-accent-hover"
+        >
+          Choose another product
+        </Link>
+        <Link
+          href="/p2pdefi"
+          className="inline-flex min-h-tap items-center justify-center rounded-soft border border-border-soft bg-canvas px-4 py-2 text-sm font-medium text-text-strong hover:border-accent/40 hover:text-accent"
+        >
+          View P2P preview
+        </Link>
+      </div>
+    </div>
+  );
 }
 
 function NewWalletSkeleton() {

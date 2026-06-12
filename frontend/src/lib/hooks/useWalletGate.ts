@@ -23,6 +23,12 @@ import { useWallet } from "@/lib/wallet";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { fetchOnchainMemberships } from "@/lib/memberships/client";
+import { productWorkspaceHref } from "@/lib/productSurfaces";
+import {
+  productSurfaceFromPath,
+  readSelectedProductSurface,
+  saveSelectedProductSurface,
+} from "@/lib/productSession";
 
 const PROTECTED_PREFIXES = ["/app", "/welcome", "/send"];
 
@@ -77,11 +83,21 @@ export function useWalletGate() {
         );
         const next = params.get("next");
         const safeNext = isSafeNext(next) ? next : null;
+        const nextSurface = productSurfaceFromPath(safeNext);
+        if (nextSurface) {
+          saveSelectedProductSurface(nextSurface, address);
+        }
         if (hasWallets) {
           // Already onboarded - honor an explicit product/deep-link
           // destination, but do not let stale generic /welcome links
           // push returning users back through a duplicate create flow.
-          router.replace(shouldHonorNextForReturningUser(safeNext) ? safeNext! : "/app/wallet");
+          const storedSurface = readSelectedProductSurface(address);
+          const fallback = storedSurface
+            ? productWorkspaceHref(storedSurface)
+            : "/app/wallet";
+          router.replace(
+            shouldHonorNextForReturningUser(safeNext) ? safeNext! : fallback,
+          );
         } else {
           // First-timer - honor ?next, fall back to the product
           // chooser so they pick intent before creating anything.
@@ -114,6 +130,7 @@ export function useWalletGate() {
     wallet.connecting,
     wallet.disconnecting,
     wallet.loggedInWithoutSolana,
+    address,
     pathname,
     router,
     memberships.isLoading,
