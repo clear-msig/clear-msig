@@ -41,7 +41,7 @@ import { useToast } from "@/components/ui/Toast";
 import { saveWalletAppearance } from "@/lib/retail/walletAppearance";
 import { saveSelectedProductSurface } from "@/lib/productSession";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
-import { isProductSurfaceId } from "@/lib/productSurfaces";
+import { isProductSurfaceId, type ProductSurfaceId } from "@/lib/productSurfaces";
 
 const SOL_TRANSFER_TEMPLATE = "examples/intents/solana_transfer.json";
 
@@ -144,9 +144,12 @@ const SHAPES: WalletShape[] = [
   },
 ];
 
+const PERSONAL_SHAPES = SHAPES.filter((s) => s.id !== "team");
+
 function defaultNameFor(surface: string | null, purpose: "share" | "secure" | "agent" | null): string {
   if (purpose === "agent") return "Agent vault";
   if (surface === "personal") return "My wallet";
+  if (surface === "pro") return "Team treasury";
   if (surface === "p2pdefi") return "P2P workspace";
   if (surface === "payments") return "Payments";
   if (purpose === "share") return "Team";
@@ -219,10 +222,15 @@ function NewWalletContent() {
   const isBrokenSigner = wallet.signerIssue !== null;
   const signerIssue = wallet.signerIssue;
   const me = wallet.publicKey?.toBase58() ?? "";
-  const surface = useMemo(() => {
+  const requestedSurface = useMemo<ProductSurfaceId | null>(() => {
     const requested = search.get("surface");
     return isProductSurfaceId(requested) ? requested : null;
   }, [search]);
+  const [surface, setSurface] = useState<ProductSurfaceId | null>(requestedSurface);
+
+  useEffect(() => {
+    setSurface(requestedSurface);
+  }, [requestedSurface]);
 
   // Unified product entry: clear-msig is now the single create flow
   // for both shared wallets (the classic multisig) and Secure
@@ -238,26 +246,49 @@ function NewWalletContent() {
     const requested = search.get("purpose");
     if (
       requested === "share" ||
-      surface === "personal" ||
-      surface === "pro" ||
-      surface === "p2pdefi" ||
-      surface === "payments"
+      requestedSurface === "personal" ||
+      requestedSurface === "pro" ||
+      requestedSurface === "p2pdefi" ||
+      requestedSurface === "payments"
     ) {
       return "share";
     }
-    if (requested === "secure" || surface === "secure") return "secure";
-    if (requested === "agent" || surface === "agent") return "agent";
+    if (requested === "secure" || requestedSurface === "secure") return "secure";
+    if (requested === "agent" || requestedSurface === "agent") return "agent";
     return null;
-  }, [search, surface]);
+  }, [search, requestedSurface]);
   const [purpose, setPurpose] = useState<Purpose | null>(initialPurpose);
-  const lockedPurpose = surface !== null;
+  const lockedProduct = requestedSurface !== null;
 
   const [shape, setShape] = useState<ShapeId>(
-    surface === "personal" ? "just_me" : "family",
+    requestedSurface === "personal" ? "just_me" : "team",
   );
   const [name, setName] = useState(() =>
-    defaultNameFor(surface, initialPurpose),
+    defaultNameFor(requestedSurface, initialPurpose),
   );
+
+  useEffect(() => {
+    if (!requestedSurface) return;
+    setPurpose(initialPurpose);
+    setShape(requestedSurface === "personal" ? "just_me" : "team");
+    setName(defaultNameFor(requestedSurface, initialPurpose));
+  }, [initialPurpose, requestedSurface]);
+
+  const chooseProduct = (nextSurface: "personal" | "pro" | "agent") => {
+    const nextPurpose: Purpose = nextSurface === "agent" ? "agent" : "share";
+    const nextShape: ShapeId = nextSurface === "personal" ? "just_me" : "team";
+    setSurface(nextSurface);
+    setPurpose(nextPurpose);
+    setShape(nextShape);
+    if (!name.trim()) setName(defaultNameFor(nextSurface, nextPurpose));
+  };
+
+  const chooseDifferentProduct = () => {
+    setSurface(null);
+    setPurpose(null);
+    setShape("team");
+    setName("");
+  };
 
   useEffect(() => {
     if (!surface || !me) return;
@@ -413,7 +444,7 @@ function NewWalletContent() {
     purpose === "agent" ? agentSetupInfo() : productSetupFor(surface);
   const SetupIcon = setupInfo.Icon;
   const showShapePicker =
-    purpose === "share" && (!lockedPurpose || surface === "personal");
+    purpose === "share" && surface === "personal";
 
   if (surface === "p2pdefi") {
     return <ProductComingSoon title="P2P DeFi is coming soon" />;
@@ -443,7 +474,7 @@ function NewWalletContent() {
                 : "Secure your key"
               : purpose === "agent"
                 ? "Create an agent vault"
-                : "Create a wallet"}
+              : "Create a wallet"}
         </h1>
         <p className="text-xs text-text-soft sm:text-sm">
           {purpose === "share"
@@ -457,7 +488,7 @@ function NewWalletContent() {
             : purpose === "agent"
               ? "Create the policy vault first. Then choose an agent and grant bounded access."
             : purpose === null
-              ? "Pick one wallet shape. You will not have to choose again."
+              ? "Choose the product first. This wallet opens in that workspace after setup."
               : surface === "secure"
                 ? "Pick a recovery threshold and enroll your devices."
                 : "Set a threshold and enroll your devices."}
@@ -466,19 +497,15 @@ function NewWalletContent() {
 
       <UnsupportedSignerBanner title="You won't be able to finish creating a wallet with this sign-in" />
 
-      {/* Purpose picker — first step in the unified flow. Both routes
-          create an Ika dWallet under the same on-chain program; what
-          differs is the lifecycle (propose/approve/execute audit
-          trail for shared wallets, enroll/sweep for the personal
-          Secure path). Shown only when no purpose chosen yet. */}
+      {/* Product picker - in-app wallet creation is product-first.
+          Secure is intentionally not shown here because recovery/key
+          setup has its own surface; this flow creates workspace
+          wallets for Personal, Pro, or Agents. */}
       {purpose === null && (
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <button
             type="button"
-            onClick={() => {
-              setPurpose("share");
-              if (!name.trim()) setName(currentShape.defaultName);
-            }}
+            onClick={() => chooseProduct("personal")}
             className={clsx(
               "group flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 text-left",
               "transition-[border-color,background-color,transform] duration-base ease-out-soft",
@@ -491,11 +518,10 @@ function NewWalletContent() {
             </span>
             <div className="flex flex-col gap-1">
               <p className="font-display text-base font-semibold leading-tight text-text-strong">
-                Share with people
+                Personal
               </p>
               <p className="text-xs text-text-soft">
-                A wallet your group decides on together. Approvals,
-                allowance rules, audit trail. Friends, family, team.
+                For trusted people, family, and simple shared approvals.
               </p>
             </div>
             <span className="mt-auto inline-flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">
@@ -505,7 +531,7 @@ function NewWalletContent() {
 
           <button
             type="button"
-            onClick={() => setPurpose("secure")}
+            onClick={() => chooseProduct("pro")}
             className={clsx(
               "group flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 text-left",
               "transition-[border-color,background-color,transform] duration-base ease-out-soft",
@@ -514,16 +540,14 @@ function NewWalletContent() {
             )}
           >
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent ring-1 ring-accent/20">
-              <KeyRound className="h-5 w-5" strokeWidth={1.75} />
+              <Building2 className="h-5 w-5" strokeWidth={1.75} />
             </span>
             <div className="flex flex-col gap-1">
               <p className="font-display text-base font-semibold leading-tight text-text-strong">
-                Secure my key
+                Pro
               </p>
               <p className="text-xs text-text-soft">
-                A wallet just for you, protected by your devices and
-                passkeys. Lose one, sign with the rest. No seed phrase
-                to write down.
+                For team treasury, members, networks, and policy controls.
               </p>
             </div>
             <span className="mt-auto inline-flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">
@@ -533,10 +557,7 @@ function NewWalletContent() {
 
           <button
             type="button"
-            onClick={() => {
-              setPurpose("agent");
-              if (!name.trim()) setName("Agent vault");
-            }}
+            onClick={() => chooseProduct("agent")}
             className={clsx(
               "group flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 text-left",
               "transition-[border-color,background-color,transform] duration-base ease-out-soft",
@@ -549,11 +570,10 @@ function NewWalletContent() {
             </span>
             <div className="flex flex-col gap-1">
               <p className="font-display text-base font-semibold leading-tight text-text-strong">
-                Trade with agents
+                Agents
               </p>
               <p className="text-xs text-text-soft">
-                A policy vault for agent sessions. You keep custody; agents
-                submit bounded decisions.
+                For trading desks with guardrails, allowance, and monitoring.
               </p>
             </div>
             <span className="mt-auto inline-flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">
@@ -572,7 +592,7 @@ function NewWalletContent() {
           one continuous flow with no double-pick. */}
       {purpose === "secure" && (
         <section className="flex flex-col gap-4">
-          {!lockedPurpose && (
+          {!lockedProduct && (
             <button
               type="button"
               onClick={() => setPurpose(null)}
@@ -685,13 +705,13 @@ function NewWalletContent() {
           ClearSig wallet. The post-create route decides whether the
           user lands on wallet overview or the agent launch flow. */}
       {(purpose === "share" || purpose === "agent") && (
-        !lockedPurpose && (
+        !lockedProduct && (
           <button
             type="button"
-            onClick={() => setPurpose(null)}
+            onClick={chooseDifferentProduct}
             className="self-start font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-text-soft hover:text-text-strong"
           >
-            Pick a different shape
+            Choose a different product
           </button>
         )
       )}
@@ -729,7 +749,7 @@ function NewWalletContent() {
               </p>
             </div>
             <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {SHAPES.map((s) => {
+              {PERSONAL_SHAPES.map((s) => {
                 const selected = shape === s.id;
                 return (
                   <li key={s.id}>

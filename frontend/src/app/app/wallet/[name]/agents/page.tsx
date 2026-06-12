@@ -142,6 +142,18 @@ type BackendPersistenceStatus = {
   updatedAt?: number;
 };
 
+const agentLaneClass = clsx(
+  "inline-flex min-h-12 items-center justify-center gap-2 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-semibold text-text-strong shadow-card-rest",
+  "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+);
+
+const agentSecondaryActionClass = clsx(
+  "inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
+  "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+);
+
 type GettingStartedStep = {
   id: string;
   label: string;
@@ -1197,86 +1209,78 @@ export default function AgentsPage() {
         />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {showDeveloperSurfaces ? (
+      <section className="flex flex-col gap-3">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
+          <Link
+            href={`/app/wallet/${encoded}/agents/start`}
+            className={agentLaneClass}
+          >
+            <Play size={15} aria-hidden="true" />
+            <span>Trading desk</span>
+          </Link>
+          <Link
+            href={`/app/wallet/${encoded}/agents/library`}
+            className={agentLaneClass}
+          >
+            <Bot size={15} aria-hidden="true" />
+            <span>Trader profiles</span>
+          </Link>
+          <Link
+            href={`/app/wallet/${encoded}/agents/hyperliquid`}
+            className={agentLaneClass}
+          >
+            <Plug size={15} aria-hidden="true" />
+            <span>Venue</span>
+          </Link>
+          <Link
+            href={`/app/wallet/${encoded}/agents/policy`}
+            className={agentLaneClass}
+          >
+            <ShieldCheck size={15} aria-hidden="true" />
+            <span>Guardrails</span>
+          </Link>
+          <Link
+            href={`/app/wallet/${encoded}/agents/funding`}
+            className={agentLaneClass}
+          >
+            <CircleDollarSign size={15} aria-hidden="true" />
+            <span>Allowance</span>
+          </Link>
+          <Link
+            href={`/app/wallet/${encoded}/agents/trades`}
+            className={agentLaneClass}
+          >
+            <TrendingUp size={15} aria-hidden="true" />
+            <span>Monitor</span>
+          </Link>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            disabled={pendingAction}
-            onClick={startBetaDemo}
+            disabled={pendingAction || agents.length === 0}
+            onClick={runAutonomyScan}
             className={clsx(
-              "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest sm:flex-none",
+              "inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest sm:flex-none",
               "transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
               "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
               "disabled:cursor-not-allowed disabled:opacity-60",
             )}
           >
-            <Sparkles size={13} aria-hidden="true" />
-            Seed demo
+            <BrainCircuit size={13} aria-hidden="true" />
+            Run scan
           </button>
-        ) : null}
-        <Link
-          href={`/app/wallet/${encoded}/agents/library`}
-          className={clsx(
-            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
-            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <Bot size={13} aria-hidden="true" />
-          Agent Library
-        </Link>
-        <Link
-          href={`/app/wallet/${encoded}/agents/start`}
-          className={clsx(
-            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
-            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <Play size={13} aria-hidden="true" />
-          Start trading
-        </Link>
-        <button
-          type="button"
-          disabled={pendingAction || agents.length === 0}
-          onClick={runAutonomyScan}
-          className={clsx(
-            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest sm:flex-none",
-            "transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
-            "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-            "disabled:cursor-not-allowed disabled:opacity-60",
-          )}
-        >
-          <BrainCircuit size={13} aria-hidden="true" />
-          Run scan
-        </button>
-        <Link
-          href="/agents"
-          className={clsx(
-            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
-            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <Trophy size={13} aria-hidden="true" />
-          Marketplace
-        </Link>
-        <Link
-          href={`/app/wallet/${encoded}/agents/trades`}
-          className={clsx(
-            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
-            "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <TrendingUp size={13} aria-hidden="true" />
-          Trades
-        </Link>
-        <details className="group w-full rounded-card border border-border-soft bg-surface-raised px-3 py-2 shadow-card-rest">
+          <Link
+            href="/agents"
+            className={agentSecondaryActionClass}
+          >
+            <Trophy size={13} aria-hidden="true" />
+            Marketplace
+          </Link>
+          <details className="group flex-1 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 shadow-card-rest sm:flex-none">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold text-text-strong">
-            <span>Advanced controls</span>
+            <span>Advanced</span>
             <ChevronDown
               className="h-3.5 w-3.5 text-text-soft transition-transform group-open:rotate-180"
               aria-hidden="true"
@@ -1293,28 +1297,6 @@ export default function AgentsPage() {
             >
               <Send size={13} aria-hidden="true" />
               Try an idea
-            </Link>
-            <Link
-              href={`/app/wallet/${encoded}/agents/funding`}
-              className={clsx(
-                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
-                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-              )}
-            >
-              <CircleDollarSign size={13} aria-hidden="true" />
-              Practice allocation
-            </Link>
-            <Link
-              href={`/app/wallet/${encoded}/agents/hyperliquid`}
-              className={clsx(
-                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
-                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-              )}
-            >
-              <Plug size={13} aria-hidden="true" />
-              Hyperliquid
             </Link>
             <Link
               href={`/app/wallet/${encoded}/agents/solana`}
@@ -1349,31 +1331,39 @@ export default function AgentsPage() {
               <MessageSquare size={13} aria-hidden="true" />
               Feedback
             </Link>
-            <Link
-              href={`/app/wallet/${encoded}/agents/admin`}
-              className={clsx(
-                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
-                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-              )}
-            >
-              <ClipboardList size={13} aria-hidden="true" />
-              Admin
-            </Link>
-            <Link
-              href={`/app/wallet/${encoded}/agents/policy`}
-              className={clsx(
-                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
-                "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-              )}
-            >
-              <SlidersHorizontal size={13} aria-hidden="true" />
-              Safety rules
-            </Link>
+            {showDeveloperSurfaces ? (
+              <Link
+                href={`/app/wallet/${encoded}/agents/admin`}
+                className={clsx(
+                  "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
+                  "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+                )}
+              >
+                <ClipboardList size={13} aria-hidden="true" />
+                Admin
+              </Link>
+            ) : null}
+            {showDeveloperSurfaces ? (
+              <button
+                type="button"
+                disabled={pendingAction}
+                onClick={startBetaDemo}
+                className={clsx(
+                  "inline-flex flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong sm:flex-none",
+                  "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+                  "disabled:cursor-not-allowed disabled:opacity-60",
+                )}
+              >
+                <Sparkles size={13} aria-hidden="true" />
+                Seed demo
+              </button>
+            ) : null}
           </div>
         </details>
       </div>
+      </section>
 
       {policy ? (
         <KillSwitchPanel

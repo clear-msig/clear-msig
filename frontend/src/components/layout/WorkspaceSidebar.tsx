@@ -105,6 +105,7 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
   const activeWalletSlug = (() => {
     const m = pathname.match(/^\/app\/wallet\/([^/]+)/);
     if (!m || !m[1]) return null;
+    if (m[1] === "new") return null;
     try {
       return decodeURIComponent(m[1]);
     } catch {
