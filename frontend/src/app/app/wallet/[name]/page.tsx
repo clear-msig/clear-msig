@@ -330,6 +330,7 @@ export default function WalletDetailPage() {
           needed here anymore. */}
       <Hero
         name={name}
+        productSurface={productSurface}
         memberCount={memberCount}
         memberAddresses={memberAddresses}
         loadingMembers={intentsQuery.isLoading}
@@ -349,6 +350,7 @@ export default function WalletDetailPage() {
       <NextBestActionCard
         name={name}
         displayName={displayName}
+        productSurface={productSurface}
         pendingApprovalCount={walletAction.length}
         hasIntents={hasIntents}
         memberCount={memberCount}
@@ -492,6 +494,7 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
     <>
       <TabBar
         ref={tabBarRef}
+        productSurface={productSurface}
         tab={tab}
         onSelect={switchTab}
         counts={{ holdings: holdingsCount }}
@@ -585,15 +588,17 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
 }
 
 interface TabBarProps {
+  productSurface: ProductSurfaceId | null;
   tab: WalletTab;
   onSelect: (next: WalletTab) => void;
   counts: { holdings: number };
 }
 
 const TabBar = forwardRef<HTMLDivElement, TabBarProps>(function TabBar(
-  { tab, onSelect, counts },
+  { productSurface, tab, onSelect, counts },
   ref,
 ) {
+  const labels = tabLabelsFor(productSurface);
   const items: {
     id: WalletTab;
     label: string;
@@ -602,18 +607,18 @@ const TabBar = forwardRef<HTMLDivElement, TabBarProps>(function TabBar(
   }[] = [
     {
       id: "activity",
-      label: "Activity",
+      label: labels.activity,
       icon: <Activity className="h-4 w-4" strokeWidth={2} />,
     },
     {
       id: "holdings",
-      label: "Holdings",
+      label: labels.holdings,
       icon: <Coins className="h-4 w-4" strokeWidth={2} />,
       count: counts.holdings,
     },
     {
       id: "manage",
-      label: "Manage",
+      label: labels.manage,
       icon: <SettingsIcon className="h-4 w-4" strokeWidth={2} />,
     },
   ];
@@ -672,6 +677,19 @@ const TabBar = forwardRef<HTMLDivElement, TabBarProps>(function TabBar(
   );
 });
 
+function tabLabelsFor(surface: ProductSurfaceId | null): Record<WalletTab, string> {
+  if (surface === "personal") {
+    return { activity: "Timeline", holdings: "Money", manage: "People" };
+  }
+  if (surface === "pro") {
+    return { activity: "Ledger", holdings: "Assets", manage: "Controls" };
+  }
+  if (surface === "agent") {
+    return { activity: "Journal", holdings: "Funds", manage: "Setup" };
+  }
+  return { activity: "Activity", holdings: "Holdings", manage: "Manage" };
+}
+
 function HoldingsEmptyState() {
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-8 text-center shadow-card-rest">
@@ -697,6 +715,7 @@ function HoldingsEmptyState() {
 interface NextBestActionCardProps {
   name: string;
   displayName: string;
+  productSurface: ProductSurfaceId | null;
   pendingApprovalCount: number;
   hasIntents: boolean | null;
   memberCount: number | null;
@@ -723,20 +742,38 @@ function ProductIntentCard({
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
   const config = productIntentConfig(surface, encoded, memberCount);
   const Icon = config.Icon;
+  const tone =
+    surface === "pro"
+      ? {
+          card: "border-border-strong bg-canvas",
+          icon: "bg-accent/12 text-accent",
+          eyebrow: "text-accent",
+        }
+      : surface === "agent"
+        ? {
+            card: "border-accent/25 bg-[#050706]",
+            icon: "bg-accent/15 text-accent",
+            eyebrow: "text-accent",
+          }
+        : {
+            card: "border-emerald-400/25 bg-emerald-500/[0.05]",
+            icon: "bg-emerald-500/10 text-emerald-400",
+            eyebrow: "text-emerald-400",
+          };
 
   return (
     <motion.section
       {...motionProps}
       transition={{ duration: 0.2, delay: 0.04 }}
-      className="rounded-card border border-accent/35 bg-accent/[0.06] p-5 shadow-card-rest"
+      className={"rounded-card border p-5 shadow-card-rest " + tone.card}
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
+          <span className={"flex h-10 w-10 shrink-0 items-center justify-center rounded-full " + tone.icon}>
             <Icon className="h-4 w-4" strokeWidth={1.9} aria-hidden="true" />
           </span>
           <div className="min-w-0">
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
+            <p className={"font-mono text-[10px] uppercase tracking-[0.24em] " + tone.eyebrow}>
               {product.shortName} selected
             </p>
             <h2 className="mt-1 font-display text-lg font-semibold leading-tight text-text-strong">
@@ -829,7 +866,8 @@ function productIntentConfig(
 
 function NextBestActionCard({
   name,
-  displayName,
+  displayName: _displayName,
+  productSurface,
   pendingApprovalCount,
   hasIntents,
   memberCount,
@@ -877,39 +915,82 @@ function NextBestActionCard({
     if (!hasIntents) {
       return {
         Icon: Send,
-        eyebrow: "Finish setup",
-        title: "Enable sending",
+        eyebrow:
+          productSurface === "pro"
+            ? "Treasury setup"
+            : productSurface === "agent"
+              ? "Vault setup"
+              : "Finish setup",
+        title:
+          productSurface === "pro"
+            ? "Enable treasury payouts"
+            : productSurface === "agent"
+              ? "Enable agent vault funding"
+              : "Enable sending",
         href: `/app/wallet/${encoded}/setup`,
-        cta: "Enable sending",
+        cta:
+          productSurface === "pro"
+            ? "Enable payouts"
+            : productSurface === "agent"
+              ? "Enable vault"
+              : "Enable sending",
         accent: true,
+      };
+    }
+    if (productSurface === "agent") {
+      return {
+        Icon: Bot,
+        eyebrow: "Trading desk",
+        title: "Open agent control",
+        href: `/app/wallet/${encoded}/agents`,
+        cta: "Open trading",
+        accent: false,
       };
     }
     if ((memberCount ?? 0) <= 1) {
       return {
         Icon: Users,
-        eyebrow: "Strengthen this wallet",
-        title: "Add someone you trust",
+        eyebrow:
+          productSurface === "pro"
+            ? "Treasury team"
+            : "Strengthen this wallet",
+        title:
+          productSurface === "pro"
+            ? "Add a teammate"
+            : "Add someone you trust",
         href: `/app/wallet/${encoded}/members/add`,
-        cta: "Add member",
+        cta: productSurface === "pro" ? "Add teammate" : "Add member",
         accent: false,
       };
     }
     if (activityCount === 0) {
       return {
-        Icon: Send,
-        eyebrow: "Ready to use",
-        title: "Make the first send",
-        href: `/app/wallet/${encoded}/send`,
-        cta: "Send request",
+        Icon: productSurface === "pro" ? ShieldCheck : Send,
+        eyebrow: productSurface === "pro" ? "Controls first" : "Ready to use",
+        title:
+          productSurface === "pro"
+            ? "Review treasury rules"
+            : "Make the first send",
+        href:
+          productSurface === "pro"
+            ? `/app/wallet/${encoded}/policy`
+            : `/app/wallet/${encoded}/send`,
+        cta: productSurface === "pro" ? "Open rules" : "Send request",
         accent: false,
       };
     }
     return {
-      Icon: ShieldCheck,
-      eyebrow: "All clear",
-      title: "No action needed",
-      href: `/app/wallet/${encoded}/send`,
-      cta: "Send",
+      Icon: productSurface === "pro" ? Building2 : ShieldCheck,
+      eyebrow: productSurface === "pro" ? "Treasury ready" : "All clear",
+      title:
+        productSurface === "pro"
+          ? "Treasury controls are ready"
+          : "No action needed",
+      href:
+        productSurface === "pro"
+          ? `/app/wallet/${encoded}/policy`
+          : `/app/wallet/${encoded}/send`,
+      cta: productSurface === "pro" ? "Review controls" : "Send",
       accent: false,
     };
   })();
@@ -924,6 +1005,10 @@ function NextBestActionCard({
         "rounded-card border p-5 shadow-card-rest " +
         (action.accent
           ? "border-accent/40 bg-accent/[0.07]"
+          : productSurface === "pro"
+            ? "border-border-strong bg-canvas"
+            : productSurface === "agent"
+              ? "border-accent/20 bg-[#050706]"
           : "border-border-soft bg-surface-raised")
       }
     >
@@ -976,6 +1061,7 @@ function NextBestActionCard({
 
 interface HeroProps {
   name: string;
+  productSurface: ProductSurfaceId | null;
   memberCount: number | null;
   memberAddresses: string[];
   loadingMembers: boolean;
@@ -988,6 +1074,7 @@ interface HeroProps {
 
 function Hero({
   name,
+  productSurface,
   memberCount,
   memberAddresses,
   loadingMembers,
@@ -1013,9 +1100,8 @@ function Hero({
   }, [name]);
 
   const encoded = encodeURIComponent(name);
-  const eyebrow = shapeLabel
-    ? `Shared wallet · ${shapeLabel}`
-    : "Shared wallet · Solana devnet";
+  const profile = productHeroProfile(productSurface, shapeLabel);
+  const heroActions = productHeroActions(productSurface, encoded);
 
   return (
     <motion.section
@@ -1034,7 +1120,9 @@ function Hero({
           <span
             aria-hidden="true"
             className={
-              "flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-xl font-semibold text-white shadow-[0_10px_28px_-10px_rgba(0,0,0,0.55)] ring-1 ring-white/10 sm:h-16 sm:w-16 sm:text-2xl " +
+              "flex h-14 w-14 shrink-0 items-center justify-center bg-gradient-to-br text-xl font-semibold text-white shadow-[0_10px_28px_-10px_rgba(0,0,0,0.55)] ring-1 ring-white/10 sm:h-16 sm:w-16 sm:text-2xl " +
+              profile.avatarClass +
+              " " +
               walletGrad.from +
               " " +
               walletGrad.to
@@ -1044,7 +1132,7 @@ function Hero({
           </span>
           <div className="flex min-w-0 flex-col">
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              {eyebrow}
+              {profile.eyebrow}
             </p>
             <h1 className="mt-1.5 truncate font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
               {toHeadingName(name)}
@@ -1118,56 +1206,205 @@ function Hero({
           first-class affordances. A soft accent bloom in the
           top-right lifts the card off the canvas without
           competing with the number. */}
-      <div className="relative overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
+      <div className={profile.cardClass}>
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 -z-0"
         >
           <div
-            className="absolute -right-24 -top-24 h-60 w-60 rounded-full opacity-50"
+            className={profile.glowClass}
             style={{
-              background:
-                "radial-gradient(circle at center, rgba(204, 255, 0, 0.08) 0%, rgba(204, 255, 0, 0) 70%)",
+              background: profile.glow,
               filter: "blur(60px)",
             }}
           />
         </div>
         <div className="relative z-10 flex flex-col gap-6 p-5 sm:p-7">
-          <PortfolioPanel
-            walletName={name}
-            fallbackBalance={balance}
-            fallbackBalanceLamports={balanceLamports}
-            loadingFallback={loadingBalance}
-          />
+          <div className={profile.portfolioWrapClass}>
+            <PortfolioPanel
+              walletName={name}
+              fallbackBalance={balance}
+              fallbackBalanceLamports={balanceLamports}
+              loadingFallback={loadingBalance}
+              label={profile.balanceLabel}
+            />
+            {profile.stats.length > 0 ? (
+              <ul className="grid gap-2 sm:grid-cols-3">
+                {profile.stats.map((stat) => (
+                  <li
+                    key={stat.label}
+                    className="rounded-soft border border-border-soft bg-canvas/70 px-3 py-2"
+                  >
+                    <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-text-soft">
+                      {stat.label}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-text-strong">
+                      {stat.value({
+                        members: memberCount ?? 1,
+                        pending: pendingApprovalCount,
+                      })}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
 
           <div
-            className="grid grid-cols-3 gap-2 sm:gap-3"
+            className={profile.actionsGridClass}
             role="group"
-            aria-label="Wallet actions"
+            aria-label={`${profile.productName} actions`}
           >
-            <HeroActionTile
-              href={`/app/wallet/${encoded}/send`}
-              icon={<Send className="h-5 w-5" strokeWidth={1.75} />}
-              label="Send"
-              hint="Pay anyone"
-            />
-            <HeroActionTile
-              href={`/app/wallet/${encoded}/receive`}
-              icon={<Download className="h-5 w-5" strokeWidth={1.75} />}
-              label="Receive"
-              hint="Get paid"
-            />
-            <HeroActionTile
-              href={`/app/wallet/${encoded}/policy`}
-              icon={<ShieldCheck className="h-5 w-5" strokeWidth={1.75} />}
-              label="Rules"
-              hint="Controls"
-            />
+            {heroActions.map((action) => (
+              <HeroActionTile
+                key={action.href}
+                href={action.href}
+                icon={<action.Icon className="h-5 w-5" strokeWidth={1.75} />}
+                label={action.label}
+                hint={action.hint}
+                tone={profile.actionTone}
+              />
+            ))}
           </div>
         </div>
       </div>
     </motion.section>
   );
+}
+
+type HeroStat = {
+  label: string;
+  value: (input: { members: number; pending: number }) => string;
+};
+
+function productHeroProfile(
+  surface: ProductSurfaceId | null,
+  shapeLabel: string | null,
+): {
+  productName: string;
+  eyebrow: string;
+  avatarClass: string;
+  cardClass: string;
+  glowClass: string;
+  glow: string;
+  portfolioWrapClass: string;
+  actionsGridClass: string;
+  actionTone: "personal" | "pro" | "agent" | "default";
+  balanceLabel: string;
+  stats: HeroStat[];
+} {
+  if (surface === "personal") {
+    return {
+      productName: "Personal",
+      eyebrow: shapeLabel ? `Personal wallet · ${shapeLabel}` : "Personal wallet",
+      avatarClass: "rounded-full",
+      cardClass:
+        "relative overflow-hidden rounded-[1.75rem] border border-border-soft bg-surface-raised shadow-card-rest",
+      glowClass: "absolute -right-24 -top-24 h-60 w-60 rounded-full opacity-50",
+      glow:
+        "radial-gradient(circle at center, rgba(16, 185, 129, 0.10) 0%, rgba(16, 185, 129, 0) 70%)",
+      portfolioWrapClass: "grid gap-5 lg:grid-cols-[1fr_0.85fr] lg:items-end",
+      actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
+      actionTone: "personal",
+      balanceLabel: "Shared balance",
+      stats: [
+        { label: "People", value: ({ members }) => String(members) },
+        { label: "Waiting", value: ({ pending }) => String(pending) },
+        { label: "Mode", value: () => "Simple" },
+      ],
+    };
+  }
+  if (surface === "pro") {
+    return {
+      productName: "Pro",
+      eyebrow: "Pro treasury · controls",
+      avatarClass: "rounded-xl",
+      cardClass:
+        "relative overflow-hidden rounded-card border border-border-strong bg-canvas shadow-card-rest",
+      glowClass: "absolute -right-28 -top-28 h-72 w-72 rounded-full opacity-60",
+      glow:
+        "radial-gradient(circle at center, rgba(204, 255, 0, 0.11) 0%, rgba(204, 255, 0, 0) 70%)",
+      portfolioWrapClass: "grid gap-5 lg:grid-cols-[1.25fr_1fr] lg:items-end",
+      actionsGridClass: "grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3",
+      actionTone: "pro",
+      balanceLabel: "Treasury value",
+      stats: [
+        { label: "Approvers", value: ({ members }) => String(members) },
+        { label: "Queue", value: ({ pending }) => String(pending) },
+        { label: "Policy", value: () => "Active" },
+      ],
+    };
+  }
+  if (surface === "agent") {
+    return {
+      productName: "Agent",
+      eyebrow: "Agent vault · trading desk",
+      avatarClass: "rounded-2xl",
+      cardClass:
+        "relative overflow-hidden rounded-card border border-accent/30 bg-[#050706] shadow-card-rest",
+      glowClass: "absolute -right-24 -top-24 h-72 w-72 rounded-full opacity-70",
+      glow:
+        "radial-gradient(circle at center, rgba(204, 255, 0, 0.14) 0%, rgba(16, 185, 129, 0.03) 45%, rgba(204, 255, 0, 0) 72%)",
+      portfolioWrapClass: "grid gap-5 lg:grid-cols-[1fr_1.1fr] lg:items-end",
+      actionsGridClass: "grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3",
+      actionTone: "agent",
+      balanceLabel: "Trading funds",
+      stats: [
+        { label: "Venue", value: () => "Hyperliquid" },
+        { label: "Queue", value: ({ pending }) => String(pending) },
+        { label: "Risk", value: () => "Guarded" },
+      ],
+    };
+  }
+  return {
+    productName: "Wallet",
+    eyebrow: shapeLabel ? `Shared wallet · ${shapeLabel}` : "Shared wallet · Solana devnet",
+    avatarClass: "rounded-2xl",
+    cardClass:
+      "relative overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-rest",
+    glowClass: "absolute -right-24 -top-24 h-60 w-60 rounded-full opacity-50",
+    glow:
+      "radial-gradient(circle at center, rgba(204, 255, 0, 0.08) 0%, rgba(204, 255, 0, 0) 70%)",
+    portfolioWrapClass: "flex flex-col",
+    actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
+    actionTone: "default",
+    balanceLabel: "Balance",
+    stats: [],
+  };
+}
+
+function productHeroActions(
+  surface: ProductSurfaceId | null,
+  encoded: string,
+): Array<{ href: string; Icon: LucideIcon; label: string; hint?: string }> {
+  if (surface === "personal") {
+    return [
+      { href: `/app/wallet/${encoded}/send`, Icon: Send, label: "Send", hint: "Pay" },
+      { href: `/app/wallet/${encoded}/receive`, Icon: Download, label: "Receive", hint: "Deposit" },
+      { href: `/app/wallet/${encoded}/members`, Icon: Users, label: "People", hint: "Trust" },
+    ];
+  }
+  if (surface === "pro") {
+    return [
+      { href: `/app/wallet/${encoded}/send`, Icon: Send, label: "Payout", hint: "Pay" },
+      { href: `/app/wallet/${encoded}/policy`, Icon: ShieldCheck, label: "Rules", hint: "Policy" },
+      { href: `/app/wallet/${encoded}/budget`, Icon: Banknote, label: "Limits", hint: "Budget" },
+      { href: `/app/wallet/${encoded}/chains`, Icon: Layers, label: "Networks", hint: "Chains" },
+    ];
+  }
+  if (surface === "agent") {
+    return [
+      { href: `/app/wallet/${encoded}/agents`, Icon: Bot, label: "Desk", hint: "Trade" },
+      { href: `/app/wallet/${encoded}/agents/hyperliquid`, Icon: Layers, label: "Venue", hint: "HL" },
+      { href: `/app/wallet/${encoded}/agents/policy`, Icon: ShieldCheck, label: "Guardrails", hint: "Risk" },
+      { href: `/app/wallet/${encoded}/agents/funding`, Icon: Banknote, label: "Allowance", hint: "Funds" },
+    ];
+  }
+  return [
+    { href: `/app/wallet/${encoded}/send`, Icon: Send, label: "Send", hint: "Pay anyone" },
+    { href: `/app/wallet/${encoded}/receive`, Icon: Download, label: "Receive", hint: "Get paid" },
+    { href: `/app/wallet/${encoded}/policy`, Icon: ShieldCheck, label: "Rules", hint: "Controls" },
+  ];
 }
 
 // Hero primary-action tile. ≥80px tap target, accent icon disc,
@@ -1179,24 +1416,41 @@ function HeroActionTile({
   icon,
   label,
   hint,
+  tone = "default",
 }: {
   href: string;
   icon: React.ReactNode;
   label: string;
   hint?: string;
+  tone?: "personal" | "pro" | "agent" | "default";
 }) {
+  const toneClass =
+    tone === "pro"
+      ? "border-border-strong bg-surface-raised hover:border-accent/50"
+      : tone === "agent"
+        ? "border-accent/20 bg-white/[0.03] text-white hover:border-accent/60 hover:bg-accent/[0.06]"
+        : tone === "personal"
+          ? "border-border-soft bg-canvas hover:border-emerald-400/40"
+          : "border-border-soft bg-canvas hover:border-accent/40";
+  const iconClass =
+    tone === "agent"
+      ? "bg-accent/15 text-accent"
+      : tone === "personal"
+        ? "bg-emerald-500/10 text-emerald-400"
+        : "bg-accent/10 text-accent";
   return (
     <Link
       href={href}
       className={
-        "group flex min-h-[88px] flex-col items-center justify-center gap-1.5 rounded-card border border-border-soft bg-canvas px-3 py-3.5 " +
+        "group flex min-h-[88px] flex-col items-center justify-center gap-1.5 rounded-card border px-3 py-3.5 " +
         "text-xs font-medium text-text-strong shadow-card-rest " +
         "transition-[transform,border-color,box-shadow,background-color] duration-base ease-out-soft " +
-        "hover:-translate-y-0.5 hover:border-accent/40 hover:bg-canvas hover:shadow-card-raised " +
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+        "hover:-translate-y-0.5 hover:shadow-card-raised " +
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
+        toneClass
       }
     >
-      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/10 text-accent transition-colors duration-base ease-out-soft group-hover:bg-accent/15">
+      <span className={"flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-base ease-out-soft group-hover:bg-accent/15 " + iconClass}>
         {icon}
       </span>
       <span className="text-center text-[13px] font-semibold leading-tight text-text-strong">
@@ -1222,11 +1476,13 @@ function PortfolioPanel({
   fallbackBalance,
   fallbackBalanceLamports,
   loadingFallback,
+  label = "Balance",
 }: {
   walletName: string;
   fallbackBalance: { amount: string; ticker: string } | null;
   fallbackBalanceLamports: number | null;
   loadingFallback: boolean;
+  label?: string;
 }) {
   const portfolio = useWalletPortfolio(walletName);
   const fiat = useDisplayCurrency();
@@ -1243,7 +1499,7 @@ function PortfolioPanel({
     return (
       <div className="flex flex-col items-start gap-2">
         <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-          Balance
+          {label}
         </p>
         {loadingFallback ? (
           <div className="h-11 w-56 animate-pulse rounded bg-border-soft" />
@@ -1289,7 +1545,7 @@ function PortfolioPanel({
   return (
     <div className="flex flex-col items-start gap-2">
       <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-        Wallet value
+        {label}
       </p>
       {portfolio.isLoading && portfolio.totalUsd === 0 ? (
         <div className="h-11 w-56 animate-pulse rounded bg-border-soft" />

@@ -1160,28 +1160,44 @@ export default function AgentsPage() {
     <motion.div
       {...motionProps}
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col gap-6"
+      className="relative flex flex-col gap-6"
     >
-      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-        <div className="flex flex-col gap-1">
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-            Agent Trading · {display}
-          </p>
-          <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
-            Agent Trading
-          </h1>
+      <header className="overflow-hidden rounded-card border border-accent/25 bg-[#050706] p-4 shadow-card-rest sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+              Agent vault · {display}
+            </p>
+            <h1 className="font-display text-display-xs leading-tight text-text-strong md:text-display-sm">
+              Trading desk
+            </h1>
+          </div>
+          <Link
+            href="/privacy"
+            className={clsx(
+              "inline-flex items-center gap-1.5 rounded-full border border-accent/20 bg-accent/[0.06] px-2.5 py-1 text-[11px] font-medium text-accent",
+              "transition-colors duration-base ease-out-soft hover:border-accent/50",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+            )}
+          >
+            <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
+            {encrypt.live ? "Privacy on" : "Privacy ready"}
+          </Link>
         </div>
-        <Link
-          href="/privacy"
-          className={clsx(
-            "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-[11px] font-medium text-text-soft",
-            "transition-colors duration-base ease-out-soft hover:text-accent",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-          {encrypt.live ? "Privacy on" : "Privacy ready"}
-        </Link>
+        <div className="mt-5 grid gap-2 sm:grid-cols-4">
+          <DeskStatus label="Venue" value="Hyperliquid" tone="accent" />
+          <DeskStatus label="Mode" value="Testnet" tone="soft" />
+          <DeskStatus
+            label="Risk"
+            value={policy?.enabled ? "Guarded" : "Unarmed"}
+            tone={policy?.enabled ? "accent" : "warn"}
+          />
+          <DeskStatus
+            label="Kill switch"
+            value={policy?.emergencyPaused ? "Paused" : "Ready"}
+            tone={policy?.emergencyPaused ? "warn" : "accent"}
+          />
+        </div>
       </header>
 
       <GettingStartedPanel steps={gettingStartedSteps} />
@@ -1582,6 +1598,41 @@ export default function AgentsPage() {
         </section>
       ) : null}
     </motion.div>
+  );
+}
+
+function DeskStatus({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "accent" | "soft" | "warn";
+}) {
+  return (
+    <div
+      className={clsx(
+        "rounded-soft border px-3 py-2",
+        tone === "accent"
+          ? "border-accent/25 bg-accent/[0.06]"
+          : tone === "warn"
+            ? "border-warning/30 bg-warning/[0.06]"
+            : "border-white/10 bg-white/[0.03]",
+      )}
+    >
+      <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-text-soft">
+        {label}
+      </p>
+      <p
+        className={clsx(
+          "mt-1 font-numerals text-sm font-semibold tabular-nums",
+          tone === "warn" ? "text-warning" : tone === "accent" ? "text-accent" : "text-text-strong",
+        )}
+      >
+        {value}
+      </p>
+    </div>
   );
 }
 
