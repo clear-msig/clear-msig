@@ -18,6 +18,7 @@ import {
   Clock,
   Database,
   Inbox,
+  Info,
   KeyRound,
   Lock,
   MessageSquare,
@@ -32,6 +33,7 @@ import {
   TrendingUp,
   Trophy,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { encryptStatus } from "@/lib/encrypt/client";
@@ -144,6 +146,7 @@ type GettingStartedStep = {
   id: string;
   label: string;
   description: string;
+  Icon: LucideIcon;
   done: boolean;
   href: string;
   actionLabel: string;
@@ -441,16 +444,18 @@ export default function AgentsPage() {
     return [
       {
         id: "trader",
-        label: "Choose your trader",
+        label: "Trader",
         description: "Pick a prepared ClearSig trader or create one of your own.",
+        Icon: Bot,
         done: Boolean(firstAgent),
         href: `/app/wallet/${encoded}/agents/library`,
         actionLabel: "Browse traders",
       },
       {
         id: "plan",
-        label: "Describe how it should trade",
-        description: "Set the markets it can watch, when it may act, and when it must stop.",
+        label: "Plan",
+        description: "Set markets, entry rules, exit rules, and kill switch logic.",
+        Icon: SlidersHorizontal,
         done: itemPassed("strategy"),
         href: firstAgent
           ? `/app/wallet/${encoded}/agents/${encodeURIComponent(firstAgent.id)}/strategy`
@@ -459,16 +464,18 @@ export default function AgentsPage() {
       },
       {
         id: "safety",
-        label: "Choose your safety rules",
-        description: "Set the most it can use, the most it can lose, and what it may trade.",
+        label: "Guardrails",
+        description: "Set venue, markets, max size, leverage, drawdown, and loss limits.",
+        Icon: ShieldCheck,
         done: itemPassed("risk-limits"),
         href: `/app/wallet/${encoded}/agents/policy`,
-        actionLabel: "Choose safety rules",
+        actionLabel: "Set guardrails",
       },
       {
         id: "allowance",
-        label: "Give it a practice allowance",
-        description: "Choose a small amount and a short time for its first safe trial.",
+        label: "Allowance",
+        description: "Give the trader a small amount and a short time window.",
+        Icon: Clock,
         done: itemPassed("session"),
         href: firstAgent
           ? `/app/wallet/${encoded}/agents/sessions/new?agent=${encodeURIComponent(firstAgent.id)}`
@@ -477,8 +484,9 @@ export default function AgentsPage() {
       },
       {
         id: "practice",
-        label: "Start trading",
-        description: "Choose a practice account, confirm every required step, and place the first practice trade.",
+        label: "Trade",
+        description: "Run a scan or start the guided practice trading flow.",
+        Icon: Play,
         done: hasFirstPractice,
         href: firstAgent
           ? `/app/wallet/${encoded}/agents/start?agent=${encodeURIComponent(firstAgent.id)}`
@@ -1149,9 +1157,8 @@ export default function AgentsPage() {
           <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
             Agent Trading
           </h1>
-          <p className="max-w-2xl text-xs leading-relaxed text-text-soft sm:text-sm">
-            Let an agent prove itself with practice money first. You choose the
-            limits, approve more only when it earns your trust, and can stop it at any time.
+          <p className="text-xs text-text-soft sm:text-sm">
+            Autonomous trading, bounded by your rules.
           </p>
         </div>
         <Link
@@ -1189,16 +1196,6 @@ export default function AgentsPage() {
           Icon={Play}
         />
       </div>
-
-      <FeatureAccessPanel
-        walletEncoded={encoded}
-        agents={agents}
-        notifications={agentNotificationSummary.notifications.length}
-        marketSnapshots={Object.values(marketByMarket)}
-        intelligenceSnapshots={Object.values(intelligenceByMarket)}
-        onStartDemo={startBetaDemo}
-        pending={pendingAction}
-      />
 
       <div className="flex flex-wrap items-center gap-2">
         {showDeveloperSurfaces ? (
@@ -1386,15 +1383,17 @@ export default function AgentsPage() {
         />
       ) : null}
 
-      <AgentNotificationsPanel
-        notifications={agentNotificationSummary.notifications}
-        seenIds={seenAgentNotifications}
-        unreadCount={unreadAgentNotifications.length}
-        critical={agentNotificationSummary.critical}
-        warning={agentNotificationSummary.warning}
-        onMarkSeen={markAgentNoticeSeen}
-        onMarkAllSeen={markAllAgentNoticesSeen}
-      />
+      {agentNotificationSummary.notifications.length > 0 ? (
+        <AgentNotificationsPanel
+          notifications={agentNotificationSummary.notifications}
+          seenIds={seenAgentNotifications}
+          unreadCount={unreadAgentNotifications.length}
+          critical={agentNotificationSummary.critical}
+          warning={agentNotificationSummary.warning}
+          onMarkSeen={markAgentNoticeSeen}
+          onMarkAllSeen={markAllAgentNoticesSeen}
+        />
+      ) : null}
 
       {agents.length > 0 ? (
         <ReadinessPanel
@@ -1427,6 +1426,15 @@ export default function AgentsPage() {
 
       {showDeveloperSurfaces ? (
         <>
+          <FeatureAccessPanel
+            walletEncoded={encoded}
+            agents={agents}
+            notifications={agentNotificationSummary.notifications.length}
+            marketSnapshots={Object.values(marketByMarket)}
+            intelligenceSnapshots={Object.values(intelligenceByMarket)}
+            onStartDemo={startBetaDemo}
+            pending={pendingAction}
+          />
           <BackendPersistencePanel status={backendStatus} />
           {betaReadiness ? <BetaReadinessPanel readiness={betaReadiness} /> : null}
           {marketReadiness ? <MarketReadinessPanel readiness={marketReadiness} /> : null}
@@ -1573,14 +1581,10 @@ function GettingStartedPanel({ steps }: { steps: GettingStartedStep[] }) {
 
   return (
     <section className="rounded-card border border-accent/25 bg-surface-raised p-4 shadow-card-rest sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-text-strong">
-            {completed === steps.length ? "Your trader is up and running" : "Your next step"}
-          </p>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
-            ClearSig keeps your money under your control. Your trader can only use
-            the amount and time you approve.
+            {completed === steps.length ? "Trading ready" : "Setup"}
           </p>
         </div>
         <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
@@ -1588,41 +1592,57 @@ function GettingStartedPanel({ steps }: { steps: GettingStartedStep[] }) {
         </span>
       </div>
 
-      <ol className="mt-4 grid gap-2">
+      <ol className="mt-4 grid gap-2 sm:grid-cols-5">
         {steps.map((step, index) => {
           const current = index === currentStep && !step.done;
+          const StepIcon = step.Icon;
           return (
             <li
               key={step.id}
               className={clsx(
-                "flex flex-wrap items-center gap-3 rounded-soft border px-3 py-3",
+                "flex min-h-[8rem] flex-col gap-3 rounded-soft border px-3 py-3",
                 current
                   ? "border-accent/40 bg-accent/[0.06]"
                   : "border-border-soft bg-canvas",
               )}
             >
-              <span
-                className={clsx(
-                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold",
-                  step.done
-                    ? "border-accent/30 bg-accent/10 text-accent"
-                    : current
-                      ? "border-accent bg-accent text-text-on-accent"
-                      : "border-border-soft text-text-muted",
-                )}
-              >
-                {step.done ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : index + 1}
-              </span>
-              <div className="min-w-[12rem] flex-1">
+              <div className="flex items-start justify-between gap-2">
+                <span
+                  className={clsx(
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border",
+                    step.done
+                      ? "border-accent/30 bg-accent/10 text-accent"
+                      : current
+                        ? "border-accent bg-accent text-text-on-accent"
+                        : "border-border-soft text-text-muted",
+                  )}
+                >
+                  {step.done ? (
+                    <Check className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <StepIcon className="h-4 w-4" aria-hidden="true" />
+                  )}
+                </span>
+                <details className="group relative">
+                  <summary className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-full text-text-soft transition-colors hover:bg-glass-mid hover:text-accent">
+                    <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span className="sr-only">{step.label} details</span>
+                  </summary>
+                  <p className="absolute right-0 z-10 mt-2 w-56 max-w-[calc(100vw-2rem)] rounded-soft border border-border-soft bg-surface-elevated p-2 text-[11px] leading-relaxed text-text-soft shadow-card-raised">
+                    {step.description}
+                  </p>
+                </details>
+              </div>
+              <div className="min-w-0">
                 <p className="text-xs font-semibold text-text-strong">{step.label}</p>
-                <p className="mt-0.5 text-xs leading-relaxed text-text-soft">
-                  {step.description}
+                <p className="mt-0.5 text-[11px] font-medium text-text-soft">
+                  {step.done ? "Done" : current ? "Next" : "Waiting"}
                 </p>
               </div>
               {current ? (
                 <Link
                   href={step.href}
-                  className="inline-flex min-h-9 items-center justify-center gap-1 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest"
+                  className="mt-auto inline-flex min-h-9 items-center justify-center gap-1 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest"
                 >
                   {step.actionLabel}
                   <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1780,10 +1800,10 @@ function ReadinessPanel({
         : "A few steps remain";
   const summary =
     readyAgents > 0
-      ? "Ready traders can open practice trades when an idea fits your safety rules."
+      ? "Ready for practice trades."
       : blocked > 0
-        ? "Open the trader below to see what needs your attention."
-        : "Finish the next step before your trader can begin practicing.";
+        ? "Open the trader below."
+        : "Finish setup first.";
 
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
@@ -1813,9 +1833,7 @@ function ReadinessPanel({
               <p className="mt-0.5 text-xs text-text-soft">{headline}</p>
             </div>
           </div>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-text-soft">
-            {summary}
-          </p>
+          <p className="mt-2 text-xs text-text-soft">{summary}</p>
         </div>
         <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
           {setup} to finish · {blocked} stopped
@@ -1865,10 +1883,6 @@ function ScoutPanel({
               </p>
             </div>
           </div>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-text-soft">
-            Active traders are scanning their allowed markets and turning the
-            best read into a risk-checked practice idea.
-          </p>
         </div>
         <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
           Scout · Analyze · Gate
@@ -1913,10 +1927,6 @@ function MarketIntelligencePanel({
               </p>
             </div>
           </div>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-text-soft">
-            These are the exact data points the scout can cite before preparing
-            a practice idea.
-          </p>
         </div>
         <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
           Price · Funding · News · Macro
@@ -2152,10 +2162,10 @@ function KillSwitchPanel({
             <p className="text-sm font-semibold text-text-strong">
               {paused ? "All automatic actions are stopped" : "Automatic actions are allowed"}
             </p>
-            <p className="mt-1 text-sm leading-relaxed text-text-soft">
+            <p className="mt-1 text-xs text-text-soft">
               {paused
-                ? "No trader can open a new trade until you turn it back on."
-                : "You can stop every trader immediately whenever you need to."}
+                ? "No new trades can open."
+                : "Kill switch is available anytime."}
             </p>
           </div>
         </div>
@@ -2220,7 +2230,7 @@ function AgentNotificationsPanel({
             <h2 className="text-sm font-semibold text-text-strong">
               Trading notifications
             </h2>
-            <p className="mt-1 text-sm leading-relaxed text-text-soft">
+            <p className="mt-1 text-xs text-text-soft">
               {unreadCount > 0
                 ? `${unreadCount} unread notice${unreadCount === 1 ? "" : "s"} need attention.`
                 : "All current trading notices have been read."}
@@ -2375,9 +2385,15 @@ function LiveVenuePanel({
             <p className="mt-0.5 text-xs font-medium text-text-soft">
               {title}
             </p>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-soft">
-              {summary}
-            </p>
+            <details className="group mt-1">
+              <summary className="inline-flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-full text-text-soft transition-colors hover:bg-glass-mid hover:text-accent">
+                <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="sr-only">Outside practice account details</span>
+              </summary>
+              <p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-text-soft">
+                {summary}
+              </p>
+            </details>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -3045,12 +3061,18 @@ function AgentCard({
             ) : null}
           </div>
           <p className="mt-1 text-xs capitalize text-text-soft">
-              {agentKindLabel(agent.kind)}
+            {agentKindLabel(agent.kind)}
           </p>
           {agent.description ? (
-            <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-text-soft">
-              {agent.description}
-            </p>
+            <details className="group mt-1">
+              <summary className="inline-flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-full text-text-soft transition-colors hover:bg-glass-mid hover:text-accent">
+                <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="sr-only">{agent.name} profile</span>
+              </summary>
+              <p className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-text-soft">
+                {agent.description}
+              </p>
+            </details>
           ) : null}
           <div className="mt-3 flex flex-wrap gap-1.5">
             <span className="inline-flex items-center gap-1 rounded-full border border-border-soft bg-canvas px-2 py-0.5 text-[11px] font-medium text-text-soft">
@@ -3090,7 +3112,7 @@ function AgentCard({
                   <p className="text-[11px] font-semibold text-text-strong">
                     Recommended allowance
                   </p>
-                  <p className="mt-1 text-xs leading-relaxed text-text-soft">
+                  <p className="mt-1 line-clamp-1 text-xs text-text-soft">
                     {allocation.summary}
                   </p>
                 </div>
@@ -3108,7 +3130,7 @@ function AgentCard({
                 </span>
               </div>
               {allocation.nextTier && allocation.nextTierGaps.length > 0 ? (
-                <p className="mt-2 text-[11px] leading-relaxed text-text-soft">
+                <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-text-soft">
                   Next level: {allocation.nextTier.label} needs{" "}
                   {allocation.nextTierGaps.slice(0, 2).join(" and ")}.
                 </p>
@@ -3330,29 +3352,37 @@ function DecisionJournalSummary({ proposal }: { proposal: AgentTradeProposal }) 
   if (!journal) return null;
   return (
     <div className="mt-3 rounded-soft border border-border-soft bg-canvas p-3">
-      <p className="text-[11px] font-semibold text-text-strong">
-        Why this trade
-      </p>
-      <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-text-soft">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold text-text-strong">
+          Why this trade
+        </p>
+        <details className="group">
+          <summary className="inline-flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-full text-text-soft transition-colors hover:bg-glass-mid hover:text-accent">
+            <Info className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="sr-only">Decision details</span>
+          </summary>
+          <div className="mt-2 grid gap-1.5 sm:grid-cols-3">
+            <MiniReason label="Risk" value={journal.riskPlan} />
+            <MiniReason label="Exit" value={journal.exitPlan} />
+            <MiniReason label="Rules" value={journal.policySummary} />
+          </div>
+          {journal.evidence.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {journal.evidence.slice(0, 4).map((item) => (
+                <span
+                  key={item.id}
+                  className="rounded-full border border-border-soft bg-surface-raised px-2 py-0.5 text-[10px] font-medium text-text-soft"
+                >
+                  {evidenceLabel(item.kind)}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </details>
+      </div>
+      <p className="mt-1 line-clamp-1 text-xs text-text-soft">
         {journal.summary}
       </p>
-      <div className="mt-2 grid gap-1.5 sm:grid-cols-3">
-        <MiniReason label="Risk" value={journal.riskPlan} />
-        <MiniReason label="Exit" value={journal.exitPlan} />
-        <MiniReason label="Rules" value={journal.policySummary} />
-      </div>
-      {journal.evidence.length > 0 ? (
-        <div className="mt-2 flex flex-wrap gap-1">
-          {journal.evidence.slice(0, 4).map((item) => (
-            <span
-              key={item.id}
-              className="rounded-full border border-border-soft bg-surface-raised px-2 py-0.5 text-[10px] font-medium text-text-soft"
-            >
-              {evidenceLabel(item.kind)}
-            </span>
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }
