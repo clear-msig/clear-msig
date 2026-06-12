@@ -6,7 +6,7 @@ export type WalletProductSurface = Extract<
 >;
 
 export function walletProductSurface(
-  value: ProductSurfaceId | null | undefined,
+  value: ProductSurfaceId | string | null | undefined,
 ): WalletProductSurface | null {
   return value === "personal" ||
     value === "pro" ||
@@ -132,6 +132,7 @@ function isAllowedProPath(pathname: string, base: string): boolean {
     "chains/add",
     "policy",
     "policies",
+    "payouts",
     "budget",
     "send",
     "send/batch",
