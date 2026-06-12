@@ -54,6 +54,20 @@ describe("product workspace routing", () => {
         surface: "personal",
         pathname: "/app/wallet/Family%23abc123/policy",
       }),
+    ).toBeNull();
+    expect(
+      productWorkspaceRedirectHref({
+        walletName,
+        surface: "personal",
+        pathname: "/app/wallet/Family%23abc123/policies",
+      }),
+    ).toBe("/app/wallet/Family%23abc123");
+    expect(
+      productWorkspaceRedirectHref({
+        walletName,
+        surface: "personal",
+        pathname: "/app/wallet/Family%23abc123/budget",
+      }),
     ).toBe("/app/wallet/Family%23abc123");
     expect(
       productWorkspaceRedirectHref({

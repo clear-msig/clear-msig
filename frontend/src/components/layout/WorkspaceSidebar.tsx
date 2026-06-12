@@ -452,6 +452,7 @@ function walletSubNav(surface: WalletProductSurface | null): WalletSubNavItem[] 
     return [
       { sub: "", label: "Overview", Icon: WalletIcon },
       { sub: "members", label: "Trusted people", Icon: Users },
+      { sub: "policy", label: "Rules", Icon: Shield },
       { sub: "activity", label: "Activity", Icon: ActivityIcon },
       { sub: "settings", label: "Settings", Icon: Settings },
     ];
@@ -481,7 +482,6 @@ function walletSubNav(surface: WalletProductSurface | null): WalletSubNavItem[] 
     { sub: "members", label: "Members", Icon: Users },
     { sub: "activity", label: "Activity", Icon: ActivityIcon },
     { sub: "chains", label: "Networks", Icon: Layers },
-    { sub: "agents", label: "Agents", Icon: Bot },
     { sub: "policy", label: "Rules", Icon: Shield },
     { sub: "settings", label: "Settings", Icon: Settings },
   ];

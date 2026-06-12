@@ -13,7 +13,6 @@ import { useQuery } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
-  Bot,
   Globe,
   ShieldCheck,
   Wallet as WalletIcon,
@@ -23,6 +22,8 @@ import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { IntentType } from "@/lib/msig";
 import { toDisplayName } from "@/lib/retail/walletNames";
+import { getWalletAppearance } from "@/lib/retail/walletAppearance";
+import { walletProductSurface } from "@/lib/productWorkspace";
 
 interface SettingItem {
   href: string;
@@ -46,6 +47,7 @@ export default function WalletSettingsPage() {
   const reduce = useReducedMotion();
   const { connection } = useConnection();
   const encoded = encodeURIComponent(name);
+  const surface = walletProductSurface(getWalletAppearance(name)?.surface);
 
   // Pull the first user intent so we can render a one-line approval
   // status on the policy row. Cheap query - already cached if the
@@ -89,22 +91,23 @@ export default function WalletSettingsPage() {
     {
       href: `/app/wallet/${encoded}/policy`,
       label: "Rules and limits",
-      hint: "Members, approvals, spending limits, and safety checks.",
+      hint:
+        surface === "personal"
+          ? "Trusted people and approval rules."
+          : "Members, approvals, spending limits, and safety checks.",
       Icon: ShieldCheck,
       status: rulesStatus,
     },
-    {
-      href: `/app/wallet/${encoded}/agents`,
-      label: "Agent Trading",
-      hint: "Register trading agents, review trade signals, and control risk limits.",
-      Icon: Bot,
-    },
-    {
-      href: `/app/wallet/${encoded}/chains`,
-      label: "Connected chains",
-      hint: "Bind Ethereum, Hyperliquid, Bitcoin, Zcash. Solana is always on.",
-      Icon: Globe,
-    },
+    ...(surface === "pro" || surface === null
+      ? [
+          {
+            href: `/app/wallet/${encoded}/chains`,
+            label: "Connected chains",
+            hint: "Bind Ethereum, Bitcoin, or Zcash. Solana is always on.",
+            Icon: Globe,
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -138,8 +141,8 @@ export default function WalletSettingsPage() {
       </motion.header>
 
       <p className="max-w-2xl text-sm text-text-soft sm:text-base">
-        Wallet settings are for setup. Money controls live in one rules area
-        so members do not have to hunt across pages.
+        Wallet settings are for setup. Product-specific controls stay in their
+        own workspace so members do not have to hunt across pages.
       </p>
 
       <ul className="flex flex-col gap-2">
