@@ -66,11 +66,6 @@ export function ProductChooserPage() {
           <h1 className="mt-5 text-[clamp(2.4rem,7vw,5.8rem)] font-medium leading-[0.9] text-white">
             What are you here to do?
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/62 sm:text-lg">
-            Start with the strongest ClearSig flows: agent control, team
-            treasury, personal shared wallets, or recovery. Sign in happens
-            after you choose.
-          </p>
         </div>
 
         <div className="mt-10 grid grid-cols-2 gap-x-4 gap-y-8 lg:grid-cols-4">
@@ -109,7 +104,7 @@ export function ProductSurfaceLanding({ id }: { id: ProductSurfaceId }) {
           <h1 className="mt-5 max-w-4xl text-[clamp(2.4rem,7vw,5.8rem)] font-medium leading-[0.9] text-white">
             {surface.headline}
           </h1>
-          <p className="mt-6 max-w-2xl text-base leading-relaxed text-white/62 sm:text-lg">
+          <p className="mt-5 max-w-xl text-base leading-snug text-white/62 sm:text-lg">
             {surface.summary}
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
@@ -152,9 +147,9 @@ export function ProductSurfaceLanding({ id }: { id: ProductSurfaceId }) {
             </div>
           </div>
 
-          <SurfaceIconList title="This surface includes" items={surface.features} />
+          <SurfaceIconList title="Actions" items={surface.features} />
           {surface.boundaries.length > 0 ? (
-            <SurfaceIconList title="Clear boundaries" items={surface.boundaries} muted />
+            <SurfaceIconList title="Not here" items={surface.boundaries} muted />
           ) : null}
 
           <div className="mt-6">
@@ -222,7 +217,7 @@ function ProductIconLink({ surface }: {
       <h2 className="mt-4 text-lg font-semibold text-white">
         {surface.shortName}
       </h2>
-      <p className="mt-2 max-w-[11rem] text-xs leading-relaxed text-white/50">
+      <p className="mt-2 max-w-[11rem] text-xs leading-snug text-white/50">
         {surface.eyebrow}
       </p>
       <span className="mt-auto inline-flex items-center gap-1.5 pt-4 text-xs font-semibold text-[#ccff00]">
@@ -261,7 +256,7 @@ function ProductSupportLink({ surface }: { surface: ProductSurface }) {
             {planned ? "Coming soon" : "Capability"}
           </span>
         </span>
-        <span className="mt-1 block text-xs leading-relaxed text-white/50">
+        <span className="mt-1 block text-xs leading-snug text-white/50">
           {surface.eyebrow}
         </span>
       </span>
@@ -293,7 +288,7 @@ function SurfaceIconList({
           return (
             <div
               key={item}
-              className="flex items-start gap-2 text-sm leading-relaxed text-white/64"
+              className="flex items-center gap-2 text-sm text-white/64"
             >
               <span
                 className={clsx(

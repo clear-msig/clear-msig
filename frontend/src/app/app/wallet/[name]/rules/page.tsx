@@ -22,7 +22,6 @@ import {
   Check,
   Clock,
   Loader2,
-  Lock,
   Pencil,
   Plus,
   ShieldCheck,
@@ -36,7 +35,6 @@ import { IntentType, type IntentAccount } from "@/lib/msig";
 import { Button } from "@/components/retail/Button";
 import { friendlyIntentLabel } from "@/lib/retail/labels";
 import { toDisplayName } from "@/lib/retail/walletNames";
-import { encryptStatus } from "@/lib/encrypt/client";
 import {
   templateFileForChainKind,
   useUpdateTimelock,
@@ -104,8 +102,6 @@ export default function RulesPage() {
     ? {}
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
 
-  const status = encryptStatus();
-
   const display = toDisplayName(name);
 
   return (
@@ -134,26 +130,7 @@ export default function RulesPage() {
             </h1>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/privacy"
-            className={
-              "inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-[11px] font-medium text-text-soft " +
-              "transition-[border-color,color,transform] duration-base ease-out-soft hover:-translate-y-0.5 hover:border-accent/40 hover:text-text-strong " +
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-            }
-          >
-            <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-            Encryption-ready · pre-alpha
-          </Link>
-        </div>
       </motion.header>
-
-      <p className="max-w-2xl text-sm text-text-soft sm:text-base">
-        Each rule is one way money can leave this wallet. They decide who
-        can use it, how many friends approve, and how long the wait is
-        before it ships.
-      </p>
 
       {intentsQuery.isLoading ? (
         <div className="flex flex-col gap-3">
@@ -163,8 +140,7 @@ export default function RulesPage() {
       ) : needsSetup ? (
         <div className="rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest">
           <p className="text-sm text-text-soft">
-            No spending rule yet. Set one up below to enable sending.
-            You&rsquo;ll do this once per wallet.
+            No spending rule yet.
           </p>
         </div>
       ) : (
@@ -194,18 +170,6 @@ export default function RulesPage() {
         Adjust policy
       </Link>
 
-      {!status.live && (
-        <p className="px-1 text-xs text-text-soft">
-          Each rule&rsquo;s details are stored on chain.{" "}
-          <Link
-            href="/privacy"
-            className="font-medium text-accent transition-colors duration-base ease-out-soft hover:text-accent-hover"
-          >
-            How privacy works
-          </Link>
-          .
-        </p>
-      )}
     </div>
   );
 }

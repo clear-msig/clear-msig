@@ -742,9 +742,6 @@ function ProductIntentCard({
             <h2 className="mt-1 font-display text-lg font-semibold leading-tight text-text-strong">
               {config.title}
             </h2>
-            <p className="mt-1 max-w-2xl text-sm text-text-soft">
-              {config.body}
-            </p>
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
@@ -776,7 +773,6 @@ function productIntentConfig(
 ): {
   Icon: LucideIcon;
   title: string;
-  body: string;
   primaryHref: string;
   primaryLabel: string;
   secondaryHref?: string;
@@ -785,8 +781,7 @@ function productIntentConfig(
   if (surface === "pro") {
     return {
       Icon: Building2,
-      title: "Your Pro treasury is ready.",
-      body: "Next, add teammates or define spending rules so this workspace behaves like a company treasury, not a personal wallet.",
+      title: "Pro treasury",
       primaryHref: `/app/wallet/${encodedWallet}/policy`,
       primaryLabel: "Set rules",
       secondaryHref: `/app/wallet/${encodedWallet}/members/add`,
@@ -797,7 +792,6 @@ function productIntentConfig(
     return {
       Icon: Bot,
       title: "Your agent vault is ready.",
-      body: "Choose an agent, connect a venue, and grant a bounded allowance before any strategy can act.",
       primaryHref: `/app/wallet/${encodedWallet}/agents`,
       primaryLabel: "Open trading",
     };
@@ -806,7 +800,6 @@ function productIntentConfig(
     return {
       Icon: Handshake,
       title: "Your P2P workspace is ready.",
-      body: "Use this wallet for counterparty-approved requests and settlement flows. Dedicated offer tooling can build on this workspace.",
       primaryHref: `/app/wallet/${encodedWallet}/send`,
       primaryLabel: "Start settlement",
       secondaryHref: `/app/wallet/${encodedWallet}/members/add`,
@@ -817,7 +810,6 @@ function productIntentConfig(
     return {
       Icon: CreditCard,
       title: "Your Payments workspace is ready.",
-      body: "Create the first payout request, then tighten recurring payment rules before routing larger flows through this wallet.",
       primaryHref: `/app/wallet/${encodedWallet}/send`,
       primaryLabel: "Create payment",
       secondaryHref: `/app/wallet/${encodedWallet}/policy`,
@@ -826,11 +818,7 @@ function productIntentConfig(
   }
   return {
     Icon: Users,
-    title: "Your personal wallet is ready.",
-    body:
-      (memberCount ?? 0) <= 1
-        ? "You can use it solo now, or add someone you trust so approvals match the personal safety flow you chose."
-        : "You can send, receive, and manage trusted approvals from this wallet.",
+    title: "Personal wallet",
     primaryHref:
       (memberCount ?? 0) <= 1
         ? `/app/wallet/${encodedWallet}/members/add`
@@ -881,7 +869,6 @@ function NextBestActionCard({
           pendingApprovalCount === 1
             ? "Review 1 request"
             : `Review ${pendingApprovalCount} requests`,
-        body: "Requests waiting on you are the highest priority. Approve or decline them before starting a new send.",
         href: "#action-needed",
         cta: "Review now",
         accent: true,
@@ -892,7 +879,6 @@ function NextBestActionCard({
         Icon: Send,
         eyebrow: "Finish setup",
         title: "Enable sending",
-        body: `${displayName} cannot send yet. Set up the first spending rule before adding money movement.`,
         href: `/app/wallet/${encoded}/setup`,
         cta: "Enable sending",
         accent: true,
@@ -903,7 +889,6 @@ function NextBestActionCard({
         Icon: Users,
         eyebrow: "Strengthen this wallet",
         title: "Add someone you trust",
-        body: "A shared wallet is safer when another person can review requests before money moves.",
         href: `/app/wallet/${encoded}/members/add`,
         cta: "Add member",
         accent: false,
@@ -914,7 +899,6 @@ function NextBestActionCard({
         Icon: Send,
         eyebrow: "Ready to use",
         title: "Make the first send",
-        body: `${displayName} is ready. Start with a small request so every member sees how approvals work.`,
         href: `/app/wallet/${encoded}/send`,
         cta: "Send request",
         accent: false,
@@ -924,7 +908,6 @@ function NextBestActionCard({
       Icon: ShieldCheck,
       eyebrow: "All clear",
       title: "No action needed",
-      body: "There are no requests waiting on you. You can send, receive, or adjust rules when needed.",
       href: `/app/wallet/${encoded}/send`,
       cta: "Send",
       accent: false,
@@ -968,9 +951,6 @@ function NextBestActionCard({
             <h2 className="mt-1 font-display text-lg font-semibold leading-tight text-text-strong">
               {action.title}
             </h2>
-            <p className="mt-1 max-w-2xl text-sm text-text-soft">
-              {action.body}
-            </p>
           </div>
         </div>
         <Link

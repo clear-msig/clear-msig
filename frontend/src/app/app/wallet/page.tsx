@@ -887,9 +887,6 @@ function FirstVisitCard({
           <h2 className="font-display text-display-xs text-text-strong">
             Start with {product.shortName}
           </h2>
-          <p className="mt-2 max-w-sm text-base text-text-soft">
-            {product.summary}
-          </p>
         </div>
         <Link href={productSetupHref(surface)}>
           <Button size="lg">
@@ -924,9 +921,6 @@ function ProductEmptyState({
             <h2 className="mt-1 font-display text-xl font-semibold text-text-strong">
               No {productWorkspaceLabel(selectedSurface).toLowerCase()} yet
             </h2>
-            <p className="mt-1 max-w-xl text-sm leading-relaxed text-text-soft">
-              {PRODUCT_EMPTY_COPY[selectedSurface]}
-            </p>
           </div>
         </div>
         <Link href={productSetupHref(selectedSurface)} className="shrink-0">
@@ -945,17 +939,6 @@ const PRODUCT_ICON: Record<WalletProductSurface, LucideIcon> = {
   pro: Building2,
   agent: Bot,
   secure: KeyRound,
-};
-
-const PRODUCT_EMPTY_COPY: Record<WalletProductSurface, string> = {
-  personal:
-    "Create a simple shared wallet for trusted people, family, and everyday approvals.",
-  pro:
-    "Create a treasury workspace with team members, policy controls, spending limits, and auditability.",
-  agent:
-    "Create an agent vault before choosing traders, venues, guardrails, allowances, and kill switch rules.",
-  secure:
-    "Secure recovery uses a dedicated recovery workspace. Create a recovery vault when you are ready.",
 };
 
 // ─── Wallets grid ──────────────────────────────────────────────────

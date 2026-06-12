@@ -110,35 +110,35 @@ const SHAPES: WalletShape[] = [
   {
     id: "just_me",
     label: "Just me",
-    blurb: "Solo wallet with shared-wallet protections.",
+    blurb: "Solo wallet.",
     defaultName: "My wallet",
     expectedMembers: 1,
   },
   {
     id: "couple",
     label: "Me + a partner",
-    blurb: "The two of you decide together.",
+    blurb: "Two signers.",
     defaultName: "Us",
     expectedMembers: 2,
   },
   {
     id: "family",
     label: "Family",
-    blurb: "Parents, kids, anyone household.",
+    blurb: "Household wallet.",
     defaultName: "Family",
     expectedMembers: 4,
   },
   {
     id: "roommates",
     label: "Roommates",
-    blurb: "Rent, utilities, the group fridge.",
+    blurb: "Shared expenses.",
     defaultName: "Roommates",
     expectedMembers: 3,
   },
   {
     id: "team",
     label: "Team",
-    blurb: "Co-founders, club, payroll.",
+    blurb: "Team approvals.",
     defaultName: "Team",
     expectedMembers: 5,
   },
@@ -164,27 +164,27 @@ function productSetupFor(surface: string | null): {
   if (surface === "pro") {
     return {
       label: "Team treasury",
-      body: "This creates the treasury workspace. Members, thresholds, and policy controls come next.",
+      body: "Members and policy come next.",
       Icon: Building2,
     };
   }
   if (surface === "p2pdefi") {
     return {
       label: "P2P DeFi workspace",
-      body: "This creates the workspace for counterparties, readable offers, and policy-checked settlement requests.",
+      body: "Counterparty coordination.",
       Icon: Handshake,
     };
   }
   if (surface === "payments") {
     return {
       label: "Payments workspace",
-      body: "This creates the workspace for invoices, approvals, recurring payment controls, and payout review.",
+      body: "Payment approvals.",
       Icon: CreditCard,
     };
   }
   return {
     label: "Shared wallet",
-    body: "This creates a wallet your group can use together. You can invite people and adjust approvals after setup.",
+    body: "Invite people after setup.",
     Icon: Users,
   };
 }
@@ -196,7 +196,7 @@ function agentSetupInfo(): {
 } {
   return {
     label: "Agent vault",
-    body: "This creates the policy-controlled wallet agents will request access to. After setup you will choose the agent, market, and first allowance.",
+    body: "Choose agent and limits next.",
     Icon: Bot,
   };
 }
@@ -456,8 +456,6 @@ function NewWalletContent() {
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       className="mx-auto flex w-full max-w-xl flex-col gap-6"
     >
-      {/* Compact header - h1 hidden on mobile (the floating header
-          pill carries the title). Subtitle adapts to purpose. */}
       <header className="flex flex-col gap-1">
         <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
           {purpose === "share"
@@ -476,23 +474,6 @@ function NewWalletContent() {
                 ? "Create an agent vault"
               : "Create a wallet"}
         </h1>
-        <p className="text-xs text-text-soft sm:text-sm">
-          {purpose === "share"
-            ? surface === "personal"
-              ? "Start simple. You can add trusted people and approvals after."
-              : surface === "pro"
-              ? "Name the treasury first. Members, thresholds, and policies come next."
-              : surface === "payments"
-                  ? "Create the workspace first. Invoices, approvals, and payout rules come next."
-              : "Name it, pick who it’s for. You can invite friends after."
-            : purpose === "agent"
-              ? "Create the policy vault first. Then choose an agent and grant bounded access."
-            : purpose === null
-              ? "Choose the product first. This wallet opens in that workspace after setup."
-              : surface === "secure"
-                ? "Pick a recovery threshold and enroll your devices."
-                : "Set a threshold and enroll your devices."}
-        </p>
       </header>
 
       <UnsupportedSignerBanner title="You won't be able to finish creating a wallet with this sign-in" />
@@ -521,7 +502,7 @@ function NewWalletContent() {
                 Personal
               </p>
               <p className="text-xs text-text-soft">
-                For trusted people, family, and simple shared approvals.
+                Shared approvals.
               </p>
             </div>
             <span className="mt-auto inline-flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">
@@ -547,7 +528,7 @@ function NewWalletContent() {
                 Pro
               </p>
               <p className="text-xs text-text-soft">
-                For team treasury, members, networks, and policy controls.
+                Treasury policy.
               </p>
             </div>
             <span className="mt-auto inline-flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">
@@ -573,7 +554,7 @@ function NewWalletContent() {
                 Agents
               </p>
               <p className="text-xs text-text-soft">
-                For trading desks with guardrails, allowance, and monitoring.
+                Trading guardrails.
               </p>
             </div>
             <span className="mt-auto inline-flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">
@@ -607,9 +588,7 @@ function NewWalletContent() {
               Threshold
             </p>
             <p className="mt-1 text-xs text-text-soft">
-              How many of your devices have to sign before funds move?
-              Higher = safer if a device is lost, more taps when you
-              recover.
+              Choose how many devices must sign.
             </p>
 
             <div className="mt-4 flex flex-col gap-3">
@@ -618,17 +597,17 @@ function NewWalletContent() {
                   {
                     id: "solo",
                     label: "Just me",
-                    sub: "1 of 1 — only your current device. Fast to set up; lose the device, lose the key.",
+                    sub: "1 of 1",
                   },
                   {
                     id: "2of3",
                     label: "2 of 3",
-                    sub: "You + two passkeys. Any two sign. Tolerates losing one. Two passkey prompts during create.",
+                    sub: "Any two devices sign.",
                   },
                   {
                     id: "3of5",
                     label: "3 of 5",
-                    sub: "Five members, three to recover. Tolerates losing two. Four passkey prompts during create.",
+                    sub: "Three of five devices sign.",
                   },
                 ] as const
               ).map((s) => (
@@ -688,8 +667,7 @@ function NewWalletContent() {
                   Already have a Solana key?
                 </p>
                 <p className="text-xs text-text-soft">
-                  Import an existing keypair and bring it under quorum
-                  protection. Solo for now; thresholds coming.
+                  Bring an existing key into Secure.
                 </p>
               </div>
             </div>
@@ -744,8 +722,7 @@ function NewWalletContent() {
                 Pick a starter setup
               </span>
               <p className="mt-1 text-xs text-text-soft">
-                This only shapes the first screen and default name. You can invite
-                people and adjust approvals after the wallet is created.
+                Pick a starting shape.
               </p>
             </div>
             <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -775,7 +752,7 @@ function NewWalletContent() {
                         <p className="font-display text-sm font-semibold leading-tight text-text-strong">
                           {s.label}
                         </p>
-                        <p className="mt-1 text-xs leading-relaxed text-text-soft">
+                        <p className="mt-1 text-xs text-text-soft">
                           {s.blurb}
                         </p>
                       </div>
@@ -805,7 +782,7 @@ function NewWalletContent() {
                 <p className="font-display text-sm font-semibold leading-tight text-text-strong">
                   {setupInfo.label}
                 </p>
-                <p className="mt-1 text-xs leading-relaxed text-text-soft">
+                <p className="mt-1 text-xs text-text-soft">
                   {setupInfo.body}
                 </p>
               </div>
@@ -845,20 +822,9 @@ function NewWalletContent() {
           </div>
         </div>
 
-        {/* What happens next callout */}
-        <div className="rounded-soft border border-border-soft bg-canvas p-3.5">
-          <div className="flex items-center gap-2 text-text-soft">
-            <ShieldCheck className="h-3.5 w-3.5 text-accent" strokeWidth={2} aria-hidden="true" />
-            <span className="text-[11px] font-semibold uppercase tracking-[0.2em]">
-              What happens next
-            </span>
-          </div>
-          <p className="mt-1.5 text-xs leading-relaxed text-text-soft">
-            Your wallet will pop up{" "}
-            <span className="font-medium text-text-strong">twice</span> - once
-            to create the wallet, once to turn on sending. No funds move during
-            setup. {purpose === "agent" ? "Agent permissions are granted after this." : ""}
-          </p>
+        <div className="inline-flex items-center gap-2 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs text-text-soft">
+          <ShieldCheck className="h-3.5 w-3.5 text-accent" strokeWidth={2} aria-hidden="true" />
+          <span>Two wallet popups. No funds move.</span>
         </div>
 
         {/* Create CTA */}
@@ -953,8 +919,7 @@ function ProductComingSoon({ title }: { title: string }) {
             {title}
           </p>
           <p className="mt-1 text-sm leading-relaxed text-text-soft">
-            We are focusing the live setup on Agents, Pro, Personal, and Secure first.
-            P2P DeFi will open after the coordination and settlement flow is ready.
+            P2P DeFi opens after the live product flows are sharper.
           </p>
         </div>
       </div>

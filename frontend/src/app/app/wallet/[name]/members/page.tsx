@@ -19,7 +19,7 @@ import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Crown, Loader2, Lock, Pencil, Plus, Tag, Trash2 } from "lucide-react";
+import { Crown, Loader2, Pencil, Plus, Tag, Trash2 } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { deriveRole, listWatchers, ROLE_HINT, ROLE_LABEL, type Role } from "@/lib/retail/roles";
@@ -139,17 +139,6 @@ export default function MembersPage() {
           </h1>
           <p className="text-xs text-text-soft sm:text-sm">{summary}</p>
         </div>
-        <Link
-          href="/privacy"
-          className={clsx(
-            "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-[11px] font-medium text-text-soft",
-            "transition-colors duration-base ease-out-soft hover:text-accent",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-          )}
-        >
-          <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-          Privacy-ready · pre-alpha
-        </Link>
       </header>
 
       {/* Toolbar - primary CTA + spending-limits link as a chip. */}
@@ -213,31 +202,6 @@ export default function MembersPage() {
         )}
       </section>
 
-      {/* Allowances callout - destination state, marked as preview. */}
-      <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
-            <Lock className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-text-strong">
-              Per-friend spending limits
-            </p>
-            <p className="mt-1 text-xs leading-relaxed text-text-soft">
-              Set a daily, weekly, or monthly cap for each friend. The
-              wallet will enforce it on chain when Encrypt FHE support
-              lands; today this is an encryption-ready preview.
-            </p>
-            <Link
-              href="/privacy"
-              className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-accent transition-colors duration-base ease-out-soft hover:text-accent-hover"
-            >
-              How privacy works
-              <ArrowRight className="h-3 w-3" aria-hidden="true" />
-            </Link>
-          </div>
-        </div>
-      </section>
     </motion.div>
   );
 }

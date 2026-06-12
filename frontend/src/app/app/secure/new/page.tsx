@@ -66,23 +66,21 @@ const SHAPES: ThresholdShape[] = [
     label: "Just me",
     threshold: 1,
     members: 1,
-    blurb: "Your connected wallet is the only signer. Add devices later.",
+    blurb: "Fastest setup.",
   },
   {
     id: "2of3",
     label: "2 of 3",
     threshold: 2,
     members: 3,
-    blurb:
-      "You + two passkeys. Any two sign and you're in. Tolerates losing one. Two passkey prompts during create.",
+    blurb: "Any two sign.",
   },
   {
     id: "3of5",
     label: "3 of 5",
     threshold: 3,
     members: 5,
-    blurb:
-      "Five members, three to recover. Tolerates losing two. Four passkey prompts during create.",
+    blurb: "Three of five sign.",
   },
 ];
 
@@ -391,10 +389,6 @@ function ShapeStage({ shape, setShape, onContinue, reduce }: ShapeStageProps) {
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] tracking-[-0.02em] text-text-strong text-balance sm:mt-3">
           How many signers?
         </h1>
-        <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-text-soft text-pretty">
-          The threshold is how many signers must agree before the vault
-          releases the key. Pick the one that fits your situation.
-        </p>
       </header>
 
       <ul className="flex flex-col gap-3 px-gutter">
@@ -444,7 +438,7 @@ function ShapeStage({ shape, setShape, onContinue, reduce }: ShapeStageProps) {
                     <p className="mt-1.5 font-display text-lg font-semibold tracking-[-0.015em] text-text-strong">
                       {s.label}
                     </p>
-                    <p className="mt-2.5 max-w-md text-[13.5px] leading-relaxed text-text-soft text-pretty">
+                    <p className="mt-2.5 max-w-md text-[13.5px] text-text-soft">
                       {s.blurb}
                     </p>
 
@@ -560,10 +554,6 @@ function ConfirmStage({
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] tracking-[-0.02em] text-text-strong text-balance sm:mt-3">
           Build a {shape.threshold}-of-{shape.members} vault
         </h1>
-        <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-text-soft text-pretty">
-          Your wallet will be asked to sign one transaction. That puts the
-          vault on chain and binds your dWallet to it.
-        </p>
       </header>
 
       {/* Receipt-style preview card. Header strip with vault
@@ -618,10 +608,6 @@ function ConfirmStage({
             <PreviewRow label="Network" value="Solana devnet" />
           </ul>
 
-          <p className="mt-5 text-[12px] leading-relaxed text-text-soft">
-            Add additional devices and set a sweep destination after the
-            vault is live.
-          </p>
         </div>
       </article>
 
@@ -701,49 +687,34 @@ function CreatingStage({
     passkeyProgress != null
       ? `Creating passkey ${passkeyProgress.index} of ${passkeyProgress.total}`
       : "Creating passkeys";
-  const passkeyDetail =
-    passkeyProgress != null
-      ? "Tap your fingerprint / use your phone. One prompt per slot."
-      : "Each member needs its own credential. Tap through each prompt.";
-
-  const STAGES: { id: CreateVaultStage; label: string; detail: string }[] = [
+  const STAGES: { id: CreateVaultStage; label: string }[] = [
     {
       id: "create-passkey",
       label: passkeyLabel,
-      detail: passkeyDetail,
     },
     {
       id: "dkg",
       label: "Running DKG",
-      detail:
-        "Asking the Ika network to mint your dWallet. Usually a few seconds.",
     },
     {
       id: "wait-dwallet",
       label: "Activating dWallet",
-      detail:
-        "Waiting for the dWallet account to commit on-chain. Mock signer auto-commits within ~5s.",
     },
     {
       id: "build",
       label: "Building transaction",
-      detail:
-        "Encoding create-recovery + the dWallet authority handoff to ikavery's CPI authority.",
     },
     {
       id: "sign",
       label: "Waiting for your signature",
-      detail: "Confirm in your wallet popup. Cancel there to bail out.",
     },
     {
       id: "submit",
       label: "Submitting on Solana",
-      detail: "Sending the signed transaction to a devnet RPC.",
     },
     {
       id: "confirm",
       label: "Waiting for confirmation",
-      detail: "The vault is on chain - just waiting for the slot to finalize.",
     },
   ];
   const activeIdx = subStage ? STAGES.findIndex((s) => s.id === subStage) : 0;
@@ -762,9 +733,6 @@ function CreatingStage({
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] tracking-[-0.02em] text-text-strong text-balance sm:mt-3">
           {activeStep.label}
         </h1>
-        <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-text-soft text-pretty">
-          {activeStep.detail}
-        </p>
       </header>
 
       <ol className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
@@ -878,9 +846,6 @@ function DoneStage({
             <h1 className="mt-2 font-display text-display-sm leading-[1.05] tracking-[-0.02em] text-text-strong">
               Your key is under quorum
             </h1>
-            <p className="mt-2 max-w-md text-[14px] leading-relaxed text-text-soft">
-              Open the vault to add devices or wire a sweep destination.
-            </p>
           </div>
         </div>
       </article>
@@ -978,10 +943,6 @@ function BlockedDisconnect() {
           <h1 className="mt-2 font-display text-display-xs leading-tight tracking-[-0.02em] text-text-strong">
             Connect a wallet first
           </h1>
-          <p className="mt-2 max-w-md text-[14px] leading-relaxed text-text-soft">
-            The vault is anchored to your Solana wallet. Sign in to start
-            building.
-          </p>
         </div>
         <Link href="/connect?next=/app/secure/new" className="inline-block">
           <Button size="lg">
