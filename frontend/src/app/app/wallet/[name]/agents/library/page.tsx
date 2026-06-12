@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import clsx from "clsx";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
@@ -74,6 +74,7 @@ type TrackedAgentItem = {
 export default function TraderLibraryPage() {
   const params = useParams<{ name: string }>();
   const router = useRouter();
+  const search = useSearchParams();
   const toast = useToast();
   const [pending, startTransition] = useTransition();
   const [window, setWindow] = useState<LibraryWindow>("7d");
@@ -84,6 +85,7 @@ export default function TraderLibraryPage() {
   const name = useMemo(() => decodeParam(params?.name), [params?.name]);
   const encoded = encodeURIComponent(name);
   const display = toDisplayName(name);
+  const showDeveloperSurfaces = search.get("debug") === "1";
   const chosen = listAgents(name).filter((agent) => agent.status !== "revoked");
   const scorecards = listAgentScorecards(name);
   const leaderboard = agentLeaderboard(name);
@@ -257,7 +259,7 @@ export default function TraderLibraryPage() {
           className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-text-soft transition-colors hover:text-accent"
         >
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-          Automated Trading
+          Agent Trading
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -265,11 +267,11 @@ export default function TraderLibraryPage() {
               Agent Library · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
-              Choose an agent
+              Choose a trader
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-soft">
               Compare track records, safety behavior, and suggested allowances
-              before you let an agent trade.
+              before you let a trader act.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -280,15 +282,17 @@ export default function TraderLibraryPage() {
               <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
               Create your own
             </Link>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={addDemoHistory}
-              className={SECONDARY_BUTTON}
-            >
-              <Trophy className="h-3.5 w-3.5" aria-hidden="true" />
-              Add demo history
-            </button>
+            {showDeveloperSurfaces ? (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={addDemoHistory}
+                className={SECONDARY_BUTTON}
+              >
+                <Trophy className="h-3.5 w-3.5" aria-hidden="true" />
+                Add demo history
+              </button>
+            ) : null}
             <Link
               href={`/app/wallet/${encoded}/agents/new?mode=advanced`}
               className={SECONDARY_BUTTON}
@@ -310,7 +314,7 @@ export default function TraderLibraryPage() {
           <Promise
             Icon={Trophy}
             title="Ranked by results"
-            text="Scores improve only after real practice history."
+            text="Scores improve only after recorded trading history."
           />
           <Promise
             Icon={CircleDollarSign}
@@ -324,10 +328,10 @@ export default function TraderLibraryPage() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-text-strong">
-              Agents with track records
+              Traders with track records
             </h2>
             <p className="mt-1 max-w-2xl text-xs leading-relaxed text-text-soft">
-              These are agents already added to this wallet. Their numbers come
+              These are traders already added to this wallet. Their numbers come
               from trades and safety checks recorded in ClearSig.
             </p>
           </div>
@@ -367,12 +371,12 @@ export default function TraderLibraryPage() {
         ) : (
           <div className="rounded-card border border-dashed border-border-soft bg-surface-raised p-5">
             <p className="text-sm font-semibold text-text-strong">
-              No agent has a track record here yet
+              No trader has a track record here yet
             </p>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
               {trackedAgents.length > 0
-                ? "No tracked agent matches this market yet. Choose another market or start a prepared agent below."
-                : "Start with a prepared agent below. After it places and closes practice trades, this area will show its score, profit/loss, recent profit/loss, win rate, open trades, safety stops, and allowance recommendation."}
+                ? "No tracked trader matches this market yet. Choose another market or start a prepared trader below."
+                : "Start with a prepared trader below. After it places and closes trades, this area will show score, profit/loss, win rate, open trades, safety stops, and allowance recommendation."}
             </p>
           </div>
         )}
@@ -381,11 +385,11 @@ export default function TraderLibraryPage() {
       <section className="flex flex-col gap-3">
         <div>
           <h2 className="text-sm font-semibold text-text-strong">
-            Prepared agents
+            Prepared traders
           </h2>
           <p className="mt-1 max-w-2xl text-xs leading-relaxed text-text-soft">
-            These make the first run easy. They start as new agents and earn a
-            score only after trading in this wallet.
+            These make the first run easy. They start with the smallest
+            allowance and earn more room only after trading in this wallet.
           </p>
         </div>
         <div className="grid gap-3 lg:grid-cols-3">
@@ -1049,11 +1053,11 @@ function formatNumber(value: number): string {
 function venueLabel(venue: TradingVenue): string {
   switch (venue) {
     case "mock_perps":
-      return "Built-in practice";
+      return "Internal sandbox";
     case "hyperliquid_testnet":
-      return "Hyperliquid practice";
+      return "Hyperliquid testnet";
     case "bulktrade_mock":
-      return "Bulk practice";
+      return "Bulk sandbox";
   }
 }
 

@@ -57,15 +57,15 @@ export default function AgentFundingPage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Practice allocation · {display}
+              Allowance · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
               Set allowances by performance
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-soft">
-              ClearSig recommends small, time-boxed practice allowances from
-              each trader&apos;s results and your safety rules. You approve
-              every allowance before it can trade.
+              ClearSig recommends small, time-boxed allowances from each
+              trader&apos;s results and your guardrails. You approve every
+              allowance before it can trade.
             </p>
           </div>
           {topAction ? (
@@ -138,7 +138,7 @@ export default function AgentFundingPage() {
             </p>
             <p className="mt-1 text-sm leading-relaxed text-text-soft">
               Choose a prepared trader or create your own, then ClearSig can
-              recommend a small practice allowance.
+              recommend a small starting allowance.
             </p>
             <Link
               href={`/app/wallet/${encoded}/agents/library`}
@@ -261,7 +261,7 @@ function FundingCard({
             </p>
           ) : (
             <p className="mt-1 text-xs leading-relaxed text-text-soft">
-              This trader is already at the highest practice allowance level.
+              This trader is already at the highest allowance level.
             </p>
           )}
         </div>

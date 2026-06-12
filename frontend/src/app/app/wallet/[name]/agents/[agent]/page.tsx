@@ -1507,7 +1507,7 @@ function NextAllowancePanel({
     suggestions.push("Fewer stopped ideas will make the next allowance easier to approve.");
   }
   if ((scorecard?.executed ?? 0) === 0) {
-    suggestions.push("Complete a few small practice trades first.");
+    suggestions.push("Complete a few small guarded trades first.");
   }
   return (
     <Panel title="Next Allowance" Icon={ShieldCheck}>

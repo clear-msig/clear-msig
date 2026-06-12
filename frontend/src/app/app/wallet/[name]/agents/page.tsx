@@ -22,6 +22,7 @@ import {
   KeyRound,
   Lock,
   MessageSquare,
+  Pause,
   Plug,
   Plus,
   Play,
@@ -774,7 +775,7 @@ export default function AgentsPage() {
             });
           } else if (placed > 0) {
             toast.success(
-              `${placed} Hyperliquid practice trade${placed === 1 ? "" : "s"} sent`,
+              `${placed} Hyperliquid testnet trade${placed === 1 ? "" : "s"} sent`,
               {
                 details:
                   prepared.length > placed
@@ -849,7 +850,7 @@ export default function AgentsPage() {
       void submitAgentVenueExecution(proposal)
         .then((result) => {
           if (result.ok) {
-            toast.success("Trade request sent to the practice account");
+            toast.success("Trade request sent to the venue account");
             return;
           }
           toast.error(
@@ -862,7 +863,7 @@ export default function AgentsPage() {
           }
         })
         .catch(() => {
-          toast.error("Could not check the outside practice account");
+          toast.error("Could not check the outside venue account");
         });
     });
   };
@@ -937,7 +938,7 @@ export default function AgentsPage() {
             "Your safety rules stopped this trade idea",
         );
       } else if (result.reason === "backend_required") {
-        toast.error("Connect the outside practice account before using it");
+        toast.error("Connect the outside venue account before using it");
       } else if (result.reason === "not_approved") {
         toast.error("Approve this trade idea first");
       } else {
@@ -1019,7 +1020,7 @@ export default function AgentsPage() {
         );
       const closed = [...localClosed, ...fallbackClosed];
       if (closed.length === 0) {
-        toast.error("No open practice trades to close");
+        toast.error("No open trades to close");
         return;
       }
       if (fallbackClosed.length > 0) {
@@ -1119,15 +1120,15 @@ export default function AgentsPage() {
     startAction(() => {
       const updated = updateAgentSessionStatus(name, id, "revoked");
       if (!updated) {
-        toast.error("Practice allowance not found");
+        toast.error("Allowance not found");
         return;
       }
       void syncAgentSessionStatus(name, id, "revoked").then((synced) => {
         if (synced.ok) {
-          toast.success("Practice allowance ended");
+          toast.success("Allowance ended");
           void refreshBackendState();
         } else {
-          toast.info("Practice allowance ended on this device for now", {
+          toast.info("Allowance ended on this device for now", {
             details: synced.message,
           });
         }
@@ -1144,10 +1145,10 @@ export default function AgentsPage() {
       }
       void syncAgentSession(renewed).then((synced) => {
         if (synced.ok) {
-          toast.success("Practice allowance renewed");
+          toast.success("Allowance renewed");
           void refreshBackendState();
         } else {
-          toast.info("Practice allowance renewed on this device for now", {
+          toast.info("Allowance renewed on this device for now", {
             details: synced.message,
           });
         }
@@ -1203,14 +1204,14 @@ export default function AgentsPage() {
           Icon={Clock}
         />
         <MetricCard
-          label="Open practice trades"
+          label="Open trades"
           value={String(openExecutions)}
           Icon={Play}
         />
       </div>
 
       <section className="flex flex-col gap-3">
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <Link
             href={`/app/wallet/${encoded}/agents/start`}
             className={agentLaneClass}
@@ -1247,11 +1248,25 @@ export default function AgentsPage() {
             <span>Allowance</span>
           </Link>
           <Link
-            href={`/app/wallet/${encoded}/agents/trades`}
+            href="#kill-switch"
+            className={agentLaneClass}
+          >
+            <Pause size={15} aria-hidden="true" />
+            <span>Kill switch</span>
+          </Link>
+          <Link
+            href="#decision-journal"
+            className={agentLaneClass}
+          >
+            <ClipboardList size={15} aria-hidden="true" />
+            <span>Decision journal</span>
+          </Link>
+          <Link
+            href="#live-monitor"
             className={agentLaneClass}
           >
             <TrendingUp size={15} aria-hidden="true" />
-            <span>Monitor</span>
+            <span>Live monitor</span>
           </Link>
         </div>
 
@@ -1366,11 +1381,13 @@ export default function AgentsPage() {
       </section>
 
       {policy ? (
-        <KillSwitchPanel
-          paused={policy.emergencyPaused}
-          pending={pendingAction}
-          onToggle={setKillSwitch}
-        />
+        <section id="kill-switch" className="scroll-mt-24">
+          <KillSwitchPanel
+            paused={policy.emergencyPaused}
+            pending={pendingAction}
+            onToggle={setKillSwitch}
+          />
+        </section>
       ) : null}
 
       {agentNotificationSummary.notifications.length > 0 ? (
@@ -1408,11 +1425,13 @@ export default function AgentsPage() {
         />
       ) : null}
 
-      <LiveVenuePanel
-        readiness={liveVenueReadiness}
-        loading={liveVenueLoading}
-        walletEncoded={encoded}
-      />
+      <section id="live-monitor" className="scroll-mt-24">
+        <LiveVenuePanel
+          readiness={liveVenueReadiness}
+          loading={liveVenueLoading}
+          walletEncoded={encoded}
+        />
+      </section>
 
       {showDeveloperSurfaces ? (
         <>
@@ -1436,6 +1455,7 @@ export default function AgentsPage() {
           browseHref={`/app/wallet/${encoded}/agents/library`}
           createHref={`/app/wallet/${encoded}/agents/new`}
           pending={pendingAction}
+          showDemo={showDeveloperSurfaces}
           onStartDemo={startBetaDemo}
         />
       ) : (
@@ -1462,11 +1482,11 @@ export default function AgentsPage() {
         </section>
       )}
 
-      {proposals.length > 0 ? (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            Recent trade ideas
-          </h2>
+      <section id="decision-journal" className="flex scroll-mt-24 flex-col gap-3">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          Decision journal
+        </h2>
+        {proposals.length > 0 ? (
           <ul className="grid gap-3">
             {proposals.slice(0, 5).map((proposal) => (
               <ProposalCard
@@ -1481,13 +1501,17 @@ export default function AgentsPage() {
               />
             ))}
           </ul>
-        </section>
-      ) : null}
+        ) : (
+          <div className="rounded-card border border-dashed border-border-soft bg-surface-raised p-5 text-sm text-text-soft">
+            No decisions yet. Choose a trader, set an allowance, then run a scan.
+          </div>
+        )}
+      </section>
 
       {sessions.length > 0 ? (
         <section className="flex flex-col gap-3">
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            Practice allowances
+            Allowances
           </h2>
           <ul className="grid gap-3 md:grid-cols-2">
             {sessions.slice(0, 4).map((session) => (
@@ -1520,7 +1544,7 @@ export default function AgentsPage() {
         <section className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Practice trades
+              Trades
             </h2>
             {openExecutions > 0 ? (
               <button
@@ -1790,7 +1814,7 @@ function ReadinessPanel({
         : "A few steps remain";
   const summary =
     readyAgents > 0
-      ? "Ready for practice trades."
+      ? "Ready for guarded trades."
       : blocked > 0
         ? "Open the trader below."
         : "Finish setup first.";
@@ -2330,25 +2354,25 @@ function LiveVenuePanel({
   const unavailable = !loading && !readiness;
   const reconciliation = readiness?.reconciliation ?? null;
   const title = loading
-    ? "Checking practice account"
+    ? "Checking venue account"
     : connected
-      ? `${readiness.label} practice account connected`
+      ? `${readiness.label} venue account connected`
       : readiness
-        ? `${readiness.label} practice account needs setup`
-        : "Practice account not connected";
+        ? `${readiness.label} venue account needs setup`
+        : "Venue account not connected";
   const summary = loading
-    ? "Checking whether your trader can safely place practice trades."
+    ? "Checking whether your trader can safely place trades."
     : connected
-      ? "The account has practice funds and the protected trading connection is ready."
+      ? "The account has testnet funds and the protected trading connection is ready."
       : unavailable
-        ? "The practice account check is unavailable right now."
+        ? "The venue account check is unavailable right now."
         : readiness?.accountProbe?.state === "empty"
-          ? "The account is connected, but it still needs practice funds."
+          ? "The account is connected, but it still needs testnet funds."
           : readiness?.executorProbe?.state === "unavailable"
             ? "The account is known, but the protected trading connection could not be reached."
             : readiness?.executorProbe?.message ??
               readiness?.accountProbe?.message ??
-              "Built-in practice trading works now. Connect an outside practice account when you are ready.";
+              "Internal sandbox trading works now. Connect an outside venue account when you are ready.";
 
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
@@ -2370,7 +2394,7 @@ function LiveVenuePanel({
           </span>
           <div className="min-w-0">
             <h2 className="text-sm font-semibold text-text-strong">
-              Outside practice account
+              Outside venue account
             </h2>
             <p className="mt-0.5 text-xs font-medium text-text-soft">
               {title}
@@ -2378,7 +2402,7 @@ function LiveVenuePanel({
             <details className="group mt-1">
               <summary className="inline-flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-full text-text-soft transition-colors hover:bg-glass-mid hover:text-accent">
                 <Info className="h-3.5 w-3.5" aria-hidden="true" />
-                <span className="sr-only">Outside practice account details</span>
+                <span className="sr-only">Outside venue account details</span>
               </summary>
               <p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-text-soft">
                 {summary}
@@ -2533,11 +2557,13 @@ function EmptyAgents({
   browseHref,
   createHref,
   pending,
+  showDemo,
   onStartDemo,
 }: {
   browseHref: string;
   createHref: string;
   pending: boolean;
+  showDemo: boolean;
   onStartDemo: () => void;
 }) {
   return (
@@ -2567,15 +2593,17 @@ function EmptyAgents({
           <Plus size={13} aria-hidden="true" />
           Create your own
         </Link>
-        <button
-          type="button"
-          disabled={pending}
-          onClick={onStartDemo}
-          className="inline-flex items-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <Sparkles size={13} aria-hidden="true" />
-          Try demo setup
-        </button>
+        {showDemo ? (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={onStartDemo}
+            className="inline-flex items-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Sparkles size={13} aria-hidden="true" />
+            Try demo setup
+          </button>
+        ) : null}
       </div>
     </div>
   );
@@ -3450,14 +3478,14 @@ function ProposalActions({
       {proposal.status === "approved" ? (
         canOpenLocalAgentExecution(proposal.venue) ? (
           <ActionButton
-            label="Open practice trade"
+            label="Open guarded trade"
             Icon={Play}
             disabled={pending}
             onClick={() => onExecute(proposal.id)}
           />
         ) : (
           <ActionButton
-            label="Send to practice account"
+            label="Send to venue"
             Icon={Plug}
             disabled={pending}
             onClick={() => onSubmitVenue(proposal.id)}
@@ -3625,7 +3653,7 @@ function AuditEventRow({ event }: { event: AgentAuditEvent }) {
 function agentKindLabel(kind: AgentKind): string {
   switch (kind) {
     case "mock":
-      return "Built-in practice trader";
+      return "Internal sandbox trader";
     case "api":
       return "Connected trader";
     case "hermes":
@@ -3716,11 +3744,11 @@ function readinessActionLabel(action: AgentReadinessAction): string {
 function tradingPlaceLabel(venue: TradingVenue): string {
   switch (venue) {
     case "mock_perps":
-      return "Built-in practice";
+      return "Internal sandbox";
     case "hyperliquid_testnet":
       return "Hyperliquid Testnet";
     case "bulktrade_mock":
-      return "Built-in practice";
+      return "Internal sandbox";
   }
 }
 

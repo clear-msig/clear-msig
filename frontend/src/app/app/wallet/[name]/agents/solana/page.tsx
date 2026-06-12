@@ -497,11 +497,11 @@ function toggleVenue(current: TradingVenue[], venue: TradingVenue): TradingVenue
 function venueLabel(venue: TradingVenue): string {
   switch (venue) {
     case "mock_perps":
-      return "Built-in practice";
+      return "Internal sandbox";
     case "hyperliquid_testnet":
-      return "Hyperliquid practice";
+      return "Hyperliquid testnet";
     case "bulktrade_mock":
-      return "Bulk practice";
+      return "Bulk sandbox";
   }
 }
 

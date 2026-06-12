@@ -43,6 +43,7 @@ describe("server execution adapters", () => {
     expect(readiness.canSubmit).toBe(false);
     expect(readiness.missingEnvVars).toEqual([
       "CLEARSIG_HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS",
+      "CLEARSIG_HYPERLIQUID_TESTNET_AGENT_WALLET_ADDRESS",
       "CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_URL",
       "CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_TOKEN",
     ]);
@@ -52,6 +53,8 @@ describe("server execution adapters", () => {
     const readiness = serverAgentExecutionReadiness("hyperliquid_testnet", {
       CLEARSIG_HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS:
         "0x1111111111111111111111111111111111111111",
+      CLEARSIG_HYPERLIQUID_TESTNET_AGENT_WALLET_ADDRESS:
+        "0x2222222222222222222222222222222222222222",
       CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_URL: "http://127.0.0.1:4010",
       CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_TOKEN: "secret",
     });
@@ -64,12 +67,13 @@ describe("server execution adapters", () => {
   it("rejects invalid Hyperliquid testnet executor configuration", () => {
     const readiness = serverAgentExecutionReadiness("hyperliquid_testnet", {
       CLEARSIG_HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS: "0xabc",
+      CLEARSIG_HYPERLIQUID_TESTNET_AGENT_WALLET_ADDRESS: "0xabc",
       CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_URL: "not-a-url",
       CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_TOKEN: "secret",
     });
 
     expect(readiness.state).toBe("not_configured");
-    expect(readiness.configurationErrors).toHaveLength(2);
+    expect(readiness.configurationErrors).toHaveLength(3);
   });
 
   it("builds and validates a server execution request from an approved proposal", () => {

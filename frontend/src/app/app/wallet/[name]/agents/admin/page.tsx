@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -41,6 +41,7 @@ import { toDisplayName } from "@/lib/retail/walletNames";
 
 export default function AgentAdminPage() {
   const params = useParams<{ name: string }>();
+  const search = useSearchParams();
   const name = useMemo(() => decodeParam(params?.name), [params?.name]);
   const encoded = encodeURIComponent(name);
   const display = toDisplayName(name);
@@ -190,6 +191,43 @@ export default function AgentAdminPage() {
     },
     walletHref: `/app/wallet/${encoded}`,
   });
+
+  if (search.get("debug") !== "1") {
+    return (
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
+        <Link
+          href={`/app/wallet/${encoded}/agents`}
+          className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-text-soft transition-colors hover:text-accent"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+          Agent Trading
+        </Link>
+        <section className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-text-strong">
+                Admin tools are hidden
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-text-soft">
+                This surface is reserved for internal testing and moderation.
+                Use Agent Trading for trader setup, guardrails, allowance, and
+                monitoring.
+              </p>
+              <Link
+                href={`/app/wallet/${encoded}/agents`}
+                className="mt-4 inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest"
+              >
+                Return to Agent Trading
+              </Link>
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">

@@ -131,7 +131,7 @@ export default function AgentTradesPage() {
         );
       const closed = [...localClosed, ...fallbackClosed];
       if (closed.length === 0) {
-        toast.error("No open practice trades to close");
+        toast.error("No open trades to close");
         return;
       }
       if (fallbackClosed.length > 0) {

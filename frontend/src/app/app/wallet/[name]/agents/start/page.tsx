@@ -105,13 +105,13 @@ const PRACTICE_CHOICES: Array<{
 }> = [
   {
     id: "mock_perps",
-    label: "Built-in practice",
-    description: "The quickest first run. No outside account or practice funds needed.",
+    label: "Internal sandbox",
+    description: "Fastest first run. No venue account or funds needed.",
   },
   {
     id: "hyperliquid_testnet",
-    label: "Hyperliquid practice",
-    description: "Places trades in a separate Hyperliquid practice account.",
+    label: "Hyperliquid testnet",
+    description: "Routes guarded trades to a separate testnet account.",
   },
 ];
 
@@ -196,7 +196,7 @@ export default function StartTradingPage() {
             agent: selected,
             venue,
           })
-        : Promise.resolve({ snapshot: null, message: "Choose an agent first" }),
+        : Promise.resolve({ snapshot: null, message: "Choose a trader first" }),
     ]);
     setConnectionKit(nextConnectionKit);
     setInbox(nextInbox);
@@ -408,7 +408,7 @@ export default function StartTradingPage() {
         walletName: name,
         agentId: proposal.agentId,
         action: "submit_venue_trade",
-        summary: "Place Hyperliquid practice trade",
+        summary: "Place Hyperliquid testnet trade",
         targetType: "proposal",
         targetId: proposal.id,
         details: [
@@ -425,7 +425,7 @@ export default function StartTradingPage() {
         await refresh();
         return;
       }
-      toast.success("The first Hyperliquid practice trade was placed");
+      toast.success("The first Hyperliquid testnet trade was placed");
       await refresh();
     });
   };
@@ -651,7 +651,7 @@ export default function StartTradingPage() {
         walletName: name,
         agentId: selectedAgent.id,
         action: "close_all_practice_trades",
-        summary: "Close all practice trades",
+        summary: "Close all open trades",
         targetType: "agent",
         targetId: selectedAgent.id,
         details: [
@@ -676,7 +676,7 @@ export default function StartTradingPage() {
         );
       const closed = [...localClosed, ...fallbackClosed];
       if (closed.length === 0) {
-        toast.info("No open practice trades to close");
+        toast.info("No open trades to close");
         return;
       }
       await Promise.all(closed.map((execution) => syncAgentExecution(execution)));
@@ -698,14 +698,14 @@ export default function StartTradingPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Start Trading · {display}
+              Trading Desk · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
-              Take your trader from setup to its first trade
+              Launch a guarded trading session
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-soft">
-              Choose where it should practice. ClearSig will check every required
-              step and show exactly who needs to act next.
+              Choose the trader, venue, allowance, and automation approval.
+              ClearSig blocks anything outside the guardrails.
             </p>
           </div>
           <button
@@ -721,7 +721,7 @@ export default function StartTradingPage() {
       </header>
 
       <section className="border-y border-border-soft py-5">
-        <p className="text-xs font-semibold text-text-strong">Where should it practice?</p>
+        <p className="text-xs font-semibold text-text-strong">Trading venue</p>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {PRACTICE_CHOICES.map((choice) => (
             <button
@@ -788,7 +788,7 @@ export default function StartTradingPage() {
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
               {complete
-                ? "Your trader has completed the full practice journey and placed its first trade."
+                ? "Your trader has completed the launch checklist and placed its first guarded trade."
                 : currentStep?.description ?? "ClearSig is checking what is ready."}
             </p>
           </div>
@@ -881,8 +881,8 @@ export default function StartTradingPage() {
             <div>
               <p className="text-sm font-semibold text-text-strong">No outside account needed</p>
               <p className="mt-1 text-sm leading-relaxed text-text-soft">
-                Built-in practice uses no real money. Once the trader sends an idea
-                inside its allowance, ClearSig can open the practice trade.
+                Internal sandbox uses no real money. Once the trader sends an
+                idea inside its allowance, ClearSig can open the guarded trade.
               </p>
             </div>
           </div>
@@ -929,7 +929,7 @@ function BetaJourneyPanel({
     },
     {
       label: "Accept disclosures",
-      detail: "Practice automation terms",
+      detail: "Automation terms",
       done: done(["disclosures"]),
       Icon: Info,
     },
@@ -951,15 +951,15 @@ function BetaJourneyPanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-text-strong">
-            Public beta journey
+            Launch checklist
           </p>
           <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
-            This path uses {venueLabel(venue).toLowerCase()} and keeps agent
-            actions inside ClearSig rules.
+            This path uses {venueLabel(venue).toLowerCase()} and keeps every
+            action inside ClearSig rules.
           </p>
         </div>
         <span className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-1 text-[11px] font-medium text-accent">
-          {venue === "hyperliquid_testnet" ? "Testnet practice" : "Practice only"}
+          {venue === "hyperliquid_testnet" ? "Testnet venue" : "Sandbox venue"}
         </span>
       </div>
       <div className="mt-4 grid gap-2 md:grid-cols-5">
@@ -1085,7 +1085,7 @@ function LaunchRiskPanel({
       id: "adapter_errors_fallback",
       tone: "danger",
       title: "Protected executor has errors",
-      detail: "At least one Hyperliquid practice request failed in the protected executor.",
+      detail: "At least one Hyperliquid testnet request failed in the protected executor.",
     });
   }
 
@@ -1422,7 +1422,7 @@ function HyperliquidHelp({
   const apiWalletHealthy = setupSettings.delegationStatus === "active";
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
-      <h2 className="text-sm font-semibold text-text-strong">Hyperliquid practice account</h2>
+      <h2 className="text-sm font-semibold text-text-strong">Hyperliquid testnet account</h2>
       <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
         ClearSig never asks for the protected trading wallet secret in this screen.
         ClearSig keeps that private connection outside the setup flow.
@@ -1470,28 +1470,37 @@ function HyperliquidHelp({
           </p>
         </div>
       ) : null}
-      <ol className="mt-4 grid gap-2 border-t border-border-soft pt-4">
-        {[
-          "Open Hyperliquid practice and sign in with a separate practice account.",
-          "Add practice funds to that account.",
-          "Approve a separate Hyperliquid API wallet public address for agent trading.",
-          "Save the account address and approved API wallet address in ClearSig so it can check delegation and positions.",
-          "ClearSig manages the protected executor and private API wallet key outside this screen.",
-          "Come back here and choose Check again. ClearSig confirms every step before trading.",
-        ].map((instruction, index) => (
-          <li key={instruction} className="flex items-start gap-3 text-xs leading-relaxed text-text-soft">
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border-soft text-[10px] font-semibold text-text-strong">
-              {index + 1}
-            </span>
-            {instruction}
-          </li>
-        ))}
-      </ol>
+      <details className="group mt-4 rounded-soft border border-border-soft bg-canvas px-3 py-3">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold text-text-strong">
+          <span>Setup steps</span>
+          <ArrowRight
+            className="h-3.5 w-3.5 text-text-soft transition-transform group-open:rotate-90"
+            aria-hidden="true"
+          />
+        </summary>
+        <ol className="mt-3 grid gap-2 border-t border-border-soft pt-3">
+          {[
+            "Open Hyperliquid testnet and sign in with a separate venue account.",
+            "Add testnet funds to that account.",
+            "Approve a separate Hyperliquid API wallet public address for agent trading.",
+            "Save the account address and approved API wallet address in ClearSig.",
+            "ClearSig manages the protected executor and private API wallet key outside this screen.",
+            "Choose Check again. ClearSig confirms every step before trading.",
+          ].map((instruction, index) => (
+            <li key={instruction} className="flex items-start gap-3 text-xs leading-relaxed text-text-soft">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border-soft text-[10px] font-semibold text-text-strong">
+                {index + 1}
+              </span>
+              {instruction}
+            </li>
+          ))}
+        </ol>
+      </details>
       {readiness && protectedConnection?.state !== "ready" ? (
         <div className="mt-4 rounded-soft border border-warning/30 bg-warning/[0.08] p-3">
           <p className="text-xs font-semibold text-warning">Protected connection pending</p>
           <p className="mt-1 text-xs leading-relaxed text-text-soft">
-            You can prepare the practice account now. If this still shows as
+            You can prepare the venue account now. If this still shows as
             pending after the account is funded, ClearSig needs to finish the
             protected connection for this workspace.
           </p>
@@ -1504,7 +1513,7 @@ function HyperliquidHelp({
           rel="noreferrer"
           className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
         >
-          Open Hyperliquid practice
+          Open Hyperliquid testnet
           <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
         </a>
         <Link
@@ -1568,7 +1577,7 @@ function TradingControlRoom({
       ? reconciliation?.message
       : venue === "hyperliquid_testnet" &&
           submittedVenueRequests > venuePositions.length
-        ? "ClearSig has submitted more Hyperliquid practice trades than the account currently shows. Check the protected connection or exchange history."
+        ? "ClearSig has submitted more Hyperliquid testnet trades than the account currently shows. Check the protected connection or exchange history."
       : null;
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
@@ -1649,7 +1658,7 @@ function TradingControlRoom({
                 Hyperliquid account truth
               </p>
               <p className="mt-1 text-xs leading-relaxed text-text-soft">
-                These numbers come from the practice account itself, not from
+                These numbers come from the venue account itself, not from
                 ClearSig local trade history.
               </p>
             </div>
@@ -1725,7 +1734,7 @@ function TradingControlRoom({
                 />
               ))
             ) : (
-              <EmptyControlLine text="No Hyperliquid practice positions are open right now." />
+              <EmptyControlLine text="No Hyperliquid testnet positions are open right now." />
             )}
           </div>
           <div className="mt-4 border-t border-border-soft pt-3">
@@ -1800,7 +1809,7 @@ function TradingControlRoom({
               className={DANGER_BUTTON_CLASS}
             >
               <X className="h-3.5 w-3.5" aria-hidden="true" />
-              Close all practice trades
+              Close all open trades
             </button>
           </div>
           <div className="grid gap-2">
@@ -1815,7 +1824,7 @@ function TradingControlRoom({
                 />
               ))
             ) : (
-              <EmptyControlLine text="No open practice trades right now." />
+              <EmptyControlLine text="No open trades right now." />
             )}
           </div>
         </div>
@@ -2322,11 +2331,11 @@ async function loadStartMarketData({
 function venueLabel(venue: TradingLaunchVenue | AgentExecutionRecord["venue"]): string {
   switch (venue) {
     case "mock_perps":
-      return "Built-in practice";
+      return "Internal sandbox";
     case "hyperliquid_testnet":
-      return "Hyperliquid practice";
+      return "Hyperliquid testnet";
     case "bulktrade_mock":
-      return "Bulk practice";
+      return "Bulk sandbox";
   }
 }
 

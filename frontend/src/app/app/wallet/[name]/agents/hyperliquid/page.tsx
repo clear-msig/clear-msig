@@ -145,15 +145,14 @@ export default function HyperliquidSetupPage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Hyperliquid Practice - {display}
+              Venue · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
-              Hyperliquid practice setup
+              Hyperliquid testnet setup
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-soft">
-              Add one dedicated testnet account, fund it with practice
-              collateral, and let ClearSig check the protected server connection
-              before agents can trade.
+              Add one dedicated testnet account, fund it, and let ClearSig
+              check the protected connection before traders can act.
             </p>
           </div>
           <Link
@@ -172,7 +171,7 @@ export default function HyperliquidSetupPage() {
             <div className="flex flex-wrap items-center gap-2">
               <StatusIcon status={summary.status} checking={checking} />
               <h2 className="text-sm font-semibold text-text-strong">
-                {checking ? "Checking Hyperliquid practice" : summary.headline}
+                {checking ? "Checking Hyperliquid testnet" : summary.headline}
               </h2>
             </div>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-soft">
@@ -416,7 +415,7 @@ export default function HyperliquidSetupPage() {
                 Open Hyperliquid positions
               </h2>
               <p className="mt-1 text-sm leading-relaxed text-text-soft">
-                When ClearSig submits a practice trade, this panel shows what
+                When ClearSig submits a guarded trade, this panel shows what
                 the exchange account reports back.
               </p>
             </div>
@@ -446,7 +445,7 @@ export default function HyperliquidSetupPage() {
               ))
             ) : (
               <div className="rounded-card border border-dashed border-border-soft bg-canvas p-5 text-sm text-text-soft">
-                No Hyperliquid practice positions are open right now.
+                No Hyperliquid testnet positions are open right now.
               </div>
             )}
           </div>
@@ -468,7 +467,7 @@ export default function HyperliquidSetupPage() {
                 </h2>
                 <p className="mt-1 text-sm leading-relaxed text-text-soft">
                   ClearSig manages the private executor connection outside this
-                  screen. You only need to prepare the practice account and keep
+                  screen. You only need to prepare the testnet account and keep
                   your API wallet delegation plus safety rules tight.
                 </p>
               </div>
@@ -487,7 +486,7 @@ export default function HyperliquidSetupPage() {
           <div className="mt-4 rounded-soft border border-border-soft bg-canvas p-3">
             <p className="text-xs font-semibold text-text-strong">
               {executor?.state === "ready"
-                ? "Ready for protected practice trades"
+                ? "Ready for protected testnet trades"
                 : "No action needed in this screen"}
             </p>
             <p className="mt-1 text-xs leading-relaxed text-text-soft">

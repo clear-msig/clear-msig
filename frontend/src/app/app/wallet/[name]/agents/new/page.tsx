@@ -18,7 +18,7 @@ import { toDisplayName } from "@/lib/retail/walletNames";
 import { useToast } from "@/components/ui/Toast";
 
 const AGENT_KINDS: Array<{ value: AgentKind; label: string }> = [
-  { value: "mock", label: "Built-in practice trader" },
+  { value: "mock", label: "Internal sandbox trader" },
   { value: "api", label: "Connected trader" },
   { value: "hermes", label: "Independent trader" },
   { value: "manual", label: "Person" },
@@ -105,7 +105,7 @@ export default function NewAgentPage() {
         </Link>
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-            Automated Trading · {display}
+            Trader Profile · {display}
           </p>
           <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
             {advanced ? "Connect an outside trader" : "Create your own trader"}
@@ -113,7 +113,7 @@ export default function NewAgentPage() {
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-soft">
             {advanced
               ? "For experienced users bringing an existing trader. It can send ideas, but ClearSig keeps control of the money."
-              : "Describe the trader you want. You will shape its trading plan and give it a small practice allowance next."}
+              : "Describe the trader you want. You will shape its trading plan and give it a small allowance next."}
           </p>
         </div>
       </header>
