@@ -30,13 +30,11 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
   Check,
-  ExternalLink,
   Fingerprint,
   KeyRound,
   Plus,
   RefreshCw,
   ShieldAlert,
-  ShieldCheck,
   Vault as VaultIcon,
 } from "lucide-react";
 import { PublicKey } from "@solana/web3.js";
@@ -50,7 +48,6 @@ import { listProposals } from "@/lib/ikavery/proposals";
 import { STATUS_ACTIVE, STATUS_APPROVED } from "@/lib/ikavery/constants";
 
 const IKAVERY_GITHUB = "https://github.com/Iamknownasfesal/ikavery";
-const IKA_SITE = "https://ika.xyz";
 
 export default function SecurePage() {
   const reduce = useReducedMotion();
@@ -133,26 +130,18 @@ export default function SecurePage() {
                 <br className="hidden sm:block" />{" "}
                 <span className="text-text-soft">key custody.</span>
               </h1>
-              <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-text-soft text-pretty lg:mx-0">
-                Place your Solana private key behind a quorum of devices
-                and passkeys. Recover with any threshold you set. Never
-                lose a key. Never trust a single device.
-              </p>
-
               <div className="mt-7 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
-                <a
-                  href={IKA_SITE}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={
-                    "inline-flex min-h-tap items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-[11px] font-medium text-text-soft " +
-                    "transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent " +
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-                  }
-                >
-                  Powered by Ika dWallets
-                  <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                </a>
+                <Link href="/app/secure/new" className="inline-block">
+                  <Button size="lg">
+                    Secure your key
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                </Link>
+                <Link href="/app/secure/import" className="inline-block">
+                  <Button variant="ghost" size="lg">
+                    Import key
+                  </Button>
+                </Link>
               </div>
             </motion.div>
 
@@ -208,13 +197,8 @@ export default function SecurePage() {
                       </span>
                     </span>
                     <h2 className="mt-3 font-display text-display-xs leading-tight tracking-[-0.02em] text-text-strong">
-                      Three taps to your first vault.
+                      Create your first vault
                     </h2>
-                    <p className="mt-2 max-w-md text-[14px] leading-relaxed text-text-soft">
-                      Pick a threshold, place a key behind it, or
-                      import an existing vault backup and recover it on
-                      this device.
-                    </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Link href="/app/secure/new" className="inline-block">
@@ -233,69 +217,24 @@ export default function SecurePage() {
               </motion.section>
             )}
 
-          {/* How it works - explainer for first-time users only.
-              Returning users (showVaultsFirst) skip this entirely so
-              the page focuses on their vaults. */}
-          <section>
-            <div className="mb-6 flex items-baseline justify-between">
-              <div>
-                <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-                  How it works
-                </p>
-                <h2 className="mt-1 font-display text-display-xs leading-tight text-text-strong">
-                  From key to recovery, in three.
-                </h2>
-              </div>
-            </div>
-            <div className="relative grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <span
-                aria-hidden="true"
-                className="pointer-events-none absolute left-0 right-0 top-7 hidden h-px bg-gradient-to-r from-transparent via-border-strong to-transparent sm:block"
-              />
-              <Step
-                n="01"
-                Icon={ShieldCheck}
-                title="Build a vault"
-                body="Pick a threshold. The vault is an Ika 2PC-MPC dWallet under your control."
-                delay={0.04}
-                reduce={!!reduce}
-              />
-              <Step
-                n="02"
-                Icon={Fingerprint}
-                title="Add devices"
-                body="iPhone, MacBook, YubiKey. Each device holds a share via WebAuthn passkey."
-                delay={0.1}
-                reduce={!!reduce}
-              />
-              <Step
-                n="03"
-                Icon={KeyRound}
-                title="Sweep when needed"
-                body="Sign a sweep with any threshold. Funds move to your destination wallet."
-                delay={0.16}
-                reduce={!!reduce}
-              />
-            </div>
-          </section>
         </>
       )}
 
       {/* Pre-alpha disclosure - rendered on every state. */}
       <motion.aside
         {...fadeIn(0.2)}
-        className="flex items-start gap-3 rounded-card border border-border-soft bg-surface-raised/60 p-4 text-xs text-text-soft sm:p-5"
+        className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised/60 p-3 text-xs text-text-soft"
       >
         <ShieldAlert
-          className="mt-0.5 h-4 w-4 shrink-0 text-warning"
+          className="h-4 w-4 shrink-0 text-warning"
           strokeWidth={2}
           aria-hidden="true"
         />
-        <p className="leading-relaxed">
+        <p>
           <span className="font-medium text-text-strong">
             Pre-alpha. Devnet only.
-          </span>{" "}
-          Secure is built on{" "}
+          </span>
+          {" · "}
           <a
             href={IKAVERY_GITHUB}
             target="_blank"
@@ -304,7 +243,6 @@ export default function SecurePage() {
           >
             ikavery
           </a>
-          . Don&rsquo;t store a key that holds real funds.
         </p>
       </motion.aside>
     </motion.div>
@@ -350,7 +288,6 @@ function VaultsHero({ vaults, loading, onRefresh, fadeIn }: VaultsHeroProps) {
           <p className="mt-2 text-[14px] leading-relaxed text-text-soft sm:text-[15px]">
             {count}{" "}
             {count === 1 ? "vault" : "vaults"} under quorum custody.
-            Tap any to manage members, receive funds, or sweep.
           </p>
         </div>
 
@@ -759,47 +696,6 @@ function VaultMockup() {
   );
 }
 
-interface StepProps {
-  n: string;
-  Icon: typeof ShieldCheck;
-  title: string;
-  body: string;
-  delay: number;
-  reduce: boolean;
-}
-
-function Step({ n, Icon, title, body, delay, reduce }: StepProps) {
-  const motionProps = reduce
-    ? {}
-    : {
-        initial: { opacity: 0, y: 12 },
-        animate: { opacity: 1, y: 0 },
-        transition: { duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] as const },
-      };
-  return (
-    <motion.article
-      {...motionProps}
-      className="relative flex flex-col rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6"
-    >
-      <div className="flex items-start justify-between">
-        <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-accent/[0.08] text-accent ring-2 ring-surface-raised">
-          <Icon className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
-        </span>
-      </div>
-
-      <p className="mt-5 font-mono text-[10px] uppercase tracking-[0.22em] text-text-soft">
-        Step {n}
-      </p>
-      <h3 className="mt-1.5 font-display text-base font-semibold tracking-[-0.01em] text-text-strong">
-        {title}
-      </h3>
-      <p className="mt-2 text-[13.5px] leading-relaxed text-text-soft text-pretty">
-        {body}
-      </p>
-    </motion.article>
-  );
-}
-
 function ConnectCallout() {
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
@@ -811,10 +707,6 @@ function ConnectCallout() {
           <h2 className="mt-2 font-display text-display-xs leading-tight tracking-[-0.02em] text-text-strong">
             Connect your wallet to see vaults
           </h2>
-          <p className="mt-2 max-w-md text-[14px] leading-relaxed text-text-soft">
-            Vaults are anchored to your Solana wallet. Sign in to read your
-            list or build your first one.
-          </p>
         </div>
         <Link href="/connect?next=/app/secure" className="inline-block">
           <Button size="lg">

@@ -112,10 +112,16 @@ function WalletDashboardContent() {
   );
   const [storedSurface, setStoredSurface] =
     useState<WalletProductSurface | null>(null);
+  const [activeSurface, setActiveSurface] =
+    useState<WalletProductSurface | null>(null);
 
   useEffect(() => {
     setStoredSurface(walletProductSurface(readSelectedProductSurface(address)));
   }, [address]);
+
+  useEffect(() => {
+    setActiveSurface(requestedAll ? null : requestedSurface ?? storedSurface);
+  }, [requestedAll, requestedSurface, storedSurface]);
 
   useEffect(() => {
     if (!requestedSurface) return;
@@ -134,10 +140,19 @@ function WalletDashboardContent() {
   const recent = action.activity;
   const watched = useWatchedWallets();
 
-  const wallets = memberships.data ?? [];
-  const selectedSurface = requestedAll
-    ? null
-    : requestedSurface ?? storedSurface;
+  const wallets = useMemo(() => memberships.data ?? [], [memberships.data]);
+  const selectedSurface = activeSurface;
+  const selectSurface = (surface: WalletProductSurface | null) => {
+    setActiveSurface(surface);
+    if (surface) {
+      saveSelectedProductSurface(surface, address);
+      setStoredSurface(surface);
+    }
+    if (typeof window !== "undefined") {
+      const url = surface ? `/app/wallet?surface=${surface}` : "/app/wallet?surface=all";
+      window.history.pushState(null, "", url);
+    }
+  };
   const visibleWallets = useMemo(() => {
     if (!selectedSurface) return wallets;
     return wallets.filter(
@@ -255,6 +270,7 @@ function WalletDashboardContent() {
         <ProductWorkspaceSwitcher
           selectedSurface={selectedSurface}
           wallets={wallets}
+          onSelect={selectSurface}
         />
       ) : null}
 
@@ -422,9 +438,11 @@ function Hero({
 function ProductWorkspaceSwitcher({
   selectedSurface,
   wallets,
+  onSelect,
 }: {
   selectedSurface: WalletProductSurface | null;
   wallets: OnchainMembership[];
+  onSelect: (surface: WalletProductSurface | null) => void;
 }) {
   const counts = useMemo(() => {
     const next = new Map<WalletProductSurface, number>();
@@ -447,8 +465,10 @@ function ProductWorkspaceSwitcher({
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest">
       <div className="flex items-center gap-2 overflow-x-auto">
-        <Link
-          href="/app/wallet?surface=all"
+        <button
+          type="button"
+          onClick={() => onSelect(null)}
+          aria-pressed={selectedSurface === null}
           className={clsx(
             "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-soft px-3 text-xs font-medium transition-colors",
             selectedSurface === null
@@ -461,18 +481,36 @@ function ProductWorkspaceSwitcher({
           <span className="font-numerals text-[11px] tabular-nums">
             {wallets.length}
           </span>
-        </Link>
+        </button>
         {items.map(({ id, Icon }) => {
           const product = productSurfaceById(id);
           const active = selectedSurface === id;
+          if (id === "secure") {
+            return (
+              <Link
+                key={id}
+                href={productSurfaceWorkspaceHref(id)}
+                className={clsx(
+                  "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-soft px-3 text-xs font-medium transition-colors",
+                  active
+                    ? "bg-accent/10 text-accent"
+                    : "text-text-soft hover:bg-glass-mid hover:text-text-strong",
+                )}
+              >
+                <Icon className="h-4 w-4" aria-hidden="true" />
+                {product.shortName}
+                <span className="font-numerals text-[11px] tabular-nums">
+                  {counts.get(id) ?? 0}
+                </span>
+              </Link>
+            );
+          }
           return (
-            <Link
+            <button
               key={id}
-              href={
-                id === "secure"
-                  ? productSurfaceWorkspaceHref(id)
-                  : `/app/wallet?surface=${id}`
-              }
+              type="button"
+              onClick={() => onSelect(id)}
+              aria-pressed={active}
               className={clsx(
                 "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-soft px-3 text-xs font-medium transition-colors",
                 active
@@ -485,7 +523,7 @@ function ProductWorkspaceSwitcher({
               <span className="font-numerals text-[11px] tabular-nums">
                 {counts.get(id) ?? 0}
               </span>
-            </Link>
+            </button>
           );
         })}
       </div>
@@ -887,9 +925,6 @@ function FirstVisitCard({
           <h2 className="font-display text-display-xs text-text-strong">
             Start with {product.shortName}
           </h2>
-          <p className="mt-2 max-w-sm text-base text-text-soft">
-            {product.summary}
-          </p>
         </div>
         <Link href={productSetupHref(surface)}>
           <Button size="lg">
@@ -924,9 +959,6 @@ function ProductEmptyState({
             <h2 className="mt-1 font-display text-xl font-semibold text-text-strong">
               No {productWorkspaceLabel(selectedSurface).toLowerCase()} yet
             </h2>
-            <p className="mt-1 max-w-xl text-sm leading-relaxed text-text-soft">
-              {PRODUCT_EMPTY_COPY[selectedSurface]}
-            </p>
           </div>
         </div>
         <Link href={productSetupHref(selectedSurface)} className="shrink-0">
@@ -945,17 +977,6 @@ const PRODUCT_ICON: Record<WalletProductSurface, LucideIcon> = {
   pro: Building2,
   agent: Bot,
   secure: KeyRound,
-};
-
-const PRODUCT_EMPTY_COPY: Record<WalletProductSurface, string> = {
-  personal:
-    "Create a simple shared wallet for trusted people, family, and everyday approvals.",
-  pro:
-    "Create a treasury workspace with team members, policy controls, spending limits, and auditability.",
-  agent:
-    "Create an agent vault before choosing traders, venues, guardrails, allowances, and kill switch rules.",
-  secure:
-    "Secure recovery uses a dedicated recovery workspace. Create a recovery vault when you are ready.",
 };
 
 // ─── Wallets grid ──────────────────────────────────────────────────
