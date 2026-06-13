@@ -24,7 +24,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { proposerDisplayName } from "@/lib/retail/proposerName";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ArrowRight, Banknote, Bell, Bot, Building2, ChevronDown, Coins, CreditCard, Download, Eye, EyeOff, Handshake, Layers, Plus, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, Wallet as WalletIcon, type LucideIcon } from "lucide-react";
+import { Activity, ArrowRight, Banknote, Bell, Bot, Building2, ChevronDown, Coins, CreditCard, Download, Eye, EyeOff, Handshake, Layers, Plus, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
 import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -87,6 +87,8 @@ import {
   productSurfaceById,
   type ProductSurfaceId,
 } from "@/lib/productSurfaces";
+import { productSurfaceIcon } from "@/lib/productIcons";
+import { resolveWalletProductSurface } from "@/lib/productWorkspace";
 
 type WalletTab = "activity" | "holdings" | "manage";
 const WALLET_TAB_ORDER: WalletTab[] = ["holdings", "activity", "manage"];
@@ -118,7 +120,7 @@ function useWalletProductSurface(walletName: string): ProductSurfaceId | null {
     const appearance = getWalletAppearance(walletName);
     const surface = isProductSurfaceId(appearance?.surface)
       ? appearance.surface
-      : null;
+      : resolveWalletProductSurface(walletName);
     setStoredSurface(surface);
   }, [walletName]);
 
@@ -1469,7 +1471,7 @@ function productHeroProfile(
       glow: SHARED_BALANCE_GLOW,
       portfolioWrapClass: "grid gap-5 lg:grid-cols-[1fr_0.85fr] lg:items-end",
       actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
-      avatarIcon: Users,
+      avatarIcon: productSurfaceIcon(surface),
       actionTone: "personal",
       balanceLabel: "Shared balance",
       stats: [
@@ -1484,7 +1486,7 @@ function productHeroProfile(
       productName: "Pro",
       eyebrow: "Pro treasury · controls",
       avatarClass: "rounded-full",
-      avatarIcon: Building2,
+      avatarIcon: productSurfaceIcon(surface),
       cardClass: SHARED_BALANCE_CARD_CLASS,
       glowClass: SHARED_BALANCE_GLOW_CLASS,
       glow: SHARED_BALANCE_GLOW,
@@ -1509,7 +1511,7 @@ function productHeroProfile(
       glow: SHARED_BALANCE_GLOW,
       portfolioWrapClass: "grid gap-5 lg:grid-cols-[1fr_1.1fr] lg:items-end",
       actionsGridClass: "grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3",
-      avatarIcon: Bot,
+      avatarIcon: productSurfaceIcon(surface),
       actionTone: "agent",
       balanceLabel: "Trading funds",
       stats: [
@@ -1524,7 +1526,7 @@ function productHeroProfile(
       productName: "P2P",
       eyebrow: "P2P wallet",
       avatarClass: "rounded-full",
-      avatarIcon: Handshake,
+      avatarIcon: productSurfaceIcon(surface),
       cardClass: SHARED_BALANCE_CARD_CLASS,
       glowClass: SHARED_BALANCE_GLOW_CLASS,
       glow: SHARED_BALANCE_GLOW,
@@ -1540,7 +1542,7 @@ function productHeroProfile(
       productName: "Payments",
       eyebrow: "Payments wallet",
       avatarClass: "rounded-full",
-      avatarIcon: CreditCard,
+      avatarIcon: productSurfaceIcon(surface),
       cardClass: SHARED_BALANCE_CARD_CLASS,
       glowClass: SHARED_BALANCE_GLOW_CLASS,
       glow: SHARED_BALANCE_GLOW,
@@ -1560,7 +1562,7 @@ function productHeroProfile(
     glow: SHARED_BALANCE_GLOW,
     portfolioWrapClass: "flex flex-col",
     actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
-    avatarIcon: WalletIcon,
+    avatarIcon: productSurfaceIcon(surface),
     actionTone: "default",
     balanceLabel: "Balance",
     stats: [],
