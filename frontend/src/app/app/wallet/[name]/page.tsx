@@ -24,7 +24,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { proposerDisplayName } from "@/lib/retail/proposerName";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ArrowRight, Banknote, Bell, Bot, Building2, ChevronDown, Coins, CreditCard, Download, Handshake, Layers, Plus, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
+import { Activity, ArrowRight, Banknote, Bell, Bot, Building2, ChevronDown, Coins, CreditCard, Download, Eye, EyeOff, Handshake, Layers, Plus, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
 import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -61,9 +61,11 @@ import { useBatchApprove } from "@/lib/hooks/useBatchApprove";
 import { ProposalStatus } from "@/lib/msig";
 import { Button } from "@/components/retail/Button";
 import { BadgePill } from "@/components/retail/BadgePill";
+import { BalanceCardPattern } from "@/components/retail/BalanceCardPattern";
+import { ChainBadge } from "@/components/retail/ChainBadge";
 import { MemberAvatarStack } from "@/components/retail/MemberAvatar";
 import { relativeTime } from "@/lib/util/relativeTime";
-import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
+import { friendlyIntentLabel, friendlyStatus, statusTextColor } from "@/lib/retail/labels";
 import { formatBalance } from "@/lib/retail/format";
 import { avatarGradient } from "@/lib/retail/avatar";
 import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
@@ -75,6 +77,7 @@ import {
 } from "@/lib/retail/walletAppearance";
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { useWalletPortfolio } from "@/lib/hooks/useWalletPortfolio";
+import { useBalancePrivacy } from "@/lib/hooks/useBalancePrivacy";
 import { formatUsd } from "@/lib/retail/priceConversion";
 import { useDisplayCurrency } from "@/lib/hooks/useDisplayCurrency";
 import { UsdHint } from "@/components/retail/UsdHint";
@@ -87,12 +90,13 @@ import {
 } from "@/lib/productSurfaces";
 
 type WalletTab = "activity" | "holdings" | "manage";
+const WALLET_TAB_ORDER: WalletTab[] = ["holdings", "activity", "manage"];
 
 function readWalletTabFromHash(): WalletTab {
-  if (typeof window === "undefined") return "activity";
+  if (typeof window === "undefined") return "holdings";
   const h = window.location.hash.replace(/^#/, "");
-  if (h === "holdings" || h === "manage") return h;
-  return "activity";
+  if (h === "activity" || h === "manage") return h;
+  return "holdings";
 }
 
 function useProductSurfaceIntent(): ProductSurfaceId | null {
@@ -339,7 +343,7 @@ export default function WalletDetailPage() {
         reduce={!!reduce}
       />
       {productSurface ? (
-        <ProductIntentCard
+        <ProductSetupCard
           surface={productSurface}
           walletName={name}
           memberCount={memberCount}
@@ -386,17 +390,15 @@ export default function WalletDetailPage() {
 // previously stacked into 12 sections.
 //
 // Three tabs:
+//   - Holdings: the wallet's money. ERC-20 tokens today; future
+//     home for a per-chain balance breakdown.
 //   - Activity: pending approvals already render above; this tab
 //     adds local send attempts, multisig proposal feed, and the
 //     per-chain on-chain history.
-//   - Holdings: the wallet's money. ERC-20 tokens today; future
-//     home for a per-chain balance breakdown.
 //   - Manage: product-specific icon actions for this wallet's chosen surface.
 //
-// Active tab persisted via URL hash (#activity / #holdings /
-// #manage) so a refresh / back-nav lands on the same tab and the
-// URL is shareable. Hash is intentionally cosmetic - the page
-// renders correctly without it.
+// Activity and Manage are persisted via URL hash. The base wallet URL
+// opens Holdings for every product surface.
 
 interface WalletDetailTabsProps {
   tab: WalletTab;
@@ -435,6 +437,7 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
     hasIntents,
     reduce,
   } = props;
+  const portfolio = useWalletPortfolio(name);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -457,7 +460,7 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
       const url =
         window.location.pathname +
         window.location.search +
-        (next === "activity" ? "" : `#${next}`);
+        (next === "holdings" ? "" : `#${next}`);
       window.history.replaceState(null, "", url);
       // Defer to next frame so React commits the new tab content
       // before scroll, otherwise scrollIntoView lands on the old
@@ -476,7 +479,7 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
   // × 5 rows each + send attempts), so a perpetual "99+" badge reads
   // as decoration. Pending approvals are already pinned above the
   // tabs in ActionNeededSection - no need to repeat them here.
-  const holdingsCount = erc20Holdings.length;
+  const holdingsCount = portfolio.breakdown.length + erc20Holdings.length;
 
   return (
     <>
@@ -548,15 +551,19 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
 
       {tab === "holdings" && (
         <div className="flex flex-col gap-4">
+          <NativeHoldingsSection
+            walletName={name}
+            rows={portfolio.breakdown}
+            loading={portfolio.isLoading}
+            reduce={reduce}
+          />
           {erc20Holdings.length > 0 ? (
             <Erc20HoldingsSection
               walletName={name}
               rows={erc20Holdings}
               reduce={reduce}
             />
-          ) : (
-            <HoldingsEmptyState />
-          )}
+          ) : null}
         </div>
       )}
 
@@ -587,29 +594,34 @@ const TabBar = forwardRef<HTMLDivElement, TabBarProps>(function TabBar(
   ref,
 ) {
   const labels = tabLabelsFor(productSurface);
+  const tabMeta: Record<
+    WalletTab,
+    {
+      label: string;
+      icon: React.ReactNode;
+      count?: number;
+    }
+  > = {
+    holdings: {
+      label: labels.holdings,
+      icon: <Coins className="h-4 w-4" strokeWidth={2} />,
+      count: counts.holdings,
+    },
+    activity: {
+      label: labels.activity,
+      icon: <Activity className="h-4 w-4" strokeWidth={2} />,
+    },
+    manage: {
+      label: labels.manage,
+      icon: <SettingsIcon className="h-4 w-4" strokeWidth={2} />,
+    },
+  };
   const items: {
     id: WalletTab;
     label: string;
     icon: React.ReactNode;
     count?: number;
-  }[] = [
-    {
-      id: "activity",
-      label: labels.activity,
-      icon: <Activity className="h-4 w-4" strokeWidth={2} />,
-    },
-    {
-      id: "holdings",
-      label: labels.holdings,
-      icon: <Coins className="h-4 w-4" strokeWidth={2} />,
-      count: counts.holdings,
-    },
-    {
-      id: "manage",
-      label: labels.manage,
-      icon: <SettingsIcon className="h-4 w-4" strokeWidth={2} />,
-    },
-  ];
+  }[] = WALLET_TAB_ORDER.map((id) => ({ id, ...tabMeta[id] }));
 
   return (
     <div
@@ -667,15 +679,15 @@ const TabBar = forwardRef<HTMLDivElement, TabBarProps>(function TabBar(
 
 function tabLabelsFor(surface: ProductSurfaceId | null): Record<WalletTab, string> {
   if (surface === "personal") {
-    return { activity: "Timeline", holdings: "Money", manage: "People" };
+    return { holdings: "Money", activity: "Timeline", manage: "People" };
   }
   if (surface === "pro") {
-    return { activity: "Ledger", holdings: "Assets", manage: "Controls" };
+    return { holdings: "Assets", activity: "Ledger", manage: "Controls" };
   }
   if (surface === "agent") {
-    return { activity: "Journal", holdings: "Funds", manage: "Setup" };
+    return { holdings: "Funds", activity: "Journal", manage: "Setup" };
   }
-  return { activity: "Activity", holdings: "Holdings", manage: "Manage" };
+  return { holdings: "Holdings", activity: "Activity", manage: "Manage" };
 }
 
 function HoldingsEmptyState() {
@@ -686,8 +698,7 @@ function HoldingsEmptyState() {
       </div>
       <p className="mt-3 text-sm font-medium text-text-strong">No tokens yet</p>
       <p className="mt-1 text-xs text-text-soft">
-        ERC-20 tokens this wallet holds appear here. SOL, ETH, BTC, ZEC, and HYPE
-        balances live on the wallet hero above.
+        Activated assets and token balances appear here once the wallet is ready.
       </p>
     </section>
   );
@@ -699,6 +710,140 @@ function HoldingsEmptyState() {
 // matters now. This card deliberately sits between the money hero and
 // the tabbed detail feed so a user does not need to inspect Activity,
 // Holdings, and Manage just to find their next move.
+
+function NativeHoldingsSection({
+  walletName,
+  rows,
+  loading,
+  reduce,
+}: {
+  walletName: string;
+  rows: ReturnType<typeof useWalletPortfolio>["breakdown"];
+  loading: boolean;
+  reduce: boolean;
+}) {
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  const encoded = encodeURIComponent(walletName);
+
+  return (
+    <motion.section
+      {...motionProps}
+      transition={{ duration: 0.2 }}
+      className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
+    >
+      <header className="flex items-center justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-medium text-text-strong">
+            Activated assets
+          </h2>
+          <p className="mt-0.5 text-xs text-text-soft">
+            Live balances for every chain this wallet can use.
+          </p>
+        </div>
+        <span className="text-xs text-text-soft">{rows.length}</span>
+      </header>
+
+      {rows.length === 0 ? (
+        <div className="mt-4">
+          <HoldingsEmptyState />
+        </div>
+      ) : (
+        <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+          {rows.map((row) => {
+            const meta = CHAIN_CATALOG_REF.find((c) => c.kind === row.kind);
+            const amount =
+              row.raw !== null && meta
+                ? formatChainAmount(
+                    row.raw,
+                    meta.smallestPerWhole,
+                    meta.displayDecimals,
+                  )
+                : null;
+            const sendHref = nativeHoldingSendHref(encoded, row.kind);
+            const receiveHref = meta
+              ? `/app/wallet/${encoded}/receive?chain=${encodeURIComponent(meta.apiName)}`
+              : `/app/wallet/${encoded}/receive`;
+            return (
+              <li
+                key={row.kind}
+                className="flex min-w-0 items-center gap-3 rounded-soft border border-border-soft bg-canvas/70 p-3"
+              >
+                {meta ? (
+                  <ChainBadge chain={meta} size="md" />
+                ) : (
+                  <span
+                    aria-hidden="true"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-zinc-600 to-zinc-400 text-xs font-semibold text-white"
+                  >
+                    {row.ticker.slice(0, 1)}
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <p className="truncate text-sm font-medium text-text-strong">
+                      {row.name}
+                    </p>
+                    <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.16em] text-text-soft">
+                      {row.ticker}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 font-numerals text-sm tabular-nums text-text-soft">
+                    {amount ?? (loading ? "Reading balance" : "Balance unavailable")}
+                    {amount ? ` ${row.ticker}` : ""}
+                    {typeof row.usd === "number" ? (
+                      <span className="ml-1.5 text-xs text-text-soft/80">
+                        {formatUsd(row.usd)}
+                      </span>
+                    ) : null}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <Link
+                    href={receiveHref}
+                    aria-label={`Receive ${row.ticker}`}
+                    title={`Receive ${row.ticker}`}
+                    className={
+                      "inline-flex h-9 w-9 items-center justify-center rounded-full border border-border-soft bg-surface-raised text-text-soft " +
+                      "transition-[border-color,color,transform] duration-base ease-out-soft hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent " +
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+                    }
+                  >
+                    <Download className="h-4 w-4" aria-hidden="true" />
+                  </Link>
+                  {sendHref ? (
+                    <Link
+                      href={sendHref}
+                      aria-label={`Send ${row.ticker}`}
+                      title={`Send ${row.ticker}`}
+                      className={
+                        "inline-flex h-9 w-9 items-center justify-center rounded-full border border-border-soft bg-surface-raised text-text-soft " +
+                        "transition-[border-color,color,transform] duration-base ease-out-soft hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent " +
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+                      }
+                    >
+                      <Send className="h-4 w-4" aria-hidden="true" />
+                    </Link>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </motion.section>
+  );
+}
+
+function nativeHoldingSendHref(encodedWalletName: string, kind: number): string | null {
+  if (kind === 0) return `/app/wallet/${encodedWalletName}/send`;
+  if (kind === 1) return `/app/wallet/${encodedWalletName}/send/eth`;
+  if (kind === 2) return `/app/wallet/${encodedWalletName}/send/btc`;
+  if (kind === 3) return `/app/wallet/${encodedWalletName}/send/zec`;
+  if (kind === 5) return `/app/wallet/${encodedWalletName}/send/eth?network=hyperliquid`;
+  return null;
+}
 
 interface NextBestActionCardProps {
   name: string;
@@ -712,7 +857,7 @@ interface NextBestActionCardProps {
   reduce: boolean;
 }
 
-function ProductIntentCard({
+function ProductSetupCard({
   surface,
   walletName,
   memberCount,
@@ -728,7 +873,7 @@ function ProductIntentCard({
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
-  const config = productIntentConfig(surface, encoded, memberCount);
+  const config = productSetupConfig(surface, encoded, memberCount);
   const Icon = config.Icon;
   const compactPersonal = surface === "personal";
   const tone =
@@ -809,7 +954,7 @@ function ProductIntentCard({
   );
 }
 
-function productIntentConfig(
+function productSetupConfig(
   surface: ProductSurfaceId,
   encodedWallet: string,
   memberCount: number | null,
@@ -1105,6 +1250,8 @@ function Hero({
   const encoded = encodeURIComponent(name);
   const profile = productHeroProfile(productSurface, shapeLabel);
   const heroActions = productHeroActions(productSurface, encoded);
+  const { hidden: balancesHidden, toggle: toggleBalancesHidden } =
+    useBalancePrivacy();
 
   return (
     <motion.section
@@ -1210,6 +1357,7 @@ function Hero({
           top-right lifts the card off the canvas without
           competing with the number. */}
       <div className={profile.cardClass}>
+        <BalanceCardPattern />
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 -z-0"
@@ -1224,13 +1372,29 @@ function Hero({
         </div>
         <div className="relative z-10 flex flex-col gap-6 p-5 sm:p-7">
           <div className={profile.portfolioWrapClass}>
-            <PortfolioPanel
-              walletName={name}
-              fallbackBalance={balance}
-              fallbackBalanceLamports={balanceLamports}
-              loadingFallback={loadingBalance}
-              label={profile.balanceLabel}
-            />
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <PortfolioPanel
+                walletName={name}
+                fallbackBalance={balance}
+                fallbackBalanceLamports={balanceLamports}
+                loadingFallback={loadingBalance}
+                label={profile.balanceLabel}
+                balancesHidden={balancesHidden}
+              />
+              <button
+                type="button"
+                onClick={toggleBalancesHidden}
+                aria-label={balancesHidden ? "Show balances" : "Hide balances"}
+                title={balancesHidden ? "Show balances" : "Hide balances"}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-soft bg-canvas/60 text-text-soft transition-colors hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+              >
+                {balancesHidden ? (
+                  <EyeOff className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Eye className="h-4 w-4" aria-hidden="true" />
+                )}
+              </button>
+            </div>
             {profile.stats.length > 0 ? (
               <ul className="grid grid-cols-3 gap-2">
                 {profile.stats.map((stat) => (
@@ -1280,6 +1444,15 @@ type HeroStat = {
   value: (input: { members: number; pending: number }) => string;
 };
 
+const SHARED_BALANCE_CARD_CLASS =
+  "relative overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-rest";
+
+const SHARED_BALANCE_GLOW_CLASS =
+  "absolute -right-24 -top-24 h-60 w-60 rounded-full opacity-50";
+
+const SHARED_BALANCE_GLOW =
+  "radial-gradient(circle at center, rgba(204, 255, 0, 0.08) 0%, rgba(204, 255, 0, 0) 70%)";
+
 function productHeroProfile(
   surface: ProductSurfaceId | null,
   shapeLabel: string | null,
@@ -1301,11 +1474,9 @@ function productHeroProfile(
       productName: "Personal",
       eyebrow: shapeLabel ? `Personal wallet · ${shapeLabel}` : "Personal wallet",
       avatarClass: "rounded-full",
-      cardClass:
-        "relative overflow-hidden rounded-[1.75rem] border border-border-soft bg-surface-raised shadow-card-rest",
-      glowClass: "absolute -right-24 -top-24 h-60 w-60 rounded-full opacity-50",
-      glow:
-        "radial-gradient(circle at center, rgba(16, 185, 129, 0.10) 0%, rgba(16, 185, 129, 0) 70%)",
+      cardClass: SHARED_BALANCE_CARD_CLASS,
+      glowClass: SHARED_BALANCE_GLOW_CLASS,
+      glow: SHARED_BALANCE_GLOW,
       portfolioWrapClass: "grid gap-5 lg:grid-cols-[1fr_0.85fr] lg:items-end",
       actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
       actionTone: "personal",
@@ -1322,11 +1493,9 @@ function productHeroProfile(
       productName: "Pro",
       eyebrow: "Pro treasury · controls",
       avatarClass: "rounded-xl",
-      cardClass:
-        "relative overflow-hidden rounded-card border border-border-strong bg-canvas shadow-card-rest",
-      glowClass: "absolute -right-28 -top-28 h-72 w-72 rounded-full opacity-60",
-      glow:
-        "radial-gradient(circle at center, rgba(204, 255, 0, 0.11) 0%, rgba(204, 255, 0, 0) 70%)",
+      cardClass: SHARED_BALANCE_CARD_CLASS,
+      glowClass: SHARED_BALANCE_GLOW_CLASS,
+      glow: SHARED_BALANCE_GLOW,
       portfolioWrapClass: "grid gap-5 lg:grid-cols-[1.25fr_1fr] lg:items-end",
       actionsGridClass: "grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3",
       actionTone: "pro",
@@ -1343,11 +1512,9 @@ function productHeroProfile(
       productName: "Agent",
       eyebrow: "Agent vault · trading desk",
       avatarClass: "rounded-2xl",
-      cardClass:
-        "relative overflow-hidden rounded-card border border-accent/30 bg-[#050706] shadow-card-rest",
-      glowClass: "absolute -right-24 -top-24 h-72 w-72 rounded-full opacity-70",
-      glow:
-        "radial-gradient(circle at center, rgba(204, 255, 0, 0.14) 0%, rgba(16, 185, 129, 0.03) 45%, rgba(204, 255, 0, 0) 72%)",
+      cardClass: SHARED_BALANCE_CARD_CLASS,
+      glowClass: SHARED_BALANCE_GLOW_CLASS,
+      glow: SHARED_BALANCE_GLOW,
       portfolioWrapClass: "grid gap-5 lg:grid-cols-[1fr_1.1fr] lg:items-end",
       actionsGridClass: "grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3",
       actionTone: "agent",
@@ -1363,11 +1530,9 @@ function productHeroProfile(
     productName: "Wallet",
     eyebrow: shapeLabel ? `Shared wallet · ${shapeLabel}` : "Shared wallet · Solana devnet",
     avatarClass: "rounded-2xl",
-    cardClass:
-      "relative overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-rest",
-    glowClass: "absolute -right-24 -top-24 h-60 w-60 rounded-full opacity-50",
-    glow:
-      "radial-gradient(circle at center, rgba(204, 255, 0, 0.08) 0%, rgba(204, 255, 0, 0) 70%)",
+    cardClass: SHARED_BALANCE_CARD_CLASS,
+    glowClass: SHARED_BALANCE_GLOW_CLASS,
+    glow: SHARED_BALANCE_GLOW,
     portfolioWrapClass: "flex flex-col",
     actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
     actionTone: "default",
@@ -1480,15 +1645,18 @@ function PortfolioPanel({
   fallbackBalanceLamports,
   loadingFallback,
   label = "Balance",
+  balancesHidden = false,
 }: {
   walletName: string;
   fallbackBalance: { amount: string; ticker: string } | null;
   fallbackBalanceLamports: number | null;
   loadingFallback: boolean;
   label?: string;
+  balancesHidden?: boolean;
 }) {
   const portfolio = useWalletPortfolio(walletName);
   const fiat = useDisplayCurrency();
+  const hiddenClass = balancesHidden ? "blur-sm select-none" : "";
 
   // Multi-chain check - only when a non-Solana chain has loaded.
   const hasMultipleChains =
@@ -1508,7 +1676,7 @@ function PortfolioPanel({
           <div className="h-11 w-56 animate-pulse rounded bg-border-soft" />
         ) : (
           <>
-            <p className="flex items-baseline gap-2">
+            <p className={`flex items-baseline gap-2 transition-[filter] duration-base ${hiddenClass}`}>
               <span className="font-numerals text-display-sm font-semibold leading-none tracking-[-0.02em] text-text-strong tabular-nums">
                 {fallbackBalance ? fallbackBalance.amount : "0"}
               </span>
@@ -1517,13 +1685,15 @@ function PortfolioPanel({
               </span>
             </p>
             {fallbackBalanceLamports !== null && fallbackBalanceLamports > 0 && (
-              <UsdHint
-                amount={BigInt(Math.round(fallbackBalanceLamports))}
-                smallestPerWhole={1_000_000_000n}
-                ticker={fallbackBalance?.ticker ?? "SOL"}
-                variant="plain"
-                className="font-numerals text-xs tabular-nums text-text-soft"
-              />
+              <span className={`transition-[filter] duration-base ${hiddenClass}`}>
+                <UsdHint
+                  amount={BigInt(Math.round(fallbackBalanceLamports))}
+                  smallestPerWhole={1_000_000_000n}
+                  ticker={fallbackBalance?.ticker ?? "SOL"}
+                  variant="plain"
+                  className="font-numerals text-xs tabular-nums text-text-soft"
+                />
+              </span>
             )}
           </>
         )}
@@ -1554,11 +1724,11 @@ function PortfolioPanel({
         <div className="h-11 w-56 animate-pulse rounded bg-border-soft" />
       ) : (
         <>
-          <p className="font-numerals text-display-sm font-semibold leading-none tracking-[-0.02em] text-text-strong tabular-nums">
+          <p className={`font-numerals text-display-sm font-semibold leading-none tracking-[-0.02em] text-text-strong tabular-nums transition-[filter] duration-base ${hiddenClass}`}>
             {fiat.format(portfolio.totalUsd)}
           </p>
           {breakdownChips.length > 0 && (
-            <ul className="mt-1 flex flex-wrap items-center gap-1.5">
+            <ul className={`mt-1 flex flex-wrap items-center gap-1.5 transition-[filter] duration-base ${hiddenClass}`}>
               {breakdownChips.map((c) => (
                 <li
                   key={c.kind}
@@ -1729,6 +1899,7 @@ function Erc20HoldingsSection({
   rows: Erc20Holding[];
   reduce: boolean;
 }) {
+  const encoded = encodeURIComponent(walletName);
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
@@ -1748,8 +1919,9 @@ function Erc20HoldingsSection({
         {rows.map((h) => {
           const display = tokenAmountToString(h.rawBalance, h.decimals, 6);
           const sendHref =
-            `/app/wallet/${encodeURIComponent(walletName)}/send/erc20` +
+            `/app/wallet/${encoded}/send/erc20` +
             `?token=${encodeURIComponent(h.contractAddress)}`;
+          const receiveHref = `/app/wallet/${encoded}/receive?chain=evm_1559`;
           return (
             <li
               key={h.contractAddress}
@@ -1774,18 +1946,32 @@ function Erc20HoldingsSection({
                   />
                 </p>
               </div>
-              <Link
-                href={sendHref}
-                className={
-                  "shrink-0 inline-flex items-center gap-1 rounded-full border border-border-soft bg-canvas px-3 py-1 text-[11px] font-medium text-text-soft " +
-                  "transition-[border-color,color,transform] duration-base ease-out-soft " +
-                  "hover:-translate-y-0.5 hover:text-accent " +
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-                }
-              >
-                Send
-                <ArrowRight className="h-3 w-3" aria-hidden="true" />
-              </Link>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <Link
+                  href={receiveHref}
+                  aria-label={`Receive ${h.symbol}`}
+                  title={`Receive ${h.symbol}`}
+                  className={
+                    "inline-flex h-9 w-9 items-center justify-center rounded-full border border-border-soft bg-canvas text-text-soft " +
+                    "transition-[border-color,color,transform] duration-base ease-out-soft hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent " +
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+                  }
+                >
+                  <Download className="h-4 w-4" aria-hidden="true" />
+                </Link>
+                <Link
+                  href={sendHref}
+                  aria-label={`Send ${h.symbol}`}
+                  title={`Send ${h.symbol}`}
+                  className={
+                    "inline-flex h-9 w-9 items-center justify-center rounded-full border border-border-soft bg-canvas text-text-soft " +
+                    "transition-[border-color,color,transform] duration-base ease-out-soft hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent " +
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+                  }
+                >
+                  <Send className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </div>
             </li>
           );
         })}
@@ -1816,7 +2002,7 @@ function ChainTxHistorySection({
     >
       <header className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-medium text-text-strong">
-          On-chain activity ({chainTicker})
+          On-chain transactions ({chainTicker})
         </h2>
         <span className="text-xs text-text-soft">{rows.length}</span>
       </header>
@@ -1975,24 +2161,6 @@ function manageActionGroups(
   if (surface === "personal") {
     return [
       {
-        label: "Personal",
-        description: "Shared-wallet controls only.",
-        rows: [
-          {
-            href: `/app/wallet/${encoded}/members`,
-            icon: Users,
-            title: "Trusted people",
-            body: "Add or review people who help approve.",
-          },
-          {
-            href: `/app/wallet/${encoded}/settings`,
-            icon: SettingsIcon,
-            title: "Wallet settings",
-            body: "Name, display, and low-frequency admin.",
-          },
-        ],
-      },
-      {
         label: "Money",
         description: "Personal top-up and off-ramp.",
         rows: moneyActionRows(encoded),
@@ -2003,38 +2171,14 @@ function manageActionGroups(
   if (surface === "pro") {
     return [
       {
-        label: "Treasury",
-        description: "Team and policy controls.",
+        label: "Limits",
+        description: "Treasury spending controls.",
         rows: [
-          {
-            href: `/app/wallet/${encoded}/members`,
-            icon: Users,
-            title: "Team",
-            body: "Approvers, operators, and watchers.",
-          },
-          {
-            href: `/app/wallet/${encoded}/chains`,
-            icon: Layers,
-            title: "Networks",
-            body: "Bind ETH, BTC, or Zcash accounts.",
-          },
-          {
-            href: `/app/wallet/${encoded}/policy`,
-            icon: ShieldCheck,
-            title: "Treasury rules",
-            body: "Approvals, limits, roles, and alerts.",
-          },
           {
             href: `/app/wallet/${encoded}/budget`,
             icon: Banknote,
             title: "Spending limits",
             body: "Weekly caps, per-chain caps, and velocity.",
-          },
-          {
-            href: `/app/wallet/${encoded}/settings`,
-            icon: SettingsIcon,
-            title: "Workspace settings",
-            body: "Low-frequency treasury administration.",
           },
         ],
       },
@@ -2049,44 +2193,14 @@ function manageActionGroups(
   if (surface === "agent") {
     return [
       {
-        label: "Agent trading",
-        description: "Trader, venue, guardrail, and funding controls.",
+        label: "Funding",
+        description: "Capital assigned to agent trading.",
         rows: [
-          {
-            href: `/app/wallet/${encoded}/agents`,
-            icon: Bot,
-            title: "Trading desk",
-            body: "Open the Agent Trading workspace.",
-          },
-          {
-            href: `/app/wallet/${encoded}/agents/library`,
-            icon: Users,
-            title: "Traders",
-            body: "Choose or create the agent profile.",
-          },
-          {
-            href: `/app/wallet/${encoded}/agents/hyperliquid`,
-            icon: Layers,
-            title: "Venue",
-            body: "Connect the practice trading venue.",
-          },
-          {
-            href: `/app/wallet/${encoded}/agents/policy`,
-            icon: ShieldCheck,
-            title: "Guardrails",
-            body: "Markets, max size, leverage, and kill switch.",
-          },
           {
             href: `/app/wallet/${encoded}/agents/funding`,
             icon: Banknote,
             title: "Allowance",
             body: "Bounded capital for controlled trading.",
-          },
-          {
-            href: `/app/wallet/${encoded}/settings`,
-            icon: SettingsIcon,
-            title: "Vault settings",
-            body: "Low-frequency agent vault administration.",
           },
         ],
       },
@@ -2094,36 +2208,6 @@ function manageActionGroups(
   }
 
   return [
-    {
-      label: "Configure",
-      description: "Wallet-level setup.",
-      rows: [
-        {
-          href: `/app/wallet/${encoded}/members`,
-          icon: Users,
-          title: "Members",
-          body: "Who can spend, approve, and watch.",
-        },
-        {
-          href: `/app/wallet/${encoded}/chains`,
-          icon: Layers,
-          title: "Networks",
-          body: "Bind ETH, BTC, or Zcash.",
-        },
-        {
-          href: `/app/wallet/${encoded}/policy`,
-          icon: ShieldCheck,
-          title: "Rules",
-          body: "Approvals, limits, and notifications.",
-        },
-        {
-          href: `/app/wallet/${encoded}/settings`,
-          icon: SettingsIcon,
-          title: "Wallet settings",
-          body: "Low-frequency wallet administration.",
-        },
-      ],
-    },
     {
       label: "Money",
       description: "Fiat to crypto. Naira-routed for now.",
@@ -2513,10 +2597,17 @@ function ActivitySection({
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-text-strong">
-                    {friendlyStatus(row.status)}
+                    {friendlyIntentLabel(row.intentTemplate)}
                   </p>
-                  <p className="mt-0.5 text-xs text-text-soft">
+                  <p className="mt-0.5 truncate text-xs text-text-soft">
+                    <span className={statusTextColor(row.status)}>
+                      {friendlyStatus(row.status, row.intentTemplate)}
+                    </span>
+                    <span aria-hidden="true" className="mx-1.5 text-text-soft">/</span>
                     {relativeTime(row.proposedAt)}
+                  </p>
+                  <p className="mt-0.5 truncate font-mono text-[10px] text-text-soft/80">
+                    On-chain proposal {row.proposalPda.slice(0, 6)}...{row.proposalPda.slice(-6)}
                   </p>
                 </div>
                 <ArrowRight

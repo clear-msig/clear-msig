@@ -28,22 +28,16 @@ import { useWallet } from "@/lib/wallet";
 import {
   Activity as ActivityIcon,
   ArrowLeft,
-  Bot,
-  Building2,
   ChevronsLeft,
   ChevronsRight,
   Contact as ContactIcon,
   Home,
-  Layers,
   Plus,
-  Plug,
   Search,
   Settings,
-  Shield,
   ShieldCheck,
   UserCircle2,
   Users,
-  Wallet as WalletIcon,
   type LucideIcon,
 } from "lucide-react";
 import { requestCommandPaletteOpen } from "@/components/layout/commandPaletteBus";
@@ -64,6 +58,12 @@ import {
   type WalletProductSurface,
 } from "@/lib/productWorkspace";
 import { useSidebar } from "@/components/providers/SidebarProvider";
+import {
+  activeWalletSlugFromPathname,
+  isWalletNavActive,
+  walletNavHref,
+  walletSubNav,
+} from "@/components/layout/walletScopedNav";
 
 type Props = {
   /// Called after a navigation link fires - used by the mobile drawer
@@ -102,16 +102,7 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
   // null when the user is on a non-wallet route (e.g. /app/settings,
   // /app/wallet hub) - the entry hides so we never render a broken
   // /app/wallet//chains link.
-  const activeWalletSlug = (() => {
-    const m = pathname.match(/^\/app\/wallet\/([^/]+)/);
-    if (!m || !m[1]) return null;
-    if (m[1] === "new") return null;
-    try {
-      return decodeURIComponent(m[1]);
-    } catch {
-      return m[1];
-    }
-  })();
+  const activeWalletSlug = activeWalletSlugFromPathname(pathname);
 
   return (
     <div
@@ -439,55 +430,6 @@ function WorkspaceActions({
 // Overview entry is exact-match only - any sub-route should claim
 // its own tab, not Overview.
 
-// Send / Receive intentionally omitted - the wallet Overview page
-// owns those primary actions (top of the page, focal CTAs). Putting
-// them in the sidebar too would be a double-affordance.
-type WalletSubNavItem = {
-  sub: string;
-  label: string;
-  Icon: LucideIcon;
-};
-
-function walletSubNav(surface: WalletProductSurface | null): WalletSubNavItem[] {
-  if (surface === "personal") {
-    return [
-      { sub: "", label: "Overview", Icon: WalletIcon },
-      { sub: "members", label: "Trusted people", Icon: Users },
-      { sub: "policy", label: "Rules", Icon: Shield },
-      { sub: "activity", label: "Activity", Icon: ActivityIcon },
-      { sub: "settings", label: "Settings", Icon: Settings },
-    ];
-  }
-  if (surface === "pro") {
-    return [
-      { sub: "", label: "Treasury", Icon: Building2 },
-      { sub: "members", label: "Team", Icon: Users },
-      { sub: "activity", label: "Activity", Icon: ActivityIcon },
-      { sub: "chains", label: "Networks", Icon: Layers },
-      { sub: "policy", label: "Rules", Icon: Shield },
-      { sub: "settings", label: "Settings", Icon: Settings },
-    ];
-  }
-  if (surface === "agent") {
-    return [
-      { sub: "agents", label: "Trading", Icon: Bot },
-      { sub: "agents/library", label: "Traders", Icon: Search },
-      { sub: "agents/hyperliquid", label: "Venue", Icon: Plug },
-      { sub: "agents/policy", label: "Guardrails", Icon: ShieldCheck },
-      { sub: "agents/trades", label: "Trades", Icon: ActivityIcon },
-      { sub: "settings", label: "Settings", Icon: Settings },
-    ];
-  }
-  return [
-    { sub: "", label: "Overview", Icon: WalletIcon },
-    { sub: "members", label: "Members", Icon: Users },
-    { sub: "activity", label: "Activity", Icon: ActivityIcon },
-    { sub: "chains", label: "Networks", Icon: Layers },
-    { sub: "policy", label: "Rules", Icon: Shield },
-    { sub: "settings", label: "Settings", Icon: Settings },
-  ];
-}
-
 function WalletScopedSidebar({
   slug,
   pathname,
@@ -506,16 +448,7 @@ function WalletScopedSidebar({
   const surface = walletProductSurface(getWalletAppearance(slug)?.surface);
   const navItems = walletSubNav(surface);
 
-  function isActive(sub: string): boolean {
-    const href = sub ? `${base}/${sub}` : base;
-    if (pathname === href) return true;
-    if (sub === "policy" && pathname.startsWith(`${base}/policies`)) {
-      return true;
-    }
-    if (sub) return pathname.startsWith(`${href}/`);
-    // Overview is exact-match only - any sub-route owns its own tab.
-    return false;
-  }
+  const isActive = (sub: string) => isWalletNavActive(pathname, base, sub);
 
   // ── Rail mode (collapsed sidebar) ──────────────────────────────
   if (!expanded) {
@@ -546,7 +479,7 @@ function WalletScopedSidebar({
           {initial}
         </span>
         {navItems.map(({ sub, label, Icon }) => {
-          const href = sub ? `${base}/${sub}` : base;
+          const href = walletNavHref(base, sub);
           const active = isActive(sub);
           return (
             <Link
@@ -624,7 +557,7 @@ function WalletScopedSidebar({
           Manage
         </p>
         {navItems.map(({ sub, label, Icon }) => {
-          const href = sub ? `${base}/${sub}` : base;
+          const href = walletNavHref(base, sub);
           const active = isActive(sub);
           return (
             <Link

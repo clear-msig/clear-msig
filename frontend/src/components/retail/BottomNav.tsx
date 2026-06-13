@@ -17,8 +17,9 @@
 
 "use client";
 
+import { useEffect, useState, type MouseEvent } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Activity,
   Contact,
@@ -29,6 +30,15 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
+import { getWalletAppearance } from "@/lib/retail/walletAppearance";
+import { walletProductSurface } from "@/lib/productWorkspace";
+import { toDisplayName } from "@/lib/retail/walletNames";
+import {
+  activeWalletSlugFromPathname,
+  isWalletNavActive,
+  walletNavHref,
+  walletSubNav,
+} from "@/components/layout/walletScopedNav";
 
 type NavItem = {
   href: string;
@@ -89,6 +99,9 @@ function isActive(pathname: string | null, item: NavItem): boolean {
 
 export function BottomNav() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [launchingCreate, setLaunchingCreate] = useState(false);
+  const currentPathname = pathname ?? "";
   // Multisig-specific signal: how many proposals across all my wallets
   // need MY approval right now? The badge sits on the Home tab because
   // the dashboard renders the full ActionNeeded list. Capped at 9+
@@ -99,6 +112,29 @@ export function BottomNav() {
   // Two tabs flank each side of the FAB spacer.
   const leftItems = navItems.slice(0, 2);
   const rightItems = navItems.slice(2);
+  const createHref = "/app/wallet/new";
+  const activeWalletSlug = activeWalletSlugFromPathname(currentPathname);
+  useEffect(() => {
+    setLaunchingCreate(false);
+  }, [pathname]);
+
+  const handleCreateClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (pathname === createHref || launchingCreate) return;
+    event.preventDefault();
+    setLaunchingCreate(true);
+    window.setTimeout(() => {
+      router.push(createHref);
+    }, 260);
+  };
+
+  if (activeWalletSlug) {
+    return (
+      <WalletScopedBottomNav
+        slug={activeWalletSlug}
+        pathname={currentPathname}
+      />
+    );
+  }
 
   return (
     <nav
@@ -122,7 +158,8 @@ export function BottomNav() {
           ring-canvas halo for the cutout effect; brand accent shadow
           anchors it to the palette. */}
       <Link
-        href="/app/wallet/new"
+        href={createHref}
+        onClick={handleCreateClick}
         aria-label="Create a new wallet"
         className={clsx(
           "absolute left-1/2 -top-7 z-10 -translate-x-1/2",
@@ -137,9 +174,17 @@ export function BottomNav() {
           "transition-[transform,box-shadow] duration-base ease-out-soft",
           "hover:scale-[1.04] hover:shadow-accent-hover active:scale-95",
           "focus-visible:outline-none focus-visible:shadow-accent-hover",
+          launchingCreate && "scale-[1.08] shadow-accent-hover",
         )}
       >
-        <Plus className="h-6 w-6" strokeWidth={2.5} aria-hidden="true" />
+        <Plus
+          className={clsx(
+            "h-6 w-6 transition-transform duration-300 ease-out-soft",
+            launchingCreate && "rotate-180 scale-110",
+          )}
+          strokeWidth={2.5}
+          aria-hidden="true"
+        />
       </Link>
 
       <ul className="flex items-stretch">
@@ -163,6 +208,72 @@ export function BottomNav() {
             pendingCount={pendingCount}
           />
         ))}
+      </ul>
+    </nav>
+  );
+}
+
+function WalletScopedBottomNav({
+  slug,
+  pathname,
+}: {
+  slug: string;
+  pathname: string;
+}) {
+  const base = `/app/wallet/${encodeURIComponent(slug)}`;
+  const surface = walletProductSurface(getWalletAppearance(slug)?.surface);
+  const items = walletSubNav(surface).filter(
+    (item) => item.sub !== "members" && item.sub !== "activity",
+  );
+  const display = toDisplayName(slug);
+
+  return (
+    <nav
+      aria-label={`${display} wallet navigation`}
+      className={clsx(
+        "fixed inset-x-0 bottom-0 z-40 md:hidden",
+        "border-t border-border-soft bg-surface-raised",
+        "rounded-t-xl pb-safe-bottom",
+        "shadow-[0_-1px_0_0_rgba(255,255,255,0.04)_inset]",
+      )}
+    >
+      <ul className="flex items-stretch gap-1 overflow-x-auto px-2 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {items.map((item) => {
+          const href = walletNavHref(base, item.sub);
+          const active = isWalletNavActive(pathname, base, item.sub);
+          return (
+            <li key={item.sub || "overview"} className="min-w-[76px] flex-1">
+              <Link
+                href={href}
+                aria-current={active ? "page" : undefined}
+                aria-label={item.label}
+                className={clsx(
+                  "relative flex min-h-tap-lg flex-col items-center justify-center gap-1 rounded-soft px-2 py-2",
+                  "transition-colors duration-base ease-out-soft",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
+                  active
+                    ? "bg-accent/10 text-accent"
+                    : "text-text-soft hover:bg-glass-mid hover:text-text-strong",
+                )}
+              >
+                {active ? (
+                  <span
+                    aria-hidden="true"
+                    className="absolute top-1 h-1 w-1 rounded-full bg-accent"
+                  />
+                ) : null}
+                <item.Icon
+                  className="h-5 w-5"
+                  strokeWidth={active ? 2.25 : 2}
+                  aria-hidden="true"
+                />
+                <span className="max-w-full truncate text-[10px] font-medium leading-none">
+                  {item.label}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </nav>
   );

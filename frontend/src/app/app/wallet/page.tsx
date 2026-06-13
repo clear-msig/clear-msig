@@ -21,16 +21,20 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import clsx from "clsx";
-import { motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import { PublicKey } from "@solana/web3.js";
 import {
+  Activity,
   ArrowRight,
   Bell,
   Bot,
   Building2,
+  ChevronDown,
+  ChevronUp,
   Eye,
+  EyeOff,
   KeyRound,
   Pin,
   PinOff,
@@ -62,6 +66,7 @@ import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
 import { Button } from "@/components/retail/Button";
 import { BadgePill } from "@/components/retail/BadgePill";
 import { BrandMark } from "@/components/retail/BrandMark";
+import { BalanceCardPattern } from "@/components/retail/BalanceCardPattern";
 import { relativeTime } from "@/lib/util/relativeTime";
 import {
   friendlyIntentLabel,
@@ -90,6 +95,7 @@ import {
   readSelectedProductSurface,
   saveSelectedProductSurface,
 } from "@/lib/productSession";
+import { useBalancePrivacy } from "@/lib/hooks/useBalancePrivacy";
 
 export default function WalletDashboard() {
   return (
@@ -242,14 +248,6 @@ function WalletDashboardContent() {
   const showStats = !hasError && !isFirstVisit && visibleWallets.length > 0;
   const showRecent = !isFirstVisit && filteredRecentRows.length > 0;
   const showWatched = !hasError && selectedSurface === null;
-  const nextWallet = useMemo(() => {
-    if (visibleWallets.length === 0) return null;
-    const ordered = sortPinnedFirst(visibleWallets, (m) => m.wallet_name ?? "");
-    return (
-      ordered.find((m) => (visiblePendingByWallet.get(m.wallet) ?? 0) > 0) ??
-      ordered[0]
-    );
-  }, [visibleWallets, visiblePendingByWallet]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -283,20 +281,6 @@ function WalletDashboardContent() {
           balances={balancesQuery.data}
           loadingBalances={balancesQuery.isLoading}
           pendingCount={filteredPendingCount}
-          selectedSurface={selectedSurface}
-          reduce={!!reduce}
-        />
-      )}
-
-      {!hasError && !isFirstVisit && nextWallet && (
-        <NextActionStrip
-          wallet={nextWallet}
-          pendingCount={filteredPendingCount}
-          firstApprovalHref={
-            filteredActionRows[0]
-              ? `/app/proposals/${filteredActionRows[0].proposalPda}`
-              : null
-          }
           selectedSurface={selectedSurface}
           reduce={!!reduce}
         />
@@ -425,12 +409,14 @@ function Hero({
     <motion.div
       {...motionProps}
       transition={{ duration: 0.2 }}
-      className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1"
+      className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3"
     >
-      <h1 className="hidden font-display text-display-xs leading-tight text-text-strong md:block">
-        {title}
-      </h1>
-      <p className="text-xs text-text-soft sm:text-sm">{summary}</p>
+      <div className="min-w-0">
+        <h1 className="hidden font-display text-display-xs leading-tight text-text-strong md:block">
+          {title}
+        </h1>
+        <p className="text-xs text-text-soft sm:text-sm">{summary}</p>
+      </div>
     </motion.div>
   );
 }
@@ -644,7 +630,7 @@ function NextActionStrip({
       className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-text-soft">
             Next step
           </p>
@@ -706,45 +692,15 @@ function BalanceHeroCard({
   const label = selectedSurface
     ? productWorkspaceLabel(selectedSurface)
     : "Total balance";
+  const { hidden, toggle } = useBalancePrivacy();
+  const hiddenClass = hidden ? "blur-sm select-none" : "";
   return (
     <section
       className={clsx(
         "relative overflow-hidden rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-7",
       )}
     >
-      {/* Accent gradient wash - soft top-right glow that anchors the
-          card to the brand palette without overwhelming. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-100"
-        style={{
-          background:
-            "radial-gradient(circle at 100% 0%, rgba(204, 255, 0,0.08) 0%, rgba(204, 255, 0,0) 55%)",
-        }}
-      />
-
-      {/* Watermark grid - repeated BrandMark at very low opacity,
-          rotated and scattered. Gives the card a "stamped on the
-          back of a credit card" feel that elevates it beyond a
-          plain stat tile. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 overflow-hidden text-accent"
-      >
-        {WATERMARK_GRID.map((mark) => (
-          <div
-            key={`${mark.top}-${mark.left}`}
-            className="absolute opacity-[0.045]"
-            style={{
-              top: mark.top,
-              left: mark.left,
-              transform: `rotate(${mark.rotate}deg)`,
-            }}
-          >
-            <BrandMark size={mark.size} />
-          </div>
-        ))}
-      </div>
+      <BalanceCardPattern />
 
       {/* Foreground content. relative + z-10 keeps it above both
           decoration layers. */}
@@ -760,13 +716,28 @@ function BalanceHeroCard({
             </span>
           </div>
           {!loading && (
-            <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-text-soft/70">
-              {walletCount === 0
-                ? "-"
-                : walletCount === 1
-                  ? "1 wallet"
-                  : `${walletCount} wallets`}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-text-soft/70">
+                {walletCount === 0
+                  ? "-"
+                  : walletCount === 1
+                    ? "1 wallet"
+                    : `${walletCount} wallets`}
+              </span>
+              <button
+                type="button"
+                onClick={toggle}
+                aria-label={hidden ? "Show balances" : "Hide balances"}
+                title={hidden ? "Show balances" : "Hide balances"}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border-soft bg-canvas/60 text-text-soft transition-colors hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+              >
+                {hidden ? (
+                  <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
+                ) : (
+                  <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                )}
+              </button>
+            </div>
           )}
         </div>
 
@@ -775,7 +746,7 @@ function BalanceHeroCard({
           <div className="mt-5 h-12 w-44 animate-pulse rounded bg-border-soft/80 sm:h-14 sm:w-56" />
         ) : (
           <>
-            <p className="mt-5 flex items-baseline gap-2">
+            <p className={clsx("mt-5 flex items-baseline gap-2 transition-[filter] duration-base", hiddenClass)}>
               <span className="font-numerals text-4xl font-semibold leading-none tracking-tight text-text-strong tabular-nums sm:text-5xl">
                 {amount}
               </span>
@@ -783,7 +754,7 @@ function BalanceHeroCard({
                 {unit}
               </span>
             </p>
-            <p className="mt-2 text-xs text-text-soft sm:text-sm">
+            <p className={clsx("mt-2 text-xs text-text-soft transition-[filter] duration-base sm:text-sm", hiddenClass)}>
               <UsdHint
                 amount={BigInt(Math.round(totalLamports))}
                 smallestPerWhole={1_000_000_000n}
@@ -798,35 +769,25 @@ function BalanceHeroCard({
         {/* Bottom hairline + brand caption - credit-card style.
             Subtle, but ties the watermark grid to a clear "Clear"
             attribution. */}
-        <div className="mt-6 flex items-center gap-2">
-          <span aria-hidden="true" className="block h-px w-8 bg-accent/60" />
-          <span className="text-[10px] font-medium uppercase tracking-[0.28em] text-text-soft/70">
-            ClearSig · {selectedSurface ? productSurfaceById(selectedSurface).shortName : "all products"}
-          </span>
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <span aria-hidden="true" className="block h-px w-8 bg-accent/60" />
+            <span className="truncate text-[10px] font-medium uppercase tracking-[0.28em] text-text-soft/70">
+              ClearSig · {selectedSurface ? productSurfaceById(selectedSurface).shortName : "all products"}
+            </span>
+          </div>
+          <Link
+            href="/choose"
+            className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-border-soft bg-canvas/60 px-3 text-[11px] font-semibold text-text-strong transition-[border-color,color,transform] duration-base ease-out-soft hover:-translate-y-0.5 hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            Choose product
+          </Link>
         </div>
       </div>
     </section>
   );
 }
-
-// Pre-computed scatter pattern for the watermark grid. Hand-tuned
-// positions + sizes + rotations so the marks read as a designed
-// pattern rather than random clutter. Static module-level array so
-// the layout is stable across renders (no jitter).
-const WATERMARK_GRID: {
-  top: string;
-  left: string;
-  size: number;
-  rotate: number;
-}[] = [
-  { top: "-8px", left: "12%", size: 40, rotate: -12 },
-  { top: "20%", left: "62%", size: 32, rotate: 18 },
-  { top: "40%", left: "8%", size: 36, rotate: 24 },
-  { top: "55%", left: "78%", size: 48, rotate: -8 },
-  { top: "70%", left: "32%", size: 40, rotate: 14 },
-  { top: "85%", left: "58%", size: 28, rotate: -22 },
-  { top: "8%", left: "85%", size: 26, rotate: 6 },
-];
 
 function StatCard({
   Icon,
@@ -1004,43 +965,153 @@ function WalletsGrid({
   // both the same-tab event and cross-tab storage events so a pin
   // change in another tab also bubbles up here.
   const [pinTick, setPinTick] = useState(0);
+  const [expanded, setExpanded] = useState(false);
   useEffect(() => subscribePinnedWallets(() => setPinTick((n) => n + 1)), []);
   const ordered = useMemo(
     () => sortPinnedFirst(wallets, (m) => m.wallet_name ?? ""),
     [wallets, pinTick],
   );
+  const canStack = ordered.length > 1;
+  const visible = expanded || !canStack ? ordered : ordered.slice(0, 3);
 
   return (
     <section>
-      <SectionLabel>
-        {selectedSurface
-          ? `${productSurfaceById(selectedSurface).shortName} workspaces`
-          : "Your wallets"}
-      </SectionLabel>
-      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="flex items-center justify-between gap-3">
+        <SectionLabel>
+          {selectedSurface
+            ? `${productSurfaceById(selectedSurface).shortName} workspaces`
+            : "Your wallets"}
+        </SectionLabel>
+        {canStack && !loading ? (
+          <button
+            type="button"
+            onClick={() => setExpanded((value) => !value)}
+            aria-expanded={expanded}
+            className="inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-[11px] font-medium text-text-soft transition-colors duration-base hover:border-accent/40 hover:text-text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          >
+            {expanded ? "Hide" : "Expand"}
+            {expanded ? (
+              <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+            )}
+          </button>
+        ) : null}
+      </div>
+      <div
+        className={clsx(
+          "mt-3",
+          expanded || !canStack
+            ? "grid grid-cols-1 gap-3 sm:grid-cols-2"
+            : "flex flex-col [perspective:1200px]",
+        )}
+      >
         {loading && wallets.length === 0 ? (
           <>
             <CardSkeleton />
             <CardSkeleton />
           </>
         ) : (
-          ordered.map((m, i) => (
-            <WalletCard
-              key={m.wallet}
-              membership={m}
-              pendingCount={pendingByWallet.get(m.wallet) ?? 0}
-              balanceLamports={balances?.get(m.wallet) ?? null}
-              loadingBalance={loadingBalances}
-              // Cap the stagger at 4 so the last card paints in
-              // 80ms regardless of wallet count. Treasury users
-              // with 6+ wallets used to see 240ms+ of cascade,
-              // which read as jank on slow networks.
-              delay={Math.min(i, 4) * 0.02}
-              reduce={reduce}
-            />
-          ))
+          <AnimatePresence initial={false}>
+            {visible.map((m, i) => {
+              const stacked = !expanded && canStack;
+              const stackDepth = stacked ? Math.min(i, 2) : 0;
+              return (
+                <motion.div
+                  key={m.wallet}
+                  layout={!reduce}
+                  initial={
+                    reduce
+                      ? false
+                      : {
+                          opacity: 0,
+                          y: stacked ? 16 + stackDepth * 6 : 14,
+                          scale: stacked ? 0.96 - stackDepth * 0.015 : 0.98,
+                        }
+                  }
+                  animate={
+                    reduce
+                      ? {}
+                      : {
+                          opacity: 1,
+                          y: 0,
+                          scale: stacked ? 1 - stackDepth * 0.025 : 1,
+                          rotateX: stacked ? stackDepth * -1.5 : 0,
+                        }
+                  }
+                  exit={
+                    reduce
+                      ? {}
+                      : {
+                          opacity: 0,
+                          y: -18,
+                          scale: 0.97,
+                          transition: { duration: 0.14, ease: [0.4, 0, 1, 1] },
+                        }
+                  }
+                  transition={
+                    reduce
+                      ? undefined
+                      : {
+                          layout: {
+                            type: "spring",
+                            stiffness: 420,
+                            damping: 34,
+                            mass: 0.8,
+                          },
+                          opacity: { duration: 0.18, delay: Math.min(i, 4) * 0.025 },
+                          y: {
+                            type: "spring",
+                            stiffness: 420,
+                            damping: 32,
+                            mass: 0.8,
+                            delay: expanded ? Math.min(i, 6) * 0.025 : 0,
+                          },
+                          scale: {
+                            type: "spring",
+                            stiffness: 420,
+                            damping: 34,
+                            mass: 0.8,
+                          },
+                        }
+                  }
+                  className={clsx(
+                    "relative origin-top transform-gpu",
+                    stacked && i > 0 && "-mt-14",
+                  )}
+                  style={stacked ? { zIndex: visible.length - i } : undefined}
+                >
+                  <WalletCard
+                    membership={m}
+                    pendingCount={pendingByWallet.get(m.wallet) ?? 0}
+                    balanceLamports={balances?.get(m.wallet) ?? null}
+                    loadingBalance={loadingBalances}
+                    // Cap the stagger at 4 so the last card paints in
+                    // 80ms regardless of wallet count. Treasury users
+                    // with 6+ wallets used to see 240ms+ of cascade,
+                    // which read as jank on slow networks.
+                    delay={reduce ? 0 : Math.min(i, 4) * 0.02}
+                    reduce={reduce}
+                  />
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
         )}
       </div>
+      <AnimatePresence initial={false}>
+        {!expanded && canStack && ordered.length > visible.length ? (
+          <motion.p
+            initial={reduce ? false : { opacity: 0, y: -4 }}
+            animate={reduce ? {} : { opacity: 1, y: 0 }}
+            exit={reduce ? {} : { opacity: 0, y: -4 }}
+            transition={{ duration: 0.16 }}
+            className="mt-2 text-center text-[11px] text-text-soft sm:text-left"
+          >
+            Showing {visible.length} of {ordered.length}
+          </motion.p>
+        ) : null}
+      </AnimatePresence>
     </section>
   );
 }
@@ -1076,6 +1147,8 @@ function WalletCard({
   const homeHref = productWorkspaceHomeHref(onChainName, surface);
   const productLabel = surface ? productWorkspaceLabel(surface) : null;
   const [pinned, setPinned] = useState(false);
+  const { hidden } = useBalancePrivacy();
+  const hiddenClass = hidden ? "blur-sm select-none" : "";
   useEffect(() => {
     setPinned(isWalletPinned(onChainName));
     return subscribePinnedWallets(() => setPinned(isWalletPinned(onChainName)));
@@ -1098,14 +1171,14 @@ function WalletCard({
       <Link
         href={homeHref}
         className={
-          "group relative flex flex-col gap-3 rounded-card border bg-surface-raised p-5 shadow-card-rest " +
+          "group relative flex flex-col gap-3 overflow-hidden rounded-card border bg-surface-raised p-5 shadow-card-rest " +
           "transition-[transform,box-shadow,border-color] duration-base ease-out-soft " +
           "hover:-translate-y-0.5 hover:shadow-card-raised " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
           (pinned ? "border-accent/40" : "border-border-soft")
         }
       >
-        <div className="flex items-start justify-between gap-3">
+        <div className="relative z-10 flex items-start justify-between gap-3">
           <div className="min-w-0">
             {/* The pinned-state Pin icon used to also render inline
                 next to the name. With the corner pin button in
@@ -1123,7 +1196,7 @@ function WalletCard({
               // balance value, Manrope display caps for the ticker.
               // Same currency-code treatment as /send/* and Hero
               // single-chain balance - one shared pattern app-wide.
-              <p className="mt-1 flex items-baseline gap-1.5">
+              <p className={clsx("mt-1 flex items-baseline gap-1.5 transition-[filter] duration-base", hiddenClass)}>
                 <span className="font-numerals text-base font-semibold text-text-strong tabular-nums">
                   {balance ? balance.amount : "0"}
                 </span>
@@ -1238,6 +1311,7 @@ function RecentActivitySection({ rows, reduce }: RecentActivityProps) {
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  const latest = rows.slice(0, 3);
   return (
     <motion.section
       {...motionProps}
@@ -1259,9 +1333,16 @@ function RecentActivitySection({ rows, reduce }: RecentActivityProps) {
           <ArrowRight className="h-3 w-3" aria-hidden="true" />
         </Link>
       </div>
-      <ul className="mt-3 flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
-        {rows.slice(0, 4).map((row) => (
-          <ActivityRow key={row.proposalPda} row={row} />
+      <ul className="mt-3 grid gap-2">
+        {latest.map((row, i) => (
+          <motion.li
+            key={row.proposalPda}
+            initial={reduce ? false : { opacity: 0, y: 8 }}
+            animate={reduce ? {} : { opacity: 1, y: 0 }}
+            transition={{ duration: 0.18, delay: reduce ? 0 : i * 0.025 }}
+          >
+            <ActivityRow row={row} />
+          </motion.li>
         ))}
       </ul>
     </motion.section>
@@ -1273,21 +1354,26 @@ function ActivityRow({ row }: { row: RecentActivityRow }) {
   // ms conversion. Passing pre-multiplied milliseconds here was a
   // long-standing bug that printed "just now" forever.
   const time = relativeTime(row.proposedAt);
+  const action = friendlyIntentLabel(row.intentTemplate);
   return (
-    <li>
       <Link
         href={`/app/proposals/${row.proposalPda}`}
         className={
-          "group flex items-center justify-between gap-3 px-5 py-3 " +
-          "transition-colors duration-base ease-out-soft hover:bg-canvas " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
+          "group flex items-center justify-between gap-3 rounded-card border border-border-soft bg-surface-raised px-4 py-3 shadow-card-rest " +
+          "transition-[border-color,background-color,box-shadow] duration-base ease-out-soft hover:border-accent/40 hover:bg-canvas hover:shadow-card-raised " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
         }
       >
-        <div className="min-w-0">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+          <Activity className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-text-strong">
-            {toDisplayName(row.walletName)}
+            {action}
           </p>
           <p className="mt-0.5 text-xs text-text-soft">
+            <span>{toDisplayName(row.walletName)}</span>
+            <span aria-hidden="true" className="mx-1.5 text-text-soft">/</span>
             <span className={statusTextColor(row.status)}>{friendlyStatus(row.status, row.intentTemplate)}</span>
             <span aria-hidden="true" className="mx-1.5 text-text-soft">·</span>
             <span>{time}</span>
@@ -1298,7 +1384,6 @@ function ActivityRow({ row }: { row: RecentActivityRow }) {
           aria-hidden="true"
         />
       </Link>
-    </li>
   );
 }
 

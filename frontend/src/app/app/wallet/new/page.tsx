@@ -41,7 +41,11 @@ import { useToast } from "@/components/ui/Toast";
 import { saveWalletAppearance } from "@/lib/retail/walletAppearance";
 import { saveSelectedProductSurface } from "@/lib/productSession";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
-import { isProductSurfaceId, type ProductSurfaceId } from "@/lib/productSurfaces";
+import {
+  isProductSurfaceId,
+  productSurfaceById,
+  type ProductSurfaceId,
+} from "@/lib/productSurfaces";
 
 const SOL_TRANSFER_TEMPLATE = "examples/intents/solana_transfer.json";
 
@@ -201,6 +205,26 @@ function agentSetupInfo(): {
   };
 }
 
+type ProductChoiceId = "personal" | "pro" | "agent";
+
+const PRODUCT_CHOICES: Array<{
+  id: ProductChoiceId;
+  Icon: LucideIcon;
+}> = [
+  {
+    id: "personal",
+    Icon: Users,
+  },
+  {
+    id: "pro",
+    Icon: Building2,
+  },
+  {
+    id: "agent",
+    Icon: Bot,
+  },
+];
+
 export default function NewWalletPage() {
   return (
     <Suspense fallback={<NewWalletSkeleton />}>
@@ -274,7 +298,7 @@ function NewWalletContent() {
     setName(defaultNameFor(requestedSurface, initialPurpose));
   }, [initialPurpose, requestedSurface]);
 
-  const chooseProduct = (nextSurface: "personal" | "pro" | "agent") => {
+  const chooseProduct = (nextSurface: ProductChoiceId) => {
     const nextPurpose: Purpose = nextSurface === "agent" ? "agent" : "share";
     const nextShape: ShapeId = nextSurface === "personal" ? "just_me" : "team";
     setSurface(nextSurface);
@@ -439,7 +463,10 @@ function NewWalletContent() {
 
   const motionProps = reduce
     ? {}
-    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+    : {
+        initial: { opacity: 0, y: 26, scale: 0.985, filter: "blur(8px)" },
+        animate: { opacity: 1, y: 0, scale: 1, filter: "blur(0px)" },
+      };
   const setupInfo =
     purpose === "agent" ? agentSetupInfo() : productSetupFor(surface);
   const SetupIcon = setupInfo.Icon;
@@ -453,8 +480,12 @@ function NewWalletContent() {
   return (
     <motion.div
       {...motionProps}
-      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="mx-auto flex w-full max-w-xl flex-col gap-6"
+      transition={{
+        duration: 0.42,
+        ease: [0.22, 1, 0.36, 1],
+        scale: { type: "spring", stiffness: 260, damping: 26 },
+      }}
+      className="mx-auto flex w-full max-w-2xl flex-col gap-6"
     >
       <header className="flex flex-col gap-1">
         <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
@@ -474,6 +505,19 @@ function NewWalletContent() {
                 ? "Create an agent vault"
               : "Create a wallet"}
         </h1>
+        {purpose === null ? (
+          <div className="mx-auto max-w-2xl text-center md:mx-0 md:text-left">
+            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.28em] text-accent">
+              Choose product
+            </p>
+            <p className="mt-4 font-display text-[clamp(2.1rem,9vw,4.5rem)] font-medium leading-[0.9] text-text-strong md:hidden">
+              What are you here to do?
+            </p>
+            <p className="mt-3 max-w-md text-sm leading-relaxed text-text-soft md:mt-1">
+              Pick the ClearSig workspace that matches how this money will be used.
+            </p>
+          </div>
+        ) : null}
       </header>
 
       <UnsupportedSignerBanner title="You won't be able to finish creating a wallet with this sign-in" />
@@ -483,84 +527,16 @@ function NewWalletContent() {
           setup has its own surface; this flow creates workspace
           wallets for Personal, Pro, or Agents. */}
       {purpose === null && (
-        <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <button
-            type="button"
-            onClick={() => chooseProduct("personal")}
-            className={clsx(
-              "group flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 text-left",
-              "transition-[border-color,background-color,transform] duration-base ease-out-soft",
-              "hover:-translate-y-px hover:border-accent/40 hover:bg-accent/5",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-            )}
-          >
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent ring-1 ring-accent/20">
-              <Users className="h-5 w-5" strokeWidth={1.75} />
-            </span>
-            <div className="flex flex-col gap-1">
-              <p className="font-display text-base font-semibold leading-tight text-text-strong">
-                Personal
-              </p>
-              <p className="text-xs text-text-soft">
-                Shared approvals.
-              </p>
-            </div>
-            <span className="mt-auto inline-flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">
-              Continue <ArrowRight className="h-3 w-3" strokeWidth={2.5} />
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => chooseProduct("pro")}
-            className={clsx(
-              "group flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 text-left",
-              "transition-[border-color,background-color,transform] duration-base ease-out-soft",
-              "hover:-translate-y-px hover:border-accent/40 hover:bg-accent/5",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-            )}
-          >
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent ring-1 ring-accent/20">
-              <Building2 className="h-5 w-5" strokeWidth={1.75} />
-            </span>
-            <div className="flex flex-col gap-1">
-              <p className="font-display text-base font-semibold leading-tight text-text-strong">
-                Pro
-              </p>
-              <p className="text-xs text-text-soft">
-                Treasury policy.
-              </p>
-            </div>
-            <span className="mt-auto inline-flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">
-              Continue <ArrowRight className="h-3 w-3" strokeWidth={2.5} />
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => chooseProduct("agent")}
-            className={clsx(
-              "group flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 text-left",
-              "transition-[border-color,background-color,transform] duration-base ease-out-soft",
-              "hover:-translate-y-px hover:border-accent/40 hover:bg-accent/5",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-            )}
-          >
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent ring-1 ring-accent/20">
-              <Bot className="h-5 w-5" strokeWidth={1.75} />
-            </span>
-            <div className="flex flex-col gap-1">
-              <p className="font-display text-base font-semibold leading-tight text-text-strong">
-                Agents
-              </p>
-              <p className="text-xs text-text-soft">
-                Trading guardrails.
-              </p>
-            </div>
-            <span className="mt-auto inline-flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">
-              Continue <ArrowRight className="h-3 w-3" strokeWidth={2.5} />
-            </span>
-          </button>
+        <section className="grid grid-cols-3 gap-x-3 gap-y-8 sm:gap-x-5">
+          {PRODUCT_CHOICES.map((choice, index) => (
+            <ProductChoiceCard
+              key={choice.id}
+              choice={choice}
+              index={index}
+              reduce={!!reduce}
+              onSelect={() => chooseProduct(choice.id)}
+            />
+          ))}
         </section>
       )}
 
@@ -876,6 +852,57 @@ function NewWalletContent() {
         Cancel and go back
       </Link>
     </motion.div>
+  );
+}
+
+function ProductChoiceCard({
+  choice,
+  index,
+  reduce,
+  onSelect,
+}: {
+  choice: (typeof PRODUCT_CHOICES)[number];
+  index: number;
+  reduce: boolean;
+  onSelect: () => void;
+}) {
+  const Icon = choice.Icon;
+  const surface = productSurfaceById(choice.id);
+  return (
+    <motion.button
+      type="button"
+      onClick={onSelect}
+      initial={reduce ? false : { opacity: 0, y: 20, scale: 0.96 }}
+      animate={reduce ? {} : { opacity: 1, y: 0, scale: 1 }}
+      transition={{
+        delay: reduce ? 0 : 0.08 + index * 0.055,
+        duration: 0.34,
+        ease: [0.22, 1, 0.36, 1],
+        scale: { type: "spring", stiffness: 360, damping: 28 },
+      }}
+      className={clsx(
+        "group flex min-h-40 flex-col items-center justify-start text-center",
+        "transition-[transform,color] duration-base ease-out-soft hover:-translate-y-1",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+      )}
+    >
+      <span className="inline-flex h-16 w-16 items-center justify-center rounded-[1.35rem] border border-border-soft bg-surface-raised text-text-strong shadow-card-rest transition-colors group-hover:border-accent/45 group-hover:bg-accent/10 group-hover:text-accent">
+        <Icon className="h-7 w-7" strokeWidth={1.85} />
+      </span>
+      <span className="mt-4 block font-display text-base font-semibold text-text-strong sm:text-lg">
+        {surface.shortName}
+      </span>
+      <span className="mt-2 block max-w-[9.5rem] text-xs leading-snug text-text-soft">
+        {surface.eyebrow}
+      </span>
+      <span className="mt-auto inline-flex items-center gap-1.5 pt-4 text-xs font-semibold text-accent">
+        Choose
+        <ArrowRight
+          className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
+          strokeWidth={2.3}
+        />
+      </span>
+    </motion.button>
   );
 }
 
