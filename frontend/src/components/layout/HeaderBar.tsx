@@ -71,6 +71,7 @@ export function HeaderBar() {
 
   const inApp = pathname.startsWith("/app");
   const isHome = pathname === "/app/wallet";
+  const isWalletLandingRoute = /^\/app\/wallet\/[^/]+$/.test(pathname);
   const inAppConnected = hydrated && connected && inApp;
 
   // Native-app navbar wiring.
@@ -144,6 +145,10 @@ export function HeaderBar() {
   }, [walletMenuOpen]);
 
   const handleBack = () => {
+    if (isWalletLandingRoute) {
+      router.replace("/app/wallet");
+      return;
+    }
     if (navCountRef.current > 1) {
       router.back();
     } else {

@@ -32,6 +32,7 @@ import clsx from "clsx";
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
 import { getWalletAppearance } from "@/lib/retail/walletAppearance";
 import { walletProductSurface } from "@/lib/productWorkspace";
+import { productSetupHref } from "@/lib/productSurfaces";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import {
   activeWalletSlugFromPathname,
@@ -220,12 +221,34 @@ function WalletScopedBottomNav({
   slug: string;
   pathname: string;
 }) {
+  const router = useRouter();
+  const [launchingCreate, setLaunchingCreate] = useState(false);
   const base = `/app/wallet/${encodeURIComponent(slug)}`;
   const surface = walletProductSurface(getWalletAppearance(slug)?.surface);
   const items = walletSubNav(surface).filter(
-    (item) => item.sub !== "members" && item.sub !== "activity",
+    (item) => item.sub !== "members" && item.sub !== "policy",
   );
   const display = toDisplayName(slug);
+  const createHref = surface ? productSetupHref(surface) : "/app/wallet/new";
+  const createLabel = surface
+    ? `Create another ${surface} wallet`
+    : "Create a new wallet";
+  const splitIndex = Math.ceil(items.length / 2);
+  const leftItems = items.slice(0, splitIndex);
+  const rightItems = items.slice(splitIndex);
+
+  useEffect(() => {
+    setLaunchingCreate(false);
+  }, [pathname]);
+
+  const handleCreateClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (launchingCreate) return;
+    event.preventDefault();
+    setLaunchingCreate(true);
+    window.setTimeout(() => {
+      router.push(createHref);
+    }, 260);
+  };
 
   return (
     <nav
@@ -237,8 +260,68 @@ function WalletScopedBottomNav({
         "shadow-[0_-1px_0_0_rgba(255,255,255,0.04)_inset]",
       )}
     >
+      <Link
+        href={createHref}
+        onClick={handleCreateClick}
+        aria-label={createLabel}
+        className={clsx(
+          "absolute left-1/2 -top-7 z-10 -translate-x-1/2",
+          "flex h-14 w-14 items-center justify-center rounded-full",
+          "bg-accent text-text-on-accent ring-[6px] ring-canvas shadow-accent-rest",
+          "transition-[transform,box-shadow] duration-base ease-out-soft",
+          "hover:scale-[1.04] hover:shadow-accent-hover active:scale-95",
+          "focus-visible:outline-none focus-visible:shadow-accent-hover",
+          launchingCreate && "scale-[1.08] shadow-accent-hover",
+        )}
+      >
+        <Plus
+          className={clsx(
+            "h-6 w-6 transition-transform duration-300 ease-out-soft",
+            launchingCreate && "rotate-180 scale-110",
+          )}
+          strokeWidth={2.5}
+          aria-hidden="true"
+        />
+      </Link>
       <ul className="flex items-stretch gap-1 overflow-x-auto px-2 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {items.map((item) => {
+        {leftItems.map((item) => {
+          const href = walletNavHref(base, item.sub);
+          const active = isWalletNavActive(pathname, base, item.sub);
+          return (
+            <li key={item.sub || "overview"} className="min-w-[76px] flex-1">
+              <Link
+                href={href}
+                aria-current={active ? "page" : undefined}
+                aria-label={item.label}
+                className={clsx(
+                  "relative flex min-h-tap-lg flex-col items-center justify-center gap-1 rounded-soft px-2 py-2",
+                  "transition-colors duration-base ease-out-soft",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
+                  active
+                    ? "bg-accent/10 text-accent"
+                    : "text-text-soft hover:bg-glass-mid hover:text-text-strong",
+                )}
+              >
+                {active ? (
+                  <span
+                    aria-hidden="true"
+                    className="absolute top-1 h-1 w-1 rounded-full bg-accent"
+                  />
+                ) : null}
+                <item.Icon
+                  className="h-5 w-5"
+                  strokeWidth={active ? 2.25 : 2}
+                  aria-hidden="true"
+                />
+                <span className="max-w-full truncate text-[10px] font-medium leading-none">
+                  {item.label}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+        <li aria-hidden="true" className="w-20 shrink-0" />
+        {rightItems.map((item) => {
           const href = walletNavHref(base, item.sub);
           const active = isWalletNavActive(pathname, base, item.sub);
           return (

@@ -14,8 +14,8 @@
 //
 //   • Expanded (default, ~16rem) - brand row + search + "+ New" CTA +
 //     wallet list + recent activity feed + connected pill + settings.
-//   • Collapsed (rail, ~4rem) - icon-only column. Wallet list shows
-//     gradient avatars; recent feed hides; pill collapses to avatar.
+//   • Collapsed (rail, ~4rem) - icon-only column. Recent feed hides;
+//     connected pill collapses to the account indicator.
 //
 // On mobile the component is rendered inside HeaderBar's drawer; the
 // drawer overrides the rail state via `forceExpanded` so users always
@@ -38,6 +38,7 @@ import {
   ShieldCheck,
   UserCircle2,
   Users,
+  Wallet as WalletIcon,
   type LucideIcon,
 } from "lucide-react";
 import { requestCommandPaletteOpen } from "@/components/layout/commandPaletteBus";
@@ -49,8 +50,7 @@ import {
 } from "@/lib/memberships/client";
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
 import { toDisplayName } from "@/lib/retail/walletNames";
-import { avatarGradient } from "@/lib/retail/avatar";
-import { getWalletAppearance, gradientFor } from "@/lib/retail/walletAppearance";
+import { getWalletAppearance } from "@/lib/retail/walletAppearance";
 import {
   productWorkspaceHomeHref,
   productWorkspaceLabel,
@@ -442,8 +442,6 @@ function WalletScopedSidebar({
   onNavigate?: () => void;
 }) {
   const display = toDisplayName(slug);
-  const grad = gradientFor(slug, avatarGradient(slug));
-  const initial = display.trim().charAt(0).toUpperCase() || "?";
   const base = `/app/wallet/${encodeURIComponent(slug)}`;
   const surface = walletProductSurface(getWalletAppearance(slug)?.surface);
   const navItems = walletSubNav(surface);
@@ -470,13 +468,9 @@ function WalletScopedSidebar({
         <span
           aria-label={display}
           title={display}
-          className={clsx(
-            "flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br text-[12px] font-semibold text-white shadow-sm",
-            grad.from,
-            grad.to,
-          )}
+          className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent"
         >
-          {initial}
+          <WalletIcon size={15} aria-hidden="true" />
         </span>
         {navItems.map(({ sub, label, Icon }) => {
           const href = walletNavHref(base, sub);
@@ -524,20 +518,10 @@ function WalletScopedSidebar({
         All wallets
       </Link>
 
-      {/* Active wallet identity card - avatar + display name +
+      {/* Active wallet identity card - display name +
           monospace eyebrow. Anchors the user's mental model of
           "you're inside this wallet." */}
-      <div className="flex items-center gap-2.5 rounded-xl border border-border-soft bg-glass-soft p-3">
-        <span
-          aria-hidden="true"
-          className={clsx(
-            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-[12px] font-semibold text-white shadow-sm",
-            grad.from,
-            grad.to,
-          )}
-        >
-          {initial}
-        </span>
+      <div className="rounded-xl border border-border-soft bg-glass-soft p-3">
         <div className="flex min-w-0 flex-1 flex-col leading-tight">
           <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-text-soft">
             {productWorkspaceLabel(surface)}
@@ -727,10 +711,7 @@ function SidebarOrgLink({
   if (!onChainName) return null;
 
   const display = toDisplayName(onChainName);
-  const grad = gradientFor(onChainName, avatarGradient(onChainName));
-  const initial = display.trim().charAt(0).toUpperCase() || "?";
-
-  // Rail mode - icon-only, full hit target on the avatar tile, name +
+  // Rail mode - icon-only, full hit target on the wallet tile, name +
   // pending count surface via title attribute.
   if (!expanded) {
     const title =
@@ -745,15 +726,16 @@ function SidebarOrgLink({
           aria-label={title}
           title={title}
           className={clsx(
-            "relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br text-[11px] font-semibold text-white shadow-sm",
+            "relative flex h-10 w-10 items-center justify-center rounded-xl",
             "transition-transform duration-base ease-out-soft hover:scale-105 active:scale-95",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
-            grad.from,
-            grad.to,
-            active && "ring-2 ring-accent ring-offset-2 ring-offset-surface-raised",
           )}
         >
-          {initial}
+          <WalletIcon
+            size={16}
+            className={active ? "text-accent" : "text-text-soft"}
+            aria-hidden="true"
+          />
           {pendingCount > 0 && (
             <span
               aria-hidden="true"
@@ -789,16 +771,7 @@ function SidebarOrgLink({
             : "text-text-strong hover:bg-canvas",
         )}
       >
-        <span
-          className={clsx(
-            "flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br text-[10px] font-semibold text-white shadow-sm",
-            grad.from,
-            grad.to,
-          )}
-          aria-hidden="true"
-        >
-          {initial}
-        </span>
+        <WalletIcon size={14} className="shrink-0 text-text-soft" aria-hidden="true" />
         <span className="truncate">{display}</span>
         {pendingCount > 0 && (
           <span

@@ -131,46 +131,49 @@ export default function PolicyPage() {
   const personalRules = surface === "personal";
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4 sm:gap-6">
       {/* Page header strip - mono eyebrow + display title, identity
           anchored by the wallet disc. Back navigation lives on the
           global header bar (mobile + desktop). */}
       <motion.header
         {...motionProps}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4"
+        className="relative overflow-hidden rounded-card bg-surface-raised p-4 shadow-card-rest sm:flex sm:flex-wrap sm:items-end sm:justify-between sm:gap-x-6 sm:gap-y-4 sm:p-6"
       >
-        <div className="flex min-w-0 items-center gap-4">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-accent/[0.06] blur-3xl"
+        />
+        <div className="relative z-10 flex min-w-0 items-center gap-3 sm:gap-4">
           <span
             aria-hidden="true"
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent sm:h-14 sm:w-14"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent sm:h-14 sm:w-14"
           >
             <WalletIcon className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={1.75} />
           </span>
           <div className="flex min-w-0 flex-col">
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              {personalRules ? "Personal rules" : "Spending policy"} · {display}
+              {personalRules ? "Personal rules" : "Spending policy"} / {display}
             </p>
-            <h1 className="mt-1.5 truncate font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
+            <h1 className="mt-1 truncate font-display text-xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
               {personalRules
                 ? `How ${display} stays protected`
                 : `How ${display} controls money`}
             </h1>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-[11px] font-medium text-text-soft">
+        <p className="relative z-10 mt-4 max-w-2xl text-sm leading-relaxed text-text-soft sm:mt-4 sm:text-base">
+          {personalRules
+            ? "Simple controls for approvals, trusted people, and signed spending."
+            : "Approval rules, limits, recipients, and local guardrails before signing."}
+        </p>
+        <div className="relative z-10 mt-4 flex flex-wrap items-center gap-2 sm:mt-0">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-canvas/70 px-3 py-1.5 text-[11px] font-medium text-text-soft">
             <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-            Encryption-ready · pre-alpha
+            Encryption-ready / pre-alpha
           </span>
         </div>
       </motion.header>
-
-      <p className="max-w-2xl text-sm text-text-soft sm:text-base">
-        {personalRules
-          ? "Simple rules for who can approve and how sending is protected."
-          : "One place for who approves, who can request, where money can go, and which limits block a bad send before signing."}
-      </p>
 
       <PolicyFlow
         walletName={name}
@@ -317,24 +320,21 @@ function PolicyFlow({
   ];
 
   return (
-    <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
+    <section className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="font-display text-lg leading-tight text-text-strong">
-            Policy flow
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+            Control map
+          </p>
+          <h2 className="mt-1 font-display text-lg leading-tight text-text-strong">
+            What protects this wallet
           </h2>
-          <p className="mt-1 max-w-2xl text-sm text-text-soft">
+          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-text-soft sm:text-sm">
             {personalRules
-              ? "Personal rules stay focused on trusted people, approvals, and the signed spending rule."
-              : "Active controls are enforced by wallet membership and signed intents. Preview guardrails run in the app today and become enforceable once encrypted policy execution is live."}
+              ? "Active approvals and signed spending rules stay simple for trusted people."
+              : "Active controls enforce signing. Preview guardrails run locally until encrypted policy execution is live."}
           </p>
         </div>
-        <Link
-          href={`/app/wallet/${encoded}/settings`}
-          className="inline-flex min-h-tap items-center justify-center rounded-full border border-border-soft bg-canvas px-3 py-2 text-[11px] font-medium text-text-soft transition-colors hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-        >
-          Wallet settings
-        </Link>
       </div>
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {steps.map((step) => (
@@ -360,13 +360,17 @@ function PolicyStepCard({ step }: { step: PolicyStep }) {
     <Link
       href={href}
       className={
-        "group flex min-h-[116px] flex-col justify-between rounded-card border border-border-soft bg-canvas p-4 " +
-        "transition-[border-color,transform,box-shadow] duration-base ease-out-soft hover:-translate-y-0.5 hover:shadow-card-rest " +
+        "group relative flex min-h-[92px] flex-col justify-between overflow-hidden rounded-card bg-canvas p-3.5 " +
+        "transition-[background-color,transform,box-shadow] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-surface-raised hover:shadow-card-rest " +
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
       }
     >
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-4 bottom-0 h-px bg-gradient-to-r from-transparent via-accent/35 to-transparent opacity-0 transition-opacity duration-base group-hover:opacity-100"
+      />
       <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
           <Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
@@ -379,19 +383,21 @@ function PolicyStepCard({ step }: { step: PolicyStep }) {
               aria-hidden="true"
             />
           </div>
-          <p className="mt-1 text-xs text-text-soft">{body}</p>
+          <p className="mt-1 line-clamp-2 text-xs leading-snug text-text-soft">
+            {body}
+          </p>
         </div>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-soft">
           {status}
         </p>
         <span
           className={
-            "inline-flex rounded-full border px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.18em] " +
+            "inline-flex rounded-full px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.18em] " +
             (enforcement === "active"
-              ? "border-accent/30 bg-accent/10 text-accent"
-              : "border-warning/30 bg-warning/10 text-warning")
+              ? "bg-accent/10 text-accent"
+              : "bg-warning/10 text-warning")
           }
         >
           {enforcement === "active" ? "Active" : "Preview"}
@@ -423,7 +429,7 @@ function ThresholdCard({
 
   if (loading) {
     return (
-      <section className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-7">
+      <section className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-6">
         <div className="h-5 w-40 animate-pulse rounded bg-border-soft" />
         <div className="mt-3 h-4 w-72 animate-pulse rounded bg-border-soft" />
       </section>
@@ -455,47 +461,51 @@ function ThresholdCard({
       id="approvals"
       {...motionProps}
       transition={{ duration: 0.2 }}
-      className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-7"
+      className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-6"
     >
       <header className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
           <ShieldCheck className="h-5 w-5" strokeWidth={1.75} />
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="font-display text-lg leading-tight text-text-strong">
             Approval quorum
           </h2>
-          <p className="mt-1 text-sm text-text-soft">
+          <p className="mt-1 text-sm leading-relaxed text-text-soft">
             Right now this rule uses {current} of {memberCount}. Move it up to
             2-of-2 or 3-of-3 when you want everyone to sign.
           </p>
         </div>
       </header>
 
-      <div className="mt-5 flex flex-wrap items-center gap-2">
+      <div className="mt-5 grid grid-cols-[40px_minmax(0,1fr)_40px] items-center gap-2 sm:flex sm:flex-wrap">
         <button
           type="button"
           onClick={() => setDraft((n) => Math.max(1, n - 1))}
           disabled={!canDecrease || update.isPending}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-soft border border-border-soft bg-canvas text-text-soft transition-colors hover:text-text-strong disabled:opacity-50"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-soft bg-canvas text-text-soft transition-colors hover:text-text-strong disabled:opacity-50"
           aria-label="Lower quorum"
         >
           <Slash className="h-4 w-4" aria-hidden="true" />
         </button>
-        <div className="min-w-0 rounded-soft border border-border-soft bg-canvas px-4 py-2 text-sm font-medium text-text-strong">
+        <div className="min-w-0 rounded-soft bg-canvas px-4 py-2 text-center text-sm font-medium text-text-strong sm:text-left">
           {draft} of {memberCount}
         </div>
         <button
           type="button"
           onClick={() => setDraft((n) => Math.min(memberCount, n + 1))}
           disabled={!canIncrease || update.isPending}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-soft border border-border-soft bg-canvas text-text-soft transition-colors hover:text-text-strong disabled:opacity-50"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-soft bg-canvas text-text-soft transition-colors hover:text-text-strong disabled:opacity-50"
           aria-label="Raise quorum"
         >
           <Check className="h-4 w-4 rotate-45" aria-hidden="true" />
         </button>
-        <Button onClick={apply} disabled={draft === current || update.isPending}>
-          {update.isPending ? "Updating…" : "Save quorum"}
+        <Button
+          onClick={apply}
+          disabled={draft === current || update.isPending}
+          className="col-span-3 mt-1 w-full sm:col-auto sm:mt-0 sm:w-auto"
+        >
+          {update.isPending ? "Updating..." : "Save quorum"}
         </Button>
       </div>
 
@@ -507,7 +517,7 @@ function ThresholdCard({
   );
 }
 
-// ─── Allowlist card ─────────────────────────────────────────────────
+// Allowlist card
 
 function AllowlistCard({ walletName }: { walletName: string }) {
   const toast = useToast();
@@ -576,16 +586,16 @@ function AllowlistCard({ walletName }: { walletName: string }) {
   );
 
   return (
-    <section id="recipients" className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-7">
+    <section id="recipients" className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-6">
       <header className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
           <UserCheck className="h-5 w-5" strokeWidth={1.75} />
         </span>
         <div className="flex-1">
           <h2 className="font-display text-lg leading-tight text-text-strong">
             Allowlist
           </h2>
-          <p className="mt-1 text-sm text-text-soft">
+          <p className="mt-1 text-sm leading-relaxed text-text-soft">
             When on, the app warns and blocks local sends to addresses outside
             this list before signing. On-chain enforcement arrives with the
             encrypted policy path.
@@ -593,7 +603,7 @@ function AllowlistCard({ walletName }: { walletName: string }) {
         </div>
       </header>
 
-      <div className="mt-5 inline-flex rounded-full border border-border-soft p-1 text-xs font-medium">
+      <div className="mt-5 inline-flex rounded-full bg-canvas p-1 text-xs font-medium">
         <ToggleButton active={draft.mode === "off"} onClick={() => setMode("off")}>
           Off
         </ToggleButton>
@@ -603,7 +613,7 @@ function AllowlistCard({ walletName }: { walletName: string }) {
       </div>
 
       {hydrated && draft.mode === "on" && draft.addresses.length === 0 ? (
-        <p className="mt-4 rounded-card border border-warning/40 bg-warning/10 p-3 text-xs text-text-strong">
+        <p className="mt-4 rounded-card bg-warning/10 p-3 text-xs text-text-strong">
           The allowlist is empty. Until you add a recipient, every send
           will be blocked.
         </p>
@@ -622,7 +632,7 @@ function AllowlistCard({ walletName }: { walletName: string }) {
                   type="button"
                   onClick={() => addAddress(c.address)}
                   className={
-                    "inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-strong " +
+                    "inline-flex items-center gap-1.5 rounded-full bg-canvas px-3 py-1.5 text-xs font-medium text-text-strong " +
                     "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
                     "hover:-translate-y-0.5 hover:shadow-card-rest " +
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
@@ -644,14 +654,14 @@ function AllowlistCard({ walletName }: { walletName: string }) {
         <p className="text-xs font-medium uppercase tracking-[0.16em] text-text-soft">
           Or paste an address
         </p>
-        <div className="mt-2 flex gap-2">
+        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
           <input
             type="text"
             value={pasteAddress}
             onChange={(e) => setPasteAddress(e.target.value)}
             placeholder="Solana address"
             className={
-              "min-w-0 flex-1 rounded-soft border border-border-soft bg-canvas px-3 py-2 font-mono text-xs text-text-strong outline-none " +
+              "min-w-0 flex-1 rounded-soft bg-canvas px-3 py-2 font-mono text-xs text-text-strong outline-none " +
               "transition-[border-color,box-shadow] duration-base ease-out-soft " +
               "focus:border-accent focus:shadow-accent-rest"
             }
@@ -661,6 +671,7 @@ function AllowlistCard({ walletName }: { walletName: string }) {
             size="sm"
             onClick={() => addAddress(pasteAddress)}
             disabled={!pasteAddress.trim()}
+            className="sm:w-auto"
           >
             Add
           </Button>
@@ -675,7 +686,7 @@ function AllowlistCard({ walletName }: { walletName: string }) {
             return (
               <li
                 key={addr}
-                className="flex items-center justify-between gap-3 rounded-card border border-border-soft bg-canvas px-3 py-2"
+                className="flex items-center justify-between gap-3 rounded-card bg-canvas px-3 py-2"
               >
                 <div className="min-w-0 flex-1">
                   {contact ? (
@@ -683,12 +694,12 @@ function AllowlistCard({ walletName }: { walletName: string }) {
                       <p className="text-sm font-medium text-text-strong">
                         {contact.name}
                       </p>
-                      <p className="font-mono text-[11px] text-text-soft">
+                      <p className="truncate font-mono text-[11px] text-text-soft">
                         {shortAddress(addr)}
                       </p>
                     </>
                   ) : (
-                    <p className="font-mono text-xs text-text-strong">
+                    <p className="truncate font-mono text-xs text-text-strong">
                       {shortAddress(addr)}
                     </p>
                   )}
@@ -713,7 +724,7 @@ function AllowlistCard({ walletName }: { walletName: string }) {
   );
 }
 
-// ─── Time window card ───────────────────────────────────────────────
+// Time window card
 
 function TimeWindowCard({ walletName }: { walletName: string }) {
   const [hydrated, setHydrated] = useState(false);
@@ -754,23 +765,23 @@ function TimeWindowCard({ walletName }: { walletName: string }) {
   };
 
   return (
-    <section id="time-window" className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-7">
+    <section id="time-window" className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-6">
       <header className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
           <CalendarClock className="h-5 w-5" strokeWidth={1.75} />
         </span>
         <div className="flex-1">
           <h2 className="font-display text-lg leading-tight text-text-strong">
             Allowed hours
           </h2>
-          <p className="mt-1 text-sm text-text-soft">
+          <p className="mt-1 text-sm leading-relaxed text-text-soft">
             Block sends outside business hours. Useful when you don&apos;t
             want a midnight popup to ever land in your wallet.
           </p>
         </div>
       </header>
 
-      <div className="mt-5 inline-flex rounded-full border border-border-soft p-1 text-xs font-medium">
+      <div className="mt-5 inline-flex rounded-full bg-canvas p-1 text-xs font-medium">
         <ToggleButton active={!draft.enabled} onClick={() => setEnabled(false)}>
           Off
         </ToggleButton>
@@ -806,10 +817,10 @@ function TimeWindowCard({ walletName }: { walletName: string }) {
                       onClick={() => toggleDay(d.value)}
                       aria-pressed={active}
                       className={
-                        "rounded-full border px-3 py-1.5 text-xs font-medium transition-[transform,border-color,background-color,color] duration-base ease-out-soft " +
+                        "rounded-full px-3 py-1.5 text-xs font-medium transition-[transform,background-color,color] duration-base ease-out-soft " +
                         (active
-                          ? "border-accent bg-accent/10 text-accent"
-                          : "border-border-soft bg-canvas text-text-soft hover:text-text-strong") +
+                          ? "bg-accent/10 text-accent"
+                          : "bg-canvas text-text-soft hover:text-text-strong") +
                         " focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
                       }
                     >
@@ -836,7 +847,7 @@ function HourPicker({
   onChange: (h: number) => void;
 }) {
   return (
-    <label className="flex items-center justify-between gap-3 rounded-card border border-border-soft bg-canvas px-3 py-2">
+    <label className="flex items-center justify-between gap-3 rounded-card bg-canvas px-3 py-2">
       <span className="text-xs font-medium uppercase tracking-[0.16em] text-text-soft">
         {label}
       </span>
@@ -866,7 +877,7 @@ function formatHourOption(h: number): string {
   return `${h - 12} pm`;
 }
 
-// ─── Shared bits ────────────────────────────────────────────────────
+// Shared bits
 
 function ToggleButton({
   active,
@@ -910,13 +921,13 @@ function NavCard({
     <Link
       href={href}
       className={
-        "group flex items-start gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest " +
-        "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
-        "hover:-translate-y-0.5 hover:shadow-card-raised " +
+        "group flex items-start gap-3 rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-5 " +
+        "transition-[transform,background-color,box-shadow] duration-base ease-out-soft " +
+        "hover:-translate-y-0.5 hover:bg-canvas hover:shadow-card-raised " +
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
       }
     >
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
         <Icon className="h-5 w-5" strokeWidth={1.75} />
       </span>
       <div className="min-w-0 flex-1">

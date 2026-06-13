@@ -21,7 +21,6 @@ import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import { Connection, PublicKey } from "@solana/web3.js";
 import {
-  ArrowLeft,
   Check,
   Copy,
   ExternalLink,
@@ -84,7 +83,7 @@ export default function ChainsPage() {
   }, [walletQuery.data]);
 
   // Backend-API list - returns ChainBindingResponse[] with the
-  // chain-native addresses already derived (0x… / bc1q… / t1…).
+  // chain-native addresses already derived (0x... / bc1q... / t1...).
   const bindingsQuery = useWalletChains(name);
 
   // Index bindings by chain_kind so each ActiveChainRow can look up
@@ -136,44 +135,49 @@ export default function ChainsPage() {
     <motion.div
       {...motionProps}
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col gap-6"
+      className="flex flex-col gap-5 pb-6"
     >
-      <header className="flex items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
-            Chains
-          </h1>
-          <p className="text-xs text-text-soft sm:text-sm">
-            Networks{" "}
-            <span className="font-medium text-text-strong">
+      <header className="relative overflow-hidden rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-5">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-16 -top-20 h-40 w-40 rounded-full bg-accent/[0.06] blur-3xl"
+        />
+        <div className="relative z-10 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              Networks
+            </p>
+            <h1 className="mt-1 truncate font-display text-xl leading-tight text-text-strong md:text-display-xs">
               {toDisplayName(name)}
-            </span>{" "}
-            can act on. Adding a chain usually takes 10–30 seconds. Tap
-            refresh if a freshly-added chain hasn&rsquo;t shown up yet.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            void bindingsQuery.refetch();
-          }}
-          disabled={bindingsQuery.isFetching}
-          aria-label="Refresh chains list"
-          title="Refresh chains list"
-          className={
-            "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-soft bg-surface-raised text-text-soft " +
-            "transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent " +
-            "disabled:cursor-not-allowed disabled:opacity-50 " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-          }
-        >
-          <RefreshCw
+            </h1>
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-text-soft">
+              Add the chains this wallet can receive from, hold, and send on.
+              New chains usually appear within 10 to 30 seconds.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              void bindingsQuery.refetch();
+            }}
+            disabled={bindingsQuery.isFetching}
+            aria-label="Refresh chains list"
+            title="Refresh chains list"
             className={
-              "h-4 w-4 " + (bindingsQuery.isFetching ? "animate-spin" : "")
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-canvas text-text-soft " +
+              "transition-[background-color,color,transform] duration-base ease-out-soft hover:bg-accent/10 hover:text-accent active:scale-95 " +
+              "disabled:cursor-not-allowed disabled:opacity-50 " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
             }
-            aria-hidden="true"
-          />
-        </button>
+          >
+            <RefreshCw
+              className={
+                "h-4 w-4 " + (bindingsQuery.isFetching ? "animate-spin" : "")
+              }
+              aria-hidden="true"
+            />
+          </button>
+        </div>
       </header>
 
       {/* Legacy multi-dWallet warning. Only renders when this wallet
@@ -203,9 +207,14 @@ export default function ChainsPage() {
 
       {/* Already bound */}
       <section>
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-          Active
-        </h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+            Active
+          </h2>
+          <span className="rounded-full bg-canvas px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-text-soft">
+            {bound.length} enabled
+          </span>
+        </div>
         {bindingsQuery.isLoading ? (
           <div className="mt-3 space-y-2">
             <ChainRowSkeleton />
@@ -241,9 +250,14 @@ export default function ChainsPage() {
       {/* Available to add */}
       {available.length > 0 && (
         <section>
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            Add support for
-          </h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              Add support
+            </h2>
+            <span className="rounded-full bg-canvas px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-text-soft">
+              {available.length} chains
+            </span>
+          </div>
           <ul className="mt-3 flex flex-col gap-2">
             {available.map((chain, i) => (
               <AvailableChainRow
@@ -261,7 +275,7 @@ export default function ChainsPage() {
   );
 }
 
-// ─── Active chain row ──────────────────────────────────────────────
+// Active chain row
 
 interface ActiveChainRowProps {
   chain: ChainMeta;
@@ -324,7 +338,7 @@ function ActiveChainRow({
   // cover roughly one transfer at peak network conditions:
   //   Solana   : 1_000_000   lamports = 0.001 SOL
   //   EVM      : 2e15        wei      = 0.002 ETH
-  //   Bitcoin  : 10_000      sats     ≈ one peak-fee P2WPKH
+  //   Bitcoin  : 10_000      sats     roughly one peak-fee P2WPKH
   const LOW_BALANCE_THRESHOLDS: Record<number, bigint> = {
     0: 1_000_000n,
     1: 2_000_000_000_000_000n,
@@ -351,14 +365,14 @@ function ActiveChainRow({
   };
 
   const shortAddr = address
-    ? `${address.slice(0, 6)}…${address.slice(-6)}`
+    ? `${address.slice(0, 6)}...${address.slice(-6)}`
     : null;
 
   return (
     <motion.li
       {...motionProps}
       transition={{ duration: 0.3, delay, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest"
+      className="flex flex-col gap-3 rounded-card bg-surface-raised p-4 shadow-card-rest"
     >
       <div className="flex items-center gap-3">
         <ChainBadge chain={chain} size="lg" />
@@ -371,14 +385,14 @@ function ActiveChainRow({
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
-          <span className="inline-flex items-center rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[11px] font-medium text-accent">
+          <span className="inline-flex items-center rounded-full bg-accent/10 px-2.5 py-1 text-[11px] font-medium text-accent">
             {isImplicit ? "Built in" : "Active"}
           </span>
           {address && (
             <span className="flex flex-col items-end gap-0.5 text-xs tabular-nums text-text-soft">
               <span>
                 {balanceQuery.isLoading ? (
-                  <span aria-label="Loading balance">…</span>
+                  <span aria-label="Loading balance">...</span>
                 ) : balanceLabel !== null ? (
                   <>
                     <span
@@ -392,7 +406,7 @@ function ActiveChainRow({
                     {chain.ticker}
                   </>
                 ) : balanceQuery.isError ? (
-                  <span title="Couldn’t fetch balance from the chain RPC">-</span>
+                  <span title="Could not fetch balance from the chain RPC">-</span>
                 ) : (
                   <span title="No public balance source for this chain yet">
                     -
@@ -413,7 +427,7 @@ function ActiveChainRow({
                   className="inline-flex items-center gap-0.5 text-[10px] font-semibold uppercase tracking-wide text-warning"
                   title="Top up this chain to enable sends"
                 >
-                  ↓ Low
+                  Low
                 </span>
               )}
             </span>
@@ -431,8 +445,8 @@ function ActiveChainRow({
                 : `Copy ${chain.name} address`
             }
             className={
-              "group flex flex-1 items-center justify-between gap-3 rounded-soft border border-border-soft bg-canvas px-3 py-2 " +
-              "transition-[border-color,transform,box-shadow] duration-base ease-out-soft " +
+              "group flex flex-1 items-center justify-between gap-3 rounded-soft bg-canvas px-3 py-2 " +
+              "transition-[transform,background-color,box-shadow] duration-base ease-out-soft " +
               "hover:-translate-y-0.5 hover:shadow-card-rest active:scale-[0.98] " +
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
             }
@@ -466,8 +480,8 @@ function ActiveChainRow({
             href={`/app/wallet/${encodeURIComponent(walletName)}/receive?chain=${chain.apiName}`}
             aria-label={`Show ${chain.name} address as QR code`}
             className={
-              "flex shrink-0 items-center gap-1 rounded-soft border border-border-soft bg-canvas px-3 text-[11px] font-semibold uppercase tracking-wide text-text-soft " +
-              "transition-[border-color,transform,box-shadow,color] duration-base ease-out-soft " +
+              "flex shrink-0 items-center gap-1 rounded-soft bg-canvas px-3 text-[11px] font-semibold uppercase tracking-wide text-text-soft " +
+              "transition-[transform,background-color,box-shadow,color] duration-base ease-out-soft " +
               "hover:-translate-y-0.5 hover:text-accent hover:shadow-card-rest active:scale-[0.98] " +
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
             }
@@ -489,8 +503,8 @@ function ActiveChainRow({
                 aria-label={`Open ${chain.name} address on the block explorer`}
                 title="View on block explorer"
                 className={
-                  "flex shrink-0 items-center gap-1 rounded-soft border border-border-soft bg-canvas px-3 text-[11px] font-semibold uppercase tracking-wide text-text-soft " +
-                  "transition-[border-color,transform,box-shadow,color] duration-base ease-out-soft " +
+                  "flex shrink-0 items-center gap-1 rounded-soft bg-canvas px-3 text-[11px] font-semibold uppercase tracking-wide text-text-soft " +
+                  "transition-[transform,background-color,box-shadow,color] duration-base ease-out-soft " +
                   "hover:-translate-y-0.5 hover:text-accent hover:shadow-card-rest active:scale-[0.98] " +
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
                 }
@@ -509,7 +523,7 @@ function ActiveChainRow({
   );
 }
 
-// ─── Available chain row ───────────────────────────────────────────
+// Available chain row
 
 interface AvailableChainRowProps {
   chain: ChainMeta;
@@ -535,9 +549,9 @@ function AvailableChainRow({
       <Link
         href={`/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=${chain.apiName}`}
         className={
-          "group flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest " +
-          "transition-[transform,box-shadow,border-color] duration-base ease-out-soft " +
-          "hover:-translate-y-0.5 hover:shadow-card-raised " +
+          "group flex items-center gap-3 rounded-card bg-surface-raised p-4 shadow-card-rest " +
+          "transition-[transform,background-color,box-shadow] duration-base ease-out-soft " +
+          "hover:-translate-y-0.5 hover:bg-surface-card hover:shadow-card-raised " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
         }
       >
@@ -550,8 +564,8 @@ function AvailableChainRow({
             {chain.description}
           </p>
         </div>
-        <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-text-soft transition-colors duration-base ease-out-soft group-hover:text-accent">
-          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-canvas text-text-soft transition-[background-color,color,transform] duration-base ease-out-soft group-hover:bg-accent/10 group-hover:text-accent group-hover:rotate-90">
+          <Plus className="h-4 w-4" aria-hidden="true" />
         </span>
       </Link>
     </motion.li>
@@ -560,7 +574,7 @@ function AvailableChainRow({
 
 function ChainRowSkeleton() {
   return (
-    <div className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+    <div className="flex items-center gap-3 rounded-card bg-surface-raised p-4 shadow-card-rest">
       <div className="h-12 w-12 shrink-0 animate-pulse rounded-full bg-border-soft" />
       <div className="flex-1 space-y-1.5">
         <div className="h-4 w-1/4 animate-pulse rounded bg-border-soft" />

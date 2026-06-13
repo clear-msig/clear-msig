@@ -3,10 +3,10 @@ import {
   Bot,
   Building2,
   Layers,
+  ListChecks,
   Plug,
   Search,
   Settings,
-  Shield,
   ShieldCheck,
   Users,
   Wallet as WalletIcon,
@@ -27,7 +27,7 @@ export function walletSubNav(
     return [
       { sub: "", label: "Overview", Icon: WalletIcon },
       { sub: "members", label: "Trusted people", Icon: Users },
-      { sub: "policy", label: "Rules", Icon: Shield },
+      { sub: "policy", label: "Rules", Icon: ListChecks },
       { sub: "activity", label: "Activity", Icon: ActivityIcon },
       { sub: "settings", label: "Settings", Icon: Settings },
     ];
@@ -38,7 +38,7 @@ export function walletSubNav(
       { sub: "members", label: "Team", Icon: Users },
       { sub: "activity", label: "Activity", Icon: ActivityIcon },
       { sub: "chains", label: "Networks", Icon: Layers },
-      { sub: "policy", label: "Rules", Icon: Shield },
+      { sub: "policy", label: "Rules", Icon: ListChecks },
       { sub: "settings", label: "Settings", Icon: Settings },
     ];
   }
@@ -57,7 +57,7 @@ export function walletSubNav(
     { sub: "members", label: "Members", Icon: Users },
     { sub: "activity", label: "Activity", Icon: ActivityIcon },
     { sub: "chains", label: "Networks", Icon: Layers },
-    { sub: "policy", label: "Rules", Icon: Shield },
+    { sub: "policy", label: "Rules", Icon: ListChecks },
     { sub: "settings", label: "Settings", Icon: Settings },
   ];
 }

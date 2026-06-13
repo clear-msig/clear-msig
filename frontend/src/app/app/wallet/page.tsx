@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 // Wallet hub - retail rebuild (locked 2026-04-30).
 //
@@ -361,12 +361,12 @@ function WalletDashboardShell() {
   );
 }
 
-// ─── Hero ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Hero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // Compact left-aligned page header. Replaces the previous centered
 // "Welcome back" block - same identity cue (small kicker + title)
 // but reclaims the vertical room for the stats and action-needed
-// blocks below. The dynamic summary line ("3 wallets · 2 need your
+// blocks below. The dynamic summary line ("3 wallets Â· 2 need your
 // approval") gives a returning user a useful one-line status before
 // any cards have rendered.
 
@@ -388,7 +388,7 @@ function Hero({
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
 
   const summary = (() => {
-    if (loading) return "Loading your wallets…";
+    if (loading) return "Loading your walletsâ€¦";
     if (selectedSurface && walletCount === 0) {
       return `No ${productWorkspaceLabel(selectedSurface).toLowerCase()} yet.`;
     }
@@ -397,9 +397,9 @@ function Hero({
       ? productWorkspaceLabel(selectedSurface).toLowerCase()
       : "wallet";
     const w = `${walletCount} ${walletCount === 1 ? noun : `${noun}s`}`;
-    if (pendingCount === 0) return `${w} · all caught up`;
+    if (pendingCount === 0) return `${w} Â· all caught up`;
     const p = `${pendingCount} ${pendingCount === 1 ? "needs" : "need"} your approval`;
-    return `${w} · ${p}`;
+    return `${w} Â· ${p}`;
   })();
   const title = selectedSurface
     ? productWorkspaceLabel(selectedSurface)
@@ -517,7 +517,7 @@ function ProductWorkspaceSwitcher({
   );
 }
 
-// ─── Stats row ─────────────────────────────────────────────────────
+// â”€â”€â”€ Stats row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // Three at-a-glance metrics: total balance (sum of Solana vault
 // lamports across all member wallets), wallet count, and pending
@@ -658,17 +658,17 @@ function NextActionStrip({
   );
 }
 
-// ─── Balance hero card ─────────────────────────────────────────────
+// â”€â”€â”€ Balance hero card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // Lead card on Home - total SOL balance across every wallet the
 // member belongs to. Treated like a premium debit-card surface:
-//   • A subtle accent gradient washes the panel (top-left → bottom-right)
-//   • A grid of large, very-low-opacity BrandMark icons sits behind
+//   â€¢ A subtle accent gradient washes the panel (top-left â†’ bottom-right)
+//   â€¢ A grid of large, very-low-opacity BrandMark icons sits behind
 //     the content as a watermark - ties the card to the product
 //     identity without competing with the number
-//   • A small visible BrandMark badge in the top-left anchors the
+//   â€¢ A small visible BrandMark badge in the top-left anchors the
 //     "this is yours, on Clear" cue
-//   • Numerals are oversized (text-4xl / sm:text-5xl) so the balance
+//   â€¢ Numerals are oversized (text-4xl / sm:text-5xl) so the balance
 //     reads as the page's primary number
 //
 // All decoration is `pointer-events-none` so taps and selections
@@ -766,19 +766,16 @@ function BalanceHeroCard({
           </>
         )}
 
-        {/* Bottom hairline + brand caption - credit-card style.
-            Subtle, but ties the watermark grid to a clear "Clear"
-            attribution. */}
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <span aria-hidden="true" className="block h-px w-8 bg-accent/60" />
-            <span className="truncate text-[10px] font-medium uppercase tracking-[0.28em] text-text-soft/70">
-              ClearSig · {selectedSurface ? productSurfaceById(selectedSurface).shortName : "all products"}
-            </span>
-          </div>
+        <div className="mt-6 flex items-center justify-between gap-3">
+          <p className="min-w-0 truncate font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft sm:text-[11px]">
+            ClearSig -{" "}
+            {selectedSurface
+              ? productSurfaceById(selectedSurface).shortName
+              : "all products"}
+          </p>
           <Link
             href="/choose"
-            className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-border-soft bg-canvas/60 px-3 text-[11px] font-semibold text-text-strong transition-[border-color,color,transform] duration-base ease-out-soft hover:-translate-y-0.5 hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+            className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full bg-accent px-3 text-[11px] font-semibold text-text-on-accent shadow-accent-rest transition-[background-color,transform,box-shadow] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-accent-hover hover:shadow-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
           >
             <Plus className="h-3.5 w-3.5" aria-hidden="true" />
             Choose product
@@ -841,7 +838,7 @@ function StatCard({
   );
 }
 
-// ─── Memberships error state ───────────────────────────────────────
+// â”€â”€â”€ Memberships error state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // When the on-chain memberships fetch fails (RPC blip, connection
 // dropped mid-load), we used to render the first-visit CTA which
@@ -866,7 +863,7 @@ function MembershipsErrorCard({ onRetry }: { onRetry: () => void }) {
   );
 }
 
-// ─── First-visit empty state ───────────────────────────────────────
+// â”€â”€â”€ First-visit empty state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function FirstVisitCard({
   selectedSurface,
@@ -940,7 +937,7 @@ const PRODUCT_ICON: Record<WalletProductSurface, LucideIcon> = {
   secure: KeyRound,
 };
 
-// ─── Wallets grid ──────────────────────────────────────────────────
+// â”€â”€â”€ Wallets grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface WalletsGridProps {
   wallets: OnchainMembership[];
@@ -1300,7 +1297,7 @@ function CardSkeleton() {
   );
 }
 
-// ─── Recent activity ───────────────────────────────────────────────
+// â”€â”€â”€ Recent activity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface RecentActivityProps {
   rows: RecentActivityRow[];
@@ -1375,7 +1372,7 @@ function ActivityRow({ row }: { row: RecentActivityRow }) {
             <span>{toDisplayName(row.walletName)}</span>
             <span aria-hidden="true" className="mx-1.5 text-text-soft">/</span>
             <span className={statusTextColor(row.status)}>{friendlyStatus(row.status, row.intentTemplate)}</span>
-            <span aria-hidden="true" className="mx-1.5 text-text-soft">·</span>
+            <span aria-hidden="true" className="mx-1.5 text-text-soft">Â·</span>
             <span>{time}</span>
           </p>
         </div>
@@ -1387,7 +1384,7 @@ function ActivityRow({ row }: { row: RecentActivityRow }) {
   );
 }
 
-// ─── Bits & pieces ─────────────────────────────────────────────────
+// â”€â”€â”€ Bits & pieces â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -1397,13 +1394,13 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ─── Watching (Tier-4 view-only) ────────────────────────────────
+// â”€â”€â”€ Watching (Tier-4 view-only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // Local-first watch list. Adds a wallet by its on-chain name (with
 // the `#XXXXXX` creator suffix) to localStorage; on mount, every
 // watched wallet is re-fetched on chain so balances stay current.
 // Watching surfaces the same WalletCard the membership grid uses,
-// flagged with a 👁 badge so users see at a glance which entries
+// flagged with a ðŸ‘ badge so users see at a glance which entries
 // they can act on (their memberships) vs read-only (watched).
 //
 // Sign-action enforcement is implicit: the existing pickSigner()
@@ -1520,7 +1517,7 @@ function WatchedWalletsSection({
                 "disabled:cursor-not-allowed disabled:opacity-50"
               }
             >
-              {busy ? "Adding…" : "Watch"}
+              {busy ? "Addingâ€¦" : "Watch"}
             </button>
           </form>
           {err && (
@@ -1535,7 +1532,7 @@ function WatchedWalletsSection({
         <ul className="mt-3 flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
           {loading && rows.length === 0 ? (
             <li className="px-5 py-3 text-xs text-text-soft">
-              Loading watched wallets…
+              Loading watched walletsâ€¦
             </li>
           ) : (
             rows.map((m) => {
