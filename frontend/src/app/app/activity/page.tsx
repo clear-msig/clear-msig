@@ -296,7 +296,7 @@ interface StatusTile {
 const STATUS_TILES: StatusTile[] = [
   { key: "active", label: "Waiting", Icon: Bell },
   { key: "approved", label: "Ready to send", Icon: Send },
-  { key: "executed", label: "Sent", Icon: CheckCircle2 },
+  { key: "executed", label: "Sent requests", Icon: CheckCircle2 },
   { key: "cancelled", label: "Cancelled", Icon: XCircle },
 ];
 
@@ -756,6 +756,7 @@ function ActivityRowItem({
   row: ActivityRowData;
   chainKind: number | undefined;
 }) {
+  const proposal = `${row.proposalPda.slice(0, 6)}...${row.proposalPda.slice(-6)}`;
   return (
     <li>
       <Link
@@ -788,6 +789,9 @@ function ActivityRowItem({
                   <span>{friendlyChainName(chainKind)}</span>
                 </>
               )}
+            </p>
+            <p className="mt-0.5 truncate font-mono text-[10px] text-text-soft/80">
+              On-chain proposal {proposal}
             </p>
           </div>
         </div>
