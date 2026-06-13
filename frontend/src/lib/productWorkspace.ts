@@ -1,4 +1,6 @@
 import type { ProductSurfaceId } from "@/lib/productSurfaces";
+import { getWalletAppearance } from "@/lib/retail/walletAppearance";
+import { toDisplayName } from "@/lib/retail/walletNames";
 
 export type WalletProductSurface = Extract<
   ProductSurfaceId,
@@ -14,6 +16,29 @@ export function walletProductSurface(
     value === "secure"
     ? value
     : null;
+}
+
+export function resolveWalletProductSurface(
+  walletName: string,
+  fallback?: ProductSurfaceId | WalletProductSurface | null,
+): WalletProductSurface | null {
+  const stored = walletProductSurface(getWalletAppearance(walletName)?.surface);
+  if (stored) return stored;
+
+  const fallbackSurface = walletProductSurface(fallback);
+  if (fallbackSurface) return fallbackSurface;
+
+  const name = toDisplayName(walletName).toLowerCase();
+  if (/\b(agent|trading|trade|desk)\b/.test(name)) return "agent";
+  if (/\b(pro|team|treasury|studio|company|business|dao|multisig|nexus)\b/.test(name)) {
+    return "pro";
+  }
+  if (/\b(personal|family|couple|roommates|home|my wallet)\b/.test(name)) {
+    return "personal";
+  }
+  if (/\b(secure|recovery|recover|vault)\b/.test(name)) return "secure";
+
+  return null;
 }
 
 export function productWorkspaceLabel(surface: WalletProductSurface | null): string {

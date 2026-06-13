@@ -29,13 +29,10 @@ import {
   Activity,
   ArrowRight,
   Bell,
-  Bot,
-  Building2,
   ChevronDown,
   ChevronUp,
   Eye,
   EyeOff,
-  KeyRound,
   Pin,
   PinOff,
   Plus,
@@ -82,6 +79,7 @@ import { getWalletAppearance } from "@/lib/retail/walletAppearance";
 import {
   productWorkspaceHomeHref,
   productWorkspaceLabel,
+  resolveWalletProductSurface,
   type WalletProductSurface,
   walletProductSurface,
 } from "@/lib/productWorkspace";
@@ -96,6 +94,7 @@ import {
   saveSelectedProductSurface,
 } from "@/lib/productSession";
 import { useBalancePrivacy } from "@/lib/hooks/useBalancePrivacy";
+import { PRODUCT_SURFACE_ICON } from "@/lib/productIcons";
 
 export default function WalletDashboard() {
   return (
@@ -433,19 +432,17 @@ function ProductWorkspaceSwitcher({
   const counts = useMemo(() => {
     const next = new Map<WalletProductSurface, number>();
     for (const membership of wallets) {
-      const surface = walletProductSurface(
-        getWalletAppearance(membership.wallet_name ?? "")?.surface,
-      );
+      const surface = resolveWalletProductSurface(membership.wallet_name ?? "");
       if (!surface) continue;
       next.set(surface, (next.get(surface) ?? 0) + 1);
     }
     return next;
   }, [wallets]);
   const items: Array<{ id: WalletProductSurface; Icon: LucideIcon }> = [
-    { id: "personal", Icon: Users },
-    { id: "pro", Icon: Building2 },
-    { id: "agent", Icon: Bot },
-    { id: "secure", Icon: KeyRound },
+    { id: "personal", Icon: PRODUCT_SURFACE_ICON.personal },
+    { id: "pro", Icon: PRODUCT_SURFACE_ICON.pro },
+    { id: "agent", Icon: PRODUCT_SURFACE_ICON.agent },
+    { id: "secure", Icon: PRODUCT_SURFACE_ICON.secure },
   ];
 
   return (
@@ -768,10 +765,7 @@ function BalanceHeroCard({
 
         <div className="mt-6 flex items-center justify-between gap-3">
           <p className="min-w-0 truncate font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft sm:text-[11px]">
-            ClearSig -{" "}
-            {selectedSurface
-              ? productSurfaceById(selectedSurface).shortName
-              : "all products"}
+            ClearSig - all products
           </p>
           <Link
             href="/choose"
@@ -931,10 +925,10 @@ function ProductEmptyState({
 }
 
 const PRODUCT_ICON: Record<WalletProductSurface, LucideIcon> = {
-  personal: Users,
-  pro: Building2,
-  agent: Bot,
-  secure: KeyRound,
+  personal: PRODUCT_SURFACE_ICON.personal,
+  pro: PRODUCT_SURFACE_ICON.pro,
+  agent: PRODUCT_SURFACE_ICON.agent,
+  secure: PRODUCT_SURFACE_ICON.secure,
 };
 
 // â”€â”€â”€ Wallets grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1140,9 +1134,10 @@ function WalletCard({
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
   const balance =
     balanceLamports !== null ? formatBalance(balanceLamports) : null;
-  const surface = walletProductSurface(getWalletAppearance(onChainName)?.surface);
+  const surface = resolveWalletProductSurface(onChainName);
   const homeHref = productWorkspaceHomeHref(onChainName, surface);
   const productLabel = surface ? productWorkspaceLabel(surface) : null;
+  const ProductIcon = surface ? PRODUCT_SURFACE_ICON[surface] : Wallet;
   const [pinned, setPinned] = useState(false);
   const { hidden } = useBalancePrivacy();
   const hiddenClass = hidden ? "blur-sm select-none" : "";
@@ -1176,40 +1171,49 @@ function WalletCard({
         }
       >
         <div className="relative z-10 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            {/* The pinned-state Pin icon used to also render inline
-                next to the name. With the corner pin button in
-                place (accent border + Pin icon when pinned) the
-                inline copy was duplicate chrome - both icons
-                visible, neither carrying signal the other didn't.
-                Keep only the corner button. */}
-            <p className="font-display text-xl text-text-strong">
-              <span className="truncate">{name}</span>
-            </p>
-            {loadingBalance && balance === null ? (
-              <div className="mt-1 h-5 w-20 animate-pulse rounded bg-border-soft" />
-            ) : (
-              // Editorial-sans: JetBrains Mono numerals for the
-              // balance value, Manrope display caps for the ticker.
-              // Same currency-code treatment as /send/* and Hero
-              // single-chain balance - one shared pattern app-wide.
-              <p className={clsx("mt-1 flex items-baseline gap-1.5 transition-[filter] duration-base", hiddenClass)}>
-                <span className="font-numerals text-base font-semibold text-text-strong tabular-nums">
-                  {balance ? balance.amount : "0"}
-                </span>
-                <span className="font-display text-[11px] font-semibold uppercase tracking-[0.16em] text-text-soft">
-                  {balance?.ticker ?? "SOL"}
-                </span>
-                {balanceLamports !== null && balanceLamports > 0 && (
-                  <UsdHint
-                    amount={BigInt(Math.round(balanceLamports))}
-                    smallestPerWhole={1_000_000_000n}
-                    ticker="SOL"
-                    className="text-[11px] text-text-soft tabular-nums"
-                  />
-                )}
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]">
+              <ProductIcon
+                className="h-[18px] w-[18px]"
+                strokeWidth={1.9}
+                aria-hidden="true"
+              />
+            </span>
+            <div className="min-w-0">
+              {/* The pinned-state Pin icon used to also render inline
+                  next to the name. With the corner pin button in
+                  place (accent border + Pin icon when pinned) the
+                  inline copy was duplicate chrome - both icons
+                  visible, neither carrying signal the other didn't.
+                  Keep only the corner button. */}
+              <p className="font-display text-xl text-text-strong">
+                <span className="truncate">{name}</span>
               </p>
-            )}
+              {loadingBalance && balance === null ? (
+                <div className="mt-1 h-5 w-20 animate-pulse rounded bg-border-soft" />
+              ) : (
+                // Editorial-sans: JetBrains Mono numerals for the
+                // balance value, Manrope display caps for the ticker.
+                // Same currency-code treatment as /send/* and Hero
+                // single-chain balance - one shared pattern app-wide.
+                <p className={clsx("mt-1 flex items-baseline gap-1.5 transition-[filter] duration-base", hiddenClass)}>
+                  <span className="font-numerals text-base font-semibold text-text-strong tabular-nums">
+                    {balance ? balance.amount : "0"}
+                  </span>
+                  <span className="font-display text-[11px] font-semibold uppercase tracking-[0.16em] text-text-soft">
+                    {balance?.ticker ?? "SOL"}
+                  </span>
+                  {balanceLamports !== null && balanceLamports > 0 && (
+                    <UsdHint
+                      amount={BigInt(Math.round(balanceLamports))}
+                      smallestPerWhole={1_000_000_000n}
+                      ticker="SOL"
+                      className="text-[11px] text-text-soft tabular-nums"
+                    />
+                  )}
+                </p>
+              )}
+            </div>
           </div>
           <ArrowRight
             className="mt-1 h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"

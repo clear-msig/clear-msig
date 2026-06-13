@@ -50,13 +50,13 @@ import {
 } from "@/lib/memberships/client";
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
 import { toDisplayName } from "@/lib/retail/walletNames";
-import { getWalletAppearance } from "@/lib/retail/walletAppearance";
 import {
   productWorkspaceHomeHref,
   productWorkspaceLabel,
-  walletProductSurface,
+  resolveWalletProductSurface,
   type WalletProductSurface,
 } from "@/lib/productWorkspace";
+import { PRODUCT_SURFACE_ICON } from "@/lib/productIcons";
 import { useSidebar } from "@/components/providers/SidebarProvider";
 import {
   activeWalletSlugFromPathname,
@@ -443,7 +443,8 @@ function WalletScopedSidebar({
 }) {
   const display = toDisplayName(slug);
   const base = `/app/wallet/${encodeURIComponent(slug)}`;
-  const surface = walletProductSurface(getWalletAppearance(slug)?.surface);
+  const surface = resolveWalletProductSurface(slug);
+  const ProductIcon = surface ? PRODUCT_SURFACE_ICON[surface] : WalletIcon;
   const navItems = walletSubNav(surface);
 
   const isActive = (sub: string) => isWalletNavActive(pathname, base, sub);
@@ -470,7 +471,7 @@ function WalletScopedSidebar({
           title={display}
           className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent"
         >
-          <WalletIcon size={15} aria-hidden="true" />
+          <ProductIcon size={15} aria-hidden="true" />
         </span>
         {navItems.map(({ sub, label, Icon }) => {
           const href = walletNavHref(base, sub);
@@ -522,6 +523,9 @@ function WalletScopedSidebar({
           monospace eyebrow. Anchors the user's mental model of
           "you're inside this wallet." */}
       <div className="rounded-xl border border-border-soft bg-glass-soft p-3">
+        <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-accent/10 text-accent">
+          <ProductIcon size={15} aria-hidden="true" />
+        </div>
         <div className="flex min-w-0 flex-1 flex-col leading-tight">
           <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-text-soft">
             {productWorkspaceLabel(surface)}
@@ -701,8 +705,9 @@ function SidebarOrgLink({
   expanded: boolean;
 }) {
   const onChainName = membership.wallet_name ?? "";
-  const surface = walletProductSurface(getWalletAppearance(onChainName)?.surface);
+  const surface = resolveWalletProductSurface(onChainName);
   const href = onChainName ? productWorkspaceHomeHref(onChainName, surface) : "#";
+  const ProductIcon = surface ? PRODUCT_SURFACE_ICON[surface] : WalletIcon;
   const walletBase = onChainName
     ? `/app/wallet/${encodeURIComponent(onChainName)}`
     : "";
@@ -731,7 +736,7 @@ function SidebarOrgLink({
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
           )}
         >
-          <WalletIcon
+          <ProductIcon
             size={16}
             className={active ? "text-accent" : "text-text-soft"}
             aria-hidden="true"
@@ -771,7 +776,11 @@ function SidebarOrgLink({
             : "text-text-strong hover:bg-canvas",
         )}
       >
-        <WalletIcon size={14} className="shrink-0 text-text-soft" aria-hidden="true" />
+        <ProductIcon
+          size={14}
+          className={clsx("shrink-0", active ? "text-accent" : "text-text-soft")}
+          aria-hidden="true"
+        />
         <span className="truncate">{display}</span>
         {pendingCount > 0 && (
           <span
