@@ -35,9 +35,9 @@ import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 const VENUES: Array<{ value: TradingVenue; label: string }> = [
-  { value: "mock_perps", label: "Internal sandbox" },
-  { value: "hyperliquid_testnet", label: "Hyperliquid testnet" },
-  { value: "bulktrade_mock", label: "Bulk sandbox" },
+  { value: "mock_perps", label: "Built-in practice" },
+  { value: "hyperliquid_testnet", label: "Connected practice" },
+  { value: "bulktrade_mock", label: "Bulk practice" },
 ];
 
 export default function NewAgentSessionPage() {
@@ -201,9 +201,9 @@ export default function NewAgentSessionPage() {
       setSessions(listAgentSessions(name));
       const synced = await syncAgentSession(saved);
       if (synced.ok) {
-        toast.success("Allowance started");
+        toast.success("Practice budget is ready");
       } else {
-        toast.info("Allowance saved on this device for now", {
+        toast.info("Practice budget saved on this device for now", {
           details: synced.message,
         });
       }
@@ -213,7 +213,7 @@ export default function NewAgentSessionPage() {
         `/app/wallet/${encoded}/agents/start?agent=${encodeURIComponent(saved.agentId)}&venue=${encodeURIComponent(pending.redirectVenue)}`,
       );
     } catch (error) {
-      toast.error("Could not approve allowance", {
+      toast.error("Could not approve budget", {
         details: error instanceof Error ? error.message : String(error),
       });
     } finally {
@@ -228,11 +228,11 @@ export default function NewAgentSessionPage() {
       return;
     }
     if (!agentId) {
-      toast.error("Add an active trader before giving an allowance");
+      toast.error("Choose an active trader before setting a budget");
       return;
     }
     if (setupIssue) {
-      toast.error("Finish the trading plan before giving an allowance", {
+      toast.error("Review the trading style before setting a budget", {
         details: setupIssue,
       });
       return;
@@ -268,7 +268,7 @@ export default function NewAgentSessionPage() {
       policy,
     );
     if (grant.allowedVenues?.length === 0) {
-      toast.error("Choose a venue allowed by your guardrails");
+      toast.error("Choose a practice mode allowed by your max-loss rules");
       return;
     }
     if (grant.allowedMarkets?.length === 0) {
@@ -284,13 +284,13 @@ export default function NewAgentSessionPage() {
       walletName: name,
       agentId,
       action: "grant_allowance",
-      summary: "Give practice allowance",
+      summary: "Set practice budget",
       targetType: "session",
       targetId: grant.id,
       details: [
         { label: "Trader", value: selectedAgent?.name ?? "Selected trader" },
         { label: "Size", value: formatUsd(grant.maxNotionalUsd) },
-        { label: "Practice account", value: grant.allowedVenues?.map(venueLabel).join(", ") ?? "Practice" },
+        { label: "Practice mode", value: grant.allowedVenues?.map(venueLabel).join(", ") ?? "Practice" },
         { label: "Open trades", value: String(grant.maxOpenPositions ?? 1) },
         { label: "Ends", value: new Date(grant.expiresAt).toLocaleString() },
       ],
@@ -308,10 +308,10 @@ export default function NewAgentSessionPage() {
           Agent Library
         </Link>
         <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-          Allowance · {display}
+          Practice budget · {display}
         </p>
         <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
-          Set a trading allowance
+          Set a practice budget
         </h1>
         {requestedTier ? (
           <p className="max-w-2xl text-xs leading-relaxed text-accent">
@@ -330,7 +330,7 @@ export default function NewAgentSessionPage() {
                 </span>
                 <div>
                   <p className="text-sm font-semibold text-text-strong">
-                    {selectedAgent.name} already has an active allowance
+                    {selectedAgent.name} already has an active budget
                   </p>
                   <p className="mt-1 text-xs leading-relaxed text-text-soft">
                     It can trade up to {formatUsd(activeAllowance.maxNotionalUsd)} per trade,
@@ -347,11 +347,11 @@ export default function NewAgentSessionPage() {
                 className={BUTTON_CLASS}
               >
                 <Play size={13} aria-hidden="true" />
-                Start trading
+                Start practice
               </Link>
               <a href="#change-allowance" className={SECONDARY_BUTTON_CLASS}>
                 <ArrowRight size={13} aria-hidden="true" />
-                Change allowance
+                Change budget
               </a>
             </div>
           </div>
@@ -366,7 +366,7 @@ export default function NewAgentSessionPage() {
           </span>
           <div>
             <p className="text-sm font-semibold text-text-strong">
-              Trading allowance
+              Practice budget
             </p>
           </div>
         </div>
@@ -398,7 +398,7 @@ export default function NewAgentSessionPage() {
           ) : null}
 
           <fieldset className="flex flex-col gap-2">
-            <legend className="text-xs font-medium text-text-soft">Where may it trade?</legend>
+            <legend className="text-xs font-medium text-text-soft">Choose practice mode</legend>
             <div className="grid gap-2 sm:grid-cols-3">
               {VENUES.map((venue) => (
                 <label
@@ -423,7 +423,7 @@ export default function NewAgentSessionPage() {
 
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-text-soft">
-              Allowed markets
+              Markets
             </span>
             <input
               value={allowedMarkets}
@@ -434,22 +434,22 @@ export default function NewAgentSessionPage() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <TextField
-              label="Maximum trade size"
+              label="Max trade size"
               value={maxNotionalUsd}
               onChange={setMaxNotionalUsd}
             />
             <TextField
-              label="Maximum borrowing"
+              label="Max borrowing"
               value={maxLeverage}
               onChange={setMaxLeverage}
             />
             <TextField
-              label="Maximum open trades"
+              label="Max open trades"
               value={maxOpenPositions}
               onChange={setMaxOpenPositions}
             />
             <TextField
-              label="Allowance length (hours)"
+              label="Budget length (hours)"
               value={durationHours}
               onChange={setDurationHours}
             />
@@ -465,8 +465,8 @@ export default function NewAgentSessionPage() {
               {saving
                 ? "Saving"
                 : activeAllowance
-                  ? "Update allowance"
-                  : "Start practice allowance"}
+                  ? "Update budget"
+                  : "Start practice"}
             </button>
           </div>
         </form>
@@ -474,7 +474,7 @@ export default function NewAgentSessionPage() {
 
       <OwnerApprovalDialog
         request={approvalRequest}
-        approveLabel="Approve and start allowance"
+        approveLabel="Approve budget"
         approvalMode={canSign ? "wallet" : "browser"}
         onCancel={cancelOwnerApproval}
         onApprove={() => void approveOwnerRequest()}
@@ -541,11 +541,11 @@ function formatUsd(value: string | number | null | undefined): string {
 function venueLabel(value: TradingVenue): string {
   switch (value) {
     case "hyperliquid_testnet":
-      return "Hyperliquid testnet";
+      return "Connected practice";
     case "bulktrade_mock":
-      return "Bulk sandbox";
+      return "Bulk practice";
     case "mock_perps":
-      return "Internal sandbox";
+      return "Built-in practice";
   }
 }
 

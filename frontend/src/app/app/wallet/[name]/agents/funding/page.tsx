@@ -57,16 +57,16 @@ export default function AgentFundingPage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Allowance · {display}
+              Budget · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
-              Set allowances by performance
+              Set budgets by performance
             </h1>
           </div>
           {topAction ? (
             <Link href={fundingHref(encoded, topAction)} className={PRIMARY_BUTTON}>
               <CircleDollarSign className="h-3.5 w-3.5" aria-hidden="true" />
-              {topAction.ctaLabel}
+              {budgetCtaLabel(topAction.ctaLabel)}
             </Link>
           ) : (
             <Link
@@ -87,7 +87,7 @@ export default function AgentFundingPage() {
           Icon={Trophy}
         />
         <Metric
-          label="Active allowances"
+          label="Active budgets"
           value={String(plan.activeAllowances)}
           Icon={Clock}
         />
@@ -110,7 +110,7 @@ export default function AgentFundingPage() {
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
             <div>
               <p className="text-sm font-semibold text-text-strong">
-                Allowances are in review mode
+                Budgets are in review mode
               </p>
               <p className="mt-1 text-sm leading-relaxed text-text-soft">
                 Check safety rules and kill switch.
@@ -128,7 +128,7 @@ export default function AgentFundingPage() {
         ) : (
           <div className="rounded-card border border-dashed border-border-soft bg-surface-raised p-6">
             <p className="text-sm font-semibold text-text-strong">
-              No traders need allowances yet
+              No traders need budgets yet
             </p>
             <p className="mt-1 text-sm leading-relaxed text-text-soft">
               Choose a trader first.
@@ -195,7 +195,7 @@ function FundingCard({
             ) : (
               <CircleDollarSign className="h-3.5 w-3.5" aria-hidden="true" />
             )}
-            {item.ctaLabel}
+            {budgetCtaLabel(item.ctaLabel)}
           </Link>
           <Link
             href={`/app/wallet/${walletEncoded}/agents/${encodeURIComponent(item.agent.id)}`}
@@ -229,7 +229,7 @@ function FundingCard({
 
       <details className="group mt-4 rounded-soft border border-border-soft bg-canvas p-3">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-xs font-semibold text-text-strong">
-          Why this allowance?
+          Why this budget?
           <ArrowRight className="h-3.5 w-3.5 text-text-soft transition-transform group-open:rotate-90" aria-hidden="true" />
         </summary>
         <div className="mt-3 grid gap-3 border-t border-border-soft pt-3 lg:grid-cols-[1fr_0.9fr]">
@@ -256,7 +256,7 @@ function FundingCard({
             </p>
           ) : (
             <p className="mt-1 text-xs leading-relaxed text-text-soft">
-              This trader is already at the highest allowance level.
+              This trader is already at the highest budget level.
             </p>
           )}
         </div>
@@ -264,6 +264,12 @@ function FundingCard({
       </details>
     </article>
   );
+}
+
+function budgetCtaLabel(label: string): string {
+  return label
+    .replaceAll("allowance", "budget")
+    .replaceAll("Allowance", "Budget");
 }
 
 function fundingHref(

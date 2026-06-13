@@ -18,7 +18,7 @@ import { toDisplayName } from "@/lib/retail/walletNames";
 import { useToast } from "@/components/ui/Toast";
 
 const AGENT_KINDS: Array<{ value: AgentKind; label: string }> = [
-  { value: "mock", label: "Internal sandbox trader" },
+  { value: "mock", label: "Built-in practice trader" },
   { value: "api", label: "Connected trader" },
   { value: "hermes", label: "Independent trader" },
   { value: "manual", label: "Person" },

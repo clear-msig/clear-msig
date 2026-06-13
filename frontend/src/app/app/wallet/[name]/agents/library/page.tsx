@@ -223,7 +223,7 @@ export default function TraderLibraryPage() {
         saveAgent(encrypted);
         const synced = await syncAgentProfile(encrypted);
         if (synced.ok) {
-          toast.success(`${template.name} is ready for an allowance`);
+          toast.success(`${template.name} is ready for a practice budget`);
         } else {
           toast.info(`${template.name} is ready on this device`, {
             details: synced.message,
@@ -430,14 +430,14 @@ function AgentRecipePanel({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
-            Agent recipes
+            Trader recipes
           </p>
           <h2 className="mt-1 text-base font-semibold text-text-strong">
             Pick an outcome
           </h2>
         </div>
         <span className="rounded-full border border-accent/25 bg-accent/[0.08] px-2.5 py-1 text-[11px] font-medium text-accent">
-          Guardrails included
+          Risk limits included
         </span>
       </div>
 
@@ -483,7 +483,7 @@ function AgentRecipePanel({
               </span>
               <span className="mt-auto flex items-center justify-between gap-3 pt-4 text-xs font-semibold text-accent">
                 <span>
-                  {hasAllowance ? "Start" : existingAgent ? "Set allowance" : "Use recipe"}
+                  {hasAllowance ? "Start practice" : existingAgent ? "Set budget" : "Choose trader"}
                 </span>
                 <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
               </span>
@@ -557,7 +557,7 @@ function TraderCard({
         <LibraryStat label="Built for" value={trader.bestFor} />
         <LibraryStat label="Markets" value={trader.markets.join(", ")} />
         <LibraryStat
-          label="First allowance"
+          label="First budget"
           value={`Up to $${Number(trader.defaultNotionalUsd).toLocaleString("en-US")}`}
         />
         <LibraryStat label="Mode" value="Practice first" />
@@ -569,7 +569,7 @@ function TraderCard({
         onClick={onChoose}
         className="mt-auto inline-flex min-h-10 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {hasAllowance ? "Start trading" : existing ? "Review allowance" : "Choose agent"}
+        {hasAllowance ? "Start practice" : existing ? "Set budget" : "Choose trader"}
         <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
       </button>
     </article>
@@ -701,12 +701,12 @@ function TrackedAgentCard({
     ? `/app/wallet/${walletEncoded}/agents/start?agent=${encodeURIComponent(agent.id)}&venue=${encodeURIComponent(currentVenue)}`
     : `/app/wallet/${walletEncoded}/agents/sessions/new?agent=${encodeURIComponent(agent.id)}&allocationTier=${allocation.tier.id}`;
   const primaryLabel = hasCurrentAllowance
-    ? "Start trading"
+    ? "Start practice"
     : allocation.action === "promote" ||
         allocation.action === "demote" ||
         allocation.action === "review"
-      ? "Review allowance"
-      : "Set allowance";
+      ? "Review budget"
+      : "Set budget";
   const latestExecutions = [...executions]
     .sort((a, b) => (b.closedAt ?? b.openedAt) - (a.closedAt ?? a.openedAt))
     .slice(0, 4);
@@ -804,7 +804,7 @@ function TrackedAgentCard({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold text-text-strong">
-              Allowance recommendation
+              Budget recommendation
             </p>
             <p className="mt-1 max-w-xl text-xs leading-relaxed text-text-soft">
               {allocation.summary}
@@ -822,7 +822,7 @@ function TrackedAgentCard({
         ) : null}
         <div className="mt-3 rounded-soft border border-border-soft bg-canvas px-3 py-2">
           <p className="text-[11px] font-semibold text-text-strong">
-            Why this allowance level?
+            Why this budget?
           </p>
           <ul className="mt-1 grid gap-1 text-[11px] leading-relaxed text-text-soft">
             {allocation.reasons.slice(0, 4).map((reason) => (
@@ -1097,11 +1097,11 @@ function formatNumber(value: number): string {
 function venueLabel(venue: TradingVenue): string {
   switch (venue) {
     case "mock_perps":
-      return "Internal sandbox";
+      return "Built-in practice";
     case "hyperliquid_testnet":
-      return "Hyperliquid testnet";
+      return "Connected practice";
     case "bulktrade_mock":
-      return "Bulk sandbox";
+      return "Bulk practice";
   }
 }
 

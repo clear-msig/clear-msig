@@ -32,9 +32,9 @@ import { encryptStatus } from "@/lib/encrypt/client";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 const VENUES: Array<{ value: TradingVenue; label: string }> = [
-  { value: "mock_perps", label: "Internal sandbox" },
-  { value: "hyperliquid_testnet", label: "Hyperliquid testnet" },
-  { value: "bulktrade_mock", label: "Bulk sandbox" },
+  { value: "mock_perps", label: "Built-in practice" },
+  { value: "hyperliquid_testnet", label: "Connected practice" },
+  { value: "bulktrade_mock", label: "Bulk practice" },
 ];
 
 export default function NewAgentProposalPage() {
@@ -192,7 +192,7 @@ export default function NewAgentProposalPage() {
             toast.success(
               result.execution
                 ? "Trade idea passed your rules and a practice trade opened"
-                : "Trade idea fits the current allowance",
+                : "Trade idea fits the current budget",
             );
           } else {
             toast.info("Trade idea saved on this device for now", {
@@ -235,8 +235,8 @@ export default function NewAgentProposalPage() {
           Try a trade idea
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-text-soft">
-          Enter one idea and see whether it fits the trading plan, safety rules,
-          and current allowance.
+          Enter one idea and see whether it fits the trading style, max-loss rules,
+          and current budget.
         </p>
       </header>
 
@@ -277,7 +277,7 @@ export default function NewAgentProposalPage() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <SelectField
-              label="Trading venue"
+              label="Practice mode"
               value={venue}
               onChange={(value) => setVenue(value as TradingVenue)}
               options={VENUES}
@@ -422,7 +422,7 @@ function DecisionPreview({ preview }: { preview: AgentPolicyEvaluation }) {
         {blocked
           ? "Stopped by your safety rules"
           : preview.decision === "allowed"
-            ? "Fits the current allowance"
+            ? "Fits the current budget"
             : "Ready for your approval"}
       </div>
       {preview.violations.length > 0 ? (

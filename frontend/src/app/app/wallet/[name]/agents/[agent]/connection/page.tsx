@@ -266,7 +266,7 @@ export default function AgentConnectionPage() {
         const placed = await submitAgentVenueExecution(result.proposal);
         if (!placed.ok) {
           throw new Error(
-            `The idea was accepted, but the outside venue account could not place it. ${placed.message}`,
+            `The idea was accepted, but the connected practice account could not place it. ${placed.message}`,
           );
         }
       }
@@ -284,7 +284,7 @@ export default function AgentConnectionPage() {
         draft.evaluation.decision === "blocked"
           ? "This idea breaks your safety rules"
           : draft.evaluation.decision === "allowed"
-            ? "This idea fits the current allowance"
+            ? "This idea fits the current budget"
             : "This idea needs your approval",
       );
     });
@@ -326,7 +326,7 @@ export default function AgentConnectionPage() {
             toast.success(
               result.execution
                 ? "Idea accepted and practice trade opened"
-                : "Idea accepted within the current allowance",
+                : "Idea accepted within the current budget",
             );
           } else {
             toast.info("Idea saved on this device for now", {
@@ -477,7 +477,7 @@ export default function AgentConnectionPage() {
         const imported = await runAutoReview();
         if (!cancelled && imported > 0) {
           toast.success(
-            `${imported} new idea${imported === 1 ? "" : "s"} accepted within the current allowance`,
+            `${imported} new idea${imported === 1 ? "" : "s"} accepted within the current budget`,
           );
         }
       } catch (err) {
@@ -567,7 +567,7 @@ export default function AgentConnectionPage() {
           className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-text-soft transition-colors hover:text-accent"
         >
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-          Start trading
+          Start practice
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -649,7 +649,7 @@ export default function AgentConnectionPage() {
             <p className="mt-1 text-xs leading-relaxed text-text-soft">
               Give the send-to address and send-only password to your trader.
               New ideas will appear below. ClearSig checks each one against your
-              trading plan, safety rules, and current allowance.
+              trading style, max-loss rules, and current budget.
             </p>
             <span
               className={clsx(
@@ -684,7 +684,7 @@ export default function AgentConnectionPage() {
                 onChange={(event) => toggleAutoReview(event.target.checked)}
                 className="h-3.5 w-3.5 accent-accent"
               />
-              Trade automatically within allowance
+              Trade automatically within budget
             </label>
             <button
               type="button"
@@ -707,9 +707,9 @@ export default function AgentConnectionPage() {
         >
           {kit?.autoImportSessionSignals
             ? autoReviewRunning
-              ? "Checking new ideas now. Only ideas inside your current allowance can become trades."
-              : "Automatic trading is on. ClearSig checks ideas as they arrive, even when this page is closed. Anything outside the allowance waits for you."
-            : "Automatic trading is off. New ideas stay here until you review them. Turn it on when you want this trader to act inside its allowance."}
+              ? "Checking new ideas now. Only ideas inside your current budget can become trades."
+              : "Automatic trading is on. ClearSig checks ideas as they arrive, even when this page is closed. Anything outside the budget waits for you."
+            : "Automatic trading is off. New ideas stay here until you review them. Turn it on when you want this trader to act inside its budget."}
         </div>
         {inbox.length > 0 ? (
           <div className="grid gap-2">
@@ -921,7 +921,7 @@ function DecisionPreview({ preview }: { preview: AgentPolicyEvaluation }) {
         {blocked
           ? "Stopped by your safety rules"
           : preview.decision === "allowed"
-            ? "Fits the current allowance"
+            ? "Fits the current budget"
             : "Ready for your approval"}
       </div>
       {preview.violations.length > 0 ? (

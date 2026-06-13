@@ -379,7 +379,7 @@ function TradeRow({
             <Badge tone={open ? "success" : "default"}>{open ? "Open" : "Closed"}</Badge>
             <Badge>{venueLabel(execution.venue)}</Badge>
             <Badge tone={execution.venue === "hyperliquid_testnet" ? "warning" : "default"}>
-              {execution.venue === "hyperliquid_testnet" ? "Testnet evidence" : "Paper evidence"}
+              {execution.venue === "hyperliquid_testnet" ? "Connected proof" : "Practice proof"}
             </Badge>
             {lifecycle ? (
               <Badge tone={lifecycleBadgeTone(lifecycle)}>{lifecycle.label}</Badge>
@@ -662,11 +662,11 @@ function decodeParam(value: string | undefined): string {
 function venueLabel(venue: AgentExecutionRecord["venue"]): string {
   switch (venue) {
     case "mock_perps":
-      return "Paper";
+      return "Built-in practice";
     case "bulktrade_mock":
-      return "Bulk paper";
+      return "Bulk practice";
     case "hyperliquid_testnet":
-      return "Hyperliquid testnet";
+      return "Connected practice";
   }
 }
 

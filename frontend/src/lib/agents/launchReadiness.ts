@@ -57,29 +57,29 @@ export function buildTradingLaunchSteps(
   const drafts: Array<Omit<TradingLaunchStep, "status"> & { done: boolean }> = [
     {
       id: "trader",
-      label: "Choose an active trader",
-      description: "Add a trader and make sure it is allowed to work.",
+      label: "Choose trader",
+      description: "Pick the prepared trader you want to try.",
       owner: "you",
       done: checks.hasTrader && checks.traderActive,
     },
     {
       id: "plan",
-      label: "Finish its trading plan",
-      description: "Tell it what it may trade, when it may act, and when it must stop.",
+      label: "Review style",
+      description: "Check what it trades and when it exits.",
       owner: "you",
       done: checks.planReady,
     },
     {
       id: "safety",
-      label: "Allow this practice account",
-      description: "Your safety rules must allow the chosen practice account.",
+      label: "Set max loss",
+      description: "Choose how much it can risk before ClearSig stops it.",
       owner: "you",
       done: checks.safetyReady,
     },
     {
       id: "allowance",
-      label: "Give a current practice allowance",
-      description: "Choose the amount, open trades, and time this trader may use.",
+      label: "Set budget",
+      description: "Choose the practice amount, open trades, and time limit.",
       owner: "you",
       done: checks.allowanceReady,
     },
@@ -97,7 +97,7 @@ export function buildTradingLaunchSteps(
     drafts.push(
       {
         id: "account",
-        label: "Connect a Hyperliquid practice account",
+        label: "Connect practice account",
         description: "Use a separate practice account. Never use your main wallet.",
         owner: "you",
         done: checks.accountReady,
@@ -123,7 +123,7 @@ export function buildTradingLaunchSteps(
     {
       id: "automatic",
       label: "Turn on automatic trading",
-      description: "ClearSig may act without asking each time, but only inside the current allowance.",
+      description: "ClearSig may act without asking each time, but only inside the current budget.",
       owner: "you",
       done: checks.automaticTradingOn,
     },
@@ -139,7 +139,7 @@ export function buildTradingLaunchSteps(
       label: "Place the first practice trade",
       description:
         venue === "hyperliquid_testnet"
-          ? "ClearSig checks the idea again, then Hyperliquid places the practice trade."
+          ? "ClearSig checks the idea again, then the connected practice account places the trade."
           : "ClearSig checks the idea again, then opens the built-in practice trade.",
       owner: "clearsig",
       done: checks.firstTradePlaced,
@@ -180,8 +180,8 @@ export function buildTradingLaunchState(
     canPlaceFirstTrade: complete || currentStep?.id === "first_trade",
     modeLabel:
       venue === "hyperliquid_testnet"
-        ? "Hyperliquid testnet"
-        : "Internal sandbox",
+        ? "Connected practice"
+        : "Built-in practice",
     statusLabel: complete
       ? "Ready"
       : protectedVenueBlocked
@@ -194,6 +194,6 @@ export function buildTradingLaunchState(
         : "warning",
     primaryActionLabel: complete
       ? "Monitor trades"
-      : currentStep?.label ?? "Check setup",
+      : currentStep?.label ?? "Next step",
   };
 }

@@ -113,13 +113,13 @@ const PRACTICE_CHOICES: Array<{
 }> = [
   {
     id: "mock_perps",
-    label: "Sandbox",
+    label: "Built-in practice",
     description: "No funds needed.",
   },
   {
     id: "hyperliquid_testnet",
-    label: "Hyperliquid testnet",
-    description: "Use your testnet account.",
+    label: "Connected practice",
+    description: "Use a separate practice account.",
   },
 ];
 
@@ -308,10 +308,10 @@ export default function StartTradingPage() {
       ? connectionKit.autoImportSessionSignals
       : getAgentConnectionKit(name, selectedAgent.id).autoImportSessionSignals
     : false;
-  const complianceReadiness = useMemo(
-    () => buildAgentComplianceReadiness(name, venue),
-    [disclosureRefresh, name, venue],
-  );
+  const complianceReadiness = useMemo(() => {
+    void disclosureRefresh;
+    return buildAgentComplianceReadiness(name, venue);
+  }, [disclosureRefresh, name, venue]);
   const launchState = buildTradingLaunchState(venue, {
     hasTrader: Boolean(selectedAgent),
     traderActive: selectedAgent?.status === "active",
@@ -445,7 +445,7 @@ export default function StartTradingPage() {
         walletName: name,
         agentId: proposal.agentId,
         action: "submit_venue_trade",
-        summary: "Place Hyperliquid testnet trade",
+        summary: "Place connected practice trade",
         targetType: "proposal",
         targetId: proposal.id,
         details: [
@@ -462,7 +462,7 @@ export default function StartTradingPage() {
         await refresh();
         return;
       }
-      toast.success("The first Hyperliquid testnet trade was placed");
+      toast.success("The first connected practice trade was placed");
       await refresh();
     });
   };
@@ -729,7 +729,7 @@ export default function StartTradingPage() {
               Trading Desk · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
-              Start a guarded session
+              Start practice
             </h1>
           </div>
           <button
@@ -745,7 +745,7 @@ export default function StartTradingPage() {
       </header>
 
       <section className="border-y border-border-soft py-5">
-        <p className="text-xs font-semibold text-text-strong">Pick mode</p>
+        <p className="text-xs font-semibold text-text-strong">Choose practice mode</p>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {PRACTICE_CHOICES.map((choice) => (
             <button
@@ -810,7 +810,7 @@ export default function StartTradingPage() {
               })
             : (
               <Link href={`/app/wallet/${encoded}/agents`} className={STEP_BUTTON_CLASS}>
-                Monitor trades
+                Watch trades
                 <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
               </Link>
             )
@@ -834,7 +834,7 @@ export default function StartTradingPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-text-strong">
-              {complete ? "Trading has started" : currentStep?.label ?? "Preparing your checklist"}
+              {complete ? "Practice is running" : currentStep?.label ?? "Next step"}
             </h2>
           </div>
           <span
@@ -845,7 +845,7 @@ export default function StartTradingPage() {
                 : "border-warning/30 bg-warning/[0.08] text-warning",
             )}
           >
-            {steps.filter((step) => step.status === "done").length} of {steps.length} confirmed
+            {steps.filter((step) => step.status === "done").length} of {steps.length} done
           </span>
         </div>
 
@@ -960,13 +960,13 @@ function BetaJourneyPanel({
     ids.every((id) => steps.find((step) => step.id === id)?.status === "done");
   const journey = [
     {
-      label: "Pick trader",
+      label: "Choose trader",
       detail: agent?.name ?? "No trader selected",
       done: done(["trader", "plan"]),
       Icon: UserRound,
     },
     {
-      label: "Set allowance",
+      label: "Set budget",
       detail: venueLabel(venue),
       done: done(["safety", "allowance"]),
       Icon: SlidersHorizontal,
@@ -979,7 +979,7 @@ function BetaJourneyPanel({
     },
     {
       label: "Turn on automation",
-      detail: "Inside allowance only",
+      detail: "Inside budget only",
       done: done(["automatic"]),
       Icon: Zap,
     },
@@ -999,7 +999,7 @@ function BetaJourneyPanel({
           </p>
         </div>
         <span className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-1 text-[11px] font-medium text-accent">
-          {venue === "hyperliquid_testnet" ? "Testnet venue" : "Sandbox venue"}
+          {venue === "hyperliquid_testnet" ? "Connected practice" : "Built-in practice"}
         </span>
       </div>
       <div className="mt-4 grid gap-2 md:grid-cols-5">
@@ -1069,7 +1069,7 @@ function PrimaryLaunchActionPanel({
             {state.modeLabel}
           </p>
           <h2 className="mt-1 text-sm font-semibold text-text-strong">
-            {state.complete ? "Trading session is ready" : "Next action"}
+            {state.complete ? "Practice is ready" : "Next action"}
           </h2>
         </div>
         <span
@@ -1170,7 +1170,7 @@ function LaunchRiskPanel({
       notices.push({
         id: "pending_requests",
         tone: "warning",
-        title: "Venue requests are waiting",
+        title: "Practice requests are waiting",
         detail: `${reconciliation.pendingRequests} request${reconciliation.pendingRequests === 1 ? "" : "s"} need setup or a protected connection before they can be trusted.`,
       });
     }
@@ -1182,7 +1182,7 @@ function LaunchRiskPanel({
       id: "adapter_errors_fallback",
       tone: "danger",
       title: "Protected executor has errors",
-      detail: "At least one Hyperliquid testnet request failed in the protected executor.",
+      detail: "At least one connected practice request failed in the protected executor.",
     });
   }
 
@@ -1516,7 +1516,7 @@ function HyperliquidHelp({
     savedApiWallet.toLowerCase() !== executorApiWallet.toLowerCase();
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
-      <h2 className="text-sm font-semibold text-text-strong">Hyperliquid testnet account</h2>
+      <h2 className="text-sm font-semibold text-text-strong">Connected practice account</h2>
       <div className="mt-4 grid gap-2 sm:grid-cols-4">
         <CheckStat
           label="Account"
@@ -1574,8 +1574,8 @@ function HyperliquidHelp({
         </summary>
         <ol className="mt-3 grid gap-2 border-t border-border-soft pt-3">
           {[
-            "Open Hyperliquid testnet and sign in with a separate venue account.",
-            "Add testnet funds to that account.",
+            "Open Hyperliquid practice and sign in with a separate account.",
+            "Add practice funds to that account.",
             "Approve a separate Hyperliquid API wallet public address for agent trading.",
             "Save the account address and approved API wallet address in ClearSig.",
             "Check again.",
@@ -1601,7 +1601,7 @@ function HyperliquidHelp({
           rel="noreferrer"
           className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
         >
-          Open Hyperliquid testnet
+          Open practice account
           <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
         </a>
         <Link
@@ -1671,7 +1671,7 @@ function TradingControlRoom({
       ? reconciliation?.message
       : venue === "hyperliquid_testnet" &&
           submittedVenueRequests > venuePositions.length
-        ? "ClearSig has submitted more Hyperliquid testnet trades than the account currently shows. Check the protected connection or exchange history."
+        ? "ClearSig has submitted more connected practice trades than the account currently shows. Check the protected connection or exchange history."
       : null;
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
@@ -1727,7 +1727,7 @@ function TradingControlRoom({
           highlight={openExecutions.length > 0}
         />
         <ControlStat
-          label="Allowance"
+          label="Budget"
           value={allowance ? formatUsd(allowance.maxNotionalUsd) : "None"}
           highlight={Boolean(allowance)}
         />
@@ -1854,7 +1854,7 @@ function TradingControlRoom({
                 />
               ))
             ) : (
-              <EmptyControlLine text="No Hyperliquid testnet positions are open right now." />
+              <EmptyControlLine text="No connected practice positions are open right now." />
             )}
           </div>
           <div className="mt-4 border-t border-border-soft pt-3">
@@ -2397,21 +2397,21 @@ function actionForStep({
       return (
         <StepLink
           href={agent ? `${base}/${encodeURIComponent(agent.id)}/strategy` : `${base}/library`}
-          label="Finish trading plan"
+          label="Review style"
         />
       );
     case "safety":
       return (
         <StepLink
           href={`${base}/policy?venue=${venue}&agent=${encodeURIComponent(agent?.id ?? "")}`}
-          label="Update safety rules"
+          label="Set max loss"
         />
       );
     case "allowance":
       return (
         <StepLink
           href={`${base}/sessions/new?agent=${encodeURIComponent(agent?.id ?? "")}&venue=${venue}`}
-          label="Give allowance"
+          label="Set budget"
         />
       );
     case "disclosures":
@@ -2434,7 +2434,7 @@ function actionForStep({
           onClick={enableAutomaticTrading}
           className={STEP_BUTTON_CLASS}
         >
-          {automaticTradingBusy ? "Turning on..." : "Turn on automatic trading"}
+          {automaticTradingBusy ? "Turning on..." : "Start practice"}
           <Play className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
       );
@@ -2442,7 +2442,7 @@ function actionForStep({
     case "funding":
     case "protected_connection":
       return (
-        <StepLink href={`${base}/hyperliquid`} label="Set up Hyperliquid" />
+        <StepLink href={`${base}/hyperliquid`} label="Connect practice account" />
       );
     case "first_idea":
       if (agent?.kind === "mock") {
@@ -2599,11 +2599,11 @@ async function loadStartMarketData({
 function venueLabel(venue: TradingLaunchVenue | AgentExecutionRecord["venue"]): string {
   switch (venue) {
     case "mock_perps":
-      return "Internal sandbox";
+      return "Built-in practice";
     case "hyperliquid_testnet":
-      return "Hyperliquid testnet";
+      return "Connected practice";
     case "bulktrade_mock":
-      return "Bulk sandbox";
+      return "Bulk practice";
   }
 }
 
