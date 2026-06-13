@@ -50,6 +50,7 @@ import {
   buildAgentScoutProposal,
   buildAgentScoutReports,
   buildAgentMarketReadiness,
+  buildAgentTradeLifecycle,
   buildAgentTradingReadiness,
   closeMockAgentExecution,
   closeOpenMockAgentExecutions,
@@ -108,12 +109,12 @@ import {
   type AgentMarketReadiness,
   type AgentNotification,
   type AgentReadinessAction,
-  type AgentProposalStatus,
   type AgentScoutReport,
   type TradingVenue,
   type AgentTradingReadiness,
   type AgentAllocationRecommendation,
   type AgentBetaReadiness,
+  type AgentTradeLifecycle,
   closeAgentExecutionRecord,
 } from "@/lib/agents";
 import {
@@ -124,12 +125,14 @@ import { runAgentAutonomyTickClient } from "@/lib/agents/clientAutonomy";
 import {
   loadAgentVenueReadiness,
   submitAgentVenueExecution,
+  type AgentVenueRequestRecord,
   type AgentVenueReadiness,
 } from "@/lib/agents/clientExecution";
 import {
   loadAgentMarketDataSnapshots,
   loadAgentMarketIntelligenceSnapshots,
 } from "@/lib/agents/clientMarketData";
+import type { HyperliquidTestnetAccountSnapshot } from "@/lib/agents/serverHyperliquidTestnet";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 type BackendPersistenceStatus = {
@@ -1511,18 +1514,29 @@ export default function AgentsPage() {
         </h2>
         {proposals.length > 0 ? (
           <ul className="grid gap-3">
-            {proposals.slice(0, 5).map((proposal) => (
-              <ProposalCard
-                key={proposal.id}
-                proposal={proposal}
-                pending={pendingAction}
-                onApprove={approveProposal}
-                onReject={rejectProposal}
-                onExecute={executeProposal}
-                onSubmitVenue={submitVenueProposal}
-                onRecheck={recheckProposal}
-              />
-            ))}
+            {proposals.slice(0, 5).map((proposal) => {
+              const execution =
+                executions.find((item) => item.proposalId === proposal.id) ?? null;
+              const venueRequest =
+                liveVenueReadiness?.requests?.find(
+                  (item) => item.request.proposalId === proposal.id,
+                ) ?? null;
+              return (
+                <ProposalCard
+                  key={proposal.id}
+                  proposal={proposal}
+                  execution={execution}
+                  venueRequest={venueRequest}
+                  accountSnapshot={liveVenueReadiness?.accountSnapshot ?? null}
+                  pending={pendingAction}
+                  onApprove={approveProposal}
+                  onReject={rejectProposal}
+                  onExecute={executeProposal}
+                  onSubmitVenue={submitVenueProposal}
+                  onRecheck={recheckProposal}
+                />
+              );
+            })}
           </ul>
         ) : (
           <div className="rounded-card border border-dashed border-border-soft bg-surface-raised p-5 text-sm text-text-soft">
@@ -2549,9 +2563,33 @@ function LiveVenuePanel({
             </p>
           </div>
           {reconciliation.issues.length > 0 ? (
-            <p className="text-xs leading-relaxed text-text-soft sm:col-span-4">
-              {reconciliation.message}
-            </p>
+            <ul className="grid gap-2 sm:col-span-4 md:grid-cols-3">
+              {reconciliation.issues.slice(0, 3).map((issue) => (
+                <li
+                  key={issue.id}
+                  className={clsx(
+                    "rounded-soft border px-3 py-2",
+                    issue.severity === "block"
+                      ? "border-rose-500/30 bg-rose-500/[0.08]"
+                      : "border-warning/30 bg-warning/[0.08]",
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    {issue.severity === "block" ? (
+                      <X className="h-3.5 w-3.5 text-rose-300" aria-hidden="true" />
+                    ) : (
+                      <AlertTriangle className="h-3.5 w-3.5 text-warning" aria-hidden="true" />
+                    )}
+                    <p className="truncate text-xs font-semibold text-text-strong">
+                      {issue.label}
+                    </p>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-text-soft">
+                    {issue.message}
+                  </p>
+                </li>
+              ))}
+            </ul>
           ) : null}
         </div>
       ) : null}
@@ -3361,6 +3399,9 @@ function ScoreStat({ label, value }: { label: string; value: string }) {
 
 function ProposalCard({
   proposal,
+  execution,
+  venueRequest,
+  accountSnapshot,
   pending,
   onApprove,
   onReject,
@@ -3369,6 +3410,9 @@ function ProposalCard({
   onRecheck,
 }: {
   proposal: AgentTradeProposal;
+  execution: AgentExecutionRecord | null;
+  venueRequest: AgentVenueRequestRecord | null;
+  accountSnapshot: HyperliquidTestnetAccountSnapshot | null;
   pending: boolean;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
@@ -3376,17 +3420,17 @@ function ProposalCard({
   onSubmitVenue: (id: string) => void;
   onRecheck: (id: string) => void;
 }) {
-  const statusTone =
-    proposal.status === "blocked"
-      ? "border-rose-500/30 bg-rose-500/[0.08] text-rose-500"
-      : proposal.status === "approved" || proposal.status === "executed"
-        ? "border-accent/30 bg-accent/[0.08] text-accent"
-        : "border-warning/30 bg-warning/[0.08] text-warning";
+  const lifecycle = buildAgentTradeLifecycle({
+    proposal,
+    execution,
+    venueRequest,
+    accountSnapshot,
+  });
 
   return (
     <li className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold text-text-strong">
               {proposal.market} · {proposal.side}
@@ -3394,16 +3438,17 @@ function ProposalCard({
             <span
               className={clsx(
                 "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium capitalize",
-                statusTone,
+                lifecycleToneClass(lifecycle.tone),
               )}
             >
-              {proposalStatusLabel(proposal.status)}
+              {lifecycle.label}
             </span>
           </div>
           <p className="mt-1 text-xs text-text-soft">
             {tradingPlaceLabel(proposal.venue)} · ${proposal.notionalUsd} ·{" "}
             {proposal.leverage}x
           </p>
+          <TradeLifecycleStrip lifecycle={lifecycle} />
           {proposal.policyViolations && proposal.policyViolations.length > 0 ? (
             <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-rose-300">
               {proposal.policyViolations[0]?.message}
@@ -3433,6 +3478,32 @@ function ProposalCard({
         </div>
       </div>
     </li>
+  );
+}
+
+function TradeLifecycleStrip({ lifecycle }: { lifecycle: AgentTradeLifecycle }) {
+  return (
+    <div className="mt-3 grid gap-1.5 sm:grid-cols-5">
+      {lifecycle.steps.map((step) => {
+        const Icon = lifecycleStepIcon(step.status);
+        return (
+          <div
+            key={step.id}
+            title={step.detail}
+            className={clsx(
+              "flex min-h-10 items-center gap-2 rounded-soft border px-2 py-1.5",
+              lifecycleStepClass(step.status),
+            )}
+          >
+            <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="truncate text-[11px] font-semibold">{step.label}</p>
+              <p className="truncate text-[10px] opacity-75">{step.detail}</p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -3474,6 +3545,51 @@ function DecisionJournalSummary({ proposal }: { proposal: AgentTradeProposal }) 
       </p>
     </div>
   );
+}
+
+function lifecycleToneClass(tone: AgentTradeLifecycle["tone"]): string {
+  switch (tone) {
+    case "success":
+      return "border-accent/30 bg-accent/[0.08] text-accent";
+    case "warning":
+      return "border-warning/30 bg-warning/[0.08] text-warning";
+    case "danger":
+      return "border-rose-500/30 bg-rose-500/[0.08] text-rose-300";
+    case "default":
+      return "border-border-soft bg-canvas text-text-soft";
+  }
+}
+
+function lifecycleStepClass(status: AgentTradeLifecycle["steps"][number]["status"]): string {
+  switch (status) {
+    case "done":
+      return "border-accent/25 bg-accent/[0.06] text-accent";
+    case "current":
+      return "border-warning/25 bg-warning/[0.06] text-warning";
+    case "blocked":
+      return "border-rose-500/30 bg-rose-500/[0.08] text-rose-300";
+    case "warning":
+      return "border-warning/30 bg-warning/[0.08] text-warning";
+    case "waiting":
+      return "border-border-soft bg-canvas text-text-soft";
+  }
+}
+
+function lifecycleStepIcon(
+  status: AgentTradeLifecycle["steps"][number]["status"],
+): typeof Check {
+  switch (status) {
+    case "done":
+      return Check;
+    case "current":
+      return Clock;
+    case "blocked":
+      return X;
+    case "warning":
+      return AlertTriangle;
+    case "waiting":
+      return Clock;
+  }
 }
 
 function MiniReason({ label, value }: { label: string; value: string }) {
@@ -3731,25 +3847,6 @@ function agentKindLabel(kind: AgentKind): string {
       return "Independent trader";
     case "manual":
       return "Person";
-  }
-}
-
-function proposalStatusLabel(status: AgentProposalStatus): string {
-  switch (status) {
-    case "draft":
-      return "Draft";
-    case "blocked":
-      return "Stopped";
-    case "needs_approval":
-      return "Needs approval";
-    case "approved":
-      return "Approved";
-    case "rejected":
-      return "Declined";
-    case "executed":
-      return "Opened";
-    case "expired":
-      return "Expired";
   }
 }
 
