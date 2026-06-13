@@ -36,6 +36,20 @@ export interface TradingLaunchStep {
   status: "done" | "current" | "waiting";
 }
 
+export interface TradingLaunchState {
+  venue: TradingLaunchVenue;
+  steps: TradingLaunchStep[];
+  currentStep: TradingLaunchStep | null;
+  completedSteps: number;
+  totalSteps: number;
+  complete: boolean;
+  canPlaceFirstTrade: boolean;
+  modeLabel: string;
+  statusLabel: string;
+  statusTone: "ready" | "warning" | "blocked";
+  primaryActionLabel: string;
+}
+
 export function buildTradingLaunchSteps(
   venue: TradingLaunchVenue,
   checks: TradingLaunchChecks,
@@ -140,4 +154,46 @@ export function buildTradingLaunchSteps(
     owner: step.owner,
     status: step.done ? "done" : index === currentIndex ? "current" : "waiting",
   }));
+}
+
+export function buildTradingLaunchState(
+  venue: TradingLaunchVenue,
+  checks: TradingLaunchChecks,
+): TradingLaunchState {
+  const steps = buildTradingLaunchSteps(venue, checks);
+  const currentStep = steps.find((step) => step.status === "current") ?? null;
+  const completedSteps = steps.filter((step) => step.status === "done").length;
+  const complete = completedSteps === steps.length;
+  const protectedVenueBlocked =
+    venue === "hyperliquid_testnet" &&
+    (currentStep?.id === "protected_connection" ||
+      (!checks.protectedConnectionReady &&
+        steps.some((step) => step.id === "protected_connection")));
+
+  return {
+    venue,
+    steps,
+    currentStep,
+    completedSteps,
+    totalSteps: steps.length,
+    complete,
+    canPlaceFirstTrade: complete || currentStep?.id === "first_trade",
+    modeLabel:
+      venue === "hyperliquid_testnet"
+        ? "Hyperliquid testnet"
+        : "Internal sandbox",
+    statusLabel: complete
+      ? "Ready"
+      : protectedVenueBlocked
+        ? "Host setup needed"
+        : currentStep?.label ?? "Checking",
+    statusTone: complete
+      ? "ready"
+      : protectedVenueBlocked
+        ? "blocked"
+        : "warning",
+    primaryActionLabel: complete
+      ? "Monitor trades"
+      : currentStep?.label ?? "Check setup",
+  };
 }

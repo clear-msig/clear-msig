@@ -390,6 +390,8 @@ export default function AgentsPage() {
     );
   }, [agents, name, policy, sessions]);
   const readyAgents = readiness.filter((item) => item.status === "ready").length;
+  const canRunAutonomyScan =
+    readyAgents > 0 && backendStatus.state === "synced";
   const scoutReports = useMemo<AgentScoutReport[]>(() => {
     if (!policy) return [];
     const now = Date.now();
@@ -1286,7 +1288,14 @@ export default function AgentsPage() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            disabled={pendingAction || agents.length === 0}
+            disabled={pendingAction || !canRunAutonomyScan}
+            title={
+              canRunAutonomyScan
+                ? "Scan current markets through the active guardrails"
+                : backendStatus.state !== "synced"
+                  ? "Backend state must be synced before autonomy can run"
+                  : "Finish trader setup before autonomy can run"
+            }
             onClick={runAutonomyScan}
             className={clsx(
               "inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest sm:flex-none",
@@ -1297,7 +1306,7 @@ export default function AgentsPage() {
             )}
           >
             <BrainCircuit size={13} aria-hidden="true" />
-            Run scan
+            {canRunAutonomyScan ? "Run scan" : "Finish setup"}
           </button>
           <Link
             href="/agents"

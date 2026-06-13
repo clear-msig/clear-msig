@@ -131,16 +131,27 @@ export function buildAgentHyperliquidSetupSummary(
   readiness: AgentVenueReadiness | null,
   settings: AgentHyperliquidSetupSettings,
 ): AgentHyperliquidSetupSummary {
-  const accountAddress =
-    readiness?.accountProbe?.accountAddress ?? settings.accountAddress;
-  const accountReady = Boolean(accountAddress);
+  const probedAccountAddress = readiness?.accountProbe?.accountAddress ?? "";
+  const accountAddress = probedAccountAddress || settings.accountAddress;
+  const accountReady = Boolean(probedAccountAddress);
   const funded = readiness?.accountProbe?.state === "funded";
-  const agentWalletReady =
-    Boolean(settings.agentWalletAddress) && settings.delegationStatus === "active";
+  const executorAgentWallet = readiness?.executorProbe?.agentWalletAddress ?? "";
   const connectionReady =
     readiness?.state === "ready" &&
     readiness.executorProbe?.state === "ready" &&
     Boolean(readiness.executorProbe.agentWalletAddress);
+  const agentWalletMatchesExecutor =
+    Boolean(settings.agentWalletAddress) &&
+    Boolean(executorAgentWallet) &&
+    settings.agentWalletAddress.toLowerCase() === executorAgentWallet.toLowerCase();
+  const agentWalletReady =
+    connectionReady &&
+    agentWalletMatchesExecutor &&
+    settings.delegationStatus === "active";
+  const agentWalletMismatch =
+    Boolean(settings.agentWalletAddress) &&
+    Boolean(executorAgentWallet) &&
+    !agentWalletMatchesExecutor;
   const connectionBlocked =
     readiness?.state === "not_configured" ||
     readiness?.executorProbe?.state === "not_configured";
@@ -151,7 +162,9 @@ export function buildAgentHyperliquidSetupSummary(
       status: accountReady ? "ready" : "todo",
       message: accountReady
         ? `Using ${shortAddress(accountAddress)}.`
-        : "Paste the public address for a dedicated Hyperliquid testnet account.",
+        : settings.accountAddress
+          ? "Saved locally. Check the account before it can count as connected."
+          : "Paste the public address for a dedicated Hyperliquid testnet account.",
     },
     {
       id: "funding",
@@ -169,14 +182,17 @@ export function buildAgentHyperliquidSetupSummary(
       label: "Approved API wallet",
       status: agentWalletReady
         ? "ready"
-        : settings.delegationStatus === "revoked" ||
+        : agentWalletMismatch ||
+            settings.delegationStatus === "revoked" ||
             settings.delegationStatus === "rotation_required"
           ? "blocked"
           : accountReady
             ? "todo"
             : "blocked",
       message: agentWalletReady
-        ? `Delegated signer ${shortAddress(settings.agentWalletAddress)} is recorded.`
+        ? `Delegated signer ${shortAddress(settings.agentWalletAddress)} is verified by the protected executor.`
+        : agentWalletMismatch
+          ? `Saved API wallet ${shortAddress(settings.agentWalletAddress)} does not match protected executor signer ${shortAddress(executorAgentWallet)}.`
         : settings.delegationStatus === "revoked"
           ? "This API wallet is marked revoked. Approve a new API wallet before trading."
           : settings.delegationStatus === "rotation_required"

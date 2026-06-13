@@ -34,7 +34,7 @@ import {
   acknowledgeAgentComplianceDisclosures,
   buildAgentTradingReadiness,
   buildAgentComplianceReadiness,
-  buildTradingLaunchSteps,
+  buildTradingLaunchState,
   closeAgentExecutionRecord,
   closeMockAgentExecution,
   closeOpenMockAgentExecutions,
@@ -79,6 +79,7 @@ import {
   type AgentTradingReadiness,
   type AgentVaultPolicy,
   type TradingLaunchStep,
+  type TradingLaunchState,
   type TradingLaunchVenue,
 } from "@/lib/agents";
 import {
@@ -276,7 +277,7 @@ export default function StartTradingPage() {
     () => buildAgentComplianceReadiness(name, venue),
     [disclosureRefresh, name, venue],
   );
-  const steps = buildTradingLaunchSteps(venue, {
+  const launchState = buildTradingLaunchState(venue, {
     hasTrader: Boolean(selectedAgent),
     traderActive: selectedAgent?.status === "active",
     planReady: readinessPassed("strategy"),
@@ -302,12 +303,13 @@ export default function StartTradingPage() {
     hasTraderIdea,
     firstTradePlaced,
   });
-  const currentStep = steps.find((step) => step.status === "current") ?? null;
+  const steps = launchState.steps;
+  const currentStep = launchState.currentStep;
   const approvedOutsideIdea = proposals.find(
     (proposal) =>
       proposal.venue === "hyperliquid_testnet" && proposal.status === "approved",
   );
-  const complete = steps.every((step) => step.status === "done");
+  const complete = launchState.complete;
   const openMarketKey = openExecutions
     .map((execution) => execution.market.trim().toUpperCase())
     .filter(Boolean)
@@ -763,6 +765,32 @@ export default function StartTradingPage() {
         ) : null}
       </section>
 
+      <PrimaryLaunchActionPanel
+        state={launchState}
+        action={
+          currentStep
+            ? actionForStep({
+                step: currentStep,
+                walletEncoded: encoded,
+                agent: selectedAgent,
+                venue,
+                approvedOutsideIdea,
+                placeFirstOutsideTrade,
+                acceptDisclosures,
+                enableAutomaticTrading,
+                askBuiltInTraderForIdea,
+                pending,
+                automaticTradingBusy,
+              })
+            : (
+              <Link href={`/app/wallet/${encoded}/agents`} className={STEP_BUTTON_CLASS}>
+                Monitor trades
+                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </Link>
+            )
+        }
+      />
+
       <BetaJourneyPanel
         venue={venue}
         agent={selectedAgent}
@@ -983,6 +1011,63 @@ function BetaJourneyPanel({
           </div>
           );
         })}
+      </div>
+    </section>
+  );
+}
+
+function PrimaryLaunchActionPanel({
+  state,
+  action,
+}: {
+  state: TradingLaunchState;
+  action: React.ReactNode;
+}) {
+  return (
+    <section
+      className={clsx(
+        "rounded-card border p-4 shadow-card-rest sm:p-5",
+        state.statusTone === "ready"
+          ? "border-accent/30 bg-accent/[0.06]"
+          : state.statusTone === "blocked"
+            ? "border-warning/30 bg-warning/[0.08]"
+            : "border-border-soft bg-surface-raised",
+      )}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-soft">
+            {state.modeLabel}
+          </p>
+          <h2 className="mt-1 text-sm font-semibold text-text-strong">
+            {state.complete ? "Trading session is ready" : "Next action"}
+          </h2>
+        </div>
+        <span
+          className={clsx(
+            "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+            state.statusTone === "ready"
+              ? "border-accent/30 bg-accent/[0.08] text-accent"
+              : state.statusTone === "blocked"
+                ? "border-warning/30 bg-warning/[0.08] text-warning"
+                : "border-border-soft bg-canvas text-text-soft",
+          )}
+        >
+          {state.completedSteps} of {state.totalSteps}
+        </span>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-soft border border-border-soft bg-canvas p-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-text-strong">
+            {state.statusLabel}
+          </p>
+          {state.currentStep ? (
+            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-text-soft">
+              {state.currentStep.description}
+            </p>
+          ) : null}
+        </div>
+        <div className="w-full shrink-0 sm:w-auto">{action}</div>
       </div>
     </section>
   );
@@ -1388,7 +1473,18 @@ function HyperliquidHelp({
 }) {
   const account = readiness?.accountProbe;
   const protectedConnection = readiness?.executorProbe;
-  const apiWalletHealthy = setupSettings.delegationStatus === "active";
+  const executorApiWallet = protectedConnection?.agentWalletAddress ?? "";
+  const savedApiWallet = setupSettings.agentWalletAddress;
+  const apiWalletHealthy =
+    protectedConnection?.state === "ready" &&
+    setupSettings.delegationStatus === "active" &&
+    Boolean(savedApiWallet) &&
+    Boolean(executorApiWallet) &&
+    savedApiWallet.toLowerCase() === executorApiWallet.toLowerCase();
+  const apiWalletMismatch =
+    Boolean(savedApiWallet) &&
+    Boolean(executorApiWallet) &&
+    savedApiWallet.toLowerCase() !== executorApiWallet.toLowerCase();
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
       <h2 className="text-sm font-semibold text-text-strong">Hyperliquid testnet account</h2>
@@ -1406,12 +1502,14 @@ function HyperliquidHelp({
         <CheckStat
           label="API wallet"
           value={
-            setupSettings.agentWalletAddress
-              ? setupSettings.delegationStatus === "active"
+            savedApiWallet
+              ? apiWalletHealthy
                 ? "Active"
                 : setupSettings.delegationStatus === "revoked"
                   ? "Revoked"
-                  : "Rotate"
+                  : apiWalletMismatch
+                    ? "Mismatch"
+                    : "Verify"
               : "Needed"
           }
           ready={apiWalletHealthy}
@@ -1422,16 +1520,18 @@ function HyperliquidHelp({
           ready={protectedConnection?.state === "ready"}
         />
       </div>
-      {!apiWalletHealthy && setupSettings.agentWalletAddress ? (
+      {!apiWalletHealthy && savedApiWallet ? (
         <div className="mt-4 rounded-soft border border-warning/30 bg-warning/[0.08] p-3">
           <p className="text-xs font-semibold text-warning">
-            API wallet needs attention
+            API wallet not verified
           </p>
           <p className="mt-1 text-xs leading-relaxed text-text-soft">
-            {setupSettings.delegationStatus === "revoked"
+            {apiWalletMismatch
+              ? "The saved API wallet does not match the signer reported by the protected executor."
+              : setupSettings.delegationStatus === "revoked"
               ? "Approve and record a new API wallet."
               : setupSettings.rotationReason ??
-                "Rotate this API wallet."}
+                "Check the protected executor before trading."}
           </p>
         </div>
       ) : null}
