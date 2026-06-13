@@ -242,11 +242,11 @@ function filterLabel(filter: ApprovalFilter): string {
 function actionLabel(action: AgentOwnerApproval["action"]): string {
   switch (action) {
     case "grant_allowance":
-      return "Allowance";
+      return "Budget";
     case "start_automatic_trading":
       return "Automatic trading";
     case "submit_venue_trade":
-      return "Venue handoff";
+      return "Practice handoff";
     case "pause_agent":
       return "Pause agent";
     case "pause_all_trading":

@@ -154,4 +154,43 @@ describe("Hyperliquid setup helpers", () => {
       "blocked",
     );
   });
+
+  it("blocks setup readiness when the saved API wallet differs from the protected executor", () => {
+    const summary = buildAgentHyperliquidSetupSummary(
+      {
+        venue: "hyperliquid_testnet",
+        label: "Hyperliquid Testnet",
+        state: "ready",
+        canSubmit: true,
+        missingEnvVars: [],
+        message: "Ready",
+        accountProbe: {
+          state: "funded",
+          accountAddress: address,
+          accountValueUsd: "100",
+          withdrawableUsd: "100",
+          openPositions: 0,
+          message: "Funded",
+        },
+        executorProbe: {
+          state: "ready",
+          accountAddress: address,
+          agentWalletAddress: "0x3333333333333333333333333333333333333333",
+          message: "Ready",
+        },
+      },
+      {
+        accountAddress: address,
+        agentWalletAddress: agentWallet,
+        delegationStatus: "active",
+        updatedAt: 1,
+        version: 1,
+      },
+    );
+
+    expect(summary.status).toBe("blocked");
+    expect(summary.steps.find((step) => step.id === "agent_wallet")?.status).toBe(
+      "blocked",
+    );
+  });
 });

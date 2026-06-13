@@ -987,9 +987,8 @@ function SendPage() {
                 Set up sending first
               </p>
               <p className="mt-2 text-sm text-text-strong">
-                <strong>{walletDisplay}</strong> doesn&rsquo;t have a
-                spending rule yet. Enable sending. Once that&rsquo;s
-                done, you can come back and send anything you want.
+                Enable sending for <strong>{walletDisplay}</strong>, then come
+                back here.
               </p>
               <div className="mt-4 flex justify-center">
                 <Link
@@ -1165,7 +1164,6 @@ function ComposeStage({
           </div>
         </div>
         <p className="text-xs text-text-soft sm:text-sm">
-          From{" "}
           <span className="font-medium text-text-strong">{walletDisplay}</span>
         </p>
       </header>
@@ -1300,8 +1298,7 @@ function ComposeStage({
                 smallestPerWhole={1_000_000_000n}
                 ticker="SOL"
               />
-              {" "}- need at least the amount plus a small reserve for the
-              on-chain fee. Top up from Receive or a faucet.
+              {" "}- top up before sending.
             </p>
           )}
       </section>
@@ -1409,7 +1406,7 @@ function ComposeStage({
           inside the workspace shell. */}
       <div className="flex flex-col gap-3 pt-1">
         <p className="inline-flex items-center gap-1.5 text-xs text-text-soft">
-          People in {walletDisplay} approve before it sends.
+          {walletDisplay} approvers review this request.
           <InfoTip
             label="How approvals work"
             width="md"
@@ -1417,10 +1414,8 @@ function ComposeStage({
             side="start"
           >
             <span className="block">
-              When you tap Send, this becomes a request in {walletDisplay}.
-              Other people who can approve get a notification, and the transfer
-              only goes through after enough approvals. You can cancel anytime
-              before that.
+              Tap Send to create an approval request. It moves only after the
+              wallet reaches threshold.
             </span>
           </InfoTip>
         </p>

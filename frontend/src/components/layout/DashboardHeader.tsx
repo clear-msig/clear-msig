@@ -40,6 +40,7 @@ import { addressUrl } from "@/lib/explorer";
 import { avatarGradient } from "@/lib/retail/avatar";
 import { formatBalance } from "@/lib/retail/format";
 import { getSectionLabel } from "@/lib/retail/sectionLabel";
+import { ThemeModeButton } from "@/components/security/ThemeModeButton";
 
 const ROOT_ROUTES = new Set([
   "/app/wallet",
@@ -136,6 +137,7 @@ export function DashboardHeader() {
           owns the connect / disconnect surface so it sits at eye
           level instead of buried in the sidebar footer. */}
       <div className="ml-auto flex items-center gap-2">
+        <ThemeModeButton />
         {!pathname.startsWith("/app/notifications") && (
           <HeaderNotificationsButton />
         )}

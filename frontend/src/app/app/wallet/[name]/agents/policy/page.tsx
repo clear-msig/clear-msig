@@ -19,9 +19,9 @@ import { encryptStatus } from "@/lib/encrypt/client";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 const VENUES: Array<{ value: TradingVenue; label: string }> = [
-  { value: "mock_perps", label: "Internal sandbox" },
-  { value: "hyperliquid_testnet", label: "Hyperliquid testnet" },
-  { value: "bulktrade_mock", label: "Bulk sandbox" },
+  { value: "mock_perps", label: "Built-in practice" },
+  { value: "hyperliquid_testnet", label: "Connected practice" },
+  { value: "bulktrade_mock", label: "Bulk practice" },
 ];
 
 export default function AgentPolicyPage() {
@@ -100,13 +100,13 @@ export default function AgentPolicyPage() {
         if (synced.ok) {
           toast.success(
             sessionsNeedRenewal
-              ? "Safety rules saved. Review current allowances."
+              ? "Max-loss rules saved. Review current budgets."
               : "Safety rules saved",
           );
         } else {
           toast.info(
             sessionsNeedRenewal
-              ? "Safety rules saved here. Review current allowances."
+              ? "Max-loss rules saved here. Review current budgets."
               : "Safety rules saved on this device for now",
             {
             details: synced.message,
@@ -132,10 +132,10 @@ export default function AgentPolicyPage() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <header className="flex flex-col gap-2">
         <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-          Guardrails · {display}
+          Max loss · {display}
         </p>
         <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
-          Trading guardrails
+          Set max loss
         </h1>
       </header>
 
@@ -168,7 +168,7 @@ export default function AgentPolicyPage() {
           </div>
 
           <fieldset className="flex flex-col gap-2">
-            <legend className="text-xs font-medium text-text-soft">Where may it trade?</legend>
+            <legend className="text-xs font-medium text-text-soft">Choose practice mode</legend>
             <div className="grid gap-2 sm:grid-cols-3">
               {VENUES.map((venue) => (
                 <label
@@ -198,7 +198,7 @@ export default function AgentPolicyPage() {
 
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-text-soft">
-              Allowed markets
+              Markets
             </span>
             <input
               value={markets}
@@ -210,17 +210,17 @@ export default function AgentPolicyPage() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <NumberField
-              label="Maximum trade size"
+              label="Max trade size"
               value={policy.maxNotionalUsd}
               onChange={(value) => setPolicy({ ...policy, maxNotionalUsd: value })}
             />
             <NumberField
-              label="Maximum borrowing"
+              label="Max borrowing"
               value={String(policy.maxLeverage)}
               onChange={(value) => setPolicy({ ...policy, maxLeverage: Number(value) })}
             />
             <NumberField
-              label="Maximum open trades"
+              label="Max open trades"
               value={String(policy.maxOpenPositionsPerAgent)}
               onChange={(value) =>
                 setPolicy({ ...policy, maxOpenPositionsPerAgent: Number(value) })
@@ -234,7 +234,7 @@ export default function AgentPolicyPage() {
               }
             />
             <NumberField
-              label="Maximum allowance length (hours)"
+              label="Budget length (hours)"
               value={String(policy.maxSessionHours)}
               onChange={(value) =>
                 setPolicy({ ...policy, maxSessionHours: Number(value) })

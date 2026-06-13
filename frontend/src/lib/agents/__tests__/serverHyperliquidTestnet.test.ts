@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildHyperliquidTestnetKillSwitchRequest,
   buildHyperliquidTestnetExecutorRequest,
   fetchHyperliquidTestnetAccountSnapshot,
+  normalizeHyperliquidTestnetKillSwitchArtifact,
   normalizeHyperliquidTestnetOrderArtifact,
   probeHyperliquidTestnetAccount,
   probeHyperliquidTestnetExecutor,
+  submitHyperliquidTestnetKillSwitch,
   submitHyperliquidTestnetOrder,
 } from "@/lib/agents/serverHyperliquidTestnet";
 import { readHyperliquidTestnetExecutorConfig } from "@/lib/agents/hyperliquidTestnetConfig";
@@ -52,6 +55,25 @@ describe("Hyperliquid testnet server boundary", () => {
     expect(first.accountAddress).toBe(config.accountAddress);
     expect(first.agentWalletAddress).toBe(config.agentWalletAddress);
     expect(first.controls.maxSlippageBps).toBe(50);
+  });
+
+  it("builds a stable kill-switch request for the protected executor", () => {
+    const first = buildHyperliquidTestnetKillSwitchRequest({
+      walletName: "vault",
+      reason: "Owner paused agent trading.",
+      config,
+    });
+    const second = buildHyperliquidTestnetKillSwitchRequest({
+      walletName: "vault",
+      reason: "Owner paused agent trading.",
+      config,
+    });
+
+    expect(first).toEqual(second);
+    expect(first.idempotencyKey).toMatch(/^[a-f0-9]{64}$/);
+    expect(first.accountAddress).toBe(config.accountAddress);
+    expect(first.agentWalletAddress).toBe(config.agentWalletAddress);
+    expect(first.reason).toBe("Owner paused agent trading.");
   });
 
   it("probes a funded public testnet account without a private key", async () => {
@@ -179,6 +201,39 @@ describe("Hyperliquid testnet server boundary", () => {
     expect(artifact.orderId).toBe("123456");
   });
 
+  it("submits kill switch only to the isolated executor", async () => {
+    const artifact = await submitHyperliquidTestnetKillSwitch({
+      walletName: "vault",
+      reason: "Owner paused agent trading.",
+      config,
+      fetchImpl: async (url, init) => {
+        expect(url).toBe(
+          "http://127.0.0.1:4010/v1/hyperliquid/testnet/kill-switch",
+        );
+        expect(init?.headers).toMatchObject({
+          authorization: "Bearer executor-secret",
+        });
+        const body = JSON.parse(String(init?.body));
+        expect(body.walletName).toBe("vault");
+        expect(body.accountAddress).toBe(config.accountAddress);
+        expect(body.agentWalletAddress).toBe(config.agentWalletAddress);
+        return new Response(
+          JSON.stringify({
+            artifact: {
+              exchange: "hyperliquid_testnet",
+              status: "cancelled",
+              cancelledAt: 1_780_000_001_000,
+              message: "Open orders cancelled.",
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      },
+    });
+
+    expect(artifact.status).toBe("cancelled");
+  });
+
   it("rejects mismatched or fabricated exchange artifacts", () => {
     expect(() =>
       normalizeHyperliquidTestnetOrderArtifact(
@@ -193,5 +248,13 @@ describe("Hyperliquid testnet server boundary", () => {
         request,
       ),
     ).toThrow("invalid order artifact");
+    expect(() =>
+      normalizeHyperliquidTestnetKillSwitchArtifact({
+        exchange: "hyperliquid_testnet",
+        status: "cancelled",
+        cancelledAt: 0,
+        message: "Bad timestamp.",
+      }),
+    ).toThrow("invalid kill-switch artifact");
   });
 });

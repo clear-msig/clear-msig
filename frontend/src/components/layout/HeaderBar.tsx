@@ -42,6 +42,7 @@ import { addressUrl } from "@/lib/explorer";
 import { avatarGradient } from "@/lib/retail/avatar";
 import { formatBalance } from "@/lib/retail/format";
 import { getSectionLabel, isSendRoute } from "@/lib/retail/sectionLabel";
+import { ThemeModeButton } from "@/components/security/ThemeModeButton";
 
 // Shared pill-button class used by every floating mobile chrome
 // affordance (back / scan / settings). Centralised so the three
@@ -314,6 +315,7 @@ export function HeaderBar() {
             transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
             className="ml-auto flex items-center gap-2 md:hidden"
           >
+            <ThemeModeButton className="md:hidden" />
             <AnimatePresence>
               {showNotifications && (
                 <motion.div

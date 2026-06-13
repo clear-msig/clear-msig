@@ -704,13 +704,13 @@ export default function AgentDetailPage() {
               }
               Icon={agent.kind === "mock" ? Play : Send}
             >
-              {agent.kind === "mock" ? "Start trading" : "New idea"}
+              {agent.kind === "mock" ? "Start practice" : "New idea"}
             </LinkButton>
             <LinkButton href={`/app/wallet/${encodedWallet}/agents/sessions/new?agent=${encodeURIComponent(agent.id)}`} Icon={Clock}>
-              Give allowance
+              Set budget
             </LinkButton>
             <LinkButton href={`/app/wallet/${encodedWallet}/agents/${encodeURIComponent(agent.id)}/strategy`} Icon={ShieldCheck}>
-              Trading plan
+              Review style
             </LinkButton>
             {agent.kind !== "mock" ? (
               <LinkButton href={`/app/wallet/${encodedWallet}/agents/${encodeURIComponent(agent.id)}/connection`} Icon={Plug}>
@@ -735,7 +735,7 @@ export default function AgentDetailPage() {
         <Metric label="Trades" value={String(scorecard?.executed ?? 0)} />
         <Metric label="Open trades" value={String(openPositions)} />
         <Metric label="Stopped ideas" value={String(blockedSignals)} />
-        <Metric label="Current allowance" value={String(activeSessions)} />
+        <Metric label="Current budget" value={String(activeSessions)} />
         <Metric label="Today P/L" value={formatSignedUsd(risk?.dailyRealizedPnlUsd ?? "0")} />
         <Metric
           label="7-day P/L"
@@ -1242,7 +1242,7 @@ function AllowanceDecisionPanel({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-sm font-semibold text-text-strong">
-                Allowance recommendation
+                Budget recommendation
               </h2>
               <Badge tone={allocationBadgeTone(recommendation.action)}>
                 {allocationActionLabel(recommendation.action)}
@@ -1255,7 +1255,7 @@ function AllowanceDecisionPanel({
         </div>
         <div className="flex flex-wrap gap-1.5">
           <LinkButton href={startHref} Icon={activeSession ? Play : Clock}>
-            {activeSession ? "Start trading" : "Give allowance"}
+            {activeSession ? "Start practice" : "Set budget"}
           </LinkButton>
           <LinkButton href={`/app/wallet/${walletEncoded}/agents/library`} Icon={Trophy}>
             Agent Library
@@ -1264,7 +1264,7 @@ function AllowanceDecisionPanel({
       </div>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <ScoreRow label="Allowance level" value={recommendation.tier.label} />
+        <ScoreRow label="Budget level" value={recommendation.tier.label} />
         <ScoreRow
           label="Trade size"
           value={formatUsd(recommendation.limits.maxNotionalUsd)}
@@ -1275,7 +1275,7 @@ function AllowanceDecisionPanel({
 
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
         <div>
-          <p className="text-xs font-semibold text-text-strong">Why this allowance level?</p>
+          <p className="text-xs font-semibold text-text-strong">Why this budget?</p>
           <ul className="mt-2 grid gap-1.5">
             {recommendation.reasons.slice(0, 5).map((reason) => (
               <li key={reason} className="flex items-start gap-2 text-xs text-text-soft">
@@ -1501,13 +1501,13 @@ function NextAllowancePanel({
   const gaps = recommendation?.nextTierGaps ?? [];
   const suggestions = gaps.length > 0 ? gaps.map(plainMetricText) : [];
   if ((scorecard?.blocked ?? 0) > 0) {
-    suggestions.push("Fewer stopped ideas will make the next allowance easier to approve.");
+    suggestions.push("Fewer stopped ideas will make the next budget easier to approve.");
   }
   if ((scorecard?.executed ?? 0) === 0) {
     suggestions.push("Complete a few small guarded trades first.");
   }
   return (
-    <Panel title="Next Allowance" Icon={ShieldCheck}>
+    <Panel title="Next Budget" Icon={ShieldCheck}>
       {recommendation?.nextTier ? (
         <p className="text-sm text-text-soft">
           Next level:{" "}
@@ -1517,7 +1517,7 @@ function NextAllowancePanel({
         </p>
       ) : (
         <p className="text-sm text-text-soft">
-          Highest allowance level.
+          Highest budget level.
         </p>
       )}
       <div className="mt-3 grid gap-2">
@@ -1602,7 +1602,7 @@ function StoppedIdeasPanel({
               </div>
               <p className="mt-1 text-xs leading-relaxed text-text-soft">
                 {proposal.policyViolations?.[0]?.message ??
-                  "This idea was outside the current allowance."}
+                  "This idea was outside the current budget."}
               </p>
             </div>
           ))
@@ -2078,11 +2078,11 @@ function proposalStatusLabel(status: AgentProposalStatus): string {
 function venueLabel(venue: TradingVenue): string {
   switch (venue) {
     case "mock_perps":
-      return "Paper Perps";
+      return "Built-in practice";
     case "hyperliquid_testnet":
-      return "Hyperliquid Testnet";
+      return "Connected practice";
     case "bulktrade_mock":
-      return "Bulk Paper";
+      return "Bulk practice";
   }
 }
 
@@ -2120,11 +2120,11 @@ function readinessHref(
 function readinessActionLabel(action: AgentReadinessAction): string {
   switch (action) {
     case "risk_limits":
-      return "Risk limits";
+      return "Set max loss";
     case "strategy":
-      return "Strategy";
+      return "Review style";
     case "session":
-      return "Start session";
+      return "Set budget";
     case "agent":
       return "Details";
     case "none":
@@ -2166,11 +2166,11 @@ function allocationActionLabel(
 ): string {
   switch (action) {
     case "promote":
-      return "Raise allowance";
+      return "Raise budget";
     case "demote":
-      return "Lower allowance";
+      return "Lower budget";
     case "hold":
-      return "Keep allowance";
+      return "Keep budget";
     case "review":
       return "Review first";
     case "start":
@@ -2217,18 +2217,18 @@ function plainAllowanceSummary(
   const window = `${limits.sessionHours} hour${
     limits.sessionHours === 1 ? "" : "s"
   }`;
-  const core = `${recommendation.tier.label}: allow up to ${size} per trade, ${limits.maxLeverage}x, ${openTrades}, for ${window}.`;
+  const core = `${recommendation.tier.label}: up to ${size} per trade, ${limits.maxLeverage}x, ${openTrades}, for ${window}.`;
   switch (recommendation.action) {
     case "promote":
-      return `This agent has earned a larger allowance window. ${core}`;
+      return `This trader has earned a larger budget. ${core}`;
     case "demote":
-      return `This agent should use a smaller allowance window next. ${core}`;
+      return `This trader should use a smaller budget next. ${core}`;
     case "hold":
-      return `The current allowance window still fits this agent. ${core}`;
+      return `The current budget still fits this trader. ${core}`;
     case "review":
       return `Review the setup before giving more control. ${core}`;
     case "start":
-      return `Start with a small human-approved allowance window. ${core}`;
+      return `Start with a small human-approved budget. ${core}`;
   }
 }
 
@@ -2277,7 +2277,7 @@ function publishedProfileText({
       libraryMetrics?.winRatePct == null ? "New" : `${libraryMetrics.winRatePct}%`
     }`,
     `Safety stops: ${scorecard?.ruleViolations ?? 0}`,
-    `Allowance level: ${allocation?.tier.label ?? "Probation"}`,
+    `Budget level: ${allocation?.tier.label ?? "Probation"}`,
   ].join("\n");
 }
 

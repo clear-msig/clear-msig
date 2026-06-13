@@ -20,6 +20,11 @@ import {
   setAgentServerEmergencyPause,
   updateAgentServerSessionStatus,
 } from "@/lib/agents/serverState";
+import { readHyperliquidTestnetExecutorConfig } from "@/lib/agents/hyperliquidTestnetConfig";
+import {
+  submitHyperliquidTestnetKillSwitch,
+  type HyperliquidTestnetKillSwitchArtifact,
+} from "@/lib/agents/serverHyperliquidTestnet";
 import type {
   AgentProfile,
   AgentExecutionRecord,
@@ -28,6 +33,19 @@ import type {
   AgentTradeProposal,
   AgentVaultPolicy,
 } from "@/lib/agents/types";
+
+type AgentKillSwitchHandoff =
+  | {
+      venue: "hyperliquid_testnet";
+      state: "not_requested";
+      message: string;
+    }
+  | {
+      venue: "hyperliquid_testnet";
+      state: "not_configured" | "sent" | "failed";
+      message: string;
+      artifact?: HyperliquidTestnetKillSwitchArtifact;
+    };
 
 const MAX_BODY_BYTES = 20_000;
 
@@ -119,9 +137,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     if (action === "set_emergency_pause") {
       const emergencyPaused = Boolean(payload.emergencyPaused);
+      const policy = await setAgentServerEmergencyPause(walletName, emergencyPaused);
+      const killSwitch = emergencyPaused
+        ? await requestProtectedKillSwitch(walletName)
+        : {
+            venue: "hyperliquid_testnet" as const,
+            state: "not_requested" as const,
+            message: "Protected venue kill switch is only requested when pausing.",
+          };
       return NextResponse.json({
         ok: true,
-        policy: await setAgentServerEmergencyPause(walletName, emergencyPaused),
+        policy,
+        killSwitch,
       });
     }
 
@@ -274,6 +301,43 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 
   return NextResponse.json({ error: "Unknown action." }, { status: 400 });
+}
+
+async function requestProtectedKillSwitch(
+  walletName: string,
+): Promise<AgentKillSwitchHandoff> {
+  const configured = readHyperliquidTestnetExecutorConfig();
+  if (!configured.config) {
+    return {
+      venue: "hyperliquid_testnet",
+      state: "not_configured",
+      message:
+        configured.errors[0] ??
+        "Protected Hyperliquid testnet executor is not configured.",
+    };
+  }
+  try {
+    const artifact = await submitHyperliquidTestnetKillSwitch({
+      walletName,
+      reason: "ClearSig owner enabled the Agent Trading kill switch.",
+      config: configured.config,
+    });
+    return {
+      venue: "hyperliquid_testnet",
+      state: "sent",
+      message: artifact.message,
+      artifact,
+    };
+  } catch (error) {
+    return {
+      venue: "hyperliquid_testnet",
+      state: "failed",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Protected Hyperliquid testnet kill switch failed.",
+    };
+  }
 }
 
 async function readBoundedBody(

@@ -1,12 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { PublicKey } from "@solana/web3.js";
+import nacl from "tweetnacl";
 import { POST as submitAgentSignal } from "@/app/api/agent-signals/[name]/[agent]/route";
 import { defaultAgentVaultPolicy } from "@/lib/agents/policy";
 import { executeAllowedAgentProposal } from "@/lib/agents/serverAutomaticExecution";
 import { registerAgentSignalKey } from "@/lib/agents/serverInbox";
+import { ownerApprovalSignableText } from "@/lib/agents/ownerApproval";
 import { signAgentSignalPayload } from "@/lib/agents/signalSignature";
 import {
   getAgentServerWalletState,
+  saveAgentServerOwnerApproval,
   saveAgentServerProfile,
   saveAgentServerProposal,
   saveAgentServerSession,
@@ -27,6 +31,46 @@ afterEach(() => {
 });
 
 describe("automatic allowed execution", () => {
+  it("requires wallet approval before registering automatic signal import", async () => {
+    const walletName = "automatic-register-route";
+
+    const response = await submitAgentSignal(
+      registerRequest(walletName, true),
+      {
+        params: Promise.resolve({
+          name: walletName,
+          agent: "agent-alpha",
+        }),
+      },
+    );
+    const body = (await response.json()) as { error?: string };
+
+    expect(response.status).toBe(409);
+    expect(body.error).toContain("wallet-signed owner approval");
+  });
+
+  it("registers automatic signal import after wallet approval", async () => {
+    const walletName = "automatic-register-approved-route";
+    await saveAgentServerOwnerApproval(
+      signedAutomaticApproval({
+        walletName,
+        agentId: "agent-alpha",
+      }),
+    );
+
+    const response = await submitAgentSignal(
+      registerRequest(walletName, true),
+      {
+        params: Promise.resolve({
+          name: walletName,
+          agent: "agent-alpha",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+  });
+
   it("places an allowed built-in practice trade once", async () => {
     await saveAgentServerProfile(agent());
     await saveAgentServerVaultPolicy({
@@ -179,6 +223,65 @@ function agent(name = walletName): AgentProfile {
     updatedAt: now,
     version: 1,
   };
+}
+
+function registerRequest(walletName: string, autoImportSessionSignals: boolean): NextRequest {
+  return new NextRequest(
+    `http://localhost/api/agent-signals/${walletName}/agent-alpha`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Host: "localhost",
+        Origin: "http://localhost",
+      },
+      body: JSON.stringify({
+        action: "register",
+        signalKey: "signal-key",
+        managementKey: "management-key",
+        autoImportSessionSignals,
+      }),
+    },
+  );
+}
+
+function signedAutomaticApproval({
+  walletName,
+  agentId,
+}: {
+  walletName: string;
+  agentId: string;
+}) {
+  const keypair = nacl.sign.keyPair();
+  const approvedBy = new PublicKey(keypair.publicKey).toBase58();
+  const input = {
+    walletName,
+    agentId,
+    action: "start_automatic_trading" as const,
+    summary: "Turn on automatic trading",
+    targetType: "agent" as const,
+    targetId: agentId,
+    details: [{ label: "Trader", value: "Agent Alpha" }],
+  };
+  const message = ownerApprovalSignableText(input, now);
+  return {
+    id: `approval-${agentId}`,
+    ...input,
+    approvalMethod: "wallet_signature" as const,
+    approvedBy,
+    signature: bytesToHex(
+      nacl.sign.detached(new TextEncoder().encode(message), keypair.secretKey),
+    ),
+    approvalHash: `hash-${agentId}`,
+    createdAt: now,
+    version: 1 as const,
+  };
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 function session(name = walletName): AgentSessionGrant {

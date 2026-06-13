@@ -27,6 +27,7 @@ export function walletSubNav(
     return [
       { sub: "", label: "Overview", Icon: WalletIcon },
       { sub: "members", label: "Trusted people", Icon: Users },
+      { sub: "chains", label: "Networks", Icon: Layers },
       { sub: "policy", label: "Rules", Icon: ListChecks },
       { sub: "activity", label: "Activity", Icon: ActivityIcon },
       { sub: "settings", label: "Settings", Icon: Settings },

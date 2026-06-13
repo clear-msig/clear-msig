@@ -9,6 +9,7 @@ import {
   ArrowRight,
   AlertTriangle,
   Check,
+  Clock,
   Circle,
   ExternalLink,
   FileCheck2,
@@ -34,13 +35,14 @@ import {
   acknowledgeAgentComplianceDisclosures,
   buildAgentTradingReadiness,
   buildAgentComplianceReadiness,
-  buildTradingLaunchSteps,
+  buildTradingLaunchState,
   closeAgentExecutionRecord,
   closeMockAgentExecution,
   closeOpenMockAgentExecutions,
   createClearSigLibraryPracticeIdea,
   createBrowserOwnerApproval,
   buildAgentTradeDecisionJournal,
+  buildAgentTradeLifecycle,
   decryptAgentVaultPolicy,
   estimateAgentOpenTradePerformance,
   evaluateAgentTradeProposal,
@@ -65,25 +67,31 @@ import {
   syncAgentProfile,
   syncAgentProposal,
   setAgentVaultEmergencyPause,
+  summarizeAgentTradeLifecycles,
   updateAgentStatus,
   type AgentAuditEvent,
   type AgentComplianceReadiness,
   type AgentConnectionKit,
   type AgentExecutionRecord,
+  type AgentKillSwitchHandoff,
   type AgentMarketDataSnapshot,
   type AgentOwnerApproval,
   type AgentOwnerApprovalInput,
   type AgentProfile,
   type AgentSessionGrant,
   type AgentTradeProposal,
+  type AgentTradeLifecycle,
+  type AgentTradeLifecycleSummary,
   type AgentTradingReadiness,
   type AgentVaultPolicy,
   type TradingLaunchStep,
+  type TradingLaunchState,
   type TradingLaunchVenue,
 } from "@/lib/agents";
 import {
   loadAgentVenueReadiness,
   reconcileAgentVenueRequest,
+  startAgentVenueReadinessPolling,
   submitAgentVenueExecution,
   type AgentVenueReadiness,
 } from "@/lib/agents/clientExecution";
@@ -105,13 +113,13 @@ const PRACTICE_CHOICES: Array<{
 }> = [
   {
     id: "mock_perps",
-    label: "Internal sandbox",
-    description: "Fastest first run. No venue account or funds needed.",
+    label: "Built-in practice",
+    description: "No funds needed.",
   },
   {
     id: "hyperliquid_testnet",
-    label: "Hyperliquid testnet",
-    description: "Routes guarded trades to a separate testnet account.",
+    label: "Connected practice",
+    description: "Use a separate practice account.",
   },
 ];
 
@@ -147,6 +155,8 @@ export default function StartTradingPage() {
   const [approvalMode, setApprovalMode] = useState<"wallet" | "browser" | null>(null);
   const [approvalBusy, setApprovalBusy] = useState(false);
   const [automaticTradingBusy, setAutomaticTradingBusy] = useState(false);
+  const [killSwitchHandoff, setKillSwitchHandoff] =
+    useState<AgentKillSwitchHandoff | null>(null);
   const [disclosureRefresh, setDisclosureRefresh] = useState(0);
   const approvalResolver = useRef<((approval: AgentOwnerApproval | null) => void) | null>(null);
   const [loading, setLoading] = useState(true);
@@ -216,6 +226,21 @@ export default function StartTradingPage() {
     void refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    if (!selectedAgent || venue !== "hyperliquid_testnet") return;
+    const setup = getAgentHyperliquidSetupSettings(name);
+    return startAgentVenueReadinessPolling({
+      venue: "hyperliquid_testnet",
+      options: {
+        walletName: name,
+        agentId: selectedAgent.id,
+        accountAddress: setup.accountAddress,
+      },
+      onUpdate: setOutside,
+      onError: () => setOutside(null),
+    });
+  }, [name, selectedAgent, venue]);
+
   const policy = decryptedPolicy ?? getAgentVaultPolicy(name);
   const sessions = mergeById<AgentSessionGrant>(
     listAgentSessions(name),
@@ -245,6 +270,17 @@ export default function StartTradingPage() {
     ) ?? [];
   const submittedVenueRequests =
     venueRequests.filter((request) => request.status === "submitted");
+  const tradeLifecycles = proposals.map((proposal) =>
+    buildAgentTradeLifecycle({
+      proposal,
+      execution:
+        executions.find((execution) => execution.proposalId === proposal.id) ?? null,
+      venueRequest:
+        venueRequests.find((request) => request.request.proposalId === proposal.id) ?? null,
+      accountSnapshot: outside?.accountSnapshot ?? null,
+    }),
+  );
+  const tradeLifecycleSummary = summarizeAgentTradeLifecycles(tradeLifecycles);
   const activeAllowance = selectedAgent
     ? sessions.find(
         (session) =>
@@ -272,11 +308,11 @@ export default function StartTradingPage() {
       ? connectionKit.autoImportSessionSignals
       : getAgentConnectionKit(name, selectedAgent.id).autoImportSessionSignals
     : false;
-  const complianceReadiness = useMemo(
-    () => buildAgentComplianceReadiness(name, venue),
-    [disclosureRefresh, name, venue],
-  );
-  const steps = buildTradingLaunchSteps(venue, {
+  const complianceReadiness = useMemo(() => {
+    void disclosureRefresh;
+    return buildAgentComplianceReadiness(name, venue);
+  }, [disclosureRefresh, name, venue]);
+  const launchState = buildTradingLaunchState(venue, {
     hasTrader: Boolean(selectedAgent),
     traderActive: selectedAgent?.status === "active",
     planReady: readinessPassed("strategy"),
@@ -302,12 +338,13 @@ export default function StartTradingPage() {
     hasTraderIdea,
     firstTradePlaced,
   });
-  const currentStep = steps.find((step) => step.status === "current") ?? null;
+  const steps = launchState.steps;
+  const currentStep = launchState.currentStep;
   const approvedOutsideIdea = proposals.find(
     (proposal) =>
       proposal.venue === "hyperliquid_testnet" && proposal.status === "approved",
   );
-  const complete = steps.every((step) => step.status === "done");
+  const complete = launchState.complete;
   const openMarketKey = openExecutions
     .map((execution) => execution.market.trim().toUpperCase())
     .filter(Boolean)
@@ -408,7 +445,7 @@ export default function StartTradingPage() {
         walletName: name,
         agentId: proposal.agentId,
         action: "submit_venue_trade",
-        summary: "Place Hyperliquid testnet trade",
+        summary: "Place connected practice trade",
         targetType: "proposal",
         targetId: proposal.id,
         details: [
@@ -425,7 +462,7 @@ export default function StartTradingPage() {
         await refresh();
         return;
       }
-      toast.success("The first Hyperliquid testnet trade was placed");
+      toast.success("The first connected practice trade was placed");
       await refresh();
     });
   };
@@ -434,6 +471,12 @@ export default function StartTradingPage() {
     if (!selectedAgent) return;
     if (!complianceReadiness.accepted) {
       toast.error("Review the trading disclosures first");
+      return;
+    }
+    if (!canSign) {
+      toast.error("Automatic trading needs wallet signing", {
+        details: "Connect a wallet that can sign the ClearSig approval.",
+      });
       return;
     }
     void (async () => {
@@ -452,42 +495,24 @@ export default function StartTradingPage() {
           ],
         };
         let approval: AgentOwnerApproval | null;
-        if (canSign) {
-          toast.info("Approve automatic trading in your wallet");
-          try {
-            const createdAt = Date.now();
-            const signed = await signBytes(
-              new TextEncoder().encode(ownerApprovalSignableText(input, createdAt)),
-            );
-            approval = await createBrowserOwnerApproval({
-              ...input,
-              now: createdAt,
-              approvedBy: signed.signer_pubkey,
-              signature: signed.signature,
-            });
-            saveAgentOwnerApproval(approval);
-            const synced = await syncAgentOwnerApproval(approval);
-            if (!synced.ok) {
-              toast.info("Approval saved on this device for now", {
-                details: synced.message,
-              });
-            }
-          } catch (error) {
-            toast.info("Wallet signing did not complete", {
-              details:
-                error instanceof Error
-                  ? `${error.message}. Use the ClearSig approval instead.`
-                  : "Use the ClearSig approval instead.",
-            });
-            approval = await requestOwnerApproval(
-              input,
-              "Confirm and turn on",
-              "browser",
-            );
-          }
-        } else {
-          toast.info("Review the approval to turn on automatic trading");
-          approval = await requestOwnerApproval(input, "Approve and turn on", "browser");
+        toast.info("Approve automatic trading in your wallet");
+        const createdAt = Date.now();
+        const signed = await signBytes(
+          new TextEncoder().encode(ownerApprovalSignableText(input, createdAt)),
+        );
+        approval = await createBrowserOwnerApproval({
+          ...input,
+          now: createdAt,
+          approvedBy: signed.signer_pubkey,
+          signature: signed.signature,
+        });
+        saveAgentOwnerApproval(approval);
+        const synced = await syncAgentOwnerApproval(approval);
+        if (!synced.ok) {
+          toast.error("Automatic trading approval did not sync", {
+            details: synced.message,
+          });
+          return;
         }
         if (!approval) return;
         const updated = await setAgentAutomaticTrading(name, selectedAgent.id, true);
@@ -607,8 +632,11 @@ export default function StartTradingPage() {
       });
       if (!approval) return;
       setAgentVaultEmergencyPause(name, true);
-      await syncAgentEmergencyPause(name, true);
-      toast.success("All agent trading paused");
+      const synced = await syncAgentEmergencyPause(name, true);
+      setKillSwitchHandoff(synced.killSwitch ?? null);
+      toast.success("All agent trading paused", synced.killSwitch
+        ? { details: synced.killSwitch.message }
+        : undefined);
       await refresh();
     });
   };
@@ -701,7 +729,7 @@ export default function StartTradingPage() {
               Trading Desk · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
-              Launch a guarded trading session
+              Start practice
             </h1>
           </div>
           <button
@@ -717,7 +745,7 @@ export default function StartTradingPage() {
       </header>
 
       <section className="border-y border-border-soft py-5">
-        <p className="text-xs font-semibold text-text-strong">Trading venue</p>
+        <p className="text-xs font-semibold text-text-strong">Choose practice mode</p>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {PRACTICE_CHOICES.map((choice) => (
             <button
@@ -763,6 +791,32 @@ export default function StartTradingPage() {
         ) : null}
       </section>
 
+      <PrimaryLaunchActionPanel
+        state={launchState}
+        action={
+          currentStep
+            ? actionForStep({
+                step: currentStep,
+                walletEncoded: encoded,
+                agent: selectedAgent,
+                venue,
+                approvedOutsideIdea,
+                placeFirstOutsideTrade,
+                acceptDisclosures,
+                enableAutomaticTrading,
+                askBuiltInTraderForIdea,
+                pending,
+                automaticTradingBusy,
+              })
+            : (
+              <Link href={`/app/wallet/${encoded}/agents`} className={STEP_BUTTON_CLASS}>
+                Watch trades
+                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </Link>
+            )
+        }
+      />
+
       <BetaJourneyPanel
         venue={venue}
         agent={selectedAgent}
@@ -780,7 +834,7 @@ export default function StartTradingPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-text-strong">
-              {complete ? "Trading has started" : currentStep?.label ?? "Preparing your checklist"}
+              {complete ? "Practice is running" : currentStep?.label ?? "Next step"}
             </h2>
           </div>
           <span
@@ -791,7 +845,7 @@ export default function StartTradingPage() {
                 : "border-warning/30 bg-warning/[0.08] text-warning",
             )}
           >
-            {steps.filter((step) => step.status === "done").length} of {steps.length} confirmed
+            {steps.filter((step) => step.status === "done").length} of {steps.length} done
           </span>
         </div>
 
@@ -851,6 +905,9 @@ export default function StartTradingPage() {
         accountSnapshot={outside?.accountSnapshot ?? null}
         reconciliation={outside?.reconciliation ?? null}
         venueRequests={venueRequests}
+        tradeLifecycles={tradeLifecycles}
+        tradeLifecycleSummary={tradeLifecycleSummary}
+        killSwitchHandoff={killSwitchHandoff}
         submittedVenueRequests={submittedVenueRequests.length}
         pending={pending}
         onPauseAgent={pauseThisTrader}
@@ -903,13 +960,13 @@ function BetaJourneyPanel({
     ids.every((id) => steps.find((step) => step.id === id)?.status === "done");
   const journey = [
     {
-      label: "Pick trader",
+      label: "Choose trader",
       detail: agent?.name ?? "No trader selected",
       done: done(["trader", "plan"]),
       Icon: UserRound,
     },
     {
-      label: "Set allowance",
+      label: "Set budget",
       detail: venueLabel(venue),
       done: done(["safety", "allowance"]),
       Icon: SlidersHorizontal,
@@ -922,7 +979,7 @@ function BetaJourneyPanel({
     },
     {
       label: "Turn on automation",
-      detail: "Inside allowance only",
+      detail: "Inside budget only",
       done: done(["automatic"]),
       Icon: Zap,
     },
@@ -942,7 +999,7 @@ function BetaJourneyPanel({
           </p>
         </div>
         <span className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-1 text-[11px] font-medium text-accent">
-          {venue === "hyperliquid_testnet" ? "Testnet venue" : "Sandbox venue"}
+          {venue === "hyperliquid_testnet" ? "Connected practice" : "Built-in practice"}
         </span>
       </div>
       <div className="mt-4 grid gap-2 md:grid-cols-5">
@@ -983,6 +1040,63 @@ function BetaJourneyPanel({
           </div>
           );
         })}
+      </div>
+    </section>
+  );
+}
+
+function PrimaryLaunchActionPanel({
+  state,
+  action,
+}: {
+  state: TradingLaunchState;
+  action: React.ReactNode;
+}) {
+  return (
+    <section
+      className={clsx(
+        "rounded-card border p-4 shadow-card-rest sm:p-5",
+        state.statusTone === "ready"
+          ? "border-accent/30 bg-accent/[0.06]"
+          : state.statusTone === "blocked"
+            ? "border-warning/30 bg-warning/[0.08]"
+            : "border-border-soft bg-surface-raised",
+      )}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-soft">
+            {state.modeLabel}
+          </p>
+          <h2 className="mt-1 text-sm font-semibold text-text-strong">
+            {state.complete ? "Practice is ready" : "Next action"}
+          </h2>
+        </div>
+        <span
+          className={clsx(
+            "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+            state.statusTone === "ready"
+              ? "border-accent/30 bg-accent/[0.08] text-accent"
+              : state.statusTone === "blocked"
+                ? "border-warning/30 bg-warning/[0.08] text-warning"
+                : "border-border-soft bg-canvas text-text-soft",
+          )}
+        >
+          {state.completedSteps} of {state.totalSteps}
+        </span>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-soft border border-border-soft bg-canvas p-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-text-strong">
+            {state.statusLabel}
+          </p>
+          {state.currentStep ? (
+            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-text-soft">
+              {state.currentStep.description}
+            </p>
+          ) : null}
+        </div>
+        <div className="w-full shrink-0 sm:w-auto">{action}</div>
       </div>
     </section>
   );
@@ -1056,7 +1170,7 @@ function LaunchRiskPanel({
       notices.push({
         id: "pending_requests",
         tone: "warning",
-        title: "Venue requests are waiting",
+        title: "Practice requests are waiting",
         detail: `${reconciliation.pendingRequests} request${reconciliation.pendingRequests === 1 ? "" : "s"} need setup or a protected connection before they can be trusted.`,
       });
     }
@@ -1068,7 +1182,7 @@ function LaunchRiskPanel({
       id: "adapter_errors_fallback",
       tone: "danger",
       title: "Protected executor has errors",
-      detail: "At least one Hyperliquid testnet request failed in the protected executor.",
+      detail: "At least one connected practice request failed in the protected executor.",
     });
   }
 
@@ -1388,10 +1502,21 @@ function HyperliquidHelp({
 }) {
   const account = readiness?.accountProbe;
   const protectedConnection = readiness?.executorProbe;
-  const apiWalletHealthy = setupSettings.delegationStatus === "active";
+  const executorApiWallet = protectedConnection?.agentWalletAddress ?? "";
+  const savedApiWallet = setupSettings.agentWalletAddress;
+  const apiWalletHealthy =
+    protectedConnection?.state === "ready" &&
+    setupSettings.delegationStatus === "active" &&
+    Boolean(savedApiWallet) &&
+    Boolean(executorApiWallet) &&
+    savedApiWallet.toLowerCase() === executorApiWallet.toLowerCase();
+  const apiWalletMismatch =
+    Boolean(savedApiWallet) &&
+    Boolean(executorApiWallet) &&
+    savedApiWallet.toLowerCase() !== executorApiWallet.toLowerCase();
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
-      <h2 className="text-sm font-semibold text-text-strong">Hyperliquid testnet account</h2>
+      <h2 className="text-sm font-semibold text-text-strong">Connected practice account</h2>
       <div className="mt-4 grid gap-2 sm:grid-cols-4">
         <CheckStat
           label="Account"
@@ -1406,12 +1531,14 @@ function HyperliquidHelp({
         <CheckStat
           label="API wallet"
           value={
-            setupSettings.agentWalletAddress
-              ? setupSettings.delegationStatus === "active"
+            savedApiWallet
+              ? apiWalletHealthy
                 ? "Active"
                 : setupSettings.delegationStatus === "revoked"
                   ? "Revoked"
-                  : "Rotate"
+                  : apiWalletMismatch
+                    ? "Mismatch"
+                    : "Verify"
               : "Needed"
           }
           ready={apiWalletHealthy}
@@ -1422,16 +1549,18 @@ function HyperliquidHelp({
           ready={protectedConnection?.state === "ready"}
         />
       </div>
-      {!apiWalletHealthy && setupSettings.agentWalletAddress ? (
+      {!apiWalletHealthy && savedApiWallet ? (
         <div className="mt-4 rounded-soft border border-warning/30 bg-warning/[0.08] p-3">
           <p className="text-xs font-semibold text-warning">
-            API wallet needs attention
+            API wallet not verified
           </p>
           <p className="mt-1 text-xs leading-relaxed text-text-soft">
-            {setupSettings.delegationStatus === "revoked"
+            {apiWalletMismatch
+              ? "The saved API wallet does not match the signer reported by the protected executor."
+              : setupSettings.delegationStatus === "revoked"
               ? "Approve and record a new API wallet."
               : setupSettings.rotationReason ??
-                "Rotate this API wallet."}
+                "Check the protected executor before trading."}
           </p>
         </div>
       ) : null}
@@ -1445,8 +1574,8 @@ function HyperliquidHelp({
         </summary>
         <ol className="mt-3 grid gap-2 border-t border-border-soft pt-3">
           {[
-            "Open Hyperliquid testnet and sign in with a separate venue account.",
-            "Add testnet funds to that account.",
+            "Open Hyperliquid practice and sign in with a separate account.",
+            "Add practice funds to that account.",
             "Approve a separate Hyperliquid API wallet public address for agent trading.",
             "Save the account address and approved API wallet address in ClearSig.",
             "Check again.",
@@ -1472,7 +1601,7 @@ function HyperliquidHelp({
           rel="noreferrer"
           className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
         >
-          Open Hyperliquid testnet
+          Open practice account
           <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
         </a>
         <Link
@@ -1501,6 +1630,9 @@ function TradingControlRoom({
   accountSnapshot,
   reconciliation,
   venueRequests,
+  tradeLifecycles,
+  tradeLifecycleSummary,
+  killSwitchHandoff,
   submittedVenueRequests,
   pending,
   onPauseAgent,
@@ -1521,6 +1653,9 @@ function TradingControlRoom({
   accountSnapshot: AgentVenueReadiness["accountSnapshot"] | null;
   reconciliation: AgentVenueReadiness["reconciliation"] | null;
   venueRequests: NonNullable<AgentVenueReadiness["requests"]>;
+  tradeLifecycles: AgentTradeLifecycle[];
+  tradeLifecycleSummary: AgentTradeLifecycleSummary;
+  killSwitchHandoff: AgentKillSwitchHandoff | null;
   submittedVenueRequests: number;
   pending: boolean;
   onPauseAgent: () => void;
@@ -1536,7 +1671,7 @@ function TradingControlRoom({
       ? reconciliation?.message
       : venue === "hyperliquid_testnet" &&
           submittedVenueRequests > venuePositions.length
-        ? "ClearSig has submitted more Hyperliquid testnet trades than the account currently shows. Check the protected connection or exchange history."
+        ? "ClearSig has submitted more connected practice trades than the account currently shows. Check the protected connection or exchange history."
       : null;
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
@@ -1580,7 +1715,7 @@ function TradingControlRoom({
         </div>
       </div>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+      <div className="mt-4 grid gap-2 sm:grid-cols-5">
         <ControlStat
           label="Status"
           value={live ? "Ready" : policyPaused ? "Paused" : agentPaused ? "Trader paused" : "Setup needed"}
@@ -1592,11 +1727,44 @@ function TradingControlRoom({
           highlight={openExecutions.length > 0}
         />
         <ControlStat
-          label="Allowance"
+          label="Budget"
           value={allowance ? formatUsd(allowance.maxNotionalUsd) : "None"}
           highlight={Boolean(allowance)}
         />
+        <ControlStat
+          label="Pipeline"
+          value={tradeLifecycleSummary.label}
+          highlight={tradeLifecycleSummary.tone === "success"}
+        />
+        <ControlStat
+          label="Needs action"
+          value={String(tradeLifecycleSummary.actionable)}
+          highlight={tradeLifecycleSummary.actionable === 0}
+        />
       </div>
+
+      <CollapsibleControlPanel
+        title="Decision pipeline"
+        summary={`${tradeLifecycleSummary.total} decision${tradeLifecycleSummary.total === 1 ? "" : "s"} · ${tradeLifecycleSummary.open} open`}
+        defaultOpen={tradeLifecycleSummary.actionable > 0}
+      >
+        <div className="grid gap-2">
+          {tradeLifecycles.length > 0 ? (
+            tradeLifecycles.slice(0, 6).map((lifecycle, index) => (
+              <TradeLifecycleRow
+                key={`${lifecycle.status}:${index}`}
+                lifecycle={lifecycle}
+              />
+            ))
+          ) : (
+            <EmptyControlLine text="No trade decisions yet." />
+          )}
+        </div>
+      </CollapsibleControlPanel>
+
+      {killSwitchHandoff ? (
+        <KillSwitchHandoffCard handoff={killSwitchHandoff} />
+      ) : null}
 
       {venue === "hyperliquid_testnet" ? (
         <CollapsibleControlPanel
@@ -1686,7 +1854,7 @@ function TradingControlRoom({
                 />
               ))
             ) : (
-              <EmptyControlLine text="No Hyperliquid testnet positions are open right now." />
+              <EmptyControlLine text="No connected practice positions are open right now." />
             )}
           </div>
           <div className="mt-4 border-t border-border-soft pt-3">
@@ -1903,6 +2071,108 @@ function OpenTradeRow({
   );
 }
 
+function TradeLifecycleRow({ lifecycle }: { lifecycle: AgentTradeLifecycle }) {
+  return (
+    <div className="min-w-0 rounded-soft border border-border-soft bg-canvas px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span
+            className={clsx(
+              "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border",
+              lifecycleToneClass(lifecycle.tone),
+            )}
+          >
+            {lifecycle.tone === "danger" ? (
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+            ) : lifecycle.tone === "warning" ? (
+              <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+            ) : (
+              <Check className="h-3.5 w-3.5" aria-hidden="true" />
+            )}
+          </span>
+          <p className="truncate text-xs font-semibold text-text-strong">
+            {lifecycle.label}
+          </p>
+        </div>
+        <span
+          className={clsx(
+            "rounded-full border px-2 py-0.5 text-[10px] font-medium",
+            lifecycleToneClass(lifecycle.tone),
+          )}
+        >
+          {lifecycle.steps.filter((step) => step.status === "done").length} of{" "}
+          {lifecycle.steps.length}
+        </span>
+      </div>
+      <div className="mt-2 grid gap-1.5 sm:grid-cols-5">
+        {lifecycle.steps.map((step) => {
+          const Icon = lifecycleStepIcon(step.status);
+          return (
+            <div
+              key={step.id}
+              title={step.detail}
+              className={clsx(
+                "flex min-h-9 min-w-0 items-center gap-1.5 rounded-soft border px-2 py-1",
+                lifecycleStepClass(step.status),
+              )}
+            >
+              <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="truncate text-[10px] font-semibold">{step.label}</p>
+                <p className="truncate text-[10px] opacity-75">{step.detail}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function KillSwitchHandoffCard({ handoff }: { handoff: AgentKillSwitchHandoff }) {
+  return (
+    <div
+      className={clsx(
+        "mt-4 rounded-soft border px-3 py-2",
+        handoff.state === "sent"
+          ? "border-accent/25 bg-accent/[0.06]"
+          : handoff.state === "failed"
+            ? "border-rose-500/30 bg-rose-500/[0.08]"
+            : "border-warning/30 bg-warning/[0.08]",
+      )}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        {handoff.state === "sent" ? (
+          <Check className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+        ) : handoff.state === "failed" ? (
+          <X className="h-3.5 w-3.5 text-rose-300" aria-hidden="true" />
+        ) : (
+          <AlertTriangle className="h-3.5 w-3.5 text-warning" aria-hidden="true" />
+        )}
+        <p className="text-xs font-semibold text-text-strong">
+          {killSwitchHandoffLabel(handoff)}
+        </p>
+      </div>
+      <p className="mt-1 text-xs leading-relaxed text-text-soft">
+        {handoff.message}
+      </p>
+    </div>
+  );
+}
+
+function killSwitchHandoffLabel(handoff: AgentKillSwitchHandoff): string {
+  switch (handoff.state) {
+    case "sent":
+      return "Executor stop sent";
+    case "failed":
+      return "Executor stop failed";
+    case "not_configured":
+      return "Executor not configured";
+    case "not_requested":
+      return "Executor stop not requested";
+  }
+}
+
 function VenuePositionRow({
   position,
 }: {
@@ -1939,6 +2209,51 @@ function VenuePositionRow({
       </div>
     </div>
   );
+}
+
+function lifecycleToneClass(tone: AgentTradeLifecycle["tone"]): string {
+  switch (tone) {
+    case "success":
+      return "border-accent/30 bg-accent/[0.08] text-accent";
+    case "warning":
+      return "border-warning/30 bg-warning/[0.08] text-warning";
+    case "danger":
+      return "border-rose-500/30 bg-rose-500/[0.08] text-rose-300";
+    case "default":
+      return "border-border-soft bg-surface-raised text-text-soft";
+  }
+}
+
+function lifecycleStepClass(status: AgentTradeLifecycle["steps"][number]["status"]): string {
+  switch (status) {
+    case "done":
+      return "border-accent/25 bg-accent/[0.06] text-accent";
+    case "current":
+      return "border-warning/25 bg-warning/[0.06] text-warning";
+    case "blocked":
+      return "border-rose-500/30 bg-rose-500/[0.08] text-rose-300";
+    case "warning":
+      return "border-warning/30 bg-warning/[0.08] text-warning";
+    case "waiting":
+      return "border-border-soft bg-surface-raised text-text-soft";
+  }
+}
+
+function lifecycleStepIcon(
+  status: AgentTradeLifecycle["steps"][number]["status"],
+): typeof Check {
+  switch (status) {
+    case "done":
+      return Check;
+    case "current":
+      return Clock;
+    case "blocked":
+      return X;
+    case "warning":
+      return AlertTriangle;
+    case "waiting":
+      return Circle;
+  }
 }
 
 function VenueRequestRow({
@@ -1983,9 +2298,10 @@ function VenueRequestRow({
         <div
           className={clsx(
             "mt-2 rounded-soft border px-2 py-1.5 text-xs leading-relaxed",
-            reconciliation.state === "running_on_exchange"
+            reconciliation.state === "open_on_venue"
               ? "border-accent/25 bg-accent/[0.08] text-text-strong"
-              : reconciliation.state === "not_open_on_exchange"
+              : reconciliation.state === "not_found" ||
+                  reconciliation.state === "executor_error"
                 ? "border-warning/30 bg-warning/[0.08] text-warning"
                 : "border-border-soft text-text-soft",
           )}
@@ -2081,21 +2397,21 @@ function actionForStep({
       return (
         <StepLink
           href={agent ? `${base}/${encodeURIComponent(agent.id)}/strategy` : `${base}/library`}
-          label="Finish trading plan"
+          label="Review style"
         />
       );
     case "safety":
       return (
         <StepLink
           href={`${base}/policy?venue=${venue}&agent=${encodeURIComponent(agent?.id ?? "")}`}
-          label="Update safety rules"
+          label="Set max loss"
         />
       );
     case "allowance":
       return (
         <StepLink
           href={`${base}/sessions/new?agent=${encodeURIComponent(agent?.id ?? "")}&venue=${venue}`}
-          label="Give allowance"
+          label="Set budget"
         />
       );
     case "disclosures":
@@ -2118,7 +2434,7 @@ function actionForStep({
           onClick={enableAutomaticTrading}
           className={STEP_BUTTON_CLASS}
         >
-          {automaticTradingBusy ? "Turning on..." : "Turn on automatic trading"}
+          {automaticTradingBusy ? "Turning on..." : "Start practice"}
           <Play className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
       );
@@ -2126,7 +2442,7 @@ function actionForStep({
     case "funding":
     case "protected_connection":
       return (
-        <StepLink href={`${base}/hyperliquid`} label="Set up Hyperliquid" />
+        <StepLink href={`${base}/hyperliquid`} label="Connect practice account" />
       );
     case "first_idea":
       if (agent?.kind === "mock") {
@@ -2283,11 +2599,11 @@ async function loadStartMarketData({
 function venueLabel(venue: TradingLaunchVenue | AgentExecutionRecord["venue"]): string {
   switch (venue) {
     case "mock_perps":
-      return "Internal sandbox";
+      return "Built-in practice";
     case "hyperliquid_testnet":
-      return "Hyperliquid testnet";
+      return "Connected practice";
     case "bulktrade_mock":
-      return "Bulk sandbox";
+      return "Bulk practice";
   }
 }
 
@@ -2300,7 +2616,7 @@ function venueRequestStatusLabel(status: string): string {
     case "adapter_not_connected":
       return "Connection pending";
     case "adapter_error":
-      return "Connection error";
+      return "Executor error";
     case "rejected":
       return "Stopped";
     default:

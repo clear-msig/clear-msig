@@ -254,10 +254,7 @@ function AddChainPage() {
     // second dWallet, reintroducing the ETH-after-BTC bug).
     if (!chainsQuery.isSuccess) {
       toast.error("Reading wallet state…", {
-        details:
-          "Wait a moment for the wallet's existing chain bindings to load, " +
-          "then try again. (If you bind now, this chain might not share " +
-          "the existing dWallet.)",
+        details: "Wait a few seconds, then tap Add again.",
       });
       return;
     }
@@ -274,10 +271,7 @@ function AddChainPage() {
       hasPartialSecp256k1Binding
     ) {
       toast.error("Prior chain still finalizing", {
-        details:
-          "Another secp256k1 chain on this wallet is mid-bind. Binding " +
-          "now would give this chain a separate dWallet. Tap refresh on " +
-          "the chains page in ~10s and try again.",
+        details: "Wait about 10 seconds, refresh Networks, then try again.",
       });
       return;
     }
@@ -386,11 +380,10 @@ function PickStage({
           Add chain · {walletDisplay}
         </p>
         <h1 className="mt-2 font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
-          Pick a chain
+          Add network
         </h1>
         <p className="mt-3 max-w-xl text-sm text-text-soft sm:text-base">
-          Each chain you add lets {walletDisplay} send money there. You only
-          need to set this up once per chain.
+          Pick where {walletDisplay} should send next.
         </p>
       </header>
 
@@ -473,57 +466,38 @@ function ConfirmStage({
         </div>
       </header>
 
-      <p className="max-w-xl text-sm text-text-soft sm:text-base">
-        {chain.description}
-      </p>
-
-      {/* What happens next. Card with refined header strip. */}
+      {/* Action checklist. Keep the user oriented without turning this into docs. */}
       <section className="overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
         <header className="border-b border-border-soft px-5 py-3 sm:px-6">
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-            What happens next
+            Next
           </p>
         </header>
         <ul className="divide-y divide-border-soft">
           {[
             {
-              n: "01",
-              body: (
-                <>
-                  We&rsquo;ll create a new key for {walletDisplay} on{" "}
-                  <span className="text-text-strong">{chain.name}</span>{" "}
-                  <span className="text-text-soft">(about 30 seconds)</span>.
-                </>
-              ),
+              label: "Tap Add",
+              body: `Start ${chain.name} setup.`,
             },
             {
-              n: "02",
-              body: (
-                <>
-                  Your spending rules apply on {chain.name} too. Same
-                  friends, same approvals.
-                </>
-              ),
+              label: "Keep tab open",
+              body: "Setup usually finishes in about 30 seconds.",
             },
             {
-              n: "03",
-              body: (
-                <>
-                  You can send{" "}
-                  <span className="text-text-strong">{chain.ticker}</span>{" "}
-                  from {walletDisplay} as soon as it&rsquo;s ready.
-                </>
-              ),
+              label: "Send",
+              body: `${chain.ticker} appears when ready.`,
             },
           ].map((row) => (
             <li
-              key={row.n}
+              key={row.label}
               className="flex items-start gap-3 px-5 py-3.5 text-sm text-text-strong sm:px-6"
             >
-              <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft pt-0.5">
-                {row.n}
+              <span className="min-w-[5.5rem] font-semibold text-text-strong">
+                {row.label}
               </span>
-              <span className="min-w-0 flex-1 leading-relaxed">{row.body}</span>
+              <span className="min-w-0 flex-1 leading-relaxed text-text-soft">
+                {row.body}
+              </span>
             </li>
           ))}
         </ul>
@@ -636,8 +610,7 @@ function BindingStage({
       </header>
 
       <p className="max-w-xl text-sm text-text-soft sm:text-base">
-        This usually takes about 30 seconds. Hang tight; you don&rsquo;t need
-        to do anything. Don&rsquo;t close the tab.
+        Keep this tab open.
       </p>
 
       {/* Progress steps card. Each step lights up as the DKG advances. */}
@@ -738,9 +711,7 @@ function DoneStage({
       </header>
 
       <p className="max-w-xl text-sm text-text-soft sm:text-base">
-        {walletDisplay} can now send{" "}
-        <span className="text-text-strong">{chain.ticker}</span> the same way
-        it sends Solana. Your friends approve, the network signs.
+        You can now send <span className="text-text-strong">{chain.ticker}</span>.
       </p>
 
       <Button size="lg" fullWidth onClick={onContinue}>
@@ -777,9 +748,7 @@ function AllChainsBoundStage({
           {walletDisplay} is bound to every supported chain
         </h1>
         <p className="max-w-xl text-sm text-text-soft sm:text-base">
-          Every chain we support is already connected to this wallet.
-          Head to the chains page to see balances and addresses, or
-          jump straight to a send.
+          Go to Networks to copy addresses or send.
         </p>
       </header>
       <Button

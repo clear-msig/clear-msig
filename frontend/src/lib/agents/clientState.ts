@@ -1,4 +1,7 @@
 import type {
+  HyperliquidTestnetKillSwitchArtifact,
+} from "@/lib/agents/serverHyperliquidTestnet";
+import type {
   AgentLeaderboardEntry,
   AgentExecutionRecord,
   AgentOwnerApproval,
@@ -26,7 +29,21 @@ export interface AgentBackendActionResult<T> {
   ok: boolean;
   message: string;
   value?: T;
+  killSwitch?: AgentKillSwitchHandoff;
 }
+
+export type AgentKillSwitchHandoff =
+  | {
+      venue: "hyperliquid_testnet";
+      state: "not_requested";
+      message: string;
+    }
+  | {
+      venue: "hyperliquid_testnet";
+      state: "not_configured" | "sent" | "failed";
+      message: string;
+      artifact?: HyperliquidTestnetKillSwitchArtifact;
+    };
 
 export async function loadAgentBackendState(
   walletName: string,
@@ -213,10 +230,43 @@ async function postAgentStateAction<T>(
       ok: true,
       message: "Backend sync complete.",
       value: body[valueField] as T | undefined,
+      killSwitch: killSwitchField(body.killSwitch),
     };
   } catch (error) {
     return failed(error, "Backend sync failed.");
   }
+}
+
+function killSwitchField(value: unknown): AgentKillSwitchHandoff | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  if (record.venue !== "hyperliquid_testnet") return undefined;
+  const state = record.state;
+  if (
+    state !== "not_requested" &&
+    state !== "not_configured" &&
+    state !== "sent" &&
+    state !== "failed"
+  ) {
+    return undefined;
+  }
+  const message =
+    typeof record.message === "string"
+      ? record.message
+      : "Protected venue kill switch status is unavailable.";
+  if (state === "sent" && record.artifact && typeof record.artifact === "object") {
+    return {
+      venue: "hyperliquid_testnet",
+      state,
+      message,
+      artifact: record.artifact as HyperliquidTestnetKillSwitchArtifact,
+    };
+  }
+  return {
+    venue: "hyperliquid_testnet",
+    state,
+    message,
+  };
 }
 
 function agentStateUrl(walletName: string): string {

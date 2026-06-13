@@ -82,7 +82,7 @@ export default function AgentStrategyPage() {
         "Stay within the chosen trade size, borrowing, open trade, rest time, and daily loss limits.",
       );
       setExecutionProtocol(
-        "Suggest the trade first. Use practice trading only while a current allowance is active.",
+        "Suggest the trade first. Use practice trading only while a current budget is active.",
       );
       setKillSwitchRules(
         "Stop when all trading is paused, a safety rule fails, prices are out of date, or losses reach the chosen limit.",
@@ -121,9 +121,9 @@ export default function AgentStrategyPage() {
       saveAgent(updated);
       const synced = await syncAgentProfile(updated);
       if (synced.ok) {
-        toast.success("Trading plan saved");
+        toast.success("Trading style saved");
       } else {
-        toast.info("Trading plan saved on this device for now", {
+        toast.info("Trading style saved on this device for now", {
           details: synced.message,
         });
       }
@@ -134,7 +134,7 @@ export default function AgentStrategyPage() {
   };
 
   if (!loaded) {
-    return <div className="text-sm text-text-soft">Loading trading plan...</div>;
+    return <div className="text-sm text-text-soft">Loading trading style...</div>;
   }
 
   return (
@@ -149,13 +149,13 @@ export default function AgentStrategyPage() {
         </Link>
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-            Trading Plan · {display}
+            Trading style · {display}
           </p>
           <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
             {agentName}
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-soft">
-            Describe what this trader may trade, when it may act, and when it must stop.
+            Set what this trader may trade, when it may act, and when it must stop.
           </p>
         </div>
       </header>
@@ -166,7 +166,7 @@ export default function AgentStrategyPage() {
             <ShieldCheck className="h-4 w-4" aria-hidden="true" />
           </span>
           <div>
-            <p className="text-sm font-semibold text-text-strong">Trading plan</p>
+            <p className="text-sm font-semibold text-text-strong">Trading style</p>
             <p className="mt-1 text-xs leading-relaxed text-text-soft">
               Your safety rules always win if this plan asks for too much.
             </p>

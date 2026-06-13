@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildTradingLaunchState,
   buildTradingLaunchSteps,
   type TradingLaunchChecks,
 } from "@/lib/agents/launchReadiness";
@@ -72,5 +73,22 @@ describe("trading launch readiness", () => {
     ).toBeGreaterThan(
       steps.findIndex((step) => step.id === "protected_connection"),
     );
+  });
+
+  it("summarizes the current next action for the trading desk", () => {
+    const state = buildTradingLaunchState("hyperliquid_testnet", {
+      ...ready,
+      protectedConnectionReady: false,
+      automaticTradingOn: false,
+      hasTraderIdea: false,
+      firstTradePlaced: false,
+    });
+
+    expect(state.complete).toBe(false);
+    expect(state.currentStep?.id).toBe("protected_connection");
+    expect(state.statusLabel).toBe("Host setup needed");
+    expect(state.statusTone).toBe("blocked");
+    expect(state.completedSteps).toBe(7);
+    expect(state.totalSteps).toBe(11);
   });
 });

@@ -50,6 +50,7 @@ import {
   buildAgentScoutProposal,
   buildAgentScoutReports,
   buildAgentMarketReadiness,
+  buildAgentTradeLifecycle,
   buildAgentTradingReadiness,
   closeMockAgentExecution,
   closeOpenMockAgentExecutions,
@@ -108,12 +109,13 @@ import {
   type AgentMarketReadiness,
   type AgentNotification,
   type AgentReadinessAction,
-  type AgentProposalStatus,
   type AgentScoutReport,
   type TradingVenue,
   type AgentTradingReadiness,
   type AgentAllocationRecommendation,
   type AgentBetaReadiness,
+  type AgentKillSwitchHandoff,
+  type AgentTradeLifecycle,
   closeAgentExecutionRecord,
 } from "@/lib/agents";
 import {
@@ -122,14 +124,17 @@ import {
 } from "@/lib/agents/clientInbox";
 import { runAgentAutonomyTickClient } from "@/lib/agents/clientAutonomy";
 import {
-  loadAgentVenueReadiness,
+  loadAgentVenueReadinessForAgents,
+  startAgentVenueReadinessPolling,
   submitAgentVenueExecution,
+  type AgentVenueRequestRecord,
   type AgentVenueReadiness,
 } from "@/lib/agents/clientExecution";
 import {
   loadAgentMarketDataSnapshots,
   loadAgentMarketIntelligenceSnapshots,
 } from "@/lib/agents/clientMarketData";
+import type { HyperliquidTestnetAccountSnapshot } from "@/lib/agents/serverHyperliquidTestnet";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 type BackendPersistenceStatus = {
@@ -203,6 +208,8 @@ export default function AgentsPage() {
   const [liveVenueReadiness, setLiveVenueReadiness] =
     useState<AgentVenueReadiness | null>(null);
   const [liveVenueLoading, setLiveVenueLoading] = useState(true);
+  const [killSwitchHandoff, setKillSwitchHandoff] =
+    useState<AgentKillSwitchHandoff | null>(null);
   const [backendStatus, setBackendStatus] = useState<BackendPersistenceStatus>({
     state: "checking",
     agents: 0,
@@ -302,26 +309,29 @@ export default function AgentsPage() {
     };
   }, [agents, name]);
 
+  const agentIds = useMemo(() => agents.map((agent) => agent.id).sort(), [agents]);
+
   useEffect(() => {
-    let cancelled = false;
     setLiveVenueLoading(true);
     const setup = getAgentHyperliquidSetupSettings(name);
-    loadAgentVenueReadiness("hyperliquid_testnet", {
-      accountAddress: setup.accountAddress,
-    })
-      .then((readiness) => {
-        if (!cancelled) setLiveVenueReadiness(readiness);
-      })
-      .catch(() => {
-        if (!cancelled) setLiveVenueReadiness(null);
-      })
-      .finally(() => {
-        if (!cancelled) setLiveVenueLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [name]);
+    return startAgentVenueReadinessPolling({
+      venue: "hyperliquid_testnet",
+      load: () =>
+        loadAgentVenueReadinessForAgents("hyperliquid_testnet", {
+          walletName: name,
+          agentIds,
+          accountAddress: setup.accountAddress,
+        }),
+      onUpdate: (readiness) => {
+        setLiveVenueReadiness(readiness);
+        setLiveVenueLoading(false);
+      },
+      onError: () => {
+        setLiveVenueReadiness(null);
+        setLiveVenueLoading(false);
+      },
+    });
+  }, [agentIds, name]);
 
   const openExecutionRecords = useMemo(
     () => executions.filter((execution) => execution.status === "open"),
@@ -390,6 +400,8 @@ export default function AgentsPage() {
     );
   }, [agents, name, policy, sessions]);
   const readyAgents = readiness.filter((item) => item.status === "ready").length;
+  const canRunAutonomyScan =
+    readyAgents > 0 && backendStatus.state === "synced";
   const scoutReports = useMemo<AgentScoutReport[]>(() => {
     if (!policy) return [];
     const now = Date.now();
@@ -457,54 +469,54 @@ export default function AgentsPage() {
     return [
       {
         id: "trader",
-        label: "Trader",
-        description: "Pick a prepared ClearSig trader or create one of your own.",
+        label: "Choose trader",
+        description: "Pick the prepared trader you want to try.",
         Icon: Bot,
         done: Boolean(firstAgent),
         href: `/app/wallet/${encoded}/agents/library`,
-        actionLabel: "Browse traders",
+        actionLabel: "Choose trader",
       },
       {
         id: "plan",
-        label: "Plan",
-        description: "Set markets, entry rules, exit rules, and kill switch logic.",
+        label: "Review style",
+        description: "Check what it trades and when it exits.",
         Icon: SlidersHorizontal,
         done: itemPassed("strategy"),
         href: firstAgent
           ? `/app/wallet/${encoded}/agents/${encodeURIComponent(firstAgent.id)}/strategy`
           : `/app/wallet/${encoded}/agents/library`,
-        actionLabel: "Set trading plan",
+        actionLabel: "Review style",
       },
       {
         id: "safety",
-        label: "Guardrails",
-        description: "Set venue, markets, max size, leverage, drawdown, and loss limits.",
+        label: "Set max loss",
+        description: "Choose max size, max loss, and stop conditions.",
         Icon: ShieldCheck,
         done: itemPassed("risk-limits"),
         href: `/app/wallet/${encoded}/agents/policy`,
-        actionLabel: "Set guardrails",
+        actionLabel: "Set max loss",
       },
       {
         id: "allowance",
-        label: "Allowance",
-        description: "Give the trader a small amount and a short time window.",
+        label: "Set budget",
+        description: "Give the trader a small practice budget.",
         Icon: Clock,
         done: itemPassed("session"),
         href: firstAgent
           ? `/app/wallet/${encoded}/agents/sessions/new?agent=${encodeURIComponent(firstAgent.id)}`
           : `/app/wallet/${encoded}/agents/library`,
-        actionLabel: "Set practice allowance",
+        actionLabel: "Set budget",
       },
       {
         id: "practice",
-        label: "Trade",
-        description: "Run a scan or start the guided practice trading flow.",
+        label: "Start practice",
+        description: "Run the first practice trade. Pause anytime.",
         Icon: Play,
         done: hasFirstPractice,
         href: firstAgent
           ? `/app/wallet/${encoded}/agents/start?agent=${encodeURIComponent(firstAgent.id)}`
           : `/app/wallet/${encoded}/agents/library`,
-        actionLabel: "Start trading",
+        actionLabel: "Start practice",
       },
     ];
   }, [agents, encoded, executions.length, readiness]);
@@ -770,12 +782,12 @@ export default function AgentsPage() {
           ).length;
           const scanDetails = `${result.scannedMarkets ?? 0} markets scanned · ${result.consideredMarkets ?? 0} tradable`;
           if (prepared.length === 0) {
-            toast.info("No trade passed the current guardrails", {
+            toast.info("No trade passed the current max-loss rules", {
               details: `${scanDetails}. ${result.message}`,
             });
           } else if (placed > 0) {
             toast.success(
-              `${placed} Hyperliquid testnet trade${placed === 1 ? "" : "s"} sent`,
+              `${placed} connected practice trade${placed === 1 ? "" : "s"} sent`,
               {
                 details:
                   prepared.length > placed
@@ -809,8 +821,12 @@ export default function AgentsPage() {
       setPolicy(updated);
       void syncAgentEmergencyPause(name, enabled).then((synced) => {
         if (synced.ok) {
+          setKillSwitchHandoff(synced.killSwitch ?? null);
           toast.success(
             enabled ? "All automatic actions stopped" : "Automatic actions allowed again",
+            synced.killSwitch
+              ? { details: synced.killSwitch.message }
+              : undefined,
           );
           void refreshBackendState();
         } else {
@@ -828,8 +844,8 @@ export default function AgentsPage() {
         const result = setupAgentBetaDemo({ walletName: name });
         toast.success("Beta demo is ready", {
           details: result.firstTradeOpened
-            ? "A demo agent, safe allowance, open paper trade, and trade history are ready to inspect."
-            : "A demo agent, safe allowance, and trade history are ready to inspect.",
+            ? "A demo trader, small budget, open practice trade, and trade history are ready to inspect."
+            : "A demo trader, small budget, and trade history are ready to inspect.",
         });
         router.push(`/app/wallet/${encoded}/agents/trades`);
       } catch (error) {
@@ -850,7 +866,7 @@ export default function AgentsPage() {
       void submitAgentVenueExecution(proposal)
         .then((result) => {
           if (result.ok) {
-            toast.success("Trade request sent to the venue account");
+            toast.success("Trade request sent to the connected practice account");
             return;
           }
           toast.error(
@@ -863,7 +879,7 @@ export default function AgentsPage() {
           }
         })
         .catch(() => {
-          toast.error("Could not check the outside venue account");
+          toast.error("Could not check the connected practice account");
         });
     });
   };
@@ -938,7 +954,7 @@ export default function AgentsPage() {
             "Your safety rules stopped this trade idea",
         );
       } else if (result.reason === "backend_required") {
-        toast.error("Connect the outside venue account before using it");
+        toast.error("Connect the practice account before using it");
       } else if (result.reason === "not_approved") {
         toast.error("Approve this trade idea first");
       } else {
@@ -968,7 +984,7 @@ export default function AgentsPage() {
       } else if (result.proposal.status === "blocked") {
         toast.error("Your safety rules still stop this trade idea");
       } else if (result.proposal.status === "approved") {
-        toast.success("Trade idea fits the current allowance");
+        toast.success("Trade idea fits the current budget");
       } else {
         toast.success("Trade idea now needs your approval");
       }
@@ -1120,15 +1136,15 @@ export default function AgentsPage() {
     startAction(() => {
       const updated = updateAgentSessionStatus(name, id, "revoked");
       if (!updated) {
-        toast.error("Allowance not found");
+        toast.error("Budget not found");
         return;
       }
       void syncAgentSessionStatus(name, id, "revoked").then((synced) => {
         if (synced.ok) {
-          toast.success("Allowance ended");
+          toast.success("Budget ended");
           void refreshBackendState();
         } else {
-          toast.info("Allowance ended on this device for now", {
+          toast.info("Budget ended on this device for now", {
             details: synced.message,
           });
         }
@@ -1140,15 +1156,15 @@ export default function AgentsPage() {
     startAction(() => {
       const renewed = renewAgentSession(name, id);
       if (!renewed) {
-        toast.error("Turn the trader back on before renewing this allowance");
+        toast.error("Turn the trader back on before renewing this budget");
         return;
       }
       void syncAgentSession(renewed).then((synced) => {
         if (synced.ok) {
-          toast.success("Allowance renewed");
+          toast.success("Budget renewed");
           void refreshBackendState();
         } else {
-          toast.info("Allowance renewed on this device for now", {
+          toast.info("Budget renewed on this device for now", {
             details: synced.message,
           });
         }
@@ -1186,7 +1202,7 @@ export default function AgentsPage() {
         </div>
         <div className="mt-5 grid gap-2 sm:grid-cols-4">
           <DeskStatus label="Venue" value="Hyperliquid" tone="accent" />
-          <DeskStatus label="Mode" value="Testnet" tone="soft" />
+            <DeskStatus label="Mode" value="Practice" tone="soft" />
           <DeskStatus
             label="Risk"
             value={policy?.enabled ? "Guarded" : "Unarmed"}
@@ -1212,7 +1228,7 @@ export default function AgentsPage() {
           Icon={ShieldCheck}
         />
         <MetricCard
-          label="Active allowances"
+          label="Active budgets"
           value={String(activeSessions)}
           Icon={Clock}
         />
@@ -1230,14 +1246,14 @@ export default function AgentsPage() {
             className={agentLaneClass}
           >
             <Play size={15} aria-hidden="true" />
-            <span>Trading desk</span>
+            <span>Start session</span>
           </Link>
           <Link
             href={`/app/wallet/${encoded}/agents/library`}
             className={agentLaneClass}
           >
             <Bot size={15} aria-hidden="true" />
-            <span>Trader profiles</span>
+            <span>Recipes</span>
           </Link>
           <Link
             href={`/app/wallet/${encoded}/agents/hyperliquid`}
@@ -1251,14 +1267,14 @@ export default function AgentsPage() {
             className={agentLaneClass}
           >
             <ShieldCheck size={15} aria-hidden="true" />
-            <span>Guardrails</span>
+            <span>Max loss</span>
           </Link>
           <Link
             href={`/app/wallet/${encoded}/agents/funding`}
             className={agentLaneClass}
           >
             <CircleDollarSign size={15} aria-hidden="true" />
-            <span>Allowance</span>
+            <span>Budget</span>
           </Link>
           <Link
             href="#kill-switch"
@@ -1286,7 +1302,14 @@ export default function AgentsPage() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            disabled={pendingAction || agents.length === 0}
+            disabled={pendingAction || !canRunAutonomyScan}
+            title={
+              canRunAutonomyScan
+                ? "Scan current markets through the active max-loss rules"
+                : backendStatus.state !== "synced"
+                  ? "Backend state must be synced before autonomy can run"
+                  : "Finish trader setup before autonomy can run"
+            }
             onClick={runAutonomyScan}
             className={clsx(
               "inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest sm:flex-none",
@@ -1297,7 +1320,7 @@ export default function AgentsPage() {
             )}
           >
             <BrainCircuit size={13} aria-hidden="true" />
-            Run scan
+            {canRunAutonomyScan ? "Run scan" : "Finish setup"}
           </button>
           <Link
             href="/agents"
@@ -1398,6 +1421,8 @@ export default function AgentsPage() {
           <KillSwitchPanel
             paused={policy.emergencyPaused}
             pending={pendingAction}
+            executorState={liveVenueReadiness?.executorProbe?.state ?? null}
+            handoff={killSwitchHandoff}
             onToggle={setKillSwitch}
           />
         </section>
@@ -1501,22 +1526,33 @@ export default function AgentsPage() {
         </h2>
         {proposals.length > 0 ? (
           <ul className="grid gap-3">
-            {proposals.slice(0, 5).map((proposal) => (
-              <ProposalCard
-                key={proposal.id}
-                proposal={proposal}
-                pending={pendingAction}
-                onApprove={approveProposal}
-                onReject={rejectProposal}
-                onExecute={executeProposal}
-                onSubmitVenue={submitVenueProposal}
-                onRecheck={recheckProposal}
-              />
-            ))}
+            {proposals.slice(0, 5).map((proposal) => {
+              const execution =
+                executions.find((item) => item.proposalId === proposal.id) ?? null;
+              const venueRequest =
+                liveVenueReadiness?.requests?.find(
+                  (item) => item.request.proposalId === proposal.id,
+                ) ?? null;
+              return (
+                <ProposalCard
+                  key={proposal.id}
+                  proposal={proposal}
+                  execution={execution}
+                  venueRequest={venueRequest}
+                  accountSnapshot={liveVenueReadiness?.accountSnapshot ?? null}
+                  pending={pendingAction}
+                  onApprove={approveProposal}
+                  onReject={rejectProposal}
+                  onExecute={executeProposal}
+                  onSubmitVenue={submitVenueProposal}
+                  onRecheck={recheckProposal}
+                />
+              );
+            })}
           </ul>
         ) : (
           <div className="rounded-card border border-dashed border-border-soft bg-surface-raised p-5 text-sm text-text-soft">
-            No decisions yet. Choose a trader, set an allowance, then run a scan.
+            No decisions yet. Choose a trader, set a budget, then run a scan.
           </div>
         )}
       </section>
@@ -1524,7 +1560,7 @@ export default function AgentsPage() {
       {sessions.length > 0 ? (
         <section className="flex flex-col gap-3">
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            Allowances
+            Practice budgets
           </h2>
           <ul className="grid gap-3 md:grid-cols-2">
             {sessions.slice(0, 4).map((session) => (
@@ -1646,7 +1682,7 @@ function GettingStartedPanel({ steps }: { steps: GettingStartedStep[] }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-text-strong">
-            {completed === steps.length ? "Trading ready" : "Setup"}
+            {completed === steps.length ? "Ready to trade" : "Fast start"}
           </p>
         </div>
         <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
@@ -2191,12 +2227,17 @@ function ScoutMiniReason({ label, value }: { label: string; value: string }) {
 function KillSwitchPanel({
   paused,
   pending,
+  executorState,
+  handoff,
   onToggle,
 }: {
   paused: boolean;
   pending: boolean;
+  executorState: "not_configured" | "unavailable" | "ready" | null;
+  handoff: AgentKillSwitchHandoff | null;
   onToggle: (enabled: boolean) => void;
 }) {
+  const executorReady = executorState === "ready";
   return (
     <section
       className={clsx(
@@ -2226,9 +2267,23 @@ function KillSwitchPanel({
             </p>
             <p className="mt-1 text-xs text-text-soft">
               {paused
-                ? "No new trades can open."
-                : "Kill switch is available anytime."}
+                ? executorReady
+                  ? "Trading is paused. The connected account stop path is configured."
+                  : "Trading is paused. Connected account stop path still needs setup."
+                : executorReady
+                  ? "Kill switch can also notify the connected practice executor."
+                  : "Kill switch will pause ClearSig; finish practice account setup for executor handoff."}
             </p>
+            <span
+              className={clsx(
+                "mt-2 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                executorReady
+                  ? "border-accent/30 bg-accent/[0.08] text-accent"
+                  : "border-warning/30 bg-warning/[0.08] text-warning",
+              )}
+            >
+              Protected executor {executorReady ? "ready" : "pending"}
+            </span>
           </div>
         </div>
         <button
@@ -2251,8 +2306,49 @@ function KillSwitchPanel({
           {paused ? "Allow trading again" : "Stop all trading"}
         </button>
       </div>
+      {handoff ? (
+        <div
+          className={clsx(
+            "mt-3 rounded-soft border px-3 py-2",
+            handoff.state === "sent"
+              ? "border-accent/25 bg-accent/[0.06]"
+              : handoff.state === "failed"
+                ? "border-rose-500/30 bg-rose-500/[0.08]"
+                : "border-warning/30 bg-warning/[0.08]",
+          )}
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            {handoff.state === "sent" ? (
+              <Check className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+            ) : handoff.state === "failed" ? (
+              <X className="h-3.5 w-3.5 text-rose-300" aria-hidden="true" />
+            ) : (
+              <AlertTriangle className="h-3.5 w-3.5 text-warning" aria-hidden="true" />
+            )}
+            <p className="text-xs font-semibold text-text-strong">
+              {killSwitchHandoffLabel(handoff)}
+            </p>
+          </div>
+          <p className="mt-1 text-xs leading-relaxed text-text-soft">
+            {handoff.message}
+          </p>
+        </div>
+      ) : null}
     </section>
   );
+}
+
+function killSwitchHandoffLabel(handoff: AgentKillSwitchHandoff): string {
+  switch (handoff.state) {
+    case "sent":
+      return "Executor stop sent";
+    case "failed":
+      return "Executor stop failed";
+    case "not_configured":
+      return "Executor not configured";
+    case "not_requested":
+      return "Executor stop not requested";
+  }
 }
 
 function AgentNotificationsPanel({
@@ -2322,7 +2418,7 @@ function AgentNotificationsPanel({
           </p>
           <p className="mt-1 text-xs leading-relaxed text-text-soft">
             Notices appear here when a trade needs approval, an idea is blocked,
-            a trade opens or closes, an allowance is near expiry, or marketplace
+            a trade opens or closes, a budget is near expiry, or marketplace
             review changes.
           </p>
         </div>
@@ -2402,25 +2498,25 @@ function LiveVenuePanel({
   const unavailable = !loading && !readiness;
   const reconciliation = readiness?.reconciliation ?? null;
   const title = loading
-    ? "Checking venue account"
+    ? "Checking practice account"
     : connected
-      ? `${readiness.label} venue account connected`
+      ? `${readiness.label} account connected`
       : readiness
-        ? `${readiness.label} venue account needs setup`
-        : "Venue account not connected";
+        ? `${readiness.label} account needs setup`
+        : "Practice account not connected";
   const summary = loading
     ? "Checking whether your trader can safely place trades."
     : connected
-      ? "The account has testnet funds and the protected trading connection is ready."
+      ? "The account has practice funds and the protected trading connection is ready."
       : unavailable
-        ? "The venue account check is unavailable right now."
+        ? "The practice account check is unavailable right now."
         : readiness?.accountProbe?.state === "empty"
-          ? "The account is connected, but it still needs testnet funds."
+          ? "The account is connected, but it still needs practice funds."
           : readiness?.executorProbe?.state === "unavailable"
             ? "The account is known, but the protected trading connection could not be reached."
             : readiness?.executorProbe?.message ??
               readiness?.accountProbe?.message ??
-              "Internal sandbox trading works now. Connect an outside venue account when you are ready.";
+              "Built-in practice works now. Connect a practice account when you are ready.";
 
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
@@ -2442,7 +2538,7 @@ function LiveVenuePanel({
           </span>
           <div className="min-w-0">
             <h2 className="text-sm font-semibold text-text-strong">
-              Outside venue account
+              Practice account
             </h2>
             <p className="mt-0.5 text-xs font-medium text-text-soft">
               {title}
@@ -2450,7 +2546,7 @@ function LiveVenuePanel({
             <details className="group mt-1">
               <summary className="inline-flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-full text-text-soft transition-colors hover:bg-glass-mid hover:text-accent">
                 <Info className="h-3.5 w-3.5" aria-hidden="true" />
-                <span className="sr-only">Outside venue account details</span>
+                <span className="sr-only">Practice account details</span>
               </summary>
               <p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-text-soft">
                 {summary}
@@ -2522,9 +2618,33 @@ function LiveVenuePanel({
             </p>
           </div>
           {reconciliation.issues.length > 0 ? (
-            <p className="text-xs leading-relaxed text-text-soft sm:col-span-4">
-              {reconciliation.message}
-            </p>
+            <ul className="grid gap-2 sm:col-span-4 md:grid-cols-3">
+              {reconciliation.issues.slice(0, 3).map((issue) => (
+                <li
+                  key={issue.id}
+                  className={clsx(
+                    "rounded-soft border px-3 py-2",
+                    issue.severity === "block"
+                      ? "border-rose-500/30 bg-rose-500/[0.08]"
+                      : "border-warning/30 bg-warning/[0.08]",
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    {issue.severity === "block" ? (
+                      <X className="h-3.5 w-3.5 text-rose-300" aria-hidden="true" />
+                    ) : (
+                      <AlertTriangle className="h-3.5 w-3.5 text-warning" aria-hidden="true" />
+                    )}
+                    <p className="truncate text-xs font-semibold text-text-strong">
+                      {issue.label}
+                    </p>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-text-soft">
+                    {issue.message}
+                  </p>
+                </li>
+              ))}
+            </ul>
           ) : null}
         </div>
       ) : null}
@@ -2668,7 +2788,7 @@ function BackendPersistencePanel({
   const summary = checking
     ? "Making sure your latest changes are available."
     : synced
-      ? "Your traders, ideas, allowances, and history are saved."
+      ? "Your traders, ideas, budgets, and history are saved."
       : "You can keep working here. Wider access will return when saving reconnects.";
 
   return (
@@ -2702,7 +2822,7 @@ function BackendPersistencePanel({
                   {status.proposals} ideas
                 </span>
                 <span className="rounded-full border border-border-soft px-2 py-1">
-                  {status.sessions} allowances
+                  {status.sessions} budgets
                 </span>
                 <span className="rounded-full border border-border-soft px-2 py-1">
                   {status.events} updates
@@ -3172,7 +3292,7 @@ function AgentCard({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="text-[11px] font-semibold text-text-strong">
-                    Recommended allowance
+                    Recommended budget
                   </p>
                   <p className="mt-1 line-clamp-1 text-xs text-text-soft">
                     {allocation.summary}
@@ -3203,7 +3323,7 @@ function AgentCard({
                   className="mt-2 inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-border-soft px-2 py-1 text-[11px] font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
                 >
                   <SlidersHorizontal className="h-3 w-3" aria-hidden="true" />
-                  Review allowance
+                  Review budget
                 </Link>
               ) : null}
             </div>
@@ -3299,7 +3419,7 @@ function AgentCard({
                 )}
               >
                 <Play className="h-3 w-3" aria-hidden="true" />
-                Start trading
+                Start practice
               </Link>
             ) : (
               <Link
@@ -3334,6 +3454,9 @@ function ScoreStat({ label, value }: { label: string; value: string }) {
 
 function ProposalCard({
   proposal,
+  execution,
+  venueRequest,
+  accountSnapshot,
   pending,
   onApprove,
   onReject,
@@ -3342,6 +3465,9 @@ function ProposalCard({
   onRecheck,
 }: {
   proposal: AgentTradeProposal;
+  execution: AgentExecutionRecord | null;
+  venueRequest: AgentVenueRequestRecord | null;
+  accountSnapshot: HyperliquidTestnetAccountSnapshot | null;
   pending: boolean;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
@@ -3349,17 +3475,17 @@ function ProposalCard({
   onSubmitVenue: (id: string) => void;
   onRecheck: (id: string) => void;
 }) {
-  const statusTone =
-    proposal.status === "blocked"
-      ? "border-rose-500/30 bg-rose-500/[0.08] text-rose-500"
-      : proposal.status === "approved" || proposal.status === "executed"
-        ? "border-accent/30 bg-accent/[0.08] text-accent"
-        : "border-warning/30 bg-warning/[0.08] text-warning";
+  const lifecycle = buildAgentTradeLifecycle({
+    proposal,
+    execution,
+    venueRequest,
+    accountSnapshot,
+  });
 
   return (
     <li className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold text-text-strong">
               {proposal.market} · {proposal.side}
@@ -3367,16 +3493,17 @@ function ProposalCard({
             <span
               className={clsx(
                 "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium capitalize",
-                statusTone,
+                lifecycleToneClass(lifecycle.tone),
               )}
             >
-              {proposalStatusLabel(proposal.status)}
+              {lifecycle.label}
             </span>
           </div>
           <p className="mt-1 text-xs text-text-soft">
             {tradingPlaceLabel(proposal.venue)} · ${proposal.notionalUsd} ·{" "}
             {proposal.leverage}x
           </p>
+          <TradeLifecycleStrip lifecycle={lifecycle} />
           {proposal.policyViolations && proposal.policyViolations.length > 0 ? (
             <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-rose-300">
               {proposal.policyViolations[0]?.message}
@@ -3406,6 +3533,32 @@ function ProposalCard({
         </div>
       </div>
     </li>
+  );
+}
+
+function TradeLifecycleStrip({ lifecycle }: { lifecycle: AgentTradeLifecycle }) {
+  return (
+    <div className="mt-3 grid gap-1.5 sm:grid-cols-5">
+      {lifecycle.steps.map((step) => {
+        const Icon = lifecycleStepIcon(step.status);
+        return (
+          <div
+            key={step.id}
+            title={step.detail}
+            className={clsx(
+              "flex min-h-10 items-center gap-2 rounded-soft border px-2 py-1.5",
+              lifecycleStepClass(step.status),
+            )}
+          >
+            <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="truncate text-[11px] font-semibold">{step.label}</p>
+              <p className="truncate text-[10px] opacity-75">{step.detail}</p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -3447,6 +3600,51 @@ function DecisionJournalSummary({ proposal }: { proposal: AgentTradeProposal }) 
       </p>
     </div>
   );
+}
+
+function lifecycleToneClass(tone: AgentTradeLifecycle["tone"]): string {
+  switch (tone) {
+    case "success":
+      return "border-accent/30 bg-accent/[0.08] text-accent";
+    case "warning":
+      return "border-warning/30 bg-warning/[0.08] text-warning";
+    case "danger":
+      return "border-rose-500/30 bg-rose-500/[0.08] text-rose-300";
+    case "default":
+      return "border-border-soft bg-canvas text-text-soft";
+  }
+}
+
+function lifecycleStepClass(status: AgentTradeLifecycle["steps"][number]["status"]): string {
+  switch (status) {
+    case "done":
+      return "border-accent/25 bg-accent/[0.06] text-accent";
+    case "current":
+      return "border-warning/25 bg-warning/[0.06] text-warning";
+    case "blocked":
+      return "border-rose-500/30 bg-rose-500/[0.08] text-rose-300";
+    case "warning":
+      return "border-warning/30 bg-warning/[0.08] text-warning";
+    case "waiting":
+      return "border-border-soft bg-canvas text-text-soft";
+  }
+}
+
+function lifecycleStepIcon(
+  status: AgentTradeLifecycle["steps"][number]["status"],
+): typeof Check {
+  switch (status) {
+    case "done":
+      return Check;
+    case "current":
+      return Clock;
+    case "blocked":
+      return X;
+    case "warning":
+      return AlertTriangle;
+    case "waiting":
+      return Clock;
+  }
 }
 
 function MiniReason({ label, value }: { label: string; value: string }) {
@@ -3697,32 +3895,13 @@ function AuditEventRow({ event }: { event: AgentAuditEvent }) {
 function agentKindLabel(kind: AgentKind): string {
   switch (kind) {
     case "mock":
-      return "Internal sandbox trader";
+      return "Built-in practice trader";
     case "api":
       return "Connected trader";
     case "hermes":
       return "Independent trader";
     case "manual":
       return "Person";
-  }
-}
-
-function proposalStatusLabel(status: AgentProposalStatus): string {
-  switch (status) {
-    case "draft":
-      return "Draft";
-    case "blocked":
-      return "Stopped";
-    case "needs_approval":
-      return "Needs approval";
-    case "approved":
-      return "Approved";
-    case "rejected":
-      return "Declined";
-    case "executed":
-      return "Opened";
-    case "expired":
-      return "Expired";
   }
 }
 
@@ -3775,9 +3954,9 @@ function readinessActionLabel(action: AgentReadinessAction): string {
     case "risk_limits":
       return "Safety rules";
     case "strategy":
-      return "Trading plan";
+      return "Review style";
     case "session":
-      return "Give allowance";
+      return "Set budget";
     case "agent":
       return "Review trader";
     case "none":
@@ -3788,11 +3967,11 @@ function readinessActionLabel(action: AgentReadinessAction): string {
 function tradingPlaceLabel(venue: TradingVenue): string {
   switch (venue) {
     case "mock_perps":
-      return "Internal sandbox";
+      return "Built-in practice";
     case "hyperliquid_testnet":
-      return "Hyperliquid Testnet";
+      return "Connected practice";
     case "bulktrade_mock":
-      return "Internal sandbox";
+      return "Bulk practice";
   }
 }
 
@@ -3905,13 +4084,13 @@ function SessionCard({
           </p>
           <p className="mt-2 text-[11px] text-text-soft">
             {stale
-              ? "Your safety rules changed after this allowance was given."
+              ? "Your safety rules changed after this budget was set."
               : `Expires ${new Date(session.expiresAt).toLocaleString()}`}
           </p>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {active ? (
               <ActionButton
-                label="End allowance"
+                label="End budget"
                 Icon={X}
                 disabled={pending}
                 tone="danger"
@@ -3919,7 +4098,7 @@ function SessionCard({
               />
             ) : (
               <ActionButton
-                label="Renew allowance"
+                label="Renew budget"
                 Icon={RefreshCw}
                 disabled={pending}
                 onClick={() => onRenew(session.id)}

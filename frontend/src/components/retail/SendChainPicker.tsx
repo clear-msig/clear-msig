@@ -57,14 +57,14 @@ export function SendChainPicker({
       <div className="mb-3 flex items-end justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            Step 1
+            Send
           </p>
           <h2 className="mt-0.5 text-sm font-medium text-text-strong">
-            Choose what to send
+            Pick asset
           </h2>
         </div>
         <p className="hidden text-xs text-text-soft sm:block">
-          Pick an asset or add a network.
+          Need another chain? Add it here.
         </p>
       </div>
       <div className="flex gap-2 overflow-x-auto pb-1">
