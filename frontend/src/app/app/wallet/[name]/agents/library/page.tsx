@@ -9,9 +9,11 @@ import {
   ArrowRight,
   Bot,
   Plug,
+  ShieldCheck,
   Sparkles,
   Trophy,
   TrendingUp,
+  WalletCards,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import {
@@ -286,16 +288,27 @@ export default function TraderLibraryPage() {
                 Add demo history
               </button>
             ) : null}
-            <Link
-              href={`/app/wallet/${encoded}/agents/new?mode=advanced`}
-              className={SECONDARY_BUTTON}
-            >
-              <Plug className="h-3.5 w-3.5" aria-hidden="true" />
-              Connect outside agent
-            </Link>
+            {showDeveloperSurfaces ? (
+              <Link
+                href={`/app/wallet/${encoded}/agents/new?mode=advanced`}
+                className={SECONDARY_BUTTON}
+              >
+                <Plug className="h-3.5 w-3.5" aria-hidden="true" />
+                Connect outside agent
+              </Link>
+            ) : null}
           </div>
         </div>
       </header>
+
+      <AgentRecipePanel
+        templates={CLEARSIG_TRADER_LIBRARY}
+        chosen={chosen}
+        sessions={sessions}
+        policy={policy}
+        pending={pending}
+        onChoose={chooseTrader}
+      />
 
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -354,7 +367,7 @@ export default function TraderLibraryPage() {
       <section className="flex flex-col gap-3">
         <div>
           <h2 className="text-sm font-semibold text-text-strong">
-            Prepared traders
+            More prepared traders
           </h2>
         </div>
         <div className="grid gap-3 lg:grid-cols-3">
@@ -396,6 +409,109 @@ export default function TraderLibraryPage() {
   );
 }
 
+function AgentRecipePanel({
+  templates,
+  chosen,
+  sessions,
+  policy,
+  pending,
+  onChoose,
+}: {
+  templates: readonly ClearSigTraderTemplate[];
+  chosen: AgentProfile[];
+  sessions: AgentSessionGrant[];
+  policy: ReturnType<typeof getAgentVaultPolicy>;
+  pending: boolean;
+  onChoose: (template: ClearSigTraderTemplate) => void;
+}) {
+  const recipes = templates.slice(0, 3);
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
+            Agent recipes
+          </p>
+          <h2 className="mt-1 text-base font-semibold text-text-strong">
+            Pick an outcome
+          </h2>
+        </div>
+        <span className="rounded-full border border-accent/25 bg-accent/[0.08] px-2.5 py-1 text-[11px] font-medium text-accent">
+          Guardrails included
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        {recipes.map((template) => {
+          const existingAgent = chosen.find(
+            (agent) => agent.libraryTraderId === template.id && agent.status !== "revoked",
+          );
+          const hasAllowance = existingAgent
+            ? sessions.some(
+                (session) =>
+                  session.agentId === existingAgent.id &&
+                  isAgentSessionCurrent(session, policy) &&
+                  sessionAllowsVenue(session, "mock_perps", policy),
+              )
+            : false;
+          return (
+            <button
+              key={template.id}
+              type="button"
+              disabled={pending}
+              onClick={() => onChoose(template)}
+              className={clsx(
+                "group flex min-h-[12rem] flex-col rounded-card border border-border-soft bg-canvas p-4 text-left",
+                "transition-[border-color,background-color,transform] hover:-translate-y-0.5 hover:border-accent/45 hover:bg-accent/[0.035]",
+                "disabled:cursor-not-allowed disabled:opacity-60",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+              )}
+            >
+              <span className="flex items-start justify-between gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                  <RecipeIcon template={template} />
+                </span>
+                <span className={clsx("rounded-full border px-2 py-1 text-[10px] font-medium", riskTone(template.risk))}>
+                  {template.risk}
+                </span>
+              </span>
+              <span className="mt-4 text-base font-semibold text-text-strong">
+                {recipeTitle(template)}
+              </span>
+              <span className="mt-1 text-xs leading-relaxed text-text-soft">
+                {template.summary}
+              </span>
+              <span className="mt-auto flex items-center justify-between gap-3 pt-4 text-xs font-semibold text-accent">
+                <span>
+                  {hasAllowance ? "Start" : existingAgent ? "Set allowance" : "Use recipe"}
+                </span>
+                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function RecipeIcon({ template }: { template: ClearSigTraderTemplate }) {
+  if (template.id === "treasury-guard") {
+    return <ShieldCheck className="h-4 w-4" aria-hidden="true" />;
+  }
+  if (template.id === "balanced-markets") {
+    return <WalletCards className="h-4 w-4" aria-hidden="true" />;
+  }
+  return <TrendingUp className="h-4 w-4" aria-hidden="true" />;
+}
+
+function recipeTitle(template: ClearSigTraderTemplate): string {
+  if (template.id === "steady-btc") return "Grow slowly";
+  if (template.id === "balanced-markets") return "Follow major markets";
+  if (template.id === "treasury-guard") return "Protect downside";
+  return template.name;
+}
+
 function TraderCard({
   trader,
   existing,
@@ -428,7 +544,7 @@ function TraderCard({
         {trader.category}
       </p>
       <h2 className="mt-1 text-base font-semibold text-text-strong">{trader.name}</h2>
-      <p className="mt-2 text-sm leading-relaxed text-text-soft">{trader.description}</p>
+      <p className="mt-2 text-sm leading-relaxed text-text-soft">{trader.summary}</p>
 
       <div className="mt-4 grid grid-cols-2 gap-2">
         <MetricBox label="Score" value="New" muted />
@@ -444,7 +560,7 @@ function TraderCard({
           label="First allowance"
           value={`Up to $${Number(trader.defaultNotionalUsd).toLocaleString("en-US")}`}
         />
-        <LibraryStat label="Track record" value="Starts after first closed trade" />
+        <LibraryStat label="Mode" value="Practice first" />
       </dl>
 
       <button

@@ -113,13 +113,13 @@ const PRACTICE_CHOICES: Array<{
 }> = [
   {
     id: "mock_perps",
-    label: "Internal sandbox",
-    description: "Fastest first run. No venue account or funds needed.",
+    label: "Sandbox",
+    description: "No funds needed.",
   },
   {
     id: "hyperliquid_testnet",
     label: "Hyperliquid testnet",
-    description: "Routes guarded trades to a separate testnet account.",
+    description: "Use your testnet account.",
   },
 ];
 
@@ -729,7 +729,7 @@ export default function StartTradingPage() {
               Trading Desk · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
-              Launch a guarded trading session
+              Start a guarded session
             </h1>
           </div>
           <button
@@ -745,7 +745,7 @@ export default function StartTradingPage() {
       </header>
 
       <section className="border-y border-border-soft py-5">
-        <p className="text-xs font-semibold text-text-strong">Trading venue</p>
+        <p className="text-xs font-semibold text-text-strong">Pick mode</p>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {PRACTICE_CHOICES.map((choice) => (
             <button

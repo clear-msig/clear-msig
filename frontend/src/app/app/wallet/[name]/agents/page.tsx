@@ -469,17 +469,17 @@ export default function AgentsPage() {
     return [
       {
         id: "trader",
-        label: "Trader",
-        description: "Pick a prepared ClearSig trader or create one of your own.",
+        label: "Pick recipe",
+        description: "Choose a prepared trader outcome.",
         Icon: Bot,
         done: Boolean(firstAgent),
         href: `/app/wallet/${encoded}/agents/library`,
-        actionLabel: "Browse traders",
+        actionLabel: "Pick recipe",
       },
       {
         id: "plan",
-        label: "Plan",
-        description: "Set markets, entry rules, exit rules, and kill switch logic.",
+        label: "Trading plan",
+        description: "Review the trader's market and exit rules.",
         Icon: SlidersHorizontal,
         done: itemPassed("strategy"),
         href: firstAgent
@@ -490,7 +490,7 @@ export default function AgentsPage() {
       {
         id: "safety",
         label: "Guardrails",
-        description: "Set venue, markets, max size, leverage, drawdown, and loss limits.",
+        description: "Set max size, leverage, drawdown, and loss limits.",
         Icon: ShieldCheck,
         done: itemPassed("risk-limits"),
         href: `/app/wallet/${encoded}/agents/policy`,
@@ -499,7 +499,7 @@ export default function AgentsPage() {
       {
         id: "allowance",
         label: "Allowance",
-        description: "Give the trader a small amount and a short time window.",
+        description: "Give the trader a small test budget.",
         Icon: Clock,
         done: itemPassed("session"),
         href: firstAgent
@@ -509,8 +509,8 @@ export default function AgentsPage() {
       },
       {
         id: "practice",
-        label: "Trade",
-        description: "Run a scan or start the guided practice trading flow.",
+        label: "Start",
+        description: "Run the first guarded practice trade.",
         Icon: Play,
         done: hasFirstPractice,
         href: firstAgent
@@ -1246,14 +1246,14 @@ export default function AgentsPage() {
             className={agentLaneClass}
           >
             <Play size={15} aria-hidden="true" />
-            <span>Trading desk</span>
+            <span>Start session</span>
           </Link>
           <Link
             href={`/app/wallet/${encoded}/agents/library`}
             className={agentLaneClass}
           >
             <Bot size={15} aria-hidden="true" />
-            <span>Trader profiles</span>
+            <span>Recipes</span>
           </Link>
           <Link
             href={`/app/wallet/${encoded}/agents/hyperliquid`}
@@ -1682,7 +1682,7 @@ function GettingStartedPanel({ steps }: { steps: GettingStartedStep[] }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-text-strong">
-            {completed === steps.length ? "Trading ready" : "Setup"}
+            {completed === steps.length ? "Ready to trade" : "Fast start"}
           </p>
         </div>
         <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
