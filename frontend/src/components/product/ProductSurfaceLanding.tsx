@@ -68,7 +68,7 @@ export function ProductChooserPage() {
           </h1>
         </div>
 
-        <div className="mt-10 grid grid-cols-2 gap-x-4 gap-y-8 lg:grid-cols-4">
+        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {primarySurfaces.map((surface) => (
             <ProductIconLink key={surface.id} surface={surface} />
           ))}
@@ -135,7 +135,9 @@ export function ProductSurfaceLanding({ id }: { id: ProductSurfaceId }) {
         </div>
 
         <aside className="self-center">
-          <div className="flex items-start gap-3">
+          <ProductPreview surfaceId={surface.id} size="lg" />
+
+          <div className="mt-6 flex items-start gap-3">
             <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#ccff00] text-black">
               <Icon className="h-5 w-5" aria-hidden="true" strokeWidth={2.2} />
             </span>
@@ -206,25 +208,178 @@ function ProductIconLink({ surface }: {
     <Link
       href={surface.ctaHref}
       className={clsx(
-        "group flex min-h-44 flex-col items-center justify-start text-center",
-        "transition-[transform,color] duration-200 hover:-translate-y-1",
+        "group flex min-h-[21rem] flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.08] bg-white/[0.035] p-3 text-left shadow-[0_24px_90px_rgba(0,0,0,0.22)]",
+        "transition-[transform,border-color,background-color] duration-200 hover:-translate-y-1 hover:border-[#ccff00]/35 hover:bg-white/[0.055]",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ccff00]/60 focus-visible:ring-offset-4 focus-visible:ring-offset-[#0c0c0c]",
       )}
     >
-      <span className="inline-flex h-16 w-16 items-center justify-center rounded-[1.35rem] border border-white/[0.12] bg-white/[0.045] text-white transition-colors group-hover:border-[#ccff00]/45 group-hover:bg-[#ccff00]/10 group-hover:text-[#ccff00]">
-        <Icon className="h-7 w-7" aria-hidden="true" strokeWidth={1.85} />
-      </span>
-      <h2 className="mt-4 text-lg font-semibold text-white">
-        {surface.shortName}
-      </h2>
-      <p className="mt-2 max-w-[11rem] text-xs leading-snug text-white/50">
-        {surface.eyebrow}
-      </p>
-      <span className="mt-auto inline-flex items-center gap-1.5 pt-4 text-xs font-semibold text-[#ccff00]">
+      <ProductPreview surfaceId={surface.id} />
+      <div className="mt-4 flex items-start gap-3 px-1">
+        <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[1rem] border border-white/[0.12] bg-white/[0.045] text-white transition-colors group-hover:border-[#ccff00]/45 group-hover:bg-[#ccff00]/10 group-hover:text-[#ccff00]">
+          <Icon className="h-5 w-5" aria-hidden="true" strokeWidth={1.85} />
+        </span>
+        <span className="min-w-0">
+          <h2 className="text-lg font-semibold text-white">
+            {surface.shortName}
+          </h2>
+          <p className="mt-1 text-xs leading-snug text-white/50">
+            {surface.eyebrow}
+          </p>
+        </span>
+      </div>
+      <span className="mt-auto inline-flex items-center gap-1.5 px-1 pt-5 text-xs font-semibold text-[#ccff00]">
         Choose
         <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
       </span>
     </Link>
+  );
+}
+
+function ProductPreview({
+  surfaceId,
+  size = "md",
+}: {
+  surfaceId: ProductSurfaceId;
+  size?: "md" | "lg";
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      className={clsx(
+        "relative overflow-hidden rounded-[1.15rem] border",
+        size === "lg" ? "min-h-[19rem] p-5" : "min-h-[12rem] p-4",
+        surfaceId === "personal" &&
+          "border-emerald-300/15 bg-[linear-gradient(135deg,rgba(5,18,14,0.96),rgba(18,42,35,0.72))]",
+        surfaceId === "pro" &&
+          "border-sky-300/15 bg-[linear-gradient(135deg,rgba(8,13,22,0.98),rgba(22,33,50,0.72))]",
+        surfaceId === "agent" &&
+          "border-[#ccff00]/20 bg-[linear-gradient(135deg,rgba(5,8,5,0.98),rgba(18,29,12,0.76))]",
+        surfaceId === "secure" &&
+          "border-fuchsia-200/15 bg-[linear-gradient(135deg,rgba(15,11,18,0.98),rgba(39,25,48,0.72))]",
+      )}
+    >
+      {surfaceId === "personal" ? <PersonalPreview /> : null}
+      {surfaceId === "pro" ? <ProPreview /> : null}
+      {surfaceId === "agent" ? <AgentPreview /> : null}
+      {surfaceId === "secure" ? <SecurePreview /> : null}
+    </div>
+  );
+}
+
+function PersonalPreview() {
+  return (
+    <div className="flex h-full flex-col justify-between gap-4">
+      <div className="flex items-center justify-between">
+        <div className="flex -space-x-2">
+          {["bg-emerald-300", "bg-cyan-200", "bg-lime-300"].map((tone) => (
+            <span
+              key={tone}
+              className={clsx("h-8 w-8 rounded-full border-2 border-black/35", tone)}
+            />
+          ))}
+        </div>
+        <span className="rounded-full bg-emerald-300/14 px-2.5 py-1 text-[10px] font-semibold text-emerald-100">
+          Family
+        </span>
+      </div>
+      <div>
+        <div className="text-2xl font-semibold text-white">$2,480</div>
+        <div className="mt-1 text-[11px] text-emerald-100/55">Shared wallet</div>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {["Send", "Receive", "Rules"].map((label) => (
+          <span
+            key={label}
+            className="rounded-xl border border-white/[0.08] bg-white/[0.06] px-2 py-2 text-center text-[10px] font-medium text-white/72"
+          >
+            {label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProPreview() {
+  return (
+    <div className="flex h-full flex-col justify-between gap-4">
+      <div className="flex items-center justify-between">
+        <span className="rounded-full bg-sky-300/12 px-2.5 py-1 text-[10px] font-semibold text-sky-100">
+          Treasury
+        </span>
+        <span className="text-[10px] text-white/45">3 approvals</span>
+      </div>
+      <div className="space-y-2">
+        {[
+          ["Payroll", "w-[78%]", "bg-sky-300"],
+          ["Vendor", "w-[54%]", "bg-cyan-200"],
+          ["Ops", "w-[36%]", "bg-white/55"],
+        ].map(([label, width, tone]) => (
+          <div key={label} className="rounded-xl border border-white/[0.08] bg-white/[0.055] p-2.5">
+            <div className="flex items-center justify-between text-[10px] text-white/62">
+              <span>{label}</span>
+              <span>Queued</span>
+            </div>
+            <div className="mt-2 h-1.5 rounded-full bg-white/[0.08]">
+              <div className={clsx("h-full rounded-full", width, tone)} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AgentPreview() {
+  return (
+    <div className="flex h-full flex-col justify-between gap-4">
+      <div className="flex items-center justify-between">
+        <span className="rounded-full bg-[#ccff00]/12 px-2.5 py-1 text-[10px] font-semibold text-[#ccff00]">
+          Live desk
+        </span>
+        <span className="h-2 w-2 rounded-full bg-[#ccff00]" />
+      </div>
+      <div className="flex items-end gap-1.5">
+        {[34, 58, 42, 76, 62, 88, 70].map((height, index) => (
+          <span
+            key={index}
+            className="flex-1 rounded-t bg-[#ccff00]/70"
+            style={{ height }}
+          />
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-[10px]">
+        <span className="rounded-xl border border-[#ccff00]/15 bg-[#ccff00]/[0.08] px-2 py-2 text-[#ccff00]">
+          Guardrails
+        </span>
+        <span className="rounded-xl border border-white/[0.08] bg-white/[0.055] px-2 py-2 text-white/68">
+          Kill switch
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function SecurePreview() {
+  return (
+    <div className="flex h-full flex-col justify-between gap-4">
+      <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full border border-fuchsia-200/20 bg-fuchsia-200/[0.06]">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-fuchsia-200/30 bg-black/25">
+          <KeyRound className="h-6 w-6 text-fuchsia-100" strokeWidth={1.9} />
+        </div>
+      </div>
+      <div className="space-y-2">
+        {["Passkey", "Trusted device", "Recovery sweep"].map((label) => (
+          <div
+            key={label}
+            className="flex items-center justify-between rounded-xl border border-white/[0.08] bg-white/[0.055] px-3 py-2 text-[10px] text-white/68"
+          >
+            <span>{label}</span>
+            <Check className="h-3.5 w-3.5 text-fuchsia-100" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

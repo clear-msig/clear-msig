@@ -111,6 +111,20 @@ describe("product workspace routing", () => {
         pathname: "/app/wallet/Family%23abc123/send/eth",
       }),
     ).toBeNull();
+    expect(
+      productWorkspaceRedirectHref({
+        walletName,
+        surface: "personal",
+        pathname: "/app/wallet/Family%23abc123/chains",
+      }),
+    ).toBeNull();
+    expect(
+      productWorkspaceRedirectHref({
+        walletName,
+        surface: "personal",
+        pathname: "/app/wallet/Family%23abc123/chains/add",
+      }),
+    ).toBeNull();
   });
 
   it("keeps pro treasuries out of agent trading controls", () => {

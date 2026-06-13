@@ -151,8 +151,7 @@ export default function ChainsPage() {
               {toDisplayName(name)}
             </h1>
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-text-soft">
-              Add the chains this wallet can receive from, hold, and send on.
-              New chains usually appear within 10 to 30 seconds.
+              Add a chain, copy an address, or send from an active network.
             </p>
           </div>
           <button
@@ -190,17 +189,11 @@ export default function ChainsPage() {
           className="rounded-card border border-warning/40 bg-warning/[0.08] p-4 text-xs text-text-strong sm:text-sm"
         >
           <p className="font-semibold">
-            This wallet has separate dWallets per chain.
+            Use a fresh wallet for reliable sends.
           </p>
           <p className="mt-1 text-text-soft">
-            Each secp256k1 chain bound below points at a different
-            Ika dWallet, which can trip the &ldquo;neither v=0 nor
-            v=1 recovers&rdquo; failure on send because of the Ika
-            pre-alpha mock signer&rsquo;s per-DKG state. For
-            reliable sends, create a fresh wallet. New wallets
-            share one dWallet across every secp256k1 chain. Funds
-            in this wallet stay where they are; this is just a
-            heads-up.
+            This older wallet may fail on ETH/BTC/ZEC sends. Funds stay safe;
+            create a new wallet before sending across those chains.
           </p>
         </aside>
       )}

@@ -125,6 +125,8 @@ function isAllowedPersonalPath(pathname: string, base: string): boolean {
     "activity",
     "members",
     "members/add",
+    "chains",
+    "chains/add",
     "policy",
     "send",
     "send/batch",
