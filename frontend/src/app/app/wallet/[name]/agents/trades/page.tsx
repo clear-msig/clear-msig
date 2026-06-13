@@ -5,24 +5,34 @@ import type { ReactNode } from "react";
 import clsx from "clsx";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Check, Clock, X } from "lucide-react";
+import { ArrowLeft, AlertTriangle, Check, Circle, Clock, X } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import {
   closeAgentExecutionRecord,
   closeMockAgentExecution,
   closeOpenMockAgentExecutions,
+  buildAgentTradeLifecycle,
   estimateAgentOpenTradePerformance,
+  getAgentHyperliquidSetupSettings,
   listAgentExecutions,
   listAgentProposals,
   listAgents,
   subscribeAgents,
+  summarizeAgentTradeLifecycles,
   summarizeAgentTradePerformance,
   syncAgentExecution,
   type AgentExecutionRecord,
+  type AgentTradeLifecycle,
+  type AgentTradeLifecycleSummary,
   type AgentMarketDataSnapshot,
   type AgentProfile,
   type AgentTradeProposal,
 } from "@/lib/agents";
+import {
+  loadAgentVenueReadiness,
+  type AgentVenueReadiness,
+  type AgentVenueRequestRecord,
+} from "@/lib/agents/clientExecution";
 import { loadAgentMarketDataSnapshots } from "@/lib/agents/clientMarketData";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
@@ -39,6 +49,9 @@ export default function AgentTradesPage() {
   const [executions, setExecutions] = useState<AgentExecutionRecord[]>([]);
   const [proposals, setProposals] = useState<AgentTradeProposal[]>([]);
   const [marketByMarket, setMarketByMarket] = useState<Record<string, AgentMarketDataSnapshot>>({});
+  const [venueRequests, setVenueRequests] = useState<AgentVenueRequestRecord[]>([]);
+  const [accountSnapshot, setAccountSnapshot] =
+    useState<AgentVenueReadiness["accountSnapshot"] | null>(null);
   const [filter, setFilter] = useState<TradeFilter>("open");
   const [agentFilter, setAgentFilter] = useState("all");
 
@@ -78,12 +91,77 @@ export default function AgentTradesPage() {
     };
   }, [openMarketKey]);
 
+  const agentIds = useMemo(
+    () => agents.map((agent) => agent.id).sort(),
+    [agents],
+  );
+
+  useEffect(() => {
+    if (agentIds.length === 0) {
+      setVenueRequests([]);
+      setAccountSnapshot(null);
+      return;
+    }
+    let cancelled = false;
+    const settings = getAgentHyperliquidSetupSettings(name);
+    void Promise.all(
+      agentIds.map((agentId) =>
+        loadAgentVenueReadiness("hyperliquid_testnet", {
+          walletName: name,
+          agentId,
+          accountAddress: settings.accountAddress,
+        }).catch(() => null),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      setVenueRequests(
+        results.flatMap((readiness) => readiness?.requests ?? []),
+      );
+      setAccountSnapshot(
+        results.find((readiness) => readiness?.accountSnapshot)?.accountSnapshot ??
+          null,
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [agentIds, name]);
+
   const filtered = executions.filter((execution) => {
     const statusOk = filter === "all" ? true : execution.status === filter;
     const agentOk = agentFilter === "all" ? true : execution.agentId === agentFilter;
     return statusOk && agentOk;
   });
   const summary = summarizeAgentTradePerformance(executions, marketByMarket);
+  const tradeLifecycles = useMemo(
+    () =>
+      proposals.map((proposal) =>
+        buildAgentTradeLifecycle({
+          proposal,
+          execution:
+            executions.find((execution) => execution.proposalId === proposal.id) ??
+            null,
+          venueRequest:
+            venueRequests.find(
+              (request) => request.request.proposalId === proposal.id,
+            ) ?? null,
+          accountSnapshot,
+        }),
+      ),
+    [accountSnapshot, executions, proposals, venueRequests],
+  );
+  const lifecycleSummary = useMemo(
+    () => summarizeAgentTradeLifecycles(tradeLifecycles),
+    [tradeLifecycles],
+  );
+  const lifecycleByProposalId = useMemo(() => {
+    const map = new Map<string, AgentTradeLifecycle>();
+    proposals.forEach((proposal, index) => {
+      const lifecycle = tradeLifecycles[index];
+      if (lifecycle) map.set(proposal.id, lifecycle);
+    });
+    return map;
+  }, [proposals, tradeLifecycles]);
 
   const closeTrade = (id: string, pnlUsd: string) => {
     startTransition(() => {
@@ -200,8 +278,20 @@ export default function AgentTradesPage() {
             <h2 className="text-sm font-semibold text-text-strong">
               Trade evidence
             </h2>
+            <p className="mt-1 text-xs text-text-soft">
+              Lifecycle, venue requests, and P/L in one audit view.
+            </p>
           </div>
-          <Badge tone="warning">Practice/Testnet</Badge>
+          <Badge tone={lifecycleBadgeTone(lifecycleSummary)}>
+            {lifecycleSummary.label}
+          </Badge>
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          <Metric label="Decisions" value={String(lifecycleSummary.total)} compact />
+          <Metric label="Open/submitted" value={String(lifecycleSummary.open + lifecycleSummary.submitted)} compact />
+          <Metric label="Needs action" value={String(lifecycleSummary.actionable)} compact />
+          <Metric label="Venue requests" value={String(venueRequests.length)} compact />
+          <Metric label="Warnings" value={String(lifecycleSummary.warnings)} compact />
         </div>
       </section>
 
@@ -245,6 +335,7 @@ export default function AgentTradesPage() {
               execution={execution}
               agent={agents.find((item) => item.id === execution.agentId)}
               proposal={proposals.find((item) => item.id === execution.proposalId)}
+              lifecycle={lifecycleByProposalId.get(execution.proposalId) ?? null}
               marketSnapshot={marketByMarket[execution.market.trim().toUpperCase()] ?? null}
               pending={pending}
               onClose={closeTrade}
@@ -264,6 +355,7 @@ function TradeRow({
   execution,
   agent,
   proposal,
+  lifecycle,
   marketSnapshot,
   pending,
   onClose,
@@ -271,6 +363,7 @@ function TradeRow({
   execution: AgentExecutionRecord;
   agent?: AgentProfile;
   proposal?: AgentTradeProposal;
+  lifecycle: AgentTradeLifecycle | null;
   marketSnapshot: AgentMarketDataSnapshot | null;
   pending: boolean;
   onClose: (id: string, pnlUsd: string) => void;
@@ -292,6 +385,9 @@ function TradeRow({
             <Badge tone={execution.venue === "hyperliquid_testnet" ? "warning" : "default"}>
               {execution.venue === "hyperliquid_testnet" ? "Testnet evidence" : "Paper evidence"}
             </Badge>
+            {lifecycle ? (
+              <Badge tone={lifecycleBadgeTone(lifecycle)}>{lifecycle.label}</Badge>
+            ) : null}
           </div>
           <p className="mt-1 text-xs text-text-soft">
             {agent?.name ?? "Unknown agent"} · {formatUsd(execution.notionalUsd)} · {execution.leverage}x
@@ -308,22 +404,34 @@ function TradeRow({
           <Metric label="Move" value={performance ? `${formatNumber(performance.movePct)}%` : "-"} compact />
         </div>
       </div>
+      {lifecycle ? <TradeLifecycleStrip lifecycle={lifecycle} /> : null}
       {proposal?.decisionJournal ? (
         <div className="mt-3 rounded-soft border border-border-soft bg-canvas p-3">
-          <p className="text-[11px] font-semibold text-text-strong">
-            Why it entered
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-text-soft">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[11px] font-semibold text-text-strong">
+              Why it entered
+            </p>
+            <details className="group">
+              <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-[11px] font-medium text-text-soft hover:text-accent">
+                Details
+                <ArrowLeft
+                  className="h-3 w-3 rotate-180 transition-transform group-open:rotate-90"
+                  aria-hidden="true"
+                />
+              </summary>
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                <MiniReason label="Risk" value={proposal.decisionJournal.riskPlan} />
+                <MiniReason label="Exit" value={proposal.decisionJournal.exitPlan} />
+                <MiniReason
+                  label="Rules"
+                  value={proposal.decisionJournal.policySummary}
+                />
+              </div>
+            </details>
+          </div>
+          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-text-soft">
             {proposal.decisionJournal.summary}
           </p>
-          <div className="mt-2 grid gap-2 sm:grid-cols-3">
-            <MiniReason label="Risk" value={proposal.decisionJournal.riskPlan} />
-            <MiniReason label="Exit" value={proposal.decisionJournal.exitPlan} />
-            <MiniReason
-              label="Rules"
-              value={proposal.decisionJournal.policySummary}
-            />
-          </div>
         </div>
       ) : null}
       {execution.postTradeReview ? (
@@ -395,6 +503,32 @@ function PostTradeReview({
   );
 }
 
+function TradeLifecycleStrip({ lifecycle }: { lifecycle: AgentTradeLifecycle }) {
+  return (
+    <div className="mt-3 grid gap-1.5 sm:grid-cols-5">
+      {lifecycle.steps.map((step) => {
+        const Icon = lifecycleStepIcon(step.status);
+        return (
+          <div
+            key={step.id}
+            title={step.detail}
+            className={clsx(
+              "flex min-h-9 min-w-0 items-center gap-1.5 rounded-soft border px-2 py-1",
+              lifecycleStepClass(step.status),
+            )}
+          >
+            <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="truncate text-[10px] font-semibold">{step.label}</p>
+              <p className="truncate text-[10px] opacity-75">{step.detail}</p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function MiniReason({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-soft border border-border-soft bg-surface-raised px-2 py-1.5">
@@ -447,6 +581,53 @@ function Badge({
       {children}
     </span>
   );
+}
+
+function lifecycleBadgeTone(
+  item: AgentTradeLifecycle | AgentTradeLifecycleSummary,
+): "default" | "success" | "danger" | "warning" {
+  switch (item.tone) {
+    case "success":
+      return "success";
+    case "danger":
+      return "danger";
+    case "warning":
+      return "warning";
+    case "default":
+      return "default";
+  }
+}
+
+function lifecycleStepClass(status: AgentTradeLifecycle["steps"][number]["status"]): string {
+  switch (status) {
+    case "done":
+      return "border-accent/25 bg-accent/[0.06] text-accent";
+    case "current":
+      return "border-warning/25 bg-warning/[0.06] text-warning";
+    case "blocked":
+      return "border-rose-500/30 bg-rose-500/[0.08] text-rose-300";
+    case "warning":
+      return "border-warning/30 bg-warning/[0.08] text-warning";
+    case "waiting":
+      return "border-border-soft bg-canvas text-text-soft";
+  }
+}
+
+function lifecycleStepIcon(
+  status: AgentTradeLifecycle["steps"][number]["status"],
+): typeof Check {
+  switch (status) {
+    case "done":
+      return Check;
+    case "current":
+      return Clock;
+    case "blocked":
+      return X;
+    case "warning":
+      return AlertTriangle;
+    case "waiting":
+      return Circle;
+  }
 }
 
 function postTradeOutcomeTone(

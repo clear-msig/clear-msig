@@ -49,6 +49,19 @@ export interface AgentTradeLifecycle {
   steps: AgentTradeLifecycleStep[];
 }
 
+export interface AgentTradeLifecycleSummary {
+  total: number;
+  open: number;
+  submitted: number;
+  closed: number;
+  needsApproval: number;
+  blocked: number;
+  warnings: number;
+  actionable: number;
+  label: string;
+  tone: AgentTradeLifecycleTone;
+}
+
 export interface AgentTradeVenueRequestLike {
   status: string;
   message?: string;
@@ -129,6 +142,104 @@ export function buildAgentTradeLifecycle({
     };
   }
   return { status: "draft", label: "Draft", tone: "default", steps };
+}
+
+export function summarizeAgentTradeLifecycles(
+  lifecycles: AgentTradeLifecycle[],
+): AgentTradeLifecycleSummary {
+  const total = lifecycles.length;
+  const open = lifecycles.filter((item) => item.status === "open").length;
+  const submitted = lifecycles.filter((item) => item.status === "submitted").length;
+  const closed = lifecycles.filter((item) => item.status === "closed").length;
+  const needsApproval = lifecycles.filter(
+    (item) => item.status === "needs_approval",
+  ).length;
+  const blocked = lifecycles.filter((item) => item.status === "blocked").length;
+  const warnings = lifecycles.filter((item) => item.status === "warning").length;
+  const actionable = needsApproval + blocked + warnings;
+
+  if (total === 0) {
+    return {
+      total,
+      open,
+      submitted,
+      closed,
+      needsApproval,
+      blocked,
+      warnings,
+      actionable,
+      label: "No decisions",
+      tone: "default",
+    };
+  }
+  if (blocked > 0) {
+    return {
+      total,
+      open,
+      submitted,
+      closed,
+      needsApproval,
+      blocked,
+      warnings,
+      actionable,
+      label: "Blocked",
+      tone: "danger",
+    };
+  }
+  if (warnings > 0) {
+    return {
+      total,
+      open,
+      submitted,
+      closed,
+      needsApproval,
+      blocked,
+      warnings,
+      actionable,
+      label: "Needs review",
+      tone: "warning",
+    };
+  }
+  if (needsApproval > 0) {
+    return {
+      total,
+      open,
+      submitted,
+      closed,
+      needsApproval,
+      blocked,
+      warnings,
+      actionable,
+      label: "Approval needed",
+      tone: "warning",
+    };
+  }
+  if (open + submitted > 0) {
+    return {
+      total,
+      open,
+      submitted,
+      closed,
+      needsApproval,
+      blocked,
+      warnings,
+      actionable,
+      label: "Trading",
+      tone: "success",
+    };
+  }
+  return {
+    total,
+    open,
+    submitted,
+    closed,
+    needsApproval,
+    blocked,
+    warnings,
+    actionable,
+    label: "Clear",
+    tone: "default",
+  };
 }
 
 function buildPolicyStep(proposal: AgentTradeProposal): AgentTradeLifecycleStep {

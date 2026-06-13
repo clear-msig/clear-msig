@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { HyperliquidTestnetAccountSnapshot } from "@/lib/agents/serverHyperliquidTestnet";
 import type { AgentTradeProposal } from "@/lib/agents/types";
-import { buildAgentTradeLifecycle } from "@/lib/agents/tradeLifecycle";
+import {
+  buildAgentTradeLifecycle,
+  summarizeAgentTradeLifecycles,
+} from "@/lib/agents/tradeLifecycle";
 
 const baseProposal: AgentTradeProposal = {
   id: "proposal-1",
@@ -122,5 +125,68 @@ describe("buildAgentTradeLifecycle", () => {
     expect(lifecycle.steps.find((step) => step.id === "venue_reconciliation")?.status).toBe(
       "warning",
     );
+  });
+
+  it("summarizes lifecycle queues by priority", () => {
+    const approval = buildAgentTradeLifecycle({
+      proposal: { ...baseProposal, id: "approval", status: "needs_approval" },
+    });
+    const warning = buildAgentTradeLifecycle({
+      proposal: { ...baseProposal, id: "warning", status: "executed" },
+      venueRequest: {
+        status: "submitted",
+        request: {
+          venue: "hyperliquid_testnet",
+          market: "BTC",
+          side: "short",
+        },
+      },
+      accountSnapshot: fundedSnapshot,
+    });
+    const blocked = buildAgentTradeLifecycle({
+      proposal: {
+        ...baseProposal,
+        id: "blocked",
+        status: "blocked",
+        policyViolations: [
+          {
+            code: "daily_loss_cap_reached",
+            severity: "block",
+            message: "Daily loss cap reached.",
+          },
+        ],
+      },
+    });
+
+    const summary = summarizeAgentTradeLifecycles([approval, warning, blocked]);
+
+    expect(summary.total).toBe(3);
+    expect(summary.needsApproval).toBe(1);
+    expect(summary.warnings).toBe(1);
+    expect(summary.blocked).toBe(1);
+    expect(summary.actionable).toBe(3);
+    expect(summary.label).toBe("Blocked");
+    expect(summary.tone).toBe("danger");
+  });
+
+  it("summarizes active trading when open or submitted trades exist", () => {
+    const open = buildAgentTradeLifecycle({
+      proposal: { ...baseProposal, status: "executed" },
+      venueRequest: {
+        status: "submitted",
+        request: {
+          venue: "hyperliquid_testnet",
+          market: "ETH",
+          side: "long",
+        },
+      },
+      accountSnapshot: fundedSnapshot,
+    });
+
+    const summary = summarizeAgentTradeLifecycles([open]);
+
+    expect(summary.open).toBe(1);
+    expect(summary.label).toBe("Trading");
+    expect(summary.tone).toBe("success");
   });
 });

@@ -9,6 +9,7 @@ import {
   ArrowRight,
   AlertTriangle,
   Check,
+  Clock,
   Circle,
   ExternalLink,
   FileCheck2,
@@ -41,6 +42,7 @@ import {
   createClearSigLibraryPracticeIdea,
   createBrowserOwnerApproval,
   buildAgentTradeDecisionJournal,
+  buildAgentTradeLifecycle,
   decryptAgentVaultPolicy,
   estimateAgentOpenTradePerformance,
   evaluateAgentTradeProposal,
@@ -65,6 +67,7 @@ import {
   syncAgentProfile,
   syncAgentProposal,
   setAgentVaultEmergencyPause,
+  summarizeAgentTradeLifecycles,
   updateAgentStatus,
   type AgentAuditEvent,
   type AgentComplianceReadiness,
@@ -76,6 +79,8 @@ import {
   type AgentProfile,
   type AgentSessionGrant,
   type AgentTradeProposal,
+  type AgentTradeLifecycle,
+  type AgentTradeLifecycleSummary,
   type AgentTradingReadiness,
   type AgentVaultPolicy,
   type TradingLaunchStep,
@@ -246,6 +251,17 @@ export default function StartTradingPage() {
     ) ?? [];
   const submittedVenueRequests =
     venueRequests.filter((request) => request.status === "submitted");
+  const tradeLifecycles = proposals.map((proposal) =>
+    buildAgentTradeLifecycle({
+      proposal,
+      execution:
+        executions.find((execution) => execution.proposalId === proposal.id) ?? null,
+      venueRequest:
+        venueRequests.find((request) => request.request.proposalId === proposal.id) ?? null,
+      accountSnapshot: outside?.accountSnapshot ?? null,
+    }),
+  );
+  const tradeLifecycleSummary = summarizeAgentTradeLifecycles(tradeLifecycles);
   const activeAllowance = selectedAgent
     ? sessions.find(
         (session) =>
@@ -867,6 +883,8 @@ export default function StartTradingPage() {
         accountSnapshot={outside?.accountSnapshot ?? null}
         reconciliation={outside?.reconciliation ?? null}
         venueRequests={venueRequests}
+        tradeLifecycles={tradeLifecycles}
+        tradeLifecycleSummary={tradeLifecycleSummary}
         submittedVenueRequests={submittedVenueRequests.length}
         pending={pending}
         onPauseAgent={pauseThisTrader}
@@ -1589,6 +1607,8 @@ function TradingControlRoom({
   accountSnapshot,
   reconciliation,
   venueRequests,
+  tradeLifecycles,
+  tradeLifecycleSummary,
   submittedVenueRequests,
   pending,
   onPauseAgent,
@@ -1609,6 +1629,8 @@ function TradingControlRoom({
   accountSnapshot: AgentVenueReadiness["accountSnapshot"] | null;
   reconciliation: AgentVenueReadiness["reconciliation"] | null;
   venueRequests: NonNullable<AgentVenueReadiness["requests"]>;
+  tradeLifecycles: AgentTradeLifecycle[];
+  tradeLifecycleSummary: AgentTradeLifecycleSummary;
   submittedVenueRequests: number;
   pending: boolean;
   onPauseAgent: () => void;
@@ -1668,7 +1690,7 @@ function TradingControlRoom({
         </div>
       </div>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+      <div className="mt-4 grid gap-2 sm:grid-cols-5">
         <ControlStat
           label="Status"
           value={live ? "Ready" : policyPaused ? "Paused" : agentPaused ? "Trader paused" : "Setup needed"}
@@ -1684,7 +1706,36 @@ function TradingControlRoom({
           value={allowance ? formatUsd(allowance.maxNotionalUsd) : "None"}
           highlight={Boolean(allowance)}
         />
+        <ControlStat
+          label="Pipeline"
+          value={tradeLifecycleSummary.label}
+          highlight={tradeLifecycleSummary.tone === "success"}
+        />
+        <ControlStat
+          label="Needs action"
+          value={String(tradeLifecycleSummary.actionable)}
+          highlight={tradeLifecycleSummary.actionable === 0}
+        />
       </div>
+
+      <CollapsibleControlPanel
+        title="Decision pipeline"
+        summary={`${tradeLifecycleSummary.total} decision${tradeLifecycleSummary.total === 1 ? "" : "s"} · ${tradeLifecycleSummary.open} open`}
+        defaultOpen={tradeLifecycleSummary.actionable > 0}
+      >
+        <div className="grid gap-2">
+          {tradeLifecycles.length > 0 ? (
+            tradeLifecycles.slice(0, 6).map((lifecycle, index) => (
+              <TradeLifecycleRow
+                key={`${lifecycle.status}:${index}`}
+                lifecycle={lifecycle}
+              />
+            ))
+          ) : (
+            <EmptyControlLine text="No trade decisions yet." />
+          )}
+        </div>
+      </CollapsibleControlPanel>
 
       {venue === "hyperliquid_testnet" ? (
         <CollapsibleControlPanel
@@ -1991,6 +2042,64 @@ function OpenTradeRow({
   );
 }
 
+function TradeLifecycleRow({ lifecycle }: { lifecycle: AgentTradeLifecycle }) {
+  return (
+    <div className="min-w-0 rounded-soft border border-border-soft bg-canvas px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span
+            className={clsx(
+              "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border",
+              lifecycleToneClass(lifecycle.tone),
+            )}
+          >
+            {lifecycle.tone === "danger" ? (
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+            ) : lifecycle.tone === "warning" ? (
+              <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+            ) : (
+              <Check className="h-3.5 w-3.5" aria-hidden="true" />
+            )}
+          </span>
+          <p className="truncate text-xs font-semibold text-text-strong">
+            {lifecycle.label}
+          </p>
+        </div>
+        <span
+          className={clsx(
+            "rounded-full border px-2 py-0.5 text-[10px] font-medium",
+            lifecycleToneClass(lifecycle.tone),
+          )}
+        >
+          {lifecycle.steps.filter((step) => step.status === "done").length} of{" "}
+          {lifecycle.steps.length}
+        </span>
+      </div>
+      <div className="mt-2 grid gap-1.5 sm:grid-cols-5">
+        {lifecycle.steps.map((step) => {
+          const Icon = lifecycleStepIcon(step.status);
+          return (
+            <div
+              key={step.id}
+              title={step.detail}
+              className={clsx(
+                "flex min-h-9 min-w-0 items-center gap-1.5 rounded-soft border px-2 py-1",
+                lifecycleStepClass(step.status),
+              )}
+            >
+              <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="truncate text-[10px] font-semibold">{step.label}</p>
+                <p className="truncate text-[10px] opacity-75">{step.detail}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function VenuePositionRow({
   position,
 }: {
@@ -2027,6 +2136,51 @@ function VenuePositionRow({
       </div>
     </div>
   );
+}
+
+function lifecycleToneClass(tone: AgentTradeLifecycle["tone"]): string {
+  switch (tone) {
+    case "success":
+      return "border-accent/30 bg-accent/[0.08] text-accent";
+    case "warning":
+      return "border-warning/30 bg-warning/[0.08] text-warning";
+    case "danger":
+      return "border-rose-500/30 bg-rose-500/[0.08] text-rose-300";
+    case "default":
+      return "border-border-soft bg-surface-raised text-text-soft";
+  }
+}
+
+function lifecycleStepClass(status: AgentTradeLifecycle["steps"][number]["status"]): string {
+  switch (status) {
+    case "done":
+      return "border-accent/25 bg-accent/[0.06] text-accent";
+    case "current":
+      return "border-warning/25 bg-warning/[0.06] text-warning";
+    case "blocked":
+      return "border-rose-500/30 bg-rose-500/[0.08] text-rose-300";
+    case "warning":
+      return "border-warning/30 bg-warning/[0.08] text-warning";
+    case "waiting":
+      return "border-border-soft bg-surface-raised text-text-soft";
+  }
+}
+
+function lifecycleStepIcon(
+  status: AgentTradeLifecycle["steps"][number]["status"],
+): typeof Check {
+  switch (status) {
+    case "done":
+      return Check;
+    case "current":
+      return Clock;
+    case "blocked":
+      return X;
+    case "warning":
+      return AlertTriangle;
+    case "waiting":
+      return Circle;
+  }
 }
 
 function VenueRequestRow({
