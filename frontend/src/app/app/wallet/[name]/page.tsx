@@ -24,7 +24,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { proposerDisplayName } from "@/lib/retail/proposerName";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ArrowRight, Banknote, Bell, Bot, Building2, ChevronDown, Coins, CreditCard, Download, Eye, EyeOff, Handshake, Layers, Plus, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
+import { Activity, ArrowRight, Banknote, Bell, Bot, Building2, ChevronDown, Coins, CreditCard, Download, Eye, EyeOff, Handshake, Layers, Plus, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, Wallet as WalletIcon, type LucideIcon } from "lucide-react";
 import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -64,14 +64,13 @@ import { BadgePill } from "@/components/retail/BadgePill";
 import { BalanceCardPattern } from "@/components/retail/BalanceCardPattern";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { MemberAvatarStack } from "@/components/retail/MemberAvatar";
+import { WalletAvatar } from "@/components/retail/WalletAvatar";
 import { relativeTime } from "@/lib/util/relativeTime";
 import { friendlyIntentLabel, friendlyStatus, statusTextColor } from "@/lib/retail/labels";
 import { formatBalance } from "@/lib/retail/format";
-import { avatarGradient } from "@/lib/retail/avatar";
 import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
 import {
   getWalletAppearance,
-  gradientFor,
   saveWalletAppearance,
   SHAPE_LABEL,
 } from "@/lib/retail/walletAppearance";
@@ -1238,10 +1237,6 @@ function Hero({
   const balance =
     balanceLamports !== null ? formatBalance(balanceLamports) : null;
 
-  const walletGrad = useMemo(
-    () => gradientFor(name, avatarGradient(name)),
-    [name],
-  );
   const shapeLabel = useMemo(() => {
     const a = getWalletAppearance(name);
     return a?.shape ? SHAPE_LABEL[a.shape] : null;
@@ -1267,19 +1262,12 @@ function Hero({
           members + pending approvals at a glance. */}
       <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div className="flex min-w-0 items-center gap-4">
-          <span
-            aria-hidden="true"
-            className={
-              "flex h-14 w-14 shrink-0 items-center justify-center bg-gradient-to-br text-xl font-semibold text-white shadow-[0_10px_28px_-10px_rgba(0,0,0,0.55)] ring-1 ring-white/10 sm:h-16 sm:w-16 sm:text-2xl " +
-              profile.avatarClass +
-              " " +
-              walletGrad.from +
-              " " +
-              walletGrad.to
-            }
-          >
-            {name.trim().charAt(0).toUpperCase() || "?"}
-          </span>
+          <WalletAvatar
+            name={name}
+            size="lg"
+            shapeClass={profile.avatarClass}
+            icon={profile.avatarIcon}
+          />
           <div className="flex min-w-0 flex-col">
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
               {profile.eyebrow}
@@ -1433,6 +1421,7 @@ function Hero({
               />
             ))}
           </div>
+
         </div>
       </div>
     </motion.section>
@@ -1460,6 +1449,7 @@ function productHeroProfile(
   productName: string;
   eyebrow: string;
   avatarClass: string;
+  avatarIcon: LucideIcon;
   cardClass: string;
   glowClass: string;
   glow: string;
@@ -1479,6 +1469,7 @@ function productHeroProfile(
       glow: SHARED_BALANCE_GLOW,
       portfolioWrapClass: "grid gap-5 lg:grid-cols-[1fr_0.85fr] lg:items-end",
       actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
+      avatarIcon: Users,
       actionTone: "personal",
       balanceLabel: "Shared balance",
       stats: [
@@ -1492,7 +1483,8 @@ function productHeroProfile(
     return {
       productName: "Pro",
       eyebrow: "Pro treasury · controls",
-      avatarClass: "rounded-xl",
+      avatarClass: "rounded-full",
+      avatarIcon: Building2,
       cardClass: SHARED_BALANCE_CARD_CLASS,
       glowClass: SHARED_BALANCE_GLOW_CLASS,
       glow: SHARED_BALANCE_GLOW,
@@ -1511,12 +1503,13 @@ function productHeroProfile(
     return {
       productName: "Agent",
       eyebrow: "Agent vault · trading desk",
-      avatarClass: "rounded-2xl",
+      avatarClass: "rounded-full",
       cardClass: SHARED_BALANCE_CARD_CLASS,
       glowClass: SHARED_BALANCE_GLOW_CLASS,
       glow: SHARED_BALANCE_GLOW,
       portfolioWrapClass: "grid gap-5 lg:grid-cols-[1fr_1.1fr] lg:items-end",
       actionsGridClass: "grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3",
+      avatarIcon: Bot,
       actionTone: "agent",
       balanceLabel: "Trading funds",
       stats: [
@@ -1526,15 +1519,48 @@ function productHeroProfile(
       ],
     };
   }
+  if (surface === "p2pdefi") {
+    return {
+      productName: "P2P",
+      eyebrow: "P2P wallet",
+      avatarClass: "rounded-full",
+      avatarIcon: Handshake,
+      cardClass: SHARED_BALANCE_CARD_CLASS,
+      glowClass: SHARED_BALANCE_GLOW_CLASS,
+      glow: SHARED_BALANCE_GLOW,
+      portfolioWrapClass: "grid gap-5 lg:grid-cols-[1.25fr_1fr] lg:items-end",
+      actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
+      actionTone: "default",
+      balanceLabel: "Settlement balance",
+      stats: [],
+    };
+  }
+  if (surface === "payments") {
+    return {
+      productName: "Payments",
+      eyebrow: "Payments wallet",
+      avatarClass: "rounded-full",
+      avatarIcon: CreditCard,
+      cardClass: SHARED_BALANCE_CARD_CLASS,
+      glowClass: SHARED_BALANCE_GLOW_CLASS,
+      glow: SHARED_BALANCE_GLOW,
+      portfolioWrapClass: "grid gap-5 lg:grid-cols-[1.25fr_1fr] lg:items-end",
+      actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
+      actionTone: "default",
+      balanceLabel: "Payment balance",
+      stats: [],
+    };
+  }
   return {
     productName: "Wallet",
     eyebrow: shapeLabel ? `Shared wallet · ${shapeLabel}` : "Shared wallet · Solana devnet",
-    avatarClass: "rounded-2xl",
+    avatarClass: "rounded-full",
     cardClass: SHARED_BALANCE_CARD_CLASS,
     glowClass: SHARED_BALANCE_GLOW_CLASS,
     glow: SHARED_BALANCE_GLOW,
     portfolioWrapClass: "flex flex-col",
     actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
+    avatarIcon: WalletIcon,
     actionTone: "default",
     balanceLabel: "Balance",
     stats: [],
@@ -2161,8 +2187,13 @@ function manageActionGroups(
   if (surface === "personal") {
     return [
       {
+        label: "Rules",
+        description: "Core controls for approvals and limits.",
+        rows: rulesActionRows(encoded, "personal"),
+      },
+      {
         label: "Money",
-        description: "Personal top-up and off-ramp.",
+        description: "Top up or withdraw through supported rails.",
         rows: moneyActionRows(encoded),
       },
     ];
@@ -2170,6 +2201,11 @@ function manageActionGroups(
 
   if (surface === "pro") {
     return [
+      {
+        label: "Rules",
+        description: "Core controls for approvals and limits.",
+        rows: rulesActionRows(encoded, "pro"),
+      },
       {
         label: "Limits",
         description: "Treasury spending controls.",
@@ -2184,7 +2220,7 @@ function manageActionGroups(
       },
       {
         label: "Money",
-        description: "Treasury top-up and off-ramp.",
+        description: "Top up or withdraw through supported rails.",
         rows: moneyActionRows(encoded),
       },
     ];
@@ -2209,9 +2245,31 @@ function manageActionGroups(
 
   return [
     {
+      label: "Rules",
+      description: "Core controls for approvals and limits.",
+      rows: rulesActionRows(encoded, null),
+    },
+    {
       label: "Money",
-      description: "Fiat to crypto. Naira-routed for now.",
+      description: "Top up or withdraw through supported rails.",
       rows: moneyActionRows(encoded),
+    },
+  ];
+}
+
+function rulesActionRows(
+  encoded: string,
+  surface: ProductSurfaceId | null,
+): ManageActionGroup["rows"] {
+  return [
+    {
+      href: `/app/wallet/${encoded}/policy`,
+      icon: ShieldCheck,
+      title: surface === "pro" ? "Set treasury rules" : "Set rules",
+      body:
+        surface === "pro"
+          ? "Approvals, roles, limits, and alerts."
+          : "Approvals, limits, and alerts.",
     },
   ];
 }
@@ -2221,14 +2279,14 @@ function moneyActionRows(encoded: string): ManageActionGroup["rows"] {
     {
       href: `/app/wallet/${encoded}/buy`,
       icon: Banknote,
-      title: "Buy with naira",
-      body: "Top up SOL or ETH from a Nigerian bank account.",
+      title: "Buy crypto",
+      body: "Fund SOL or ETH from a Nigerian bank account.",
     },
     {
       href: `/app/wallet/${encoded}/sell`,
       icon: TrendingDown,
-      title: "Sell to bank",
-      body: "Off-ramp crypto back to NGN.",
+      title: "Withdraw to bank",
+      body: "Convert crypto to NGN.",
     },
   ];
 }
@@ -2243,16 +2301,20 @@ function ActionGroup({
   children: React.ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-3">
-      <div className="flex flex-col gap-0.5">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+    <section className="flex flex-col gap-2.5">
+      <div className="flex items-end justify-between gap-3">
+        <div className="min-w-0">
+        <h3 className="text-[10px] font-semibold uppercase tracking-[0.26em] text-text-soft">
           {label}
         </h3>
         {description ? (
-          <p className="text-xs text-text-soft/80">{description}</p>
+          <p className="mt-1 text-xs leading-relaxed text-text-soft/80">
+            {description}
+          </p>
         ) : null}
+        </div>
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{children}</div>
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">{children}</div>
     </section>
   );
 }
@@ -2264,7 +2326,7 @@ function ActionRow({
   body,
 }: {
   href: string;
-  icon: typeof Send;
+  icon: LucideIcon;
   title: string;
   body: string;
 }) {
@@ -2272,23 +2334,30 @@ function ActionRow({
     <Link
       href={href}
       className={
-        "group flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest " +
-        "transition-[transform,border-color,box-shadow] duration-base ease-out-soft " +
-        "hover:-translate-y-0.5 hover:shadow-card-raised " +
+        "group relative flex min-h-[82px] items-center gap-3 overflow-hidden rounded-card border border-border-soft bg-surface-raised px-4 py-3.5 shadow-card-rest " +
+        "transition-[transform,border-color,box-shadow,background-color] duration-base ease-out-soft " +
+        "hover:-translate-y-0.5 hover:border-accent/35 hover:bg-canvas hover:shadow-card-raised " +
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
       }
     >
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
-        <Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-5 bottom-0 h-px bg-gradient-to-r from-transparent via-accent/35 to-transparent opacity-0 transition-opacity duration-base group-hover:opacity-100"
+      />
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent transition-colors duration-base group-hover:bg-accent/15">
+        <Icon className="h-4 w-4" strokeWidth={1.85} aria-hidden="true" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-text-strong">{title}</p>
-        <p className="mt-0.5 text-xs text-text-soft">{body}</p>
+        <p className="truncate text-sm font-semibold text-text-strong">
+          {title}
+        </p>
+        <p className="mt-1 line-clamp-2 text-xs leading-snug text-text-soft">
+          {body}
+        </p>
       </div>
-      <ArrowRight
-        className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
-        aria-hidden="true"
-      />
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-canvas/70 text-text-soft transition-[color,transform] duration-base group-hover:translate-x-0.5 group-hover:text-accent">
+        <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+      </span>
     </Link>
   );
 }
