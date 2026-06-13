@@ -29,10 +29,13 @@ import {
   Activity,
   ArrowRight,
   Bell,
+  Bot,
+  Building2,
   ChevronDown,
   ChevronUp,
   Eye,
   EyeOff,
+  KeyRound,
   Pin,
   PinOff,
   Plus,
@@ -689,24 +692,33 @@ function BalanceHeroCard({
   const label = selectedSurface
     ? productWorkspaceLabel(selectedSurface)
     : "Total balance";
+  const surfaceCopy = productDashboardCopy(selectedSurface);
   const { hidden, toggle } = useBalancePrivacy();
   const hiddenClass = hidden ? "blur-sm select-none" : "";
   return (
     <section
       className={clsx(
-        "relative overflow-hidden rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-7",
+        "relative overflow-hidden rounded-card border p-6 shadow-card-rest sm:p-7",
+        selectedSurface
+          ? surfaceHeroTone(selectedSurface)
+          : "border-border-soft bg-surface-raised",
       )}
     >
-      <BalanceCardPattern />
+      {!selectedSurface ? <BalanceCardPattern /> : null}
 
       {/* Foreground content. relative + z-10 keeps it above both
           decoration layers. */}
-      <div className="relative z-10">
+      <div className="relative z-10 grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-center">
+        <div className="min-w-0">
         {/* Brand row - small visible mark + label */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-md bg-accent/15">
-              <BrandMark size={14} />
+              {selectedSurface ? (
+                <surfaceCopy.Icon className="h-4 w-4 text-accent" aria-hidden="true" />
+              ) : (
+                <BrandMark size={14} />
+              )}
             </span>
             <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
               {label}
@@ -738,6 +750,17 @@ function BalanceHeroCard({
           )}
         </div>
 
+        {selectedSurface ? (
+          <div className="mt-5 max-w-2xl">
+            <h2 className="font-display text-2xl font-semibold leading-tight text-text-strong sm:text-3xl">
+              {surfaceCopy.title}
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-text-soft">
+              {surfaceCopy.body}
+            </p>
+          </div>
+        ) : null}
+
         {/* Big numerals */}
         {loading ? (
           <div className="mt-5 h-12 w-44 animate-pulse rounded bg-border-soft/80 sm:h-14 sm:w-56" />
@@ -765,18 +788,186 @@ function BalanceHeroCard({
 
         <div className="mt-6 flex items-center justify-between gap-3">
           <p className="min-w-0 truncate font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft sm:text-[11px]">
-            ClearSig - all products
+            {selectedSurface ? surfaceCopy.footer : "ClearSig - all products"}
           </p>
           <Link
-            href="/choose"
+            href={selectedSurface ? productSetupHref(selectedSurface) : "/choose"}
             className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full bg-accent px-3 text-[11px] font-semibold text-text-on-accent shadow-accent-rest transition-[background-color,transform,box-shadow] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-accent-hover hover:shadow-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
           >
             <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-            Choose product
+            {selectedSurface ? surfaceCopy.cta : "Choose product"}
           </Link>
         </div>
+        </div>
+        {selectedSurface ? (
+          <ProductDashboardVisual surface={selectedSurface} />
+        ) : null}
       </div>
     </section>
+  );
+}
+
+function productDashboardCopy(surface: WalletProductSurface | null): {
+  Icon: LucideIcon;
+  title: string;
+  body: string;
+  footer: string;
+  cta: string;
+} {
+  switch (surface) {
+    case "personal":
+      return {
+        Icon: Users,
+        title: "Shared money, fewer steps.",
+        body: "Send, receive, add trusted people, and manage simple rules from a wallet built for people.",
+        footer: "Personal actions",
+        cta: "New personal",
+      };
+    case "pro":
+      return {
+        Icon: Building2,
+        title: "Treasury control for teams.",
+        body: "Review team wallets, approvals, spend rules, and audit-ready activity before money moves.",
+        footer: "Pro treasury",
+        cta: "New treasury",
+      };
+    case "agent":
+      return {
+        Icon: Bot,
+        title: "Trading agents with a hard stop.",
+        body: "Pick a trader recipe, set allowance, connect a venue, and monitor every guarded decision.",
+        footer: "Agent trading",
+        cta: "New agent vault",
+      };
+    case "secure":
+      return {
+        Icon: KeyRound,
+        title: "Recovery without panic.",
+        body: "Create a recovery vault, enroll trusted devices, and keep sweep actions isolated from spending.",
+        footer: "Secure recovery",
+        cta: "New recovery",
+      };
+    default:
+      return {
+        Icon: Wallet,
+        title: "Product workspaces",
+        body: "Choose a product to continue.",
+        footer: "ClearSig - all products",
+        cta: "Choose product",
+      };
+  }
+}
+
+function surfaceHeroTone(surface: WalletProductSurface): string {
+  switch (surface) {
+    case "personal":
+      return "border-emerald-300/20 bg-[linear-gradient(135deg,var(--clear-surface-raised),rgba(6,78,59,0.16))]";
+    case "pro":
+      return "border-sky-300/20 bg-[linear-gradient(135deg,var(--clear-surface-raised),rgba(14,116,144,0.16))]";
+    case "agent":
+      return "border-accent/25 bg-[linear-gradient(135deg,var(--clear-surface-raised),rgba(204,255,0,0.10))]";
+    case "secure":
+      return "border-fuchsia-200/20 bg-[linear-gradient(135deg,var(--clear-surface-raised),rgba(126,34,206,0.15))]";
+  }
+}
+
+function ProductDashboardVisual({ surface }: { surface: WalletProductSurface }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="relative min-h-[13rem] overflow-hidden rounded-card border border-border-soft bg-canvas/55 p-4"
+    >
+      {surface === "personal" ? <PersonalDashboardVisual /> : null}
+      {surface === "pro" ? <ProDashboardVisual /> : null}
+      {surface === "agent" ? <AgentDashboardVisual /> : null}
+      {surface === "secure" ? <SecureDashboardVisual /> : null}
+    </div>
+  );
+}
+
+function PersonalDashboardVisual() {
+  return (
+    <div className="flex h-full flex-col justify-between gap-4">
+      <div className="flex items-center justify-between">
+        <div className="flex -space-x-2">
+          {["bg-emerald-300", "bg-sky-200", "bg-lime-300"].map((tone) => (
+            <span key={tone} className={clsx("h-9 w-9 rounded-full border-2 border-canvas", tone)} />
+          ))}
+        </div>
+        <span className="rounded-full bg-emerald-300/10 px-2.5 py-1 text-[10px] font-semibold text-emerald-300">
+          Trusted people
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {["Send", "Receive", "Rules"].map((label) => (
+          <span key={label} className="rounded-xl border border-border-soft bg-surface-raised px-2 py-3 text-center text-[10px] font-medium text-text-strong">
+            {label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProDashboardVisual() {
+  return (
+    <div className="flex h-full flex-col gap-3">
+      {["Payroll", "Vendor payout", "Ops budget"].map((label, index) => (
+        <div key={label} className="rounded-xl border border-border-soft bg-surface-raised p-3">
+          <div className="flex items-center justify-between text-[10px] font-medium text-text-soft">
+            <span>{label}</span>
+            <span>{index + 1}/3</span>
+          </div>
+          <div className="mt-2 h-1.5 rounded-full bg-border-soft">
+            <div className={clsx("h-full rounded-full bg-sky-300", index === 0 ? "w-3/4" : index === 1 ? "w-1/2" : "w-1/3")} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AgentDashboardVisual() {
+  return (
+    <div className="flex h-full flex-col justify-between gap-4">
+      <div className="flex items-center justify-between">
+        <span className="rounded-full bg-accent/10 px-2.5 py-1 text-[10px] font-semibold text-accent">
+          Live monitor
+        </span>
+        <span className="h-2 w-2 rounded-full bg-accent" />
+      </div>
+      <div className="flex items-end gap-1.5">
+        {[40, 68, 52, 88, 66, 104, 78].map((height, index) => (
+          <span key={index} className="flex-1 rounded-t bg-accent/70" style={{ height }} />
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <span className="rounded-xl border border-accent/20 bg-accent/[0.07] px-2 py-2 text-[10px] font-medium text-accent">
+          Guardrails
+        </span>
+        <span className="rounded-xl border border-border-soft bg-surface-raised px-2 py-2 text-[10px] font-medium text-text-soft">
+          Kill switch
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function SecureDashboardVisual() {
+  return (
+    <div className="flex h-full flex-col justify-between gap-4">
+      <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full border border-fuchsia-200/20 bg-fuchsia-200/[0.06]">
+        <KeyRound className="h-9 w-9 text-fuchsia-200" strokeWidth={1.8} />
+      </div>
+      <div className="grid gap-2">
+        {["Passkey", "Trusted device", "Recovery sweep"].map((label) => (
+          <span key={label} className="flex items-center gap-2 rounded-xl border border-border-soft bg-surface-raised px-3 py-2 text-[10px] font-medium text-text-soft">
+            <ShieldCheck className="h-3.5 w-3.5 text-fuchsia-200" />
+            {label}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
