@@ -100,6 +100,57 @@ describe("agent state route owner authority", () => {
     expect(body.execution?.status).toBe("closed");
     expect(body.execution?.realizedPnlUsd).toBe("12.5");
   });
+
+  it("requests the protected executor kill switch when emergency pause is enabled", async () => {
+    const walletName = "route-state-kill-switch";
+    vi.stubEnv(
+      "CLEARSIG_HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS",
+      "0x1111111111111111111111111111111111111111",
+    );
+    vi.stubEnv(
+      "CLEARSIG_HYPERLIQUID_TESTNET_AGENT_WALLET_ADDRESS",
+      "0x2222222222222222222222222222222222222222",
+    );
+    vi.stubEnv("CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_URL", "http://executor.local");
+    vi.stubEnv("CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_TOKEN", "executor-secret");
+    const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      expect(String(url)).toBe(
+        "http://executor.local/v1/hyperliquid/testnet/kill-switch",
+      );
+      expect(init?.headers).toMatchObject({
+        authorization: "Bearer executor-secret",
+      });
+      const body = JSON.parse(String(init?.body));
+      expect(body.walletName).toBe(walletName);
+      return new Response(
+        JSON.stringify({
+          artifact: {
+            exchange: "hyperliquid_testnet",
+            status: "cancelled",
+            cancelledAt: now,
+            message: "Open orders cancelled.",
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await mutateAgentState(
+      actionRequest(walletName, "set_emergency_pause", { emergencyPaused: true }),
+      { params: Promise.resolve({ name: walletName }) },
+    );
+    const body = (await response.json()) as {
+      policy?: { emergencyPaused?: boolean };
+      killSwitch?: { state?: string; artifact?: { status?: string } };
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.policy?.emergencyPaused).toBe(true);
+    expect(body.killSwitch?.state).toBe("sent");
+    expect(body.killSwitch?.artifact?.status).toBe("cancelled");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 async function seedOpenExecution(walletName: string): Promise<AgentExecutionRecord> {
@@ -134,6 +185,10 @@ async function seedOpenExecution(walletName: string): Promise<AgentExecutionReco
 }
 
 function request(walletName: string, execution: AgentExecutionRecord): NextRequest {
+  return actionRequest(walletName, "upsert_execution", execution);
+}
+
+function actionRequest(walletName: string, action: string, payload: unknown): NextRequest {
   return new NextRequest(`http://localhost/api/agent-state/${walletName}`, {
     method: "POST",
     headers: {
@@ -141,7 +196,7 @@ function request(walletName: string, execution: AgentExecutionRecord): NextReque
       Host: "localhost",
       Origin: "http://localhost",
     },
-    body: JSON.stringify({ action: "upsert_execution", payload: execution }),
+    body: JSON.stringify({ action, payload }),
   });
 }
 

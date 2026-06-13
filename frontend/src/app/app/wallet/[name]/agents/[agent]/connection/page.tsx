@@ -499,6 +499,15 @@ export default function AgentConnectionPage() {
   }, [kit?.autoImportSessionSignals, kit?.managementKey, registered, runAutoReview, toast]);
 
   const toggleAutoReview = (enabled: boolean) => {
+    if (enabled) {
+      toast.error("Use the trading desk to turn on automation", {
+        details: "Automatic trading now requires a wallet-signed owner approval.",
+      });
+      router.push(
+        `/app/wallet/${encodedWallet}/agents/start?agent=${encodeURIComponent(agentId)}&venue=${requestedVenue}`,
+      );
+      return;
+    }
     startTransition(async () => {
       const updated = updateAgentConnectionSettings(name, agentId, {
         autoImportSessionSignals: enabled,

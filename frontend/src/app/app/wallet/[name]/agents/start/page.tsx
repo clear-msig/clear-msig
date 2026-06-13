@@ -438,6 +438,12 @@ export default function StartTradingPage() {
       toast.error("Review the trading disclosures first");
       return;
     }
+    if (!canSign) {
+      toast.error("Automatic trading needs wallet signing", {
+        details: "Connect a wallet that can sign the ClearSig approval.",
+      });
+      return;
+    }
     void (async () => {
       setAutomaticTradingBusy(true);
       try {
@@ -454,42 +460,24 @@ export default function StartTradingPage() {
           ],
         };
         let approval: AgentOwnerApproval | null;
-        if (canSign) {
-          toast.info("Approve automatic trading in your wallet");
-          try {
-            const createdAt = Date.now();
-            const signed = await signBytes(
-              new TextEncoder().encode(ownerApprovalSignableText(input, createdAt)),
-            );
-            approval = await createBrowserOwnerApproval({
-              ...input,
-              now: createdAt,
-              approvedBy: signed.signer_pubkey,
-              signature: signed.signature,
-            });
-            saveAgentOwnerApproval(approval);
-            const synced = await syncAgentOwnerApproval(approval);
-            if (!synced.ok) {
-              toast.info("Approval saved on this device for now", {
-                details: synced.message,
-              });
-            }
-          } catch (error) {
-            toast.info("Wallet signing did not complete", {
-              details:
-                error instanceof Error
-                  ? `${error.message}. Use the ClearSig approval instead.`
-                  : "Use the ClearSig approval instead.",
-            });
-            approval = await requestOwnerApproval(
-              input,
-              "Confirm and turn on",
-              "browser",
-            );
-          }
-        } else {
-          toast.info("Review the approval to turn on automatic trading");
-          approval = await requestOwnerApproval(input, "Approve and turn on", "browser");
+        toast.info("Approve automatic trading in your wallet");
+        const createdAt = Date.now();
+        const signed = await signBytes(
+          new TextEncoder().encode(ownerApprovalSignableText(input, createdAt)),
+        );
+        approval = await createBrowserOwnerApproval({
+          ...input,
+          now: createdAt,
+          approvedBy: signed.signer_pubkey,
+          signature: signed.signature,
+        });
+        saveAgentOwnerApproval(approval);
+        const synced = await syncAgentOwnerApproval(approval);
+        if (!synced.ok) {
+          toast.error("Automatic trading approval did not sync", {
+            details: synced.message,
+          });
+          return;
         }
         if (!approval) return;
         const updated = await setAgentAutomaticTrading(name, selectedAgent.id, true);

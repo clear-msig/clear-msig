@@ -1407,6 +1407,7 @@ export default function AgentsPage() {
           <KillSwitchPanel
             paused={policy.emergencyPaused}
             pending={pendingAction}
+            executorState={liveVenueReadiness?.executorProbe?.state ?? null}
             onToggle={setKillSwitch}
           />
         </section>
@@ -2200,12 +2201,15 @@ function ScoutMiniReason({ label, value }: { label: string; value: string }) {
 function KillSwitchPanel({
   paused,
   pending,
+  executorState,
   onToggle,
 }: {
   paused: boolean;
   pending: boolean;
+  executorState: "not_configured" | "unavailable" | "ready" | null;
   onToggle: (enabled: boolean) => void;
 }) {
+  const executorReady = executorState === "ready";
   return (
     <section
       className={clsx(
@@ -2235,9 +2239,23 @@ function KillSwitchPanel({
             </p>
             <p className="mt-1 text-xs text-text-soft">
               {paused
-                ? "No new trades can open."
-                : "Kill switch is available anytime."}
+                ? executorReady
+                  ? "Policy is paused. The protected venue stop path is configured."
+                  : "Policy is paused. Protected venue stop path still needs setup."
+                : executorReady
+                  ? "Kill switch can also notify the protected testnet executor."
+                  : "Kill switch will pause ClearSig policy; finish venue setup for executor handoff."}
             </p>
+            <span
+              className={clsx(
+                "mt-2 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                executorReady
+                  ? "border-accent/30 bg-accent/[0.08] text-accent"
+                  : "border-warning/30 bg-warning/[0.08] text-warning",
+              )}
+            >
+              Protected executor {executorReady ? "ready" : "pending"}
+            </span>
           </div>
         </div>
         <button

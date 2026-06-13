@@ -53,6 +53,13 @@ export interface HyperliquidTestnetOrderArtifact {
   submittedAt: number;
 }
 
+export interface HyperliquidTestnetKillSwitchArtifact {
+  exchange: "hyperliquid_testnet";
+  status: "accepted" | "cancelled" | "no_open_orders";
+  cancelledAt: number;
+  message: string;
+}
+
 export interface HyperliquidTestnetExecutorRequest {
   schemaVersion: 1;
   network: "testnet";
@@ -63,6 +70,16 @@ export interface HyperliquidTestnetExecutorRequest {
   controls: {
     maxSlippageBps: number;
   };
+}
+
+export interface HyperliquidTestnetKillSwitchRequest {
+  schemaVersion: 1;
+  network: "testnet";
+  idempotencyKey: string;
+  accountAddress: string;
+  agentWalletAddress: string;
+  walletName: string;
+  reason: string;
 }
 
 export async function probeHyperliquidTestnetAccount({
@@ -247,6 +264,28 @@ export function buildHyperliquidTestnetExecutorRequest(
   };
 }
 
+export function buildHyperliquidTestnetKillSwitchRequest({
+  walletName,
+  reason,
+  config,
+}: {
+  walletName: string;
+  reason: string;
+  config: HyperliquidTestnetExecutorConfig;
+}): HyperliquidTestnetKillSwitchRequest {
+  return {
+    schemaVersion: 1,
+    network: "testnet",
+    idempotencyKey: createHash("sha256")
+      .update(`${walletName}:hyperliquid_testnet:kill-switch`)
+      .digest("hex"),
+    accountAddress: config.accountAddress,
+    agentWalletAddress: config.agentWalletAddress,
+    walletName,
+    reason: reason.trim() || "ClearSig agent trading kill switch",
+  };
+}
+
 export async function submitHyperliquidTestnetOrder({
   request,
   config,
@@ -281,6 +320,50 @@ export async function submitHyperliquidTestnetOrder({
     throw new Error(`Hyperliquid testnet executor rejected the order: ${message}`);
   }
   return normalizeHyperliquidTestnetOrderArtifact(body, request);
+}
+
+export async function submitHyperliquidTestnetKillSwitch({
+  walletName,
+  reason,
+  config,
+  fetchImpl = fetch,
+}: {
+  walletName: string;
+  reason: string;
+  config: HyperliquidTestnetExecutorConfig;
+  fetchImpl?: typeof fetch;
+}): Promise<HyperliquidTestnetKillSwitchArtifact> {
+  const response = await fetchImpl(
+    `${config.executorUrl}/v1/hyperliquid/testnet/kill-switch`,
+    {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        authorization: `Bearer ${config.executorToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(
+        buildHyperliquidTestnetKillSwitchRequest({
+          walletName,
+          reason,
+          config,
+        }),
+      ),
+      cache: "no-store",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    },
+  );
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message =
+      body &&
+      typeof body === "object" &&
+      typeof (body as Record<string, unknown>).error === "string"
+        ? String((body as Record<string, unknown>).error)
+        : `HTTP ${response.status}`;
+    throw new Error(`Hyperliquid testnet executor rejected kill switch: ${message}`);
+  }
+  return normalizeHyperliquidTestnetKillSwitchArtifact(body);
 }
 
 export function normalizeHyperliquidTestnetOrderArtifact(
@@ -318,6 +401,37 @@ export function normalizeHyperliquidTestnetOrderArtifact(
     market,
     side: side as HyperliquidTestnetOrderArtifact["side"],
     submittedAt,
+  };
+}
+
+export function normalizeHyperliquidTestnetKillSwitchArtifact(
+  input: unknown,
+): HyperliquidTestnetKillSwitchArtifact {
+  const source =
+    input && typeof input === "object" && !Array.isArray(input)
+      ? ((input as Record<string, unknown>).artifact ?? input)
+      : null;
+  if (!source || typeof source !== "object" || Array.isArray(source)) {
+    throw new Error("Hyperliquid testnet executor returned no kill-switch artifact.");
+  }
+  const record = source as Record<string, unknown>;
+  const status = stringValue(record.status);
+  const cancelledAt = numberValue(record.cancelledAt);
+  const message = stringValue(record.message);
+  if (
+    record.exchange !== "hyperliquid_testnet" ||
+    !["accepted", "cancelled", "no_open_orders"].includes(status) ||
+    !Number.isFinite(cancelledAt) ||
+    cancelledAt <= 0 ||
+    !message
+  ) {
+    throw new Error("Hyperliquid testnet executor returned an invalid kill-switch artifact.");
+  }
+  return {
+    exchange: "hyperliquid_testnet",
+    status: status as HyperliquidTestnetKillSwitchArtifact["status"],
+    cancelledAt,
+    message,
   };
 }
 

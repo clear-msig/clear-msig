@@ -15,6 +15,11 @@ import {
 } from "@/lib/agents/serverInbox";
 import { importAgentInboxSignals } from "@/lib/agents/serverInboxImport";
 import { executeAllowedAgentProposal } from "@/lib/agents/serverAutomaticExecution";
+import {
+  AgentServerStatePersistenceError,
+  agentServerStatePersistenceStatus,
+  hasAgentServerWalletSignedOwnerApproval,
+} from "@/lib/agents/serverState";
 
 const MAX_BODY_BYTES = 8_000;
 const MAX_SIGNAL_KEY_BYTES = 160;
@@ -79,13 +84,46 @@ export async function POST(request: NextRequest, context: RouteContext) {
         { status: 401 },
       );
     }
+    const autoImportSessionSignals = readBooleanField(body, "autoImportSessionSignals");
+    if (autoImportSessionSignals) {
+      let approved = false;
+      try {
+        approved = await hasAgentServerWalletSignedOwnerApproval({
+          walletName,
+          agentId,
+          action: "start_automatic_trading",
+          targetType: "agent",
+          targetId: agentId,
+        });
+      } catch (error) {
+        if (error instanceof AgentServerStatePersistenceError) {
+          return NextResponse.json(
+            {
+              error: error.message,
+              persistence: agentServerStatePersistenceStatus(),
+            },
+            { status: 503 },
+          );
+        }
+        throw error;
+      }
+      if (!approved) {
+        return NextResponse.json(
+          {
+            error:
+              "Automatic trading requires a wallet-signed owner approval before ClearSig can import agent signals.",
+          },
+          { status: 409 },
+        );
+      }
+    }
     try {
       await registerAgentSignalKey({
         walletName,
         agentId,
         signalKey,
         managementKey,
-        autoImportSessionSignals: readBooleanField(body, "autoImportSessionSignals"),
+        autoImportSessionSignals,
         allowedOrigins: readStringArrayField(body, "allowedOrigins"),
       });
     } catch (error) {
