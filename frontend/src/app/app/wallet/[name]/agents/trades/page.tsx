@@ -29,7 +29,8 @@ import {
   type AgentTradeProposal,
 } from "@/lib/agents";
 import {
-  loadAgentVenueReadiness,
+  loadAgentVenueReadinessForAgents,
+  startAgentVenueReadinessPolling,
   type AgentVenueReadiness,
   type AgentVenueRequestRecord,
 } from "@/lib/agents/clientExecution";
@@ -102,29 +103,24 @@ export default function AgentTradesPage() {
       setAccountSnapshot(null);
       return;
     }
-    let cancelled = false;
     const settings = getAgentHyperliquidSetupSettings(name);
-    void Promise.all(
-      agentIds.map((agentId) =>
-        loadAgentVenueReadiness("hyperliquid_testnet", {
+    return startAgentVenueReadinessPolling({
+      venue: "hyperliquid_testnet",
+      load: () =>
+        loadAgentVenueReadinessForAgents("hyperliquid_testnet", {
           walletName: name,
-          agentId,
+          agentIds,
           accountAddress: settings.accountAddress,
-        }).catch(() => null),
-      ),
-    ).then((results) => {
-      if (cancelled) return;
-      setVenueRequests(
-        results.flatMap((readiness) => readiness?.requests ?? []),
-      );
-      setAccountSnapshot(
-        results.find((readiness) => readiness?.accountSnapshot)?.accountSnapshot ??
-          null,
-      );
+        }),
+      onUpdate: (readiness) => {
+        setVenueRequests(readiness?.requests ?? []);
+        setAccountSnapshot(readiness?.accountSnapshot ?? null);
+      },
+      onError: () => {
+        setVenueRequests([]);
+        setAccountSnapshot(null);
+      },
     });
-    return () => {
-      cancelled = true;
-    };
   }, [agentIds, name]);
 
   const filtered = executions.filter((execution) => {

@@ -114,6 +114,7 @@ import {
   type AgentTradingReadiness,
   type AgentAllocationRecommendation,
   type AgentBetaReadiness,
+  type AgentKillSwitchHandoff,
   type AgentTradeLifecycle,
   closeAgentExecutionRecord,
 } from "@/lib/agents";
@@ -123,7 +124,8 @@ import {
 } from "@/lib/agents/clientInbox";
 import { runAgentAutonomyTickClient } from "@/lib/agents/clientAutonomy";
 import {
-  loadAgentVenueReadiness,
+  loadAgentVenueReadinessForAgents,
+  startAgentVenueReadinessPolling,
   submitAgentVenueExecution,
   type AgentVenueRequestRecord,
   type AgentVenueReadiness,
@@ -206,6 +208,8 @@ export default function AgentsPage() {
   const [liveVenueReadiness, setLiveVenueReadiness] =
     useState<AgentVenueReadiness | null>(null);
   const [liveVenueLoading, setLiveVenueLoading] = useState(true);
+  const [killSwitchHandoff, setKillSwitchHandoff] =
+    useState<AgentKillSwitchHandoff | null>(null);
   const [backendStatus, setBackendStatus] = useState<BackendPersistenceStatus>({
     state: "checking",
     agents: 0,
@@ -305,26 +309,29 @@ export default function AgentsPage() {
     };
   }, [agents, name]);
 
+  const agentIds = useMemo(() => agents.map((agent) => agent.id).sort(), [agents]);
+
   useEffect(() => {
-    let cancelled = false;
     setLiveVenueLoading(true);
     const setup = getAgentHyperliquidSetupSettings(name);
-    loadAgentVenueReadiness("hyperliquid_testnet", {
-      accountAddress: setup.accountAddress,
-    })
-      .then((readiness) => {
-        if (!cancelled) setLiveVenueReadiness(readiness);
-      })
-      .catch(() => {
-        if (!cancelled) setLiveVenueReadiness(null);
-      })
-      .finally(() => {
-        if (!cancelled) setLiveVenueLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [name]);
+    return startAgentVenueReadinessPolling({
+      venue: "hyperliquid_testnet",
+      load: () =>
+        loadAgentVenueReadinessForAgents("hyperliquid_testnet", {
+          walletName: name,
+          agentIds,
+          accountAddress: setup.accountAddress,
+        }),
+      onUpdate: (readiness) => {
+        setLiveVenueReadiness(readiness);
+        setLiveVenueLoading(false);
+      },
+      onError: () => {
+        setLiveVenueReadiness(null);
+        setLiveVenueLoading(false);
+      },
+    });
+  }, [agentIds, name]);
 
   const openExecutionRecords = useMemo(
     () => executions.filter((execution) => execution.status === "open"),
@@ -814,8 +821,12 @@ export default function AgentsPage() {
       setPolicy(updated);
       void syncAgentEmergencyPause(name, enabled).then((synced) => {
         if (synced.ok) {
+          setKillSwitchHandoff(synced.killSwitch ?? null);
           toast.success(
             enabled ? "All automatic actions stopped" : "Automatic actions allowed again",
+            synced.killSwitch
+              ? { details: synced.killSwitch.message }
+              : undefined,
           );
           void refreshBackendState();
         } else {
@@ -1411,6 +1422,7 @@ export default function AgentsPage() {
             paused={policy.emergencyPaused}
             pending={pendingAction}
             executorState={liveVenueReadiness?.executorProbe?.state ?? null}
+            handoff={killSwitchHandoff}
             onToggle={setKillSwitch}
           />
         </section>
@@ -2216,11 +2228,13 @@ function KillSwitchPanel({
   paused,
   pending,
   executorState,
+  handoff,
   onToggle,
 }: {
   paused: boolean;
   pending: boolean;
   executorState: "not_configured" | "unavailable" | "ready" | null;
+  handoff: AgentKillSwitchHandoff | null;
   onToggle: (enabled: boolean) => void;
 }) {
   const executorReady = executorState === "ready";
@@ -2292,8 +2306,49 @@ function KillSwitchPanel({
           {paused ? "Allow trading again" : "Stop all trading"}
         </button>
       </div>
+      {handoff ? (
+        <div
+          className={clsx(
+            "mt-3 rounded-soft border px-3 py-2",
+            handoff.state === "sent"
+              ? "border-accent/25 bg-accent/[0.06]"
+              : handoff.state === "failed"
+                ? "border-rose-500/30 bg-rose-500/[0.08]"
+                : "border-warning/30 bg-warning/[0.08]",
+          )}
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            {handoff.state === "sent" ? (
+              <Check className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+            ) : handoff.state === "failed" ? (
+              <X className="h-3.5 w-3.5 text-rose-300" aria-hidden="true" />
+            ) : (
+              <AlertTriangle className="h-3.5 w-3.5 text-warning" aria-hidden="true" />
+            )}
+            <p className="text-xs font-semibold text-text-strong">
+              {killSwitchHandoffLabel(handoff)}
+            </p>
+          </div>
+          <p className="mt-1 text-xs leading-relaxed text-text-soft">
+            {handoff.message}
+          </p>
+        </div>
+      ) : null}
     </section>
   );
+}
+
+function killSwitchHandoffLabel(handoff: AgentKillSwitchHandoff): string {
+  switch (handoff.state) {
+    case "sent":
+      return "Executor stop sent";
+    case "failed":
+      return "Executor stop failed";
+    case "not_configured":
+      return "Executor not configured";
+    case "not_requested":
+      return "Executor stop not requested";
+  }
 }
 
 function AgentNotificationsPanel({

@@ -40,11 +40,15 @@ export type AgentVenueReadiness = AgentServerExecutionReadiness & {
 
 export type AgentVenueRequestRecord = NonNullable<AgentVenueReadiness["requests"]>[number];
 
+export const AGENT_VENUE_REALTIME_POLL_MS = 10_000;
+
 export interface AgentVenueRequestReconciliation {
   state:
     | "not_submitted"
-    | "running_on_exchange"
-    | "not_open_on_exchange"
+    | "submitted"
+    | "open_on_venue"
+    | "not_found"
+    | "executor_error"
     | "waiting_for_account";
   label: string;
   message: string;
@@ -87,6 +91,103 @@ export async function loadAgentVenueReadiness(
         requests: Array.isArray(body.requests) ? body.requests : [],
       }
     : null;
+}
+
+export async function loadAgentVenueReadinessForAgents(
+  venue: AgentTradeProposal["venue"],
+  options: {
+    walletName: string;
+    agentIds: string[];
+    accountAddress?: string;
+  },
+): Promise<AgentVenueReadiness | null> {
+  const uniqueAgentIds = Array.from(new Set(options.agentIds.filter(Boolean)));
+  if (uniqueAgentIds.length === 0) {
+    return loadAgentVenueReadiness(venue, {
+      accountAddress: options.accountAddress,
+    });
+  }
+  const results = await Promise.all(
+    uniqueAgentIds.map((agentId) =>
+      loadAgentVenueReadiness(venue, {
+        walletName: options.walletName,
+        agentId,
+        accountAddress: options.accountAddress,
+      }).catch(() => null),
+    ),
+  );
+  const primary = results.find(Boolean) ?? null;
+  if (!primary) return null;
+  return {
+    ...primary,
+    requests: results.flatMap((readiness) => readiness?.requests ?? []),
+    reconciliation: primary.reconciliation
+      ? {
+          ...primary.reconciliation,
+          totalRequests: results.reduce(
+            (sum, readiness) => sum + (readiness?.reconciliation?.totalRequests ?? 0),
+            0,
+          ),
+          submittedRequests: results.reduce(
+            (sum, readiness) => sum + (readiness?.reconciliation?.submittedRequests ?? 0),
+            0,
+          ),
+          pendingRequests: results.reduce(
+            (sum, readiness) => sum + (readiness?.reconciliation?.pendingRequests ?? 0),
+            0,
+          ),
+          rejectedRequests: results.reduce(
+            (sum, readiness) => sum + (readiness?.reconciliation?.rejectedRequests ?? 0),
+            0,
+          ),
+          adapterErrors: results.reduce(
+            (sum, readiness) => sum + (readiness?.reconciliation?.adapterErrors ?? 0),
+            0,
+          ),
+          issues: results.flatMap((readiness) => readiness?.reconciliation?.issues ?? []),
+        }
+      : null,
+  };
+}
+
+export function startAgentVenueReadinessPolling({
+  venue,
+  options = {},
+  intervalMs = AGENT_VENUE_REALTIME_POLL_MS,
+  load,
+  onUpdate,
+  onError,
+}: {
+  venue: AgentTradeProposal["venue"];
+  options?: { walletName?: string; agentId?: string; accountAddress?: string };
+  intervalMs?: number;
+  load?: () => Promise<AgentVenueReadiness | null>;
+  onUpdate: (readiness: AgentVenueReadiness | null) => void;
+  onError?: (error: unknown) => void;
+}): () => void {
+  let cancelled = false;
+  let timer: ReturnType<typeof setInterval> | null = null;
+  const tick = async () => {
+    try {
+      const readiness = load
+        ? await load()
+        : await loadAgentVenueReadiness(venue, options);
+      if (!cancelled) onUpdate(readiness);
+    } catch (error) {
+      if (!cancelled) {
+        onUpdate(null);
+        onError?.(error);
+      }
+    }
+  };
+  void tick();
+  timer = setInterval(() => {
+    void tick();
+  }, intervalMs);
+  return () => {
+    cancelled = true;
+    if (timer) clearInterval(timer);
+  };
 }
 
 export async function submitAgentVenueExecution(
@@ -147,6 +248,13 @@ export function reconcileAgentVenueRequest(
   request: AgentVenueRequestRecord,
   accountSnapshot: HyperliquidTestnetAccountSnapshot | null | undefined,
 ): AgentVenueRequestReconciliation {
+  if (request.status === "adapter_error") {
+    return {
+      state: "executor_error",
+      label: "Executor error",
+      message: request.message ?? "The protected executor could not place this request.",
+    };
+  }
   if (request.status !== "submitted") {
     return {
       state: "not_submitted",
@@ -170,16 +278,24 @@ export function reconcileAgentVenueRequest(
   );
   if (matchingPosition) {
     return {
-      state: "running_on_exchange",
-      label: "Running",
+      state: "open_on_venue",
+      label: "Open on venue",
       message: `${matchingPosition.market} ${matchingPosition.side} is open on Hyperliquid with ${formatSignedUsd(matchingPosition.unrealizedPnlUsd ?? "0")} live P/L.`,
     };
   }
+  if (request.artifact?.orderId?.trim()) {
+    return {
+      state: "not_found",
+      label: "Not found",
+      message:
+        "ClearSig has an exchange order ID for this request, but no matching Hyperliquid position is open now.",
+    };
+  }
   return {
-    state: "not_open_on_exchange",
-    label: "Not open now",
+    state: "submitted",
+    label: "Submitted",
     message:
-      "ClearSig submitted this request, but the matching Hyperliquid position is not open now. It may have closed, failed at the venue, or not filled.",
+      "ClearSig submitted this request. Waiting for the next account snapshot to confirm whether it opened.",
   };
 }
 

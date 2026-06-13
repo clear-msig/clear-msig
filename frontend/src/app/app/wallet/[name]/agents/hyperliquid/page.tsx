@@ -26,6 +26,7 @@ import {
 } from "@/lib/agents";
 import {
   loadAgentVenueReadiness,
+  startAgentVenueReadinessPolling,
   type AgentVenueReadiness,
 } from "@/lib/agents/clientExecution";
 import { toDisplayName } from "@/lib/retail/walletNames";
@@ -72,6 +73,21 @@ export default function HyperliquidSetupPage() {
     setAgentWalletDraft(loaded.agentWalletAddress);
     void checkReadiness(loaded.accountAddress);
   }, [checkReadiness, name]);
+
+  useEffect(() => {
+    return startAgentVenueReadinessPolling({
+      venue: "hyperliquid_testnet",
+      options: { accountAddress: settings.accountAddress },
+      onUpdate: (next) => {
+        setReadiness(next);
+        setChecking(false);
+      },
+      onError: () => {
+        setReadiness(null);
+        setChecking(false);
+      },
+    });
+  }, [settings.accountAddress]);
 
   const summary = useMemo(
     () => buildAgentHyperliquidSetupSummary(readiness, settings),

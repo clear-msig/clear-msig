@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { importAgentInboxSignalsOnServer } from "@/lib/agents/clientInbox";
 import {
   loadAgentBackendState,
+  syncAgentEmergencyPause,
   syncAgentExecution,
   syncAgentProfile,
   syncAgentProposalApproval,
@@ -133,6 +134,45 @@ describe("agent client backend state adapter", () => {
 
     expect(result.ok).toBe(false);
     expect(result.message).toBe("Forbidden.");
+  });
+
+  it("returns protected executor kill-switch handoff details", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          ok: true,
+          policy: { walletName: "vault-client-state", emergencyPaused: true },
+          killSwitch: {
+            venue: "hyperliquid_testnet",
+            state: "sent",
+            message: "Open orders cancelled.",
+            artifact: {
+              exchange: "hyperliquid_testnet",
+              status: "cancelled",
+              cancelledAt: 1,
+              message: "Open orders cancelled.",
+            },
+          },
+        }),
+      ),
+    );
+
+    const result = await syncAgentEmergencyPause("vault-client-state", true);
+
+    expect(result.ok).toBe(true);
+    expect(result.killSwitch?.state).toBe("sent");
+    expect(result.killSwitch?.message).toBe("Open orders cancelled.");
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/agent-state/vault-client-state",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          action: "set_emergency_pause",
+          payload: { emergencyPaused: true },
+        }),
+      }),
+    );
   });
 
   it("posts inbox import actions with the management key", async () => {

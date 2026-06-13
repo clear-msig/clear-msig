@@ -73,6 +73,7 @@ import {
   type AgentComplianceReadiness,
   type AgentConnectionKit,
   type AgentExecutionRecord,
+  type AgentKillSwitchHandoff,
   type AgentMarketDataSnapshot,
   type AgentOwnerApproval,
   type AgentOwnerApprovalInput,
@@ -90,6 +91,7 @@ import {
 import {
   loadAgentVenueReadiness,
   reconcileAgentVenueRequest,
+  startAgentVenueReadinessPolling,
   submitAgentVenueExecution,
   type AgentVenueReadiness,
 } from "@/lib/agents/clientExecution";
@@ -153,6 +155,8 @@ export default function StartTradingPage() {
   const [approvalMode, setApprovalMode] = useState<"wallet" | "browser" | null>(null);
   const [approvalBusy, setApprovalBusy] = useState(false);
   const [automaticTradingBusy, setAutomaticTradingBusy] = useState(false);
+  const [killSwitchHandoff, setKillSwitchHandoff] =
+    useState<AgentKillSwitchHandoff | null>(null);
   const [disclosureRefresh, setDisclosureRefresh] = useState(0);
   const approvalResolver = useRef<((approval: AgentOwnerApproval | null) => void) | null>(null);
   const [loading, setLoading] = useState(true);
@@ -221,6 +225,21 @@ export default function StartTradingPage() {
     setLoading(true);
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!selectedAgent || venue !== "hyperliquid_testnet") return;
+    const setup = getAgentHyperliquidSetupSettings(name);
+    return startAgentVenueReadinessPolling({
+      venue: "hyperliquid_testnet",
+      options: {
+        walletName: name,
+        agentId: selectedAgent.id,
+        accountAddress: setup.accountAddress,
+      },
+      onUpdate: setOutside,
+      onError: () => setOutside(null),
+    });
+  }, [name, selectedAgent, venue]);
 
   const policy = decryptedPolicy ?? getAgentVaultPolicy(name);
   const sessions = mergeById<AgentSessionGrant>(
@@ -613,8 +632,11 @@ export default function StartTradingPage() {
       });
       if (!approval) return;
       setAgentVaultEmergencyPause(name, true);
-      await syncAgentEmergencyPause(name, true);
-      toast.success("All agent trading paused");
+      const synced = await syncAgentEmergencyPause(name, true);
+      setKillSwitchHandoff(synced.killSwitch ?? null);
+      toast.success("All agent trading paused", synced.killSwitch
+        ? { details: synced.killSwitch.message }
+        : undefined);
       await refresh();
     });
   };
@@ -885,6 +907,7 @@ export default function StartTradingPage() {
         venueRequests={venueRequests}
         tradeLifecycles={tradeLifecycles}
         tradeLifecycleSummary={tradeLifecycleSummary}
+        killSwitchHandoff={killSwitchHandoff}
         submittedVenueRequests={submittedVenueRequests.length}
         pending={pending}
         onPauseAgent={pauseThisTrader}
@@ -1609,6 +1632,7 @@ function TradingControlRoom({
   venueRequests,
   tradeLifecycles,
   tradeLifecycleSummary,
+  killSwitchHandoff,
   submittedVenueRequests,
   pending,
   onPauseAgent,
@@ -1631,6 +1655,7 @@ function TradingControlRoom({
   venueRequests: NonNullable<AgentVenueReadiness["requests"]>;
   tradeLifecycles: AgentTradeLifecycle[];
   tradeLifecycleSummary: AgentTradeLifecycleSummary;
+  killSwitchHandoff: AgentKillSwitchHandoff | null;
   submittedVenueRequests: number;
   pending: boolean;
   onPauseAgent: () => void;
@@ -1736,6 +1761,10 @@ function TradingControlRoom({
           )}
         </div>
       </CollapsibleControlPanel>
+
+      {killSwitchHandoff ? (
+        <KillSwitchHandoffCard handoff={killSwitchHandoff} />
+      ) : null}
 
       {venue === "hyperliquid_testnet" ? (
         <CollapsibleControlPanel
@@ -2100,6 +2129,50 @@ function TradeLifecycleRow({ lifecycle }: { lifecycle: AgentTradeLifecycle }) {
   );
 }
 
+function KillSwitchHandoffCard({ handoff }: { handoff: AgentKillSwitchHandoff }) {
+  return (
+    <div
+      className={clsx(
+        "mt-4 rounded-soft border px-3 py-2",
+        handoff.state === "sent"
+          ? "border-accent/25 bg-accent/[0.06]"
+          : handoff.state === "failed"
+            ? "border-rose-500/30 bg-rose-500/[0.08]"
+            : "border-warning/30 bg-warning/[0.08]",
+      )}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        {handoff.state === "sent" ? (
+          <Check className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+        ) : handoff.state === "failed" ? (
+          <X className="h-3.5 w-3.5 text-rose-300" aria-hidden="true" />
+        ) : (
+          <AlertTriangle className="h-3.5 w-3.5 text-warning" aria-hidden="true" />
+        )}
+        <p className="text-xs font-semibold text-text-strong">
+          {killSwitchHandoffLabel(handoff)}
+        </p>
+      </div>
+      <p className="mt-1 text-xs leading-relaxed text-text-soft">
+        {handoff.message}
+      </p>
+    </div>
+  );
+}
+
+function killSwitchHandoffLabel(handoff: AgentKillSwitchHandoff): string {
+  switch (handoff.state) {
+    case "sent":
+      return "Executor stop sent";
+    case "failed":
+      return "Executor stop failed";
+    case "not_configured":
+      return "Executor not configured";
+    case "not_requested":
+      return "Executor stop not requested";
+  }
+}
+
 function VenuePositionRow({
   position,
 }: {
@@ -2225,9 +2298,10 @@ function VenueRequestRow({
         <div
           className={clsx(
             "mt-2 rounded-soft border px-2 py-1.5 text-xs leading-relaxed",
-            reconciliation.state === "running_on_exchange"
+            reconciliation.state === "open_on_venue"
               ? "border-accent/25 bg-accent/[0.08] text-text-strong"
-              : reconciliation.state === "not_open_on_exchange"
+              : reconciliation.state === "not_found" ||
+                  reconciliation.state === "executor_error"
                 ? "border-warning/30 bg-warning/[0.08] text-warning"
                 : "border-border-soft text-text-soft",
           )}
@@ -2542,7 +2616,7 @@ function venueRequestStatusLabel(status: string): string {
     case "adapter_not_connected":
       return "Connection pending";
     case "adapter_error":
-      return "Connection error";
+      return "Executor error";
     case "rejected":
       return "Stopped";
     default:

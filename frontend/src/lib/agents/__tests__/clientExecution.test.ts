@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  AGENT_VENUE_REALTIME_POLL_MS,
+  loadAgentVenueReadinessForAgents,
   loadAgentVenueReadiness,
   reconcileAgentVenueRequest,
+  startAgentVenueReadinessPolling,
   submitAgentVenueExecution,
 } from "@/lib/agents/clientExecution";
 import type { AgentTradeProposal } from "@/lib/agents";
@@ -228,18 +231,103 @@ describe("client execution handoff", () => {
       message: "Hyperliquid testnet account is reachable and funded.",
     };
 
-    expect(reconcileAgentVenueRequest(request, accountSnapshot).state).toBe(
-      "running_on_exchange",
-    );
+    expect(reconcileAgentVenueRequest(request, accountSnapshot).state).toBe("open_on_venue");
     expect(
       reconcileAgentVenueRequest(
-        { ...request, request: { ...request.request, market: "ETH-PERP" } },
+        {
+          ...request,
+          artifact: {
+            exchange: "hyperliquid_testnet",
+            orderId: "order-1",
+            status: "filled",
+            market: "ETH-PERP",
+            side: "long",
+            submittedAt: 1,
+          },
+          request: { ...request.request, market: "ETH-PERP" },
+        },
         accountSnapshot,
       ).state,
-    ).toBe("not_open_on_exchange");
+    ).toBe("not_found");
     expect(reconcileAgentVenueRequest(request, null).state).toBe(
       "waiting_for_account",
     );
+  });
+
+  it("aggregates venue requests across agents", async () => {
+    const fetchMock = vi.fn(async (url: string | URL | Request) =>
+      response({
+        ok: true,
+        readiness: {
+          venue: "hyperliquid_testnet",
+          label: "Hyperliquid Testnet",
+          state: "ready",
+          canSubmit: true,
+          missingEnvVars: [],
+          message: "Ready.",
+        },
+        reconciliation: {
+          venue: "hyperliquid_testnet",
+          status: "healthy",
+          label: "Reconciled",
+          message: "Submitted requests match the latest venue state.",
+          totalRequests: 1,
+          submittedRequests: 1,
+          pendingRequests: 0,
+          rejectedRequests: 0,
+          adapterErrors: 0,
+          openRequests: 1,
+          exchangeOpenPositions: 1,
+          missingOrderIds: 0,
+          unmatchedPositions: 0,
+          staleSnapshot: false,
+          checkedAt: 1,
+          issues: [],
+        },
+        requests: [
+          {
+            id: String(url).includes("agentId=agent-a") ? "request-a" : "request-b",
+            status: "submitted",
+            request: {
+              walletName: "vault",
+              agentId: String(url).includes("agentId=agent-a") ? "agent-a" : "agent-b",
+              proposalId: "proposal-1",
+              venue: "hyperliquid_testnet",
+            },
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const readiness = await loadAgentVenueReadinessForAgents("hyperliquid_testnet", {
+      walletName: "vault",
+      agentIds: ["agent-a", "agent-b"],
+      accountAddress: "0xabc",
+    });
+
+    expect(readiness?.requests).toHaveLength(2);
+    expect(readiness?.reconciliation?.submittedRequests).toBe(2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("polls venue readiness on the real-time cadence", async () => {
+    vi.useFakeTimers();
+    const updates: Array<string | null> = [];
+    const stop = startAgentVenueReadinessPolling({
+      venue: "hyperliquid_testnet",
+      intervalMs: AGENT_VENUE_REALTIME_POLL_MS,
+      load: vi
+        .fn()
+        .mockResolvedValueOnce({ label: "first" })
+        .mockResolvedValueOnce({ label: "second" }),
+      onUpdate: (readiness) => updates.push(readiness?.label ?? null),
+    });
+
+    await vi.runOnlyPendingTimersAsync();
+    expect(updates).toEqual(["first", "second"]);
+    stop();
+    vi.useRealTimers();
   });
 });
 

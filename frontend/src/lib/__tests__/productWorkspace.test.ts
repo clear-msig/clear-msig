@@ -12,6 +12,41 @@ describe("product workspace routing", () => {
     );
   });
 
+  it("keeps the full Agent product flow inside Agent Trading", () => {
+    const walletName = "Agent vault#abc123";
+    const base = "/app/wallet/Agent%20vault%23abc123";
+
+    expect(productWorkspaceHomeHref(walletName, "agent")).toBe(`${base}/agents`);
+    expect(
+      productWorkspaceRedirectHref({
+        walletName,
+        surface: "agent",
+        pathname: base,
+      }),
+    ).toBe(`${base}/agents`);
+    expect(
+      productWorkspaceRedirectHref({
+        walletName,
+        surface: "agent",
+        pathname: `${base}/agents/start`,
+      }),
+    ).toBeNull();
+    expect(
+      productWorkspaceRedirectHref({
+        walletName,
+        surface: "agent",
+        pathname: `${base}/agents/trades`,
+      }),
+    ).toBeNull();
+    expect(
+      productWorkspaceRedirectHref({
+        walletName,
+        surface: "agent",
+        pathname: `${base}/members`,
+      }),
+    ).toBe(`${base}/agents`);
+  });
+
   it("redirects agent vaults away from generic treasury pages", () => {
     const walletName = "Agent vault#abc123";
 
