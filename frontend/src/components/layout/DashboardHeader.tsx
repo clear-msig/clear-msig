@@ -44,7 +44,6 @@ import { ThemeModeButton } from "@/components/security/ThemeModeButton";
 
 const ROOT_ROUTES = new Set([
   "/app/wallet",
-  "/app/notifications",
   "/app/activity",
   "/app/contacts",
   "/app/account",
@@ -61,7 +60,8 @@ function getParentRoute(pathname: string): string {
   ) {
     return "/app/wallet";
   }
-  if (pathname.startsWith("/app/notifications")) return "/app/notifications";
+  if (pathname === "/app/notifications") return "/app/wallet";
+  if (pathname.startsWith("/app/notifications/")) return "/app/notifications";
   if (pathname.startsWith("/app/settings/")) return "/app/settings";
   if (pathname.startsWith("/app/account/")) return "/app/account";
   // Walk one segment up; if we'd land at /app or /app/, go to /app/wallet.
@@ -138,9 +138,7 @@ export function DashboardHeader() {
           level instead of buried in the sidebar footer. */}
       <div className="ml-auto flex items-center gap-2">
         <ThemeModeButton />
-        {!pathname.startsWith("/app/notifications") && (
-          <HeaderNotificationsButton />
-        )}
+        <HeaderNotificationsButton />
         <HeaderWalletPill />
       </div>
     </header>
@@ -148,9 +146,11 @@ export function DashboardHeader() {
 }
 
 function HeaderNotificationsButton() {
+  const pathname = usePathname() ?? "";
   const wallet = useWallet();
   const address = wallet.publicKey?.toBase58() ?? "";
   const { unreadCount } = useNotificationFeed(address);
+  const active = pathname.startsWith("/app/notifications");
 
   if (!wallet.connected || !address) return null;
 
@@ -168,6 +168,7 @@ function HeaderNotificationsButton() {
         "transition-[border-color,color,background-color] duration-base ease-out-soft",
         "hover:border-border-strong hover:bg-glass-mid hover:text-text-strong",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+        active && "border-accent/50 bg-accent/[0.08] text-accent",
       )}
     >
       <Bell size={14} aria-hidden="true" />

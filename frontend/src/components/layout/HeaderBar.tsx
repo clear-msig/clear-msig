@@ -88,7 +88,7 @@ export function HeaderBar() {
   const showTitle = inAppConnected;
   const showBrandPill = !inApp || !connected;
   const showScan = isSendRoute(pathname);
-  const showNotifications = inAppConnected && !pathname.startsWith("/app/notifications");
+  const showNotifications = inAppConnected;
   // Account shortcut - lives on the Settings page only. Settings
   // moved into the bottom nav, so Account becomes the
   // companion surface reachable from the Settings page header.
@@ -332,7 +332,12 @@ export function HeaderBar() {
                         ? `Notifications (${notifications.unreadCount} unread)`
                         : "Notifications"
                     }
-                    className={clsx("relative", MOBILE_HEADER_BTN)}
+                    className={clsx(
+                      "relative",
+                      MOBILE_HEADER_BTN,
+                      pathname.startsWith("/app/notifications") &&
+                        "border-accent/50 bg-accent/[0.08] text-accent",
+                    )}
                   >
                     <Bell size={18} />
                     {notifications.unreadCount > 0 && (

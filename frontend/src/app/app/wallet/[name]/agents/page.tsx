@@ -1778,10 +1778,9 @@ function FeatureAccessPanel({
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-text-strong">Test the shipped surfaces</h2>
+          <h2 className="text-sm font-semibold text-text-strong">Practice tools</h2>
           <p className="mt-1 max-w-3xl text-sm leading-relaxed text-text-soft">
-            These are now reachable without hidden routes. Some cards still need
-            trading state, so the demo setup can create safe practice data.
+            Create sample activity, browse traders, or open a public profile.
           </p>
         </div>
         <button
@@ -1791,7 +1790,7 @@ function FeatureAccessPanel({
           className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-          Try demo setup
+          Create sample activity
         </button>
       </div>
       <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
@@ -2748,7 +2747,7 @@ function EmptyAgents({
           className="inline-flex items-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest"
         >
           <Bot size={13} aria-hidden="true" />
-          Agent Library
+          Choose trader
         </Link>
         <Link
           href={createHref}
@@ -2765,7 +2764,7 @@ function EmptyAgents({
             className="inline-flex items-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Sparkles size={13} aria-hidden="true" />
-            Try demo setup
+            Create sample activity
           </button>
         ) : null}
       </div>
