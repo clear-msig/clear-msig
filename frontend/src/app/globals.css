@@ -12,10 +12,8 @@
  * applies the right theme before paint to avoid FOUC + the SSR /
  * hydration mismatch that grounded the previous attempt.
  *
- * Landing (/) and /welcome force `data-theme="dark"` regardless of
- * the user's stored preference - those surfaces are Obsidian & Lime
- * marketing dark-by-design. Every other surface (/app/*, /connect,
- * /privacy, /security, /changelog) honours the user's choice.
+ * The user's theme preference applies everywhere, including landing
+ * and onboarding.
  */
 :root {
   color-scheme: dark;
@@ -174,7 +172,6 @@ body {
   margin: 0;
   min-height: 100vh;
   background: var(--clear-body-bg-image);
-  background-attachment: fixed;
   color: var(--clear-body-text);
   /* Base sans-serif stack . overridden per-page by Tailwind font-sans/display/mono. */
   font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system,

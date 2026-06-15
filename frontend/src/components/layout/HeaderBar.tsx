@@ -48,7 +48,7 @@ import { ThemeModeButton } from "@/components/security/ThemeModeButton";
 // affordance (back / scan / settings). Centralised so the three
 // icon buttons read as a matched set.
 const MOBILE_HEADER_BTN = [
-  "flex h-10 w-10 items-center justify-center rounded-full border border-border-soft bg-glass-soft backdrop-blur-md",
+  "flex h-10 w-10 items-center justify-center rounded-full border border-border-soft bg-surface-raised/95",
   "text-text-strong shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)]",
   "transition-[transform,border-color,background-color,color] duration-base ease-out-soft",
   "hover:-translate-y-0.5 hover:bg-glass-strong active:scale-95",

@@ -350,11 +350,27 @@ function WalletDashboardShell() {
   return (
     <div className="flex flex-col gap-6" aria-hidden="true">
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
-        <div className="hidden h-10 w-64 animate-pulse rounded bg-border-soft md:block" />
-        <div className="h-4 w-44 animate-pulse rounded bg-border-soft" />
+        <div className="hidden h-10 w-52 rounded-full border border-border-soft bg-surface-raised md:block" />
+        <div className="h-4 w-36 rounded-full bg-border-soft/70" />
       </div>
-      <div className="h-16 animate-pulse rounded-card border border-border-soft bg-surface-raised" />
-      <div className="h-44 animate-pulse rounded-card border border-border-soft bg-surface-raised" />
+      <div className="rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest">
+        <div className="grid grid-cols-5 gap-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-11 rounded-soft border border-border-soft bg-canvas/60"
+            />
+          ))}
+        </div>
+      </div>
+      <div className="relative h-52 overflow-hidden rounded-card border border-border-soft bg-[#090908] p-4 shadow-card-rest">
+        <div className="absolute inset-x-8 top-3 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+        <div className="flex h-full items-center justify-center rounded-[1.1rem] border border-white/[0.08] bg-[radial-gradient(circle_at_50%_0%,rgba(204,255,0,0.08),transparent_42%),linear-gradient(180deg,#151511,#090909)]">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full border border-accent/25 bg-accent/[0.07]">
+            <BrandMark size={36} />
+          </div>
+        </div>
+      </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <CardSkeleton />
         <CardSkeleton />
@@ -1149,10 +1165,10 @@ function WalletsGrid({
   const [pinTick, setPinTick] = useState(0);
   const [expanded, setExpanded] = useState(false);
   useEffect(() => subscribePinnedWallets(() => setPinTick((n) => n + 1)), []);
-  const ordered = useMemo(
-    () => sortPinnedFirst(wallets, (m) => m.wallet_name ?? ""),
-    [wallets, pinTick],
-  );
+  const ordered = useMemo(() => {
+    void pinTick;
+    return sortPinnedFirst(wallets, (m) => m.wallet_name ?? "");
+  }, [wallets, pinTick]);
   const canStack = ordered.length > 1;
   const visible = expanded || !canStack ? ordered : ordered.slice(0, 3);
 
