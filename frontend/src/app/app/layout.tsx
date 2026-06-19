@@ -55,7 +55,7 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
   // components.
   useActionNotifications();
   return (
-    <main className="relative bg-canvas font-sans md:flex md:h-screen md:overflow-hidden">
+    <main className="app-experience relative bg-canvas font-sans md:flex md:h-screen md:overflow-hidden">
       {/* Atmospheric accents - two soft radial blooms anchoring the
           page corners. Pure decoration, pointer-events-none, lifts
           the obsidian canvas off the "flat black" reading without
@@ -96,7 +96,7 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
       <aside
         className={
           "hidden h-screen shrink-0 overflow-x-hidden overflow-y-auto " +
-          "border-r border-border-soft bg-surface-raised/95 " +
+          "app-sidebar-shell border-r border-border-soft bg-surface-raised/95 " +
           "transition-[width] duration-base ease-out-soft md:block " +
           (expanded ? "w-64" : "w-16")
         }
@@ -120,7 +120,7 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
             down by that amount because sticky offsets are measured
             from the padding-box edge of the scrollport. */}
         <div
-          className="relative z-10 flex-1 px-3 sm:px-4 md:overflow-y-auto md:overscroll-contain md:px-8 lg:px-10 xl:px-12"
+          className="app-content-stage relative z-10 flex-1 px-3 sm:px-4 md:overflow-y-auto md:overscroll-contain md:px-8 lg:px-10 xl:px-12"
           style={{ scrollbarGutter: "stable" }}
         >
           <div className="mx-auto flex w-full max-w-[80rem] flex-col gap-4 pb-32 pt-16 sm:pb-16 md:pb-12 md:pt-8">

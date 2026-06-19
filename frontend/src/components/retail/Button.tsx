@@ -19,9 +19,9 @@ const cn = (...inputs: Array<string | undefined | false>) =>
 const variants: Record<Variant, string> = {
   // Lime primary: black text reads on solid lime (white would not).
   primary:
-    "bg-accent text-text-on-accent font-semibold shadow-accent-rest hover:bg-accent-hover hover:shadow-accent-hover",
+    "clear-primary-button bg-accent text-text-on-accent font-semibold hover:bg-accent-hover",
   secondary:
-    "bg-surface-raised text-text-strong border border-border-soft hover:border-border-strong",
+    "bg-surface-raised text-text-strong border border-border-soft shadow-[inset_3px_0_0_rgba(204,255,0,0.12)] hover:border-border-strong",
   ghost: "bg-transparent text-text-strong hover:bg-surface-card/5",
   danger: "bg-danger text-white hover:bg-danger/90",
 };

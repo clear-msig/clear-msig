@@ -530,6 +530,129 @@ select:focus-visible {
   border: 1px solid rgba(255, 255, 255, 0.075);
 }
 
+/* ── ClearSig app-wide control surface ──────────────────────────────
+ * The product's signature object is the clear-signing receipt: a
+ * readable action, policy facts, and an approval state. These styles
+ * carry that object into every app page through the shared shell and
+ * primitives, without changing the brand lime.
+ */
+.app-experience,
+.clear-ui-root main[class*="bg-canvas"] {
+  isolation: isolate;
+  background-image:
+    linear-gradient(90deg, rgba(204, 255, 0, 0.024) 0 1px, transparent 1px 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.024) 0 1px, transparent 1px 100%),
+    var(--clear-body-bg-image);
+  background-size: 72px 72px, 72px 72px, auto;
+}
+
+.app-experience .app-content-stage::before {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(90deg, rgba(204, 255, 0, 0.035), transparent 24%, transparent 76%, rgba(204, 255, 0, 0.018)),
+    repeating-linear-gradient(180deg, transparent 0 47px, rgba(255, 255, 255, 0.026) 47px 48px);
+}
+
+.app-experience .app-sidebar-shell,
+.app-experience .app-dashboard-header {
+  background-image:
+    linear-gradient(180deg, rgba(204, 255, 0, 0.028), transparent 42%),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035), transparent 38%);
+}
+
+.app-experience .app-mobile-header :is(a, button) {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 16px 44px -26px rgba(0, 0, 0, 0.72);
+}
+
+.app-experience :is([class*="rounded-card"][class*="bg-surface-raised"], [class*="rounded-2xl"][class*="bg-surface-raised"]),
+.clear-ui-root main[class*="bg-canvas"] :is([class*="rounded-card"][class*="bg-surface-raised"], [class*="rounded-2xl"][class*="bg-surface-raised"]) {
+  background-image:
+    linear-gradient(90deg, rgba(204, 255, 0, 0.052), transparent 38%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent);
+  box-shadow:
+    inset 3px 0 0 rgba(204, 255, 0, 0.11),
+    var(--clear-card-shadow, 0 18px 50px -28px rgba(0, 0, 0, 0.55));
+}
+
+.clear-receipt-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.clear-receipt-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--clear-accent);
+  box-shadow: 0 0 18px var(--clear-accent-glow-hover);
+}
+
+.clear-receipt-card::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(204, 255, 0, 0.08), transparent 30%),
+    repeating-linear-gradient(180deg, transparent 0 31px, rgba(255, 255, 255, 0.035) 31px 32px);
+  opacity: 0.42;
+}
+
+.clear-receipt-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.clear-receipt-row {
+  background-image: linear-gradient(90deg, rgba(204, 255, 0, 0.035), transparent 44%);
+}
+
+.clear-primary-button {
+  box-shadow:
+    0 14px 34px -20px var(--clear-accent-glow-hover),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.22);
+}
+
+.clear-primary-button:hover {
+  box-shadow:
+    0 18px 42px -20px var(--clear-accent-glow-hover),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.18);
+}
+
+.product-experience .product-choice-card,
+.product-experience .product-preview-card {
+  box-shadow:
+    inset 3px 0 0 rgba(204, 255, 0, 0.14),
+    0 24px 90px rgba(0, 0, 0, 0.22);
+}
+
+.landing-shell .intent-rail {
+  background:
+    linear-gradient(90deg, rgba(204, 255, 0, 0.075), rgba(255, 255, 255, 0.025) 34%, rgba(255, 255, 255, 0.018)),
+    rgba(255, 255, 255, 0.018);
+}
+
+.landing-shell .intent-rail::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: #ccff00;
+  box-shadow: 0 0 18px rgba(204, 255, 0, 0.34);
+}
+
+.landing-shell .intent-rail-row {
+  background: rgba(12, 12, 12, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
 /* Signing-state typing dots - three lime dots that pulse one
  * after the other. Used by the landing bento "Ada is signing..."
  * row and by the /app/secure VaultMockup. Generalised (no

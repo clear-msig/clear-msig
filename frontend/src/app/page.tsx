@@ -147,7 +147,7 @@ function Hero({ fadeIn }: { fadeIn: FadeInFn }) {
       <div className="lg:col-span-7">
         <motion.div {...fadeIn(0)} className="flex items-center">
           <span className="font-mono-tech text-[9px] uppercase tracking-[0.3em] text-white/60 sm:text-[10px] sm:tracking-[0.32em]">
-            Clear signing for shared money
+            Clear signing for shared wallets
           </span>
         </motion.div>
 
@@ -155,19 +155,19 @@ function Hero({ fadeIn }: { fadeIn: FadeInFn }) {
           {...fadeIn(0.06)}
           className="mt-5 text-[clamp(2.75rem,9vw,7.5rem)] font-medium leading-[0.88] tracking-[-0.04em] text-white sm:mt-7 sm:leading-[0.85] sm:tracking-[-0.05em]"
         >
-          Control money
+          Sign the
           <br />
-          with people
+          sentence.
           <br />
-          and <span className="italic-skew">agents</span>.
+          Not the <span className="italic-skew">hex</span>.
         </motion.h1>
 
         <motion.p
           {...fadeIn(0.14)}
           className="mt-6 max-w-md text-[15px] leading-relaxed text-white/60 sm:mt-8 sm:text-lg"
         >
-          ClearSig turns wallets, policies, approvals, recovery, and agent
-          trading into one readable signing flow.
+          ClearSig turns approvals, recovery, cross-chain sends, and agent
+          trading into receipts people can read before they sign.
         </motion.p>
 
         <motion.div {...fadeIn(0.2)} className="mt-8 flex flex-wrap items-center gap-3 sm:mt-10 sm:gap-4">
@@ -175,34 +175,25 @@ function Hero({ fadeIn }: { fadeIn: FadeInFn }) {
             href="/choose"
             className="neon-cta inline-flex flex-1 items-center justify-center gap-2 rounded-full px-6 py-3.5 text-[13px] font-bold tracking-tight sm:flex-none sm:px-7 sm:py-4 sm:text-[14px]"
           >
-            Get started
+            Start a wallet
             <ArrowRight className="h-4 w-4" aria-hidden="true" strokeWidth={2.5} />
           </Link>
           <Link
             href="#methodology"
             className="group inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-white/15 px-5 py-3.5 text-[12px] font-medium text-white/80 transition-colors duration-200 hover:border-white/40 hover:text-white sm:flex-none sm:px-6 sm:py-4 sm:text-[13px]"
           >
-            How it works
+            See the flow
           </Link>
         </motion.div>
 
-        {/* Stat strip */}
+        {/* Signature strip: the literal artefact ClearSig owns is
+            not a KPI row, it is the readable sentence a signer can
+            understand before approving. */}
         <motion.div
           {...fadeIn(0.26)}
-          className="mt-12 grid max-w-lg grid-cols-3 gap-4 border-t border-white/10 pt-6 sm:mt-14 sm:gap-6 sm:pt-7"
+          className="mt-12 max-w-xl sm:mt-14"
         >
-          {[
-            { v: "5", l: "chains" },
-            { v: "1", l: "flow" },
-            { v: "24/7", l: "policy" },
-          ].map((s) => (
-            <div key={s.l}>
-              <div className="text-2xl font-light tracking-tight text-white sm:text-4xl">{s.v}</div>
-              <div className="mt-1 font-mono-tech text-[9px] uppercase tracking-[0.22em] text-white/40 sm:text-[10px] sm:tracking-[0.24em]">
-                {s.l}
-              </div>
-            </div>
-          ))}
+          <HeroIntentRail />
         </motion.div>
       </div>
 
@@ -216,6 +207,42 @@ function Hero({ fadeIn }: { fadeIn: FadeInFn }) {
         <HeroMockup />
       </motion.div>
     </section>
+  );
+}
+
+function HeroIntentRail() {
+  const rows = [
+    ["intent", "Approve Steady BTC to trade BTC-PERP"],
+    ["limit", "$500 max · 2x leverage · stop required"],
+    ["expires", "Jan 1, 2026 · owner can pause anytime"],
+  ];
+
+  return (
+    <div className="intent-rail relative overflow-hidden rounded-[1.25rem] border border-white/10 bg-white/[0.025] p-3.5 shadow-[0_22px_70px_-42px_rgba(204,255,0,0.45)] sm:p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <span className="font-mono-tech text-[9px] uppercase tracking-[0.28em] text-white/40">
+          signer receipt
+        </span>
+        <span className="rounded-full border border-[#ccff00]/25 bg-[#ccff00]/[0.08] px-2.5 py-1 font-mono-tech text-[9px] uppercase tracking-[0.18em] text-[#ccff00]">
+          clear text
+        </span>
+      </div>
+      <div className="space-y-1.5">
+        {rows.map(([label, value]) => (
+          <div
+            key={label}
+            className="intent-rail-row grid grid-cols-[5.8rem_minmax(0,1fr)] items-start gap-3 rounded-xl px-3 py-2.5"
+          >
+            <span className="font-mono-tech text-[9px] uppercase tracking-[0.2em] text-white/35">
+              {label}
+            </span>
+            <span className="text-[12px] leading-snug text-white/78 sm:text-[13px]">
+              {value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

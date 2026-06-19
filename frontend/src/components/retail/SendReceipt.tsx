@@ -107,7 +107,7 @@ export function SendReceipt({
       transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
       className="flex flex-col gap-4"
     >
-      <div className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest">
+      <div className="clear-receipt-card rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest">
         <div className="flex items-center gap-3">
           <motion.span
             initial={reduce ? false : { scale: 0.6, opacity: 0 }}
@@ -214,7 +214,7 @@ function ReceiptRow({ detail }: { detail: ReceiptDetail }) {
     }
   };
   return (
-    <div className="flex items-center justify-between gap-3 py-2.5">
+    <div className="clear-receipt-row flex items-center justify-between gap-3 px-2 py-2.5">
       <dt className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
         {detail.label}
       </dt>

@@ -217,7 +217,7 @@ export function HeaderBar() {
 
   return (
     <header
-      className="fixed inset-x-3 top-3 z-[140] flex items-center gap-2 sm:inset-x-4 sm:top-4"
+      className="app-mobile-header fixed inset-x-3 top-3 z-[140] flex items-center gap-2 sm:inset-x-4 sm:top-4"
       role="banner"
     >
       {/* Back button - left edge, mobile only, off-home only. */}

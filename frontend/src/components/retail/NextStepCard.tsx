@@ -56,7 +56,7 @@ export function NextStepCard({
   return (
     <section
       aria-label="What's next"
-      className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
+      className="clear-receipt-card rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
     >
       <span aria-hidden="true" className="block h-px w-10 bg-accent" />
       <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">

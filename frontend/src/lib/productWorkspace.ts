@@ -97,6 +97,9 @@ export function productWorkspaceRedirectHref({
     return isAllowedPersonalPath(pathname, base) ? null : base;
   }
   if (surface === "pro") {
+    if (pathname === `${base}/rules` || pathname.startsWith(`${base}/rules/`)) {
+      return `${base}/policy`;
+    }
     return isAllowedProPath(pathname, base) ? null : base;
   }
   if (surface === "secure") {
@@ -157,7 +160,6 @@ function isAllowedProPath(pathname: string, base: string): boolean {
     "chains/add",
     "policy",
     "policies",
-    "rules",
     "budget",
     "send",
     "send/batch",

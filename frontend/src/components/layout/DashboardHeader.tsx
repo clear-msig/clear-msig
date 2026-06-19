@@ -97,7 +97,7 @@ export function DashboardHeader() {
     <header
       role="banner"
       className={clsx(
-        "relative z-30 hidden h-14 shrink-0 items-center gap-3 px-6 md:flex lg:px-8 xl:px-10",
+        "app-dashboard-header relative z-30 hidden h-14 shrink-0 items-center gap-3 px-6 md:flex lg:px-8 xl:px-10",
         "border-b border-border-soft bg-canvas/95",
       )}
     >

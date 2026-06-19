@@ -183,7 +183,7 @@ function ProductShell({
   cta?: { href: string; label: string } | null;
 }) {
   return (
-    <main className="landing-shell relative min-h-screen overflow-hidden bg-[#0c0c0c] text-[#ebebeb]">
+    <main className="landing-shell product-experience relative min-h-screen overflow-hidden bg-[#0c0c0c] text-[#ebebeb]">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
         <LandingAtmospherics />
       </div>
@@ -208,7 +208,7 @@ function ProductIconLink({ surface }: {
     <Link
       href={surface.ctaHref}
       className={clsx(
-        "group flex min-h-[21rem] flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.08] bg-white/[0.035] p-3 text-left shadow-[0_24px_90px_rgba(0,0,0,0.22)]",
+        "product-choice-card group flex min-h-[21rem] flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.08] bg-white/[0.035] p-3 text-left shadow-[0_24px_90px_rgba(0,0,0,0.22)]",
         "transition-[transform,border-color,background-color] duration-200 hover:-translate-y-1 hover:border-[#ccff00]/35 hover:bg-white/[0.055]",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ccff00]/60 focus-visible:ring-offset-4 focus-visible:ring-offset-[#0c0c0c]",
       )}
@@ -246,7 +246,7 @@ function ProductPreview({
     <div
       aria-hidden="true"
       className={clsx(
-        "relative overflow-hidden rounded-[1.15rem] border",
+        "product-preview-card relative overflow-hidden rounded-[1.15rem] border",
         size === "lg" ? "min-h-[19rem] p-5" : "min-h-[12rem] p-4",
         surfaceId === "personal" &&
           "border-emerald-300/15 bg-[linear-gradient(135deg,rgba(5,18,14,0.96),rgba(18,42,35,0.72))]",
