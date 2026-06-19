@@ -140,7 +140,7 @@ export default function WalletActivityPage() {
           </span>
           <div className="flex min-w-0 flex-col">
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Activity · {walletDisplay || "Wallet"}
+              History · {walletDisplay || "Wallet"}
             </p>
             <h1 className="mt-1.5 truncate font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
               Recent requests
