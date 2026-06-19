@@ -48,6 +48,7 @@ export interface ApproveDecision {
 export interface ApproveIfNeededOptions {
   approvers?: readonly string[];
   approverPubkey?: string | null;
+  approvalThreshold?: number | null;
 }
 
 const POLL_ATTEMPTS = 4;
@@ -116,7 +117,8 @@ export async function approveIfNeeded(
   // alternative was firing a duplicate wallet popup for every
   // submit when the user's RPC was a slot behind the backend's.
   return {
-    needsApproveSignature: lastReadError !== null,
+    needsApproveSignature:
+      lastReadError !== null || (options.approvalThreshold ?? 1) > 1,
     status: null,
   };
 }
