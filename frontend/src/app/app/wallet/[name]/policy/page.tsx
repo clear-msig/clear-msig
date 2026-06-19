@@ -153,24 +153,22 @@ export default function PolicyPage() {
           </span>
           <div className="flex min-w-0 flex-col">
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              {personalRules ? "Personal rules" : "Spending policy"} / {display}
+              Protection / {display}
             </p>
             <h1 className="mt-1 truncate font-display text-xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
-              {personalRules
-                ? `How ${display} stays protected`
-                : `How ${display} controls money`}
+              How {display} stays protected
             </h1>
           </div>
         </div>
         <p className="relative z-10 mt-4 max-w-2xl text-sm leading-relaxed text-text-soft sm:mt-4 sm:text-base">
           {personalRules
-            ? "Simple controls for approvals, trusted people, and signed spending."
-            : "Approval rules, limits, recipients, and local guardrails before signing."}
+            ? "Choose who can approve, who can receive, and when ClearSig should slow a send down."
+            : "Choose who can approve, how much can move, and when a send needs extra care."}
         </p>
         <div className="relative z-10 mt-4 flex flex-wrap items-center gap-2 sm:mt-0">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-canvas/70 px-3 py-1.5 text-[11px] font-medium text-text-soft">
-            <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-            Encryption-ready / pre-alpha
+            <ShieldCheck className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
+            Read before signing
           </span>
         </div>
       </motion.header>
@@ -200,27 +198,27 @@ export default function PolicyPage() {
             <NavCard
               href={`/app/wallet/${encodeURIComponent(name)}/budget`}
               icon={Gauge}
-              title="Weekly spending cap"
-              body="Wallet-wide and per-chain dollar limits."
+              title="Limits"
+              body="How much this wallet can send in a period."
             />
             <NavCard
               href={`/app/wallet/${encodeURIComponent(name)}/allowances`}
               icon={UserCheck}
-              title="Per-person caps"
-              body="How much each member can move on their own."
+              title="Member limits"
+              body="How much each person can move without extra review."
             />
             <NavCard
               href={`/app/wallet/${encodeURIComponent(name)}/policies`}
               icon={ListChecks}
-              title="Advanced policy rules"
-              body="Extra allow, deny, review, and cooldown checks."
+              title="Advanced"
+              body="Recipient, amount, review, and cooldown checks."
             />
           </>
         ) : null}
         <NavCard
           href="/app/settings#notifications"
           icon={Bell}
-          title="Notification preferences"
+          title="Notifications"
           body="How this device alerts you when approvals wait."
         />
       </section>
@@ -270,23 +268,23 @@ function PolicyFlow({
       Icon: ShieldCheck,
       label: "Approvals",
       status: threshold,
-      body: "Required signatures before a request can move.",
+      body: "How many trusted people must approve.",
       enforcement: "active",
     },
     {
       href: `/app/wallet/${encoded}/members`,
       Icon: Users,
-      label: "Members",
+      label: "People",
       status: memberStatus,
-      body: "Invite people and assign request or approval rights.",
+      body: "Who can request or approve money movement.",
       enforcement: "active",
     },
     {
       href: `/app/wallet/${encoded}/rules`,
       Icon: Clock,
-      label: "Spending rule",
+      label: "Send permission",
       status: timelock,
-      body: "The on-chain intent that powers sending.",
+      body: "The signed permission that lets this wallet send.",
       enforcement: "active",
     },
     ...(!personalRules
@@ -296,23 +294,23 @@ function PolicyFlow({
             Icon: Gauge,
             label: "Limits",
             status: budgetLabel,
-            body: "Weekly, per-chain, and daily send-count caps.",
+            body: "How much can move before review.",
             enforcement: "preview" as const,
           },
           {
             href: `/app/wallet/${encoded}/allowances`,
             Icon: UserCheck,
-            label: "Per-person caps",
+            label: "Member limits",
             status: allowanceCount ? `${allowanceCount} set` : "Not set",
-            body: "Individual spending limits for each member.",
+            body: "How much one person can move alone.",
             enforcement: "preview" as const,
           },
           {
             href: `/app/wallet/${encoded}/policies`,
             Icon: ListChecks,
-            label: "Advanced rules",
+            label: "Advanced",
             status: advancedRuleCount ? `${advancedRuleCount} saved` : "None",
-            body: "Extra checks for recipients, amounts, and review.",
+            body: "Extra checks for recipients and amounts.",
             enforcement: "preview" as const,
           },
         ]
@@ -324,15 +322,15 @@ function PolicyFlow({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            Control map
+            Protection
           </p>
           <h2 className="mt-1 font-display text-lg leading-tight text-text-strong">
             What protects this wallet
           </h2>
           <p className="mt-1 max-w-2xl text-xs leading-relaxed text-text-soft sm:text-sm">
             {personalRules
-              ? "Active approvals and signed spending rules stay simple for trusted people."
-              : "Active controls enforce signing. Preview guardrails run locally until encrypted policy execution is live."}
+              ? "The important safety choices are grouped here so the wallet stays easy to reason about."
+              : "Start with approvals and people. Add limits only when the team needs them."}
           </p>
         </div>
       </div>

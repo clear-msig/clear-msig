@@ -24,7 +24,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { proposerDisplayName } from "@/lib/retail/proposerName";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ArrowRight, Banknote, Bell, Bot, Building2, ChevronDown, Coins, CreditCard, Download, Eye, EyeOff, Handshake, Layers, Plus, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
+import { Activity, ArrowRight, Banknote, Bell, Bot, Building2, ChevronDown, Coins, CreditCard, Download, Eye, EyeOff, Handshake, Plus, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
 import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -972,7 +972,7 @@ function productSetupConfig(
       Icon: Building2,
       title: "Pro treasury",
       primaryHref: `/app/wallet/${encodedWallet}/policy`,
-      primaryLabel: "Set rules",
+      primaryLabel: "Set protection",
       secondaryHref: `/app/wallet/${encodedWallet}/members/add`,
       secondaryLabel: "Add teammate",
     };
@@ -1002,7 +1002,7 @@ function productSetupConfig(
       primaryHref: `/app/wallet/${encodedWallet}/send`,
       primaryLabel: "Create payment",
       secondaryHref: `/app/wallet/${encodedWallet}/policy`,
-      secondaryLabel: "Set payout rules",
+      secondaryLabel: "Set protection",
     };
   }
   return {
@@ -1118,13 +1118,13 @@ function NextBestActionCard({
         eyebrow: productSurface === "pro" ? "Controls first" : "Ready to use",
         title:
           productSurface === "pro"
-            ? "Review treasury rules"
+            ? "Review protection"
             : "Make the first send",
         href:
           productSurface === "pro"
             ? `/app/wallet/${encoded}/policy`
             : `/app/wallet/${encoded}/send`,
-        cta: productSurface === "pro" ? "Open rules" : "Send request",
+        cta: productSurface === "pro" ? "Open protection" : "Send request",
         accent: false,
       };
     }
@@ -1497,7 +1497,7 @@ function productHeroProfile(
       stats: [
         { label: "Approvers", value: ({ members }) => String(members) },
         { label: "Queue", value: ({ pending }) => String(pending) },
-        { label: "Policy", value: () => "Active" },
+        { label: "Protection", value: () => "On" },
       ],
     };
   }
@@ -1515,7 +1515,7 @@ function productHeroProfile(
       actionTone: "agent",
       balanceLabel: "Trading funds",
       stats: [
-        { label: "Venue", value: () => "Hyperliquid" },
+        { label: "Trader", value: () => "Ready" },
         { label: "Queue", value: ({ pending }) => String(pending) },
         { label: "Risk", value: () => "Guarded" },
       ],
@@ -1583,23 +1583,23 @@ function productHeroActions(
   if (surface === "pro") {
     return [
       { href: `/app/wallet/${encoded}/send`, Icon: Send, label: "Payout", hint: "Pay" },
-      { href: `/app/wallet/${encoded}/policy`, Icon: ShieldCheck, label: "Rules", hint: "Policy" },
-      { href: `/app/wallet/${encoded}/budget`, Icon: Banknote, label: "Limits", hint: "Budget" },
-      { href: `/app/wallet/${encoded}/chains`, Icon: Layers, label: "Networks", hint: "Chains" },
+      { href: `/app/wallet/${encoded}/policy`, Icon: ShieldCheck, label: "Protect", hint: "Safety" },
+      { href: `/app/wallet/${encoded}/budget`, Icon: Banknote, label: "Limits", hint: "Caps" },
+      { href: `/app/wallet/${encoded}/activity`, Icon: Activity, label: "Activity", hint: "Audit" },
     ];
   }
   if (surface === "agent") {
     return [
       { href: `/app/wallet/${encoded}/agents`, Icon: Bot, label: "Desk", hint: "Trade" },
-      { href: `/app/wallet/${encoded}/agents/hyperliquid`, Icon: Layers, label: "Venue", hint: "HL" },
-      { href: `/app/wallet/${encoded}/agents/policy`, Icon: ShieldCheck, label: "Guardrails", hint: "Risk" },
-      { href: `/app/wallet/${encoded}/agents/funding`, Icon: Banknote, label: "Allowance", hint: "Funds" },
+      { href: `/app/wallet/${encoded}/agents/library`, Icon: Users, label: "Traders", hint: "Choose" },
+      { href: `/app/wallet/${encoded}/agents/policy`, Icon: ShieldCheck, label: "Rules", hint: "Risk" },
+      { href: `/app/wallet/${encoded}/agents/trades`, Icon: Activity, label: "Trades", hint: "Watch" },
     ];
   }
   return [
     { href: `/app/wallet/${encoded}/send`, Icon: Send, label: "Send", hint: "Pay anyone" },
     { href: `/app/wallet/${encoded}/receive`, Icon: Download, label: "Receive", hint: "Get paid" },
-    { href: `/app/wallet/${encoded}/policy`, Icon: ShieldCheck, label: "Rules", hint: "Controls" },
+    { href: `/app/wallet/${encoded}/policy`, Icon: ShieldCheck, label: "Protect", hint: "Safety" },
   ];
 }
 
@@ -2189,8 +2189,8 @@ function manageActionGroups(
   if (surface === "personal") {
     return [
       {
-        label: "Rules",
-        description: "Core controls for approvals and limits.",
+        label: "Protection",
+        description: "People, approvals, and send safety.",
         rows: rulesActionRows(encoded, "personal"),
       },
       {
@@ -2204,8 +2204,8 @@ function manageActionGroups(
   if (surface === "pro") {
     return [
       {
-        label: "Rules",
-        description: "Core controls for approvals and limits.",
+        label: "Protection",
+        description: "Team approvals and send safety.",
         rows: rulesActionRows(encoded, "pro"),
       },
       {
@@ -2231,14 +2231,14 @@ function manageActionGroups(
   if (surface === "agent") {
     return [
       {
-        label: "Funding",
-        description: "Capital assigned to agent trading.",
+        label: "Budget",
+        description: "Capital assigned to trader activity.",
         rows: [
           {
             href: `/app/wallet/${encoded}/agents/funding`,
             icon: Banknote,
-            title: "Allowance",
-            body: "Bounded capital for controlled trading.",
+            title: "Trading budget",
+            body: "Bounded capital for trader activity.",
           },
         ],
       },
@@ -2247,8 +2247,8 @@ function manageActionGroups(
 
   return [
     {
-      label: "Rules",
-      description: "Core controls for approvals and limits.",
+      label: "Protection",
+      description: "People, approvals, and send safety.",
       rows: rulesActionRows(encoded, null),
     },
     {
@@ -2267,11 +2267,11 @@ function rulesActionRows(
     {
       href: `/app/wallet/${encoded}/policy`,
       icon: ShieldCheck,
-      title: surface === "pro" ? "Set treasury rules" : "Set rules",
+      title: surface === "pro" ? "Set protection" : "Set protection",
       body:
         surface === "pro"
-          ? "Approvals, roles, limits, and alerts."
-          : "Approvals, limits, and alerts.",
+          ? "Approvals, people, limits, and alerts."
+          : "Approvals, people, and alerts.",
     },
   ];
 }

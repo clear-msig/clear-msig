@@ -4,7 +4,7 @@ import { ProductSurfaceLanding } from "@/components/product/ProductSurfaceLandin
 export const metadata: Metadata = {
   title: "ClearSig Agents · Clear",
   description:
-    "Policy-bound agent trading where agents submit decisions and ClearSig enforces user rules.",
+    "Agent trading where traders submit decisions and ClearSig enforces user rules.",
 };
 
 export default function AgentPage() {

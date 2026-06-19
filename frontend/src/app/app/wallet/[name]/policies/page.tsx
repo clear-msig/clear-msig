@@ -59,7 +59,7 @@ export default function PoliciesPage() {
 
   const summary =
     rules.length === 0
-      ? "Layer extra checks on top of this wallet's spending rule."
+      ? "Add extra checks only when the basic protection is not enough."
       : `${rules.length} ${rules.length === 1 ? "rule" : "rules"} active on ${toDisplayName(name)}.`;
 
   return (
@@ -71,7 +71,7 @@ export default function PoliciesPage() {
       <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div className="flex flex-col gap-1">
           <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
-            Advanced policy rules
+            Advanced checks
           </h1>
           <p className="text-xs text-text-soft sm:text-sm">{summary}</p>
         </div>
@@ -84,7 +84,7 @@ export default function PoliciesPage() {
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
             )}
           >
-            Policy flow
+            Protection
           </Link>
           <Link
             href="/privacy"
@@ -111,7 +111,7 @@ export default function PoliciesPage() {
           )}
         >
           <Plus size={13} aria-hidden="true" />
-          <span>New policy rule</span>
+          <span>New check</span>
         </Link>
       </div>
 
@@ -124,12 +124,11 @@ export default function PoliciesPage() {
               <ShieldCheck className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
             </div>
             <p className="mt-4 font-display text-base font-semibold text-text-strong">
-              No policy rules yet
+              No advanced checks yet
             </p>
             <p className="mx-auto mt-2 max-w-sm text-sm text-text-soft">
-              The wallet&rsquo;s on-chain intent is your baseline. Policy
-              rules layer recipient allowlists, per-period caps, and time
-              windows on top.
+              The wallet&rsquo;s Protection page is your baseline. Advanced checks
+              add recipient, amount, review, and cooldown rules on top.
             </p>
           </div>
         </div>

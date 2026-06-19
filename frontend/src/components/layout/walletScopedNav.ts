@@ -2,12 +2,10 @@ import {
   Activity as ActivityIcon,
   Bot,
   Building2,
-  Layers,
   ListChecks,
-  Plug,
   Search,
-  Settings,
   ShieldCheck,
+  Send,
   Users,
   Wallet as WalletIcon,
   type LucideIcon,
@@ -26,40 +24,35 @@ export function walletSubNav(
   if (surface === "personal") {
     return [
       { sub: "", label: "Overview", Icon: WalletIcon },
-      { sub: "members", label: "Trusted people", Icon: Users },
-      { sub: "chains", label: "Networks", Icon: Layers },
-      { sub: "policy", label: "Rules", Icon: ListChecks },
+      { sub: "send", label: "Send", Icon: Send },
+      { sub: "members", label: "People", Icon: Users },
+      { sub: "policy", label: "Protection", Icon: ShieldCheck },
       { sub: "activity", label: "Activity", Icon: ActivityIcon },
-      { sub: "settings", label: "Settings", Icon: Settings },
     ];
   }
   if (surface === "pro") {
     return [
       { sub: "", label: "Treasury", Icon: Building2 },
+      { sub: "send", label: "Send", Icon: Send },
       { sub: "members", label: "Team", Icon: Users },
+      { sub: "policy", label: "Protection", Icon: ShieldCheck },
       { sub: "activity", label: "Activity", Icon: ActivityIcon },
-      { sub: "chains", label: "Networks", Icon: Layers },
-      { sub: "policy", label: "Rules", Icon: ListChecks },
-      { sub: "settings", label: "Settings", Icon: Settings },
     ];
   }
   if (surface === "agent") {
     return [
-      { sub: "agents", label: "Trading", Icon: Bot },
+      { sub: "agents", label: "Overview", Icon: Bot },
       { sub: "agents/library", label: "Traders", Icon: Search },
-      { sub: "agents/hyperliquid", label: "Venue", Icon: Plug },
-      { sub: "agents/policy", label: "Guardrails", Icon: ShieldCheck },
+      { sub: "agents/policy", label: "Rules", Icon: ShieldCheck },
       { sub: "agents/trades", label: "Trades", Icon: ActivityIcon },
-      { sub: "settings", label: "Settings", Icon: Settings },
     ];
   }
   return [
     { sub: "", label: "Overview", Icon: WalletIcon },
-    { sub: "members", label: "Members", Icon: Users },
+    { sub: "send", label: "Send", Icon: Send },
+    { sub: "members", label: "People", Icon: Users },
+    { sub: "policy", label: "Protection", Icon: ListChecks },
     { sub: "activity", label: "Activity", Icon: ActivityIcon },
-    { sub: "chains", label: "Networks", Icon: Layers },
-    { sub: "policy", label: "Rules", Icon: ListChecks },
-    { sub: "settings", label: "Settings", Icon: Settings },
   ];
 }
 

@@ -52,16 +52,13 @@ const PRIMARY_PRODUCT_IDS: ProductSurfaceId[] = [
 
 export function ProductChooserPage() {
   const primarySurfaces = PRIMARY_PRODUCT_IDS.map(productSurfaceById);
-  const supportingSurfaces = (["p2pdefi"] as ProductSurfaceId[]).map(
-    productSurfaceById,
-  );
 
   return (
     <ProductShell cta={null}>
       <section className="relative z-10 mx-auto flex min-h-[calc(100vh-96px)] w-full max-w-6xl flex-col justify-center px-5 pb-16 pt-10 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-4xl text-center">
           <p className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
-            Choose product
+            Choose what you need
           </p>
           <h1 className="mt-5 text-[clamp(2.4rem,7vw,5.8rem)] font-medium leading-[0.9] text-white">
             What are you here to do?
@@ -74,11 +71,10 @@ export function ProductChooserPage() {
           ))}
         </div>
 
-        <div className="mx-auto mt-10 grid w-full max-w-xl gap-3 border-t border-white/[0.08] pt-6">
-          {supportingSurfaces.map((surface) => (
-            <ProductSupportLink key={surface.id} surface={surface} />
-          ))}
-        </div>
+        <p className="mx-auto mt-8 max-w-2xl text-center text-sm leading-relaxed text-white/48">
+          Everything else lives inside these flows. ClearSig stays simple first,
+          then reveals advanced controls only when they matter.
+        </p>
       </section>
     </ProductShell>
   );
@@ -149,14 +145,14 @@ export function ProductSurfaceLanding({ id }: { id: ProductSurfaceId }) {
             </div>
           </div>
 
-          <SurfaceIconList title="Actions" items={surface.features} />
+          <SurfaceIconList title="Core actions" items={surface.features} />
           {surface.boundaries.length > 0 ? (
             <SurfaceIconList title="Not here" items={surface.boundaries} muted />
           ) : null}
 
           <div className="mt-6">
             <p className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/42">
-              Shared primitives
+              Simple model
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {surface.primitives.map((item) => (
@@ -194,7 +190,7 @@ function ProductShell({
           <BrandMark size={28} />
           <span className="font-mono-tech uppercase tracking-[0.24em]">clearsig</span>
         </Link>
-        <span>Shared primitives. Separate products.</span>
+        <span>Simple wallets. Readable receipts.</span>
       </footer>
     </main>
   );
@@ -287,7 +283,7 @@ function PersonalPreview() {
         <div className="mt-1 text-[11px] text-emerald-100/55">Shared wallet</div>
       </div>
       <div className="grid grid-cols-3 gap-2">
-        {["Send", "Receive", "Rules"].map((label) => (
+        {["Send", "Receive", "Protect"].map((label) => (
           <span
             key={label}
             className="rounded-xl border border-white/[0.08] bg-white/[0.06] px-2 py-2 text-center text-[10px] font-medium text-white/72"
@@ -350,7 +346,7 @@ function AgentPreview() {
       </div>
       <div className="grid grid-cols-2 gap-2 text-[10px]">
         <span className="rounded-xl border border-[#ccff00]/15 bg-[#ccff00]/[0.08] px-2 py-2 text-[#ccff00]">
-          Guardrails
+          Rules
         </span>
         <span className="rounded-xl border border-white/[0.08] bg-white/[0.055] px-2 py-2 text-white/68">
           Kill switch

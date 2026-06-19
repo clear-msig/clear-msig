@@ -224,7 +224,7 @@ export default function NewAgentSessionPage() {
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!policy) {
-      toast.info("Safety rules are still loading");
+      toast.info("Rules are still loading");
       return;
     }
     if (!agentId) {

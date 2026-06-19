@@ -90,11 +90,11 @@ export default function WalletSettingsPage() {
   const items: SettingItem[] = [
     {
       href: `/app/wallet/${encoded}/policy`,
-      label: "Rules and limits",
+      label: "Protection",
       hint:
         surface === "personal"
-          ? "Trusted people and approval rules."
-          : "Members, approvals, spending limits, and safety checks.",
+          ? "Trusted people and approvals."
+          : "People, approvals, limits, and advanced checks.",
       Icon: ShieldCheck,
       status: rulesStatus,
     },

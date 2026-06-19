@@ -100,14 +100,14 @@ export default function AgentPolicyPage() {
         if (synced.ok) {
           toast.success(
             sessionsNeedRenewal
-              ? "Max-loss rules saved. Review current budgets."
-              : "Safety rules saved",
+              ? "Rules saved. Review current budgets."
+              : "Rules saved",
           );
         } else {
           toast.info(
             sessionsNeedRenewal
-              ? "Max-loss rules saved here. Review current budgets."
-              : "Safety rules saved on this device for now",
+              ? "Rules saved here. Review current budgets."
+              : "Rules saved on this device for now",
             {
             details: synced.message,
             },
@@ -117,7 +117,7 @@ export default function AgentPolicyPage() {
           `/app/wallet/${encodeURIComponent(name)}/agents/start?agent=${encodeURIComponent(requestedAgent)}&venue=${encodeURIComponent(requestedVenue ?? "mock_perps")}`,
         );
       } catch (err) {
-        toast.error("Could not save safety rules", {
+        toast.error("Could not save rules", {
           details: err instanceof Error ? err.message : String(err),
         });
       }
@@ -125,17 +125,17 @@ export default function AgentPolicyPage() {
   };
 
   if (!policy) {
-    return <div className="text-sm text-text-soft">Loading safety rules...</div>;
+    return <div className="text-sm text-text-soft">Loading rules...</div>;
   }
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <header className="flex flex-col gap-2">
         <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-          Max loss · {display}
+          Agent rules · {display}
         </p>
         <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
-          Set max loss
+          Set trader rules
         </h1>
       </header>
 
@@ -146,7 +146,7 @@ export default function AgentPolicyPage() {
           </span>
           <div>
             <p className="text-sm font-semibold text-text-strong">
-              Rules that always win
+              These rules always win
             </p>
           </div>
         </div>
@@ -168,7 +168,7 @@ export default function AgentPolicyPage() {
           </div>
 
           <fieldset className="flex flex-col gap-2">
-            <legend className="text-xs font-medium text-text-soft">Choose practice mode</legend>
+            <legend className="text-xs font-medium text-text-soft">Practice account</legend>
             <div className="grid gap-2 sm:grid-cols-3">
               {VENUES.map((venue) => (
                 <label
@@ -275,7 +275,7 @@ export default function AgentPolicyPage() {
               className={BUTTON_CLASS}
             >
               <Save size={13} aria-hidden="true" />
-              {pending ? "Saving" : "Save safety rules"}
+              {pending ? "Saving" : "Save rules"}
             </button>
           </div>
         </form>

@@ -351,7 +351,7 @@ function HeroMockup() {
             <div className="flex items-start gap-2 text-[12px] text-white/70">
               <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#ccff00]" strokeWidth={2.4} />
               <span>
-                <span className="text-white/45">Policy - </span>
+                <span className="text-white/45">Rules - </span>
                 BTC-PERP, max 2x leverage, stop loss required.
               </span>
             </div>
@@ -412,7 +412,7 @@ function HeroMockup() {
           <div className="product-field relative mt-5 flex items-center justify-between rounded-xl px-4 py-3">
             <div className="leading-tight">
               <div className="text-[11px] text-white/45">One more approval</div>
-              <div className="text-[13px] font-semibold text-white">Ada signs the policy</div>
+              <div className="text-[13px] font-semibold text-white">Ada signs the receipt</div>
             </div>
             <span className="rounded-full bg-[#ccff00] px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-black shadow-[0_0_10px_rgba(204, 255, 0,0.20)]">
               Approve
@@ -480,7 +480,7 @@ function Bento({ fadeIn }: { fadeIn: FadeInFn }) {
           <BentoChainSwatches />
         </motion.div>
 
-        {/* Lime accent - Policy controls */}
+        {/* Lime accent - Protection controls */}
         <motion.div
           {...fadeIn(0.16)}
           className="product-card relative overflow-hidden rounded-[1.5rem] p-6 text-white sm:p-7"
@@ -493,10 +493,10 @@ function Bento({ fadeIn }: { fadeIn: FadeInFn }) {
               </span>
             </div>
             <div className="mt-8 text-2xl font-light leading-[1.1] tracking-tight">
-              Rules first.
+              Protection first.
             </div>
             <p className="mt-3 text-[13px] leading-relaxed text-white/60">
-              Limits, allowances, budgets, and approvals stay visible before anything moves.
+              People, limits, budgets, and approvals stay visible before anything moves.
             </p>
             <div className="mt-6 space-y-2">
               {[
@@ -779,7 +779,7 @@ function BentoLargeBars() {
           <span className="text-white/40">in plain English.</span>
         </h3>
         <p className="mt-4 text-sm leading-relaxed text-white/60">
-          Every request reads as a sentence. Members see the policy, amount,
+          Every request reads as a sentence. Members see the protection, amount,
           destination, and expiry before they sign.
         </p>
       </div>
@@ -860,13 +860,13 @@ function BentoChainSwatches() {
 
       <div className="mt-8">
         <h3 className="text-2xl font-light leading-[1.1] tracking-tight text-white">
-          One policy.
+          One protection layer.
           <br />
           <span className="text-white/40">Native chains.</span>
         </h3>
         <p className="mt-3 text-[13px] leading-relaxed text-white/60">
-          Solana, EVM, Bitcoin, Zcash, and Hyperliquid flows stay under the
-          same approval surface.
+          Solana, EVM, Bitcoin, Zcash, and Hyperliquid flows stay under one
+          readable approval surface.
         </p>
       </div>
 
@@ -898,7 +898,7 @@ function WhyClear({ fadeIn }: { fadeIn: FadeInFn }) {
       },
       good: {
         title: "Sign a sentence",
-        body: "The signer sees the amount, action, policy, destination, and expiry in plain language.",
+        body: "The signer sees the amount, action, protection, destination, and expiry in plain language.",
       },
     },
     {
@@ -918,7 +918,7 @@ function WhyClear({ fadeIn }: { fadeIn: FadeInFn }) {
       },
       good: {
         title: "One wallet, every chain",
-        body: "Solana, EVM, Bitcoin, Zcash, and testnet trading flows share one policy surface.",
+        body: "Solana, EVM, Bitcoin, Zcash, and testnet trading flows share one protection surface.",
       },
     },
     {
@@ -949,8 +949,8 @@ function WhyClear({ fadeIn }: { fadeIn: FadeInFn }) {
           Not your usual <span className="italic-skew">shared wallet</span>.
         </h2>
         <p className="mx-auto mt-6 max-w-2xl text-[15px] leading-relaxed text-white/55 sm:text-base">
-          ClearSig is built for shared wallets, bounded agents, and policy
-          controlled execution. The user signs intent, not mystery payloads.
+          ClearSig is built for shared wallets, bounded agents, and readable
+          protection. The user signs intent, not mystery payloads.
         </p>
       </motion.div>
 
@@ -1065,7 +1065,7 @@ function Methodology({ fadeIn }: { fadeIn: FadeInFn }) {
       n: "01",
       Icon: Users,
       title: "Create the control layer",
-      body: "Add members, chains, policies, budgets, and recovery rules.",
+      body: "Add people, protection, budgets, and recovery.",
     },
     {
       n: "02",
@@ -1077,7 +1077,7 @@ function Methodology({ fadeIn }: { fadeIn: FadeInFn }) {
       n: "03",
       Icon: UserPlus,
       title: "Approve and execute",
-      body: "Owners sign the sentence, ClearSig checks policy, then execution can proceed.",
+      body: "Owners sign the sentence, ClearSig checks protection, then execution can proceed.",
     },
   ];
 
@@ -1179,8 +1179,8 @@ function AgentControlSection({ fadeIn }: { fadeIn: FadeInFn }) {
           inside your <span className="italic-skew">rules</span>.
         </h2>
         <p className="mt-6 max-w-xl text-[15px] leading-relaxed text-white/60 sm:text-base">
-          Agents can propose trades, earn small allowances, and execute only
-          inside limits approved by the wallet owners.
+          Agents can propose trades, use small budgets, and execute only inside
+          rules approved by the wallet owners.
         </p>
         <div className="mt-8 grid gap-3 sm:grid-cols-2">
           {["Signal inbox", "Owner approval", "Kill switch", "Scorecards"].map((item) => (
@@ -1228,7 +1228,7 @@ function AgentControlSection({ fadeIn }: { fadeIn: FadeInFn }) {
               </div>
             </div>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-[#ccff00]/30 bg-[#ccff00]/[0.08] px-3 py-1 font-mono-tech text-[10px] uppercase tracking-[0.18em] text-[#ccff00]">
-              active allowance
+              active budget
             </span>
           </div>
 
@@ -1264,7 +1264,7 @@ function AgentControlSection({ fadeIn }: { fadeIn: FadeInFn }) {
               <div className="mt-4 rounded-xl border border-[#ccff00]/20 bg-[#ccff00]/[0.06] p-3">
                 <div className="flex items-center gap-2">
                   <Gauge className="h-4 w-4 text-[#ccff00]" aria-hidden="true" />
-                  <p className="text-xs font-medium text-white">Policy gate passed</p>
+                  <p className="text-xs font-medium text-white">Rules passed</p>
                 </div>
                 <p className="mt-1 text-[12px] leading-relaxed text-white/55">
                   Within market, notional, leverage, session, and stop rules.
@@ -1275,7 +1275,7 @@ function AgentControlSection({ fadeIn }: { fadeIn: FadeInFn }) {
             <div className="space-y-3">
               <AgentMetric
                 icon={CircleDollarSign}
-                label="Allowance"
+                label="Budget"
                 value="$500"
                 detail="4 hours left"
               />

@@ -835,7 +835,7 @@ function productDashboardCopy(surface: WalletProductSurface | null): {
       return {
         Icon: Users,
         title: "Shared money, fewer steps.",
-        body: "Send, receive, add trusted people, and manage simple rules from a wallet built for people.",
+        body: "Send, receive, add trusted people, and keep protection simple.",
         footer: "Personal actions",
         cta: "New personal",
       };
@@ -843,15 +843,15 @@ function productDashboardCopy(surface: WalletProductSurface | null): {
       return {
         Icon: Building2,
         title: "Treasury control for teams.",
-        body: "Review team wallets, approvals, spend rules, and audit-ready activity before money moves.",
+        body: "Review team wallets, approvals, protection, and audit-ready activity before money moves.",
         footer: "Pro treasury",
         cta: "New treasury",
       };
     case "agent":
       return {
         Icon: Bot,
-        title: "Trading agents with a hard stop.",
-        body: "Pick a trader recipe, set allowance, connect a venue, and monitor every guarded decision.",
+        title: "Trading agents with rules.",
+        body: "Choose a trader, set a budget, approve the rules, and watch every decision.",
         footer: "Agent trading",
         cta: "New agent vault",
       };
@@ -915,7 +915,7 @@ function PersonalDashboardVisual() {
         </span>
       </div>
       <div className="grid grid-cols-3 gap-2">
-        {["Send", "Receive", "Rules"].map((label) => (
+        {["Send", "Receive", "Protect"].map((label) => (
           <span key={label} className="rounded-xl border border-border-soft bg-surface-raised px-2 py-3 text-center text-[10px] font-medium text-text-strong">
             {label}
           </span>
@@ -959,10 +959,10 @@ function AgentDashboardVisual() {
       </div>
       <div className="grid grid-cols-2 gap-2">
         <span className="rounded-xl border border-accent/20 bg-accent/[0.07] px-2 py-2 text-[10px] font-medium text-accent">
-          Guardrails
+          Rules
         </span>
         <span className="rounded-xl border border-border-soft bg-surface-raised px-2 py-2 text-[10px] font-medium text-text-soft">
-          Kill switch
+          Pause
         </span>
       </div>
     </div>

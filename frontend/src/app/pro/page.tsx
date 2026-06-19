@@ -4,7 +4,7 @@ import { ProductSurfaceLanding } from "@/components/product/ProductSurfaceLandin
 export const metadata: Metadata = {
   title: "ClearSig Pro · Clear",
   description:
-    "Company multisig treasury controls with transparent or encrypted policy choices.",
+    "Company multisig treasury controls with readable protection choices.",
 };
 
 export default function ProPage() {

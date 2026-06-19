@@ -168,7 +168,7 @@ function productSetupFor(surface: string | null): {
   if (surface === "pro") {
     return {
       label: "Team treasury",
-      body: "Members and policy come next.",
+      body: "People and protection come next.",
       Icon: Building2,
     };
   }
@@ -447,7 +447,7 @@ function NewWalletContent() {
       toast.success(`${cleanName} is ready`, {
         details:
           purpose === "agent"
-            ? "The vault is ready. Choose an agent and set its first policy grant."
+            ? "The vault is ready. Choose a trader and set its rules."
             : "Sending is enabled. Open the wallet to send your first request.",
       });
       router.push(

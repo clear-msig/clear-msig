@@ -167,7 +167,7 @@ export default function RulesPage() {
         }
       >
         <Plus className="h-4 w-4" aria-hidden="true" />
-        Adjust policy
+        Adjust protection
       </Link>
 
     </div>

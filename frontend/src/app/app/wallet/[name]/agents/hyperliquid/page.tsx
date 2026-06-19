@@ -266,7 +266,7 @@ export default function HyperliquidSetupPage() {
                 href={`/app/wallet/${encoded}/agents/policy?venue=hyperliquid_testnet`}
                 className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
               >
-                Safety rules
+                Rules
                 <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
               </Link>
             </div>

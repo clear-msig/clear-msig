@@ -182,7 +182,7 @@ export default function BudgetPage() {
       perChainUsd,
       velocityPerDay,
     });
-    toast.success(`${toDisplayName(name)}'s policy saved`, {
+    toast.success(`${toDisplayName(name)}'s limits saved`, {
       details: summarisePolicy(weeklyUsd, perChainUsd, velocityPerDay),
     });
     router.push(`/app/wallet/${encodeURIComponent(name)}`);
@@ -209,7 +209,7 @@ export default function BudgetPage() {
           </span>
           <div className="flex min-w-0 flex-col">
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Spending policy · {display}
+              Protection limits · {display}
             </p>
             <h1 className="mt-1.5 truncate font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
               How much can {display} spend?
@@ -220,8 +220,8 @@ export default function BudgetPage() {
 
       <p className="max-w-2xl text-sm text-text-soft sm:text-base">
         One wallet-wide weekly cap, plus optional per-chain caps and a
-        daily send-count limit. Sends inside the policy fly through;
-        sends that would push past it get a heads-up before signing.
+        daily send-count limit. ClearSig warns you before a send pushes past
+        the limit.
       </p>
 
       <CurrentUsageCard name={name} usage={usage} />
@@ -351,7 +351,7 @@ export default function BudgetPage() {
       </PolicyCard>
 
       <Button size="lg" fullWidth onClick={handleSave}>
-        Save policy
+        Save limits
         <ArrowRight className="h-4 w-4" aria-hidden="true" />
       </Button>
 
@@ -359,7 +359,7 @@ export default function BudgetPage() {
         <strong className="text-text-strong">Heads up.</strong> Demo
         prices today ({formatUsd(quotePerWhole("SOL")?.usdPerWhole ?? 0)}{" "}
         / SOL etc.). Caps are nudges; wallet approvals still rule. Real
-        on-chain enforcement lands when the policy program ships the
+        on-chain enforcement lands when the protection program ships the
         fields.
       </p>
     </div>

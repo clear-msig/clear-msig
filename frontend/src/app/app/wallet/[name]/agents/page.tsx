@@ -495,12 +495,12 @@ export default function AgentsPage() {
       },
       {
         id: "safety",
-        label: "Set max loss",
+        label: "Set rules",
         description: "Choose max size, max loss, and stop conditions.",
         Icon: ShieldCheck,
         done: itemPassed("risk-limits"),
         href: `/app/wallet/${encoded}/agents/policy`,
-        actionLabel: "Set max loss",
+        actionLabel: "Set rules",
       },
       {
         id: "allowance",
@@ -1191,7 +1191,7 @@ export default function AgentsPage() {
               Agent vault · {display}
             </p>
             <h1 className="font-display text-display-xs leading-tight text-text-strong md:text-display-sm">
-              Trading desk
+              Agent trading
             </h1>
           </div>
           <Link
@@ -1207,15 +1207,15 @@ export default function AgentsPage() {
           </Link>
         </div>
         <div className="mt-5 grid gap-2 sm:grid-cols-4">
-          <DeskStatus label="Venue" value="Hyperliquid" tone="accent" />
+          <DeskStatus label="Trader" value={activeAgents ? "Chosen" : "Needed"} tone={activeAgents ? "accent" : "warn"} />
           <DeskStatus label="Mode" value="Practice" tone="soft" />
           <DeskStatus
-            label="Risk"
-            value={policy?.enabled ? "Guarded" : "Unarmed"}
+            label="Rules"
+            value={policy?.enabled ? "On" : "Needed"}
             tone={policy?.enabled ? "accent" : "warn"}
           />
           <DeskStatus
-            label="Kill switch"
+            label="Pause"
             value={policy?.emergencyPaused ? "Paused" : "Ready"}
             tone={policy?.emergencyPaused ? "warn" : "accent"}
           />
@@ -1229,7 +1229,7 @@ export default function AgentsPage() {
         <MetricCard label="Trade ideas" value={String(proposalCount)} Icon={BrainCircuit} />
         <MetricCard label="New ideas" value={String(queuedSignals)} Icon={Inbox} />
         <MetricCard
-          label="Safety rules"
+          label="Rules"
           value={policy?.enabled ? "On" : "Off"}
           Icon={ShieldCheck}
         />
@@ -1262,13 +1262,13 @@ export default function AgentsPage() {
                 className={agentPrimaryActionClass}
               >
                 <Play size={15} aria-hidden="true" />
-                Open trading desk
+                Open trading
               </Link>
               {canRunAutonomyScan ? (
                 <button
                   type="button"
                   disabled={pendingAction}
-                  title="Scan current markets through active max-loss rules"
+                  title="Scan current markets through active rules"
                   onClick={runAutonomyScan}
                   className={agentSecondaryActionClass}
                 >
@@ -1284,7 +1284,7 @@ export default function AgentsPage() {
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-text-strong">
             <span className="inline-flex items-center gap-2">
               <SlidersHorizontal className="h-4 w-4 text-accent" aria-hidden="true" />
-              Tools
+              More
             </span>
             <ChevronDown
               className="h-4 w-4 text-text-soft transition-transform group-open:rotate-180"
@@ -1297,7 +1297,7 @@ export default function AgentsPage() {
             className={agentToolClass}
           >
             <Play size={15} aria-hidden="true" />
-            <span>Start session</span>
+            <span>Start practice</span>
           </Link>
           <Link
             href={`/app/wallet/${encoded}/agents/library`}
@@ -1311,14 +1311,14 @@ export default function AgentsPage() {
             className={agentToolClass}
           >
             <Plug size={15} aria-hidden="true" />
-            <span>Venue</span>
+            <span>Practice account</span>
           </Link>
           <Link
             href={`/app/wallet/${encoded}/agents/policy`}
             className={agentToolClass}
           >
             <ShieldCheck size={15} aria-hidden="true" />
-            <span>Max loss</span>
+            <span>Rules</span>
           </Link>
           <Link
             href={`/app/wallet/${encoded}/agents/funding`}
@@ -1332,7 +1332,7 @@ export default function AgentsPage() {
             className={agentToolClass}
           >
             <Pause size={15} aria-hidden="true" />
-            <span>Kill switch</span>
+            <span>Pause</span>
           </Link>
           <Link
             href="#decision-journal"
@@ -3978,7 +3978,7 @@ function readinessHref(
 function readinessActionLabel(action: AgentReadinessAction): string {
   switch (action) {
     case "risk_limits":
-      return "Safety rules";
+      return "Set rules";
     case "strategy":
       return "Review style";
     case "session":
