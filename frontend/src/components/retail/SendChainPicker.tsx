@@ -60,13 +60,14 @@ export function SendChainPicker({
             One send flow
           </p>
           <h2 className="mt-0.5 text-sm font-medium text-text-strong">
-            Choose asset, write the receipt, sign.
+            Recipient, amount, receipt, sign.
           </h2>
         </div>
         <p className="text-xs text-text-soft">
-          Need another chain? Add it here.
+          Need another asset? Add it here.
         </p>
       </div>
+      <SendFlowSteps />
       <div className="flex gap-2 overflow-x-auto pb-1">
         {visible.map((opt) => {
           const isActive = opt.chain.kind === activeKind;
@@ -124,7 +125,7 @@ export function SendChainPicker({
           Subtitle adapts so the row reads as a single thought. */}
         <Link
           href={addChainHref}
-          aria-label="Add another network"
+          aria-label="Add another asset"
           className={
             "flex min-w-[9.5rem] items-center gap-2 rounded-card border border-dashed border-border-soft bg-canvas px-3 py-2 text-left " +
             "transition-[border-color,background-color,transform] duration-base ease-out-soft " +
@@ -140,7 +141,7 @@ export function SendChainPicker({
           </span>
           <span className="flex min-w-0 flex-col">
             <span className="truncate text-xs font-medium text-text-strong">
-              Add network
+              Add asset
             </span>
             <span className="truncate text-[10px] text-text-soft">
               {boundCount === 1 ? "ETH, BTC, ZEC, HYPE" : "More options"}
@@ -149,6 +150,34 @@ export function SendChainPicker({
         </Link>
       </div>
     </nav>
+  );
+}
+
+function SendFlowSteps() {
+  const steps = ["Recipient", "Amount / asset", "Receipt", "Sign"];
+  return (
+    <ol className="mb-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+      {steps.map((label, index) => (
+        <li
+          key={label}
+          className="flex min-w-0 items-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-2.5 py-2"
+        >
+          <span
+            className={
+              "flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-numerals text-[10px] font-semibold tabular-nums " +
+              (index === 0
+                ? "bg-accent/15 text-accent"
+                : "bg-glass-soft text-text-soft")
+            }
+          >
+            {index + 1}
+          </span>
+          <span className="truncate text-[11px] font-medium text-text-soft">
+            {label}
+          </span>
+        </li>
+      ))}
+    </ol>
   );
 }
 

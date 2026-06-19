@@ -510,7 +510,7 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
               reduce={reduce}
             />
           ) : (
-            <ActivityEmptyState reduce={reduce} />
+            <ActivityEmptyState walletName={name} reduce={reduce} />
           )}
           {/* On-chain tx history per bound chain. The attempts log
               above only sees sends initiated from this browser; this
@@ -680,7 +680,7 @@ const TabBar = forwardRef<HTMLDivElement, TabBarProps>(function TabBar(
 
 function tabLabelsFor(surface: ProductSurfaceId | null): Record<WalletTab, string> {
   if (surface === "personal") {
-    return { holdings: "Money", activity: "Timeline", manage: "People" };
+    return { holdings: "Money", activity: "History", manage: "More" };
   }
   if (surface === "pro") {
     return { holdings: "Assets", activity: "Ledger", manage: "Controls" };
@@ -1577,23 +1577,21 @@ function productHeroActions(
     return [
       { href: `/app/wallet/${encoded}/send`, Icon: Send, label: "Send", hint: "Pay" },
       { href: `/app/wallet/${encoded}/receive`, Icon: Download, label: "Receive", hint: "Deposit" },
-      { href: `/app/wallet/${encoded}/members`, Icon: Users, label: "People", hint: "Trust" },
+      { href: `/app/wallet/${encoded}/policy`, Icon: ShieldCheck, label: "Protect", hint: "Safety" },
     ];
   }
   if (surface === "pro") {
     return [
-      { href: `/app/wallet/${encoded}/send`, Icon: Send, label: "Payout", hint: "Pay" },
+      { href: `/app/wallet/${encoded}/send`, Icon: Send, label: "Send", hint: "Pay" },
+      { href: `/app/wallet/${encoded}/receive`, Icon: Download, label: "Receive", hint: "Deposit" },
       { href: `/app/wallet/${encoded}/policy`, Icon: ShieldCheck, label: "Protect", hint: "Safety" },
-      { href: `/app/wallet/${encoded}/budget`, Icon: Banknote, label: "Limits", hint: "Caps" },
-      { href: `/app/wallet/${encoded}/activity`, Icon: Activity, label: "Activity", hint: "Audit" },
     ];
   }
   if (surface === "agent") {
     return [
       { href: `/app/wallet/${encoded}/agents`, Icon: Bot, label: "Desk", hint: "Trade" },
-      { href: `/app/wallet/${encoded}/agents/library`, Icon: Users, label: "Traders", hint: "Choose" },
-      { href: `/app/wallet/${encoded}/agents/policy`, Icon: ShieldCheck, label: "Rules", hint: "Risk" },
-      { href: `/app/wallet/${encoded}/agents/trades`, Icon: Activity, label: "Trades", hint: "Watch" },
+      { href: `/app/wallet/${encoded}/receive`, Icon: Download, label: "Receive", hint: "Deposit" },
+      { href: `/app/wallet/${encoded}/agents/policy`, Icon: ShieldCheck, label: "Protect", hint: "Safety" },
     ];
   }
   return [
@@ -2694,10 +2692,17 @@ function ActivitySection({
   );
 }
 
-function ActivityEmptyState({ reduce }: { reduce: boolean }) {
+function ActivityEmptyState({
+  walletName,
+  reduce,
+}: {
+  walletName: string;
+  reduce: boolean;
+}) {
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  const encoded = encodeURIComponent(walletName);
   return (
     <motion.section
       {...motionProps}
@@ -2705,7 +2710,7 @@ function ActivityEmptyState({ reduce }: { reduce: boolean }) {
       className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
     >
       <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-        Activity
+        History
       </h2>
       {/* Ghost row - same shape as a real activity row, just muted.
           Cash App pattern: tell the user what this surface looks like
@@ -2724,6 +2729,17 @@ function ActivityEmptyState({ reduce }: { reduce: boolean }) {
         Every move on this wallet - sent, approved, declined - gets a
         row, with the friend who acted and when.
       </p>
+      <Link
+        href={`/app/wallet/${encoded}/send`}
+        className={
+          "mt-4 inline-flex min-h-tap items-center justify-center gap-1.5 rounded-soft bg-accent px-3.5 py-2 text-sm font-medium text-text-on-accent shadow-accent-rest " +
+          "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+        }
+      >
+        Send money
+        <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+      </Link>
     </motion.section>
   );
 }

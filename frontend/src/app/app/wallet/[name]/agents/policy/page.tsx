@@ -100,14 +100,14 @@ export default function AgentPolicyPage() {
         if (synced.ok) {
           toast.success(
             sessionsNeedRenewal
-              ? "Rules saved. Review current budgets."
-              : "Rules saved",
+              ? "Safety saved. Review current budgets."
+              : "Safety saved",
           );
         } else {
           toast.info(
             sessionsNeedRenewal
-              ? "Rules saved here. Review current budgets."
-              : "Rules saved on this device for now",
+              ? "Safety saved here. Review current budgets."
+              : "Safety saved on this device for now",
             {
             details: synced.message,
             },

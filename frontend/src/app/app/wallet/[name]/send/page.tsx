@@ -1168,8 +1168,6 @@ function ComposeStage({
         </p>
       </header>
 
-      <SendStepRail />
-
       {/* Quick-send shortcut - type a sentence, the form fills. */}
       <QuickSendInput contactNames={contactNames} onParsed={onQuickFill} />
 
@@ -1461,35 +1459,6 @@ function ComposeStage({
     </motion.section>
   );
 }
-
-function SendStepRail() {
-  const steps = ["Choose asset", "Write details", "Review receipt", "Sign"];
-  return (
-    <ol className="grid grid-cols-4 gap-1.5">
-      {steps.map((label, index) => (
-        <li
-          key={label}
-          className="flex min-w-0 items-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-2.5 py-2"
-        >
-          <span
-            className={
-              "flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-numerals text-[10px] font-semibold tabular-nums " +
-              (index === 0
-                ? "bg-accent/15 text-accent"
-                : "bg-glass-soft text-text-soft")
-            }
-          >
-            {index + 1}
-          </span>
-          <span className="truncate text-[11px] font-medium text-text-soft">
-            {label}
-          </span>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
 
 // ─── Recipient status row ──────────────────────────────────────────
 

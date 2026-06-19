@@ -959,7 +959,7 @@ function AgentDashboardVisual() {
       </div>
       <div className="grid grid-cols-2 gap-2">
         <span className="rounded-xl border border-accent/20 bg-accent/[0.07] px-2 py-2 text-[10px] font-medium text-accent">
-          Rules
+          Safety
         </span>
         <span className="rounded-xl border border-border-soft bg-surface-raised px-2 py-2 text-[10px] font-medium text-text-soft">
           Pause

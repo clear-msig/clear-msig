@@ -65,7 +65,6 @@ export default function PolicyPage() {
   const params = useParams<{ name: string }>();
   const { connection } = useConnection();
   const reduce = useReducedMotion();
-  const toast = useToast();
   const name = useMemo(() => {
     try {
       return decodeURIComponent(params?.name ?? "");
@@ -174,7 +173,6 @@ export default function PolicyPage() {
       </motion.header>
 
       <PolicyFlow
-        walletName={name}
         intent={customIntent}
         loading={walletQuery.isLoading || intentsQuery.isLoading}
         advancedRuleCount={advancedRuleCount}
@@ -206,45 +204,23 @@ export default function PolicyPage() {
         loading={walletQuery.isLoading || intentsQuery.isLoading}
         reduce={!!reduce}
       />
+      <PeopleCard
+        walletName={name}
+        intent={customIntent}
+        loading={walletQuery.isLoading || intentsQuery.isLoading}
+      />
       <AllowlistCard walletName={name} />
       <TimeWindowCard walletName={name} />
 
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {!personalRules ? (
-          <>
-            <NavCard
-              href={`/app/wallet/${encodeURIComponent(name)}/budget`}
-              icon={Gauge}
-              title="Limits"
-              body="How much this wallet can send in a period."
-            />
-            <NavCard
-              href={`/app/wallet/${encodeURIComponent(name)}/allowances`}
-              icon={UserCheck}
-              title="Member limits"
-              body="How much each person can move without extra review."
-            />
-            <NavCard
-              href={`/app/wallet/${encodeURIComponent(name)}/policies`}
-              icon={ListChecks}
-              title="Advanced"
-              body="Recipient, amount, review, and cooldown checks."
-            />
-          </>
-        ) : null}
-        <NavCard
-          href="/app/settings#notifications"
-          icon={Bell}
-          title="Notifications"
-          body="How this device alerts you when approvals wait."
-        />
-      </section>
+      <AdvancedProtectionPanel
+        walletName={name}
+        personalRules={personalRules}
+      />
     </div>
   );
 }
 
 function PolicyFlow({
-  walletName,
   intent,
   loading,
   advancedRuleCount,
@@ -252,7 +228,6 @@ function PolicyFlow({
   allowanceCount,
   personalRules,
 }: {
-  walletName: string;
   intent: IntentAccount | null;
   loading: boolean;
   advancedRuleCount: number;
@@ -260,7 +235,6 @@ function PolicyFlow({
   allowanceCount: number;
   personalRules: boolean;
 }) {
-  const encoded = encodeURIComponent(walletName);
   const approverCount = intent?.approvers.length ?? 0;
   const threshold = intent
     ? `${intent.approvalThreshold} of ${approverCount}`
@@ -289,7 +263,7 @@ function PolicyFlow({
       enforcement: "active",
     },
     {
-      href: `/app/wallet/${encoded}/members`,
+      href: "#people",
       Icon: Users,
       label: "People",
       status: memberStatus,
@@ -297,17 +271,17 @@ function PolicyFlow({
       enforcement: "active",
     },
     {
-      href: `/app/wallet/${encoded}/rules`,
+      href: "#time-window",
       Icon: Clock,
-      label: "Send delay",
+      label: "Slowdowns",
       status: timelock,
-      body: "How long approved sends wait before moving.",
+      body: "When ClearSig should slow or block a send.",
       enforcement: "active",
     },
     ...(!personalRules
       ? [
           {
-            href: `/app/wallet/${encoded}/budget`,
+            href: "#advanced-protection",
             Icon: Gauge,
             label: "Limits",
             status: budgetLabel,
@@ -315,7 +289,7 @@ function PolicyFlow({
             enforcement: "preview" as const,
           },
           {
-            href: `/app/wallet/${encoded}/allowances`,
+            href: "#advanced-protection",
             Icon: UserCheck,
             label: "Member limits",
             status: allowanceCount ? `${allowanceCount} set` : "Not set",
@@ -323,7 +297,7 @@ function PolicyFlow({
             enforcement: "preview" as const,
           },
           {
-            href: `/app/wallet/${encoded}/policies`,
+            href: "#advanced-protection",
             Icon: ListChecks,
             label: "Advanced",
             status: advancedRuleCount ? `${advancedRuleCount} saved` : "None",
@@ -367,6 +341,156 @@ interface PolicyStep {
   status: string;
   body: string;
   enforcement: "active" | "preview";
+}
+
+function PeopleCard({
+  walletName,
+  intent,
+  loading,
+}: {
+  walletName: string;
+  intent: IntentAccount | null;
+  loading: boolean;
+}) {
+  const encoded = encodeURIComponent(walletName);
+  const signers = intent?.approvers ?? [];
+
+  return (
+    <section
+      id="people"
+      className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-6"
+    >
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+            <Users className="h-5 w-5" strokeWidth={1.75} />
+          </span>
+          <div>
+            <h2 className="font-display text-lg leading-tight text-text-strong">
+              People
+            </h2>
+            <p className="mt-1 text-sm leading-relaxed text-text-soft">
+              These are the people ClearSig checks before money moves.
+            </p>
+          </div>
+        </div>
+        <Link
+          href={`/app/wallet/${encoded}/members/add`}
+          className={
+            "inline-flex min-h-tap items-center justify-center gap-1.5 rounded-soft bg-accent px-3.5 py-2 text-sm font-medium text-text-on-accent shadow-accent-rest " +
+            "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+          }
+        >
+          Add person
+          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </Link>
+      </header>
+
+      {loading ? (
+        <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          <div className="h-12 animate-pulse rounded-card bg-border-soft" />
+          <div className="h-12 animate-pulse rounded-card bg-border-soft" />
+        </div>
+      ) : signers.length > 0 ? (
+        <ul className="mt-5 grid gap-2 sm:grid-cols-2">
+          {signers.map((address, index) => (
+            <li
+              key={address}
+              className="flex items-center justify-between gap-3 rounded-card bg-canvas px-3 py-2"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-text-strong">
+                  Signer {index + 1}
+                </p>
+                <p className="truncate font-mono text-[11px] text-text-soft">
+                  {shortAddress(address)}
+                </p>
+              </div>
+              <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
+                Can approve
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-5 rounded-card bg-warning/10 p-3 text-sm text-text-strong">
+          No signer list yet. Turn on sending, then add the people who should
+          approve.
+        </p>
+      )}
+
+      <div className="mt-4">
+        <Link
+          href={`/app/wallet/${encoded}/members`}
+          className="text-xs font-medium text-accent hover:text-accent-hover"
+        >
+          Manage people
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function AdvancedProtectionPanel({
+  walletName,
+  personalRules,
+}: {
+  walletName: string;
+  personalRules: boolean;
+}) {
+  const encoded = encodeURIComponent(walletName);
+  return (
+    <details
+      id="advanced-protection"
+      className="group rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5"
+    >
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+        <span>
+          <span className="text-sm font-semibold text-text-strong">
+            Advanced protection
+          </span>
+          <span className="mt-0.5 block text-xs text-text-soft">
+            Limits, member caps, deeper checks, and notification settings.
+          </span>
+        </span>
+        <ArrowRight
+          className="h-4 w-4 shrink-0 text-text-soft transition-transform group-open:rotate-90"
+          aria-hidden="true"
+        />
+      </summary>
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {!personalRules ? (
+          <>
+            <NavCard
+              href={`/app/wallet/${encoded}/budget`}
+              icon={Gauge}
+              title="Limits"
+              body="How much this wallet can send in a period."
+            />
+            <NavCard
+              href={`/app/wallet/${encoded}/allowances`}
+              icon={UserCheck}
+              title="Member limits"
+              body="How much each person can move without extra review."
+            />
+            <NavCard
+              href={`/app/wallet/${encoded}/policies`}
+              icon={ListChecks}
+              title="Advanced checks"
+              body="Recipient, amount, review, and cooldown checks."
+            />
+          </>
+        ) : null}
+        <NavCard
+          href="/app/settings#notifications"
+          icon={Bell}
+          title="Notifications"
+          body="How this device alerts you when approvals wait."
+        />
+      </div>
+    </details>
+  );
 }
 
 function PolicyStepCard({ step }: { step: PolicyStep }) {

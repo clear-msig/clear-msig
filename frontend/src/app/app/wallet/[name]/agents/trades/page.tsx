@@ -419,7 +419,7 @@ function TradeRow({
                 <MiniReason label="Risk" value={proposal.decisionJournal.riskPlan} />
                 <MiniReason label="Exit" value={proposal.decisionJournal.exitPlan} />
                 <MiniReason
-                  label="Rules"
+                  label="Checks"
                   value={proposal.decisionJournal.policySummary}
                 />
               </div>

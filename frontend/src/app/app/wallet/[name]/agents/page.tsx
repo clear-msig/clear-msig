@@ -495,12 +495,12 @@ export default function AgentsPage() {
       },
       {
         id: "safety",
-        label: "Set rules",
+        label: "Set safety",
         description: "Choose max size, max loss, and stop conditions.",
         Icon: ShieldCheck,
         done: itemPassed("risk-limits"),
         href: `/app/wallet/${encoded}/agents/policy`,
-        actionLabel: "Set rules",
+        actionLabel: "Set safety",
       },
       {
         id: "allowance",
@@ -526,6 +526,7 @@ export default function AgentsPage() {
       },
     ];
   }, [agents, encoded, executions.length, readiness]);
+  const setupComplete = gettingStartedSteps.every((step) => step.done);
   const allocationRecommendations = useMemo(() => {
     if (!policy) return {} as Record<string, AgentAllocationRecommendation>;
     const now = Date.now();
@@ -1210,7 +1211,7 @@ export default function AgentsPage() {
           <DeskStatus label="Trader" value={activeAgents ? "Chosen" : "Needed"} tone={activeAgents ? "accent" : "warn"} />
           <DeskStatus label="Mode" value="Practice" tone="soft" />
           <DeskStatus
-            label="Rules"
+            label="Safety"
             value={policy?.enabled ? "On" : "Needed"}
             tone={policy?.enabled ? "accent" : "warn"}
           />
@@ -1224,12 +1225,16 @@ export default function AgentsPage() {
 
       <GettingStartedPanel steps={gettingStartedSteps} />
 
+      {!setupComplete ? (
+        <AgentSetupGate steps={gettingStartedSteps} walletEncoded={encoded} />
+      ) : (
+        <>
       <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
         <MetricCard label="Active traders" value={String(activeAgents)} Icon={Bot} />
         <MetricCard label="Trade ideas" value={String(proposalCount)} Icon={BrainCircuit} />
         <MetricCard label="New ideas" value={String(queuedSignals)} Icon={Inbox} />
         <MetricCard
-          label="Rules"
+          label="Safety"
           value={policy?.enabled ? "On" : "Off"}
           Icon={ShieldCheck}
         />
@@ -1318,7 +1323,7 @@ export default function AgentsPage() {
             className={agentToolClass}
           >
             <ShieldCheck size={15} aria-hidden="true" />
-            <span>Rules</span>
+            <span>Safety</span>
           </Link>
           <Link
             href={`/app/wallet/${encoded}/agents/funding`}
@@ -1660,7 +1665,75 @@ export default function AgentsPage() {
           </ul>
         </section>
       ) : null}
+        </>
+      )}
     </motion.div>
+  );
+}
+
+function AgentSetupGate({
+  steps,
+  walletEncoded,
+}: {
+  steps: GettingStartedStep[];
+  walletEncoded: string;
+}) {
+  const next = steps.find((step) => !step.done) ?? steps[steps.length - 1];
+  const NextIcon = next.Icon;
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-text-strong">
+            Finish setup first
+          </p>
+          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
+            ClearSig will show the trading desk after the trader, safety, budget,
+            and first practice step are ready.
+          </p>
+        </div>
+        <Link
+          href={next.href}
+          className={agentPrimaryActionClass}
+        >
+          <NextIcon size={15} aria-hidden="true" />
+          {next.actionLabel}
+        </Link>
+      </div>
+
+      <details className="group mt-4 rounded-soft border border-border-soft bg-canvas px-3 py-2">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold text-text-strong">
+          <span>Advanced</span>
+          <ChevronDown
+            className="h-3.5 w-3.5 text-text-soft transition-transform group-open:rotate-180"
+            aria-hidden="true"
+          />
+        </summary>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link
+            href={`/app/wallet/${walletEncoded}/agents/hyperliquid`}
+            className={agentToolClass}
+          >
+            <Plug size={15} aria-hidden="true" />
+            <span>Practice account</span>
+          </Link>
+          <Link
+            href={`/app/wallet/${walletEncoded}/agents/solana`}
+            className={agentToolClass}
+          >
+            <KeyRound size={15} aria-hidden="true" />
+            <span>Solana delegation</span>
+          </Link>
+          <Link
+            href={`/app/wallet/${walletEncoded}/agents/approvals`}
+            className={agentToolClass}
+          >
+            <ClipboardList size={15} aria-hidden="true" />
+            <span>Approvals</span>
+          </Link>
+        </div>
+      </details>
+    </section>
   );
 }
 
@@ -1712,7 +1785,7 @@ function GettingStartedPanel({ steps }: { steps: GettingStartedStep[] }) {
             {completed === steps.length ? "Ready to trade" : "Guided setup"}
           </p>
           <p className="mt-0.5 text-xs text-text-soft">
-            Choose trader, set rules, set budget, start practice.
+            Choose trader, set safety, set budget, start practice.
           </p>
         </div>
         <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
@@ -3608,7 +3681,7 @@ function DecisionJournalSummary({ proposal }: { proposal: AgentTradeProposal }) 
           <div className="mt-2 grid gap-1.5 sm:grid-cols-3">
             <MiniReason label="Risk" value={journal.riskPlan} />
             <MiniReason label="Exit" value={journal.exitPlan} />
-            <MiniReason label="Rules" value={journal.policySummary} />
+            <MiniReason label="Checks" value={journal.policySummary} />
           </div>
           {journal.evidence.length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-1">
@@ -3981,7 +4054,7 @@ function readinessHref(
 function readinessActionLabel(action: AgentReadinessAction): string {
   switch (action) {
     case "risk_limits":
-      return "Set rules";
+      return "Set safety";
     case "strategy":
       return "Review style";
     case "session":

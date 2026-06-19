@@ -145,13 +145,13 @@ export default function ChainsPage() {
         <div className="relative z-10 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Networks
+              Advanced networks
             </p>
             <h1 className="mt-1 truncate font-display text-xl leading-tight text-text-strong md:text-display-xs">
               {toDisplayName(name)}
             </h1>
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-text-soft">
-              Add a chain, copy an address, or send from an active network.
+              Add a chain, copy an address, or troubleshoot an active network.
             </p>
           </div>
           <button
