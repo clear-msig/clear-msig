@@ -2137,10 +2137,10 @@ function Actions({
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-text-strong">
-              Set up sending
+              Turn on sending
             </p>
             <p className="mt-0.5 text-xs text-text-soft">
-              Add a spending rule before this wallet can send. One-tap setup.
+              Turn it on once. Every send after that uses a readable receipt.
             </p>
           </div>
           <ArrowRight
@@ -2834,8 +2834,8 @@ function NextStepsStripe({
   const display = toDisplayName(name);
   if (!hasIntents) {
     nudge = {
-      title: "Set up sending",
-      body: `${display} can't send money yet. Enable sending. Takes about 1 minute and 2 wallet popups.`,
+      title: "Turn on sending",
+      body: `${display} can't send money yet. Turn it on once. Takes about 1 minute and 2 wallet popups.`,
       cta: "Enable sending",
       href: `/app/wallet/${encoded}/setup`,
     };
