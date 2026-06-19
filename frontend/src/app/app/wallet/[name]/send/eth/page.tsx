@@ -602,7 +602,7 @@ function SendEthPage() {
     return (
       <PreFlightCard
         title={`Enable ${EVM_LABEL} sending first`}
-        body={`${EVM_LABEL} is bound to this wallet, but the spending rule for it isn't set up yet. One quick setup, then sends are unlocked.`}
+        body={`${EVM_LABEL} is bound to this wallet, but sending is not turned on yet. One quick setup, then sends are unlocked.`}
         cta={{
           href: `/app/wallet/${encodeURIComponent(walletName)}/setup/eth${isHyperliquid ? "?network=hyperliquid" : ""}`,
           label: `Enable ${EVM_LABEL} sending`,

@@ -132,10 +132,10 @@ export default function AgentPolicyPage() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <header className="flex flex-col gap-2">
         <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-          Agent rules · {display}
+          Agent safety · {display}
         </p>
         <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
-          Set trader rules
+          Set trader safety
         </h1>
       </header>
 
@@ -146,7 +146,7 @@ export default function AgentPolicyPage() {
           </span>
           <div>
             <p className="text-sm font-semibold text-text-strong">
-              These rules always win
+              These checks always win
             </p>
           </div>
         </div>

@@ -292,7 +292,7 @@ export default function HyperliquidSetupPage() {
         <div className="mt-4 grid gap-2 md:grid-cols-4">
           <MiniMetric label="Funds live in" value="Hyperliquid account" />
           <MiniMetric label="Signer identity" value="Approved API wallet" />
-          <MiniMetric label="Limits enforced by" value="ClearSig policy" />
+          <MiniMetric label="Limits enforced by" value="Safety checks" />
           <MiniMetric label="Private key location" value="Protected executor" />
         </div>
       </section>

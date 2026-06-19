@@ -850,8 +850,8 @@ function productDashboardCopy(surface: WalletProductSurface | null): {
     case "agent":
       return {
         Icon: Bot,
-        title: "Trading agents with rules.",
-        body: "Choose a trader, set a budget, approve the rules, and watch every decision.",
+        title: "Trading agents with safety checks.",
+        body: "Choose a trader, set a budget, approve the safety checks, and watch every decision.",
         footer: "Agent trading",
         cta: "New agent vault",
       };

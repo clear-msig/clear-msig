@@ -163,7 +163,7 @@ function BatchSendPage() {
   const handleSendBatch = async () => {
     if (!firstIntent || !firstIntent.account) {
       toast.error("Couldn't send the batch", {
-        details: "This wallet hasn't set up a spending rule yet.",
+        details: "This wallet hasn't turned on sending yet.",
       });
       return;
     }
@@ -221,7 +221,7 @@ function BatchSendPage() {
               </p>
               <p className="mt-2 text-sm text-text-strong">
                 Batch send needs <strong>{walletDisplay}</strong>&rsquo;s
-                spending rule to be in place. Enable sending, then come
+                sending setup to be in place. Enable sending, then come
                 back here.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">

@@ -447,7 +447,7 @@ function NewWalletContent() {
       toast.success(`${cleanName} is ready`, {
         details:
           purpose === "agent"
-            ? "The vault is ready. Choose a trader and set its rules."
+            ? "The vault is ready. Choose a trader and set safety checks."
             : "Sending is enabled. Open the wallet to send your first request.",
       });
       router.push(

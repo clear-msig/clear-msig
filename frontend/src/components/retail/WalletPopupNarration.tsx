@@ -70,7 +70,7 @@ export function WalletPopupNarration({
       : `Your wallet will pop up ${popups} times.`;
   const trailing =
     note ??
-    "Nothing leaves your account. This just sets up the rules on chain.";
+    "Nothing leaves your account. This turns on sending protection on chain.";
   const showFooter = !compact && !hideHexDisclaimer;
   const disclaimer = isLedger ? (
     <>

@@ -276,8 +276,8 @@ export default function SetupSpendingPage() {
                 <span className="text-accent">{toHeadingName(name)}</span> is ready to send
               </h1>
               <p className="mt-3 max-w-sm text-base text-text-soft">
-                Spending rule is on chain. The activity row you see is the
-                rule going into effect. No money has moved yet.
+                Sending is now turned on. The activity row you see is the
+                sending protection going into effect. No money has moved yet.
               </p>
               <div className="mt-8 w-full">
                 <NextStepCard
@@ -319,7 +319,7 @@ export default function SetupSpendingPage() {
             </h1>
             <p className="mt-3 max-w-sm text-base text-text-soft">
               One quick setup so this wallet can send money. Your wallet
-              will ask you to confirm. That&rsquo;s how the rule
+              will ask you to confirm. That&rsquo;s how sending protection
               becomes part of {toDisplayName(name)}.
             </p>
 

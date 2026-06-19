@@ -494,7 +494,7 @@ function SendErc20Page() {
     return (
       <PreFlightCard
         title="Enable ERC-20 sending first"
-        body="Ethereum is bound to this wallet, but the spending rule for ERC-20 tokens isn't set up yet. One quick setup, then per-token sends are unlocked."
+        body="Ethereum is bound to this wallet, but ERC-20 sending is not turned on yet. One quick setup, then per-token sends are unlocked."
         cta={{
           href: `/app/wallet/${encodeURIComponent(walletName)}/setup/erc20`,
           label: "Enable ERC-20 sending",

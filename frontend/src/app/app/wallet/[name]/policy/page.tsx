@@ -299,9 +299,9 @@ function PolicyFlow({
     {
       href: `/app/wallet/${encoded}/rules`,
       Icon: Clock,
-      label: "Send permission",
+      label: "Send delay",
       status: timelock,
-      body: "The signed permission that lets this wallet send.",
+      body: "How long approved sends wait before moving.",
       enforcement: "active",
     },
     ...(!personalRules

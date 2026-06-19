@@ -272,7 +272,7 @@ export default function SetupEthPage() {
                     {EVM_LABEL} sending enabled
                   </p>
                   <p className="mt-0.5 truncate text-xs text-text-soft">
-                    Spending rule is live on chain. No money has moved yet.
+                    Sending is turned on. No money has moved yet.
                   </p>
                 </div>
               </div>
@@ -335,9 +335,9 @@ export default function SetupEthPage() {
             </header>
 
             <p className="text-sm leading-relaxed text-text-soft">
-              Adds a spending rule for {EVM_LABEL} so {walletDisplay} can move
+              Turns on {EVM_LABEL} sending so {walletDisplay} can move
               {EVM_TICKER === "HYPE" ? " HYPE" : " ETH"} on the network.
-              One quick setup; the rule is signed by you and lives on chain.
+              One quick setup; sending protection is signed by you and lives on chain.
             </p>
 
             {needsBinding && (

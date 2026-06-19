@@ -2954,7 +2954,7 @@ function BudgetStripe({ name }: { name: string }) {
             ? "Over weekly limit"
             : hasWalletCap
               ? "Weekly limit"
-              : "Spending rules"}
+              : "Protection checks"}
         </p>
         <p className="text-xs text-text-soft">
           {usage.proposalCount} {usage.proposalCount === 1 ? "send" : "sends"} this week
