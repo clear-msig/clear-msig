@@ -386,7 +386,7 @@ export default function WalletDetailPage() {
 //
 // Phantom / Rainbow precedent: a wallet detail screen is a vertical
 // dump in two ways - Hero on top, then a tabbed feed below. We
-// already moved primary actions (Send / Receive / Policy) to the
+// already moved primary actions (Send / Receive / Protect) to the
 // Hero tile row; the tabs here own the long-tail of content that
 // previously stacked into 12 sections.
 //
@@ -1354,7 +1354,7 @@ function Hero({
 
       {/* ── Balance + actions card ──────────────────────────────
           Wallet value as the focal headline; the three primary
-          actions (Send / Receive / Policy) sit underneath as
+          actions (Send / Receive / Protect) sit underneath as
           first-class affordances. A soft accent bloom in the
           top-right lifts the card off the canvas without
           competing with the number. */}
@@ -1503,7 +1503,7 @@ function productHeroProfile(
       glowClass: SHARED_BALANCE_GLOW_CLASS,
       glow: SHARED_BALANCE_GLOW,
       portfolioWrapClass: "grid gap-5 lg:grid-cols-[1.25fr_1fr] lg:items-end",
-      actionsGridClass: "grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3",
+      actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
       actionTone: "pro",
       balanceLabel: "Treasury value",
       stats: [
@@ -1522,7 +1522,7 @@ function productHeroProfile(
       glowClass: SHARED_BALANCE_GLOW_CLASS,
       glow: SHARED_BALANCE_GLOW,
       portfolioWrapClass: "grid gap-5 lg:grid-cols-[1fr_1.1fr] lg:items-end",
-      actionsGridClass: "grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3",
+      actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
       avatarIcon: productSurfaceIcon(surface),
       actionTone: "agent",
       balanceLabel: "Trading funds",

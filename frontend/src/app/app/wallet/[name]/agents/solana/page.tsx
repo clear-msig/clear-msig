@@ -158,7 +158,7 @@ export default function SolanaDelegationPage() {
               Solana agent delegation
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-text-soft">
-              Record a policy-bound agent signer, scope, expiry, and lifecycle
+              Record a safety-bound agent signer, scope, expiry, and lifecycle
               state. This is the Solana-style authority model that can later map
               to on-chain delegation accounts.
             </p>
@@ -352,10 +352,10 @@ export default function SolanaDelegationPage() {
           <div className="flex items-start gap-2">
             <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-text-soft" aria-hidden="true" />
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-text-strong">Policy receipt</p>
+              <p className="text-xs font-semibold text-text-strong">Safety receipt</p>
               <p className="mt-1 break-words font-mono text-[11px] leading-relaxed text-text-soft">
                 signer={delegation?.agentSignerPubkey || "not-set"} ·
-                policy={delegation?.policyHash || policy.policyHash || "missing"} ·
+                safety={delegation?.policyHash || policy.policyHash || "missing"} ·
                 status={delegation ? delegation.status : "not_started"}
               </p>
             </div>

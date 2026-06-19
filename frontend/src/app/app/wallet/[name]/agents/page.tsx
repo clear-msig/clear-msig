@@ -483,26 +483,6 @@ export default function AgentsPage() {
         actionLabel: "Choose trader",
       },
       {
-        id: "plan",
-        label: "Review style",
-        description: "Check what it trades and when it exits.",
-        Icon: SlidersHorizontal,
-        done: itemPassed("strategy"),
-        href: firstAgent
-          ? `/app/wallet/${encoded}/agents/${encodeURIComponent(firstAgent.id)}/strategy`
-          : `/app/wallet/${encoded}/agents/library`,
-        actionLabel: "Review style",
-      },
-      {
-        id: "safety",
-        label: "Set safety",
-        description: "Choose max size, max loss, and stop conditions.",
-        Icon: ShieldCheck,
-        done: itemPassed("risk-limits"),
-        href: `/app/wallet/${encoded}/agents/policy`,
-        actionLabel: "Set safety",
-      },
-      {
         id: "allowance",
         label: "Set budget",
         description: "Give the trader a small practice budget.",
@@ -512,6 +492,15 @@ export default function AgentsPage() {
           ? `/app/wallet/${encoded}/agents/sessions/new?agent=${encodeURIComponent(firstAgent.id)}`
           : `/app/wallet/${encoded}/agents/library`,
         actionLabel: "Set budget",
+      },
+      {
+        id: "safety",
+        label: "Set safety",
+        description: "Choose max size, max loss, and stop conditions.",
+        Icon: ShieldCheck,
+        done: itemPassed("risk-limits"),
+        href: `/app/wallet/${encoded}/agents/policy`,
+        actionLabel: "Set safety",
       },
       {
         id: "practice",
@@ -1688,7 +1677,7 @@ function AgentSetupGate({
             Finish setup first
           </p>
           <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
-            ClearSig will show the trading desk after the trader, safety, budget,
+            ClearSig will show the trading desk after the trader, budget, safety,
             and first practice step are ready.
           </p>
         </div>
@@ -1785,7 +1774,7 @@ function GettingStartedPanel({ steps }: { steps: GettingStartedStep[] }) {
             {completed === steps.length ? "Ready to trade" : "Guided setup"}
           </p>
           <p className="mt-0.5 text-xs text-text-soft">
-            Choose trader, set safety, set budget, start practice.
+            Choose trader, set budget, set safety, start practice.
           </p>
         </div>
         <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
@@ -1793,7 +1782,7 @@ function GettingStartedPanel({ steps }: { steps: GettingStartedStep[] }) {
         </span>
       </div>
 
-      <ol className="mt-4 grid gap-2 sm:grid-cols-5">
+      <ol className="mt-4 grid gap-2 sm:grid-cols-4">
         {steps.map((step, index) => {
           const current = index === currentStep && !step.done;
           const StepIcon = step.Icon;
