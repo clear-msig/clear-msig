@@ -48,7 +48,7 @@ import { ThemeModeButton } from "@/components/security/ThemeModeButton";
 // affordance (back / scan / settings). Centralised so the three
 // icon buttons read as a matched set.
 const MOBILE_HEADER_BTN = [
-  "flex h-10 w-10 items-center justify-center rounded-full border border-border-soft bg-glass-soft backdrop-blur-md",
+  "flex h-10 w-10 items-center justify-center rounded-full border border-border-soft bg-surface-raised/95",
   "text-text-strong shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)]",
   "transition-[transform,border-color,background-color,color] duration-base ease-out-soft",
   "hover:-translate-y-0.5 hover:bg-glass-strong active:scale-95",
@@ -88,7 +88,7 @@ export function HeaderBar() {
   const showTitle = inAppConnected;
   const showBrandPill = !inApp || !connected;
   const showScan = isSendRoute(pathname);
-  const showNotifications = inAppConnected && !pathname.startsWith("/app/notifications");
+  const showNotifications = inAppConnected;
   // Account shortcut - lives on the Settings page only. Settings
   // moved into the bottom nav, so Account becomes the
   // companion surface reachable from the Settings page header.
@@ -217,7 +217,7 @@ export function HeaderBar() {
 
   return (
     <header
-      className="fixed inset-x-3 top-3 z-[140] flex items-center gap-2 sm:inset-x-4 sm:top-4"
+      className="app-mobile-header fixed inset-x-3 top-3 z-[140] flex items-center gap-2 sm:inset-x-4 sm:top-4"
       role="banner"
     >
       {/* Back button - left edge, mobile only, off-home only. */}
@@ -332,7 +332,12 @@ export function HeaderBar() {
                         ? `Notifications (${notifications.unreadCount} unread)`
                         : "Notifications"
                     }
-                    className={clsx("relative", MOBILE_HEADER_BTN)}
+                    className={clsx(
+                      "relative",
+                      MOBILE_HEADER_BTN,
+                      pathname.startsWith("/app/notifications") &&
+                        "border-accent/50 bg-accent/[0.08] text-accent",
+                    )}
                   >
                     <Bell size={18} />
                     {notifications.unreadCount > 0 && (

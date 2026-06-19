@@ -21,6 +21,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import clsx from "clsx";
 import { Menu, X } from "lucide-react";
 import { BrandMark } from "@/components/retail/BrandMark";
+import { ThemeModeButton } from "@/components/security/ThemeModeButton";
 
 const NAV_ITEMS: {
   href: string;
@@ -202,6 +203,7 @@ export function LandingNav({
               </span>
             </div>
           )}
+          <ThemeModeButton className="hidden border-white/10 bg-white/[0.04] text-white/75 hover:border-white/30 hover:bg-white/[0.08] hover:text-white md:inline-flex" />
           {/* CTA shows from md+ only. On mobile the same link lives
               inside the menu panel so the navbar stays clean. */}
           {cta && (
@@ -275,17 +277,20 @@ export function LandingNav({
                     Menu
                   </span>
                 )}
-                {/* Explicit close button inside the panel - clearer
-                    affordance than relying on the hamburger toggle
-                    behind the open panel. */}
-                <button
-                  type="button"
-                  onClick={() => setMenuOpen(false)}
-                  aria-label="Close menu"
-                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-white/80 transition-colors duration-200 hover:border-white/30 hover:text-white"
-                >
-                  <X size={16} strokeWidth={2.2} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <ThemeModeButton className="border-white/10 bg-white/[0.04] text-white/75 hover:border-white/30 hover:bg-white/[0.08] hover:text-white" />
+                  {/* Explicit close button inside the panel - clearer
+                      affordance than relying on the hamburger toggle
+                      behind the open panel. */}
+                  <button
+                    type="button"
+                    onClick={() => setMenuOpen(false)}
+                    aria-label="Close menu"
+                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-white/80 transition-colors duration-200 hover:border-white/30 hover:text-white"
+                  >
+                    <X size={16} strokeWidth={2.2} />
+                  </button>
+                </div>
               </div>
 
               <ul className="flex flex-col py-2">

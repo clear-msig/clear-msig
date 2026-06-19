@@ -267,13 +267,11 @@ export function esploraBaseUrl(network: BitcoinNetwork): string {
 }
 
 function bitcoinExplorerBaseUrl(network: BitcoinNetwork): string {
-  const rpc = esploraBaseUrl(network);
-  const isAlchemy = rpc.includes(".g.alchemy.com/");
   switch (network) {
     case "mainnet":
       return "https://mempool.space";
     case "testnet":
-      return isAlchemy ? "https://testnet4.dev" : "https://mempool.space/testnet";
+      return "https://mempool.space/testnet";
     case "signet":
       return "https://mempool.space/signet";
     case "regtest":
@@ -282,13 +280,11 @@ function bitcoinExplorerBaseUrl(network: BitcoinNetwork): string {
 }
 
 export function bitcoinExplorerLabel(network: BitcoinNetwork): string {
-  const rpc = esploraBaseUrl(network);
-  const isAlchemy = rpc.includes(".g.alchemy.com/");
   switch (network) {
     case "mainnet":
       return "mempool.space";
     case "testnet":
-      return isAlchemy ? "testnet4.dev" : "mempool.space";
+      return "mempool.space testnet";
     case "signet":
       return "mempool.space";
     case "regtest":

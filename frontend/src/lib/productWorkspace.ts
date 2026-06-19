@@ -128,6 +128,7 @@ function isAllowedPersonalPath(pathname: string, base: string): boolean {
     "chains",
     "chains/add",
     "policy",
+    "rules",
     "send",
     "send/batch",
     "send/btc",

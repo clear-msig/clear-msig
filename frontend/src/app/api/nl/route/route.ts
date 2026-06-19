@@ -251,13 +251,13 @@ function buildTools() {
     {
       name: "set_allowance",
       description:
-        "Set or change a per-friend spending allowance on this wallet.",
+        "Set or change a member spending limit on this wallet.",
       input_schema: {
         type: "object" as const,
         properties: {
           friend: {
             type: "string",
-            description: "Contact name to apply the allowance to.",
+            description: "Contact name to apply the member limit to.",
           },
           amountSol: { type: "number" },
           period: { type: "string", enum: ["daily", "weekly", "monthly", "none"] },
@@ -316,7 +316,7 @@ function buildSystemPrompt(): string {
   return [
     "You route a single retail user's casual wallet instruction to the right purpose-built page in Clear, a shared-wallet app.",
     "You MUST invoke exactly one of the available tools.",
-    "Pick the best-fitting tool: a send goes to send_sol or send_eth (default to send_sol if chain is unspecified), inviting / adding someone goes to add_friend, changing a per-friend cap goes to set_allowance, setting the wallet's weekly cap goes to set_budget, turning on a new chain's sending goes to enable_sending, binding a new chain at all goes to add_chain.",
+    "Pick the best-fitting tool: a send goes to send_sol or send_eth (default to send_sol if chain is unspecified), inviting / adding someone goes to add_friend, changing a member spending limit goes to set_allowance, setting the wallet's weekly limit goes to set_budget, turning on a new chain's sending goes to enable_sending, binding a new chain at all goes to add_chain.",
     "Recipients: prefer matching against the saved contact list (case-insensitive); a base58 string (32-44 chars, no 0/I/O/l) is a Solana address; a 0x-prefixed 40-char hex string is an Ethereum address.",
     "Amounts: parse English ('five', 'half a', 'a couple') and decimals.",
     "Set confidence=low and write a one-sentence ambiguity when you guessed.",
@@ -421,7 +421,7 @@ function buildRoute(
         route: `/app/wallet/${wallet}/budget${qs ? `?${qs}` : ""}`,
         summary: weekly
           ? `Set ${walletName}'s weekly cap to $${weekly}`
-          : "Open the spending policy",
+          : "Open Protection",
         confidence,
         ambiguity,
       };

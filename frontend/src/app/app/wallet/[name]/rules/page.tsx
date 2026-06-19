@@ -123,10 +123,10 @@ export default function RulesPage() {
           </span>
           <div className="flex min-w-0 flex-col">
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Spending rules · {display}
+              Protection · {display}
             </p>
             <h1 className="mt-1.5 truncate font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
-              How {display} spends
+              Send delay and approvals
             </h1>
           </div>
         </div>
@@ -140,7 +140,7 @@ export default function RulesPage() {
       ) : needsSetup ? (
         <div className="rounded-card border border-border-soft bg-surface-raised p-6 text-center shadow-card-rest">
           <p className="text-sm text-text-soft">
-            No spending rule yet.
+            Sending is not turned on yet.
           </p>
         </div>
       ) : (
@@ -167,7 +167,7 @@ export default function RulesPage() {
         }
       >
         <Plus className="h-4 w-4" aria-hidden="true" />
-        Adjust policy
+        Adjust protection
       </Link>
 
     </div>
@@ -220,7 +220,7 @@ function RuleCard({ intent, delay, reduce, walletName }: RuleCardProps) {
         <div className="min-w-0 flex-1">
           <p className="font-display text-lg text-text-strong">{label}</p>
           <p className="mt-0.5 text-xs text-text-soft">
-            Rule #{intent.intentIndex + 1}
+            Active send path
           </p>
         </div>
         {editable && (

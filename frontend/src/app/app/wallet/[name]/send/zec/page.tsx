@@ -420,7 +420,7 @@ export default function ZcashSendPage() {
                 Enable Zcash sending
               </p>
               <p className="mt-2 text-sm text-text-soft">
-                This wallet has a Zcash address, but the spending rule is not live yet.
+                This wallet has a Zcash address, but Zcash sending is not turned on yet.
               </p>
               <Button size="lg" fullWidth className="mt-4" onClick={() => setup.mutate()} disabled={setup.isPending || !zcashBinding}>
                 {setup.isPending ? (

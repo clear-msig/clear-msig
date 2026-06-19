@@ -24,7 +24,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { proposerDisplayName } from "@/lib/retail/proposerName";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ArrowRight, Banknote, Bell, Bot, Building2, ChevronDown, Coins, CreditCard, Download, Eye, EyeOff, Handshake, Layers, Plus, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
+import { Activity, ArrowRight, Banknote, Bell, Bot, Building2, ChevronDown, Coins, CreditCard, Download, Eye, EyeOff, Handshake, Plus, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
 import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -510,7 +510,7 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
               reduce={reduce}
             />
           ) : (
-            <ActivityEmptyState reduce={reduce} />
+            <ActivityEmptyState walletName={name} reduce={reduce} />
           )}
           {/* On-chain tx history per bound chain. The attempts log
               above only sees sends initiated from this browser; this
@@ -680,7 +680,7 @@ const TabBar = forwardRef<HTMLDivElement, TabBarProps>(function TabBar(
 
 function tabLabelsFor(surface: ProductSurfaceId | null): Record<WalletTab, string> {
   if (surface === "personal") {
-    return { holdings: "Money", activity: "Timeline", manage: "People" };
+    return { holdings: "Money", activity: "History", manage: "More" };
   }
   if (surface === "pro") {
     return { holdings: "Assets", activity: "Ledger", manage: "Controls" };
@@ -972,7 +972,7 @@ function productSetupConfig(
       Icon: Building2,
       title: "Pro treasury",
       primaryHref: `/app/wallet/${encodedWallet}/policy`,
-      primaryLabel: "Set rules",
+      primaryLabel: "Set protection",
       secondaryHref: `/app/wallet/${encodedWallet}/members/add`,
       secondaryLabel: "Add teammate",
     };
@@ -1002,7 +1002,7 @@ function productSetupConfig(
       primaryHref: `/app/wallet/${encodedWallet}/send`,
       primaryLabel: "Create payment",
       secondaryHref: `/app/wallet/${encodedWallet}/policy`,
-      secondaryLabel: "Set payout rules",
+      secondaryLabel: "Set protection",
     };
   }
   return {
@@ -1118,13 +1118,13 @@ function NextBestActionCard({
         eyebrow: productSurface === "pro" ? "Controls first" : "Ready to use",
         title:
           productSurface === "pro"
-            ? "Review treasury rules"
+            ? "Review protection"
             : "Make the first send",
         href:
           productSurface === "pro"
             ? `/app/wallet/${encoded}/policy`
             : `/app/wallet/${encoded}/send`,
-        cta: productSurface === "pro" ? "Open rules" : "Send request",
+        cta: productSurface === "pro" ? "Open protection" : "Send request",
         accent: false,
       };
     }
@@ -1497,7 +1497,7 @@ function productHeroProfile(
       stats: [
         { label: "Approvers", value: ({ members }) => String(members) },
         { label: "Queue", value: ({ pending }) => String(pending) },
-        { label: "Policy", value: () => "Active" },
+        { label: "Protection", value: () => "On" },
       ],
     };
   }
@@ -1515,7 +1515,7 @@ function productHeroProfile(
       actionTone: "agent",
       balanceLabel: "Trading funds",
       stats: [
-        { label: "Venue", value: () => "Hyperliquid" },
+        { label: "Trader", value: () => "Ready" },
         { label: "Queue", value: ({ pending }) => String(pending) },
         { label: "Risk", value: () => "Guarded" },
       ],
@@ -1577,29 +1577,27 @@ function productHeroActions(
     return [
       { href: `/app/wallet/${encoded}/send`, Icon: Send, label: "Send", hint: "Pay" },
       { href: `/app/wallet/${encoded}/receive`, Icon: Download, label: "Receive", hint: "Deposit" },
-      { href: `/app/wallet/${encoded}/members`, Icon: Users, label: "People", hint: "Trust" },
+      { href: `/app/wallet/${encoded}/policy`, Icon: ShieldCheck, label: "Protect", hint: "Safety" },
     ];
   }
   if (surface === "pro") {
     return [
-      { href: `/app/wallet/${encoded}/send`, Icon: Send, label: "Payout", hint: "Pay" },
-      { href: `/app/wallet/${encoded}/policy`, Icon: ShieldCheck, label: "Rules", hint: "Policy" },
-      { href: `/app/wallet/${encoded}/budget`, Icon: Banknote, label: "Limits", hint: "Budget" },
-      { href: `/app/wallet/${encoded}/chains`, Icon: Layers, label: "Networks", hint: "Chains" },
+      { href: `/app/wallet/${encoded}/send`, Icon: Send, label: "Send", hint: "Pay" },
+      { href: `/app/wallet/${encoded}/receive`, Icon: Download, label: "Receive", hint: "Deposit" },
+      { href: `/app/wallet/${encoded}/policy`, Icon: ShieldCheck, label: "Protect", hint: "Safety" },
     ];
   }
   if (surface === "agent") {
     return [
       { href: `/app/wallet/${encoded}/agents`, Icon: Bot, label: "Desk", hint: "Trade" },
-      { href: `/app/wallet/${encoded}/agents/hyperliquid`, Icon: Layers, label: "Venue", hint: "HL" },
-      { href: `/app/wallet/${encoded}/agents/policy`, Icon: ShieldCheck, label: "Guardrails", hint: "Risk" },
-      { href: `/app/wallet/${encoded}/agents/funding`, Icon: Banknote, label: "Allowance", hint: "Funds" },
+      { href: `/app/wallet/${encoded}/receive`, Icon: Download, label: "Receive", hint: "Deposit" },
+      { href: `/app/wallet/${encoded}/agents/policy`, Icon: ShieldCheck, label: "Protect", hint: "Safety" },
     ];
   }
   return [
     { href: `/app/wallet/${encoded}/send`, Icon: Send, label: "Send", hint: "Pay anyone" },
     { href: `/app/wallet/${encoded}/receive`, Icon: Download, label: "Receive", hint: "Get paid" },
-    { href: `/app/wallet/${encoded}/policy`, Icon: ShieldCheck, label: "Rules", hint: "Controls" },
+    { href: `/app/wallet/${encoded}/policy`, Icon: ShieldCheck, label: "Protect", hint: "Safety" },
   ];
 }
 
@@ -2137,10 +2135,10 @@ function Actions({
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-text-strong">
-              Set up sending
+              Turn on sending
             </p>
             <p className="mt-0.5 text-xs text-text-soft">
-              Add a spending rule before this wallet can send. One-tap setup.
+              Turn it on once. Every send after that uses a readable receipt.
             </p>
           </div>
           <ArrowRight
@@ -2189,12 +2187,12 @@ function manageActionGroups(
   if (surface === "personal") {
     return [
       {
-        label: "Rules",
-        description: "Core controls for approvals and limits.",
+        label: "More protection",
+        description: "Fine-tune people, approvals, and send safety.",
         rows: rulesActionRows(encoded, "personal"),
       },
       {
-        label: "Money",
+        label: "More money",
         description: "Top up or withdraw through supported rails.",
         rows: moneyActionRows(encoded),
       },
@@ -2204,12 +2202,12 @@ function manageActionGroups(
   if (surface === "pro") {
     return [
       {
-        label: "Rules",
-        description: "Core controls for approvals and limits.",
+        label: "More protection",
+        description: "Fine-tune team approvals and send safety.",
         rows: rulesActionRows(encoded, "pro"),
       },
       {
-        label: "Limits",
+        label: "More limits",
         description: "Treasury spending controls.",
         rows: [
           {
@@ -2221,7 +2219,7 @@ function manageActionGroups(
         ],
       },
       {
-        label: "Money",
+        label: "More money",
         description: "Top up or withdraw through supported rails.",
         rows: moneyActionRows(encoded),
       },
@@ -2231,14 +2229,14 @@ function manageActionGroups(
   if (surface === "agent") {
     return [
       {
-        label: "Funding",
-        description: "Capital assigned to agent trading.",
+        label: "More budget",
+        description: "Fine-tune capital assigned to trader activity.",
         rows: [
           {
             href: `/app/wallet/${encoded}/agents/funding`,
             icon: Banknote,
-            title: "Allowance",
-            body: "Bounded capital for controlled trading.",
+            title: "Trading budget",
+            body: "Bounded capital for trader activity.",
           },
         ],
       },
@@ -2247,12 +2245,12 @@ function manageActionGroups(
 
   return [
     {
-      label: "Rules",
-      description: "Core controls for approvals and limits.",
+      label: "More protection",
+      description: "Fine-tune people, approvals, and send safety.",
       rows: rulesActionRows(encoded, null),
     },
     {
-      label: "Money",
+      label: "More money",
       description: "Top up or withdraw through supported rails.",
       rows: moneyActionRows(encoded),
     },
@@ -2267,11 +2265,11 @@ function rulesActionRows(
     {
       href: `/app/wallet/${encoded}/policy`,
       icon: ShieldCheck,
-      title: surface === "pro" ? "Set treasury rules" : "Set rules",
+      title: surface === "pro" ? "Set protection" : "Set protection",
       body:
         surface === "pro"
-          ? "Approvals, roles, limits, and alerts."
-          : "Approvals, limits, and alerts.",
+          ? "Approvals, people, limits, and alerts."
+          : "Approvals, people, and alerts.",
     },
   ];
 }
@@ -2694,10 +2692,17 @@ function ActivitySection({
   );
 }
 
-function ActivityEmptyState({ reduce }: { reduce: boolean }) {
+function ActivityEmptyState({
+  walletName,
+  reduce,
+}: {
+  walletName: string;
+  reduce: boolean;
+}) {
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  const encoded = encodeURIComponent(walletName);
   return (
     <motion.section
       {...motionProps}
@@ -2705,7 +2710,7 @@ function ActivityEmptyState({ reduce }: { reduce: boolean }) {
       className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
     >
       <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-        Activity
+        History
       </h2>
       {/* Ghost row - same shape as a real activity row, just muted.
           Cash App pattern: tell the user what this surface looks like
@@ -2724,6 +2729,17 @@ function ActivityEmptyState({ reduce }: { reduce: boolean }) {
         Every move on this wallet - sent, approved, declined - gets a
         row, with the friend who acted and when.
       </p>
+      <Link
+        href={`/app/wallet/${encoded}/send`}
+        className={
+          "mt-4 inline-flex min-h-tap items-center justify-center gap-1.5 rounded-soft bg-accent px-3.5 py-2 text-sm font-medium text-text-on-accent shadow-accent-rest " +
+          "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+        }
+      >
+        Send money
+        <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+      </Link>
     </motion.section>
   );
 }
@@ -2834,8 +2850,8 @@ function NextStepsStripe({
   const display = toDisplayName(name);
   if (!hasIntents) {
     nudge = {
-      title: "Set up sending",
-      body: `${display} can't send money yet. Enable sending. Takes about 1 minute and 2 wallet popups.`,
+      title: "Turn on sending",
+      body: `${display} can't send money yet. Turn it on once. Takes about 1 minute and 2 wallet popups.`,
       cta: "Enable sending",
       href: `/app/wallet/${encoded}/setup`,
     };
@@ -2954,7 +2970,7 @@ function BudgetStripe({ name }: { name: string }) {
             ? "Over weekly limit"
             : hasWalletCap
               ? "Weekly limit"
-              : "Spending rules"}
+              : "Protection checks"}
         </p>
         <p className="text-xs text-text-soft">
           {usage.proposalCount} {usage.proposalCount === 1 ? "send" : "sends"} this week

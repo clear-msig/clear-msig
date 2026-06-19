@@ -213,7 +213,7 @@ export default function AgentAdminPage() {
               </p>
               <p className="mt-1 text-sm leading-relaxed text-text-soft">
                 This surface is reserved for internal testing and moderation.
-                Use Agent Trading for trader setup, guardrails, allowance, and
+                Use Agent Trading for trader setup, rules, budget, and
                 monitoring.
               </p>
               <Link

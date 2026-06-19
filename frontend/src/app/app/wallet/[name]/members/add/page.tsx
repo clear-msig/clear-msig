@@ -463,7 +463,7 @@ export default function AddFriendPage() {
           </p>
           <p className="mt-2 text-sm text-text-strong">
             Adding people changes <strong>{toDisplayName(name)}</strong>&rsquo;s
-            spending rule, but no rule exists yet. Enable sending,
+            protection, but sending is not turned on yet. Enable sending,
             then come back here. It&rsquo;s a 2-popup setup that takes
             about a minute.
           </p>
@@ -651,7 +651,7 @@ export default function AddFriendPage() {
       <p className="text-center text-xs text-text-soft">
         {role === "watcher"
           ? "Watchers are saved on this device. No on-chain signature needed."
-          : `The change is signed and applied to ${toDisplayName(name)}'s on-chain rule.`}
+          : `The change is signed and applied to ${toDisplayName(name)}'s protection.`}
       </p>
     </div>
   );

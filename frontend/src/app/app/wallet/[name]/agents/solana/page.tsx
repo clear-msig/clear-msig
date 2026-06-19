@@ -188,13 +188,13 @@ export default function SolanaDelegationPage() {
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-text-soft">
               User funds stay in the vault. The agent signer is only an
               authorized identity for bounded intents. ClearSig binds it to the
-              current policy hash, expiry, allowed markets, max size, and
+              current safety check hash, expiry, allowed markets, max size, and
               revocation status before any execution path can trust it.
             </p>
           </div>
         </div>
         <div className="mt-4 grid gap-2 md:grid-cols-4">
-          <MiniMetric label="Authority" value="Vault policy" />
+          <MiniMetric label="Authority" value="Vault safety" />
           <MiniMetric label="Signer" value="Agent public key" />
           <MiniMetric label="Binding" value={policy.policyHash ? `${policy.policyHash.slice(0, 12)}...` : "Missing"} />
           <MiniMetric label="Lifecycle" value={delegation ? statusLabel(delegation.status) : "Not started"} />

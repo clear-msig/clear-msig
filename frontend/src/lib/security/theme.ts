@@ -15,11 +15,9 @@
 // `theme-init-script.ts` to avoid the dreaded light-mode flash on
 // reload + the React 19 hydration mismatch the previous attempt hit.
 //
-// Force-dark routes (landing, welcome): the data-theme on <html> is
-// always "dark" regardless of stored preference. setStoredTheme
-// still writes the localStorage value (so when the user navigates
-// back into /app/* their preference is preserved), but the rendered
-// theme on those routes stays dark.
+// The same preference now applies everywhere, including landing and
+// choose-product. That keeps the theme button honest wherever it is
+// visible.
 
 import { FORCE_DARK_PATHS, STORAGE_KEY } from "./theme-init-script";
 
@@ -60,11 +58,10 @@ export function setStoredTheme(mode: ThemeMode): void {
 export function applyTheme(mode: ThemeMode): void {
   if (typeof document === "undefined") return;
 
-  // Force-dark paths override every preference. Landing + welcome
-  // are marketing-dark by design.
   const path = window.location.pathname;
   const isForcedDark =
-    FORCE_DARK_PATHS.includes(path) || path.startsWith("/welcome/");
+    FORCE_DARK_PATHS.includes(path) ||
+    FORCE_DARK_PATHS.some((forcedPath) => path.startsWith(`${forcedPath}/`));
 
   const resolved: ResolvedTheme = isForcedDark ? "dark" : resolveTheme(mode);
 
@@ -128,10 +125,12 @@ export function watchSystemTheme(): () => void {
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (mq as unknown as any).addListener(handler);
+  const legacyMq = mq as MediaQueryList & {
+    addListener(listener: () => void): void;
+    removeListener(listener: () => void): void;
+  };
+  legacyMq.addListener(handler);
   return () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (mq as unknown as any).removeListener(handler);
+    legacyMq.removeListener(handler);
   };
 }

@@ -86,7 +86,7 @@ export default function AgentApprovalsPage() {
                 Authorization log
               </h2>
               <p className="mt-1 max-w-3xl text-sm leading-relaxed text-text-soft">
-                These approvals authorize agent actions inside ClearSig policy. They do not give agents raw wallet custody.
+                These approvals authorize agent actions inside ClearSig safety checks. They do not give agents raw wallet custody.
               </p>
             </div>
           </div>

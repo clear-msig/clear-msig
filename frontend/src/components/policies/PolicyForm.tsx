@@ -137,7 +137,7 @@ export function PolicyForm({ mode, initial, initialExtraApproversText = "" }: Fo
     } catch (err) {
       console.error("[policy-save]", err);
       toast.error(
-        err instanceof Error ? err.message : "Couldn't save policy",
+        err instanceof Error ? err.message : "Couldn't save check",
       );
     } finally {
       setBusy(false);
@@ -155,14 +155,14 @@ export function PolicyForm({ mode, initial, initialExtraApproversText = "" }: Fo
       <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
         <div className="flex flex-col gap-1">
           <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
-            {mode === "create" ? "New policy rule" : "Edit policy rule"}
+            {mode === "create" ? "New advanced check" : "Edit advanced check"}
           </h1>
           <p className="text-xs text-text-soft sm:text-sm">
             On{" "}
             <span className="font-medium text-text-strong">
               {toDisplayName(name)}
             </span>
-            . Layered conditions on top of the wallet&rsquo;s spending rule.
+            . Extra conditions on top of the wallet&rsquo;s basic protection.
           </p>
         </div>
         <p className="inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-[11px] font-medium text-text-soft">

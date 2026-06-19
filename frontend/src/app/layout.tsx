@@ -89,7 +89,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
         />
       </head>
-      <body className="font-sans antialiased">
+      <body className="clear-ui-root font-sans antialiased">
         <AppProviders>{children}</AppProviders>
         {/* Vercel Analytics removed: the bundled <Analytics /> component
             requests /_vercel/insights/script.js which 404s unless Web

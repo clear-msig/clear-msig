@@ -55,7 +55,7 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
   // components.
   useActionNotifications();
   return (
-    <main className="relative bg-canvas font-sans md:flex md:h-screen md:overflow-hidden">
+    <main className="app-experience relative bg-canvas font-sans md:flex md:h-screen md:overflow-hidden">
       {/* Atmospheric accents - two soft radial blooms anchoring the
           page corners. Pure decoration, pointer-events-none, lifts
           the obsidian canvas off the "flat black" reading without
@@ -65,19 +65,17 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
         className="pointer-events-none fixed inset-0 -z-0 overflow-hidden"
       >
         <div
-          className="absolute -left-40 -top-40 h-[480px] w-[480px] rounded-full opacity-40"
+          className="absolute -left-40 -top-40 h-[560px] w-[560px] rounded-full opacity-35"
           style={{
             background:
-              "radial-gradient(circle at center, rgba(204, 255, 0, 0.10) 0%, rgba(204, 255, 0, 0) 70%)",
-            filter: "blur(120px)",
+              "radial-gradient(circle at center, rgba(204, 255, 0, 0.08) 0%, rgba(204, 255, 0, 0.035) 32%, rgba(204, 255, 0, 0) 68%)",
           }}
         />
         <div
-          className="absolute -bottom-40 -right-40 h-[560px] w-[560px] rounded-full opacity-40"
+          className="absolute -bottom-44 -right-44 h-[640px] w-[640px] rounded-full opacity-30"
           style={{
             background:
-              "radial-gradient(circle at center, rgba(16, 185, 129, 0.10) 0%, rgba(16, 185, 129, 0) 70%)",
-            filter: "blur(120px)",
+              "radial-gradient(circle at center, rgba(16, 185, 129, 0.08) 0%, rgba(16, 185, 129, 0.03) 34%, rgba(16, 185, 129, 0) 70%)",
           }}
         />
       </div>
@@ -87,7 +85,7 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
           doesn't peek through. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none fixed inset-x-0 top-0 z-[90] h-14 bg-canvas/85 backdrop-blur-md md:hidden"
+        className="pointer-events-none fixed inset-x-0 top-0 z-[90] h-14 bg-canvas/95 md:hidden"
       />
       <HeaderBar />
       <CommandPaletteLoader />
@@ -98,7 +96,7 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
       <aside
         className={
           "hidden h-screen shrink-0 overflow-x-hidden overflow-y-auto " +
-          "border-r border-border-soft bg-glass-soft backdrop-blur-xl " +
+          "app-sidebar-shell border-r border-border-soft bg-surface-raised/95 " +
           "transition-[width] duration-base ease-out-soft md:block " +
           (expanded ? "w-64" : "w-16")
         }
@@ -121,7 +119,10 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
             pt on the scroll container would push every sticky child
             down by that amount because sticky offsets are measured
             from the padding-box edge of the scrollport. */}
-        <div className="relative z-10 flex-1 px-3 sm:px-4 md:overflow-y-auto md:overscroll-contain md:px-8 lg:px-10 xl:px-12">
+        <div
+          className="app-content-stage relative z-10 flex-1 px-3 sm:px-4 md:overflow-y-auto md:overscroll-contain md:px-8 lg:px-10 xl:px-12"
+          style={{ scrollbarGutter: "stable" }}
+        >
           <div className="mx-auto flex w-full max-w-[80rem] flex-col gap-4 pb-32 pt-16 sm:pb-16 md:pb-12 md:pt-8">
             <PhishingWarningBanner />
             <PreAlphaBanner />

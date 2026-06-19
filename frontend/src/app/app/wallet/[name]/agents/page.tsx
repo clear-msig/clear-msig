@@ -148,14 +148,20 @@ type BackendPersistenceStatus = {
   updatedAt?: number;
 };
 
-const agentLaneClass = clsx(
-  "inline-flex min-h-12 items-center justify-center gap-2 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-semibold text-text-strong shadow-card-rest",
+const agentSecondaryActionClass = clsx(
+  "inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
   "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
 );
 
-const agentSecondaryActionClass = clsx(
-  "inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
+const agentPrimaryActionClass = clsx(
+  "inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-text-on-accent shadow-accent-rest sm:flex-none",
+  "transition-[background-color,box-shadow,transform] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+);
+
+const agentToolClass = clsx(
+  "inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong",
   "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
 );
@@ -489,12 +495,12 @@ export default function AgentsPage() {
       },
       {
         id: "safety",
-        label: "Set max loss",
+        label: "Set safety",
         description: "Choose max size, max loss, and stop conditions.",
         Icon: ShieldCheck,
         done: itemPassed("risk-limits"),
         href: `/app/wallet/${encoded}/agents/policy`,
-        actionLabel: "Set max loss",
+        actionLabel: "Set safety",
       },
       {
         id: "allowance",
@@ -520,6 +526,7 @@ export default function AgentsPage() {
       },
     ];
   }, [agents, encoded, executions.length, readiness]);
+  const setupComplete = gettingStartedSteps.every((step) => step.done);
   const allocationRecommendations = useMemo(() => {
     if (!policy) return {} as Record<string, AgentAllocationRecommendation>;
     const now = Date.now();
@@ -1185,7 +1192,7 @@ export default function AgentsPage() {
               Agent vault · {display}
             </p>
             <h1 className="font-display text-display-xs leading-tight text-text-strong md:text-display-sm">
-              Trading desk
+              Agent trading
             </h1>
           </div>
           <Link
@@ -1201,15 +1208,15 @@ export default function AgentsPage() {
           </Link>
         </div>
         <div className="mt-5 grid gap-2 sm:grid-cols-4">
-          <DeskStatus label="Venue" value="Hyperliquid" tone="accent" />
-            <DeskStatus label="Mode" value="Practice" tone="soft" />
+          <DeskStatus label="Trader" value={activeAgents ? "Chosen" : "Needed"} tone={activeAgents ? "accent" : "warn"} />
+          <DeskStatus label="Mode" value="Practice" tone="soft" />
           <DeskStatus
-            label="Risk"
-            value={policy?.enabled ? "Guarded" : "Unarmed"}
+            label="Safety"
+            value={policy?.enabled ? "On" : "Needed"}
             tone={policy?.enabled ? "accent" : "warn"}
           />
           <DeskStatus
-            label="Kill switch"
+            label="Pause"
             value={policy?.emergencyPaused ? "Paused" : "Ready"}
             tone={policy?.emergencyPaused ? "warn" : "accent"}
           />
@@ -1218,12 +1225,16 @@ export default function AgentsPage() {
 
       <GettingStartedPanel steps={gettingStartedSteps} />
 
+      {!setupComplete ? (
+        <AgentSetupGate steps={gettingStartedSteps} walletEncoded={encoded} />
+      ) : (
+        <>
       <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
         <MetricCard label="Active traders" value={String(activeAgents)} Icon={Bot} />
         <MetricCard label="Trade ideas" value={String(proposalCount)} Icon={BrainCircuit} />
         <MetricCard label="New ideas" value={String(queuedSignals)} Icon={Inbox} />
         <MetricCard
-          label="Safety rules"
+          label="Safety"
           value={policy?.enabled ? "On" : "Off"}
           Icon={ShieldCheck}
         />
@@ -1240,104 +1251,125 @@ export default function AgentsPage() {
       </div>
 
       <section className="flex flex-col gap-3">
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest sm:p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-text-strong">
+                Next step
+              </p>
+              <p className="mt-0.5 text-xs text-text-soft">
+                Continue setup or open practice when everything is ready.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Link
+                href={`/app/wallet/${encoded}/agents/start`}
+                className={agentPrimaryActionClass}
+              >
+                <Play size={15} aria-hidden="true" />
+                Open trading
+              </Link>
+              {canRunAutonomyScan ? (
+                <button
+                  type="button"
+                  disabled={pendingAction}
+                  title="Scan current markets through active rules"
+                  onClick={runAutonomyScan}
+                  className={agentSecondaryActionClass}
+                >
+                  <BrainCircuit size={13} aria-hidden="true" />
+                  Run scan
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        <details className="group rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest sm:p-4">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-text-strong">
+            <span className="inline-flex items-center gap-2">
+              <SlidersHorizontal className="h-4 w-4 text-accent" aria-hidden="true" />
+              More
+            </span>
+            <ChevronDown
+              className="h-4 w-4 text-text-soft transition-transform group-open:rotate-180"
+              aria-hidden="true"
+            />
+          </summary>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <Link
             href={`/app/wallet/${encoded}/agents/start`}
-            className={agentLaneClass}
+            className={agentToolClass}
           >
             <Play size={15} aria-hidden="true" />
-            <span>Start session</span>
+            <span>Start practice</span>
           </Link>
           <Link
             href={`/app/wallet/${encoded}/agents/library`}
-            className={agentLaneClass}
+            className={agentToolClass}
           >
             <Bot size={15} aria-hidden="true" />
-            <span>Recipes</span>
+            <span>Choose trader</span>
           </Link>
           <Link
             href={`/app/wallet/${encoded}/agents/hyperliquid`}
-            className={agentLaneClass}
+            className={agentToolClass}
           >
             <Plug size={15} aria-hidden="true" />
-            <span>Venue</span>
+            <span>Practice account</span>
           </Link>
           <Link
             href={`/app/wallet/${encoded}/agents/policy`}
-            className={agentLaneClass}
+            className={agentToolClass}
           >
             <ShieldCheck size={15} aria-hidden="true" />
-            <span>Max loss</span>
+            <span>Safety</span>
           </Link>
           <Link
             href={`/app/wallet/${encoded}/agents/funding`}
-            className={agentLaneClass}
+            className={agentToolClass}
           >
             <CircleDollarSign size={15} aria-hidden="true" />
             <span>Budget</span>
           </Link>
           <Link
             href="#kill-switch"
-            className={agentLaneClass}
+            className={agentToolClass}
           >
             <Pause size={15} aria-hidden="true" />
-            <span>Kill switch</span>
+            <span>Pause</span>
           </Link>
           <Link
             href="#decision-journal"
-            className={agentLaneClass}
+            className={agentToolClass}
           >
             <ClipboardList size={15} aria-hidden="true" />
             <span>Decision journal</span>
           </Link>
           <Link
             href="#live-monitor"
-            className={agentLaneClass}
+            className={agentToolClass}
           >
             <TrendingUp size={15} aria-hidden="true" />
             <span>Live monitor</span>
           </Link>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            disabled={pendingAction || !canRunAutonomyScan}
-            title={
-              canRunAutonomyScan
-                ? "Scan current markets through the active max-loss rules"
-                : backendStatus.state !== "synced"
-                  ? "Backend state must be synced before autonomy can run"
-                  : "Finish trader setup before autonomy can run"
-            }
-            onClick={runAutonomyScan}
-            className={clsx(
-              "inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest sm:flex-none",
-              "transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
-              "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-              "disabled:cursor-not-allowed disabled:opacity-60",
-            )}
-          >
-            <BrainCircuit size={13} aria-hidden="true" />
-            {canRunAutonomyScan ? "Run scan" : "Finish setup"}
-          </button>
           <Link
             href="/agents"
-            className={agentSecondaryActionClass}
+            className={agentToolClass}
           >
             <Trophy size={13} aria-hidden="true" />
             Marketplace
           </Link>
-          <details className="group flex-1 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 shadow-card-rest sm:flex-none">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold text-text-strong">
-            <span>Advanced</span>
-            <ChevronDown
-              className="h-3.5 w-3.5 text-text-soft transition-transform group-open:rotate-180"
-              aria-hidden="true"
-            />
-          </summary>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          </div>
+          <details className="group mt-3 rounded-soft border border-border-soft bg-canvas px-3 py-2">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold text-text-strong">
+              <span>Advanced</span>
+              <ChevronDown
+                className="h-3.5 w-3.5 text-text-soft transition-transform group-open:rotate-180"
+                aria-hidden="true"
+              />
+            </summary>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
             <Link
               href={`/app/wallet/${encoded}/agents/proposals/new`}
               className={clsx(
@@ -1411,9 +1443,9 @@ export default function AgentsPage() {
                 Seed demo
               </button>
             ) : null}
-          </div>
+            </div>
+          </details>
         </details>
-      </div>
       </section>
 
       {policy ? (
@@ -1633,7 +1665,75 @@ export default function AgentsPage() {
           </ul>
         </section>
       ) : null}
+        </>
+      )}
     </motion.div>
+  );
+}
+
+function AgentSetupGate({
+  steps,
+  walletEncoded,
+}: {
+  steps: GettingStartedStep[];
+  walletEncoded: string;
+}) {
+  const next = steps.find((step) => !step.done) ?? steps[steps.length - 1];
+  const NextIcon = next.Icon;
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-text-strong">
+            Finish setup first
+          </p>
+          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
+            ClearSig will show the trading desk after the trader, safety, budget,
+            and first practice step are ready.
+          </p>
+        </div>
+        <Link
+          href={next.href}
+          className={agentPrimaryActionClass}
+        >
+          <NextIcon size={15} aria-hidden="true" />
+          {next.actionLabel}
+        </Link>
+      </div>
+
+      <details className="group mt-4 rounded-soft border border-border-soft bg-canvas px-3 py-2">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold text-text-strong">
+          <span>Advanced</span>
+          <ChevronDown
+            className="h-3.5 w-3.5 text-text-soft transition-transform group-open:rotate-180"
+            aria-hidden="true"
+          />
+        </summary>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link
+            href={`/app/wallet/${walletEncoded}/agents/hyperliquid`}
+            className={agentToolClass}
+          >
+            <Plug size={15} aria-hidden="true" />
+            <span>Practice account</span>
+          </Link>
+          <Link
+            href={`/app/wallet/${walletEncoded}/agents/solana`}
+            className={agentToolClass}
+          >
+            <KeyRound size={15} aria-hidden="true" />
+            <span>Solana delegation</span>
+          </Link>
+          <Link
+            href={`/app/wallet/${walletEncoded}/agents/approvals`}
+            className={agentToolClass}
+          >
+            <ClipboardList size={15} aria-hidden="true" />
+            <span>Approvals</span>
+          </Link>
+        </div>
+      </details>
+    </section>
   );
 }
 
@@ -1682,7 +1782,10 @@ function GettingStartedPanel({ steps }: { steps: GettingStartedStep[] }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-text-strong">
-            {completed === steps.length ? "Ready to trade" : "Fast start"}
+            {completed === steps.length ? "Ready to trade" : "Guided setup"}
+          </p>
+          <p className="mt-0.5 text-xs text-text-soft">
+            Choose trader, set safety, set budget, start practice.
           </p>
         </div>
         <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
@@ -1778,10 +1881,9 @@ function FeatureAccessPanel({
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-text-strong">Test the shipped surfaces</h2>
+          <h2 className="text-sm font-semibold text-text-strong">Practice tools</h2>
           <p className="mt-1 max-w-3xl text-sm leading-relaxed text-text-soft">
-            These are now reachable without hidden routes. Some cards still need
-            trading state, so the demo setup can create safe practice data.
+            Create sample activity, browse traders, or open a public profile.
           </p>
         </div>
         <button
@@ -1791,7 +1893,7 @@ function FeatureAccessPanel({
           className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-          Try demo setup
+          Create sample activity
         </button>
       </div>
       <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
@@ -2748,7 +2850,7 @@ function EmptyAgents({
           className="inline-flex items-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest"
         >
           <Bot size={13} aria-hidden="true" />
-          Agent Library
+          Choose trader
         </Link>
         <Link
           href={createHref}
@@ -2765,7 +2867,7 @@ function EmptyAgents({
             className="inline-flex items-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Sparkles size={13} aria-hidden="true" />
-            Try demo setup
+            Create sample activity
           </button>
         ) : null}
       </div>
@@ -3579,7 +3681,7 @@ function DecisionJournalSummary({ proposal }: { proposal: AgentTradeProposal }) 
           <div className="mt-2 grid gap-1.5 sm:grid-cols-3">
             <MiniReason label="Risk" value={journal.riskPlan} />
             <MiniReason label="Exit" value={journal.exitPlan} />
-            <MiniReason label="Rules" value={journal.policySummary} />
+            <MiniReason label="Checks" value={journal.policySummary} />
           </div>
           {journal.evidence.length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-1">
@@ -3952,7 +4054,7 @@ function readinessHref(
 function readinessActionLabel(action: AgentReadinessAction): string {
   switch (action) {
     case "risk_limits":
-      return "Safety rules";
+      return "Set safety";
     case "strategy":
       return "Review style";
     case "session":

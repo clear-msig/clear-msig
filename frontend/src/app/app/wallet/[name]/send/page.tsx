@@ -1156,10 +1156,10 @@ function ComposeStage({
           {solMeta ? <ChainBadge chain={solMeta} size="md" /> : null}
           <div className="flex flex-col gap-0.5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Send · Solana
+              Send · one flow
             </p>
             <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
-              Send SOL
+              Send clearly
             </h1>
           </div>
         </div>
@@ -1167,8 +1167,6 @@ function ComposeStage({
           <span className="font-medium text-text-strong">{walletDisplay}</span>
         </p>
       </header>
-
-      <SendStepRail />
 
       {/* Quick-send shortcut - type a sentence, the form fills. */}
       <QuickSendInput contactNames={contactNames} onParsed={onQuickFill} />
@@ -1461,35 +1459,6 @@ function ComposeStage({
     </motion.section>
   );
 }
-
-function SendStepRail() {
-  const steps = ["Asset", "Amount", "Recipient", "Review"];
-  return (
-    <ol className="grid grid-cols-4 gap-1.5">
-      {steps.map((label, index) => (
-        <li
-          key={label}
-          className="flex min-w-0 items-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-2.5 py-2"
-        >
-          <span
-            className={
-              "flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-numerals text-[10px] font-semibold tabular-nums " +
-              (index === 0
-                ? "bg-accent/15 text-accent"
-                : "bg-glass-soft text-text-soft")
-            }
-          >
-            {index + 1}
-          </span>
-          <span className="truncate text-[11px] font-medium text-text-soft">
-            {label}
-          </span>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
 
 // ─── Recipient status row ──────────────────────────────────────────
 

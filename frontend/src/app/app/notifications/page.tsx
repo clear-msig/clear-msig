@@ -39,6 +39,14 @@ export default function NotificationsPage() {
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       className="flex flex-col gap-6"
     >
+      <Link
+        href="/app/wallet"
+        className="inline-flex w-fit items-center gap-2 text-xs font-medium text-text-soft transition-colors duration-base hover:text-text-strong md:hidden"
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        Back
+      </Link>
+
       <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div className="flex flex-col gap-2">
           <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">

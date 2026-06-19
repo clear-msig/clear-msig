@@ -80,6 +80,7 @@ import {
   type CreateVaultStage,
 } from "@/lib/ikavery/clearmsig-actions";
 import { parseSolanaSecretKey, maskAddress } from "@/lib/secure/import";
+import { expectedCanonicalHost } from "@/lib/security/phishingGuard";
 
 const LAMPORTS_PER_SOL = 1_000_000_000n;
 /** 5000 lamports per signature × 3 signers (creator + recovery_id + imported). */
@@ -523,6 +524,7 @@ function IntroStage({
   secureContext,
   reduce,
 }: IntroStageProps) {
+  const expectedHost = expectedCanonicalHost();
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
@@ -538,30 +540,29 @@ function IntroStage({
           <KeyRound className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
         </span>
         <h1 className="mt-3 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-          Move funds under quorum protection
+          Move funds into your vault
         </h1>
         <p className="mx-auto mt-2 max-w-md text-base text-text-soft">
-          Got an existing Solana wallet with funds? Paste its secret key and
-          we&rsquo;ll create a fresh vault, move the SOL in, and wipe the key
-          from memory. All in one atomic Solana transaction.
+          Paste the old wallet key, choose an amount, and sign once. ClearSig
+          moves the SOL into a fresh protected vault.
         </p>
       </PageEyebrow>
 
       <ul className="mx-auto flex w-full max-w-md flex-col gap-2">
         <FeatureRow
           Icon={ShieldCheck}
-          title="Browser-only"
-          body="Your secret key never touches a server. We sign locally and broadcast through Solana directly."
+          title="Key stays local"
+          body="Never sent to ClearSig."
         />
         <FeatureRow
           Icon={Sparkles}
-          title="One transaction, atomic"
-          body="Vault creation and the funds move are bundled. If anything fails, nothing happens. No partial state."
+          title="One transaction"
+          body="If it fails, funds stay put."
         />
         <FeatureRow
           Icon={KeyRound}
           title="Wiped after use"
-          body="Once funds are in the vault, we zero the key buffer in memory. The imported wallet is decommissioned."
+          body="Cleared after the move."
         />
       </ul>
 
@@ -575,12 +576,11 @@ function IntroStage({
           <span className="font-medium text-text-strong">
             Anyone with this key drains the wallet.
           </span>{" "}
-          Make sure the URL bar reads{" "}
+          Check the URL is{" "}
           <span className="font-mono text-[11px] text-text-strong">
-            secure-msig.vercel.app
-          </span>
-          {" "}or your trusted clear-msig host. Don&rsquo;t paste your secret
-          key into anything else.
+            {expectedHost}
+          </span>{" "}
+          before you paste.
         </p>
       </aside>
 

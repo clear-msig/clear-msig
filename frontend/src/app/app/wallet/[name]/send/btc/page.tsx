@@ -19,7 +19,7 @@
 // Send flow:
 //   1. User enters destination (bech32) + amount.
 //   2. We auto-pick the largest single UTXO that covers the amount + a
-//      conservative fee floor (1000 sats. Signet/testnet fees are
+//      conservative fee floor (300 sats. Signet/testnet fees are
 //      tiny). Single-input, single-output: the fee is implicit
 //      (`prev_amount_sats - send_amount_sats`).
 //   3. Build proposal params, propose+auto-approve, execute with
@@ -39,11 +39,13 @@ import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { PublicKey } from "@solana/web3.js";
 import { ArrowRight, Loader2, Send, X } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
-import { IntentType } from "@/lib/msig";
+import { IntentType, ProposalStatus } from "@/lib/msig";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
+import { fetchProposal } from "@/lib/chain/proposals";
 import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
 import { backendApi } from "@/lib/api/endpoints";
 import { BackendApiError } from "@/lib/api/client";
@@ -93,7 +95,8 @@ const BTC_CHAIN_KIND = 2;
 /// Conservative fee floor. Signet/testnet routinely accept ≤200 sats
 /// but we leave headroom so a stale Esplora UTXO snapshot doesn't
 /// trigger a "min relay fee not met" rejection on broadcast.
-const FEE_RESERVE_SATS = 1000n;
+const FEE_RESERVE_SATS = 300n;
+const MAX_SAFE_IMPLIED_FEE_SATS = 1000n;
 
 interface BroadcastResultLike {
   chain_kind?: number;
@@ -236,6 +239,11 @@ function BitcoinSendPage() {
     txid: string | null;
     explorerUrl: string | null;
   } | null>(null);
+  const [awaitingApprovalLabel, setAwaitingApprovalLabel] = useState<{
+    amountBtc: string;
+    to: string;
+    proposal: string;
+  } | null>(null);
   // Inline error banner state. The toast version was too easy to miss
   // (auto-dismisses, no copy of the underlying CLI stderr). This lets
   // users actually see the real error and take action without
@@ -296,9 +304,17 @@ function BitcoinSendPage() {
         );
       }
       const me = signerPk.toBase58();
-      const proposers = [me];
-      const approvers = [me];
-      const threshold = 1;
+      const proposers = addIntent?.account?.proposers.length
+        ? addIntent.account.proposers
+        : [me];
+      const approvers = addIntent?.account?.approvers.length
+        ? addIntent.account.approvers
+        : [me];
+      const threshold =
+        addIntent?.account?.approvalThreshold &&
+        addIntent.account.approvalThreshold <= approvers.length
+          ? addIntent.account.approvalThreshold
+          : 1;
       const enc = new TextEncoder();
       const encrypted = await encryptPolicyBatch([
         { plaintext: enc.encode(JSON.stringify(proposers)), fheType: "ebytes" },
@@ -330,7 +346,13 @@ function BitcoinSendPage() {
         throw new Error("Backend didn't return a proposal address");
       }
       const intent = btcIntent;
-      const decision = await approveIfNeeded(connection, proposal);
+      const decision = await approveIfNeeded(connection, proposal, {
+        approvers: addIntent?.account?.approvers,
+        approverPubkey: addIntent?.account
+          ? wallet.pickSigner(addIntent.account.approvers)?.toBase58() ?? null
+          : signerPk.toBase58(),
+        approvalThreshold: addIntent?.account?.approvalThreshold ?? 1,
+      });
       if (decision.needsApproveSignature) {
         const approverPk = addIntent?.account
           ? wallet.pickSigner(addIntent.account.approvers)
@@ -442,6 +464,11 @@ function BitcoinSendPage() {
       if (!btcIntent) throw new Error("Bitcoin sends not yet enabled");
       if (!selectedUtxo) throw new Error("No suitable UTXO available");
       if (!sendAmountSats) throw new Error("Enter an amount");
+      if (impliedFeeSats !== null && impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS) {
+        throw new Error(
+          `This Bitcoin send would pay ${formatSats(impliedFeeSats)} BTC in fees. Use max, split/fund with a smaller UTXO, or wait for change-output support.`,
+        );
+      }
       if (!senderPkhHex) throw new Error("Couldn't derive sender pkh");
       const proposerPk = wallet.pickSigner(btcIntent.proposers);
       if (!proposerPk) {
@@ -490,7 +517,11 @@ function BitcoinSendPage() {
       if (typeof proposal !== "string" || proposal.length === 0) {
         throw new Error("Backend didn't return a proposal address from submit");
       }
-      const decision = await approveIfNeeded(connection, proposal);
+      const decision = await approveIfNeeded(connection, proposal, {
+        approvers: btcIntent.approvers,
+        approverPubkey: wallet.pickSigner(btcIntent.approvers)?.toBase58() ?? null,
+        approvalThreshold: btcIntent.approvalThreshold,
+      });
       if (decision.needsApproveSignature) {
         const approverPk = wallet.pickSigner(btcIntent.approvers);
         if (!approverPk) {
@@ -511,6 +542,10 @@ function BitcoinSendPage() {
           expiry: approveDry.expiry,
         });
       }
+      const statusBeforeExecute = await waitForProposalStatus(connection, proposal);
+      if (statusBeforeExecute !== ProposalStatus.Approved) {
+        return { proposal, broadcast: null, awaitingApprovers: true };
+      }
       const executed = await backendApi.executeProposal(name, proposal, {
         broadcast: true,
         dwallet_program: appConfig.preAlpha.dwalletProgramId,
@@ -523,9 +558,20 @@ function BitcoinSendPage() {
       });
       const broadcast = (executed as { broadcast?: BroadcastResultLike })
         ?.broadcast;
-      return { proposal, broadcast };
+      return { proposal, broadcast, awaitingApprovers: false };
     },
-    onSuccess: ({ broadcast }) => {
+    onSuccess: ({ proposal, broadcast, awaitingApprovers }) => {
+      if (awaitingApprovers) {
+        setAwaitingApprovalLabel({
+          amountBtc: amountBtc.trim(),
+          to: shortBtcAddress(destination.trim()),
+          proposal,
+        });
+        toast.success("Bitcoin request created", {
+          details: "It is waiting for the remaining approval before broadcast.",
+        });
+        return;
+      }
       const txid = broadcast?.tx_id ?? null;
       const explorerUrl = txid ? mempoolSpaceTxUrl(txid, btcNetwork) : null;
       setSentLabel({
@@ -590,6 +636,12 @@ function BitcoinSendPage() {
       );
       return;
     }
+    if (impliedFeeSats !== null && impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS) {
+      setAmountError(
+        `Fee would be ${formatSats(impliedFeeSats)} BTC. Use max or a smaller UTXO; current safe cap is ${formatSats(MAX_SAFE_IMPLIED_FEE_SATS)} BTC.`,
+      );
+      return;
+    }
     send.mutate();
   };
 
@@ -620,6 +672,8 @@ function BitcoinSendPage() {
   });
   const policyDenied =
     policyEvaluation?.matched && policyEvaluation.action === "deny";
+  const unsafeImpliedFee =
+    impliedFeeSats !== null && impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS;
   const canSubmit =
     !!btcBinding &&
     !!btcIntent &&
@@ -629,6 +683,7 @@ function BitcoinSendPage() {
     !!sendAmountSats &&
     !!selectedUtxo &&
     !!senderPkhHex &&
+    !unsafeImpliedFee &&
     !policyDenied;
 
   return (
@@ -644,10 +699,10 @@ function BitcoinSendPage() {
             {btcMeta ? <ChainBadge chain={btcMeta} size="md" /> : null}
             <div className="flex flex-col gap-0.5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-                Send · Bitcoin
+                Send · one flow
               </p>
               <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
-                Send BTC
+                Send clearly
               </h1>
             </div>
           </div>
@@ -694,7 +749,7 @@ function BitcoinSendPage() {
             reduce={!!reduce}
           />
         )}
-        {ready && !sentLabel && sendError && (
+        {ready && !sentLabel && !awaitingApprovalLabel && sendError && (
           <SendErrorBanner
             error={sendError}
             onReset={() => {
@@ -707,10 +762,10 @@ function BitcoinSendPage() {
             onDismiss={() => setSendError(null)}
           />
         )}
-        {ready && !sentLabel && policyEvaluation?.matched && (
+        {ready && !sentLabel && !awaitingApprovalLabel && policyEvaluation?.matched && (
           <PolicyMatchBanner walletName={name} evaluation={policyEvaluation} />
         )}
-        {ready && !sentLabel && (
+        {ready && !sentLabel && !awaitingApprovalLabel && (
           <div className="flex flex-col gap-3">
             <SignPayloadPreview
               action={
@@ -734,7 +789,7 @@ function BitcoinSendPage() {
             <WalletPopupNarration action="send this Bitcoin request" disclaimerBehindInfoTip />
           </div>
         )}
-        {ready && !sentLabel && (
+        {ready && !sentLabel && !awaitingApprovalLabel && (
           <ComposeForm
             destination={destination}
             setDestination={setDestination}
@@ -762,6 +817,18 @@ function BitcoinSendPage() {
             network={btcNetwork}
             onAnother={() => {
               setSentLabel(null);
+              setDestination("");
+              setAmountBtc("");
+            }}
+          />
+        )}
+        {awaitingApprovalLabel && (
+          <AwaitingApprovalCard
+            request={awaitingApprovalLabel}
+            walletDisplay={walletDisplay}
+            walletName={name}
+            onAnother={() => {
+              setAwaitingApprovalLabel(null);
               setDestination("");
               setAmountBtc("");
             }}
@@ -1066,9 +1133,8 @@ function ComposeForm(props: {
           smaller than their chosen UTXO, they'll burn the
           difference. We promote this from the quiet line beneath
           the amount to a real banner once the burn would be more
-          than ~5× the fee floor (= 5000 sats, ~$0.50 at $20k BTC).
-          Below that threshold the burn is in normal-fee territory
-          and the quieter UTXO note is enough.
+          than the current safe cap. Below that threshold the burn is
+          in normal-fee territory and the quieter UTXO note is enough.
 
           Real fix is a change output on both sides of the BIP143
           builder (CLI + on-chain). That's a redeploy + parity
@@ -1076,7 +1142,7 @@ function ComposeForm(props: {
           banner are the safe-path nudges. */}
       {props.selectedUtxo &&
         props.impliedFeeSats !== null &&
-        props.impliedFeeSats > 5_000n && (
+        props.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS && (
           <div
             role="alert"
             className="mt-1 flex flex-col gap-2 rounded-card border border-warning/40 bg-warning/[0.08] p-3 text-xs text-text-strong"
@@ -1097,7 +1163,9 @@ function ComposeForm(props: {
                 Use max
               </span>{" "}
               above to send (UTXO − {Number(FEE_RESERVE_SATS)} sats)
-              and minimize the burn.
+              and minimize the burn. Sends above{" "}
+              {formatSats(MAX_SAFE_IMPLIED_FEE_SATS)} BTC in implied fees are
+              blocked until change-output support is live.
             </p>
           </div>
         )}
@@ -1211,6 +1279,57 @@ function SentCard({
   );
 }
 
+function AwaitingApprovalCard({
+  request,
+  walletDisplay,
+  walletName,
+  onAnother,
+}: {
+  request: {
+    amountBtc: string;
+    to: string;
+    proposal: string;
+  };
+  walletDisplay: string;
+  walletName: string;
+  onAnother: () => void;
+}) {
+  const details: ReceiptDetail[] = [
+    { label: "From", value: walletDisplay },
+    { label: "Status", value: "Waiting for approvals" },
+    {
+      label: "Proposal",
+      value: shortHash(request.proposal),
+      mono: true,
+      copyText: request.proposal,
+    },
+  ];
+  return (
+    <SendReceipt
+      status="pending"
+      statusLabel="Request created"
+      amount={request.amountBtc}
+      ticker="BTC"
+      recipientLabel={request.to}
+      details={details}
+      actions={[
+        {
+          label: "View activity",
+          hint: "See the request and approval status.",
+          href: `/app/wallet/${encodeURIComponent(walletName)}/activity`,
+          primary: true,
+          icon: ArrowRight,
+        },
+        {
+          label: "New request",
+          hint: "Compose another Bitcoin request.",
+          onClick: onAnother,
+        },
+      ]}
+    />
+  );
+}
+
 function shortHash(s: string): string {
   if (s.length <= 16) return s;
   return `${s.slice(0, 8)}…${s.slice(-6)}`;
@@ -1258,7 +1377,7 @@ function buildBtcWarning(args: {
   if (
     args.selectedUtxo &&
     args.impliedFeeSats !== null &&
-    args.impliedFeeSats > 5_000n
+    args.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS
   ) {
     return `This send burns ${formatSats(args.impliedFeeSats)} BTC as miner fee because Bitcoin sends here use a single-input, single-output transaction.`;
   }
@@ -1361,4 +1480,20 @@ function bytesToHex(bytes: Uint8Array): string {
 function shortBtcAddress(addr: string): string {
   if (addr.length <= 16) return addr;
   return `${addr.slice(0, 8)}…${addr.slice(-6)}`;
+}
+
+async function waitForProposalStatus(
+  connection: Parameters<typeof fetchProposal>[0],
+  proposalPda: string,
+): Promise<ProposalStatus | null> {
+  for (let i = 0; i < 6; i++) {
+    try {
+      const proposal = await fetchProposal(connection, new PublicKey(proposalPda));
+      if (proposal) return proposal.status;
+    } catch {
+      // Keep waiting; RPC read lag should not trigger an early broadcast.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 350 * (i + 1)));
+  }
+  return null;
 }

@@ -9,20 +9,13 @@
 // strategy="beforeInteractive">. Keep it tiny - it ships in every
 // HTML response and runs before anything else.
 //
-// Two pages force-dark regardless of preference:
-//   • `/`        - landing
-//   • `/welcome` - onboarding
-// The init script reads `location.pathname` and writes "dark"
-// directly on those routes; otherwise it reads localStorage +
-// matchMedia.
+// The init script reads localStorage + matchMedia and writes the
+// matching theme before React hydrates.
 
 export const STORAGE_KEY = "clear.theme.v1";
-export const FORCE_DARK_PATHS = ["/", "/welcome"];
+export const FORCE_DARK_PATHS: string[] = [];
 
 export const THEME_INIT_SCRIPT = `(function(){try{
-var p=location.pathname;
-var force=p==="/"||p==="/welcome"||p.indexOf("/welcome/")===0;
-if(force){document.documentElement.setAttribute("data-theme","dark");return;}
 var v=localStorage.getItem(${JSON.stringify(STORAGE_KEY)});
 var t=(v==="light"||v==="dark")?v:(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark");
 document.documentElement.setAttribute("data-theme",t);

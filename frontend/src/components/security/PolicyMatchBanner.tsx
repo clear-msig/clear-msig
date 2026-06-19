@@ -49,7 +49,7 @@ export function PolicyMatchBanner({ walletName, evaluation }: Props) {
           />
           <div className="min-w-0 flex-1">
             <p className="font-medium text-text-strong">
-              Blocked by policy: {ruleName}
+              Blocked by protection: {ruleName}
             </p>
             <p className="mt-1 text-text-soft">
               This send matches a deny rule on this wallet
@@ -61,7 +61,7 @@ export function PolicyMatchBanner({ walletName, evaluation }: Props) {
                 href={ruleHref}
                 className="font-medium text-rose-600 hover:text-rose-700"
               >
-                Policies
+                Advanced checks
               </Link>{" "}
               to allow it, or pick a different recipient / amount.
             </p>
@@ -149,7 +149,7 @@ export function PolicyMatchBanner({ walletName, evaluation }: Props) {
         />
         <div className="min-w-0 flex-1">
           <p className="font-medium text-text-strong">
-            Policy match: {ruleName}
+            Protection match: {ruleName}
           </p>
           <p className="mt-1 text-text-soft">
             This send matches an allow rule. Proceeding with the

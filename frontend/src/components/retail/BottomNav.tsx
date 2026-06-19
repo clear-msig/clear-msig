@@ -225,9 +225,7 @@ function WalletScopedBottomNav({
   const [launchingCreate, setLaunchingCreate] = useState(false);
   const base = `/app/wallet/${encodeURIComponent(slug)}`;
   const surface = walletProductSurface(getWalletAppearance(slug)?.surface);
-  const items = walletSubNav(surface).filter(
-    (item) => item.sub !== "members" && item.sub !== "policy",
-  );
+  const items = walletSubNav(surface);
   const display = toDisplayName(slug);
   const createHref = surface ? productSetupHref(surface) : "/app/wallet/new";
   const createLabel = surface

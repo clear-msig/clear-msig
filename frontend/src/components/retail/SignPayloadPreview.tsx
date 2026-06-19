@@ -73,7 +73,7 @@ export function SignPayloadPreview({
       // works. The accent stripe + accent kicker text below carry
       // the "this is the signing surface" signal that the green
       // tint used to.
-      className="rounded-card border border-border-soft bg-surface-raised p-4 text-left shadow-card-rest border-l-4 border-l-accent"
+      className="clear-receipt-card rounded-card border border-border-soft bg-surface-raised p-4 text-left shadow-card-rest border-l-4 border-l-accent"
     >
       <header className="flex items-start gap-2.5">
         <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
@@ -139,7 +139,7 @@ export function SignPayloadPreview({
               // switched to solid bg-canvas so the values never
               // render with semi-transparent surfaces over an
               // unpredictable parent.
-              className="flex flex-col gap-0.5 rounded-soft bg-canvas px-2.5 py-1.5"
+              className="clear-receipt-row flex flex-col gap-0.5 rounded-soft bg-canvas px-2.5 py-1.5"
             >
               <dt className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-soft">
                 {d.label}

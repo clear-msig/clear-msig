@@ -280,9 +280,9 @@ export default function SetupErc20Page() {
               <span className="text-accent">{toHeadingName(name)}</span>
             </h1>
             <p className="mt-3 max-w-sm text-base text-text-soft">
-              Adds one spending rule that unlocks any ERC-20 token on
-              Sepolia (USDC, DAI, LINK, …). One quick setup; the rule is
-              signed by you and lives on chain.
+              Turns on ERC-20 sending for tokens on Sepolia (USDC, DAI, LINK,
+              …). One quick setup; sending protection is signed by you and
+              lives on chain.
             </p>
 
             {needsBinding && (
