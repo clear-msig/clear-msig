@@ -23,11 +23,8 @@
 //      to Sepolia.
 //
 // SignPayloadPreview shows the user the EVM-side facts BEFORE the
-// wallet popup fires: chain, recipient, amount-in-ETH, the budget
-// impact under the policy. The wallet popup itself still shows the
-// raw Solana sign-message bytes because we cannot change what
-// Phantom / Solflare render; the disclaimer in WalletPopupNarration
-// reminds them that's normal.
+// signing request fires: chain, recipient, amount-in-ETH, and the budget
+// impact under the policy.
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -76,7 +73,6 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
-import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import { InfoTip } from "@/components/retail/InfoTip";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import {
@@ -589,11 +585,11 @@ function SendEthPage() {
   if (allLoaded && needsBinding) {
     return (
       <PreFlightCard
-        title={`Add ${EVM_LABEL} to this wallet first`}
-        body={`This wallet doesn't have a ${EVM_LABEL} address yet. Adding ${EVM_LABEL} spins up its dWallet (about 30 seconds), then you can come back here.`}
+        title={`Turn on ${EVM_LABEL} sending`}
+        body={`One setup adds ${EVM_LABEL} to this wallet and unlocks ${EVM_LABEL} sends.`}
         cta={{
-          href: `/app/wallet/${encodeURIComponent(walletName)}/chains/add`,
-          label: `Add ${EVM_LABEL}`,
+          href: `/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=${isHyperliquid ? "hyperliquid_evm" : "evm_1559"}`,
+          label: `Turn on ${EVM_LABEL} sending`,
         }}
       />
     );
@@ -601,11 +597,11 @@ function SendEthPage() {
   if (allLoaded && needsIntent) {
     return (
       <PreFlightCard
-        title={`Enable ${EVM_LABEL} sending first`}
-        body={`${EVM_LABEL} is bound to this wallet, but sending is not turned on yet. One quick setup, then sends are unlocked.`}
+        title={`Turn on ${EVM_LABEL} sending`}
+        body={`${EVM_LABEL} is on this wallet. Finish setup to unlock sends.`}
         cta={{
           href: `/app/wallet/${encodeURIComponent(walletName)}/setup/eth${isHyperliquid ? "?network=hyperliquid" : ""}`,
-          label: `Enable ${EVM_LABEL} sending`,
+          label: `Turn on ${EVM_LABEL} sending`,
         }}
       />
     );
@@ -1030,11 +1026,6 @@ function ComposeStage({
           details={previewDetails}
           warning={`Cross-chain send is in alpha. The on-chain Solana sig you give here authorises Ika's dWallet network to broadcast the actual ${chainLabel} tx. If anything is wrong with the EVM-side params, the broadcast fails and the wallet's Solana state stays untouched.`}
           collapsibleDetails
-        />
-        <WalletPopupNarration
-          action={`send this ${chainLabel} request`}
-          popups={1}
-          disclaimerBehindInfoTip
         />
       </div>
 

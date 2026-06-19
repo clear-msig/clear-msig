@@ -3,7 +3,7 @@
 // Batch send - payroll-style "one input, N requests."
 //
 // The proposer enters {recipient, amount} rows, taps "Send batch",
-// and signs once per row in their wallet popup. Each row becomes its
+// and signs once per row. Each row becomes its
 // own SolTransfer proposal under the wallet's first spending rule.
 // Rows are grouped under one batch_id locally so the dashboard can
 // render them as a single line ("Payroll • 50 requests") instead of
@@ -571,11 +571,7 @@ function ReviewStage({
           {walletDisplay}
         </h1>
         <p className="text-xs text-text-soft sm:text-sm">
-          Each row becomes its own request. Your wallet will pop up{" "}
-          <span className="font-medium text-text-strong">
-            {rows.length} time{rows.length === 1 ? "" : "s"}
-          </span>{" "}
-          (once per recipient) so you can confirm each one.
+          Each row becomes its own request. Review the recipients before sending.
         </p>
       </header>
 
@@ -677,9 +673,9 @@ function SendingStage({
       </h1>
       <p className="mt-2 max-w-sm text-base text-text-soft">
         {currentLabel
-          ? `Now: ${currentLabel}. Confirm each in your wallet popup.`
+          ? `Now: ${currentLabel}.`
           : completed === 0
-            ? "Getting ready. Your wallet will pop up shortly."
+            ? "Getting ready."
             : "Wrapping up the last few."}
       </p>
 

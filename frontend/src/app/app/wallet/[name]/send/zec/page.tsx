@@ -21,7 +21,6 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { BrandLoader } from "@/components/retail/BrandLoader";
-import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import {
   SignPayloadPreview,
   type SignPayloadDetail,
@@ -389,11 +388,11 @@ export default function ZcashSendPage() {
   if (allSettled && needsBinding) {
     return (
       <PreFlightCard
-        title="Add Zcash to this wallet first"
-        body="This wallet doesn't have a Zcash address yet. Add Zcash on the chains page, then come back here."
+        title="Turn on Zcash sending"
+        body="One setup adds Zcash to this wallet and unlocks Zcash sends."
         cta={{
-          href: `/app/wallet/${encodeURIComponent(name)}/chains/add`,
-          label: "Add Zcash",
+          href: `/app/wallet/${encodeURIComponent(name)}/chains/add?chain=zcash_transparent`,
+          label: "Turn on Zcash sending",
         }}
       />
     );
@@ -417,10 +416,10 @@ export default function ZcashSendPage() {
           {stage === "compose" && needsIntent && (
             <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
-                Enable Zcash sending
+                Turn on Zcash sending
               </p>
               <p className="mt-2 text-sm text-text-soft">
-                This wallet has a Zcash address, but Zcash sending is not turned on yet.
+                Finish setup to unlock Zcash sends.
               </p>
               <Button size="lg" fullWidth className="mt-4" onClick={() => setup.mutate()} disabled={setup.isPending || !zcashBinding}>
                 {setup.isPending ? (
@@ -430,7 +429,7 @@ export default function ZcashSendPage() {
                   </>
                 ) : (
                   <>
-                    Enable Zcash sending
+                    Turn on Zcash sending
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </>
                 )}
@@ -603,8 +602,6 @@ function ZcashCompose({
       </div>
 
       <SignPayloadPreview action={amountValid && recipientValid ? `Send ${amount.trim()} ZEC` : "Fill in the amount and recipient above"} details={details} collapsibleDetails />
-      <WalletPopupNarration action="send this Zcash request" />
-
       <div className="pt-1">
         <Button size="lg" fullWidth onClick={onSubmit} disabled={!canSubmit}>
           Send request

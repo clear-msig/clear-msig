@@ -58,7 +58,6 @@ import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
 import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
-import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import {
   SignPayloadPreview,
   type SignPayloadDetail,
@@ -541,7 +540,7 @@ function SendPage() {
       if (!destination)
         throw new Error("Pick a contact or paste an address");
 
-      // Policy pre-flight. Block before the wallet popup opens so the
+      // Policy pre-flight. Block before the signing request opens so the
       // user never signs a doomed send. Sources of truth: localStorage
       // allowlist + time window + per-friend allowance + wallet-wide
       // budget. Client-side enforcement; see lib/retail/policyEvaluation.ts.
@@ -984,11 +983,10 @@ function SendPage() {
           {needsSetup && (
             <div className="mb-6 rounded-card border border-warning/30 bg-warning/5 p-5 text-center shadow-card-rest">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
-                Set up sending first
+                Turn on sending
               </p>
               <p className="mt-2 text-sm text-text-strong">
-                Enable sending for <strong>{walletDisplay}</strong>, then come
-                back here.
+                Finish setup for <strong>{walletDisplay}</strong> to send from this wallet.
               </p>
               <div className="mt-4 flex justify-center">
                 <Link
@@ -998,7 +996,7 @@ function SendPage() {
                     "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98]"
                   }
                 >
-                  Enable sending
+                  Turn on sending
                   <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                 </Link>
               </div>
@@ -1395,7 +1393,6 @@ function ComposeStage({
           })}
           collapsibleDetails
         />
-        <WalletPopupNarration action="send this request" disclaimerBehindInfoTip />
       </div>
 
       {/* Action footer - primary Send CTA + secondary "Send to many"

@@ -61,7 +61,6 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
-import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import { RecentRecipientsChips } from "@/components/retail/RecentRecipientsChips";
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
@@ -481,11 +480,11 @@ function SendErc20Page() {
   if (allLoaded && needsBinding) {
     return (
       <PreFlightCard
-        title="Add Ethereum to this wallet first"
-        body="ERC-20 sending uses the wallet's Ethereum address. Add Ethereum on the chains page (about 30 seconds), then come back here."
+        title="Turn on token sending"
+        body="One setup adds Ethereum to this wallet and unlocks ERC-20 sends."
         cta={{
-          href: `/app/wallet/${encodeURIComponent(walletName)}/chains/add`,
-          label: "Add Ethereum",
+          href: `/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=evm_1559`,
+          label: "Turn on token sending",
         }}
       />
     );
@@ -493,11 +492,11 @@ function SendErc20Page() {
   if (allLoaded && needsIntent) {
     return (
       <PreFlightCard
-        title="Enable ERC-20 sending first"
-        body="Ethereum is bound to this wallet, but ERC-20 sending is not turned on yet. One quick setup, then per-token sends are unlocked."
+        title="Turn on token sending"
+        body="Ethereum is on this wallet. Finish setup to unlock ERC-20 sends."
         cta={{
           href: `/app/wallet/${encodeURIComponent(walletName)}/setup/erc20`,
-          label: "Enable ERC-20 sending",
+          label: "Turn on token sending",
         }}
       />
     );
@@ -870,7 +869,6 @@ function ComposeStage({
           details={previewDetails}
           warning="Cross-chain send is in alpha. The Solana sig you give here authorises Ika's dWallet network to broadcast the actual ERC-20 transfer on Ethereum. If anything is wrong with the EVM-side params, the broadcast fails and the wallet's Solana state stays untouched."
         />
-        <WalletPopupNarration action="send this token request" popups={1} />
       </div>
 
       {/* Sticky-bottom CTA on mobile - see SOL send for rationale. */}

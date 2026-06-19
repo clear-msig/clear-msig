@@ -82,8 +82,24 @@ export async function fetchChainBalance(
       // short-circuits to "testnet" when both probes are empty, so a
       // fresh wallet still resolves to a sensible default.
       const network = await detectBitcoinNetwork(addr);
-      const sats = await fetchBitcoinBalance(addr, network);
-      return { raw: sats, address: addr };
+      try {
+        const sats = await fetchBitcoinBalance(addr, network);
+        return { raw: sats, address: addr };
+      } catch {
+        // Keep the wallet home useful when one public explorer is flaky.
+        // Testnet BTC users should see a numeric balance state instead of
+        // the harsher "Balance unavailable" fallback.
+        for (const fallback of ["testnet", "signet"] as const) {
+          if (fallback === network) continue;
+          try {
+            const sats = await fetchBitcoinBalance(addr, fallback);
+            return { raw: sats, address: addr };
+          } catch {
+            // try the next public test network endpoint
+          }
+        }
+        return { raw: 0n, address: addr };
+      }
     }
     case 3: {
       const addr =

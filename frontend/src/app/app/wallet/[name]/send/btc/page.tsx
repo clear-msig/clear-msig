@@ -56,7 +56,6 @@ import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useToast } from "@/components/ui/Toast";
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
 import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
-import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import {
   SignPayloadPreview,
   type SignPayloadDetail,
@@ -786,7 +785,6 @@ function BitcoinSendPage() {
               })}
               collapsibleDetails
             />
-            <WalletPopupNarration action="send this Bitcoin request" disclaimerBehindInfoTip />
           </div>
         )}
         {ready && !sentLabel && !awaitingApprovalLabel && (
@@ -867,16 +865,15 @@ function NeedsBinding({
       className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
     >
       <p className="text-sm text-text-soft">
-        This wallet isn&rsquo;t bound to Bitcoin yet. Add the Bitcoin chain
-        first. That runs a one-time Ika DKG so the wallet has a Bitcoin
-        address.
+        Turn on Bitcoin sending once. ClearSig will add the Bitcoin address and
+        unlock BTC sends for this wallet.
       </p>
       <Link
         href={`/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=bitcoin_p2wpkh`}
         className="self-start"
       >
         <Button>
-          Add Bitcoin chain
+          Turn on Bitcoin sending
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Button>
       </Link>
@@ -909,10 +906,9 @@ function NeedsSetup({
       className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
     >
       <p className="text-sm text-text-soft">
-        One-time setup: register the Bitcoin spending intent for{" "}
-        <span className="font-medium text-text-strong">{walletDisplay}</span>.
-        After this, sends use the same propose-approve-execute ceremony you
-        use for SOL and ETH.
+        Finish Bitcoin setup for{" "}
+        <span className="font-medium text-text-strong">{walletDisplay}</span>{" "}
+        to unlock BTC sends.
       </p>
       {address && (
         <div className="rounded-soft border border-border-soft bg-canvas p-3">
@@ -942,7 +938,7 @@ function NeedsSetup({
           </>
         ) : (
           <>
-            Enable Bitcoin sends
+            Turn on Bitcoin sending
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </>
         )}

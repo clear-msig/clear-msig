@@ -281,12 +281,17 @@ function WalletScopedBottomNav({
           aria-hidden="true"
         />
       </Link>
-      <ul className="flex items-stretch gap-1 overflow-x-auto px-2 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <ul
+        className="grid items-stretch gap-1 px-2 py-1.5"
+        style={{
+          gridTemplateColumns: `${"minmax(0,1fr) ".repeat(leftItems.length)}4.25rem ${"minmax(0,1fr) ".repeat(rightItems.length)}`.trim(),
+        }}
+      >
         {leftItems.map((item) => {
           const href = walletNavHref(base, item.sub);
           const active = isWalletNavActive(pathname, base, item.sub);
           return (
-            <li key={item.sub || "overview"} className="min-w-[76px] flex-1">
+            <li key={item.sub || "overview"} className="min-w-0">
               <Link
                 href={href}
                 aria-current={active ? "page" : undefined}
@@ -318,12 +323,12 @@ function WalletScopedBottomNav({
             </li>
           );
         })}
-        <li aria-hidden="true" className="w-20 shrink-0" />
+        <li aria-hidden="true" className="min-w-0" />
         {rightItems.map((item) => {
           const href = walletNavHref(base, item.sub);
           const active = isWalletNavActive(pathname, base, item.sub);
           return (
-            <li key={item.sub || "overview"} className="min-w-[76px] flex-1">
+            <li key={item.sub || "overview"} className="min-w-0">
               <Link
                 href={href}
                 aria-current={active ? "page" : undefined}

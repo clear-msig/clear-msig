@@ -52,22 +52,8 @@ export function SendChainPicker({
   return (
     <nav
       aria-label="Choose what to send"
-      className="mb-5 rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest sm:p-4"
+      className="mb-5 rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest"
     >
-      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            One send flow
-          </p>
-          <h2 className="mt-0.5 text-sm font-medium text-text-strong">
-            Recipient, amount, receipt, sign.
-          </h2>
-        </div>
-        <p className="text-xs text-text-soft">
-          Need another asset? Add it here.
-        </p>
-      </div>
-      <SendFlowSteps />
       <div className="flex gap-2 overflow-x-auto pb-1">
         {visible.map((opt) => {
           const isActive = opt.chain.kind === activeKind;
@@ -150,34 +136,6 @@ export function SendChainPicker({
         </Link>
       </div>
     </nav>
-  );
-}
-
-function SendFlowSteps() {
-  const steps = ["Recipient", "Amount / asset", "Receipt", "Sign"];
-  return (
-    <ol className="mb-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-      {steps.map((label, index) => (
-        <li
-          key={label}
-          className="flex min-w-0 items-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-2.5 py-2"
-        >
-          <span
-            className={
-              "flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-numerals text-[10px] font-semibold tabular-nums " +
-              (index === 0
-                ? "bg-accent/15 text-accent"
-                : "bg-glass-soft text-text-soft")
-            }
-          >
-            {index + 1}
-          </span>
-          <span className="truncate text-[11px] font-medium text-text-soft">
-            {label}
-          </span>
-        </li>
-      ))}
-    </ol>
   );
 }
 
