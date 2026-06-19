@@ -54,16 +54,16 @@ export function SendChainPicker({
       aria-label="Choose what to send"
       className="mb-5 rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest sm:p-4"
     >
-      <div className="mb-3 flex items-end justify-between gap-3">
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            Send
+            One send flow
           </p>
           <h2 className="mt-0.5 text-sm font-medium text-text-strong">
-            Pick asset
+            Choose asset, write the receipt, sign.
           </h2>
         </div>
-        <p className="hidden text-xs text-text-soft sm:block">
+        <p className="text-xs text-text-soft">
           Need another chain? Add it here.
         </p>
       </div>

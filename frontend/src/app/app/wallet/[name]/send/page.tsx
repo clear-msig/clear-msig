@@ -1156,10 +1156,10 @@ function ComposeStage({
           {solMeta ? <ChainBadge chain={solMeta} size="md" /> : null}
           <div className="flex flex-col gap-0.5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Send · Solana
+              Send · one flow
             </p>
             <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
-              Send SOL
+              Send clearly
             </h1>
           </div>
         </div>
@@ -1463,7 +1463,7 @@ function ComposeStage({
 }
 
 function SendStepRail() {
-  const steps = ["Asset", "Amount", "Recipient", "Review"];
+  const steps = ["Choose asset", "Write details", "Review receipt", "Sign"];
   return (
     <ol className="grid grid-cols-4 gap-1.5">
       {steps.map((label, index) => (

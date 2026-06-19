@@ -183,6 +183,23 @@ export default function PolicyPage() {
         personalRules={personalRules}
       />
 
+      <section className="grid gap-2 rounded-card border border-border-soft bg-canvas p-3 shadow-card-rest sm:grid-cols-4 sm:p-4">
+        {[
+          ["People", "Who can act"],
+          ["Approvals", "Who must sign"],
+          ["Limits", "How much can move"],
+          ["Checks", "When to slow down"],
+        ].map(([label, body]) => (
+          <div
+            key={label}
+            className="rounded-soft bg-surface-raised px-3 py-2.5"
+          >
+            <p className="text-xs font-semibold text-text-strong">{label}</p>
+            <p className="mt-0.5 text-[11px] text-text-soft">{body}</p>
+          </div>
+        ))}
+      </section>
+
       <ThresholdCard
         walletName={name}
         intent={customIntent}

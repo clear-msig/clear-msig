@@ -1250,10 +1250,10 @@ export default function AgentsPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-text-strong">
-                Ready desk
+                Next step
               </p>
               <p className="mt-0.5 text-xs text-text-soft">
-                Choose a trader, set loss limits, start practice.
+                Continue setup or open practice when everything is ready.
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -1709,7 +1709,10 @@ function GettingStartedPanel({ steps }: { steps: GettingStartedStep[] }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-text-strong">
-            {completed === steps.length ? "Ready to trade" : "Fast start"}
+            {completed === steps.length ? "Ready to trade" : "Guided setup"}
+          </p>
+          <p className="mt-0.5 text-xs text-text-soft">
+            Choose trader, set rules, set budget, start practice.
           </p>
         </div>
         <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">

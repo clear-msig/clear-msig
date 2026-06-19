@@ -699,10 +699,10 @@ function BitcoinSendPage() {
             {btcMeta ? <ChainBadge chain={btcMeta} size="md" /> : null}
             <div className="flex flex-col gap-0.5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-                Send · Bitcoin
+                Send · one flow
               </p>
               <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
-                Send BTC
+                Send clearly
               </h1>
             </div>
           </div>

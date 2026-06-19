@@ -2189,12 +2189,12 @@ function manageActionGroups(
   if (surface === "personal") {
     return [
       {
-        label: "Protection",
-        description: "People, approvals, and send safety.",
+        label: "More protection",
+        description: "Fine-tune people, approvals, and send safety.",
         rows: rulesActionRows(encoded, "personal"),
       },
       {
-        label: "Money",
+        label: "More money",
         description: "Top up or withdraw through supported rails.",
         rows: moneyActionRows(encoded),
       },
@@ -2204,12 +2204,12 @@ function manageActionGroups(
   if (surface === "pro") {
     return [
       {
-        label: "Protection",
-        description: "Team approvals and send safety.",
+        label: "More protection",
+        description: "Fine-tune team approvals and send safety.",
         rows: rulesActionRows(encoded, "pro"),
       },
       {
-        label: "Limits",
+        label: "More limits",
         description: "Treasury spending controls.",
         rows: [
           {
@@ -2221,7 +2221,7 @@ function manageActionGroups(
         ],
       },
       {
-        label: "Money",
+        label: "More money",
         description: "Top up or withdraw through supported rails.",
         rows: moneyActionRows(encoded),
       },
@@ -2231,8 +2231,8 @@ function manageActionGroups(
   if (surface === "agent") {
     return [
       {
-        label: "Budget",
-        description: "Capital assigned to trader activity.",
+        label: "More budget",
+        description: "Fine-tune capital assigned to trader activity.",
         rows: [
           {
             href: `/app/wallet/${encoded}/agents/funding`,
@@ -2247,12 +2247,12 @@ function manageActionGroups(
 
   return [
     {
-      label: "Protection",
-      description: "People, approvals, and send safety.",
+      label: "More protection",
+      description: "Fine-tune people, approvals, and send safety.",
       rows: rulesActionRows(encoded, null),
     },
     {
-      label: "Money",
+      label: "More money",
       description: "Top up or withdraw through supported rails.",
       rows: moneyActionRows(encoded),
     },
