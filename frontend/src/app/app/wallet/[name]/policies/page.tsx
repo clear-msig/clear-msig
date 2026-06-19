@@ -130,6 +130,17 @@ export default function PoliciesPage() {
               The wallet&rsquo;s Protection page is your baseline. Advanced checks
               add recipient, amount, review, and cooldown rules on top.
             </p>
+            <Link
+              href={`/app/wallet/${encodeURIComponent(name)}/policy`}
+              className={
+                "mt-4 inline-flex min-h-tap items-center justify-center gap-1.5 rounded-soft bg-accent px-3.5 py-2 text-sm font-medium text-text-on-accent shadow-accent-rest " +
+                "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+              }
+            >
+              Open Protection
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </Link>
           </div>
         </div>
       ) : (

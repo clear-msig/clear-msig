@@ -386,7 +386,7 @@ export default function WalletDetailPage() {
 //
 // Phantom / Rainbow precedent: a wallet detail screen is a vertical
 // dump in two ways - Hero on top, then a tabbed feed below. We
-// already moved primary actions (Send / Receive / Policy) to the
+// already moved primary actions (Send / Receive / Protect) to the
 // Hero tile row; the tabs here own the long-tail of content that
 // previously stacked into 12 sections.
 //
@@ -691,7 +691,8 @@ function tabLabelsFor(surface: ProductSurfaceId | null): Record<WalletTab, strin
   return { holdings: "Holdings", activity: "Activity", manage: "Manage" };
 }
 
-function HoldingsEmptyState() {
+function HoldingsEmptyState({ walletName }: { walletName: string }) {
+  const encoded = encodeURIComponent(walletName);
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-8 text-center shadow-card-rest">
       <div className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
@@ -701,6 +702,17 @@ function HoldingsEmptyState() {
       <p className="mt-1 text-xs text-text-soft">
         Activated assets and token balances appear here once the wallet is ready.
       </p>
+      <Link
+        href={`/app/wallet/${encoded}/receive`}
+        className={
+          "mt-4 inline-flex min-h-tap items-center justify-center gap-1.5 rounded-soft bg-accent px-3.5 py-2 text-sm font-medium text-text-on-accent shadow-accent-rest " +
+          "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] " +
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+        }
+      >
+        Receive money
+        <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+      </Link>
     </section>
   );
 }
@@ -748,7 +760,7 @@ function NativeHoldingsSection({
 
       {rows.length === 0 ? (
         <div className="mt-4">
-          <HoldingsEmptyState />
+          <HoldingsEmptyState walletName={walletName} />
         </div>
       ) : (
         <ul className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -1342,7 +1354,7 @@ function Hero({
 
       {/* ── Balance + actions card ──────────────────────────────
           Wallet value as the focal headline; the three primary
-          actions (Send / Receive / Policy) sit underneath as
+          actions (Send / Receive / Protect) sit underneath as
           first-class affordances. A soft accent bloom in the
           top-right lifts the card off the canvas without
           competing with the number. */}
@@ -1491,7 +1503,7 @@ function productHeroProfile(
       glowClass: SHARED_BALANCE_GLOW_CLASS,
       glow: SHARED_BALANCE_GLOW,
       portfolioWrapClass: "grid gap-5 lg:grid-cols-[1.25fr_1fr] lg:items-end",
-      actionsGridClass: "grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3",
+      actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
       actionTone: "pro",
       balanceLabel: "Treasury value",
       stats: [
@@ -1510,7 +1522,7 @@ function productHeroProfile(
       glowClass: SHARED_BALANCE_GLOW_CLASS,
       glow: SHARED_BALANCE_GLOW,
       portfolioWrapClass: "grid gap-5 lg:grid-cols-[1fr_1.1fr] lg:items-end",
-      actionsGridClass: "grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3",
+      actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
       avatarIcon: productSurfaceIcon(surface),
       actionTone: "agent",
       balanceLabel: "Trading funds",
