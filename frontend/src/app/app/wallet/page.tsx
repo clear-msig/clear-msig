@@ -17,7 +17,7 @@
 // The legacy wizard (CreateWalletCard, WalletPanel) and WorkflowTips
 // are intentionally NOT rendered here - they're being retired.
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import clsx from "clsx";
@@ -85,8 +85,12 @@ import { toDisplayName } from "@/lib/retail/walletNames";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
 import { UsdHint } from "@/components/retail/UsdHint";
 import { getWalletAppearance } from "@/lib/retail/walletAppearance";
-import { useWalletPortfolio } from "@/lib/hooks/useWalletPortfolio";
-import { chainByKind } from "@/lib/retail/chains";
+import {
+  useWalletPortfolio,
+  type WalletPortfolio,
+} from "@/lib/hooks/useWalletPortfolio";
+import { chainByKind, chainDisplayRank } from "@/lib/retail/chains";
+import { useDisplayCurrency } from "@/lib/hooks/useDisplayCurrency";
 import {
   productWorkspaceHomeHref,
   productWorkspaceLabel,
@@ -572,6 +576,49 @@ function StatsRow({
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
 
+  const [portfolioByWallet, setPortfolioByWallet] = useState<
+    Map<string, PortfolioSnapshot>
+  >(() => new Map());
+  const visibleWalletNames = useMemo(
+    () =>
+      visibleWallets
+        .map((wallet) => wallet.wallet_name)
+        .filter((name): name is string => Boolean(name)),
+    [visibleWallets],
+  );
+  const visibleWalletNameKey = visibleWalletNames.join("|");
+
+  useEffect(() => {
+    const visible = new Set(visibleWalletNames);
+    setPortfolioByWallet((prev) => {
+      let changed = false;
+      const next = new Map<string, PortfolioSnapshot>();
+      prev.forEach((snapshot, name) => {
+        if (visible.has(name)) {
+          next.set(name, snapshot);
+        } else {
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [visibleWalletNames, visibleWalletNameKey]);
+
+  const handlePortfolioChange = useCallback(
+    (walletName: string, snapshot: PortfolioSnapshot | null) => {
+      setPortfolioByWallet((prev) => {
+        const next = new Map(prev);
+        if (snapshot) {
+          next.set(walletName, snapshot);
+        } else {
+          next.delete(walletName);
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
   const totalLamports = useMemo(() => {
     if (!balances) return 0;
     let sum = 0;
@@ -579,8 +626,17 @@ function StatsRow({
     return sum;
   }, [visibleWallets, balances]);
 
+  const aggregate = useMemo(
+    () => aggregatePortfolio(Array.from(portfolioByWallet.values())),
+    [portfolioByWallet],
+  );
   const totalBalance = formatBalance(totalLamports);
-  const balanceLoading = loadingBalances && balances === undefined;
+  const balanceLoading =
+    (loadingBalances && balances === undefined) ||
+    visibleWalletNames.some(
+      (name) =>
+        !portfolioByWallet.has(name) || portfolioByWallet.get(name)?.isLoading,
+    );
 
   return (
     <motion.div
@@ -588,10 +644,20 @@ function StatsRow({
       transition={{ duration: 0.2 }}
       className="flex flex-col gap-2.5 sm:gap-3"
     >
+      <div aria-hidden="true" className="hidden">
+        {visibleWalletNames.map((walletName) => (
+          <WalletPortfolioReporter
+            key={walletName}
+            walletName={walletName}
+            onChange={handlePortfolioChange}
+          />
+        ))}
+      </div>
       <BalanceHeroCard
         amount={totalBalance.amount}
         unit={totalBalance.ticker}
         totalLamports={totalLamports}
+        aggregate={aggregate}
         walletCount={visibleWallets.length}
         selectedSurface={selectedSurface}
         loading={balanceLoading}
@@ -614,6 +680,83 @@ function StatsRow({
       </div>
     </motion.div>
   );
+}
+
+type PortfolioSnapshot = Pick<
+  WalletPortfolio,
+  "breakdown" | "totalUsd" | "isLoading"
+>;
+
+interface AggregateChainBalance {
+  kind: number;
+  ticker: string;
+  amount: string;
+  raw: bigint;
+}
+
+interface AggregatePortfolio {
+  totalUsd: number;
+  chains: AggregateChainBalance[];
+}
+
+function WalletPortfolioReporter({
+  walletName,
+  onChange,
+}: {
+  walletName: string;
+  onChange: (walletName: string, snapshot: PortfolioSnapshot | null) => void;
+}) {
+  const portfolio = useWalletPortfolio(walletName);
+  useEffect(() => {
+    onChange(walletName, {
+      breakdown: portfolio.breakdown,
+      totalUsd: portfolio.totalUsd,
+      isLoading: portfolio.isLoading,
+    });
+    return () => onChange(walletName, null);
+  }, [
+    walletName,
+    portfolio.breakdown,
+    portfolio.totalUsd,
+    portfolio.isLoading,
+    onChange,
+  ]);
+  return null;
+}
+
+function aggregatePortfolio(snapshots: PortfolioSnapshot[]): AggregatePortfolio {
+  const byKind = new Map<number, { raw: bigint; ticker: string }>();
+  let totalUsd = 0;
+  for (const snapshot of snapshots) {
+    totalUsd += snapshot.totalUsd;
+    for (const chain of snapshot.breakdown) {
+      if (chain.raw === null || chain.raw === 0n) continue;
+      const existing = byKind.get(chain.kind);
+      byKind.set(chain.kind, {
+        raw: (existing?.raw ?? 0n) + chain.raw,
+        ticker: existing?.ticker ?? chain.ticker,
+      });
+    }
+  }
+  const chains = Array.from(byKind.entries())
+    .sort(([a], [b]) => chainDisplayRank(a) - chainDisplayRank(b))
+    .map(([kind, value]) => {
+      const meta = chainByKind(kind);
+      const amount = meta
+        ? formatChainBalance(
+            value.raw,
+            meta.smallestPerWhole,
+            meta.displayDecimals,
+          )
+        : value.raw.toString();
+      return {
+        kind,
+        ticker: meta?.ticker ?? value.ticker,
+        amount: amount ?? "0",
+        raw: value.raw,
+      };
+    });
+  return { totalUsd, chains };
 }
 
 function NextActionStrip({
@@ -706,6 +849,7 @@ function BalanceHeroCard({
   amount,
   unit,
   totalLamports,
+  aggregate,
   walletCount,
   selectedSurface,
   loading,
@@ -713,6 +857,7 @@ function BalanceHeroCard({
   amount: string;
   unit: string;
   totalLamports: number;
+  aggregate: AggregatePortfolio;
   walletCount: number;
   selectedSurface: WalletProductSurface | null;
   loading: boolean;
@@ -722,18 +867,19 @@ function BalanceHeroCard({
     : "Total balance";
   const surfaceCopy = productDashboardCopy(selectedSurface);
   const { hidden, toggle } = useBalancePrivacy();
+  const fiat = useDisplayCurrency();
   const hiddenClass = hidden ? "blur-sm select-none" : "";
+  const hasPortfolioTotal = aggregate.chains.length > 0;
+  const headline = hasPortfolioTotal ? fiat.format(aggregate.totalUsd) : amount;
   return (
     <section
       className={clsx(
-        "relative overflow-hidden rounded-card border p-4 shadow-card-rest sm:p-5 lg:p-6",
+        "relative overflow-hidden rounded-card border p-4 shadow-card-rest sm:p-5",
         selectedSurface
           ? surfaceHeroTone(selectedSurface)
           : "border-border-soft bg-surface-raised",
       )}
     >
-      {!selectedSurface ? <BalanceCardPattern /> : null}
-
       {/* Foreground content. relative + z-10 keeps it above both
           decoration layers. */}
       <div className="relative z-10 grid gap-3 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-center lg:gap-5">
@@ -741,11 +887,11 @@ function BalanceHeroCard({
         {/* Brand row - small visible mark + label */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-accent/15">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/10">
               {selectedSurface ? (
-                <surfaceCopy.Icon className="h-4 w-4 text-accent" aria-hidden="true" />
+                <surfaceCopy.Icon className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
               ) : (
-                <BrandMark size={14} />
+                <BrandMark size={12} />
               )}
             </span>
             <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
@@ -796,36 +942,58 @@ function BalanceHeroCard({
           <>
             <p className={clsx("mt-3 flex items-baseline gap-2 transition-[filter] duration-base sm:mt-5", hiddenClass)}>
               <span className="font-numerals text-3xl font-semibold leading-none text-text-strong tabular-nums sm:text-4xl">
-                {amount}
+                {headline}
               </span>
-              <span className="font-display text-sm font-semibold uppercase tracking-[0.16em] text-text-soft sm:text-base">
-                {unit}
-              </span>
+              {!hasPortfolioTotal ? (
+                <span className="font-display text-sm font-semibold uppercase tracking-[0.16em] text-text-soft sm:text-base">
+                  {unit}
+                </span>
+              ) : null}
             </p>
-            <p className={clsx("mt-1.5 text-xs text-text-soft transition-[filter] duration-base sm:text-sm", hiddenClass)}>
-              <UsdHint
-                amount={BigInt(Math.round(totalLamports))}
-                smallestPerWhole={1_000_000_000n}
-                ticker="SOL"
-                variant="plain"
-                className="font-numerals tabular-nums"
-              />
-            </p>
+            {hasPortfolioTotal ? (
+              <ul className={clsx("mt-2 flex flex-wrap gap-1.5 transition-[filter] duration-base", hiddenClass)}>
+                {aggregate.chains.map((chain) => (
+                  <li
+                    key={chain.kind}
+                    className="inline-flex items-baseline gap-1 rounded-full border border-border-soft bg-canvas px-2 py-0.5"
+                  >
+                    <span className="font-numerals text-xs font-semibold text-text-strong tabular-nums">
+                      {chain.amount}
+                    </span>
+                    <span className="font-display text-[9px] font-semibold uppercase tracking-[0.14em] text-text-soft">
+                      {chain.ticker}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className={clsx("mt-1.5 text-xs text-text-soft transition-[filter] duration-base sm:text-sm", hiddenClass)}>
+                <UsdHint
+                  amount={BigInt(Math.round(totalLamports))}
+                  smallestPerWhole={1_000_000_000n}
+                  ticker="SOL"
+                  variant="plain"
+                  className="font-numerals tabular-nums"
+                />
+              </p>
+            )}
           </>
         )}
 
-        <div className="mt-4 flex items-center justify-between gap-3 sm:mt-5">
+        {selectedSurface ? (
+          <div className="mt-4 flex items-center justify-between gap-3 sm:mt-5">
           <p className="min-w-0 truncate font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft sm:text-[11px]">
-            {selectedSurface ? surfaceCopy.footer : "ClearSig - all products"}
+            {surfaceCopy.footer}
           </p>
           <Link
-            href={selectedSurface ? productSetupHref(selectedSurface) : "/choose"}
+            href={productSetupHref(selectedSurface)}
             className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full bg-accent px-3 text-[11px] font-semibold text-text-on-accent shadow-accent-rest transition-[background-color,transform,box-shadow] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-accent-hover hover:shadow-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
           >
             <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-            {selectedSurface ? surfaceCopy.cta : "Choose product"}
+            {surfaceCopy.cta}
           </Link>
-        </div>
+          </div>
+        ) : null}
         </div>
         {selectedSurface ? (
           <ProductDashboardVisual surface={selectedSurface} />
