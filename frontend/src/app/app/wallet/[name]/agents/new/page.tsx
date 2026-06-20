@@ -105,7 +105,7 @@ export default function NewAgentPage() {
         </Link>
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-            Trader Profile · {display}
+            Trader Profile Â· {display}
           </p>
           <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
             {advanced ? "Connect an outside trader" : "Create your own trader"}
@@ -113,7 +113,7 @@ export default function NewAgentPage() {
         </div>
       </header>
 
-      <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
+      <section className="rounded-card bg-surface-raised p-5 shadow-card-rest sm:p-6">
         <div className="mb-5 flex items-start gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
             <Bot className="h-4 w-4" aria-hidden="true" strokeWidth={1.75} />

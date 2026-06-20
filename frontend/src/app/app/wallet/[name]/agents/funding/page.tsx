@@ -57,7 +57,7 @@ export default function AgentFundingPage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Budget · {display}
+              Budget Â· {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
               Set budgets by performance
@@ -126,7 +126,7 @@ export default function AgentFundingPage() {
             <FundingCard key={item.agent.id} item={item} walletEncoded={encoded} />
           ))
         ) : (
-          <div className="rounded-card border border-dashed border-border-soft bg-surface-raised p-6">
+          <div className="rounded-card bg-surface-raised p-6">
             <p className="text-sm font-semibold text-text-strong">
               No traders need budgets yet
             </p>
@@ -157,7 +157,7 @@ function FundingCard({
   const statusTone = actionTone(item.action);
   const active = Boolean(item.currentSession);
   return (
-    <article className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+    <article className="rounded-card bg-surface-raised p-4 shadow-card-rest">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <span className={clsx("flex h-10 w-10 shrink-0 items-center justify-center rounded-full", statusTone.icon)}>
@@ -303,7 +303,7 @@ function Metric({
   highlight?: boolean;
 }) {
   return (
-    <div className="rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest">
+    <div className="rounded-card bg-surface-raised p-3 shadow-card-rest">
       <div className="flex items-center justify-between gap-2">
         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-soft">
           {label}

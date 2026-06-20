@@ -161,7 +161,7 @@ export default function HyperliquidSetupPage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Venue · {display}
+              Venue Â· {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
               Hyperliquid testnet setup
@@ -177,7 +177,7 @@ export default function HyperliquidSetupPage() {
         </div>
       </header>
 
-      <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
+      <section className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -199,7 +199,7 @@ export default function HyperliquidSetupPage() {
         </div>
 
         <div className="mt-5 grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="rounded-card border border-border-soft bg-canvas p-4">
+          <div className="rounded-card bg-canvas p-4">
             <label
               htmlFor="hyperliquid-account"
               className="text-xs font-semibold text-text-strong"
@@ -266,7 +266,7 @@ export default function HyperliquidSetupPage() {
                 href={`/app/wallet/${encoded}/agents/policy?venue=hyperliquid_testnet`}
                 className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
               >
-                Safety
+                Safety rules
                 <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
               </Link>
             </div>
@@ -280,7 +280,7 @@ export default function HyperliquidSetupPage() {
         </div>
       </section>
 
-      <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <section className="rounded-card bg-surface-raised p-4 shadow-card-rest">
         <div className="flex items-start gap-3">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
           <div className="min-w-0">
@@ -292,12 +292,12 @@ export default function HyperliquidSetupPage() {
         <div className="mt-4 grid gap-2 md:grid-cols-4">
           <MiniMetric label="Funds live in" value="Hyperliquid account" />
           <MiniMetric label="Signer identity" value="Approved API wallet" />
-          <MiniMetric label="Limits enforced by" value="Safety checks" />
+          <MiniMetric label="Limits enforced by" value="ClearSig policy" />
           <MiniMetric label="Private key location" value="Protected executor" />
         </div>
       </section>
 
-      <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <section className="rounded-card bg-surface-raised p-4 shadow-card-rest">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="text-sm font-semibold text-text-strong">
@@ -392,7 +392,7 @@ export default function HyperliquidSetupPage() {
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[1fr_0.95fr]">
-        <div className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+        <div className="rounded-card bg-surface-raised p-4 shadow-card-rest">
           <div className="flex items-start gap-3">
             <WalletCards className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
             <div>
@@ -425,14 +425,14 @@ export default function HyperliquidSetupPage() {
                 </div>
               ))
             ) : (
-              <div className="rounded-card border border-dashed border-border-soft bg-canvas p-5 text-sm text-text-soft">
+              <div className="rounded-card bg-canvas p-5 text-sm text-text-soft">
                 No Hyperliquid testnet positions are open right now.
               </div>
             )}
           </div>
         </div>
 
-        <div className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+        <div className="rounded-card bg-surface-raised p-4 shadow-card-rest">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-start gap-3">
               <Server
@@ -496,7 +496,7 @@ function SetupStepRow({ step }: { step: AgentHyperliquidSetupStep }) {
   return (
     <div
       className={clsx(
-        "rounded-card border p-3",
+        "rounded-card p-3",
         ready
           ? "border-accent/30 bg-accent/[0.07]"
           : blocked
@@ -580,7 +580,7 @@ function Metric({
   highlight?: boolean;
 }) {
   return (
-    <div className="rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest">
+    <div className="rounded-card bg-surface-raised p-3 shadow-card-rest">
       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-soft">
         {label}
       </p>

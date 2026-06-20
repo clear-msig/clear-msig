@@ -549,7 +549,7 @@ export default function AgentConnectionPage() {
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
           Agent Trading
         </Link>
-        <div className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest">
+        <div className="rounded-card bg-surface-raised p-6 shadow-card-rest">
           <p className="text-sm font-semibold text-text-strong">Trader not found</p>
           <p className="mt-1 text-sm text-text-soft">
             This trader may have been removed.
@@ -572,7 +572,7 @@ export default function AgentConnectionPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Connect Trader · {display}
+              Connect Trader Â· {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
               Connect {agent.name}
@@ -589,7 +589,7 @@ export default function AgentConnectionPage() {
         </div>
       </header>
 
-      <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
+      <section className="rounded-card bg-surface-raised p-5 shadow-card-rest sm:p-6">
         <div className="mb-5 flex items-start gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
             <Plug className="h-4 w-4" aria-hidden="true" />
@@ -668,7 +668,7 @@ export default function AgentConnectionPage() {
         </div>
       </section>
 
-      <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
+      <section className="rounded-card bg-surface-raised p-5 shadow-card-rest sm:p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-text-strong">New trade ideas</p>
@@ -730,7 +730,7 @@ export default function AgentConnectionPage() {
         )}
       </section>
 
-      <details className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
+      <details className="rounded-card bg-surface-raised p-5 shadow-card-rest sm:p-6">
         <summary className="cursor-pointer text-sm font-semibold text-text-strong">
           Try a sample idea yourself
         </summary>
@@ -802,7 +802,7 @@ function InboxSignalRow({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold text-text-strong">
-              {item.payload.market} · {item.payload.side}
+              {item.payload.market} Â· {item.payload.side}
             </p>
             <span className="rounded-full border border-border-soft px-1.5 py-0.5 text-[10px] font-medium text-text-soft">
               {item.payload.venue}
@@ -810,7 +810,7 @@ function InboxSignalRow({
             <RiskBadge preview={preview} />
           </div>
           <p className="mt-1 text-xs text-text-soft">
-            ${item.payload.notionalUsd} · {item.payload.leverage}x · Arrived{" "}
+            ${item.payload.notionalUsd} Â· {item.payload.leverage}x Â· Arrived{" "}
             {new Date(item.receivedAt).toLocaleString()}
           </p>
           {item.payload.thesis ? (

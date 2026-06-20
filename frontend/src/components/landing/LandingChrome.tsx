@@ -19,9 +19,15 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import clsx from "clsx";
-import { Menu, X } from "lucide-react";
+import { ArrowRight, ChevronDown, Menu, X } from "lucide-react";
 import { BrandMark } from "@/components/retail/BrandMark";
 import { ThemeModeButton } from "@/components/security/ThemeModeButton";
+import {
+  productSurfaceById,
+  type ProductSurface,
+  type ProductSurfaceId,
+} from "@/lib/productSurfaces";
+import { PRODUCT_SURFACE_ICON } from "@/lib/productIcons";
 
 const NAV_ITEMS: {
   href: string;
@@ -30,13 +36,25 @@ const NAV_ITEMS: {
   tag?: string;
 }[] = [
   { href: "/", label: "Home" },
-  { href: "/#bento", label: "Product" },
   { href: "/#why", label: "Why Clear" },
   { href: "/#methodology", label: "How it works" },
-  { href: "/#agents", label: "Agents", tag: "NEW" },
-  { href: "/#secure", label: "Secure", tag: "NEW" },
-  { href: "https://github.com/clear-msig/clear-msig", label: "GitHub", external: true },
 ];
+
+const NAV_PRODUCT_IDS: ProductSurfaceId[] = [
+  "personal",
+  "pro",
+  "agent",
+  "secure",
+  "p2pdefi",
+];
+
+const NAV_PRODUCTS = NAV_PRODUCT_IDS.map((id) => {
+  const surface = productSurfaceById(id);
+  return {
+    surface,
+    href: id === "p2pdefi" ? surface.path : surface.ctaHref,
+  };
+});
 
 export function LandingAtmospherics() {
   return (
@@ -83,6 +101,8 @@ export function LandingNav({
   status,
 }: LandingNavProps = {}) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [productOpen, setProductOpen] = useState(false);
+  const [mobileProductsOpen, setMobileProductsOpen] = useState(false);
   // Scroll-driven nav state. Above the threshold, nav stays roomy
   // and transparent (sits over the hero); past it, the nav becomes
   // a thin glass band - tighter padding, backdrop blur, soft border.
@@ -111,24 +131,39 @@ export function LandingNav({
 
   // Close-on-Escape + body scroll lock while the mobile menu is open.
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!menuOpen && !productOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMenuOpen(false);
+      if (e.key === "Escape") {
+        setMenuOpen(false);
+        setProductOpen(false);
+      }
     };
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    if (menuOpen) document.body.style.overflow = "hidden";
     return () => {
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
-  }, [menuOpen]);
+  }, [menuOpen, productOpen]);
 
   // Close-on-route-change. Without this, tapping a hash link inside
   // the open panel would scroll under the still-visible scrim. The
   // ref tracks the menu surface so a click that DOES land on a link
   // (which we can't intercept in a Next.js Link) closes the panel.
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const productRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!productOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!productRef.current?.contains(event.target as Node)) {
+        setProductOpen(false);
+      }
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, [productOpen]);
 
   return (
     <>
@@ -163,7 +198,10 @@ export function LandingNav({
           href="/"
           aria-label="Clear home"
           className="group flex items-center gap-3"
-          onClick={() => setMenuOpen(false)}
+          onClick={() => {
+            setMenuOpen(false);
+            setProductOpen(false);
+          }}
         >
           <span className="inline-flex items-center justify-center transition-transform duration-300 group-hover:scale-105">
             <BrandMark size={36} />
@@ -173,9 +211,54 @@ export function LandingNav({
           </span>
         </Link>
 
-        {/* Desktop pill nav. */}
-        <div className="glass hidden items-center gap-1 rounded-full px-2 py-2 md:flex">
-          {NAV_ITEMS.map((item) => (
+        {/* Desktop nav. Product opens the actual chooser list. */}
+        <div className="hidden items-center gap-1 rounded-full bg-white/[0.035] px-2 py-2 shadow-[0_18px_60px_-28px_rgba(0,0,0,0.65)] backdrop-blur-xl md:flex">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[13px] text-white/70 transition-colors duration-200 hover:bg-white/[0.06] hover:text-white"
+          >
+            Home
+          </Link>
+
+          <div
+            ref={productRef}
+            className="relative"
+            onMouseEnter={() => setProductOpen(true)}
+            onMouseLeave={() => setProductOpen(false)}
+          >
+            <button
+              type="button"
+              onClick={() => setProductOpen((value) => !value)}
+              aria-expanded={productOpen}
+              aria-controls="landing-product-menu"
+              className={clsx(
+                "inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[13px] transition-colors duration-200 hover:bg-white/[0.06] hover:text-white",
+                productOpen ? "bg-white/[0.07] text-white" : "text-white/70",
+              )}
+            >
+              Product
+              <ChevronDown
+                className={clsx(
+                  "h-3.5 w-3.5 transition-transform duration-300",
+                  productOpen && "rotate-180",
+                )}
+                aria-hidden="true"
+                strokeWidth={2.2}
+              />
+            </button>
+
+            <AnimatePresence>
+              {productOpen && (
+                <ProductDropdown
+                  id="landing-product-menu"
+                  products={NAV_PRODUCTS}
+                  onNavigate={() => setProductOpen(false)}
+                />
+              )}
+            </AnimatePresence>
+          </div>
+
+          {NAV_ITEMS.slice(1).map((item) => (
             <Link
               key={item.label}
               href={item.href}
@@ -203,7 +286,6 @@ export function LandingNav({
               </span>
             </div>
           )}
-          <ThemeModeButton className="hidden border-white/10 bg-white/[0.04] text-white/75 hover:border-white/30 hover:bg-white/[0.08] hover:text-white md:inline-flex" />
           {/* CTA shows from md+ only. On mobile the same link lives
               inside the menu panel so the navbar stays clean. */}
           {cta && (
@@ -220,7 +302,10 @@ export function LandingNav({
               the same visual register as the rest of the chrome. */}
           <button
             type="button"
-            onClick={() => setMenuOpen((v) => !v)}
+            onClick={() => {
+              setMenuOpen((v) => !v);
+              setProductOpen(false);
+            }}
             aria-label={menuOpen ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen}
             aria-controls="landing-mobile-menu"
@@ -277,24 +362,74 @@ export function LandingNav({
                     Menu
                   </span>
                 )}
-                <div className="flex items-center gap-2">
-                  <ThemeModeButton className="border-white/10 bg-white/[0.04] text-white/75 hover:border-white/30 hover:bg-white/[0.08] hover:text-white" />
-                  {/* Explicit close button inside the panel - clearer
-                      affordance than relying on the hamburger toggle
-                      behind the open panel. */}
-                  <button
-                    type="button"
-                    onClick={() => setMenuOpen(false)}
-                    aria-label="Close menu"
-                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-white/80 transition-colors duration-200 hover:border-white/30 hover:text-white"
-                  >
-                    <X size={16} strokeWidth={2.2} />
-                  </button>
-                </div>
+                {/* Explicit close button inside the panel - clearer
+                    affordance than relying on the hamburger toggle
+                    behind the open panel. */}
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen(false)}
+                  aria-label="Close menu"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-white/80 transition-colors duration-200 hover:border-white/30 hover:text-white"
+                >
+                  <X size={16} strokeWidth={2.2} />
+                </button>
               </div>
 
               <ul className="flex flex-col py-2">
-                {NAV_ITEMS.map((item) => (
+                <li>
+                  <Link
+                    href="/"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center justify-between gap-3 px-5 py-3.5 text-[15px] font-medium text-white/85 transition-colors duration-200 hover:bg-white/[0.05] hover:text-white"
+                  >
+                    <span>Home</span>
+                    <ArrowRight className="h-4 w-4 text-white/30" aria-hidden="true" />
+                  </Link>
+                </li>
+
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => setMobileProductsOpen((value) => !value)}
+                    className="flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left text-[15px] font-medium text-white/85 transition-colors duration-200 hover:bg-white/[0.05] hover:text-white"
+                    aria-expanded={mobileProductsOpen}
+                    aria-controls="landing-mobile-products"
+                  >
+                    <span>Product</span>
+                    <ChevronDown
+                      className={clsx(
+                        "h-4 w-4 text-white/40 transition-transform duration-300",
+                        mobileProductsOpen && "rotate-180 text-[#ccff00]",
+                      )}
+                      aria-hidden="true"
+                    />
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {mobileProductsOpen && (
+                      <motion.div
+                        id="landing-mobile-products"
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mx-3 mb-2 grid gap-1 rounded-2xl bg-white/[0.035] p-2">
+                          {NAV_PRODUCTS.map(({ surface, href }) => (
+                            <ProductMenuLink
+                              key={surface.id}
+                              surface={surface}
+                              href={href}
+                              onClick={() => setMenuOpen(false)}
+                            />
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </li>
+
+                {NAV_ITEMS.slice(1).map((item) => (
                   <li key={item.label}>
                     <Link
                       href={item.href}
@@ -311,7 +446,8 @@ export function LandingNav({
                           </span>
                         )}
                       </span>
-                      <span className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/30">
+                      <ArrowRight className="h-4 w-4 text-white/30" aria-hidden="true" />
+                      <span className="hidden font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/30">
                         {item.external ? "↗" : "→"}
                       </span>
                     </Link>
@@ -335,5 +471,90 @@ export function LandingNav({
         )}
       </AnimatePresence>
     </>
+  );
+}
+
+function ProductDropdown({
+  id,
+  products,
+  onNavigate,
+}: {
+  id: string;
+  products: { surface: ProductSurface; href: string }[];
+  onNavigate: () => void;
+}) {
+  return (
+    <motion.div
+      id={id}
+      role="menu"
+      initial={{ opacity: 0, x: "-50%", y: 12, scale: 0.96, filter: "blur(8px)" }}
+      animate={{ opacity: 1, x: "-50%", y: 0, scale: 1, filter: "blur(0px)" }}
+      exit={{ opacity: 0, x: "-50%", y: 8, scale: 0.97, filter: "blur(6px)" }}
+      transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+      className="absolute left-1/2 top-[calc(100%+0.7rem)] z-50 w-[min(92vw,24rem)] overflow-hidden rounded-[1.5rem] bg-[#0c0c0c]/100 p-4 shadow-[0_28px_80px_-24px_rgba(0,0,0,0.9)] ring-1 ring-white/[0.08] backdrop-blur-2xl"
+    >
+      <div className="px-1 pb-3">
+      </div>
+      <div className="grid gap-2">
+        {products.map(({ surface, href }, index) => (
+          <motion.div
+            key={surface.id}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22, delay: index * 0.035 }}
+          >
+            <ProductMenuLink
+              surface={surface}
+              href={href}
+              onClick={onNavigate}
+            />
+          </motion.div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+function ProductMenuLink({
+  surface,
+  href,
+  onClick,
+}: {
+  surface: ProductSurface;
+  href: string;
+  onClick: () => void;
+}) {
+  const Icon = PRODUCT_SURFACE_ICON[surface.id];
+
+  return (
+    <Link
+      href={href}
+      role="menuitem"
+      onClick={onClick}
+      className="group flex items-center gap-3 rounded-[1.05rem] px-1 py-2.5 text-left transition-colors duration-200 hover:bg-white/[0.045] focus-visible:bg-white/[0.055] focus-visible:outline-none"
+    >
+      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/[0.055] text-white/72 transition-colors duration-200 group-hover:bg-[#ccff00] group-hover:text-black">
+        <Icon className="h-[18px] w-[18px]" aria-hidden="true" strokeWidth={1.9} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-white">
+            {surface.shortName}
+          </span>
+          {surface.status === "planned" ? (
+            <span className="rounded-full bg-white/[0.06] px-2 py-0.5 font-mono-tech text-[8px] uppercase tracking-[0.18em] text-white/42">
+              Soon
+            </span>
+          ) : null}
+        </span>
+        <span className="mt-0.5 block truncate text-xs text-white/46">
+          {surface.eyebrow}
+        </span>
+      </span>
+      <ArrowRight
+        className="h-4 w-4 shrink-0 text-white/26 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-[#ccff00]"
+        aria-hidden="true"
+      />
+    </Link>
   );
 }

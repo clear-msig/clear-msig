@@ -252,7 +252,7 @@ export default function NewAgentProposalPage() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <header className="flex flex-col gap-2">
         <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-          Decision Journal · {display}
+          Decision Journal Â· {display}
         </p>
         <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
           Try a trade idea
@@ -263,7 +263,7 @@ export default function NewAgentProposalPage() {
         </p>
       </header>
 
-      <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
+      <section className="rounded-card bg-surface-raised p-5 shadow-card-rest sm:p-6">
         <div className="mb-5 flex items-start gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
             <BrainCircuit className="h-4 w-4" aria-hidden="true" strokeWidth={1.75} />
@@ -371,7 +371,7 @@ export default function NewAgentProposalPage() {
             />
           </label>
 
-          <fieldset className="grid gap-3 rounded-card border border-border-soft bg-canvas p-3 sm:grid-cols-2">
+          <fieldset className="grid gap-3 rounded-card bg-canvas p-3 sm:grid-cols-2">
             <legend className="px-1 text-xs font-semibold text-text-strong">
               Research notes
             </legend>
