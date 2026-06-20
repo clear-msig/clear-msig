@@ -29,17 +29,7 @@ import { useDynamicContext, useUserWallets } from "@dynamic-labs/sdk-react-core"
 import { isSolanaWallet } from "@dynamic-labs/solana-core";
 import { createSolanaConnection } from "@/lib/solana/cluster";
 import { useLedger } from "@/lib/wallet/LedgerProvider";
-
-function walletConnectorId(wallet: unknown): string {
-  const c = (wallet as {
-    connector?: { key?: string; name?: string; overrideKey?: string };
-  })?.connector;
-  return (c?.key ?? c?.overrideKey ?? c?.name ?? "").toLowerCase();
-}
-
-function isCompatibleEmbeddedWallet(wallet: unknown): boolean {
-  return /turnkey/.test(walletConnectorId(wallet));
-}
+import { selectSolanaWallet, walletConnectorId } from "@/lib/wallet/selection";
 
 /// Drop-in replacement for `useWallet()` from @solana/wallet-adapter-react.
 /// Returns a Solana wallet view derived from Dynamic's primary wallet,
@@ -62,15 +52,7 @@ export function useWallet() {
   // Solana wallet the user has minted (e.g. they logged in via email,
   // primary is EVM, but a Solana embedded wallet was also minted).
   const solanaWallet = useMemo(() => {
-    const compatible = allWallets.find(
-      (w) => w && isSolanaWallet(w) && isCompatibleEmbeddedWallet(w),
-    );
-    if (compatible) return compatible;
-    if (primaryWallet && isSolanaWallet(primaryWallet)) {
-      return primaryWallet;
-    }
-    const anySolana = allWallets.find((w) => w && isSolanaWallet(w));
-    return anySolana ?? null;
+    return selectSolanaWallet(primaryWallet, allWallets, isSolanaWallet);
   }, [primaryWallet, allWallets]);
 
   const dynamicPublicKey = useMemo(() => {

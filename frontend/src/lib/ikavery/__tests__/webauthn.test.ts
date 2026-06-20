@@ -13,6 +13,7 @@ describe("WebAuthn availability", () => {
     expect(
       detectWebauthnAvailability({
         isSecureContext: true,
+        hasCredentialsCreate: true,
         hasCredentialsGet: false,
       }),
     ).toEqual({
@@ -25,8 +26,22 @@ describe("WebAuthn availability", () => {
     expect(
       detectWebauthnAvailability({
         isSecureContext: true,
+        hasCredentialsCreate: true,
         hasCredentialsGet: true,
       }),
     ).toEqual({ ok: true });
+  });
+
+  it("requires credential creation for passkey enrollment", () => {
+    expect(
+      detectWebauthnAvailability({
+        isSecureContext: true,
+        hasCredentialsCreate: false,
+        hasCredentialsGet: true,
+      }),
+    ).toEqual({
+      ok: false,
+      reason: "unavailable",
+    });
   });
 });
