@@ -75,10 +75,13 @@ import {
 } from "@/lib/retail/labels";
 import { proposerDisplayName } from "@/lib/retail/proposerName";
 import { formatBalance } from "@/lib/retail/format";
+import { formatChainBalance } from "@/lib/balances";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
 import { UsdHint } from "@/components/retail/UsdHint";
 import { getWalletAppearance } from "@/lib/retail/walletAppearance";
+import { useWalletPortfolio } from "@/lib/hooks/useWalletPortfolio";
+import { chainByKind } from "@/lib/retail/chains";
 import {
   productWorkspaceHomeHref,
   productWorkspaceLabel,
@@ -247,7 +250,8 @@ function WalletDashboardContent() {
   }, [recent.pendingByWallet, selectedSurface, visibleWallets]);
   const filteredPendingCount = filteredActionRows.length;
 
-  const showStats = !hasError && !isFirstVisit && visibleWallets.length > 0;
+  const showStats =
+    !selectedSurface && !hasError && !isFirstVisit && visibleWallets.length > 0;
   const showRecent = !isFirstVisit && filteredRecentRows.length > 0;
   const showWatched = !hasError && selectedSurface === null;
 
@@ -387,7 +391,7 @@ function WalletDashboardShell() {
 // Compact left-aligned page header. Replaces the previous centered
 // "Welcome back" block - same identity cue (small kicker + title)
 // but reclaims the vertical room for the stats and action-needed
-// blocks below. The dynamic summary line ("3 wallets Â· 2 need your
+// blocks below. The dynamic summary line ("3 wallets - 2 need your
 // approval") gives a returning user a useful one-line status before
 // any cards have rendered.
 
@@ -409,7 +413,7 @@ function Hero({
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
 
   const summary = (() => {
-    if (loading) return "Loading your walletsâ€¦";
+    if (loading) return "Loading your wallets...";
     if (selectedSurface && walletCount === 0) {
       return `No ${productWorkspaceLabel(selectedSurface).toLowerCase()} yet.`;
     }
@@ -418,9 +422,9 @@ function Hero({
       ? productWorkspaceLabel(selectedSurface).toLowerCase()
       : "wallet";
     const w = `${walletCount} ${walletCount === 1 ? noun : `${noun}s`}`;
-    if (pendingCount === 0) return `${w} Â· all caught up`;
+    if (pendingCount === 0) return `${w} - all caught up`;
     const p = `${pendingCount} ${pendingCount === 1 ? "needs" : "need"} your approval`;
-    return `${w} Â· ${p}`;
+    return `${w} - ${p}`;
   })();
   const title = selectedSurface
     ? productWorkspaceLabel(selectedSurface)
@@ -1180,7 +1184,7 @@ function WalletsGrid({
       <div className="flex items-center justify-between gap-3">
         <SectionLabel>
           {selectedSurface
-            ? `${productSurfaceById(selectedSurface).shortName} workspaces`
+            ? productSurfaceById(selectedSurface).shortName
             : "Your wallets"}
         </SectionLabel>
         {canStack && !loading ? (
@@ -1293,6 +1297,7 @@ function WalletsGrid({
                     // which read as jank on slow networks.
                     delay={reduce ? 0 : Math.min(i, 4) * 0.02}
                     reduce={reduce}
+                    selectedSurface={selectedSurface}
                   />
                 </motion.div>
               );
@@ -1324,6 +1329,7 @@ interface WalletCardProps {
   loadingBalance: boolean;
   delay: number;
   reduce: boolean;
+  selectedSurface: WalletProductSurface | null;
 }
 
 function WalletCard({
@@ -1333,6 +1339,7 @@ function WalletCard({
   loadingBalance,
   delay,
   reduce,
+  selectedSurface,
 }: WalletCardProps) {
   const onChainName = membership.wallet_name ?? "Wallet";
   // The on-chain name carries a creator-derived suffix to keep PDAs
@@ -1342,8 +1349,37 @@ function WalletCard({
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
-  const balance =
+  const solBalance =
     balanceLamports !== null ? formatBalance(balanceLamports) : null;
+  const portfolio = useWalletPortfolio(onChainName);
+  const portfolioBalance = useMemo(() => {
+    const row =
+      portfolio.breakdown.find(
+        (chain) => chain.kind !== 0 && chain.raw !== null && chain.raw > 0n,
+      ) ??
+      portfolio.breakdown.find(
+        (chain) => chain.kind === 0 && chain.raw !== null && chain.raw > 0n,
+      ) ??
+      portfolio.breakdown.find(
+        (chain) => chain.kind !== 0 && chain.raw !== null,
+      );
+    if (!row || row.raw === null) return null;
+    const meta = chainByKind(row.kind);
+    if (!meta) return null;
+    const amount = formatChainBalance(
+      row.raw,
+      meta.smallestPerWhole,
+      meta.displayDecimals,
+    );
+    if (!amount) return null;
+    return {
+      amount,
+      raw: row.raw,
+      smallestPerWhole: meta.smallestPerWhole,
+      ticker: meta.ticker,
+    };
+  }, [portfolio.breakdown]);
+  const balance = portfolioBalance ?? solBalance;
   const surface = resolveWalletProductSurface(onChainName);
   const homeHref = productWorkspaceHomeHref(onChainName, surface);
   const productLabel = surface ? productWorkspaceLabel(surface) : null;
@@ -1399,7 +1435,7 @@ function WalletCard({
               <p className="font-display text-lg text-text-strong sm:text-xl">
                 <span className="truncate">{name}</span>
               </p>
-              {loadingBalance && balance === null ? (
+              {(portfolio.isLoading || loadingBalance) && balance === null ? (
                 <div className="mt-1 h-5 w-20 animate-pulse rounded bg-border-soft" />
               ) : (
                 // Editorial-sans: JetBrains Mono numerals for the
@@ -1413,14 +1449,21 @@ function WalletCard({
                   <span className="font-display text-[11px] font-semibold uppercase tracking-[0.16em] text-text-soft">
                     {balance?.ticker ?? "SOL"}
                   </span>
-                  {balanceLamports !== null && balanceLamports > 0 && (
+                  {portfolioBalance && portfolioBalance.raw > 0n ? (
+                    <UsdHint
+                      amount={portfolioBalance.raw}
+                      smallestPerWhole={portfolioBalance.smallestPerWhole}
+                      ticker={portfolioBalance.ticker}
+                      className="text-[11px] text-text-soft tabular-nums"
+                    />
+                  ) : balanceLamports !== null && balanceLamports > 0 ? (
                     <UsdHint
                       amount={BigInt(Math.round(balanceLamports))}
                       smallestPerWhole={1_000_000_000n}
                       ticker="SOL"
                       className="text-[11px] text-text-soft tabular-nums"
                     />
-                  )}
+                  ) : null}
                 </p>
               )}
             </div>
@@ -1430,7 +1473,7 @@ function WalletCard({
             aria-hidden="true"
           />
         </div>
-        {productLabel ? (
+        {!selectedSurface && productLabel ? (
           <span className="inline-flex self-start rounded-full border border-border-soft bg-canvas px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-soft">
             {productLabel}
           </span>
@@ -1586,7 +1629,7 @@ function ActivityRow({ row }: { row: RecentActivityRow }) {
             <span>{toDisplayName(row.walletName)}</span>
             <span aria-hidden="true" className="mx-1.5 text-text-soft">/</span>
             <span className={statusTextColor(row.status)}>{friendlyStatus(row.status, row.intentTemplate)}</span>
-            <span aria-hidden="true" className="mx-1.5 text-text-soft">Â·</span>
+            <span aria-hidden="true" className="mx-1.5 text-text-soft">-</span>
             <span>{time}</span>
           </p>
         </div>
@@ -1731,7 +1774,7 @@ function WatchedWalletsSection({
                 "disabled:cursor-not-allowed disabled:opacity-50"
               }
             >
-              {busy ? "Addingâ€¦" : "Watch"}
+              {busy ? "Adding..." : "Watch"}
             </button>
           </form>
           {err && (
@@ -1746,7 +1789,7 @@ function WatchedWalletsSection({
         <ul className="mt-3 flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
           {loading && rows.length === 0 ? (
             <li className="px-5 py-3 text-xs text-text-soft">
-              Loading watched walletsâ€¦
+              Loading watched wallets...
             </li>
           ) : (
             rows.map((m) => {

@@ -21,10 +21,7 @@
 
 import { Connection, PublicKey } from "@solana/web3.js";
 import type { ChainBindingResponse } from "@/lib/api/types";
-import {
-  detectBitcoinNetwork,
-  fetchBitcoinBalance,
-} from "@/lib/chain/btc";
+import { fetchBitcoinAddressSnapshot } from "@/lib/chain/btc";
 import { fetchZcashBalance } from "@/lib/chain/zcash";
 
 export interface ChainBalance {
@@ -77,29 +74,8 @@ export async function fetchChainBalance(
       const addr =
         binding.btc_p2wpkh_testnet ?? binding.btc_p2wpkh_mainnet ?? null;
       if (!addr) return null;
-      // `tb` HRP is shared between testnet3 and signet. Probe both to
-      // find which one the user actually funded. detectBitcoinNetwork
-      // short-circuits to "testnet" when both probes are empty, so a
-      // fresh wallet still resolves to a sensible default.
-      const network = await detectBitcoinNetwork(addr);
-      try {
-        const sats = await fetchBitcoinBalance(addr, network);
-        return { raw: sats, address: addr };
-      } catch {
-        // Keep the wallet home useful when one public explorer is flaky.
-        // Testnet BTC users should see a numeric balance state instead of
-        // the harsher "Balance unavailable" fallback.
-        for (const fallback of ["testnet", "signet"] as const) {
-          if (fallback === network) continue;
-          try {
-            const sats = await fetchBitcoinBalance(addr, fallback);
-            return { raw: sats, address: addr };
-          } catch {
-            // try the next public test network endpoint
-          }
-        }
-        return { raw: 0n, address: addr };
-      }
+      const snapshot = await fetchBitcoinAddressSnapshot(addr);
+      return { raw: snapshot.balanceSats, address: addr };
     }
     case 3: {
       const addr =
