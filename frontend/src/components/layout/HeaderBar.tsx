@@ -285,13 +285,13 @@ export function HeaderBar() {
           pointer-events-none lets clicks fall through to the
           back/scan/settings buttons. */}
       {showTitle && !isHome && (
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center md:hidden">
+        <div className="pointer-events-none absolute left-14 right-[9.5rem] top-1/2 flex -translate-y-1/2 justify-center sm:right-40 md:hidden">
           <motion.h1
             key={pageTitle}
             initial={{ opacity: 0, y: -3 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-            className="max-w-[55vw] truncate text-base font-semibold tracking-tight text-text-strong"
+            className="max-w-full truncate text-base font-semibold tracking-tight text-text-strong"
           >
             {pageTitle}
           </motion.h1>

@@ -1352,34 +1352,39 @@ function WalletCard({
   const solBalance =
     balanceLamports !== null ? formatBalance(balanceLamports) : null;
   const portfolio = useWalletPortfolio(onChainName);
-  const portfolioBalance = useMemo(() => {
-    const row =
-      portfolio.breakdown.find(
-        (chain) => chain.kind !== 0 && chain.raw !== null && chain.raw > 0n,
-      ) ??
-      portfolio.breakdown.find(
-        (chain) => chain.kind === 0 && chain.raw !== null && chain.raw > 0n,
-      ) ??
-      portfolio.breakdown.find(
-        (chain) => chain.kind !== 0 && chain.raw !== null,
+  const portfolioBalances = useMemo(() => {
+    return portfolio.breakdown
+      .filter((chain) => chain.raw !== null && chain.raw > 0n)
+      .map((row) => {
+        const meta = chainByKind(row.kind);
+        if (!meta || row.raw === null) return null;
+        const amount = formatChainBalance(
+          row.raw,
+          meta.smallestPerWhole,
+          meta.displayDecimals,
+        );
+        if (!amount) return null;
+        return {
+          amount,
+          raw: row.raw,
+          smallestPerWhole: meta.smallestPerWhole,
+          ticker: meta.ticker,
+          kind: row.kind,
+        };
+      })
+      .filter(
+        (
+          row,
+        ): row is {
+          amount: string;
+          raw: bigint;
+          smallestPerWhole: bigint;
+          ticker: string;
+          kind: number;
+        } => row !== null,
       );
-    if (!row || row.raw === null) return null;
-    const meta = chainByKind(row.kind);
-    if (!meta) return null;
-    const amount = formatChainBalance(
-      row.raw,
-      meta.smallestPerWhole,
-      meta.displayDecimals,
-    );
-    if (!amount) return null;
-    return {
-      amount,
-      raw: row.raw,
-      smallestPerWhole: meta.smallestPerWhole,
-      ticker: meta.ticker,
-    };
   }, [portfolio.breakdown]);
-  const balance = portfolioBalance ?? solBalance;
+  const balance = portfolioBalances[0] ?? solBalance;
   const surface = resolveWalletProductSurface(onChainName);
   const homeHref = productWorkspaceHomeHref(onChainName, surface);
   const productLabel = surface ? productWorkspaceLabel(surface) : null;
@@ -1442,29 +1447,47 @@ function WalletCard({
                 // balance value, Manrope display caps for the ticker.
                 // Same currency-code treatment as /send/* and Hero
                 // single-chain balance - one shared pattern app-wide.
-                <p className={clsx("mt-1 flex items-baseline gap-1.5 transition-[filter] duration-base", hiddenClass)}>
-                  <span className="font-numerals text-base font-semibold text-text-strong tabular-nums">
-                    {balance ? balance.amount : "0"}
-                  </span>
-                  <span className="font-display text-[11px] font-semibold uppercase tracking-[0.16em] text-text-soft">
-                    {balance?.ticker ?? "SOL"}
-                  </span>
-                  {portfolioBalance && portfolioBalance.raw > 0n ? (
-                    <UsdHint
-                      amount={portfolioBalance.raw}
-                      smallestPerWhole={portfolioBalance.smallestPerWhole}
-                      ticker={portfolioBalance.ticker}
-                      className="text-[11px] text-text-soft tabular-nums"
-                    />
-                  ) : balanceLamports !== null && balanceLamports > 0 ? (
-                    <UsdHint
-                      amount={BigInt(Math.round(balanceLamports))}
-                      smallestPerWhole={1_000_000_000n}
-                      ticker="SOL"
-                      className="text-[11px] text-text-soft tabular-nums"
-                    />
-                  ) : null}
-                </p>
+                portfolioBalances.length > 1 ? (
+                  <ul className={clsx("mt-1 flex flex-wrap gap-1.5 transition-[filter] duration-base", hiddenClass)}>
+                    {portfolioBalances.map((item) => (
+                      <li
+                        key={item.kind}
+                        className="inline-flex items-baseline gap-1 rounded-full border border-border-soft bg-canvas px-2 py-0.5"
+                      >
+                        <span className="font-numerals text-xs font-semibold text-text-strong tabular-nums">
+                          {item.amount}
+                        </span>
+                        <span className="font-display text-[9px] font-semibold uppercase tracking-[0.14em] text-text-soft">
+                          {item.ticker}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className={clsx("mt-1 flex items-baseline gap-1.5 transition-[filter] duration-base", hiddenClass)}>
+                    <span className="font-numerals text-base font-semibold text-text-strong tabular-nums">
+                      {balance ? balance.amount : "0"}
+                    </span>
+                    <span className="font-display text-[11px] font-semibold uppercase tracking-[0.16em] text-text-soft">
+                      {balance?.ticker ?? "SOL"}
+                    </span>
+                    {portfolioBalances[0] ? (
+                      <UsdHint
+                        amount={portfolioBalances[0].raw}
+                        smallestPerWhole={portfolioBalances[0].smallestPerWhole}
+                        ticker={portfolioBalances[0].ticker}
+                        className="text-[11px] text-text-soft tabular-nums"
+                      />
+                    ) : balanceLamports !== null && balanceLamports > 0 ? (
+                      <UsdHint
+                        amount={BigInt(Math.round(balanceLamports))}
+                        smallestPerWhole={1_000_000_000n}
+                        ticker="SOL"
+                        className="text-[11px] text-text-soft tabular-nums"
+                      />
+                    ) : null}
+                  </p>
+                )
               )}
             </div>
           </div>

@@ -54,7 +54,7 @@ export function SendChainPicker({
       aria-label="Choose what to send"
       className="mb-4 rounded-card border border-border-soft bg-surface-raised p-2.5 shadow-card-rest sm:p-3"
     >
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="flex flex-col gap-2 md:flex-row md:overflow-x-auto md:pb-1">
         {visible.map((opt) => {
           const isActive = opt.chain.kind === activeKind;
           const href = sendHrefFor(walletName, opt.chain, opt.status);
@@ -62,7 +62,7 @@ export function SendChainPicker({
           const tile = (
             <span
               className={
-                "flex min-w-[8.75rem] items-center gap-2 rounded-soft border px-3 py-2 text-left " +
+                "flex w-full items-center gap-2 rounded-soft border px-3 py-2 text-left md:min-w-[8.75rem] " +
                 "transition-[border-color,background-color,transform] duration-base ease-out-soft " +
                 (disabled
                   ? "cursor-not-allowed opacity-60 border-border-soft bg-canvas"
@@ -98,6 +98,7 @@ export function SendChainPicker({
               key={opt.chain.kind}
               href={href}
               aria-current={isActive ? "page" : undefined}
+              className="block md:inline-block"
             >
               {tile}
             </Link>
@@ -113,7 +114,7 @@ export function SendChainPicker({
           href={addChainHref}
           aria-label="Turn on another asset"
           className={
-            "flex min-w-[8.75rem] items-center gap-2 rounded-soft border border-dashed border-border-soft bg-canvas px-3 py-2 text-left " +
+            "flex w-full items-center gap-2 rounded-soft border border-dashed border-border-soft bg-canvas px-3 py-2 text-left md:min-w-[8.75rem] " +
             "transition-[border-color,background-color,transform] duration-base ease-out-soft " +
             "hover:-translate-y-px hover:border-accent/40 hover:bg-accent/5 " +
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
