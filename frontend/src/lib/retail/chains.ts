@@ -106,6 +106,15 @@ export const CHAIN_CATALOG: readonly ChainMeta[] = [
   },
 ] as const;
 
+export const CHAIN_DISPLAY_ORDER = [0, 1, 2, 3, 5] as const;
+
+export function chainDisplayRank(kind: number): number {
+  const index = CHAIN_DISPLAY_ORDER.indexOf(
+    kind as (typeof CHAIN_DISPLAY_ORDER)[number],
+  );
+  return index === -1 ? CHAIN_DISPLAY_ORDER.length : index;
+}
+
 export function chainByKind(kind: number): ChainMeta | undefined {
   return CHAIN_CATALOG.find((c) => c.kind === kind);
 }

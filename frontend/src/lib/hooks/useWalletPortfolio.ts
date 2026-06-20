@@ -33,7 +33,11 @@ import { findVaultAddress } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
 import { useWalletChains } from "@/lib/hooks/useWalletChains";
 import { fetchChainBalance } from "@/lib/balances";
-import { CHAIN_CATALOG, chainByKind } from "@/lib/retail/chains";
+import {
+  CHAIN_CATALOG,
+  chainByKind,
+  chainDisplayRank,
+} from "@/lib/retail/chains";
 import { appConfig } from "@/lib/config";
 import { lamportsToUsd, quotePerWhole } from "@/lib/retail/priceConversion";
 import type { ChainBindingResponse } from "@/lib/api/types";
@@ -195,6 +199,10 @@ export function useWalletPortfolio(walletName: string): WalletPortfolio {
         usd,
       });
     }
+
+    breakdown.sort(
+      (a, b) => chainDisplayRank(a.kind) - chainDisplayRank(b.kind),
+    );
 
     const totalUsd = breakdown.reduce(
       (acc, c) => acc + (c.usd ?? 0),

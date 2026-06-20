@@ -28,6 +28,7 @@ import {
   Copy,
   ExternalLink,
   LogOut,
+  Palette,
   RefreshCw,
   ScanLine,
   ShieldCheck,
@@ -42,7 +43,6 @@ import { addressUrl } from "@/lib/explorer";
 import { avatarGradient } from "@/lib/retail/avatar";
 import { formatBalance } from "@/lib/retail/format";
 import { getSectionLabel, isSendRoute } from "@/lib/retail/sectionLabel";
-import { ThemeModeButton } from "@/components/security/ThemeModeButton";
 
 // Shared pill-button class used by every floating mobile chrome
 // affordance (back / scan / settings). Centralised so the three
@@ -88,7 +88,6 @@ export function HeaderBar() {
   const showTitle = inAppConnected;
   const showBrandPill = !inApp || !connected;
   const showScan = isSendRoute(pathname);
-  const showNotifications = inAppConnected;
   // Account shortcut - lives on the Settings page only. Settings
   // moved into the bottom nav, so Account becomes the
   // companion surface reachable from the Settings page header.
@@ -280,18 +279,18 @@ export function HeaderBar() {
       )}
 
       {/* OFF-HOME title - absolutely-centered text. Stays
-          geometrically centered regardless of how wide the back /
-          right clusters are, the way iOS / Android navbars do it.
+          centered in the safe space between the back button and the
+          right wallet menu, so narrow mobile pages never overlap.
           pointer-events-none lets clicks fall through to the
           back/scan/settings buttons. */}
       {showTitle && !isHome && (
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center md:hidden">
+        <div className="pointer-events-none absolute left-14 right-[9.5rem] top-1/2 flex -translate-y-1/2 justify-center sm:right-40 md:hidden">
           <motion.h1
             key={pageTitle}
             initial={{ opacity: 0, y: -3 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-            className="max-w-[55vw] truncate text-base font-semibold tracking-tight text-text-strong"
+            className="max-w-full truncate text-base font-semibold tracking-tight text-text-strong"
           >
             {pageTitle}
           </motion.h1>
@@ -303,11 +302,12 @@ export function HeaderBar() {
             • Scan     - on send routes
             • Account  - on the Settings page
             • Secure   - on the Home page only (recovery hub)
-            • Wallet   - on every connected /app/* route
+            • Wallet   - on every connected /app/* route. Notifications
+                          and theme live inside this menu on mobile.
           ml-auto pushes the cluster to the trailing edge, opposite
           the title / back button on the leading edge. */}
       <AnimatePresence>
-        {inAppConnected && (showScan || showAccount || showSecure || showNotifications || showWallet) && (
+        {inAppConnected && (showScan || showAccount || showSecure || showWallet) && (
           <motion.div
             initial={{ opacity: 0, x: 8 }}
             animate={{ opacity: 1, x: 0 }}
@@ -315,48 +315,7 @@ export function HeaderBar() {
             transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
             className="ml-auto flex items-center gap-2 md:hidden"
           >
-            <ThemeModeButton className="md:hidden" />
             <AnimatePresence>
-              {showNotifications && (
-                <motion.div
-                  key="notifications"
-                  initial={{ opacity: 0, scale: 0.92 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.92 }}
-                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                >
-                  <Link
-                    href="/app/notifications"
-                    aria-label={
-                      notifications.unreadCount > 0
-                        ? `Notifications (${notifications.unreadCount} unread)`
-                        : "Notifications"
-                    }
-                    className={clsx(
-                      "relative",
-                      MOBILE_HEADER_BTN,
-                      pathname.startsWith("/app/notifications") &&
-                        "border-accent/50 bg-accent/[0.08] text-accent",
-                    )}
-                  >
-                    <Bell size={18} />
-                    {notifications.unreadCount > 0 && (
-                      <span
-                        aria-hidden="true"
-                        className={clsx(
-                          "absolute -right-1 -top-1 inline-flex h-4 min-w-[1rem] items-center justify-center",
-                          "rounded-full bg-accent px-1 text-[10px] font-semibold leading-none text-text-on-accent",
-                          "ring-2 ring-canvas",
-                        )}
-                      >
-                        {notifications.unreadCount > 99
-                          ? "99+"
-                          : notifications.unreadCount}
-                      </span>
-                    )}
-                  </Link>
-                </motion.div>
-              )}
               {showScan && (
                 <motion.button
                   key="scan"
@@ -495,6 +454,31 @@ export function HeaderBar() {
                           />
                           Refresh balance
                         </button>
+                        <Link
+                          role="menuitem"
+                          href="/app/notifications"
+                          onClick={() => setWalletMenuOpen(false)}
+                          className={MOBILE_WALLET_MENU_ITEM_CLASS}
+                        >
+                          <Bell size={14} aria-hidden="true" />
+                          Notifications
+                          {notifications.unreadCount > 0 && (
+                            <span className="ml-auto rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-text-on-accent">
+                              {notifications.unreadCount > 99
+                                ? "99+"
+                                : notifications.unreadCount}
+                            </span>
+                          )}
+                        </Link>
+                        <Link
+                          role="menuitem"
+                          href="/app/settings#theme"
+                          onClick={() => setWalletMenuOpen(false)}
+                          className={MOBILE_WALLET_MENU_ITEM_CLASS}
+                        >
+                          <Palette size={14} aria-hidden="true" />
+                          Theme
+                        </Link>
                         <Link
                           role="menuitem"
                           href="/app/account"

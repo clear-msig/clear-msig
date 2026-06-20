@@ -17,7 +17,7 @@
 // The legacy wizard (CreateWalletCard, WalletPanel) and WorkflowTips
 // are intentionally NOT rendered here - they're being retired.
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import clsx from "clsx";
@@ -60,6 +60,11 @@ import {
   removeWatchedWallet,
 } from "@/lib/retail/watchedWallets";
 import { type RecentActivityRow } from "@/lib/hooks/useRecentActivity";
+import {
+  activityGroupTitle,
+  groupRecentActivityRows,
+  type RecentActivityGroup,
+} from "@/lib/retail/activityGroups";
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
 import { findVaultAddress, ProposalStatus } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
@@ -75,10 +80,17 @@ import {
 } from "@/lib/retail/labels";
 import { proposerDisplayName } from "@/lib/retail/proposerName";
 import { formatBalance } from "@/lib/retail/format";
+import { formatChainBalance } from "@/lib/balances";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
 import { UsdHint } from "@/components/retail/UsdHint";
 import { getWalletAppearance } from "@/lib/retail/walletAppearance";
+import {
+  useWalletPortfolio,
+  type WalletPortfolio,
+} from "@/lib/hooks/useWalletPortfolio";
+import { chainByKind, chainDisplayRank } from "@/lib/retail/chains";
+import { useDisplayCurrency } from "@/lib/hooks/useDisplayCurrency";
 import {
   productWorkspaceHomeHref,
   productWorkspaceLabel,
@@ -247,7 +259,8 @@ function WalletDashboardContent() {
   }, [recent.pendingByWallet, selectedSurface, visibleWallets]);
   const filteredPendingCount = filteredActionRows.length;
 
-  const showStats = !hasError && !isFirstVisit && visibleWallets.length > 0;
+  const showStats =
+    !selectedSurface && !hasError && !isFirstVisit && visibleWallets.length > 0;
   const showRecent = !isFirstVisit && filteredRecentRows.length > 0;
   const showWatched = !hasError && selectedSurface === null;
 
@@ -387,7 +400,7 @@ function WalletDashboardShell() {
 // Compact left-aligned page header. Replaces the previous centered
 // "Welcome back" block - same identity cue (small kicker + title)
 // but reclaims the vertical room for the stats and action-needed
-// blocks below. The dynamic summary line ("3 wallets Â· 2 need your
+// blocks below. The dynamic summary line ("3 wallets - 2 need your
 // approval") gives a returning user a useful one-line status before
 // any cards have rendered.
 
@@ -409,7 +422,7 @@ function Hero({
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
 
   const summary = (() => {
-    if (loading) return "Loading your walletsâ€¦";
+    if (loading) return "Loading your wallets...";
     if (selectedSurface && walletCount === 0) {
       return `No ${productWorkspaceLabel(selectedSurface).toLowerCase()} yet.`;
     }
@@ -418,9 +431,9 @@ function Hero({
       ? productWorkspaceLabel(selectedSurface).toLowerCase()
       : "wallet";
     const w = `${walletCount} ${walletCount === 1 ? noun : `${noun}s`}`;
-    if (pendingCount === 0) return `${w} Â· all caught up`;
+    if (pendingCount === 0) return `${w} - all caught up`;
     const p = `${pendingCount} ${pendingCount === 1 ? "needs" : "need"} your approval`;
-    return `${w} Â· ${p}`;
+    return `${w} - ${p}`;
   })();
   const title = selectedSurface
     ? productWorkspaceLabel(selectedSurface)
@@ -563,6 +576,49 @@ function StatsRow({
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
 
+  const [portfolioByWallet, setPortfolioByWallet] = useState<
+    Map<string, PortfolioSnapshot>
+  >(() => new Map());
+  const visibleWalletNames = useMemo(
+    () =>
+      visibleWallets
+        .map((wallet) => wallet.wallet_name)
+        .filter((name): name is string => Boolean(name)),
+    [visibleWallets],
+  );
+  const visibleWalletNameKey = visibleWalletNames.join("|");
+
+  useEffect(() => {
+    const visible = new Set(visibleWalletNames);
+    setPortfolioByWallet((prev) => {
+      let changed = false;
+      const next = new Map<string, PortfolioSnapshot>();
+      prev.forEach((snapshot, name) => {
+        if (visible.has(name)) {
+          next.set(name, snapshot);
+        } else {
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [visibleWalletNames, visibleWalletNameKey]);
+
+  const handlePortfolioChange = useCallback(
+    (walletName: string, snapshot: PortfolioSnapshot | null) => {
+      setPortfolioByWallet((prev) => {
+        const next = new Map(prev);
+        if (snapshot) {
+          next.set(walletName, snapshot);
+        } else {
+          next.delete(walletName);
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
   const totalLamports = useMemo(() => {
     if (!balances) return 0;
     let sum = 0;
@@ -570,8 +626,17 @@ function StatsRow({
     return sum;
   }, [visibleWallets, balances]);
 
+  const aggregate = useMemo(
+    () => aggregatePortfolio(Array.from(portfolioByWallet.values())),
+    [portfolioByWallet],
+  );
   const totalBalance = formatBalance(totalLamports);
-  const balanceLoading = loadingBalances && balances === undefined;
+  const balanceLoading =
+    (loadingBalances && balances === undefined) ||
+    visibleWalletNames.some(
+      (name) =>
+        !portfolioByWallet.has(name) || portfolioByWallet.get(name)?.isLoading,
+    );
 
   return (
     <motion.div
@@ -579,10 +644,20 @@ function StatsRow({
       transition={{ duration: 0.2 }}
       className="flex flex-col gap-2.5 sm:gap-3"
     >
+      <div aria-hidden="true" className="hidden">
+        {visibleWalletNames.map((walletName) => (
+          <WalletPortfolioReporter
+            key={walletName}
+            walletName={walletName}
+            onChange={handlePortfolioChange}
+          />
+        ))}
+      </div>
       <BalanceHeroCard
         amount={totalBalance.amount}
         unit={totalBalance.ticker}
         totalLamports={totalLamports}
+        aggregate={aggregate}
         walletCount={visibleWallets.length}
         selectedSurface={selectedSurface}
         loading={balanceLoading}
@@ -605,6 +680,83 @@ function StatsRow({
       </div>
     </motion.div>
   );
+}
+
+type PortfolioSnapshot = Pick<
+  WalletPortfolio,
+  "breakdown" | "totalUsd" | "isLoading"
+>;
+
+interface AggregateChainBalance {
+  kind: number;
+  ticker: string;
+  amount: string;
+  raw: bigint;
+}
+
+interface AggregatePortfolio {
+  totalUsd: number;
+  chains: AggregateChainBalance[];
+}
+
+function WalletPortfolioReporter({
+  walletName,
+  onChange,
+}: {
+  walletName: string;
+  onChange: (walletName: string, snapshot: PortfolioSnapshot | null) => void;
+}) {
+  const portfolio = useWalletPortfolio(walletName);
+  useEffect(() => {
+    onChange(walletName, {
+      breakdown: portfolio.breakdown,
+      totalUsd: portfolio.totalUsd,
+      isLoading: portfolio.isLoading,
+    });
+    return () => onChange(walletName, null);
+  }, [
+    walletName,
+    portfolio.breakdown,
+    portfolio.totalUsd,
+    portfolio.isLoading,
+    onChange,
+  ]);
+  return null;
+}
+
+function aggregatePortfolio(snapshots: PortfolioSnapshot[]): AggregatePortfolio {
+  const byKind = new Map<number, { raw: bigint; ticker: string }>();
+  let totalUsd = 0;
+  for (const snapshot of snapshots) {
+    totalUsd += snapshot.totalUsd;
+    for (const chain of snapshot.breakdown) {
+      if (chain.raw === null || chain.raw === 0n) continue;
+      const existing = byKind.get(chain.kind);
+      byKind.set(chain.kind, {
+        raw: (existing?.raw ?? 0n) + chain.raw,
+        ticker: existing?.ticker ?? chain.ticker,
+      });
+    }
+  }
+  const chains = Array.from(byKind.entries())
+    .sort(([a], [b]) => chainDisplayRank(a) - chainDisplayRank(b))
+    .map(([kind, value]) => {
+      const meta = chainByKind(kind);
+      const amount = meta
+        ? formatChainBalance(
+            value.raw,
+            meta.smallestPerWhole,
+            meta.displayDecimals,
+          )
+        : value.raw.toString();
+      return {
+        kind,
+        ticker: meta?.ticker ?? value.ticker,
+        amount: amount ?? "0",
+        raw: value.raw,
+      };
+    });
+  return { totalUsd, chains };
 }
 
 function NextActionStrip({
@@ -697,6 +849,7 @@ function BalanceHeroCard({
   amount,
   unit,
   totalLamports,
+  aggregate,
   walletCount,
   selectedSurface,
   loading,
@@ -704,6 +857,7 @@ function BalanceHeroCard({
   amount: string;
   unit: string;
   totalLamports: number;
+  aggregate: AggregatePortfolio;
   walletCount: number;
   selectedSurface: WalletProductSurface | null;
   loading: boolean;
@@ -713,18 +867,19 @@ function BalanceHeroCard({
     : "Total balance";
   const surfaceCopy = productDashboardCopy(selectedSurface);
   const { hidden, toggle } = useBalancePrivacy();
+  const fiat = useDisplayCurrency();
   const hiddenClass = hidden ? "blur-sm select-none" : "";
+  const hasPortfolioTotal = aggregate.chains.length > 0;
+  const headline = hasPortfolioTotal ? fiat.format(aggregate.totalUsd) : amount;
   return (
     <section
       className={clsx(
-        "relative overflow-hidden rounded-card border p-4 shadow-card-rest sm:p-5 lg:p-6",
+        "relative overflow-hidden rounded-card border p-4 shadow-card-rest sm:p-5",
         selectedSurface
           ? surfaceHeroTone(selectedSurface)
           : "border-border-soft bg-surface-raised",
       )}
     >
-      {!selectedSurface ? <BalanceCardPattern /> : null}
-
       {/* Foreground content. relative + z-10 keeps it above both
           decoration layers. */}
       <div className="relative z-10 grid gap-3 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-center lg:gap-5">
@@ -732,11 +887,11 @@ function BalanceHeroCard({
         {/* Brand row - small visible mark + label */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-accent/15">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/10">
               {selectedSurface ? (
-                <surfaceCopy.Icon className="h-4 w-4 text-accent" aria-hidden="true" />
+                <surfaceCopy.Icon className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
               ) : (
-                <BrandMark size={14} />
+                <BrandMark size={12} />
               )}
             </span>
             <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
@@ -787,36 +942,58 @@ function BalanceHeroCard({
           <>
             <p className={clsx("mt-3 flex items-baseline gap-2 transition-[filter] duration-base sm:mt-5", hiddenClass)}>
               <span className="font-numerals text-3xl font-semibold leading-none text-text-strong tabular-nums sm:text-4xl">
-                {amount}
+                {headline}
               </span>
-              <span className="font-display text-sm font-semibold uppercase tracking-[0.16em] text-text-soft sm:text-base">
-                {unit}
-              </span>
+              {!hasPortfolioTotal ? (
+                <span className="font-display text-sm font-semibold uppercase tracking-[0.16em] text-text-soft sm:text-base">
+                  {unit}
+                </span>
+              ) : null}
             </p>
-            <p className={clsx("mt-1.5 text-xs text-text-soft transition-[filter] duration-base sm:text-sm", hiddenClass)}>
-              <UsdHint
-                amount={BigInt(Math.round(totalLamports))}
-                smallestPerWhole={1_000_000_000n}
-                ticker="SOL"
-                variant="plain"
-                className="font-numerals tabular-nums"
-              />
-            </p>
+            {hasPortfolioTotal ? (
+              <ul className={clsx("mt-2 flex flex-wrap gap-1.5 transition-[filter] duration-base", hiddenClass)}>
+                {aggregate.chains.map((chain) => (
+                  <li
+                    key={chain.kind}
+                    className="inline-flex items-baseline gap-1 rounded-full border border-border-soft bg-canvas px-2 py-0.5"
+                  >
+                    <span className="font-numerals text-xs font-semibold text-text-strong tabular-nums">
+                      {chain.amount}
+                    </span>
+                    <span className="font-display text-[9px] font-semibold uppercase tracking-[0.14em] text-text-soft">
+                      {chain.ticker}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className={clsx("mt-1.5 text-xs text-text-soft transition-[filter] duration-base sm:text-sm", hiddenClass)}>
+                <UsdHint
+                  amount={BigInt(Math.round(totalLamports))}
+                  smallestPerWhole={1_000_000_000n}
+                  ticker="SOL"
+                  variant="plain"
+                  className="font-numerals tabular-nums"
+                />
+              </p>
+            )}
           </>
         )}
 
-        <div className="mt-4 flex items-center justify-between gap-3 sm:mt-5">
+        {selectedSurface ? (
+          <div className="mt-4 flex items-center justify-between gap-3 sm:mt-5">
           <p className="min-w-0 truncate font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft sm:text-[11px]">
-            {selectedSurface ? surfaceCopy.footer : "ClearSig - all products"}
+            {surfaceCopy.footer}
           </p>
           <Link
-            href={selectedSurface ? productSetupHref(selectedSurface) : "/choose"}
+            href={productSetupHref(selectedSurface)}
             className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full bg-accent px-3 text-[11px] font-semibold text-text-on-accent shadow-accent-rest transition-[background-color,transform,box-shadow] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-accent-hover hover:shadow-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
           >
             <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-            {selectedSurface ? surfaceCopy.cta : "Choose product"}
+            {surfaceCopy.cta}
           </Link>
-        </div>
+          </div>
+        ) : null}
         </div>
         {selectedSurface ? (
           <ProductDashboardVisual surface={selectedSurface} />
@@ -1180,7 +1357,7 @@ function WalletsGrid({
       <div className="flex items-center justify-between gap-3">
         <SectionLabel>
           {selectedSurface
-            ? `${productSurfaceById(selectedSurface).shortName} workspaces`
+            ? productSurfaceById(selectedSurface).shortName
             : "Your wallets"}
         </SectionLabel>
         {canStack && !loading ? (
@@ -1293,6 +1470,7 @@ function WalletsGrid({
                     // which read as jank on slow networks.
                     delay={reduce ? 0 : Math.min(i, 4) * 0.02}
                     reduce={reduce}
+                    selectedSurface={selectedSurface}
                   />
                 </motion.div>
               );
@@ -1324,6 +1502,7 @@ interface WalletCardProps {
   loadingBalance: boolean;
   delay: number;
   reduce: boolean;
+  selectedSurface: WalletProductSurface | null;
 }
 
 function WalletCard({
@@ -1333,6 +1512,7 @@ function WalletCard({
   loadingBalance,
   delay,
   reduce,
+  selectedSurface,
 }: WalletCardProps) {
   const onChainName = membership.wallet_name ?? "Wallet";
   // The on-chain name carries a creator-derived suffix to keep PDAs
@@ -1342,8 +1522,42 @@ function WalletCard({
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
-  const balance =
+  const solBalance =
     balanceLamports !== null ? formatBalance(balanceLamports) : null;
+  const portfolio = useWalletPortfolio(onChainName);
+  const portfolioBalances = useMemo(() => {
+    return portfolio.breakdown
+      .filter((chain) => chain.raw !== null && chain.raw > 0n)
+      .map((row) => {
+        const meta = chainByKind(row.kind);
+        if (!meta || row.raw === null) return null;
+        const amount = formatChainBalance(
+          row.raw,
+          meta.smallestPerWhole,
+          meta.displayDecimals,
+        );
+        if (!amount) return null;
+        return {
+          amount,
+          raw: row.raw,
+          smallestPerWhole: meta.smallestPerWhole,
+          ticker: meta.ticker,
+          kind: row.kind,
+        };
+      })
+      .filter(
+        (
+          row,
+        ): row is {
+          amount: string;
+          raw: bigint;
+          smallestPerWhole: bigint;
+          ticker: string;
+          kind: number;
+        } => row !== null,
+      );
+  }, [portfolio.breakdown]);
+  const balance = portfolioBalances[0] ?? solBalance;
   const surface = resolveWalletProductSurface(onChainName);
   const homeHref = productWorkspaceHomeHref(onChainName, surface);
   const productLabel = surface ? productWorkspaceLabel(surface) : null;
@@ -1399,29 +1613,54 @@ function WalletCard({
               <p className="font-display text-lg text-text-strong sm:text-xl">
                 <span className="truncate">{name}</span>
               </p>
-              {loadingBalance && balance === null ? (
+              {(portfolio.isLoading || loadingBalance) && balance === null ? (
                 <div className="mt-1 h-5 w-20 animate-pulse rounded bg-border-soft" />
               ) : (
                 // Editorial-sans: JetBrains Mono numerals for the
                 // balance value, Manrope display caps for the ticker.
                 // Same currency-code treatment as /send/* and Hero
                 // single-chain balance - one shared pattern app-wide.
-                <p className={clsx("mt-1 flex items-baseline gap-1.5 transition-[filter] duration-base", hiddenClass)}>
-                  <span className="font-numerals text-base font-semibold text-text-strong tabular-nums">
-                    {balance ? balance.amount : "0"}
-                  </span>
-                  <span className="font-display text-[11px] font-semibold uppercase tracking-[0.16em] text-text-soft">
-                    {balance?.ticker ?? "SOL"}
-                  </span>
-                  {balanceLamports !== null && balanceLamports > 0 && (
-                    <UsdHint
-                      amount={BigInt(Math.round(balanceLamports))}
-                      smallestPerWhole={1_000_000_000n}
-                      ticker="SOL"
-                      className="text-[11px] text-text-soft tabular-nums"
-                    />
-                  )}
-                </p>
+                portfolioBalances.length > 1 ? (
+                  <ul className={clsx("mt-1 flex flex-wrap gap-1.5 transition-[filter] duration-base", hiddenClass)}>
+                    {portfolioBalances.map((item) => (
+                      <li
+                        key={item.kind}
+                        className="inline-flex items-baseline gap-1 rounded-full border border-border-soft bg-canvas px-2 py-0.5"
+                      >
+                        <span className="font-numerals text-xs font-semibold text-text-strong tabular-nums">
+                          {item.amount}
+                        </span>
+                        <span className="font-display text-[9px] font-semibold uppercase tracking-[0.14em] text-text-soft">
+                          {item.ticker}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className={clsx("mt-1 flex items-baseline gap-1.5 transition-[filter] duration-base", hiddenClass)}>
+                    <span className="font-numerals text-base font-semibold text-text-strong tabular-nums">
+                      {balance ? balance.amount : "0"}
+                    </span>
+                    <span className="font-display text-[11px] font-semibold uppercase tracking-[0.16em] text-text-soft">
+                      {balance?.ticker ?? "SOL"}
+                    </span>
+                    {portfolioBalances[0] ? (
+                      <UsdHint
+                        amount={portfolioBalances[0].raw}
+                        smallestPerWhole={portfolioBalances[0].smallestPerWhole}
+                        ticker={portfolioBalances[0].ticker}
+                        className="text-[11px] text-text-soft tabular-nums"
+                      />
+                    ) : balanceLamports !== null && balanceLamports > 0 ? (
+                      <UsdHint
+                        amount={BigInt(Math.round(balanceLamports))}
+                        smallestPerWhole={1_000_000_000n}
+                        ticker="SOL"
+                        className="text-[11px] text-text-soft tabular-nums"
+                      />
+                    ) : null}
+                  </p>
+                )
               )}
             </div>
           </div>
@@ -1430,7 +1669,7 @@ function WalletCard({
             aria-hidden="true"
           />
         </div>
-        {productLabel ? (
+        {!selectedSurface && productLabel ? (
           <span className="inline-flex self-start rounded-full border border-border-soft bg-canvas px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-soft">
             {productLabel}
           </span>
@@ -1522,7 +1761,7 @@ function RecentActivitySection({ rows, reduce }: RecentActivityProps) {
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
-  const latest = rows.slice(0, 3);
+  const latest = groupRecentActivityRows(rows).slice(0, 3);
   return (
     <motion.section
       {...motionProps}
@@ -1545,14 +1784,14 @@ function RecentActivitySection({ rows, reduce }: RecentActivityProps) {
         </Link>
       </div>
       <ul className="mt-3 grid gap-2">
-        {latest.map((row, i) => (
+        {latest.map((group, i) => (
           <motion.li
-            key={row.proposalPda}
+            key={group.row.proposalPda}
             initial={reduce ? false : { opacity: 0, y: 8 }}
             animate={reduce ? {} : { opacity: 1, y: 0 }}
             transition={{ duration: 0.18, delay: reduce ? 0 : i * 0.025 }}
           >
-            <ActivityRow row={row} />
+            <ActivityRow group={group} />
           </motion.li>
         ))}
       </ul>
@@ -1560,12 +1799,16 @@ function RecentActivitySection({ rows, reduce }: RecentActivityProps) {
   );
 }
 
-function ActivityRow({ row }: { row: RecentActivityRow }) {
+function ActivityRow({ group }: { group: RecentActivityGroup }) {
+  const { row, count } = group;
   // proposedAt is unix seconds (bigint); relativeTime handles the
   // ms conversion. Passing pre-multiplied milliseconds here was a
   // long-standing bug that printed "just now" forever.
   const time = relativeTime(row.proposedAt);
-  const action = friendlyIntentLabel(row.intentTemplate);
+  const action = activityGroupTitle(
+    count,
+    friendlyIntentLabel(row.intentTemplate),
+  );
   return (
       <Link
         href={`/app/proposals/${row.proposalPda}`}
@@ -1586,7 +1829,7 @@ function ActivityRow({ row }: { row: RecentActivityRow }) {
             <span>{toDisplayName(row.walletName)}</span>
             <span aria-hidden="true" className="mx-1.5 text-text-soft">/</span>
             <span className={statusTextColor(row.status)}>{friendlyStatus(row.status, row.intentTemplate)}</span>
-            <span aria-hidden="true" className="mx-1.5 text-text-soft">Â·</span>
+            <span aria-hidden="true" className="mx-1.5 text-text-soft">-</span>
             <span>{time}</span>
           </p>
         </div>
@@ -1731,7 +1974,7 @@ function WatchedWalletsSection({
                 "disabled:cursor-not-allowed disabled:opacity-50"
               }
             >
-              {busy ? "Addingâ€¦" : "Watch"}
+              {busy ? "Adding..." : "Watch"}
             </button>
           </form>
           {err && (
@@ -1746,7 +1989,7 @@ function WatchedWalletsSection({
         <ul className="mt-3 flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
           {loading && rows.length === 0 ? (
             <li className="px-5 py-3 text-xs text-text-soft">
-              Loading watched walletsâ€¦
+              Loading watched wallets...
             </li>
           ) : (
             rows.map((m) => {
