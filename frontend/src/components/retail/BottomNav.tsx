@@ -280,7 +280,7 @@ function WalletScopedBottomNav({
       <ul
         className="grid items-stretch gap-1 px-2 py-1.5"
         style={{
-          gridTemplateColumns: `${"minmax(0,1fr) ".repeat(leftItems.length)}4.25rem ${"minmax(0,1fr) ".repeat(rightItems.length)}`.trim(),
+          gridTemplateColumns: `${"minmax(0,1fr) ".repeat(leftItems.length)}4.75rem ${"minmax(0,1fr) ".repeat(rightItems.length)}`.trim(),
         }}
       >
         {leftItems.map((item) => {
@@ -293,7 +293,7 @@ function WalletScopedBottomNav({
                 aria-current={active ? "page" : undefined}
                 aria-label={item.label}
                 className={clsx(
-                  "relative flex min-h-tap-lg flex-col items-center justify-center gap-1 rounded-soft px-2 py-2",
+                  "relative flex min-h-tap-lg flex-col items-center justify-center gap-1 rounded-soft px-1.5 py-2",
                   "transition-colors duration-base ease-out-soft",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
                   active
@@ -330,7 +330,7 @@ function WalletScopedBottomNav({
                 aria-current={active ? "page" : undefined}
                 aria-label={item.label}
                 className={clsx(
-                  "relative flex min-h-tap-lg flex-col items-center justify-center gap-1 rounded-soft px-2 py-2",
+                  "relative flex min-h-tap-lg flex-col items-center justify-center gap-1 rounded-soft px-1.5 py-2",
                   "transition-colors duration-base ease-out-soft",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
                   active

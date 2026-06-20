@@ -107,13 +107,13 @@ export function QuickSendInput({ contactNames, onParsed }: QuickSendInputProps) 
   };
 
   return (
-    <div className="rounded-card border border-accent/30 bg-accent/[0.04] p-3 shadow-card-rest">
+    <div className="rounded-card border border-accent/30 bg-accent/[0.04] p-2.5 shadow-card-rest sm:p-3">
       <div className="flex items-center gap-2">
         <span
           aria-hidden="true"
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent"
+          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent sm:h-7 sm:w-7"
         >
-          <AiSparkle className="h-4 w-4" />
+          <AiSparkle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
         </span>
         <input
           value={text}
@@ -157,7 +157,7 @@ export function QuickSendInput({ contactNames, onParsed }: QuickSendInputProps) 
             // the parity audit flagged as too small to land reliably
             // with a thumb. Visual size barely changes - the label
             // already wants vertical breathing room.
-            "inline-flex min-h-tap items-center justify-center rounded-soft bg-accent px-4 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest " +
+            "inline-flex min-h-tap items-center justify-center rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest sm:px-4 " +
             "transition-[background-color,transform] duration-base ease-out-soft " +
             "hover:bg-accent-hover active:scale-[0.98] " +
             "disabled:cursor-not-allowed disabled:opacity-50"

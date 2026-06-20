@@ -179,28 +179,26 @@ export default function ReceivePage() {
     <motion.div
       {...motionProps}
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="mx-auto flex w-full max-w-2xl flex-col gap-6"
+      className="mx-auto flex w-full max-w-xl flex-col gap-4"
     >
       {/* Compact left-aligned header with a refresh chip. A freshly-
           added chain takes ~10–30s to commit on chain. The chip lets
           the user force a reload without waiting for the staleTime
           window to elapse. */}
-      <header className="flex items-start justify-between gap-3">
+      <header className="flex items-center justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
+          <h1 className="hidden font-display text-display-xs leading-tight text-text-strong md:block">
             Receive money
           </h1>
           <p className="text-xs text-text-soft sm:text-sm">
-            Add funds to{" "}
+            Fund{" "}
             <span className="font-medium text-text-strong">
               {toDisplayName(name)}
             </span>
             .{" "}
             {hasMultipleChains
-              ? "Pick a chain, then share the address."
-              : "Send SOL to the address below."}{" "}
-            Anyone with the address can fund the wallet, but only members
-            can spend.
+              ? "Pick a chain and share the address."
+              : "Share the address below."}
           </p>
         </div>
         <button
@@ -263,7 +261,7 @@ export default function ReceivePage() {
       {/* Address card. */}
       {selected ? (
         selected.address ? (
-          <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
+          <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
             <div className="flex items-center gap-2">
               <ChainBadge chain={selected.chain} size="sm" />
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
@@ -271,12 +269,12 @@ export default function ReceivePage() {
               </p>
             </div>
             <div className="mt-4 flex justify-center">
-              <div className="rounded-soft bg-white p-4 shadow-card-rest">
+              <div className="rounded-soft bg-white p-3 shadow-card-rest sm:p-4">
                 <QRCodeSVG
                   key={selected.chain.kind}
                   ref={qrRef}
                   value={selected.address}
-                  size={192}
+                  size={184}
                   level="M"
                   marginSize={0}
                   aria-label={`QR code for ${selected.chain.name} address`}
@@ -334,7 +332,7 @@ export default function ReceivePage() {
             </div>
           </section>
         ) : (
-          <section className="rounded-card border border-dashed border-border-soft bg-surface-raised p-6 shadow-card-rest">
+          <section className="rounded-card border border-dashed border-border-soft bg-surface-raised p-4 shadow-card-rest">
             <p className="text-sm font-medium text-text-strong">
               Setting up {selected.chain.name}…
             </p>

@@ -120,10 +120,10 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
             down by that amount because sticky offsets are measured
             from the padding-box edge of the scrollport. */}
         <div
-          className="app-content-stage relative z-10 flex-1 px-3 sm:px-4 md:overflow-y-auto md:overscroll-contain md:px-8 lg:px-10 xl:px-12"
+          className="app-content-stage relative z-10 flex-1 px-4 sm:px-5 md:overflow-y-auto md:overscroll-contain md:px-8 lg:px-10 xl:px-12"
           style={{ scrollbarGutter: "stable" }}
         >
-          <div className="mx-auto flex w-full max-w-[80rem] flex-col gap-4 pb-32 pt-16 sm:pb-16 md:pb-12 md:pt-8">
+          <div className="mx-auto flex w-full max-w-[76rem] flex-col gap-4 pb-32 pt-16 sm:pb-16 md:pb-12 md:pt-8">
             <PhishingWarningBanner />
             <PreAlphaBanner />
             <section className="relative z-20 min-w-0">{children}</section>

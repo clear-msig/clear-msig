@@ -1274,8 +1274,8 @@ function Hero({
           reads as one product surface. Avatar disc anchors the
           identity inline; chips on the trailing edge surface
           members + pending approvals at a glance. */}
-      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
-        <div className="flex min-w-0 items-center gap-4">
+      <header className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <WalletAvatar
             name={name}
             size="lg"
@@ -1286,7 +1286,7 @@ function Hero({
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
               {profile.eyebrow}
             </p>
-            <h1 className="mt-1.5 truncate font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
+            <h1 className="mt-1 truncate font-display text-2xl leading-tight text-text-strong sm:text-display-xs">
               {toHeadingName(name)}
             </h1>
           </div>
@@ -1372,7 +1372,7 @@ function Hero({
             }}
           />
         </div>
-        <div className="relative z-10 flex flex-col gap-6 p-5 sm:p-7">
+        <div className="relative z-10 flex flex-col gap-4 p-4 sm:gap-5">
           <div className={profile.portfolioWrapClass}>
             <div className="flex min-w-0 items-start justify-between gap-3">
               <PortfolioPanel
@@ -1715,7 +1715,7 @@ function PortfolioPanel({
         ) : (
           <>
             <p className={`flex items-baseline gap-2 transition-[filter] duration-base ${hiddenClass}`}>
-              <span className="font-numerals text-display-sm font-semibold leading-none tracking-[-0.02em] text-text-strong tabular-nums">
+              <span className="font-numerals text-display-sm font-semibold leading-none text-text-strong tabular-nums">
                 {fallbackBalance ? fallbackBalance.amount : "0"}
               </span>
               <span className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-text-soft">
@@ -1762,7 +1762,7 @@ function PortfolioPanel({
         <div className="h-11 w-56 animate-pulse rounded bg-border-soft" />
       ) : (
         <>
-          <p className={`font-numerals text-display-sm font-semibold leading-none tracking-[-0.02em] text-text-strong tabular-nums transition-[filter] duration-base ${hiddenClass}`}>
+          <p className={`font-numerals text-display-sm font-semibold leading-none text-text-strong tabular-nums transition-[filter] duration-base ${hiddenClass}`}>
             {fiat.format(portfolio.totalUsd)}
           </p>
           {breakdownChips.length > 0 && (
@@ -2780,7 +2780,7 @@ function DetailSkeleton() {
       </div>
 
       {/* Balance card - portfolio headline + 3-up action tiles. */}
-      <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-7">
+      <div className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
         <div className="flex flex-col gap-2">
           <div className="h-3 w-20 animate-pulse rounded bg-border-soft/60" />
           <div className="h-10 w-48 animate-pulse rounded bg-border-soft" />
@@ -2798,14 +2798,13 @@ function DetailSkeleton() {
 
 function NotFound({ name }: { name: string }) {
   return (
-    <div className="flex flex-col gap-6">
-      <div className="rounded-card border border-border-soft bg-surface-raised p-8 text-center shadow-card-rest">
+    <div className="flex flex-col gap-4">
+      <div className="rounded-card border border-border-soft bg-surface-raised p-5 text-center shadow-card-rest">
         <h1 className="font-display text-display-xs text-text-strong">
           We couldn&rsquo;t find {toDisplayName(name)}
         </h1>
         <p className="mt-2 max-w-md text-text-soft">
           The wallet may have been renamed, or you may not be a member.
-          Head back to the dashboard to see your wallets.
         </p>
         <Link href="/app/wallet" className="mt-6 inline-block">
           <Button size="md">
@@ -2863,7 +2862,7 @@ function NextStepsStripe({
   if (!hasIntents) {
     nudge = {
       title: "Turn on sending",
-      body: `${display} can't send money yet. Turn it on once. Takes about 1 minute and 2 wallet popups.`,
+      body: `${display} can't send money yet. Turn it on once.`,
       cta: "Enable sending",
       href: `/app/wallet/${encoded}/setup`,
     };

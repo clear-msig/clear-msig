@@ -104,20 +104,16 @@ export default function PolicyPage() {
   const personalRules = surface === "personal";
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-6">
+    <div className="flex flex-col gap-4">
       {/* Page header strip - mono eyebrow + display title, identity
           anchored by the wallet disc. Back navigation lives on the
           global header bar (mobile + desktop). */}
       <motion.header
         {...motionProps}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="relative overflow-hidden rounded-card bg-surface-raised p-4 shadow-card-rest sm:flex sm:flex-wrap sm:items-end sm:justify-between sm:gap-x-6 sm:gap-y-4 sm:p-6"
+        className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-6 sm:gap-y-4 sm:p-5"
       >
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-accent/[0.06] blur-3xl"
-        />
-        <div className="relative z-10 flex min-w-0 items-center gap-3 sm:gap-4">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <span
             aria-hidden="true"
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent sm:h-14 sm:w-14"
@@ -128,17 +124,17 @@ export default function PolicyPage() {
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
               Protection / {display}
             </p>
-            <h1 className="mt-1 truncate font-display text-xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
+            <h1 className="mt-1 truncate font-display text-xl leading-tight text-text-strong sm:text-display-xs">
               How {display} stays protected
             </h1>
           </div>
         </div>
-        <p className="relative z-10 mt-4 max-w-2xl text-sm leading-relaxed text-text-soft sm:mt-4 sm:text-base">
+        <p className="mt-4 max-w-2xl text-sm text-text-soft sm:mt-0">
           {personalRules
             ? "Choose who can approve, who can receive, and when ClearSig should slow a send down."
             : "Choose who can approve, how much can move, and when a send needs extra care."}
         </p>
-        <div className="relative z-10 mt-4 flex flex-wrap items-center gap-2 sm:mt-0">
+        <div className="mt-4 flex flex-wrap items-center gap-2 sm:mt-0">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-canvas/70 px-3 py-1.5 text-[11px] font-medium text-text-soft">
             <ShieldCheck className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
             Read before signing
@@ -183,7 +179,7 @@ function PeopleCard({
   return (
     <section
       id="people"
-      className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-6"
+      className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-5"
     >
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
@@ -340,7 +336,7 @@ function ThresholdCard({
 
   if (loading) {
     return (
-      <section className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-6">
+      <section className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-5">
         <div className="h-5 w-40 animate-pulse rounded bg-border-soft" />
         <div className="mt-3 h-4 w-72 animate-pulse rounded bg-border-soft" />
       </section>
@@ -372,7 +368,7 @@ function ThresholdCard({
       id="approvals"
       {...motionProps}
       transition={{ duration: 0.2 }}
-      className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-6"
+      className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-5"
     >
       <header className="flex items-start gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
@@ -497,7 +493,7 @@ function AllowlistCard({ walletName }: { walletName: string }) {
   );
 
   return (
-    <section id="recipients" className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-6">
+    <section id="recipients" className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-5">
       <header className="flex items-start gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
           <UserCheck className="h-5 w-5" strokeWidth={1.75} />
@@ -676,7 +672,7 @@ function TimeWindowCard({ walletName }: { walletName: string }) {
   };
 
   return (
-    <section id="time-window" className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-6">
+    <section id="time-window" className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-5">
       <header className="flex items-start gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
           <CalendarClock className="h-5 w-5" strokeWidth={1.75} />

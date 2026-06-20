@@ -62,7 +62,6 @@ import {
   SignPayloadPreview,
   type SignPayloadDetail,
 } from "@/components/retail/SignPayloadPreview";
-import { InfoTip } from "@/components/retail/InfoTip";
 import {
   SendReceipt,
   type ReceiptDetail,
@@ -987,7 +986,7 @@ function SendPage() {
     <div className="mx-auto flex w-full max-w-lg flex-col lg:max-w-3xl">
       <div className="flex flex-1 flex-col">
           {needsSetup && showSolanaForm && (
-            <div className="mb-6 rounded-card border border-warning/30 bg-warning/5 p-5 text-center shadow-card-rest">
+            <div className="mb-4 rounded-card border border-warning/30 bg-warning/5 p-4 text-center shadow-card-rest">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
                 Turn on sending
               </p>
@@ -1152,20 +1151,20 @@ function ComposeStage({
     <motion.section
       {...motionProps}
       transition={STAGE_TRANSITION}
-      className="flex flex-col gap-5"
+      className="flex flex-col gap-4"
     >
       {/* Compact left-aligned header. Chain badge sits inline with
           the title so the network identity is unmistakable without
           eating a full hero block. Matches the rest of the redesigned
           app (Home / Activity / Settings / Account). */}
-      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex items-center gap-3">
           {solMeta ? <ChainBadge chain={solMeta} size="md" /> : null}
           <div className="flex flex-col gap-0.5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
                 Send
               </p>
-              <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
+              <h1 className="hidden font-display text-2xl font-semibold leading-tight text-text-strong md:block">
                 Send SOL
               </h1>
           </div>
@@ -1190,8 +1189,8 @@ function ComposeStage({
           two-card desktop layout). */}
       <div
         className={
-          "flex flex-col gap-5 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest " +
-          "lg:grid lg:grid-cols-2 lg:items-start lg:gap-5 " +
+          "flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest " +
+          "lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 " +
           "lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none"
         }
       >
@@ -1206,7 +1205,7 @@ function ComposeStage({
       <section
         className={
           "flex flex-col gap-3 " +
-          "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-5 lg:shadow-card-rest"
+          "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-4 lg:shadow-card-rest"
         }
       >
         <div className="flex items-center justify-between">
@@ -1258,7 +1257,7 @@ function ComposeStage({
             autoFocus
             maxLength={20}
             aria-label="Amount in SOL"
-            className="min-w-0 flex-1 bg-transparent font-numerals text-3xl font-semibold tracking-tight text-text-strong tabular-nums outline-none placeholder:text-text-soft/50 sm:text-4xl"
+            className="min-w-0 flex-1 bg-transparent font-numerals text-3xl font-semibold text-text-strong tabular-nums outline-none placeholder:text-text-soft/50 sm:text-4xl"
           />
           <span
             aria-hidden="true"
@@ -1313,7 +1312,7 @@ function ComposeStage({
       <section
         className={
           "flex flex-col gap-3 " +
-          "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-5 lg:shadow-card-rest"
+          "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-4 lg:shadow-card-rest"
         }
       >
         <div className="flex items-stretch gap-2">
@@ -1371,7 +1370,7 @@ function ComposeStage({
           they click Send. Both blocks render in their compact
           "details behind an info icon" mode - the headline + warning
           stay visible, secondary context is one hover/tap away. */}
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2">
         <SignPayloadPreview
           action={
             amountValid &&
@@ -1408,21 +1407,7 @@ function ComposeStage({
           link. Sticky on mobile (bottom of viewport, clears safe
           area + BottomNav); inline on sm+ where the page scrolls
           inside the workspace shell. */}
-      <div className="flex flex-col gap-3 pt-1">
-        <p className="inline-flex items-center gap-1.5 text-xs text-text-soft">
-          {walletDisplay} approvers review this request.
-          <InfoTip
-            label="How approvals work"
-            width="md"
-            size="xs"
-            side="start"
-          >
-            <span className="block">
-              Tap Send to create an approval request. It moves only after the
-              wallet reaches threshold.
-            </span>
-          </InfoTip>
-        </p>
+      <div className="flex flex-col gap-2 pt-1">
         <div
           className={
             "-mx-3 sm:mx-0 px-3 sm:px-0 " +
@@ -1928,31 +1913,7 @@ function BudgetHint({
   const remaining = cap - budgetUsage.spentUsd;
   const wouldExceed = pendingUsd > remaining;
   if (!wouldExceed) {
-    // Pass-state used to render as a full text line ("✓ Fits within
-    // $X left…"). On a polished send view that single nice-to-know
-    // ate a row of vertical space without informing the decision -
-    // the hard signal is the over-cap warning below, not the all-
-    // clear. Tucked into a discreet inline chip so the page stays
-    // calm when nothing is wrong.
-    return (
-      <p className="mt-4 inline-flex items-center text-[11px] text-text-soft">
-        Within {walletDisplay}&rsquo;s weekly cap
-        <InfoTip
-          label="Weekly cap detail"
-          width="md"
-          size="xs"
-          side="start"
-        >
-          <span className="block">
-            <span className="font-medium text-text-strong">
-              {formatUsd(remaining)} left
-            </span>{" "}
-            in {walletDisplay}&rsquo;s {formatUsd(cap)} weekly cap. Friends
-            still need to approve every send; the cap is a guide today.
-          </span>
-        </InfoTip>
-      </p>
-    );
+    return null;
   }
   const overage = pendingUsd - Math.max(0, remaining);
   return (

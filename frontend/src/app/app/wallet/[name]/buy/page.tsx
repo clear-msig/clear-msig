@@ -103,7 +103,10 @@ function BuyPage() {
   // picks one of these as the destination; the dWallet address on
   // that chain is the destination_wallet sent to the ramp service.
   const chains = useWalletChains(walletName);
-  const bindings: ChainBindingResponse[] = chains.data?.chains ?? [];
+  const bindings: ChainBindingResponse[] = useMemo(
+    () => chains.data?.chains ?? [],
+    [chains.data?.chains],
+  );
 
   const [selectedKind, setSelectedKind] = useState<number | null>(null);
   const [usdAmount, setUsdAmount] = useState("");
@@ -232,7 +235,7 @@ function BuyPage() {
 
   if (!wallet.connected) {
     return (
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4">
         <p className="text-sm text-text-soft">Connect a wallet to buy crypto.</p>
       </div>
     );
@@ -240,7 +243,7 @@ function BuyPage() {
 
   if (memberships.isLoading || chains.isLoading) {
     return (
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4">
         <PageLoading />
       </div>
     );
@@ -248,7 +251,7 @@ function BuyPage() {
 
   if (!memberOfThisWallet) {
     return (
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4">
         <p className="text-sm text-text-soft">
           You are not a member of <strong>{walletDisplay}</strong>.
         </p>
@@ -257,15 +260,15 @@ function BuyPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
       <motion.section
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-        className="flex flex-col gap-6"
+        className="flex flex-col gap-4"
       >
         <header className="flex flex-col gap-1">
-          <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
+          <h1 className="hidden font-display text-display-xs leading-tight text-text-strong md:block">
             Buy with naira
           </h1>
           <p className="text-xs text-text-soft sm:text-sm">
@@ -354,7 +357,7 @@ function ComposeForm({
   }
 
   return (
-    <div className="flex flex-col gap-5 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+    <div className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
       <div className="flex flex-col gap-2">
         <label className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Chain
@@ -371,7 +374,7 @@ function ComposeForm({
                 disabled={!ready || disabled}
                 onClick={() => onPickChain(chain.kind)}
                 className={
-                  "flex flex-col items-center gap-2 rounded-soft border p-3 text-center transition " +
+                  "flex flex-col items-center gap-2 rounded-soft border p-2.5 text-center transition sm:p-3 " +
                   (selected
                     ? "border-accent bg-accent/5 text-accent"
                     : ready
@@ -510,7 +513,7 @@ function CompletedCard({
   assetSymbol: string;
 }) {
   return (
-    <div className="flex flex-col items-center gap-4 rounded-card border border-success/30 bg-success/5 p-6 text-center shadow-card-rest">
+    <div className="flex flex-col items-center gap-3 rounded-card border border-success/30 bg-success/5 p-5 text-center shadow-card-rest">
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-success text-white">
         <Check className="h-6 w-6" />
       </div>

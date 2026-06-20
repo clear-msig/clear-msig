@@ -135,13 +135,9 @@ export default function ChainsPage() {
     <motion.div
       {...motionProps}
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col gap-5 pb-6"
+      className="flex flex-col gap-4 pb-4"
     >
-      <header className="relative overflow-hidden rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-5">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -right-16 -top-20 h-40 w-40 rounded-full bg-accent/[0.06] blur-3xl"
-        />
+      <header className="rounded-card bg-surface-raised p-4 shadow-card-rest">
         <div className="relative z-10 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
@@ -150,8 +146,8 @@ export default function ChainsPage() {
             <h1 className="mt-1 truncate font-display text-xl leading-tight text-text-strong md:text-display-xs">
               {toDisplayName(name)}
             </h1>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-text-soft">
-              Add a chain, copy an address, or troubleshoot an active network.
+            <p className="mt-2 max-w-xl text-sm text-text-soft">
+              Turn on assets, copy addresses, or check balances.
             </p>
           </div>
           <button
@@ -365,10 +361,10 @@ function ActiveChainRow({
     <motion.li
       {...motionProps}
       transition={{ duration: 0.3, delay, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col gap-3 rounded-card bg-surface-raised p-4 shadow-card-rest"
+      className="flex flex-col gap-2.5 rounded-card bg-surface-raised p-3.5 shadow-card-rest sm:p-4"
     >
       <div className="flex items-center gap-3">
-        <ChainBadge chain={chain} size="lg" />
+        <ChainBadge chain={chain} size="md" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-text-strong">
             {chain.name}
@@ -378,7 +374,7 @@ function ActiveChainRow({
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
-          <span className="inline-flex items-center rounded-full bg-accent/10 px-2.5 py-1 text-[11px] font-medium text-accent">
+          <span className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
             {isImplicit ? "Built in" : "Active"}
           </span>
           {address && (
@@ -544,13 +540,13 @@ function AvailableChainRow({
       <Link
         href={`/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=${chain.apiName}&autostart=1`}
         className={
-          "group flex items-center gap-3 rounded-card bg-surface-raised p-4 shadow-card-rest " +
+          "group flex items-center gap-3 rounded-card bg-surface-raised p-3.5 shadow-card-rest sm:p-4 " +
           "transition-[transform,background-color,box-shadow] duration-base ease-out-soft " +
           "hover:-translate-y-0.5 hover:bg-surface-card hover:shadow-card-raised " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
         }
       >
-        <ChainBadge chain={chain} size="lg" />
+        <ChainBadge chain={chain} size="md" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-text-strong">
             Turn on {chain.name} sending

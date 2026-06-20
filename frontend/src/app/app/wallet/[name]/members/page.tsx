@@ -128,13 +128,13 @@ export default function MembersPage() {
     <motion.div
       {...motionProps}
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col gap-6"
+      className="mx-auto flex w-full max-w-3xl flex-col gap-4"
     >
       {/* Compact header - left-aligned, matches the new app pattern.
           Back navigation lives in the global DashboardHeader. */}
-      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <div className="flex flex-col gap-1">
-          <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
+          <h1 className="hidden font-display text-display-xs leading-tight text-text-strong md:block">
             Members
           </h1>
           <p className="text-xs text-text-soft sm:text-sm">{summary}</p>
