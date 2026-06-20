@@ -48,7 +48,7 @@ export function SendChainPicker({
   // Always render the row - even with only Solana bound - because
   // the trailing "Add chain" tile is now part of the row, not a
   // hidden affordance.
-  const addChainHref = `/app/wallet/${encodeURIComponent(walletName)}/chains/add`;
+  const addChainHref = `/app/wallet/${encodeURIComponent(walletName)}/chains/add?autostart=1`;
   return (
     <nav
       aria-label="Choose what to send"
@@ -111,7 +111,7 @@ export function SendChainPicker({
           Subtitle adapts so the row reads as a single thought. */}
         <Link
           href={addChainHref}
-          aria-label="Add another asset"
+          aria-label="Turn on another asset"
           className={
             "flex min-w-[9.5rem] items-center gap-2 rounded-card border border-dashed border-border-soft bg-canvas px-3 py-2 text-left " +
             "transition-[border-color,background-color,transform] duration-base ease-out-soft " +
@@ -127,7 +127,7 @@ export function SendChainPicker({
           </span>
           <span className="flex min-w-0 flex-col">
             <span className="truncate text-xs font-medium text-text-strong">
-              Add asset
+              Turn on asset
             </span>
             <span className="truncate text-[10px] text-text-soft">
               {boundCount === 1 ? "ETH, BTC, ZEC, HYPE" : "More options"}

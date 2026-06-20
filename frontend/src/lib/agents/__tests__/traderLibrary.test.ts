@@ -171,4 +171,24 @@ describe("ClearSig Trader Library", () => {
     expect(idea?.entryPrice).toBe("70000");
     expect(idea?.thesis).toContain("live BTC-PERP market data");
   });
+
+  it("uses the active allowance leverage for practice perps", () => {
+    const now = 4_000;
+    const profile = createClearSigLibraryTrader({
+      template: CLEARSIG_TRADER_LIBRARY[1]!,
+      walletName: "library-leverage",
+      id: "trader-leverage",
+      now,
+    });
+    const idea = createClearSigLibraryPracticeIdea({
+      agent: profile,
+      maxNotionalUsd: "250",
+      maxLeverage: 5,
+      id: "idea-leverage",
+      now,
+    });
+
+    expect(idea?.leverage).toBe(5);
+    expect(idea?.thesis).toContain("5x max borrowing");
+  });
 });

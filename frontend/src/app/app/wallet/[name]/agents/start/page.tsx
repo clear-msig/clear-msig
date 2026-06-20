@@ -536,6 +536,7 @@ export default function StartTradingPage() {
         agent: selectedAgent,
         venue,
         maxNotionalUsd: activeAllowance?.maxNotionalUsd,
+        maxLeverage: activeAllowance?.maxLeverage ?? policy.maxLeverage,
         marketData: marketSnapshot,
         id: newAgentProposalId(),
       });
@@ -714,7 +715,7 @@ export default function StartTradingPage() {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
       <header className="flex flex-col gap-3">
         <Link
           href={`/app/wallet/${encoded}/agents`}
@@ -744,7 +745,7 @@ export default function StartTradingPage() {
         </div>
       </header>
 
-      <section className="border-y border-border-soft py-5">
+      <section className="border-y border-border-soft py-4">
         <p className="text-xs font-semibold text-text-strong">Choose practice mode</p>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {PRACTICE_CHOICES.map((choice) => (
@@ -753,7 +754,7 @@ export default function StartTradingPage() {
               type="button"
               onClick={() => setVenue(choice.id)}
               className={clsx(
-                "min-h-[5.5rem] rounded-soft border p-3 text-left transition-colors",
+                "min-h-[4.75rem] rounded-soft border p-3 text-left transition-colors",
                 venue === choice.id
                   ? "border-accent/60 bg-accent/[0.06]"
                   : "border-border-soft bg-surface-raised hover:border-accent/40",
@@ -991,7 +992,7 @@ function BetaJourneyPanel({
     },
   ];
   return (
-    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+    <section className="rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest sm:p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-text-strong">
@@ -1002,7 +1003,7 @@ function BetaJourneyPanel({
           {venue === "hyperliquid_testnet" ? "Connected practice" : "Built-in practice"}
         </span>
       </div>
-      <div className="mt-4 grid gap-2 md:grid-cols-5">
+      <div className="mt-3 grid gap-2 md:grid-cols-5">
         {journey.map((item) => {
           const Icon = item.Icon;
           return (

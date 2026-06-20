@@ -32,7 +32,6 @@ import clsx from "clsx";
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
 import { getWalletAppearance } from "@/lib/retail/walletAppearance";
 import { walletProductSurface } from "@/lib/productWorkspace";
-import { productSetupHref } from "@/lib/productSurfaces";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import {
   activeWalletSlugFromPathname,
@@ -227,10 +226,7 @@ function WalletScopedBottomNav({
   const surface = walletProductSurface(getWalletAppearance(slug)?.surface);
   const items = walletSubNav(surface);
   const display = toDisplayName(slug);
-  const createHref = surface ? productSetupHref(surface) : "/app/wallet/new";
-  const createLabel = surface
-    ? `Create another ${surface} wallet`
-    : "Create a new wallet";
+  const productHomeHref = "/app/wallet?surface=all";
   const splitIndex = Math.ceil(items.length / 2);
   const leftItems = items.slice(0, splitIndex);
   const rightItems = items.slice(splitIndex);
@@ -244,7 +240,7 @@ function WalletScopedBottomNav({
     event.preventDefault();
     setLaunchingCreate(true);
     window.setTimeout(() => {
-      router.push(createHref);
+      router.push(productHomeHref);
     }, 260);
   };
 
@@ -259,9 +255,9 @@ function WalletScopedBottomNav({
       )}
     >
       <Link
-        href={createHref}
+        href={productHomeHref}
         onClick={handleCreateClick}
-        aria-label={createLabel}
+        aria-label="Product home"
         className={clsx(
           "absolute left-1/2 -top-7 z-10 -translate-x-1/2",
           "flex h-14 w-14 items-center justify-center rounded-full",
@@ -272,10 +268,10 @@ function WalletScopedBottomNav({
           launchingCreate && "scale-[1.08] shadow-accent-hover",
         )}
       >
-        <Plus
+        <Home
           className={clsx(
             "h-6 w-6 transition-transform duration-300 ease-out-soft",
-            launchingCreate && "rotate-180 scale-110",
+            launchingCreate && "scale-110",
           )}
           strokeWidth={2.5}
           aria-hidden="true"

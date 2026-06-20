@@ -753,6 +753,9 @@ function BitcoinSendPage() {
             walletDisplay={walletDisplay}
             address={dwalletAddress}
             balanceSats={balanceQuery.data ?? null}
+            balanceLoading={balanceQuery.isLoading || networkQuery.isLoading}
+            balanceError={balanceQuery.error}
+            network={btcNetwork}
             onSetup={() => setupIntent.mutate()}
             busy={setupIntent.isPending}
             reduce={!!reduce}
@@ -806,7 +809,8 @@ function BitcoinSendPage() {
             setAmountBtc={setAmountBtc}
             amountError={amountError}
             balanceSats={balanceQuery.data ?? null}
-            balanceLoading={balanceQuery.isLoading}
+            balanceLoading={balanceQuery.isLoading || networkQuery.isLoading}
+            balanceError={balanceQuery.error}
             selectedUtxo={selectedUtxo}
             impliedFeeSats={impliedFeeSats}
             address={dwalletAddress}
@@ -895,6 +899,9 @@ function NeedsSetup({
   walletDisplay,
   address,
   balanceSats,
+  balanceLoading,
+  balanceError,
+  network,
   onSetup,
   busy,
   reduce,
@@ -902,6 +909,9 @@ function NeedsSetup({
   walletDisplay: string;
   address: string | null;
   balanceSats: bigint | null;
+  balanceLoading: boolean;
+  balanceError: Error | null;
+  network: BitcoinNetwork;
   onSetup: () => void;
   busy: boolean;
   reduce: boolean;
@@ -928,16 +938,23 @@ function NeedsSetup({
           <p className="mt-1 break-all font-mono text-[11px] text-text-strong">
             {address}
           </p>
-          {balanceSats !== null && (
-            <p className="mt-2 font-numerals text-[11px] tabular-nums text-text-soft">
-              Balance: {formatSats(balanceSats)} BTC
+          <p className="mt-2 font-numerals text-[11px] tabular-nums text-text-soft">
+            Balance:{" "}
+            {balanceLoading ? (
+              "checking..."
+            ) : balanceSats !== null ? (
+              <>
+                {formatSats(balanceSats)} BTC
               <UsdHint
                 amount={balanceSats}
                 smallestPerWhole={100_000_000n}
                 ticker="BTC"
               />
-            </p>
-          )}
+              </>
+            ) : (
+              btcBalanceStatusLabel(balanceError, network)
+            )}
+          </p>
         </div>
       )}
       <Button onClick={onSetup} disabled={busy} fullWidth>
@@ -966,6 +983,7 @@ function ComposeForm(props: {
   amountError: string | null;
   balanceSats: bigint | null;
   balanceLoading: boolean;
+  balanceError: Error | null;
   selectedUtxo: EsploraUtxo | null;
   impliedFeeSats: bigint | null;
   address: string | null;
@@ -1053,9 +1071,13 @@ function ComposeForm(props: {
           <p className="text-xs text-text-soft">
             <span>Wallet has </span>
             <span className="font-numerals font-medium text-text-strong tabular-nums">
-              {props.balanceLoading ? "…" : balanceBtc !== null ? balanceBtc : "-"}
+              {props.balanceLoading
+                ? "checking..."
+                : balanceBtc !== null
+                  ? balanceBtc
+                  : btcBalanceStatusLabel(props.balanceError, props.network)}
             </span>
-            <span> BTC</span>
+            {balanceBtc !== null ? <span> BTC</span> : null}
             {props.balanceSats !== null && (
               <UsdHint
                 amount={props.balanceSats}
@@ -1486,6 +1508,25 @@ function bytesToHex(bytes: Uint8Array): string {
 function shortBtcAddress(addr: string): string {
   if (addr.length <= 16) return addr;
   return `${addr.slice(0, 8)}…${addr.slice(-6)}`;
+}
+
+function btcBalanceStatusLabel(
+  error: Error | null | undefined,
+  network: BitcoinNetwork,
+): string {
+  if (!error) return `No balance source on ${network}`;
+  const message = error.message.toLowerCase();
+  if (message.includes("404")) return `No UTXOs on ${network}`;
+  if (message.includes("failed to fetch") || message.includes("network")) {
+    return `${network} RPC unavailable`;
+  }
+  if (message.includes("429") || message.includes("rate")) {
+    return `${network} indexer rate-limited`;
+  }
+  if (message.includes("500") || message.includes("502") || message.includes("503")) {
+    return `${network} indexer unavailable`;
+  }
+  return `Check ${network} balance`;
 }
 
 async function waitForProposalStatus(

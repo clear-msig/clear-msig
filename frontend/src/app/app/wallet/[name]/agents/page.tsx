@@ -1521,9 +1521,16 @@ export default function AgentsPage() {
             })}
           </ul>
         ) : (
-          <div className="rounded-card border border-dashed border-border-soft bg-surface-raised p-5 text-sm text-text-soft">
-            No decisions yet. Choose a trader, set a budget, then run a scan.
-          </div>
+          <Link
+            href={`/app/wallet/${encoded}/agents/start`}
+            className="flex items-center justify-between gap-3 rounded-card border border-dashed border-border-soft bg-surface-raised p-4 text-sm text-text-soft transition-colors hover:border-accent/50 hover:text-text-strong"
+          >
+            <span>No trade ideas yet.</span>
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent">
+              Start practice
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </span>
+          </Link>
         )}
       </section>
 
@@ -2775,14 +2782,14 @@ function EmptyAgents({
   onStartDemo: () => void;
 }) {
   return (
-    <div className="rounded-card border border-dashed border-border-soft bg-surface-raised p-8 text-center shadow-card-rest">
+    <div className="rounded-card border border-dashed border-border-soft bg-surface-raised p-5 text-center shadow-card-rest">
       <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">
         <Bot className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
       </div>
       <p className="mt-4 font-display text-base font-semibold text-text-strong">
         No agents yet
       </p>
-      <div className="mt-4 flex flex-wrap justify-center gap-2">
+      <div className="mt-4 flex justify-center">
         <Link
           href={browseHref}
           className="inline-flex items-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest"
@@ -2790,13 +2797,19 @@ function EmptyAgents({
           <Bot size={13} aria-hidden="true" />
           Choose trader
         </Link>
-        <Link
-          href={createHref}
-          className="inline-flex items-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong"
-        >
-          <Plus size={13} aria-hidden="true" />
-          Create your own
-        </Link>
+      </div>
+      <details className="mt-3 text-center">
+        <summary className="cursor-pointer text-xs font-medium text-text-soft hover:text-text-strong">
+          More
+        </summary>
+        <div className="mt-2 flex flex-wrap justify-center gap-2">
+          <Link
+            href={createHref}
+            className="inline-flex items-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong"
+          >
+            <Plus size={13} aria-hidden="true" />
+            Create your own
+          </Link>
         {showDemo ? (
           <button
             type="button"
@@ -2808,7 +2821,8 @@ function EmptyAgents({
             Create sample activity
           </button>
         ) : null}
-      </div>
+        </div>
+      </details>
     </div>
   );
 }

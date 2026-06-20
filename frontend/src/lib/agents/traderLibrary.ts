@@ -170,6 +170,7 @@ export function createClearSigLibraryPracticeIdea({
   agent,
   venue = "mock_perps",
   maxNotionalUsd,
+  maxLeverage,
   marketData,
   now = Date.now(),
   id,
@@ -177,6 +178,7 @@ export function createClearSigLibraryPracticeIdea({
   agent: AgentProfile;
   venue?: TradingVenue;
   maxNotionalUsd?: string | null;
+  maxLeverage?: number | null;
   marketData?: AgentMarketDataSnapshot | null;
   now?: number;
   id: string;
@@ -202,7 +204,9 @@ export function createClearSigLibraryPracticeIdea({
     ),
   );
   const mark = positiveNumber(marketData?.markPriceUsd, positiveNumber(template.referencePriceUsd, 1));
-  const isLong = template.defaultSide === "long";
+  const side = choosePracticeSide(template, agent, marketData);
+  const leverage = positiveNumber(maxLeverage, template.defaultLeverage);
+  const isLong = side === "long";
   const stopMultiplier = isLong
     ? 1 - template.stopDistancePct / 100
     : 1 + template.stopDistancePct / 100;
@@ -216,16 +220,16 @@ export function createClearSigLibraryPracticeIdea({
     agentId: agent.id,
     venue,
     market,
-    side: template.defaultSide,
+    side,
     orderType: "market",
     notionalUsd: formatMoney(notional),
-    leverage: template.defaultLeverage,
+    leverage,
     entryPrice: formatPrice(mark),
     stopLossPrice: formatPrice(mark * stopMultiplier),
     takeProfitPrice: formatPrice(mark * targetMultiplier),
     thesis: marketData
-      ? `${template.name} used ${marketData.source === "live" ? "live" : "practice"} ${marketData.market} market data at $${marketData.markPriceUsd} to prepare this ${template.category.toLowerCase()} practice idea.`
-      : `${template.name} prepared this practice idea to demonstrate its ${template.category.toLowerCase()} approach.`,
+      ? `${template.name} used ${marketData.source === "live" ? "live" : "practice"} ${marketData.market} market data at $${marketData.markPriceUsd} to prepare this ${side} ${template.category.toLowerCase()} practice idea with ${leverage}x max borrowing.`
+      : `${template.name} prepared this ${side} practice idea with ${leverage}x max borrowing to demonstrate its ${template.category.toLowerCase()} approach.`,
     confidence: template.risk === "active" ? 68 : template.risk === "balanced" ? 66 : 64,
     clientSignalId: `clearsig-library:${agent.id}:${now}`,
     expiresAt: now + 15 * 60 * 1000,
@@ -234,6 +238,33 @@ export function createClearSigLibraryPracticeIdea({
     updatedAt: now,
     version: 1,
   };
+}
+
+function choosePracticeSide(
+  template: ClearSigTraderTemplate,
+  agent: AgentProfile,
+  marketData?: AgentMarketDataSnapshot | null,
+): TradeSide {
+  const strategyText = [
+    agent.strategy?.summary,
+    agent.strategy?.entryRules,
+    agent.strategy?.riskRules,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (strategyText.includes("short") || strategyText.includes("hedge")) {
+    return "short";
+  }
+  if (strategyText.includes("long") || strategyText.includes("trend")) {
+    return "long";
+  }
+  const funding = Number(marketData?.fundingRatePct ?? "");
+  if (Number.isFinite(funding)) {
+    if (funding > 0.025) return "short";
+    if (funding < -0.01) return "long";
+  }
+  return template.defaultSide;
 }
 
 function customPracticeTemplate(agent: AgentProfile): ClearSigTraderTemplate {

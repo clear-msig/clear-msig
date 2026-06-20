@@ -399,10 +399,12 @@ function ActiveChainRow({
                     {chain.ticker}
                   </>
                 ) : balanceQuery.isError ? (
-                  <span title="Could not fetch balance from the chain RPC">-</span>
+                  <span title={(balanceQuery.error as Error | null)?.message ?? "Could not fetch balance"}>
+                    {chainBalanceStatusLabel(chain.kind, balanceQuery.error as Error | null)}
+                  </span>
                 ) : (
                   <span title="No public balance source for this chain yet">
-                    -
+                    No balance source
                   </span>
                 )}
               </span>
@@ -540,7 +542,7 @@ function AvailableChainRow({
       transition={{ duration: 0.3, delay, ease: [0.22, 1, 0.36, 1] }}
     >
       <Link
-        href={`/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=${chain.apiName}`}
+        href={`/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=${chain.apiName}&autostart=1`}
         className={
           "group flex items-center gap-3 rounded-card bg-surface-raised p-4 shadow-card-rest " +
           "transition-[transform,background-color,box-shadow] duration-base ease-out-soft " +
@@ -551,10 +553,10 @@ function AvailableChainRow({
         <ChainBadge chain={chain} size="lg" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-text-strong">
-            Add {chain.name}
+            Turn on {chain.name} sending
           </p>
           <p className="mt-0.5 truncate text-xs text-text-soft">
-            {chain.description}
+            One setup, then sends are ready.
           </p>
         </div>
         <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-canvas text-text-soft transition-[background-color,color,transform] duration-base ease-out-soft group-hover:bg-accent/10 group-hover:text-accent group-hover:rotate-90">
@@ -603,4 +605,33 @@ async function loadBalance(
     zcashRpcUrl: appConfig.preAlpha.zcashRpcUrl,
   });
   return result?.raw ?? null;
+}
+
+function chainBalanceStatusLabel(
+  chainKind: number,
+  error: Error | null | undefined,
+): string {
+  const chain =
+    chainKind === 2
+      ? "BTC testnet"
+      : chainKind === 3
+        ? "Zcash testnet"
+        : chainKind === 1 || chainKind === 4 || chainKind === 5
+          ? "Network"
+          : "Chain";
+  if (!error) return `${chain} balance unavailable`;
+  const message = error.message.toLowerCase();
+  if (message.includes("404")) return "No UTXOs found";
+  if (message.includes("429") || message.includes("rate")) return "Indexer rate-limited";
+  if (
+    message.includes("failed to fetch") ||
+    message.includes("network") ||
+    message.includes("timeout")
+  ) {
+    return `${chain} RPC unavailable`;
+  }
+  if (message.includes("500") || message.includes("502") || message.includes("503")) {
+    return "Indexer unavailable";
+  }
+  return `${chain} balance unavailable`;
 }

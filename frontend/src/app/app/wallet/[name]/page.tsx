@@ -803,7 +803,7 @@ function NativeHoldingsSection({
                     </span>
                   </div>
                   <p className="mt-0.5 font-numerals text-sm tabular-nums text-text-soft">
-                    {amount ?? (loading ? "Reading balance" : "Balance unavailable")}
+                    {amount ?? (loading ? "Reading balance" : "Check network balance")}
                     {amount ? ` ${row.ticker}` : ""}
                     {typeof row.usd === "number" ? (
                       <span className="ml-1.5 text-xs text-text-soft/80">

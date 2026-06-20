@@ -403,13 +403,13 @@ function PickStage({
     >
       <header>
         <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-          Add asset network · {walletDisplay}
+          Turn on asset · {walletDisplay}
         </p>
         <h1 className="mt-2 font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
-          Add an asset
+          Turn on an asset
         </h1>
         <p className="mt-3 max-w-xl text-sm text-text-soft sm:text-base">
-          Pick where {walletDisplay} should send next.
+          Pick the asset you want to send.
         </p>
       </header>
 
