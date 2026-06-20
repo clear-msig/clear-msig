@@ -68,6 +68,8 @@ function AddChainPage() {
     const fromQuery = search?.get("chain");
     return fromQuery ? chainByApiName(fromQuery) : undefined;
   }, [search]);
+  const nextAfterBind = search?.get("next") ?? null;
+  const autoStartAfterBind = search?.get("autostart") === "1";
 
   // Skip the picker if the URL already nominated a chain (e.g. arrived
   // from the chains list's per-chain "Add" link).
@@ -116,7 +118,10 @@ function AddChainPage() {
     if (!initialChain) return;
     if (chainsQuery.isLoading) return;
     if (!boundKinds.has(initialChain.kind)) return;
-    const dest = sendOrSetupPathFor(walletName, initialChain.kind);
+    const dest = sendOrSetupPathFor(walletName, initialChain.kind, {
+      next: nextAfterBind,
+      autostart: autoStartAfterBind,
+    });
     if (dest) {
       router.replace(dest);
     } else {
@@ -131,6 +136,8 @@ function AddChainPage() {
     boundKinds,
     router,
     walletName,
+    nextAfterBind,
+    autoStartAfterBind,
   ]);
 
   // Existing secp256k1 dWallet detection. The "ETH-after-BTC breaks"
@@ -233,6 +240,15 @@ function AddChainPage() {
       queryClient.invalidateQueries({ queryKey: ["wallet-chains"] });
       queryClient.invalidateQueries({ queryKey: ["wallet-chains-api"] });
       queryClient.invalidateQueries({ queryKey: ["wallet", walletName] });
+      if (selected) {
+        router.push(
+          sendOrSetupPathFor(walletName, selected.kind, {
+            next: nextAfterBind,
+            autostart: true,
+          }) ?? `/app/wallet/${encodeURIComponent(walletName)}/send`,
+        );
+        return;
+      }
       setStage("done");
     },
     onError: (err) => {
@@ -345,14 +361,24 @@ function AddChainPage() {
 /// is already bound. Maps chain_kind → the most useful destination:
 /// the send page for that chain. Mirrors `SendChainPicker`'s routing
 /// so the back-pointer behaviour is consistent.
-function sendOrSetupPathFor(walletName: string, kind: number): string | null {
+function sendOrSetupPathFor(
+  walletName: string,
+  kind: number,
+  options?: { next?: string | null; autostart?: boolean },
+): string | null {
   const base = `/app/wallet/${encodeURIComponent(walletName)}`;
-  if (kind === 0) return `${base}/send`;
-  if (kind === 1) return `${base}/setup/eth`;
-  if (kind === 2) return `${base}/send/btc`;
-  if (kind === 3) return `${base}/send/zec`;
+  const auto = options?.autostart ? "autostart=1" : "";
+  if (kind === 0) return `${base}/send?asset=solana`;
+  if (kind === 1 && options?.next === "erc20") {
+    return `${base}/setup/erc20${auto ? `?${auto}` : ""}`;
+  }
+  if (kind === 1) return `${base}/setup/eth${auto ? `?${auto}` : ""}`;
+  if (kind === 2) return `${base}/send/btc${auto ? `?${auto}` : ""}`;
+  if (kind === 3) return `${base}/send/zec${auto ? `?${auto}` : ""}`;
   if (kind === 4) return `${base}/send/erc20`;
-  if (kind === 5) return `${base}/setup/eth?network=hyperliquid`;
+  if (kind === 5) {
+    return `${base}/setup/eth?network=hyperliquid${auto ? "&autostart=1" : ""}`;
+  }
   return null;
 }
 

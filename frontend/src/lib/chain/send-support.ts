@@ -16,9 +16,9 @@ export function chainSendSubtitle(status: ChainSendStatus): string {
     case "ready":
       return "Ready";
     case "needs_setup":
-      return "Set up sending";
+      return "Turn on";
     case "needs_binding":
-      return "Add chain";
+      return "Turn on";
     case "coming_soon":
       return "Coming soon";
   }

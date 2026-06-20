@@ -24,7 +24,7 @@ export function SendChainPicker({
   activeKind,
 }: {
   walletName: string;
-  activeKind: number;
+  activeKind: number | null;
 }) {
   const { options, loading } = useSendChains(walletName);
   if (loading) {
@@ -38,10 +38,10 @@ export function SendChainPicker({
       </div>
     );
   }
-  // Bound + setup-needed chains are tappable. needs_binding chains
-  // are hidden from the row (the trailing "Add chain" tile is the
-  // right entry point for adding new ones).
-  const visible = options.filter((o) => o.status !== "needs_binding");
+  // Show every sendable asset state here. /send is now the user's
+  // single asset chooser: ready assets open the send form, missing
+  // assets start the same "turn on sending" path.
+  const visible = options;
   const boundCount = options.filter(
     (o) => o.status === "ready" || o.status === "needs_setup",
   ).length;
@@ -57,7 +57,7 @@ export function SendChainPicker({
       <div className="flex gap-2 overflow-x-auto pb-1">
         {visible.map((opt) => {
           const isActive = opt.chain.kind === activeKind;
-          const href = sendHrefFor(walletName, opt.chain.kind, opt.status);
+          const href = sendHrefFor(walletName, opt.chain, opt.status);
           const disabled = opt.status === "coming_soon" || !href;
           const tile = (
             <span
@@ -104,7 +104,7 @@ export function SendChainPicker({
           );
         })}
 
-        {/* Add-chain tile - always rendered as the last item so users
+        {/* Add-asset tile - always rendered as the last item so users
           can find the chain-management flow without leaving /send.
           Solana-only wallets see this as the only secondary tile;
           multi-chain wallets see it after their bound chains.
@@ -141,15 +141,16 @@ export function SendChainPicker({
 
 function sendHrefFor(
   walletName: string,
-  kind: number,
+  chain: { kind: number; apiName: string },
   status: "ready" | "needs_setup" | "needs_binding" | "coming_soon",
 ): string | null {
+  const kind = chain.kind;
   if (status === "coming_soon") return null;
   if (status === "needs_binding") {
-    return `/app/wallet/${encodeURIComponent(walletName)}/chains/add`;
+    return `/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=${encodeURIComponent(chain.apiName)}&autostart=1`;
   }
   if (kind === 0) {
-    return `/app/wallet/${encodeURIComponent(walletName)}/send`;
+    return `/app/wallet/${encodeURIComponent(walletName)}/send?asset=solana`;
   }
   if (kind === 1) {
     return status === "needs_setup"

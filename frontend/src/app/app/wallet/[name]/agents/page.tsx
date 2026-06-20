@@ -1218,20 +1218,9 @@ export default function AgentsPage() {
         <AgentSetupGate steps={gettingStartedSteps} walletEncoded={encoded} />
       ) : (
         <>
-      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid gap-2 sm:grid-cols-3">
         <MetricCard label="Active traders" value={String(activeAgents)} Icon={Bot} />
         <MetricCard label="Trade ideas" value={String(proposalCount)} Icon={BrainCircuit} />
-        <MetricCard label="New ideas" value={String(queuedSignals)} Icon={Inbox} />
-        <MetricCard
-          label="Safety"
-          value={policy?.enabled ? "On" : "Off"}
-          Icon={ShieldCheck}
-        />
-        <MetricCard
-          label="Active budgets"
-          value={String(activeSessions)}
-          Icon={Clock}
-        />
         <MetricCard
           label="Open trades"
           value={String(openExecutions)}
@@ -1287,25 +1276,11 @@ export default function AgentsPage() {
           </summary>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <Link
-            href={`/app/wallet/${encoded}/agents/start`}
-            className={agentToolClass}
-          >
-            <Play size={15} aria-hidden="true" />
-            <span>Start practice</span>
-          </Link>
-          <Link
             href={`/app/wallet/${encoded}/agents/library`}
             className={agentToolClass}
           >
             <Bot size={15} aria-hidden="true" />
             <span>Choose trader</span>
-          </Link>
-          <Link
-            href={`/app/wallet/${encoded}/agents/hyperliquid`}
-            className={agentToolClass}
-          >
-            <Plug size={15} aria-hidden="true" />
-            <span>Practice account</span>
           </Link>
           <Link
             href={`/app/wallet/${encoded}/agents/policy`}
@@ -1327,27 +1302,6 @@ export default function AgentsPage() {
           >
             <Pause size={15} aria-hidden="true" />
             <span>Pause</span>
-          </Link>
-          <Link
-            href="#decision-journal"
-            className={agentToolClass}
-          >
-            <ClipboardList size={15} aria-hidden="true" />
-            <span>Decision journal</span>
-          </Link>
-          <Link
-            href="#live-monitor"
-            className={agentToolClass}
-          >
-            <TrendingUp size={15} aria-hidden="true" />
-            <span>Live monitor</span>
-          </Link>
-          <Link
-            href="/agents"
-            className={agentToolClass}
-          >
-            <Trophy size={13} aria-hidden="true" />
-            Marketplace
           </Link>
           </div>
           <details className="group mt-3 rounded-soft border border-border-soft bg-canvas px-3 py-2">

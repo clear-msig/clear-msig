@@ -157,7 +157,7 @@ function SendErc20Page() {
   const walletEthAddress = ethBinding ? chainAddress(ethBinding) : null;
 
   // Gate on BOTH isLoading and isFetching so the page doesn't render
-  // "Enable ERC-20 sending" on stale cache while a background refetch
+  // "Turn on token sending" on stale cache while a background refetch
   // (triggered by refetchOnMount: "always") is still fetching the
   // post-setup intent list. See the matching note on /send/eth.
   const allSettled =
@@ -483,7 +483,7 @@ function SendErc20Page() {
         title="Turn on token sending"
         body="One setup adds Ethereum to this wallet and unlocks ERC-20 sends."
         cta={{
-          href: `/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=evm_1559`,
+          href: `/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=evm_1559&next=erc20&autostart=1`,
           label: "Turn on token sending",
         }}
       />
@@ -671,12 +671,12 @@ function ComposeStage({
         <div className="flex items-center gap-3">
           {ethMeta ? <ChainBadge chain={ethMeta} size="md" /> : null}
           <div className="flex flex-col gap-0.5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Send · one flow
-            </p>
-            <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
-              Send clearly
-            </h1>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+                Send
+              </p>
+              <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
+                Send token
+              </h1>
           </div>
         </div>
         <p className="text-xs text-text-soft sm:text-sm">

@@ -33,9 +33,9 @@
 // pre-alpha all wallets come up on signet/testnet. `tb` HRP. So
 // `validateBtcDestination` accepts both.)
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -113,6 +113,7 @@ export default function BitcoinSendPageWrapper() {
 
 function BitcoinSendPage() {
   const params = useParams<{ name: string }>();
+  const searchParams = useSearchParams();
   const name = useMemo(() => {
     try {
       return decodeURIComponent(params?.name ?? "");
@@ -257,6 +258,8 @@ function BitcoinSendPage() {
     /// far. Helps with on-chain forensics.
     proposalAddress?: string;
   } | null>(null);
+  const [autoStartedSetup, setAutoStartedSetup] = useState(false);
+  const autoStartSetup = searchParams?.get("autostart") === "1";
 
   const sendAmountSats = useMemo<bigint | null>(
     () => parseBtcAmount(amountBtc),
@@ -685,6 +688,13 @@ function BitcoinSendPage() {
     !unsafeImpliedFee &&
     !policyDenied;
 
+  useEffect(() => {
+    if (!autoStartSetup || autoStartedSetup || !needsSetup) return;
+    if (setupIntent.isPending || setupIntent.isSuccess) return;
+    setAutoStartedSetup(true);
+    setupIntent.mutate();
+  }, [autoStartSetup, autoStartedSetup, needsSetup, setupIntent]);
+
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col lg:max-w-3xl">
       <motion.section
@@ -698,10 +708,10 @@ function BitcoinSendPage() {
             {btcMeta ? <ChainBadge chain={btcMeta} size="md" /> : null}
             <div className="flex flex-col gap-0.5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-                Send · one flow
+                Send
               </p>
               <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
-                Send clearly
+                Send BTC
               </h1>
             </div>
           </div>
@@ -869,7 +879,7 @@ function NeedsBinding({
         unlock BTC sends for this wallet.
       </p>
       <Link
-        href={`/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=bitcoin_p2wpkh`}
+        href={`/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=bitcoin_p2wpkh&autostart=1`}
         className="self-start"
       >
         <Button>

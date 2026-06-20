@@ -1,6 +1,6 @@
 "use client";
 
-// Enable ERC-20 sending. Sibling of /setup/eth: same shape, different
+// Turn on ERC-20 sending. Sibling of /setup/eth: same shape, different
 // template + chain_kind. The on-chain ERC-20 intent uses the
 // erc20_transfer_sepolia template - its params let the user pick a
 // per-send token contract, recipient, amount, and nonce. So a single
@@ -19,7 +19,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -28,7 +28,7 @@ import { listIntents } from "@/lib/chain/intents";
 import { IntentType } from "@/lib/msig";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
-import { ArrowRight, Check, Loader2, Send } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
@@ -40,7 +40,6 @@ import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { BackToWallets } from "@/components/retail/BackToWallets";
 import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
-import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import { SignPayloadPreview } from "@/components/retail/SignPayloadPreview";
 import { chainByKind } from "@/lib/retail/chains";
 import { shortEvmAddress } from "@/lib/chain/eth";
@@ -57,6 +56,7 @@ const ETH_CHAIN_KIND = 1;
 
 export default function SetupErc20Page() {
   const params = useParams<{ name: string }>();
+  const searchParams = useSearchParams();
   const name = useMemo(() => {
     try {
       return decodeURIComponent(params?.name ?? "");
@@ -134,7 +134,9 @@ export default function SetupErc20Page() {
   const needsBinding =
     !chainsQuery.isLoading && !walletQuery.isLoading && !ethBinding;
 
-  const [delaySeconds, setDelaySeconds] = useState<number>(0);
+  const delaySeconds = 0;
+  const autoStartSetup = searchParams?.get("autostart") === "1";
+  const [autoStartedSetup, setAutoStartedSetup] = useState(false);
 
   const setup = useMutation({
     mutationFn: async () => {
@@ -226,6 +228,20 @@ export default function SetupErc20Page() {
     },
   });
 
+  useEffect(() => {
+    if (!autoStartSetup || autoStartedSetup || needsBinding || existingErc20Intent) return;
+    if (!ethBinding || setup.isPending || setup.isSuccess) return;
+    setAutoStartedSetup(true);
+    setup.mutate();
+  }, [
+    autoStartSetup,
+    autoStartedSetup,
+    needsBinding,
+    existingErc20Intent,
+    ethBinding,
+    setup,
+  ]);
+
   const motionProps = reduce
     ? {}
     : {
@@ -250,7 +266,7 @@ export default function SetupErc20Page() {
               label: toDisplayName(name),
               href: `/app/wallet/${encodeURIComponent(name)}`,
             },
-            { label: "Enable ERC-20 sending" },
+            { label: "Turn on token sending" },
           ]}
         />
       </StickyTopBar>
@@ -276,15 +292,9 @@ export default function SetupErc20Page() {
               ERC-20 setup
             </p>
             <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-              Enable ERC-20 sending in{" "}
+              Turn on token sending in{" "}
               <span className="text-accent">{toHeadingName(name)}</span>
             </h1>
-            <p className="mt-3 max-w-sm text-base text-text-soft">
-              Turns on ERC-20 sending for tokens on Sepolia (USDC, DAI, LINK,
-              …). One quick setup; sending protection is signed by you and
-              lives on chain.
-            </p>
-
             {needsBinding && (
               <div className="mt-6 w-full rounded-card border border-warning/30 bg-warning/5 p-4 text-left">
                 <p className="text-sm font-medium text-text-strong">
@@ -296,14 +306,14 @@ export default function SetupErc20Page() {
                   back here.
                 </p>
                 <Link
-                  href={`/app/wallet/${encodeURIComponent(name)}/chains/add`}
+                  href={`/app/wallet/${encodeURIComponent(name)}/chains/add?chain=evm_1559&next=erc20&autostart=1`}
                   className={
                     "mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-accent " +
                     "rounded-soft px-2 py-1 transition-colors duration-base ease-out-soft hover:text-accent-hover " +
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-warning/5"
                   }
                 >
-                  Add Ethereum
+                  Turn on token sending
                   <ArrowRight className="h-3 w-3" aria-hidden="true" />
                 </Link>
               </div>
@@ -311,51 +321,9 @@ export default function SetupErc20Page() {
 
             {!needsBinding && (
               <>
-                <div className="mt-6 w-full rounded-card border border-border-soft bg-surface-raised p-5 text-left shadow-card-rest">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-                    What this enables
-                  </p>
-                  <ul className="mt-3 flex flex-col gap-2 text-sm text-text-strong">
-                    <li className="flex items-start gap-2">
-                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                      Send any ERC-20 token from this wallet on Sepolia.
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                      Same approval rule applies (right now, just you).
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                      Wallet&rsquo;s ETH/ERC-20 address:{" "}
-                      {ethAddress ? shortEvmAddress(ethAddress) : "(spinning up)"}
-                      .
-                    </li>
-                  </ul>
-                </div>
-
-                <div className="mt-4 w-full rounded-card border border-border-soft bg-surface-raised p-5 text-left shadow-card-rest">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-                    When approvals are in
-                  </p>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <PaceTile
-                      selected={delaySeconds === 0}
-                      onSelect={() => setDelaySeconds(0)}
-                      title="Send right away"
-                      body="Goes the moment everyone approves."
-                    />
-                    <PaceTile
-                      selected={delaySeconds === 86400}
-                      onSelect={() => setDelaySeconds(86400)}
-                      title="Wait 24 hours"
-                      body="A cooling-off day before it ships."
-                    />
-                  </div>
-                </div>
-
                 <div className="mt-6 w-full flex flex-col gap-3">
                   <SignPayloadPreview
-                    action={`Enable ERC-20 sending in ${toDisplayName(name)}`}
+                    action="Turn on token sending"
                     details={[
                       { label: "Wallet", value: toDisplayName(name) },
                       { label: "Chain", value: "Ethereum (Sepolia) - ERC-20" },
@@ -366,16 +334,9 @@ export default function SetupErc20Page() {
                             emphasis: "mono" as const,
                           }
                         : { label: "Address", value: "spinning up" },
-                      {
-                        label: "Pace",
-                        value:
-                          delaySeconds === 0
-                            ? "Ships immediately"
-                            : "Wait 24 hours",
-                      },
                     ]}
+                    collapsibleDetails
                   />
-                  <WalletPopupNarration action="enable ERC-20 sending" />
                 </div>
 
                 <Button
@@ -395,7 +356,7 @@ export default function SetupErc20Page() {
                     </>
                   ) : (
                     <>
-                      Enable ERC-20 sending
+                      Turn on token sending
                       <ArrowRight className="h-4 w-4" aria-hidden="true" />
                     </>
                   )}
@@ -406,41 +367,5 @@ export default function SetupErc20Page() {
         </motion.section>
       </div>
     </main>
-  );
-}
-
-interface PaceTileProps {
-  selected: boolean;
-  onSelect: () => void;
-  title: string;
-  body: string;
-}
-
-function PaceTile({ selected, onSelect, title, body }: PaceTileProps) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      className={
-        "flex flex-col items-start gap-1 rounded-card border p-3 text-left " +
-        "transition-[border-color,background-color,box-shadow] duration-base ease-out-soft " +
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
-        (selected
-          ? "border-accent bg-accent/5 shadow-card-rest"
-          : "border-border-soft bg-canvas")
-      }
-    >
-      <div
-        className={
-          "flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold " +
-          (selected ? "bg-accent text-white" : "bg-accent/10 text-accent")
-        }
-      >
-        {selected ? <Check className="h-3 w-3" /> : <Send className="h-3 w-3" />}
-      </div>
-      <p className="mt-1 text-sm font-medium text-text-strong">{title}</p>
-      <p className="text-[11px] leading-snug text-text-soft">{body}</p>
-    </button>
   );
 }

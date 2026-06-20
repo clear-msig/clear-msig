@@ -217,7 +217,7 @@ function BatchSendPage() {
           {needsSetup && (
             <div className="rounded-card border border-warning/30 bg-warning/[0.06] p-5 shadow-card-rest">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
-                Set up sending first
+                Turn on sending
               </p>
               <p className="mt-2 text-sm text-text-strong">
                 Batch send needs <strong>{walletDisplay}</strong>&rsquo;s

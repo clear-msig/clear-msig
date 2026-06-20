@@ -165,7 +165,7 @@ function SendEthPage() {
     // the cache is technically still fresh. Without this, a user who
     // just completed /setup/eth navigates here with the old
     // (pre-setup) intents list in cache. StaleTime hasn't elapsed ,
-    // and the page renders "Enable Ethereum sending" again because
+    // and the page renders "Turn on Ethereum sending" again because
     // it doesn't see the just-created EvmTransfer intent. The Solana
     // RPC propagation race makes the background refetch a moment
     // later, but the user has already re-clicked Enable by then.
@@ -588,7 +588,7 @@ function SendEthPage() {
         title={`Turn on ${EVM_LABEL} sending`}
         body={`One setup adds ${EVM_LABEL} to this wallet and unlocks ${EVM_LABEL} sends.`}
         cta={{
-          href: `/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=${isHyperliquid ? "hyperliquid_evm" : "evm_1559"}`,
+          href: `/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=${isHyperliquid ? "hyperliquid_evm" : "evm_1559"}&autostart=1`,
           label: `Turn on ${EVM_LABEL} sending`,
         }}
       />
@@ -781,12 +781,12 @@ function ComposeStage({
         <div className="flex items-center gap-3">
           {ethMeta ? <ChainBadge chain={ethMeta} size="md" /> : null}
           <div className="flex flex-col gap-0.5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Send · one flow
-            </p>
-            <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
-              Send clearly
-            </h1>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+                Send
+              </p>
+              <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
+                Send {ticker}
+              </h1>
           </div>
         </div>
         <p className="text-xs text-text-soft sm:text-sm">

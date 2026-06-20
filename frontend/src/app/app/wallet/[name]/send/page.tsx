@@ -354,6 +354,12 @@ function SendPage() {
   const initialAmount = params?.get("amount")?.trim() ?? "";
   const initialRecipient = params?.get("recipient")?.trim() ?? "";
   const initialNote = params?.get("note")?.trim() ?? "";
+  const selectedAsset = params?.get("asset") ?? null;
+  const showSolanaForm =
+    selectedAsset === "solana" ||
+    !!initialAmount ||
+    !!initialRecipient ||
+    !!initialNote;
   const [amount, setAmount] = useState(initialAmount);
   const [recipientText, setRecipientText] = useState(initialRecipient);
   const [note, setNote] = useState(initialNote);
@@ -980,7 +986,7 @@ function SendPage() {
     // feeling cramped between the sidebar and the empty right edge.
     <div className="mx-auto flex w-full max-w-lg flex-col lg:max-w-3xl">
       <div className="flex flex-1 flex-col">
-          {needsSetup && (
+          {needsSetup && showSolanaForm && (
             <div className="mb-6 rounded-card border border-warning/30 bg-warning/5 p-5 text-center shadow-card-rest">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
                 Turn on sending
@@ -1003,7 +1009,10 @@ function SendPage() {
             </div>
           )}
           {stage === "compose" && (
-            <SendChainPicker walletName={walletName} activeKind={0} />
+            <SendChainPicker
+              walletName={walletName}
+              activeKind={showSolanaForm ? 0 : null}
+            />
           )}
           {stage === "compose" && policyEvaluation?.matched && (
             <PolicyMatchBanner
@@ -1011,7 +1020,7 @@ function SendPage() {
               evaluation={policyEvaluation}
             />
           )}
-          {stage === "compose" && (
+          {stage === "compose" && showSolanaForm && (
             <ComposeStage
               walletName={walletDisplay || "your shared wallet"}
               amount={amount}
@@ -1153,12 +1162,12 @@ function ComposeStage({
         <div className="flex items-center gap-3">
           {solMeta ? <ChainBadge chain={solMeta} size="md" /> : null}
           <div className="flex flex-col gap-0.5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Send · one flow
-            </p>
-            <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
-              Send clearly
-            </h1>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+                Send
+              </p>
+              <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
+                Choose an asset
+              </h1>
           </div>
         </div>
         <p className="text-xs text-text-soft sm:text-sm">

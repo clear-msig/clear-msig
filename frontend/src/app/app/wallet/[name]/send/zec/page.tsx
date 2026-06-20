@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -56,6 +56,7 @@ type Stage = "compose" | "sending" | "sent";
 
 export default function ZcashSendPage() {
   const params = useParams<{ name: string }>();
+  const searchParams = useSearchParams();
   const name = useMemo(() => {
     try {
       return decodeURIComponent(params?.name ?? "");
@@ -128,6 +129,8 @@ export default function ZcashSendPage() {
     explorerUrl: string | null;
     explorerLabel: string;
   } | null>(null);
+  const [autoStartedSetup, setAutoStartedSetup] = useState(false);
+  const autoStartSetup = searchParams?.get("autostart") === "1";
 
   const recipientDecoded = useMemo(
     () => validateZcashDestination(recipient),
@@ -261,6 +264,13 @@ export default function ZcashSendPage() {
     },
   });
 
+  useEffect(() => {
+    if (!autoStartSetup || autoStartedSetup || !needsIntent) return;
+    if (setup.isPending || setup.isSuccess) return;
+    setAutoStartedSetup(true);
+    setup.mutate();
+  }, [autoStartSetup, autoStartedSetup, needsIntent, setup]);
+
   const send = useMutation({
     mutationFn: async () => {
       if (!wallet.publicKey) throw new Error("Connect your wallet first");
@@ -391,7 +401,7 @@ export default function ZcashSendPage() {
         title="Turn on Zcash sending"
         body="One setup adds Zcash to this wallet and unlocks Zcash sends."
         cta={{
-          href: `/app/wallet/${encodeURIComponent(name)}/chains/add?chain=zcash_transparent`,
+          href: `/app/wallet/${encodeURIComponent(name)}/chains/add?chain=zcash_transparent&autostart=1`,
           label: "Turn on Zcash sending",
         }}
       />
@@ -556,12 +566,12 @@ function ZcashCompose({
         <div className="flex items-center gap-3">
           {zecMeta ? <ChainBadge chain={zecMeta} size="md" /> : null}
           <div className="flex flex-col gap-0.5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Send · one flow
-            </p>
-            <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
-              Send clearly
-            </h1>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+                Send
+              </p>
+              <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
+                Send ZEC
+              </h1>
           </div>
         </div>
         <p className="text-xs text-text-soft sm:text-sm">
