@@ -31,7 +31,7 @@ import { useConnection } from "@/lib/wallet";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { findVaultAddress } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
-import { useWalletChains } from "@/lib/hooks/useWalletChains";
+import { chainAddress, useWalletChains } from "@/lib/hooks/useWalletChains";
 import { fetchChainBalance } from "@/lib/balances";
 import {
   CHAIN_CATALOG,
@@ -105,7 +105,9 @@ export function useWalletPortfolio(walletName: string): WalletPortfolio {
     staleTime: 15_000,
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
-    retry: 1,
+    refetchOnWindowFocus: true,
+    retry: 2,
+    placeholderData: (previous) => previous,
   });
 
   // Bound non-Solana chains.
@@ -119,7 +121,7 @@ export function useWalletPortfolio(walletName: string): WalletPortfolio {
       walletName,
       (chainsQuery.data?.chains ?? [])
         .filter((b) => b.chain_kind !== 0)
-        .map((b) => `${b.chain_kind}:${b.dwallet}`)
+        .map((b) => `${b.chain_kind}:${b.dwallet}:${chainAddress(b) ?? "no-address"}`)
         .join("|"),
     ],
     queryFn: async () => {

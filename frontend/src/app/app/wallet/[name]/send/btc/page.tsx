@@ -171,7 +171,11 @@ function BitcoinSendPage() {
           },
     enabled: !!dwalletAddress,
     staleTime: 15_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
+    retry: 2,
+    placeholderData: (previous) => previous,
   });
   const btcNetwork: BitcoinNetwork =
     btcSnapshotQuery.data?.network ?? DEFAULT_BITCOIN_NETWORK;
