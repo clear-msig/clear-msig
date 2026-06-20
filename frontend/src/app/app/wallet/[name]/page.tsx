@@ -914,13 +914,13 @@ function ProductSetupCard({
       transition={{ duration: 0.2, delay: 0.04 }}
       className={
         "rounded-card border shadow-card-rest " +
-        (compactPersonal ? "p-4 sm:p-5 " : "p-5 ") +
+        (compactPersonal ? "p-4 sm:p-5 " : "p-4 sm:p-5 ") +
         tone.card
       }
     >
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <span className={"flex h-10 w-10 shrink-0 items-center justify-center rounded-full " + tone.icon}>
+          <span className={"flex h-9 w-9 shrink-0 items-center justify-center rounded-full sm:h-10 sm:w-10 " + tone.icon}>
             <Icon className="h-4 w-4" strokeWidth={1.9} aria-hidden="true" />
           </span>
           <div className="min-w-0">
@@ -929,7 +929,7 @@ function ProductSetupCard({
                 {product.shortName} selected
               </p>
             ) : null}
-            <h2 className={(compactPersonal ? "" : "mt-1 ") + "truncate font-display text-lg font-semibold leading-tight text-text-strong"}>
+            <h2 className={(compactPersonal ? "" : "mt-1 ") + "truncate font-display text-base font-semibold leading-tight text-text-strong sm:text-lg"}>
               {config.title}
             </h2>
           </div>
@@ -941,7 +941,7 @@ function ProductSetupCard({
             title={config.primaryLabel}
             className={
               "inline-flex min-h-tap items-center justify-center rounded-soft bg-accent text-sm font-medium text-text-on-accent shadow-accent-rest transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
-              (compactPersonal ? "h-11 w-11 px-0 py-0" : "gap-1.5 px-4 py-2")
+              (compactPersonal ? "h-10 w-10 px-0 py-0 sm:h-11 sm:w-11" : "gap-1.5 px-3 py-2 sm:px-4")
             }
           >
             {compactPersonal ? (
@@ -1163,7 +1163,7 @@ function NextBestActionCard({
       {...motionProps}
       transition={{ duration: 0.2 }}
       className={
-        "rounded-card border p-5 shadow-card-rest " +
+        "rounded-card border p-4 shadow-card-rest sm:p-5 " +
         (action.accent
           ? "border-accent/40 bg-accent/[0.07]"
           : productSurface === "pro"
@@ -1173,11 +1173,11 @@ function NextBestActionCard({
           : "border-border-soft bg-surface-raised")
       }
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 gap-3">
           <span
             className={
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-full " +
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full sm:h-10 sm:w-10 " +
               (action.accent
                 ? "bg-accent/15 text-accent"
                 : "bg-glass-soft text-text-soft")
@@ -1194,7 +1194,7 @@ function NextBestActionCard({
             >
               Next best action · {action.eyebrow}
             </p>
-            <h2 className="mt-1 font-display text-lg font-semibold leading-tight text-text-strong">
+            <h2 className="mt-1 font-display text-base font-semibold leading-tight text-text-strong sm:text-lg">
               {action.title}
             </h2>
           </div>
@@ -1202,7 +1202,7 @@ function NextBestActionCard({
         <Link
           href={action.href}
           className={
-            "inline-flex min-h-tap shrink-0 items-center justify-center gap-1.5 rounded-soft px-4 py-2 text-sm font-medium " +
+            "inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-soft px-3 py-2 text-sm font-medium sm:min-h-tap sm:px-4 " +
             "transition-[background-color,border-color,transform] duration-base ease-out-soft active:scale-[0.98] " +
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
             (action.accent
@@ -1266,7 +1266,7 @@ function Hero({
     <motion.section
       {...motionProps}
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col gap-5"
+      className="flex flex-col gap-3 sm:gap-5"
     >
       {/* ── Page header strip ───────────────────────────────────
           Mirrors the secure / account / wizard headers. Mono
@@ -1274,7 +1274,7 @@ function Hero({
           reads as one product surface. Avatar disc anchors the
           identity inline; chips on the trailing edge surface
           members + pending approvals at a glance. */}
-      <header className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3">
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 sm:gap-x-5 sm:gap-y-3">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <WalletAvatar
             name={name}
@@ -1286,7 +1286,7 @@ function Hero({
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
               {profile.eyebrow}
             </p>
-            <h1 className="mt-1 truncate font-display text-2xl leading-tight text-text-strong sm:text-display-xs">
+            <h1 className="mt-0.5 truncate font-display text-xl leading-tight text-text-strong sm:mt-1 sm:text-display-xs">
               {toHeadingName(name)}
             </h1>
           </div>
@@ -1372,7 +1372,7 @@ function Hero({
             }}
           />
         </div>
-        <div className="relative z-10 flex flex-col gap-4 p-4 sm:gap-5">
+        <div className="relative z-10 flex flex-col gap-3 p-3 sm:gap-4 sm:p-4 lg:gap-5">
           <div className={profile.portfolioWrapClass}>
             <div className="flex min-w-0 items-start justify-between gap-3">
               <PortfolioPanel
@@ -1398,16 +1398,16 @@ function Hero({
               </button>
             </div>
             {profile.stats.length > 0 ? (
-              <ul className="grid grid-cols-3 gap-2">
+              <ul className="grid grid-cols-3 gap-1.5 sm:gap-2">
                 {profile.stats.map((stat) => (
                   <li
                     key={stat.label}
-                    className="min-w-0 rounded-soft border border-border-soft bg-canvas/70 px-2.5 py-2 sm:px-3"
+                    className="min-w-0 rounded-soft border border-border-soft bg-canvas/70 px-2 py-1.5 sm:px-3 sm:py-2"
                   >
                     <p className="truncate font-mono text-[8px] uppercase tracking-[0.14em] text-text-soft sm:text-[9px] sm:tracking-[0.18em]">
                       {stat.label}
                     </p>
-                    <p className="mt-1 text-sm font-semibold text-text-strong">
+                    <p className="mt-0.5 text-sm font-semibold text-text-strong sm:mt-1">
                       {stat.value({
                         members: memberCount ?? 1,
                         pending: pendingApprovalCount,
@@ -1481,7 +1481,7 @@ function productHeroProfile(
       cardClass: SHARED_BALANCE_CARD_CLASS,
       glowClass: SHARED_BALANCE_GLOW_CLASS,
       glow: SHARED_BALANCE_GLOW,
-      portfolioWrapClass: "grid gap-5 lg:grid-cols-[1fr_0.85fr] lg:items-end",
+      portfolioWrapClass: "grid gap-3 sm:gap-4 lg:grid-cols-[1fr_0.85fr] lg:items-end",
       actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
       avatarIcon: productSurfaceIcon(surface),
       actionTone: "personal",
@@ -1502,7 +1502,7 @@ function productHeroProfile(
       cardClass: SHARED_BALANCE_CARD_CLASS,
       glowClass: SHARED_BALANCE_GLOW_CLASS,
       glow: SHARED_BALANCE_GLOW,
-      portfolioWrapClass: "grid gap-5 lg:grid-cols-[1.25fr_1fr] lg:items-end",
+      portfolioWrapClass: "grid gap-3 sm:gap-4 lg:grid-cols-[1.25fr_1fr] lg:items-end",
       actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
       actionTone: "pro",
       balanceLabel: "Treasury value",
@@ -1521,7 +1521,7 @@ function productHeroProfile(
       cardClass: SHARED_BALANCE_CARD_CLASS,
       glowClass: SHARED_BALANCE_GLOW_CLASS,
       glow: SHARED_BALANCE_GLOW,
-      portfolioWrapClass: "grid gap-5 lg:grid-cols-[1fr_1.1fr] lg:items-end",
+      portfolioWrapClass: "grid gap-3 sm:gap-4 lg:grid-cols-[1fr_1.1fr] lg:items-end",
       actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
       avatarIcon: productSurfaceIcon(surface),
       actionTone: "agent",
@@ -1542,7 +1542,7 @@ function productHeroProfile(
       cardClass: SHARED_BALANCE_CARD_CLASS,
       glowClass: SHARED_BALANCE_GLOW_CLASS,
       glow: SHARED_BALANCE_GLOW,
-      portfolioWrapClass: "grid gap-5 lg:grid-cols-[1.25fr_1fr] lg:items-end",
+      portfolioWrapClass: "grid gap-3 sm:gap-4 lg:grid-cols-[1.25fr_1fr] lg:items-end",
       actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
       actionTone: "default",
       balanceLabel: "Settlement balance",
@@ -1558,7 +1558,7 @@ function productHeroProfile(
       cardClass: SHARED_BALANCE_CARD_CLASS,
       glowClass: SHARED_BALANCE_GLOW_CLASS,
       glow: SHARED_BALANCE_GLOW,
-      portfolioWrapClass: "grid gap-5 lg:grid-cols-[1.25fr_1fr] lg:items-end",
+      portfolioWrapClass: "grid gap-3 sm:gap-4 lg:grid-cols-[1.25fr_1fr] lg:items-end",
       actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
       actionTone: "default",
       balanceLabel: "Payment balance",
@@ -1648,7 +1648,7 @@ function HeroActionTile({
     <Link
       href={href}
       className={
-        "group flex min-h-[88px] flex-col items-center justify-center gap-1.5 rounded-card border px-3 py-3.5 " +
+        "group flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-card border px-2 py-2.5 sm:min-h-[88px] sm:gap-1.5 sm:px-3 sm:py-3.5 " +
         "text-xs font-medium text-text-strong shadow-card-rest " +
         "transition-[transform,border-color,box-shadow,background-color] duration-base ease-out-soft " +
         "hover:-translate-y-0.5 hover:shadow-card-raised " +
@@ -1656,7 +1656,7 @@ function HeroActionTile({
         toneClass
       }
     >
-      <span className={"flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-base ease-out-soft group-hover:bg-accent/15 " + iconClass}>
+      <span className={"flex h-8 w-8 items-center justify-center rounded-full transition-colors duration-base ease-out-soft group-hover:bg-accent/15 sm:h-9 sm:w-9 " + iconClass}>
         {icon}
       </span>
       <span className="text-center text-[13px] font-semibold leading-tight text-text-strong">
@@ -1711,11 +1711,11 @@ function PortfolioPanel({
           {label}
         </p>
         {loadingFallback ? (
-          <div className="h-11 w-56 animate-pulse rounded bg-border-soft" />
+          <div className="h-9 w-44 animate-pulse rounded bg-border-soft sm:h-11 sm:w-56" />
         ) : (
           <>
             <p className={`flex items-baseline gap-2 transition-[filter] duration-base ${hiddenClass}`}>
-              <span className="font-numerals text-display-sm font-semibold leading-none text-text-strong tabular-nums">
+              <span className="font-numerals text-3xl font-semibold leading-none text-text-strong tabular-nums sm:text-display-sm">
                 {fallbackBalance ? fallbackBalance.amount : "0"}
               </span>
               <span className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-text-soft">
@@ -1759,10 +1759,10 @@ function PortfolioPanel({
         {label}
       </p>
       {portfolio.isLoading && portfolio.totalUsd === 0 ? (
-        <div className="h-11 w-56 animate-pulse rounded bg-border-soft" />
+        <div className="h-9 w-44 animate-pulse rounded bg-border-soft sm:h-11 sm:w-56" />
       ) : (
         <>
-          <p className={`font-numerals text-display-sm font-semibold leading-none text-text-strong tabular-nums transition-[filter] duration-base ${hiddenClass}`}>
+          <p className={`font-numerals text-3xl font-semibold leading-none text-text-strong tabular-nums transition-[filter] duration-base sm:text-display-sm ${hiddenClass}`}>
             {fiat.format(portfolio.totalUsd)}
           </p>
           {breakdownChips.length > 0 && (
