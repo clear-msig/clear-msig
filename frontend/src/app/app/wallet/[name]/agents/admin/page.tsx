@@ -202,7 +202,7 @@ export default function AgentAdminPage() {
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
           Agent Trading
         </Link>
-        <section className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest">
+        <section className="rounded-card bg-surface-raised p-6 shadow-card-rest">
           <div className="flex items-start gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
               <ShieldCheck className="h-4 w-4" aria-hidden="true" />
@@ -213,7 +213,7 @@ export default function AgentAdminPage() {
               </p>
               <p className="mt-1 text-sm leading-relaxed text-text-soft">
                 This surface is reserved for internal testing and moderation.
-                Use Agent Trading for trader setup, rules, budget, and
+                Use Agent Trading for trader setup, guardrails, allowance, and
                 monitoring.
               </p>
               <Link
@@ -242,7 +242,7 @@ export default function AgentAdminPage() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Beta Admin · {display}
+              Beta Admin Â· {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
               Operator dashboard
@@ -321,7 +321,7 @@ export default function AgentAdminPage() {
               <StatusRow
                 key={agent.id}
                 title={agent.name}
-                detail={`${agent.status} · ${openTrades} open trade${openTrades === 1 ? "" : "s"} · ${blocked} blocked idea${blocked === 1 ? "" : "s"}`}
+                detail={`${agent.status} Â· ${openTrades} open trade${openTrades === 1 ? "" : "s"} Â· ${blocked} blocked idea${blocked === 1 ? "" : "s"}`}
                 tone={agent.status === "active" ? "warning" : "danger"}
               />
             );
@@ -368,7 +368,7 @@ function AdminPanel({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+    <section className="rounded-card bg-surface-raised p-4 shadow-card-rest">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-text-strong">{title}</h2>
         <span className="rounded-full border border-border-soft bg-canvas px-2 py-1 text-[11px] font-medium text-text-soft">
@@ -390,7 +390,7 @@ function Metric({
   Icon: LucideIcon;
 }) {
   return (
-    <div className="rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest">
+    <div className="rounded-card bg-surface-raised p-3 shadow-card-rest">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] font-medium text-text-soft">{label}</span>
         <Icon className="h-4 w-4 text-accent" aria-hidden="true" />

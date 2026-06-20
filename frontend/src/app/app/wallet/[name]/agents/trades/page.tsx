@@ -241,7 +241,7 @@ export default function AgentTradesPage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Trade Performance · {display}
+              Trade Performance Â· {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
               Trades
@@ -268,7 +268,7 @@ export default function AgentTradesPage() {
         <Metric label="Combined P/L" value={formatSignedUsd(summary.combinedPnlUsd)} />
       </section>
 
-      <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <section className="rounded-card bg-surface-raised p-4 shadow-card-rest">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-text-strong">
@@ -338,7 +338,7 @@ export default function AgentTradesPage() {
             />
           ))
         ) : (
-          <div className="rounded-card border border-dashed border-border-soft bg-surface-raised p-6 text-sm text-text-soft">
+          <div className="rounded-card bg-surface-raised p-6 text-sm text-text-soft">
             No trades match this view.
           </div>
         )}
@@ -369,12 +369,12 @@ function TradeRow({
   const performance = estimateAgentOpenTradePerformance(execution, marketSnapshot);
   const closeValue = pnlUsd || performance?.unrealizedPnlUsd || "0";
   return (
-    <article className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+    <article className="rounded-card bg-surface-raised p-4 shadow-card-rest">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold text-text-strong">
-              {execution.market} · {execution.side}
+              {execution.market} Â· {execution.side}
             </p>
             <Badge tone={open ? "success" : "default"}>{open ? "Open" : "Closed"}</Badge>
             <Badge>{venueLabel(execution.venue)}</Badge>
@@ -386,7 +386,7 @@ function TradeRow({
             ) : null}
           </div>
           <p className="mt-1 text-xs text-text-soft">
-            {agent?.name ?? "Unknown agent"} · {formatUsd(execution.notionalUsd)} · {execution.leverage}x
+            {agent?.name ?? "Unknown agent"} Â· {formatUsd(execution.notionalUsd)} Â· {execution.leverage}x
           </p>
         </div>
         <div className="grid min-w-[16rem] gap-2 sm:grid-cols-4">
@@ -419,7 +419,7 @@ function TradeRow({
                 <MiniReason label="Risk" value={proposal.decisionJournal.riskPlan} />
                 <MiniReason label="Exit" value={proposal.decisionJournal.exitPlan} />
                 <MiniReason
-                  label="Checks"
+                  label="Rules"
                   value={proposal.decisionJournal.policySummary}
                 />
               </div>
@@ -548,7 +548,7 @@ function Metric({
   compact?: boolean;
 }) {
   return (
-    <div className={clsx("rounded-card border border-border-soft bg-surface-raised shadow-card-rest", compact ? "px-2 py-1.5" : "p-3")}>
+    <div className={clsx("rounded-card bg-surface-raised shadow-card-rest", compact ? "px-2 py-1.5" : "p-3")}>
       <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-soft">
         {label}
       </p>

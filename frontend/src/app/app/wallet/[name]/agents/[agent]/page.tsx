@@ -649,7 +649,7 @@ export default function AgentDetailPage() {
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
           Agent Trading
         </Link>
-        <div className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest">
+        <div className="rounded-card bg-surface-raised p-6 shadow-card-rest">
           <p className="text-sm font-semibold text-text-strong">Trading agent not found</p>
           <p className="mt-1 text-sm text-text-soft">
             This agent may have been removed from local storage.
@@ -682,7 +682,7 @@ export default function AgentDetailPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Agent Trading · {display}
+              Agent Trading Â· {display}
             </p>
             <h1 className="mt-1 truncate font-display text-lg leading-tight text-text-strong md:text-display-xs">
               {agent.name}
@@ -1102,7 +1102,7 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+    <section className="rounded-card bg-surface-raised p-4 shadow-card-rest">
       <div className="mb-4 flex items-center gap-2">
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/10 text-accent">
           <Icon className="h-4 w-4" aria-hidden="true" />
@@ -1116,7 +1116,7 @@ function Panel({
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest">
+    <div className="rounded-card bg-surface-raised p-3 shadow-card-rest">
       <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-soft">
         {label}
       </p>
@@ -1137,7 +1137,7 @@ function ReadinessPanel({
   return (
     <section
       id="publishing"
-      className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest"
+      className="rounded-card bg-surface-raised p-4 shadow-card-rest"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
@@ -1163,7 +1163,7 @@ function ReadinessPanel({
                 Trading Readiness
               </h2>
               <Badge tone={readinessBadgeTone(readiness.status)}>
-                {readiness.score}% · {readiness.headline}
+                {readiness.score}% Â· {readiness.headline}
               </Badge>
             </div>
           </div>
@@ -1233,7 +1233,7 @@ function AllowanceDecisionPanel({
     ? `/app/wallet/${walletEncoded}/agents/start?agent=${encodeURIComponent(agentId)}`
     : `/app/wallet/${walletEncoded}/agents/sessions/new?agent=${encodeURIComponent(agentId)}`;
   return (
-    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+    <section className="rounded-card bg-surface-raised p-4 shadow-card-rest">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
@@ -1326,7 +1326,7 @@ function PublishingPanel({
     agent.publishing?.slug ?? agent.id,
   );
   return (
-    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+    <section className="rounded-card bg-surface-raised p-4 shadow-card-rest">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <span
@@ -1540,7 +1540,7 @@ function NextAllowancePanel({
         <p className="mt-3 text-xs leading-relaxed text-text-soft">
           Latest stopped idea: {blockedProposals[0].market} {blockedProposals[0].side}
           {blockedProposals[0].policyViolations?.[0]?.message
-            ? ` — ${blockedProposals[0].policyViolations[0].message}`
+            ? ` â€” ${blockedProposals[0].policyViolations[0].message}`
             : ""}
         </p>
       ) : null}
@@ -1596,7 +1596,7 @@ function StoppedIdeasPanel({
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-semibold text-text-strong">
-                  {proposal.market} · {proposal.side}
+                  {proposal.market} Â· {proposal.side}
                 </p>
                 <Badge tone="danger">Stopped</Badge>
               </div>
@@ -1626,7 +1626,7 @@ function KillSwitchPanel({
   return (
     <section
       className={clsx(
-        "rounded-card border p-4 shadow-card-rest",
+        "rounded-card p-4 shadow-card-rest",
         paused
           ? "border-rose-500/30 bg-rose-500/[0.08]"
           : "border-border-soft bg-surface-raised",
@@ -1743,7 +1743,7 @@ function SessionRow({
       ? "Expired"
       : capitalize(session.status);
   return (
-    <div className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+    <div className="rounded-card bg-surface-raised p-4 shadow-card-rest">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -1753,7 +1753,7 @@ function SessionRow({
             </Badge>
           </div>
           <p className="mt-1 text-xs text-text-soft">
-            {session.allowedMarkets?.join(", ") || "Allowed markets"} · ${session.maxNotionalUsd ?? "limit"} ·{" "}
+            {session.allowedMarkets?.join(", ") || "Allowed markets"} Â· ${session.maxNotionalUsd ?? "limit"} Â·{" "}
             {session.maxLeverage ?? "limit"}x
           </p>
           <p className="mt-2 text-[11px] text-text-soft">
@@ -1803,19 +1803,19 @@ function ProposalRow({
   onSubmitVenue: (id: string) => void;
 }) {
   return (
-    <div className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+    <div className="rounded-card bg-surface-raised p-4 shadow-card-rest">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold text-text-strong">
-              {proposal.market} · {proposal.side}
+              {proposal.market} Â· {proposal.side}
             </p>
             <Badge tone={proposal.status === "blocked" ? "danger" : proposal.status === "executed" ? "success" : "default"}>
               {proposalStatusLabel(proposal.status)}
             </Badge>
           </div>
           <p className="mt-1 text-xs text-text-soft">
-            {venueLabel(proposal.venue)} · ${proposal.notionalUsd} · {proposal.leverage}x · Confidence{" "}
+            {venueLabel(proposal.venue)} Â· ${proposal.notionalUsd} Â· {proposal.leverage}x Â· Confidence{" "}
             {proposal.confidence}%
           </p>
           {proposal.policyViolations?.[0] ? (
@@ -1890,17 +1890,17 @@ function ExecutionRow({
   const pnl = Number(execution.realizedPnlUsd || 0);
   const performance = estimateAgentOpenTradePerformance(execution, marketSnapshot);
   return (
-    <div className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+    <div className="rounded-card bg-surface-raised p-4 shadow-card-rest">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold text-text-strong">
-              {execution.market} · {execution.side}
+              {execution.market} Â· {execution.side}
             </p>
             <Badge tone={open ? "success" : "default"}>{open ? "Open" : "Closed"}</Badge>
           </div>
           <p className="mt-1 text-xs text-text-soft">
-            {venueLabel(execution.venue)} · ${execution.notionalUsd} · {execution.leverage}x
+            {venueLabel(execution.venue)} Â· ${execution.notionalUsd} Â· {execution.leverage}x
           </p>
           {open ? (
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
@@ -2028,7 +2028,7 @@ function Badge({
 
 function EmptyLine({ text }: { text: string }) {
   return (
-    <div className="rounded-card border border-dashed border-border-soft bg-surface-raised p-4 text-sm text-text-soft">
+    <div className="rounded-card bg-surface-raised p-4 text-sm text-text-soft">
       {text}
     </div>
   );

@@ -60,7 +60,7 @@ export default function AgentApprovalsPage() {
         </Link>
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-            Owner Approvals · {display}
+            Owner Approvals Â· {display}
           </p>
           <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
             Approvals
@@ -75,7 +75,7 @@ export default function AgentApprovalsPage() {
         <Metric label="Automatic trading" value={String(automatic)} />
       </section>
 
-      <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <section className="rounded-card bg-surface-raised p-4 shadow-card-rest">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
@@ -86,7 +86,7 @@ export default function AgentApprovalsPage() {
                 Authorization log
               </h2>
               <p className="mt-1 max-w-3xl text-sm leading-relaxed text-text-soft">
-                These approvals authorize agent actions inside ClearSig safety checks. They do not give agents raw wallet custody.
+                These approvals authorize agent actions inside ClearSig policy. They do not give agents raw wallet custody.
               </p>
             </div>
           </div>
@@ -120,7 +120,7 @@ export default function AgentApprovalsPage() {
             />
           ))
         ) : (
-          <div className="rounded-card border border-dashed border-border-soft bg-surface-raised p-6 text-sm text-text-soft">
+          <div className="rounded-card bg-surface-raised p-6 text-sm text-text-soft">
             No approvals match this view.
           </div>
         )}
@@ -138,7 +138,7 @@ function ApprovalRow({
 }) {
   const signed = approval.approvalMethod === "wallet_signature";
   return (
-    <article className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+    <article className="rounded-card bg-surface-raised p-4 shadow-card-rest">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -151,7 +151,7 @@ function ApprovalRow({
             <Badge>{actionLabel(approval.action)}</Badge>
           </div>
           <p className="mt-1 text-xs text-text-soft">
-            {agent?.name ?? approval.agentId ?? "Vault"} · {new Date(approval.createdAt).toLocaleString()}
+            {agent?.name ?? approval.agentId ?? "Vault"} Â· {new Date(approval.createdAt).toLocaleString()}
           </p>
         </div>
         <span className="inline-flex items-center gap-1 rounded-full border border-border-soft bg-canvas px-2 py-1 text-[11px] font-medium text-text-soft">
@@ -178,7 +178,7 @@ function ApprovalRow({
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest">
+    <div className="rounded-card bg-surface-raised p-3 shadow-card-rest">
       <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-soft">
         {label}
       </p>

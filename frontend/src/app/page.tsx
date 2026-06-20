@@ -20,7 +20,8 @@
 // (technical labels). Scoped via .landing-shell so /app/* keeps
 // its existing Geist/Manrope font stack.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion, useInView, useReducedMotion } from "framer-motion";
 import {
@@ -29,16 +30,20 @@ import {
   Bot,
   Check,
   CircleDollarSign,
+  FileText,
+  Flame,
   Gauge,
+  Link2,
   Lock,
+  Network,
   ReceiptText,
   Send,
   ShieldCheck,
   Sparkles,
   TrendingUp,
-  UserPlus,
   Users,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import nextDynamic from "next/dynamic";
 import { LandingAtmospherics, LandingNav } from "@/components/landing/LandingChrome";
@@ -50,7 +55,6 @@ import { SecureSection } from "@/components/landing/SecureSection";
 import { BrandMark } from "@/components/retail/BrandMark";
 import { ClearCMark } from "@/components/landing/ClearCMark";
 import { CHAINS } from "@/components/landing/ChainLogos";
-import { HowItWorksDiagram } from "@/components/landing/HowItWorksDiagram";
 
 // Auto-redirect for already-authenticated users is now lazy-loaded
 // in a separate async chunk so the marketing landing can render
@@ -142,105 +146,265 @@ interface FadeInFn {
 
 function Hero({ fadeIn }: { fadeIn: FadeInFn }) {
   return (
-    <section className="relative z-10 grid grid-cols-1 gap-10 px-5 pb-16 pt-6 sm:gap-12 sm:px-10 sm:pb-28 sm:pt-16 lg:grid-cols-12 lg:gap-8 lg:pb-32 lg:pt-20">
-      {/* Left - copy */}
-      <div className="lg:col-span-7">
-        <motion.div {...fadeIn(0)} className="flex items-center">
-          <span className="font-mono-tech text-[9px] uppercase tracking-[0.3em] text-white/60 sm:text-[10px] sm:tracking-[0.32em]">
-            Clear signing for shared wallets
-          </span>
-        </motion.div>
+    <section className="relative left-1/2 isolate z-10 min-h-[100svh] w-screen -translate-x-1/2 overflow-hidden bg-[#070807]">
+      <Image
+        src="/assets/clearsig-hero-bg.png"
+        alt=""
+        fill
+        priority
+        sizes="100vw"
+        className="pointer-events-none absolute inset-0 z-0 scale-[1.02] object-cover object-[60%_56%] opacity-95"
+        aria-hidden="true"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-[1] bg-[linear-gradient(90deg,rgba(5,5,5,0.96)_0%,rgba(5,5,5,0.80)_34%,rgba(5,5,5,0.42)_62%,rgba(5,5,5,0.74)_100%)]"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-[2] bg-[radial-gradient(circle_at_22%_42%,rgba(204,255,0,0.14),transparent_31%),radial-gradient(circle_at_72%_58%,rgba(204,255,0,0.08),transparent_34%),linear-gradient(180deg,rgba(12,12,12,0.98)_0%,rgba(12,12,12,0.36)_28%,rgba(12,12,12,0.10)_57%,rgba(12,12,12,0.96)_100%)]"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-[3] h-40 bg-gradient-to-b from-transparent via-[#0c0c0c]/74 to-[#0c0c0c]"
+      />
+      <div className="relative z-10 mx-auto grid min-h-[100svh] w-full max-w-[1600px] grid-cols-1 items-center gap-10 px-5 pb-20 pt-28 sm:gap-12 sm:px-10 sm:pb-28 sm:pt-32 lg:grid-cols-12 lg:gap-10 lg:pb-36 lg:pt-36">
+        {/* Left - copy */}
+        <div className="relative max-w-3xl lg:col-span-7">
 
-        <motion.h1
-          {...fadeIn(0.06)}
-          className="mt-5 text-[clamp(2.75rem,9vw,7.5rem)] font-medium leading-[0.88] tracking-[-0.04em] text-white sm:mt-7 sm:leading-[0.85] sm:tracking-[-0.05em]"
-        >
-          Sign the
-          <br />
-          sentence.
-          <br />
-          Not the <span className="italic-skew">hex</span>.
-        </motion.h1>
-
-        <motion.p
-          {...fadeIn(0.14)}
-          className="mt-6 max-w-md text-[15px] leading-relaxed text-white/60 sm:mt-8 sm:text-lg"
-        >
-          ClearSig turns approvals, recovery, cross-chain sends, and agent
-          trading into receipts people can read before they sign.
-        </motion.p>
-
-        <motion.div {...fadeIn(0.2)} className="mt-8 flex flex-wrap items-center gap-3 sm:mt-10 sm:gap-4">
-          <Link
-            href="/choose"
-            className="neon-cta inline-flex flex-1 items-center justify-center gap-2 rounded-full px-6 py-3.5 text-[13px] font-bold tracking-tight sm:flex-none sm:px-7 sm:py-4 sm:text-[14px]"
+          <motion.h1
+            {...fadeIn(0.06)}
+            className="mt-6 text-[clamp(3rem,8.4vw,7.25rem)] font-medium leading-[0.88] tracking-[-0.04em] text-white drop-shadow-[0_18px_50px_rgba(0,0,0,0.55)] sm:mt-7 sm:leading-[0.85] sm:tracking-[-0.05em]"
           >
-            Start a wallet
-            <ArrowRight className="h-4 w-4" aria-hidden="true" strokeWidth={2.5} />
-          </Link>
-          <Link
-            href="#methodology"
-            className="group inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-white/15 px-5 py-3.5 text-[12px] font-medium text-white/80 transition-colors duration-200 hover:border-white/40 hover:text-white sm:flex-none sm:px-6 sm:py-4 sm:text-[13px]"
+            Control money
+            <br />
+            with people
+            <br />
+            and <span className="italic-skew">agents</span>.
+          </motion.h1>
+
+          <motion.p
+            {...fadeIn(0.14)}
+            className="mt-6 max-w-lg text-[15px] leading-relaxed text-white/68 sm:mt-8 sm:text-lg"
           >
-            See the flow
-          </Link>
-        </motion.div>
+            ClearSig turns wallets, policies, approvals, recovery, and agent
+            trading into one readable signing flow.
+          </motion.p>
 
-        {/* Signature strip: the literal artefact ClearSig owns is
-            not a KPI row, it is the readable sentence a signer can
-            understand before approving. */}
-        <motion.div
-          {...fadeIn(0.26)}
-          className="mt-12 max-w-xl sm:mt-14"
-        >
-          <HeroIntentRail />
-        </motion.div>
-      </div>
+          <motion.div {...fadeIn(0.2)} className="mt-8 flex flex-wrap items-center gap-3 sm:mt-10 sm:gap-4">
+            <Link
+              href="/choose"
+              className="neon-cta inline-flex flex-1 items-center justify-center gap-2 rounded-full px-6 py-3.5 text-[13px] font-bold tracking-tight sm:flex-none sm:px-7 sm:py-4 sm:text-[14px]"
+            >
+              Get started
+              <ArrowRight className="h-4 w-4" aria-hidden="true" strokeWidth={2.5} />
+            </Link>
+          </motion.div>
+        </div>
 
-      {/* Right - glass mockup. Self-aligned center on lg+ so the
+        {/* Right - glass mockup. Self-aligned center on lg+ so the
           card's vertical midpoint sits roughly with the headline,
           not floating against the section's grid baseline. */}
-      <motion.div
-        {...fadeIn(0.18)}
-        className="relative lg:col-span-5 lg:self-center"
-      >
-        <HeroMockup />
-      </motion.div>
+        <motion.div
+          {...fadeIn(0.18)}
+          className="relative lg:col-span-5 lg:self-center lg:translate-y-6"
+        >
+          <ClearSigningHeroMockup />
+        </motion.div>
+      </div>
     </section>
   );
 }
 
-function HeroIntentRail() {
-  const rows = [
-    ["intent", "Approve Steady BTC to trade BTC-PERP"],
-    ["limit", "$500 max · 2x leverage · stop required"],
-    ["expires", "Jan 1, 2026 · owner can pause anytime"],
+function ClearSigningHeroMockup() {
+  const approvers = [
+    { initial: "S", name: "Sarah", approved: true, tone: "from-[#ff8a4c] to-[#ff5a8a]" },
+    { initial: "M", name: "Mark", approved: true, tone: "from-[#7c4dff] to-[#4dc3ff]" },
+    { initial: "A", name: "Ada", approved: false, tone: "from-[#64748b] to-[#334155]" },
+  ];
+  const chains = ["SOL", "ETH", "BTC", "ZEC"];
+  const flow = [
+    { label: "Intent", value: "Readable", Icon: ReceiptText },
+    { label: "Policy", value: "Verified", Icon: ShieldCheck },
+    { label: "Ika", value: "Native sign", Icon: Lock },
   ];
 
   return (
-    <div className="intent-rail relative overflow-hidden rounded-[1.25rem] border border-white/10 bg-white/[0.025] p-3.5 shadow-[0_22px_70px_-42px_rgba(204,255,0,0.45)] sm:p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <span className="font-mono-tech text-[9px] uppercase tracking-[0.28em] text-white/40">
-          signer receipt
-        </span>
-        <span className="rounded-full border border-[#ccff00]/25 bg-[#ccff00]/[0.08] px-2.5 py-1 font-mono-tech text-[9px] uppercase tracking-[0.18em] text-[#ccff00]">
-          clear text
-        </span>
-      </div>
-      <div className="space-y-1.5">
-        {rows.map(([label, value]) => (
-          <div
-            key={label}
-            className="intent-rail-row grid grid-cols-[5.8rem_minmax(0,1fr)] items-start gap-3 rounded-xl px-3 py-2.5"
-          >
-            <span className="font-mono-tech text-[9px] uppercase tracking-[0.2em] text-white/35">
-              {label}
+    <div className="hero-mockup-wrap relative mx-auto w-full max-w-[560px] lg:mx-0 lg:ml-auto">
+      <div
+        aria-hidden="true"
+        className="absolute -inset-10 -z-10 rounded-[3rem] opacity-70"
+        style={{
+          background:
+            "radial-gradient(circle at 40% 30%, rgba(204, 255, 0, 0.18) 0%, rgba(204, 255, 0, 0) 58%)",
+          filter: "blur(76px)",
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="absolute -inset-8 -z-10 rounded-[3rem] opacity-45"
+        style={{
+          background:
+            "radial-gradient(circle at 80% 82%, rgba(16, 185, 129, 0.18) 0%, rgba(16, 185, 129, 0) 62%)",
+          filter: "blur(80px)",
+        }}
+      />
+
+      <div className="product-card relative overflow-hidden rounded-[1.5rem] p-4 sm:p-5">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 38%, rgba(204,255,0,0.045) 100%)",
+          }}
+        />
+
+        <div className="relative flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#ccff00] text-black shadow-[0_0_22px_rgba(204,255,0,0.20)]">
+              <ClearCMark size={22} variant="on-light" />
             </span>
-            <span className="text-[12px] leading-snug text-white/78 sm:text-[13px]">
-              {value}
+            <div>
+              <p className="font-mono-tech text-[9px] uppercase tracking-[0.22em] text-[#ccff00]">
+                Clear signing flow
+              </p>
+              <p className="mt-1 text-sm font-semibold text-white">
+                Treasury proposal #1842
+              </p>
+            </div>
+          </div>
+          <span className="rounded-full border border-[#ccff00]/20 bg-[#ccff00]/10 px-2.5 py-1 font-mono-tech text-[9px] uppercase tracking-[0.18em] text-[#ccff00]">
+            Live
+          </span>
+        </div>
+
+        <div className="product-field relative mt-5 rounded-[1.15rem] p-4">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white/[0.055] text-[#ccff00]">
+              <ReceiptText className="h-[18px] w-[18px]" aria-hidden="true" strokeWidth={2.1} />
+            </span>
+            <div className="min-w-0">
+              <p className="font-mono-tech text-[9px] uppercase tracking-[0.22em] text-white/38">
+                Readable intent, not hex
+              </p>
+              <p className="mt-2 text-[15px] font-semibold leading-snug text-white sm:text-base">
+                Send 0.25 BTC to Operations after 2 of 3 approvals.
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-white/45">
+                Same sentence for the user, Ledger, on-chain policy, and execution layer.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative mt-4 grid gap-3 sm:grid-cols-3">
+          {flow.map(({ label, value, Icon }) => (
+            <div key={label} className="rounded-2xl bg-white/[0.035] p-3">
+              <Icon className="h-4 w-4 text-[#ccff00]" aria-hidden="true" strokeWidth={2.1} />
+              <p className="mt-3 font-mono-tech text-[8px] uppercase tracking-[0.18em] text-white/35">
+                {label}
+              </p>
+              <p className="mt-1 text-xs font-semibold text-white">{value}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="relative mt-4 grid gap-3 lg:grid-cols-[1fr_0.9fr]">
+          <div className="rounded-[1.15rem] bg-white/[0.035] p-4">
+            <div className="flex items-center justify-between">
+              <p className="font-mono-tech text-[9px] uppercase tracking-[0.22em] text-white/38">
+                Human threshold
+              </p>
+              <span className="text-xs font-semibold text-[#ccff00]">2 of 3</span>
+            </div>
+            <div className="mt-4 flex items-center gap-3">
+              {approvers.map((approver) => (
+                <div key={approver.name} className="flex flex-col items-center gap-1.5">
+                  <div className="relative">
+                    <span
+                      className={
+                        "flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br text-xs font-semibold text-white " +
+                        approver.tone
+                      }
+                    >
+                      {approver.initial}
+                    </span>
+                    {approver.approved ? (
+                      <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#ccff00] text-black ring-2 ring-[#0c0c0c]">
+                        <Check className="h-3 w-3" aria-hidden="true" strokeWidth={3.5} />
+                      </span>
+                    ) : (
+                      <span className="absolute -inset-1 rounded-full border border-dashed border-[#ccff00]/45" />
+                    )}
+                  </div>
+                  <span className="text-[10px] font-medium text-white/48">{approver.name}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+              <div className="h-full w-2/3 rounded-full bg-[#ccff00] shadow-[0_0_10px_rgba(204,255,0,0.28)]" />
+            </div>
+          </div>
+
+          <div className="rounded-[1.15rem] bg-white/[0.035] p-4">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#ccff00]/10 text-[#ccff00]">
+                <Bot className="h-4 w-4" aria-hidden="true" strokeWidth={2.1} />
+              </span>
+              <div>
+                <p className="text-xs font-semibold text-white">Agent guardrail</p>
+                <p className="text-[11px] text-white/42">No custody. Policy-bound.</p>
+              </div>
+            </div>
+            <div className="mt-4 rounded-xl bg-black/20 px-3 py-2">
+              <p className="font-mono-tech text-[9px] uppercase tracking-[0.18em] text-white/38">
+                Rule
+              </p>
+              <p className="mt-1 text-xs text-white/68">Max 2x leverage. Stop loss required.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative mt-4 rounded-[1.15rem] bg-black/20 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-mono-tech text-[9px] uppercase tracking-[0.22em] text-white/38">
+                One wallet, native chains
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {chains.map((chain) => (
+                  <span
+                    key={chain}
+                    className="rounded-full bg-white/[0.055] px-3 py-1.5 text-xs font-semibold text-white/74"
+                  >
+                    {chain}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <span className="inline-flex items-center gap-2 rounded-full bg-[#ccff00] px-4 py-2 text-xs font-bold text-black">
+              Broadcast
+              <Send className="h-3.5 w-3.5" aria-hidden="true" strokeWidth={2.6} />
             </span>
           </div>
-        ))}
+        </div>
+      </div>
+
+      <div className="float-slow absolute right-3 -top-4 z-20 hidden items-center gap-2.5 rounded-2xl border border-white/[0.10] bg-[#0c0c0c]/90 px-3.5 py-2.5 shadow-[0_18px_40px_-12px_rgba(0,0,0,0.6)] backdrop-blur-md sm:flex">
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#ccff00]/10 ring-1 ring-[#ccff00]/30">
+          <ShieldCheck className="h-3.5 w-3.5 text-[#ccff00]" aria-hidden="true" strokeWidth={2.2} />
+        </span>
+        <div className="leading-tight">
+          <div className="text-[9px] uppercase tracking-[0.18em] text-white/40">On-chain</div>
+          <div className="text-[11px] font-semibold text-white">Policy verified</div>
+        </div>
+      </div>
+
+      <div className="float-slower absolute -left-3 bottom-12 z-20 hidden items-center rounded-full border border-white/[0.10] bg-[#0c0c0c]/90 px-3.5 py-2 shadow-[0_18px_40px_-12px_rgba(0,0,0,0.6)] backdrop-blur-md sm:flex">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/85">
+          Sign intent, not hex
+        </span>
       </div>
     </div>
   );
@@ -351,7 +515,7 @@ function HeroMockup() {
             <div className="flex items-start gap-2 text-[12px] text-white/70">
               <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#ccff00]" strokeWidth={2.4} />
               <span>
-                <span className="text-white/45">Rules - </span>
+                <span className="text-white/45">Policy - </span>
                 BTC-PERP, max 2x leverage, stop loss required.
               </span>
             </div>
@@ -412,7 +576,7 @@ function HeroMockup() {
           <div className="product-field relative mt-5 flex items-center justify-between rounded-xl px-4 py-3">
             <div className="leading-tight">
               <div className="text-[11px] text-white/45">One more approval</div>
-              <div className="text-[13px] font-semibold text-white">Ada signs the receipt</div>
+              <div className="text-[13px] font-semibold text-white">Ada signs the policy</div>
             </div>
             <span className="rounded-full bg-[#ccff00] px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-black shadow-[0_0_10px_rgba(204, 255, 0,0.20)]">
               Approve
@@ -480,7 +644,7 @@ function Bento({ fadeIn }: { fadeIn: FadeInFn }) {
           <BentoChainSwatches />
         </motion.div>
 
-        {/* Lime accent - Protection controls */}
+        {/* Lime accent - Policy controls */}
         <motion.div
           {...fadeIn(0.16)}
           className="product-card relative overflow-hidden rounded-[1.5rem] p-6 text-white sm:p-7"
@@ -493,10 +657,10 @@ function Bento({ fadeIn }: { fadeIn: FadeInFn }) {
               </span>
             </div>
             <div className="mt-8 text-2xl font-light leading-[1.1] tracking-tight">
-              Protection first.
+              Rules first.
             </div>
             <p className="mt-3 text-[13px] leading-relaxed text-white/60">
-              People, limits, budgets, and approvals stay visible before anything moves.
+              Limits, allowances, budgets, and approvals stay visible before anything moves.
             </p>
             <div className="mt-6 space-y-2">
               {[
@@ -779,7 +943,7 @@ function BentoLargeBars() {
           <span className="text-white/40">in plain English.</span>
         </h3>
         <p className="mt-4 text-sm leading-relaxed text-white/60">
-          Every request reads as a sentence. Members see the protection, amount,
+          Every request reads as a sentence. Members see the policy, amount,
           destination, and expiry before they sign.
         </p>
       </div>
@@ -860,13 +1024,13 @@ function BentoChainSwatches() {
 
       <div className="mt-8">
         <h3 className="text-2xl font-light leading-[1.1] tracking-tight text-white">
-          One protection layer.
+          One policy.
           <br />
           <span className="text-white/40">Native chains.</span>
         </h3>
         <p className="mt-3 text-[13px] leading-relaxed text-white/60">
-          Solana, EVM, Bitcoin, Zcash, and Hyperliquid flows stay under one
-          readable approval surface.
+          Solana, EVM, Bitcoin, Zcash, and Hyperliquid flows stay under the
+          same approval surface.
         </p>
       </div>
 
@@ -890,168 +1054,330 @@ function BentoChainSwatches() {
  * ───────────────────────────────────────────────────────────────── */
 
 function WhyClear({ fadeIn }: { fadeIn: FadeInFn }) {
-  const rows: { bad: { title: string; body: string }; good: { title: string; body: string } }[] = [
+  const controls = [
     {
-      bad: {
-        title: "Sign random gibberish",
-        body: "Your wallet shows a wall of letters and numbers. You tap approve and hope it's right.",
-      },
-      good: {
-        title: "Sign a sentence",
-        body: "The signer sees the amount, action, protection, destination, and expiry in plain language.",
-      },
+      title: "Readable intent",
+      body: "Amount, destination, policy, and expiry are shown before signing.",
+      Icon: FileText,
     },
     {
-      bad: {
-        title: "Agents get raw access",
-        body: "Most automation asks for broad keys, exchange access, or manual trust.",
-      },
-      good: {
-        title: "Agents get bounded authority",
-        body: "ClearSig checks markets, size, leverage, sessions, stops, and owner approval before execution.",
-      },
+      title: "Bounded authority",
+      body: "Agents act only inside approved markets, budgets, stops, and sessions.",
+      Icon: ShieldCheck,
     },
     {
-      bad: {
-        title: "One chain at a time",
-        body: "Want to send Ethereum? Set up a whole new wallet over there. Then again for Bitcoin.",
-      },
-      good: {
-        title: "One wallet, every chain",
-        body: "Solana, EVM, Bitcoin, Zcash, and testnet trading flows share one protection surface.",
-      },
+      title: "One policy surface",
+      body: "Solana, EVM, Bitcoin, Zcash, and Hyperliquid share the same approval model.",
+      Icon: Network,
     },
     {
-      bad: {
-        title: "Revenue before value",
-        body: "Seat fees charge the wallet even when nothing moves.",
-      },
-      good: {
-        title: "Gas-fee aligned",
-        body: "ClearSig earns when approved transactions execute, with fees shown before signing.",
-      },
+      title: "Execution-aligned fees",
+      body: "Fees are visible before signing and tied to transactions that move.",
+      Icon: Flame,
     },
+  ];
+  const receiptRows = [
+    ["Action", "Send 0.25 BTC"],
+    ["To", "Operations vault"],
+    ["Policy", "2 of 3 owners, max $500"],
+    ["Agent", "Steady BTC, stop required"],
+  ];
+  const riskRows = [
+    "No unreadable signing payloads",
+    "No raw exchange keys for agents",
+    "No chain-by-chain approval sprawl",
+    "No seat fee before value",
   ];
 
   return (
     <section
       id="why"
-      className="relative z-10 px-5 pb-16 sm:px-10 sm:pb-28 lg:pb-32"
+      className="relative z-10 px-5 pb-16 pt-4 sm:px-10 sm:pb-28 lg:pb-32"
     >
-      {/* Centered section header. Bigger, more confident. */}
-      <motion.div {...fadeIn(0)} className="mx-auto mb-12 max-w-3xl text-center sm:mb-16">
-        <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5">
-          <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-white/65">
-            why clearsig
-          </span>
-        </div>
-        <h2 className="mt-6 text-[clamp(2rem,5vw,4rem)] font-light leading-[1.02] tracking-[-0.04em] text-white">
-          Not your usual <span className="italic-skew">shared wallet</span>.
-        </h2>
-        <p className="mx-auto mt-6 max-w-2xl text-[15px] leading-relaxed text-white/55 sm:text-base">
-          ClearSig is built for shared wallets, bounded agents, and readable
-          protection. The user signs intent, not mystery payloads.
-        </p>
-      </motion.div>
+      <div className="mx-auto max-w-[1440px]">
+        <motion.div {...fadeIn(0)} className="mx-auto mb-10 max-w-4xl text-center sm:mb-14">
+          <h2 className="text-[clamp(2.6rem,6vw,5.7rem)] font-light leading-[0.96] tracking-[-0.055em] text-white">
+            Not your usual <span className="italic-skew text-[#ccff00]">shared wallet</span>.
+          </h2>
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-white/58 sm:text-lg">
+            ClearSig turns every wallet action into a readable control surface before money moves.
+          </p>
+        </motion.div>
 
-      {/* Single comparison panel. One big rounded glass surface
-          split into two columns - dim "old way" on the left, lime
-          "with Clearsig" on the right. Each comparison is one row;
-          rows share dividers, so the eye reads the four rows as a
-          single transformation rather than eight separate cards. */}
-      <motion.div
-        {...fadeIn(0.06)}
-        className="relative mx-auto max-w-5xl overflow-hidden rounded-[1.75rem] border border-white/[0.08] bg-white/[0.015] sm:rounded-[2.5rem]"
-      >
-        {/* Soft lime glow anchoring the right column so the
-            "Clearsig" side reads as the warm, branded half without
-            an explicit dividing border. */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -right-32 top-0 h-[80%] w-[60%] opacity-40"
-          style={{
-            background:
-              "radial-gradient(circle at 70% 30%, rgba(204, 255, 0, 0.18) 0%, rgba(204, 255, 0, 0) 60%)",
-            filter: "blur(80px)",
-          }}
-        />
-
-        {/* Column headers */}
-        <div className="relative grid grid-cols-1 border-b border-white/[0.06] md:grid-cols-2">
-          <div className="px-6 py-5 sm:px-8 sm:py-6">
-            <span className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/40">
-              The old way
-            </span>
-          </div>
-          <div className="border-t border-white/[0.06] bg-[#ccff00]/[0.04] px-6 py-5 sm:px-8 sm:py-6 md:border-l md:border-t-0">
-            <span className="inline-flex items-center">
-              <span className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-[#ccff00]">
-                With Clearsig
-              </span>
-            </span>
-          </div>
-        </div>
-
-        {/* Comparison rows */}
-        <div className="relative">
-          {rows.map((r, i) => (
-            <div
-              key={r.good.title}
-              className={
-                "relative grid grid-cols-1 md:grid-cols-2 " +
-                (i < rows.length - 1 ? "border-b border-white/[0.06]" : "")
-              }
-            >
-              {/* Bad cell */}
-              <div className="relative px-6 py-7 sm:px-8 sm:py-9">
-                <div className="flex items-start gap-3">
-                  <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/[0.05] text-white/35">
-                    <X className="h-3 w-3" strokeWidth={2.5} />
+        <motion.div {...fadeIn(0.06)} className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+          <aside className="rounded-[1.5rem] bg-[#111514] p-5 sm:p-6">
+            <div className="flex items-center justify-between gap-4 pb-4">
+              <p className="font-mono-tech text-[10px] uppercase tracking-[0.26em] text-white/46">
+                Problems ClearSig removes
+              </p>
+              <span className="h-2 w-2 rounded-full bg-[#ccff00]" aria-hidden="true" />
+            </div>
+            <div className="mt-5 grid gap-3">
+              {riskRows.map((risk, index) => (
+                <div
+                  key={risk}
+                  className="flex items-center gap-3 rounded-[1rem] bg-[#0d100f] px-4 py-3"
+                >
+                  <span className="font-mono-tech text-[11px] text-[#ccff00]">
+                    {String(index + 1).padStart(2, "0")}
                   </span>
-                  <div className="flex-1">
-                    <h3 className="text-[17px] font-medium leading-snug text-white/55 line-through decoration-white/15 decoration-1 sm:text-lg">
-                      {r.bad.title}
-                    </h3>
-                    <p className="mt-2 text-[13.5px] leading-relaxed text-white/40 sm:text-sm">
-                      {r.bad.body}
-                    </p>
-                  </div>
+                  <p className="text-sm font-medium text-white/70">{risk}</p>
                 </div>
-              </div>
+              ))}
+            </div>
+          </aside>
 
-              {/* Arrow indicator - only on md+ where the two cells
-                  sit side by side. Sits centered on the column
-                  divider, vertically centered in this row, so the
-                  transformation reads visually. z-10 lifts it
-                  above the cell backgrounds. */}
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute left-1/2 top-1/2 z-10 hidden h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-[#0c0c0c] text-[#ccff00] shadow-[0_0_10px_rgba(204, 255, 0,0.14)] md:flex"
-              >
-                <ArrowRight className="h-4 w-4" strokeWidth={2.5} />
+          <div className="rounded-[1.5rem] bg-[#10150e] p-5 sm:p-6">
+            <div className="flex flex-col gap-4 pb-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
+                  With ClearSig
+                </p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-white sm:text-3xl">
+                  One readable approval layer.
+                </h3>
               </div>
-
-              {/* Good cell */}
-              <div className="relative border-t border-white/[0.06] bg-[#ccff00]/[0.025] px-6 py-7 sm:px-8 sm:py-9 md:border-l md:border-t-0">
-                <div className="flex items-start gap-3">
-                  <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#ccff00] text-black shadow-[0_0_6px_rgba(204, 255, 0,0.20)]">
-                    <Check className="h-3 w-3" strokeWidth={3.2} />
-                  </span>
-                  <div className="flex-1">
-                    <h3 className="text-[17px] font-medium leading-snug tracking-[-0.01em] text-white sm:text-lg">
-                      {r.good.title}
-                    </h3>
-                    <p className="mt-2 text-[13.5px] leading-relaxed text-white/65 sm:text-sm">
-                      {r.good.body}
-                    </p>
-                  </div>
-                </div>
+              <div className="rounded-full bg-[#12180f] px-4 py-2 font-mono-tech text-[10px] uppercase tracking-[0.2em] text-[#ccff00]">
+                policy checked
               </div>
             </div>
-          ))}
-        </div>
-      </motion.div>
+
+            <div className="mt-6 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+              <div className="rounded-[1.25rem] bg-[#0b0f0d] p-5">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-[0.9rem] bg-[#11180e] text-[#ccff00]">
+                    <ReceiptText className="h-5 w-5" aria-hidden="true" strokeWidth={1.9} />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-white">Signing receipt</p>
+                    <p className="mt-0.5 text-xs text-white/48">The sentence owners approve.</p>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-2">
+                  {receiptRows.map(([label, value]) => (
+                    <div key={label} className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-3 rounded-[0.9rem] bg-[#111514] px-3 py-3">
+                      <span className="font-mono-tech text-[10px] uppercase tracking-[0.18em] text-white/36">
+                        {label}
+                      </span>
+                      <span className="text-sm font-medium text-white/76">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                {controls.map(({ title, body, Icon }) => (
+                  <div
+                    key={title}
+                    className="rounded-[1.1rem] bg-[#0b0f0d] p-4"
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[0.8rem] bg-[#11180e] text-[#ccff00]">
+                        <Icon className="h-5 w-5" aria-hidden="true" strokeWidth={1.9} />
+                      </span>
+                      <div className="min-w-0">
+                        <h4 className="text-base font-semibold tracking-[-0.02em] text-white">
+                          {title}
+                        </h4>
+                        <p className="mt-1.5 text-sm leading-relaxed text-white/54">
+                          {body}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-wrap items-center gap-2 pt-4">
+              {["Intent", "Policy", "Owners", "Chains", "Fees"].map((item) => (
+                <span
+                  key={item}
+                  className="rounded-full bg-[#0b0f0d] px-3 py-1.5 text-xs font-medium text-white/58"
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+      </div>
     </section>
+  );
+}
+
+function ComparisonHeader({
+  label,
+  tone,
+}: {
+  label: string;
+  tone: "muted" | "good";
+}) {
+  return (
+    <div
+      className={
+        "relative flex items-center gap-5 border-b px-8 py-7 sm:px-11 " +
+        (tone === "good" ? "border-[#ccff00]/[0.12]" : "border-[#2d352f]/80")
+      }
+    >
+      <span
+        className={
+          "font-mono-tech text-[10px] uppercase tracking-[0.26em] " +
+          (tone === "good" ? "text-[#ccff00]" : "text-white/58")
+        }
+      >
+        {label}
+      </span>
+      <span
+        className={
+          "h-px flex-1 " +
+          (tone === "good"
+            ? "bg-[#ccff00]/55 shadow-[0_0_12px_rgba(204,255,0,0.65)]"
+            : "bg-[#475143]/70")
+        }
+      />
+      <span
+        className={
+          "h-1.5 w-1.5 rounded-full " +
+          (tone === "good" ? "bg-[#ccff00] shadow-[0_0_12px_#ccff00]" : "bg-[#596353]")
+        }
+      />
+    </div>
+  );
+}
+
+function ComparisonRow({
+  title,
+  body,
+  Icon,
+  mode,
+  status,
+  last,
+}: {
+  title: string;
+  body: string;
+  Icon: typeof ReceiptText;
+  mode?: string;
+  status: "bad" | "good";
+  last: boolean;
+}) {
+  const good = status === "good";
+  return (
+    <div
+      className={
+        "relative flex min-h-[10.8rem] items-center gap-8 px-8 py-7 sm:px-11 " +
+        (!last ? (good ? "border-b border-[#ccff00]/[0.09]" : "border-b border-[#30382f]/72") : "")
+      }
+    >
+      <div
+        aria-hidden="true"
+        className={
+          "pointer-events-none absolute inset-0 " +
+          (good
+            ? "bg-[radial-gradient(circle_at_84%_45%,rgba(204,255,0,0.085),transparent_40%)]"
+            : "bg-[radial-gradient(circle_at_16%_36%,rgba(86,98,81,0.075),transparent_35%)]")
+        }
+      />
+      <div
+        className={
+          "relative flex h-[6.1rem] w-[6.1rem] shrink-0 items-center justify-center overflow-hidden rounded-[1.25rem] border backdrop-blur-sm " +
+          (good
+            ? "border-[#ccff00]/55 bg-[#ccff00]/[0.075] text-[#ccff00] shadow-[inset_0_1px_0_rgba(204,255,0,0.10),inset_0_-28px_42px_rgba(0,0,0,0.36),0_0_34px_-12px_rgba(204,255,0,0.85)]"
+            : "border-[#3b433a]/80 bg-[#151917]/82 text-white/42 shadow-[inset_0_1px_0_rgba(84,96,78,0.10),inset_0_-28px_42px_rgba(0,0,0,0.34)]")
+        }
+      >
+        <span
+          aria-hidden="true"
+          className={
+            "pointer-events-none absolute inset-x-3 top-2 h-8 rounded-full blur-xl " +
+            (good ? "bg-[#ccff00]/18" : "bg-[#6b7664]/12")
+          }
+        />
+        {mode === "gibberish" ? (
+          <span className="grid grid-cols-4 gap-x-2 gap-y-1 font-mono-tech text-[13px] leading-none tracking-[0.08em] text-white/43">
+            {["A", "7", "H", "K", "3", "%", "Q", "Z", "#", "9", "[]", "[]"].map((char, index) => (
+              <span key={`${char}-${index}`}>{char}</span>
+            ))}
+          </span>
+        ) : (
+          <Icon className="h-10 w-10" aria-hidden="true" strokeWidth={1.75} />
+        )}
+        <span
+          className={
+            "absolute -right-5 bottom-5 flex h-9 w-9 items-center justify-center rounded-full border " +
+            (good
+              ? "border-[#ccff00]/70 bg-[#ccff00] text-black shadow-[0_0_16px_rgba(204,255,0,0.62)]"
+              : "border-[#3c453e]/90 bg-[#202426] text-white/52 shadow-[0_0_14px_rgba(0,0,0,0.35)]")
+          }
+        >
+          {good ? (
+            <Check className="h-4 w-4" aria-hidden="true" strokeWidth={3} />
+          ) : (
+            <X className="h-4 w-4" aria-hidden="true" strokeWidth={2.4} />
+          )}
+        </span>
+      </div>
+
+      <div className="relative min-w-0">
+        <h3
+          className={
+            "text-xl font-semibold leading-tight tracking-[-0.02em] sm:text-[1.45rem] " +
+            (good ? "text-white" : "text-white/50")
+          }
+        >
+          {title}
+        </h3>
+        <p
+          className={
+            "mt-3 max-w-md text-[15px] leading-relaxed sm:text-[1.02rem] " +
+            (good ? "text-white/70" : "text-white/42")
+          }
+        >
+          {body}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function MobileComparisonCard({
+  item,
+  status,
+}: {
+  item: { title: string; body: string; Icon: typeof ReceiptText };
+  status: "bad" | "good";
+}) {
+  const Icon = item.Icon;
+  const good = status === "good";
+
+  return (
+    <div
+      className={
+        "rounded-2xl border p-4 " +
+        (good
+          ? "border-[#ccff00]/35 bg-[#ccff00]/[0.045] shadow-[0_0_32px_-20px_rgba(204,255,0,0.75)]"
+          : "border-[#30382f]/78 bg-[#151917]/82")
+      }
+    >
+      <div className="flex items-center gap-2">
+        <Icon
+          className={good ? "h-5 w-5 text-[#ccff00]" : "h-5 w-5 text-white/38"}
+          aria-hidden="true"
+          strokeWidth={1.8}
+        />
+        <span
+          className={
+            "text-xs font-semibold leading-tight " + (good ? "text-white" : "text-white/50")
+          }
+        >
+          {item.title}
+        </span>
+      </div>
+      <p className={good ? "mt-2 text-xs leading-relaxed text-white/62" : "mt-2 text-xs leading-relaxed text-white/36"}>
+        {item.body}
+      </p>
+    </div>
   );
 }
 
@@ -1062,74 +1388,88 @@ function WhyClear({ fadeIn }: { fadeIn: FadeInFn }) {
 function Methodology({ fadeIn }: { fadeIn: FadeInFn }) {
   const steps = [
     {
-      n: "01",
-      Icon: Users,
+      n: "1",
       title: "Create the control layer",
-      body: "Add people, protection, budgets, and recovery.",
+      body: "Add members, chains, limits, and recovery rules.",
     },
     {
-      n: "02",
-      Icon: Send,
-      title: "Propose an action",
-      body: "A member or agent submits a readable intent with limits and expiry.",
+      n: "2",
+      title: "Propose a readable action",
+      body: "A human or agent submits an intent with amount, destination, policy, and expiry.",
     },
     {
-      n: "03",
-      Icon: UserPlus,
+      n: "3",
       title: "Approve and execute",
-      body: "Owners sign the sentence, ClearSig checks protection, then execution can proceed.",
+      body: "ClearSig checks the policy, collects approvals, then executes only what passed.",
     },
   ];
 
   return (
-    // Methodology now renders on the obsidian canvas (no light-grey
-    // contrast section) so the new animated diagram - which uses
-    // lime pulses on a dark surface - reads cleanly. Numbered steps
-    // re-skinned for white-on-dark to match.
     <section
       id="methodology"
-      className="relative z-10 px-5 pb-16 sm:px-10 sm:pb-28 lg:pb-32"
+      className="relative z-10 overflow-hidden px-5 py-16 sm:px-10 sm:py-28 lg:min-h-[920px] lg:py-24"
     >
-      <div className="relative grid grid-cols-1 items-center gap-12 sm:gap-16 lg:grid-cols-12 lg:gap-12">
-        {/* Left - numbered list */}
-        <div className="lg:col-span-6">
-          <motion.div {...fadeIn(0)} className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5">
-            <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-white/65">
-              how it works
-            </span>
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-[0.14]"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(73,83,70,0.24) 1px, transparent 1px), linear-gradient(90deg, rgba(73,83,70,0.24) 1px, transparent 1px)",
+          backgroundSize: "34px 34px",
+          maskImage: "linear-gradient(to bottom, transparent, black 12%, black 86%, transparent)",
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-[51%] top-[18%] hidden h-[58%] w-[42%] rounded-full bg-[#ccff00]/[0.07] blur-3xl lg:block"
+      />
+
+      <div className="relative mx-auto grid max-w-[1760px] grid-cols-1 items-center gap-12 sm:gap-16 lg:grid-cols-[0.82fr_1.18fr] lg:gap-16">
+        <div className="lg:pl-4">
+          <motion.div
+            {...fadeIn(0)}
+            className="inline-flex rounded-full border border-[#ccff00]/42 px-5 py-2 font-mono-tech text-[10px] font-semibold uppercase tracking-[0.26em] text-[#ccff00] shadow-[0_0_22px_-14px_rgba(204,255,0,0.72)]"
+          >
+            How it works
           </motion.div>
 
           <motion.h2
             {...fadeIn(0.06)}
-            className="mt-6 text-[clamp(2rem,5vw,4rem)] font-light leading-[1.02] tracking-[-0.04em] text-white"
+            className="mt-7 text-[clamp(3.75rem,5.8vw,6.35rem)] font-light leading-[0.98] tracking-[-0.055em] text-white"
           >
-            Three checks.
+            Three checks
             <br />
-            <span className="text-white/40">No blind signing.</span>
+            <span className="text-[#ccff00]">before funds move.</span>
           </motion.h2>
+          <motion.p
+            {...fadeIn(0.1)}
+            className="mt-6 max-w-2xl text-lg leading-relaxed text-white/58 sm:text-xl"
+          >
+            Readable intent. Policy validation. Human approval.
+          </motion.p>
 
-          <ol className="mt-10 space-y-3 sm:mt-12">
+          <ol className="relative mt-10 max-w-[690px] space-y-0 sm:mt-12">
+            <span
+              aria-hidden="true"
+              className="absolute left-[2.1rem] top-9 hidden h-[calc(100%-4.5rem)] w-px bg-[#ccff00]/24 shadow-[0_0_20px_rgba(204,255,0,0.35)] sm:block"
+            />
             {steps.map((step, i) => (
               <motion.li
                 key={step.n}
                 {...fadeIn(0.1 + i * 0.06)}
-                className="group flex items-start gap-5 border-t border-white/[0.08] py-5 first:border-t-0 first:pt-0 sm:gap-6 sm:py-6"
+                className="group relative flex items-start gap-5 py-6 sm:gap-9 sm:py-8"
               >
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/20 font-mono-tech text-[11px] font-medium tracking-[0.1em] text-white/70 transition-colors duration-200 group-hover:border-[#ccff00] group-hover:bg-[#ccff00] group-hover:text-black sm:h-12 sm:w-12 sm:text-[12px]">
+                {i > 0 ? (
+                  <span className="absolute left-[7.7rem] right-0 top-0 hidden h-px bg-[#384036]/70 sm:block" />
+                ) : null}
+                <div className="relative z-10 flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-[#ccff00]/34 bg-[#0b0f08] font-mono-tech text-xl font-semibold text-[#ccff00] shadow-[inset_0_0_20px_rgba(204,255,0,0.10),0_0_24px_-11px_rgba(204,255,0,0.78)] transition-colors duration-200 group-hover:border-[#ccff00]/72 group-hover:bg-[#ccff00] group-hover:text-black sm:h-[4.25rem] sm:w-[4.25rem]">
                   {step.n}
                 </div>
                 <div className="flex-1">
-                  <div className="flex items-center gap-3">
-                    <h3 className="text-xl font-medium tracking-tight text-white sm:text-2xl">
-                      {step.title}
-                    </h3>
-                    <step.Icon
-                      className="h-4 w-4 text-white/40"
-                      strokeWidth={1.75}
-                      aria-hidden="true"
-                    />
-                  </div>
-                  <p className="mt-2 max-w-md text-[14px] leading-relaxed text-white/55 sm:text-[15px]">
+                  <h3 className="text-xl font-semibold tracking-[-0.02em] text-white sm:text-2xl">
+                    {step.title}
+                  </h3>
+                  <p className="mt-2 max-w-xl text-base leading-relaxed text-white/56 sm:text-lg">
                     {step.body}
                   </p>
                 </div>
@@ -1138,16 +1478,266 @@ function Methodology({ fadeIn }: { fadeIn: FadeInFn }) {
           </ol>
         </div>
 
-        {/* Right - animated flow diagram replaces the rotating orb.
-            The diagram tells the same story as the numbered list
-            (friends → wallet → chains) but as a continuous flow
-            with traveling lime pulses, so the section reads even
-            without scanning the text. */}
-        <motion.div {...fadeIn(0.16)} className="relative lg:col-span-6">
-          <HowItWorksDiagram />
+        <motion.div {...fadeIn(0.16)} className="relative min-w-0">
+          <HowItWorksFlowMockup />
         </motion.div>
       </div>
     </section>
+  );
+}
+
+function HowItWorksFlowMockup() {
+  return (
+    <div className="relative mx-auto min-h-[680px] w-full max-w-[980px] overflow-visible px-0 py-8 sm:min-h-[720px] sm:px-4 lg:py-0">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 top-[42%] h-[520px] w-[760px] -translate-x-1/2 -translate-y-1/2 opacity-70"
+        style={{
+          background:
+            "radial-gradient(circle at 50% 50%, rgba(204,255,0,0.14), transparent 30%), radial-gradient(circle at 50% 50%, rgba(204,255,0,0.065), transparent 54%)",
+          filter: "blur(14px)",
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-[18%] right-[-6%] top-[15.4rem] h-28 opacity-70"
+        style={{
+          background:
+            "linear-gradient(90deg, transparent, rgba(204,255,0,0.055) 16%, rgba(204,255,0,0.24) 50%, rgba(204,255,0,0.07) 82%, transparent)",
+          filter: "blur(14px)",
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-[5%] right-[2%] top-[10%] h-[62%] opacity-34"
+        style={{
+          background:
+            "radial-gradient(circle at 48% 44%, rgba(204,255,0,0.28) 0 1px, transparent 1.6px), radial-gradient(circle at 61% 31%, rgba(204,255,0,0.18) 0 1px, transparent 1.5px), radial-gradient(circle at 78% 61%, rgba(204,255,0,0.13) 0 1px, transparent 1.5px)",
+          backgroundSize: "84px 70px, 132px 104px, 170px 132px",
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 top-[8.25rem] h-[31.5rem] w-px -translate-x-1/2 bg-[#ccff00]/56 shadow-[0_0_16px_rgba(204,255,0,0.48)]"
+      >
+        <motion.span
+          className="absolute left-1/2 top-0 h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-[#ccff00] shadow-[0_0_14px_3px_rgba(204,255,0,0.58)]"
+          animate={{ y: [0, 500], opacity: [0, 1, 1, 0] }}
+          transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }}
+        />
+      </div>
+
+      <div className="relative z-10 mx-auto flex max-w-[700px] flex-col items-center gap-[3.65rem]">
+        <FlowCard
+          className="w-full max-w-[590px]"
+          Icon={FileText}
+          title="Intent submitted"
+          body="Agent may move $500 USDC to Treasury Guard, expires Jan 1, 2026."
+          delay={0}
+        />
+
+        <motion.div
+          className="relative w-full max-w-[700px] rounded-[1.25rem] border border-[#ccff00]/70 bg-[#17230f]/88 p-5 shadow-[inset_0_1px_0_rgba(204,255,0,0.08),0_0_30px_-10px_rgba(204,255,0,0.72),0_0_92px_-42px_rgba(204,255,0,0.74)] backdrop-blur-xl sm:p-6"
+          animate={{
+            boxShadow: [
+              "inset 0 1px 0 rgba(204,255,0,0.08), 0 0 24px -12px rgba(204,255,0,0.62), 0 0 82px -46px rgba(204,255,0,0.66)",
+              "inset 0 1px 0 rgba(204,255,0,0.10), 0 0 34px -10px rgba(204,255,0,0.82), 0 0 104px -42px rgba(204,255,0,0.74)",
+              "inset 0 1px 0 rgba(204,255,0,0.08), 0 0 24px -12px rgba(204,255,0,0.62), 0 0 82px -46px rgba(204,255,0,0.66)",
+            ],
+          }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+            <GlowingIcon Icon={ShieldCheck} />
+            <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-5">
+              <h3 className="text-2xl font-medium tracking-[-0.03em] text-white">Policy check</h3>
+              <div className="mt-4 flex flex-wrap gap-2 sm:mt-0">
+                {["$500 daily limit", "2x max leverage", "2 of 3 approval"].map((chip) => (
+                  <span
+                    key={chip}
+                    className="inline-flex items-center gap-2 rounded-lg border border-[#ccff00]/28 bg-[#ccff00]/10 px-3 py-1.5 text-sm font-medium text-[#ccff00] shadow-[inset_0_1px_0_rgba(204,255,0,0.07)]"
+                  >
+                    {chip}
+                    <Check className="h-3.5 w-3.5" aria-hidden="true" strokeWidth={2.8} />
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        <FlowCard
+          className="w-full max-w-[650px]"
+          Icon={Users}
+          title="Human approvals"
+          body=""
+          delay={0.12}
+        >
+          <div className="mt-0 flex gap-7 sm:ml-auto">
+            {[
+              ["S", "Sarah", "from-[#ff8a6c] to-[#ff5166]"],
+              ["M", "Mark", "from-[#7b61ff] to-[#4eb6ff]"],
+              ["A", "Ada", "from-[#39e5bb] to-[#14a882]"],
+            ].map(([initial, name, gradient]) => (
+              <div key={name} className="relative flex flex-col items-center gap-2">
+                <span className={`relative flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br ${gradient} text-lg font-semibold text-white shadow-[0_0_0_4px_rgba(13,18,12,0.92),0_16px_30px_-18px_rgba(0,0,0,0.9)]`}>
+                  {initial}
+                  <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#ccff00] text-black shadow-[0_0_12px_rgba(204,255,0,0.72)]">
+                    <Check className="h-3 w-3" aria-hidden="true" strokeWidth={3} />
+                  </span>
+                </span>
+                <span className="text-xs text-white/56">{name}</span>
+              </div>
+            ))}
+          </div>
+        </FlowCard>
+      </div>
+
+      <div className="relative z-10 mx-auto mt-[4.35rem] max-w-[920px]">
+        <BranchConnector />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          {[
+            ...CHAINS.filter((chain) => ["sol", "eth", "btc", "zec"].includes(chain.key)),
+            { key: "hyperliquid", label: "Hyperliquid", accent: "#7debd6", Logo: HyperliquidMark },
+          ].map((chain, index) => (
+            <ChainExecutionCard key={chain.key} chain={chain} index={index} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FlowCard({
+  Icon,
+  title,
+  body,
+  className,
+  delay,
+  children,
+}: {
+  Icon: LucideIcon;
+  title: string;
+  body: string;
+  className?: string;
+  delay: number;
+  children?: ReactNode;
+}) {
+  return (
+    <motion.div
+      className={
+        "relative rounded-[1.15rem] border border-[#30372f]/80 bg-[#121514]/86 p-5 shadow-[inset_0_1px_0_rgba(204,255,0,0.035),0_26px_70px_-42px_rgba(0,0,0,0.95)] backdrop-blur-xl sm:min-h-[7.6rem] sm:p-6 " +
+        (className ?? "")
+      }
+      animate={{ y: [0, -5, 0] }}
+      transition={{ duration: 4.8, repeat: Infinity, ease: "easeInOut", delay }}
+    >
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+        <GlowingIcon Icon={Icon} />
+        <div className="min-w-0">
+          <h3 className="text-[1.55rem] font-light leading-tight tracking-[-0.03em] text-white sm:text-[1.7rem]">{title}</h3>
+          {body ? <p className="mt-2 max-w-md text-base leading-relaxed text-white/62">{body}</p> : null}
+        </div>
+        {children}
+      </div>
+    </motion.div>
+  );
+}
+
+function BranchConnector() {
+  const drops = ["10%", "30%", "50%", "70%", "90%"];
+
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute -top-[4.8rem] left-0 right-0 hidden h-[4.8rem] sm:block"
+    >
+      <svg
+        className="absolute inset-0 h-full w-full overflow-visible"
+        viewBox="0 0 1000 96"
+        preserveAspectRatio="none"
+      >
+        <path
+          d="M500 0 C500 28 500 48 500 58 C500 70 500 74 500 96"
+          fill="none"
+          stroke="rgba(204,255,0,0.54)"
+          strokeWidth="1.7"
+        />
+        <path
+          d="M500 58 C500 82 260 26 110 96 M500 58 C500 82 380 42 305 96 M500 58 C500 82 500 55 500 96 M500 58 C500 82 620 42 695 96 M500 58 C500 82 740 26 890 96"
+          fill="none"
+          stroke="rgba(204,255,0,0.54)"
+          strokeWidth="1.7"
+        />
+        <motion.path
+          d="M500 58 C500 82 260 26 110 96 M500 58 C500 82 380 42 305 96 M500 58 C500 82 500 55 500 96 M500 58 C500 82 620 42 695 96 M500 58 C500 82 740 26 890 96"
+          fill="none"
+          stroke="rgba(204,255,0,0.72)"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeDasharray="16 74"
+          animate={{ strokeDashoffset: [0, -180] }}
+          transition={{ duration: 3.8, repeat: Infinity, ease: "linear" }}
+          filter="drop-shadow(0 0 5px rgba(204,255,0,0.58))"
+        />
+      </svg>
+      <span className="absolute left-1/2 top-0 h-3 w-3 -translate-x-1/2 rounded-full bg-[#ccff00] shadow-[0_0_13px_3px_rgba(204,255,0,0.58)]" />
+      {drops.map((left) => (
+        <span
+          key={left}
+          className="absolute bottom-0 h-3 w-3 -translate-x-1/2 rounded-full bg-[#ccff00] shadow-[0_0_13px_3px_rgba(204,255,0,0.52)]"
+          style={{ left }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function GlowingIcon({ Icon }: { Icon: LucideIcon }) {
+  return (
+    <div className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-[#ccff00]/24 bg-[#ccff00]/[0.07] text-[#ccff00] shadow-[inset_0_0_18px_rgba(204,255,0,0.11),0_0_26px_-10px_rgba(204,255,0,0.72)] sm:h-20 sm:w-20">
+      <span className="absolute inset-2 rounded-full border border-[#ccff00]/22 shadow-[inset_0_0_20px_rgba(204,255,0,0.12)]" />
+      <Icon className="relative h-8 w-8" aria-hidden="true" strokeWidth={1.8} />
+    </div>
+  );
+}
+
+function ChainExecutionCard({
+  chain,
+  index,
+}: {
+  chain: { key: string; label: string; accent: string; Logo: (props: { className?: string }) => ReactElement };
+  index: number;
+}) {
+  const Logo = chain.Logo;
+
+  return (
+    <motion.div
+      className="relative flex min-h-[7.35rem] flex-col items-center justify-center rounded-xl border border-[#30372f]/78 bg-[#111312]/86 px-3 py-4 text-center shadow-[inset_0_1px_0_rgba(204,255,0,0.035),0_18px_44px_-30px_rgba(0,0,0,0.95)] backdrop-blur-lg"
+      animate={{ y: [0, -4, 0], borderColor: ["rgba(48,55,47,0.78)", "rgba(204,255,0,0.24)", "rgba(48,55,47,0.78)"] }}
+      transition={{ duration: 4.2, repeat: Infinity, ease: "easeInOut", delay: index * 0.16 }}
+    >
+      <span
+        aria-hidden="true"
+        className="absolute -top-6 left-1/2 h-6 w-px -translate-x-1/2 bg-[#ccff00]/46 shadow-[0_0_10px_rgba(204,255,0,0.48)]"
+      />
+      <Logo className="h-11 w-11" />
+      <span className="mt-3 text-sm font-medium text-white/72">{chain.label}</span>
+    </motion.div>
+  );
+}
+
+function HyperliquidMark({ className }: { className?: string }) {
+  return (
+    <span
+      className={
+        "relative inline-flex items-center justify-center rounded-full bg-[#7debd6]/18 text-[#7debd6] shadow-[0_0_24px_-8px_rgba(125,235,214,0.95)] " +
+        (className ?? "")
+      }
+    >
+      <span className="absolute left-[18%] h-[40%] w-[36%] rounded-full bg-[#7debd6]" />
+      <span className="absolute right-[18%] h-[40%] w-[36%] rounded-full bg-[#7debd6]" />
+    </span>
   );
 }
 
@@ -1169,18 +1759,14 @@ function AgentControlSection({ fadeIn }: { fadeIn: FadeInFn }) {
       className="relative z-10 grid grid-cols-1 items-center gap-10 px-5 pb-16 pt-4 sm:gap-14 sm:px-10 sm:pb-28 lg:grid-cols-12 lg:gap-12 lg:pb-32"
     >
       <motion.div {...fadeIn(0)} className="lg:col-span-5">
-        <span className="inline-flex items-center gap-2 rounded-full border border-[#ccff00]/30 bg-[#ccff00]/[0.06] px-3 py-1.5 font-mono-tech text-[10px] uppercase tracking-[0.24em] text-[#ccff00]">
-          <Bot className="h-3.5 w-3.5" aria-hidden="true" />
-          Agent trading vault
-        </span>
         <h2 className="mt-6 text-[clamp(2.25rem,6vw,4.75rem)] font-medium leading-[0.92] tracking-[-0.04em] text-white">
           Let agents act
           <br />
           inside your <span className="italic-skew">rules</span>.
         </h2>
         <p className="mt-6 max-w-xl text-[15px] leading-relaxed text-white/60 sm:text-base">
-          Agents can propose trades, use small budgets, and execute only inside
-          rules approved by the wallet owners.
+          Agents can propose trades, earn small allowances, and execute only
+          inside limits approved by the wallet owners.
         </p>
         <div className="mt-8 grid gap-3 sm:grid-cols-2">
           {["Signal inbox", "Owner approval", "Kill switch", "Scorecards"].map((item) => (
@@ -1228,7 +1814,7 @@ function AgentControlSection({ fadeIn }: { fadeIn: FadeInFn }) {
               </div>
             </div>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-[#ccff00]/30 bg-[#ccff00]/[0.08] px-3 py-1 font-mono-tech text-[10px] uppercase tracking-[0.18em] text-[#ccff00]">
-              active budget
+              active allowance
             </span>
           </div>
 
@@ -1264,7 +1850,7 @@ function AgentControlSection({ fadeIn }: { fadeIn: FadeInFn }) {
               <div className="mt-4 rounded-xl border border-[#ccff00]/20 bg-[#ccff00]/[0.06] p-3">
                 <div className="flex items-center gap-2">
                   <Gauge className="h-4 w-4 text-[#ccff00]" aria-hidden="true" />
-                  <p className="text-xs font-medium text-white">Rules passed</p>
+                  <p className="text-xs font-medium text-white">Policy gate passed</p>
                 </div>
                 <p className="mt-1 text-[12px] leading-relaxed text-white/55">
                   Within market, notional, leverage, session, and stop rules.
@@ -1275,7 +1861,7 @@ function AgentControlSection({ fadeIn }: { fadeIn: FadeInFn }) {
             <div className="space-y-3">
               <AgentMetric
                 icon={CircleDollarSign}
-                label="Budget"
+                label="Allowance"
                 value="$500"
                 detail="4 hours left"
               />
@@ -1491,3 +2077,4 @@ function MailGlyph() {
     </svg>
   );
 }
+

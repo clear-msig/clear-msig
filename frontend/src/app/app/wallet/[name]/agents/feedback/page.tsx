@@ -88,7 +88,7 @@ export default function AgentFeedbackPage() {
         </Link>
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-            Beta Feedback · {display}
+            Beta Feedback Â· {display}
           </p>
           <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
             Feedback
@@ -97,7 +97,7 @@ export default function AgentFeedbackPage() {
       </header>
 
       <section className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
-        <div className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+        <div className="rounded-card bg-surface-raised p-4 shadow-card-rest">
           <div className="flex items-start gap-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
               <MessageSquare className="h-4 w-4" aria-hidden="true" />
@@ -165,7 +165,7 @@ export default function AgentFeedbackPage() {
           </div>
         </div>
 
-        <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+        <section className="rounded-card bg-surface-raised p-4 shadow-card-rest">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-text-strong">

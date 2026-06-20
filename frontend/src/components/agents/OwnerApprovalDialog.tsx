@@ -23,7 +23,7 @@ export function OwnerApprovalDialog({
   if (!request) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-6">
-      <section className="w-full max-w-md rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+      <section className="w-full max-w-md rounded-card bg-surface-raised p-5 shadow-card-rest">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">

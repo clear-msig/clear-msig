@@ -149,7 +149,7 @@ export default function AgentStrategyPage() {
         </Link>
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-            Trading style · {display}
+            Trading style Â· {display}
           </p>
           <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
             {agentName}
@@ -160,7 +160,7 @@ export default function AgentStrategyPage() {
         </div>
       </header>
 
-      <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
+      <section className="rounded-card bg-surface-raised p-5 shadow-card-rest sm:p-6">
         <div className="mb-5 flex items-start gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
             <ShieldCheck className="h-4 w-4" aria-hidden="true" />
