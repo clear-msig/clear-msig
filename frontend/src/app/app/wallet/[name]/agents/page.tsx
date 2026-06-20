@@ -1175,7 +1175,7 @@ export default function AgentsPage() {
               Agent vault · {display}
             </p>
             <h1 className="font-display text-display-xs leading-tight text-text-strong md:text-display-sm">
-              Agent trading
+              Practice perps
             </h1>
           </div>
           <Link
@@ -1207,10 +1207,7 @@ export default function AgentsPage() {
       </header>
 
       {!setupComplete ? (
-        <>
-          <GettingStartedPanel steps={gettingStartedSteps} />
-          <AgentSetupGate steps={gettingStartedSteps} walletEncoded={encoded} />
-        </>
+        <GettingStartedPanel steps={gettingStartedSteps} walletEncoded={encoded} />
       ) : (
         <>
       <div className="grid gap-2 sm:grid-cols-3">
@@ -1410,6 +1407,18 @@ export default function AgentsPage() {
         />
       ) : null}
 
+      <details className="group rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest sm:p-4">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-text-strong">
+          <span className="inline-flex items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4 text-accent" aria-hidden="true" />
+            More trading controls
+          </span>
+          <ChevronDown
+            className="h-4 w-4 text-text-soft transition-transform group-open:rotate-180"
+            aria-hidden="true"
+          />
+        </summary>
+        <div className="mt-3 flex flex-col gap-4">
       {agents.length > 0 ? (
         <ReadinessPanel
           readiness={readiness}
@@ -1554,6 +1563,8 @@ export default function AgentsPage() {
           </ul>
         </section>
       ) : null}
+        </div>
+      </details>
 
       {openExecutionRecords.length > 0 ? (
         <OpenTradeMonitor
@@ -1599,86 +1610,24 @@ export default function AgentsPage() {
       ) : null}
 
       {events.length > 0 ? (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            Agent log
-          </h2>
-          <ul className="grid gap-2">
+        <details className="group rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest sm:p-4">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-text-strong">
+            <span>Agent log</span>
+            <ChevronDown
+              className="h-4 w-4 text-text-soft transition-transform group-open:rotate-180"
+              aria-hidden="true"
+            />
+          </summary>
+          <ul className="mt-3 grid gap-2">
             {events.slice(0, 6).map((event) => (
               <AuditEventRow key={event.id} event={event} />
             ))}
           </ul>
-        </section>
+        </details>
       ) : null}
         </>
       )}
     </motion.div>
-  );
-}
-
-function AgentSetupGate({
-  steps,
-  walletEncoded,
-}: {
-  steps: GettingStartedStep[];
-  walletEncoded: string;
-}) {
-  const next = steps.find((step) => !step.done) ?? steps[steps.length - 1];
-  const NextIcon = next.Icon;
-  return (
-    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-text-strong">
-            Finish setup first
-          </p>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-text-soft">
-            ClearSig will show the trading desk after the trader, budget, safety,
-            and first practice step are ready.
-          </p>
-        </div>
-        <Link
-          href={next.href}
-          className={agentPrimaryActionClass}
-        >
-          <NextIcon size={15} aria-hidden="true" />
-          {next.actionLabel}
-        </Link>
-      </div>
-
-      <details className="group mt-4 rounded-soft border border-border-soft bg-canvas px-3 py-2">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold text-text-strong">
-          <span>Advanced</span>
-          <ChevronDown
-            className="h-3.5 w-3.5 text-text-soft transition-transform group-open:rotate-180"
-            aria-hidden="true"
-          />
-        </summary>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Link
-            href={`/app/wallet/${walletEncoded}/agents/hyperliquid`}
-            className={agentToolClass}
-          >
-            <Plug size={15} aria-hidden="true" />
-            <span>Practice account</span>
-          </Link>
-          <Link
-            href={`/app/wallet/${walletEncoded}/agents/solana`}
-            className={agentToolClass}
-          >
-            <KeyRound size={15} aria-hidden="true" />
-            <span>Solana delegation</span>
-          </Link>
-          <Link
-            href={`/app/wallet/${walletEncoded}/agents/approvals`}
-            className={agentToolClass}
-          >
-            <ClipboardList size={15} aria-hidden="true" />
-            <span>Approvals</span>
-          </Link>
-        </div>
-      </details>
-    </section>
   );
 }
 
@@ -1717,28 +1666,37 @@ function DeskStatus({
   );
 }
 
-function GettingStartedPanel({ steps }: { steps: GettingStartedStep[] }) {
+function GettingStartedPanel({
+  steps,
+  walletEncoded,
+}: {
+  steps: GettingStartedStep[];
+  walletEncoded: string;
+}) {
   const currentIndex = steps.findIndex((step) => !step.done);
   const currentStep = currentIndex === -1 ? steps.length - 1 : currentIndex;
   const completed = steps.filter((step) => step.done).length;
+  const next = steps[currentStep];
+  const NextIcon = next.Icon;
 
   return (
     <section className="rounded-card border border-accent/25 bg-surface-raised p-4 shadow-card-rest sm:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <p className="text-sm font-semibold text-text-strong">
-            {completed === steps.length ? "Ready to trade" : "Guided setup"}
+            {completed === steps.length ? "Trading desk ready" : "Finish setup"}
           </p>
-          <p className="mt-0.5 text-xs text-text-soft">
-            Choose trader, set budget, set safety, start practice.
+          <p className="mt-1 text-xs leading-relaxed text-text-soft">
+            Trader, budget, safety, then practice.
           </p>
         </div>
-        <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
-          {completed} of {steps.length} complete
-        </span>
+        <Link href={next.href} className={agentPrimaryActionClass}>
+          <NextIcon size={15} aria-hidden="true" />
+          {next.actionLabel}
+        </Link>
       </div>
 
-      <ol className="mt-4 grid gap-2 sm:grid-cols-4">
+      <ol className="mt-4 grid gap-2">
         {steps.map((step, index) => {
           const current = index === currentStep && !step.done;
           const StepIcon = step.Icon;
@@ -1746,58 +1704,74 @@ function GettingStartedPanel({ steps }: { steps: GettingStartedStep[] }) {
             <li
               key={step.id}
               className={clsx(
-                "flex min-h-[8rem] flex-col gap-3 rounded-soft border px-3 py-3",
+                "flex items-center gap-3 rounded-soft border px-3 py-2.5",
                 current
                   ? "border-accent/40 bg-accent/[0.06]"
                   : "border-border-soft bg-canvas",
               )}
             >
-              <div className="flex items-start justify-between gap-2">
-                <span
-                  className={clsx(
-                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border",
-                    step.done
-                      ? "border-accent/30 bg-accent/10 text-accent"
-                      : current
-                        ? "border-accent bg-accent text-text-on-accent"
-                        : "border-border-soft text-text-muted",
-                  )}
-                >
-                  {step.done ? (
-                    <Check className="h-4 w-4" aria-hidden="true" />
-                  ) : (
-                    <StepIcon className="h-4 w-4" aria-hidden="true" />
-                  )}
-                </span>
-                <details className="group relative">
-                  <summary className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-full text-text-soft transition-colors hover:bg-glass-mid hover:text-accent">
-                    <Info className="h-3.5 w-3.5" aria-hidden="true" />
-                    <span className="sr-only">{step.label} details</span>
-                  </summary>
-                  <p className="absolute right-0 z-10 mt-2 w-56 max-w-[calc(100vw-2rem)] rounded-soft border border-border-soft bg-surface-elevated p-2 text-[11px] leading-relaxed text-text-soft shadow-card-raised">
-                    {step.description}
-                  </p>
-                </details>
-              </div>
-              <div className="min-w-0">
+              <span
+                className={clsx(
+                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border",
+                  step.done
+                    ? "border-accent/30 bg-accent/10 text-accent"
+                    : current
+                      ? "border-accent bg-accent text-text-on-accent"
+                      : "border-border-soft text-text-muted",
+                )}
+              >
+                {step.done ? (
+                  <Check className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <StepIcon className="h-4 w-4" aria-hidden="true" />
+                )}
+              </span>
+              <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold text-text-strong">{step.label}</p>
-                <p className="mt-0.5 text-[11px] font-medium text-text-soft">
-                  {step.done ? "Done" : current ? "Next" : "Waiting"}
+                <p className="mt-0.5 truncate text-[11px] text-text-soft">
+                  {step.done ? "Done" : current ? step.description : "Waiting"}
                 </p>
               </div>
-              {current ? (
-                <Link
-                  href={step.href}
-                  className="mt-auto inline-flex min-h-9 items-center justify-center gap-1 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest"
-                >
-                  {step.actionLabel}
-                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-                </Link>
-              ) : null}
+              <span className="text-[11px] font-medium text-text-soft">
+                {step.done ? "Done" : current ? "Next" : ""}
+              </span>
             </li>
           );
         })}
       </ol>
+
+      <details className="group mt-4 rounded-soft border border-border-soft bg-canvas px-3 py-2">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold text-text-strong">
+          <span>Advanced</span>
+          <ChevronDown
+            className="h-3.5 w-3.5 text-text-soft transition-transform group-open:rotate-180"
+            aria-hidden="true"
+          />
+        </summary>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link
+            href={`/app/wallet/${walletEncoded}/agents/hyperliquid`}
+            className={agentToolClass}
+          >
+            <Plug size={15} aria-hidden="true" />
+            <span>Practice account</span>
+          </Link>
+          <Link
+            href={`/app/wallet/${walletEncoded}/agents/solana`}
+            className={agentToolClass}
+          >
+            <KeyRound size={15} aria-hidden="true" />
+            <span>Solana delegation</span>
+          </Link>
+          <Link
+            href={`/app/wallet/${walletEncoded}/agents/approvals`}
+            className={agentToolClass}
+          >
+            <ClipboardList size={15} aria-hidden="true" />
+            <span>Approvals</span>
+          </Link>
+        </div>
+      </details>
     </section>
   );
 }

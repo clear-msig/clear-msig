@@ -97,7 +97,7 @@ export default function SecurePage() {
   return (
     <motion.div
       {...fadeIn(0)}
-      className="flex flex-col gap-10 sm:gap-12"
+      className="flex flex-col gap-6 sm:gap-8"
     >
       {showVaultsFirst ? (
         <VaultsHero
@@ -111,31 +111,32 @@ export default function SecurePage() {
           {/* ── Marketing hero ──────────────────────────────────
            * Only renders for first-time users (zero vaults / not
            * connected). Returning users see VaultsHero above. */}
-          <section className="grid grid-cols-1 items-center gap-10 lg:grid-cols-12 lg:gap-12">
+          <section className="grid grid-cols-1 items-center gap-6 lg:grid-cols-12 lg:gap-10">
             <motion.div
               {...fadeIn(0.04)}
               className="text-center lg:col-span-7 lg:text-left"
             >
               <span className="inline-flex items-center rounded-full border border-border-soft bg-surface-raised px-3 py-1.5">
                 <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-text-soft">
-                  Secure · powered by Ika
+                  Encrypted recovery
                 </span>
               </span>
-              <h1 className="mt-5 font-display text-display-lg leading-[1] tracking-[-0.03em] text-text-strong text-balance sm:text-display-xl">
-                Threshold-signed
-                <br className="hidden sm:block" />{" "}
-                <span className="text-text-soft">key custody.</span>
+              <h1 className="mt-4 font-display text-display-md leading-[1.02] tracking-[-0.03em] text-text-strong text-balance sm:text-display-lg">
+                Secure vaults
               </h1>
-              <div className="mt-7 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+              <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-text-soft lg:mx-0">
+                Recover Solana capital without exposing the key.
+              </p>
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-2 lg:justify-start">
                 <Link href="/app/secure/new" className="inline-block">
                   <Button size="lg">
-                    Secure your key
+                    New vault
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </Button>
                 </Link>
                 <Link href="/app/secure/import" className="inline-block">
                   <Button variant="ghost" size="lg">
-                    Import key
+                    Import
                   </Button>
                 </Link>
               </div>
@@ -143,7 +144,7 @@ export default function SecurePage() {
 
             <motion.div
               {...fadeIn(0.12)}
-              className="relative mx-auto w-full max-w-md lg:col-span-5 lg:max-w-none"
+              className="relative mx-auto hidden w-full max-w-md lg:col-span-5 lg:block lg:max-w-none"
             >
               <VaultMockup />
             </motion.div>
@@ -164,55 +165,6 @@ export default function SecurePage() {
               onRetry={() => vaultsQuery.refetch()}
             />
           )}
-          {!hasVaults &&
-            wallet.connected &&
-            !vaultsQuery.isLoading &&
-            !vaultsQuery.isError && (
-              <motion.section
-                {...fadeIn(0.08)}
-                className="relative overflow-hidden rounded-card border border-accent/40 bg-accent/[0.04] shadow-card-rest"
-              >
-                <span
-                  aria-hidden="true"
-                  className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full"
-                  style={{
-                    background:
-                      "radial-gradient(circle, var(--clear-accent-glow-rest) 0%, transparent 70%)",
-                    filter: "blur(40px)",
-                  }}
-                />
-                <div className="relative grid grid-cols-1 gap-5 p-6 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-8 sm:p-8">
-                  <div>
-                    <span className="inline-flex items-center gap-2">
-                      <span
-                        aria-hidden="true"
-                        className="block h-px w-8 bg-accent"
-                      />
-                      <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
-                        First vault
-                      </span>
-                    </span>
-                    <h2 className="mt-3 font-display text-display-xs leading-tight tracking-[-0.02em] text-text-strong">
-                      Create your first vault
-                    </h2>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Link href="/app/secure/new" className="inline-block">
-                      <Button size="lg">
-                        Secure your key
-                        <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                      </Button>
-                    </Link>
-                    <Link href="/app/secure/import" className="inline-block">
-                      <Button variant="ghost" size="lg">
-                        Import key
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-              </motion.section>
-            )}
-
         </>
       )}
 
@@ -227,9 +179,7 @@ export default function SecurePage() {
           aria-hidden="true"
         />
         <p>
-          <span className="font-medium text-text-strong">
-            Pre-alpha. Devnet only.
-          </span>
+          <span className="font-medium text-text-strong">Pre-alpha · Devnet only.</span>
           {" · "}
           <a
             href={IKAVERY_GITHUB}
@@ -266,20 +216,20 @@ function VaultsHero({ vaults, loading, onRefresh, fadeIn }: VaultsHeroProps) {
     <>
       <motion.header
         {...fadeIn(0.04)}
-        className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between sm:gap-6"
+        className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-6"
       >
         <div className="min-w-0">
           <span className="inline-flex items-center rounded-full border border-border-soft bg-surface-raised px-3 py-1.5">
             <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-text-soft">
-              Secure · powered by Ika
+              Encrypted recovery
             </span>
           </span>
-          <h1 className="mt-4 font-display text-display-md leading-[1.02] tracking-[-0.03em] text-text-strong sm:text-display-lg">
-            Your vaults
+          <h1 className="mt-3 font-display text-display-sm leading-[1.02] tracking-[-0.03em] text-text-strong sm:text-display-md">
+            Secure vaults
           </h1>
-          <p className="mt-2 text-[14px] leading-relaxed text-text-soft sm:text-[15px]">
+          <p className="mt-1 text-[13px] leading-relaxed text-text-soft sm:text-sm">
             {count}{" "}
-            {count === 1 ? "vault" : "vaults"} under quorum custody.
+            {count === 1 ? "vault" : "vaults"} protected by quorum recovery.
           </p>
         </div>
 
@@ -307,13 +257,13 @@ function VaultsHero({ vaults, loading, onRefresh, fadeIn }: VaultsHeroProps) {
           <Link href="/app/secure/import" className="inline-block">
             <Button variant="ghost" size="lg">
               <KeyRound className="h-4 w-4" aria-hidden="true" />
-              Import key
+              Import
             </Button>
           </Link>
           <Link href="/app/secure/new" className="inline-block">
             <Button size="lg">
               <Plus className="h-4 w-4" aria-hidden="true" />
-              Build another
+              New vault
             </Button>
           </Link>
         </div>
