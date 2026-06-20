@@ -170,6 +170,7 @@ export function createClearSigLibraryPracticeIdea({
   agent,
   venue = "mock_perps",
   maxNotionalUsd,
+  maxLeverage,
   marketData,
   now = Date.now(),
   id,
@@ -177,6 +178,7 @@ export function createClearSigLibraryPracticeIdea({
   agent: AgentProfile;
   venue?: TradingVenue;
   maxNotionalUsd?: string | null;
+  maxLeverage?: number | null;
   marketData?: AgentMarketDataSnapshot | null;
   now?: number;
   id: string;
@@ -202,7 +204,9 @@ export function createClearSigLibraryPracticeIdea({
     ),
   );
   const mark = positiveNumber(marketData?.markPriceUsd, positiveNumber(template.referencePriceUsd, 1));
-  const isLong = template.defaultSide === "long";
+  const side = choosePracticeSide(template, agent, marketData, id, now);
+  const leverage = choosePracticeLeverage(template, maxLeverage);
+  const isLong = side === "long";
   const stopMultiplier = isLong
     ? 1 - template.stopDistancePct / 100
     : 1 + template.stopDistancePct / 100;
@@ -216,16 +220,16 @@ export function createClearSigLibraryPracticeIdea({
     agentId: agent.id,
     venue,
     market,
-    side: template.defaultSide,
+    side,
     orderType: "market",
     notionalUsd: formatMoney(notional),
-    leverage: template.defaultLeverage,
+    leverage,
     entryPrice: formatPrice(mark),
     stopLossPrice: formatPrice(mark * stopMultiplier),
     takeProfitPrice: formatPrice(mark * targetMultiplier),
     thesis: marketData
-      ? `${template.name} used ${marketData.source === "live" ? "live" : "practice"} ${marketData.market} market data at $${marketData.markPriceUsd} to prepare this ${template.category.toLowerCase()} practice idea.`
-      : `${template.name} prepared this practice idea to demonstrate its ${template.category.toLowerCase()} approach.`,
+      ? `${template.name} used ${marketData.source === "live" ? "live" : "practice"} ${marketData.market} market data at $${marketData.markPriceUsd} to prepare this ${side} ${template.category.toLowerCase()} practice idea with ${leverage}x max borrowing.`
+      : `${template.name} prepared this ${side} practice idea with ${leverage}x max borrowing to demonstrate its ${template.category.toLowerCase()} approach.`,
     confidence: template.risk === "active" ? 68 : template.risk === "balanced" ? 66 : 64,
     clientSignalId: `clearsig-library:${agent.id}:${now}`,
     expiresAt: now + 15 * 60 * 1000,
@@ -234,6 +238,69 @@ export function createClearSigLibraryPracticeIdea({
     updatedAt: now,
     version: 1,
   };
+}
+
+function choosePracticeSide(
+  template: ClearSigTraderTemplate,
+  agent: AgentProfile,
+  marketData?: AgentMarketDataSnapshot | null,
+  seed = "",
+  now = Date.now(),
+): TradeSide {
+  const strategyText = [
+    agent.strategy?.summary,
+    agent.strategy?.entryRules,
+    agent.strategy?.riskRules,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (
+    strategyText.includes("short") ||
+    strategyText.includes("hedge") ||
+    strategyText.includes("defensive") ||
+    strategyText.includes("falling")
+  ) {
+    return "short";
+  }
+  if (strategyText.includes("long") && !strategyText.includes("short")) {
+    return "long";
+  }
+  const funding = Number(marketData?.fundingRatePct ?? "");
+  if (Number.isFinite(funding)) {
+    if (funding > 0.025) return "short";
+    if (funding < -0.01) return "long";
+  }
+  const mark = Number(marketData?.markPriceUsd ?? "");
+  const reference = Number(template.referencePriceUsd);
+  if (Number.isFinite(mark) && Number.isFinite(reference) && reference > 0) {
+    const move = (mark - reference) / reference;
+    if (move >= 0.03) return "short";
+    if (move <= -0.025) return "long";
+  }
+  if (template.risk === "balanced") {
+    return hashParity(`${agent.id}:${template.id}:${seed}:${Math.floor(now / 60_000)}`)
+      ? "short"
+      : "long";
+  }
+  return template.defaultSide;
+}
+
+function choosePracticeLeverage(
+  template: ClearSigTraderTemplate,
+  maxLeverage?: number | null,
+): number {
+  const allowed = Math.floor(positiveNumber(maxLeverage, template.defaultLeverage));
+  if (allowed <= 1) return 1;
+  return Math.max(1, allowed);
+}
+
+function hashParity(value: string): boolean {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  }
+  return hash % 2 === 0;
 }
 
 function customPracticeTemplate(agent: AgentProfile): ClearSigTraderTemplate {

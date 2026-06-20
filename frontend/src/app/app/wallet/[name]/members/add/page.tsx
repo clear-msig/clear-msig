@@ -43,7 +43,6 @@ import { recordInvite } from "@/lib/security/inviteLog";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
-import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import { SignPayloadPreview } from "@/components/retail/SignPayloadPreview";
 import { NextStepCard } from "@/components/retail/NextStepCard";
 import { useToast } from "@/components/ui/Toast";
@@ -397,24 +396,24 @@ export default function AddFriendPage() {
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
       {/* Compact left-aligned header - back navigation is in the
           DashboardHeader (desktop) / BottomNav (mobile). */}
       <motion.header
         {...motionProps}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1"
+        className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1"
       >
         <div className="flex flex-col gap-1">
-          <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
+          <h1 className="hidden font-display text-display-xs leading-tight text-text-strong md:block">
             Add a friend
           </h1>
           <p className="text-xs text-text-soft sm:text-sm">
-            Adding to{" "}
+            Add someone to{" "}
             <span className="font-medium text-text-strong">
               {toDisplayName(name)}
             </span>
-            . You&rsquo;ll need their Solana wallet address.
+            .
           </p>
         </div>
       </motion.header>
@@ -457,15 +456,13 @@ export default function AddFriendPage() {
           run. Surface this explicitly with a clear next-step instead
           of silently kicking the user to /setup. */}
       {needsSetup && (
-        <div className="rounded-card border border-warning/30 bg-warning/5 p-5 shadow-card-rest">
+        <div className="rounded-card border border-warning/30 bg-warning/5 p-4 shadow-card-rest">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
             Set up sending first
           </p>
           <p className="mt-2 text-sm text-text-strong">
             Adding people changes <strong>{toDisplayName(name)}</strong>&rsquo;s
-            protection, but sending is not turned on yet. Enable sending,
-            then come back here. It&rsquo;s a 2-popup setup that takes
-            about a minute.
+            protection. Turn on sending first.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Link
@@ -497,7 +494,7 @@ export default function AddFriendPage() {
           e.preventDefault();
           if (canSubmit) addFriend.mutate();
         }}
-        className="flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
+        className="flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5"
       >
         <FieldRow
           label="Name"
@@ -517,12 +514,12 @@ export default function AddFriendPage() {
           maxLength={64}
         />
         {trimmedAddress.length > 0 && !addressValid && (
-          <p className="ml-[4.5rem] text-xs text-warning">
+          <p className="text-xs text-warning sm:ml-[4.5rem]">
             That doesn&rsquo;t look like a valid Solana address.
           </p>
         )}
         {addressValid && alreadyMember && role !== "watcher" && (
-          <p className="ml-[4.5rem] text-xs text-warning">
+          <p className="text-xs text-warning sm:ml-[4.5rem]">
             This address is already a member of {toDisplayName(name)}. Pick &ldquo;Can
             watch&rdquo; if you want to keep them in the watchers list
             instead.
@@ -539,12 +536,12 @@ export default function AddFriendPage() {
           maxLength={120}
         />
         {trimmedEmail.length > 0 && !emailValid && (
-          <p className="ml-[4.5rem] text-xs text-warning">
+          <p className="text-xs text-warning sm:ml-[4.5rem]">
             That email looks malformed.
           </p>
         )}
         {emailValid && trimmedEmail.length > 0 && (
-          <p className="ml-[4.5rem] text-xs text-text-soft">
+          <p className="text-xs text-text-soft sm:ml-[4.5rem]">
             We&rsquo;ll email {trimmedName || "them"} a join link so they
             can sign in.
           </p>
@@ -555,8 +552,8 @@ export default function AddFriendPage() {
             same choice, twice the surface area. Compact chip row keeps
             the decision on the page without competing with the inputs. */}
         <div className="h-px bg-border-soft" />
-        <div className="flex items-center gap-3 pt-1">
-          <span className="w-16 shrink-0 text-xs font-medium uppercase tracking-wide text-text-soft">
+        <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:gap-3">
+          <span className="shrink-0 text-xs font-medium uppercase tracking-wide text-text-soft sm:w-16">
             Role
           </span>
           <div className="flex flex-1 flex-wrap gap-1.5">
@@ -584,7 +581,7 @@ export default function AddFriendPage() {
             })}
           </div>
         </div>
-        <p className="ml-[4.5rem] text-[11px] leading-snug text-text-soft">
+        <p className="text-[11px] leading-snug text-text-soft sm:ml-[4.5rem]">
           {ROLE_HINT[role]}
         </p>
       </form>
@@ -622,9 +619,6 @@ export default function AddFriendPage() {
                 ? [{ label: "Invite email", value: trimmedEmail }]
                 : []),
             ]}
-          />
-          <WalletPopupNarration
-            action={`add ${trimmedName}`}
           />
         </div>
       )}
@@ -683,8 +677,8 @@ function FieldRow({
   inputType = "text",
 }: FieldRowProps) {
   return (
-    <label className="flex items-start gap-3">
-      <span className="w-16 shrink-0 pt-2 text-xs font-medium uppercase tracking-wide text-text-soft">
+    <label className="flex flex-col gap-1 sm:flex-row sm:items-start sm:gap-3">
+      <span className="shrink-0 text-xs font-medium uppercase tracking-wide text-text-soft sm:w-16 sm:pt-2">
         {label}
         {optional && (
           <span className="ml-1 normal-case tracking-normal text-text-soft/60">
@@ -701,7 +695,7 @@ function FieldRow({
         maxLength={maxLength}
         spellCheck={false}
         className={
-          "flex-1 bg-transparent py-1.5 outline-none placeholder:text-text-soft/60 " +
+          "min-w-0 flex-1 bg-transparent py-1.5 outline-none placeholder:text-text-soft/60 " +
           (mono
             ? "font-mono text-sm text-text-strong placeholder:font-sans"
             : "text-base text-text-strong")

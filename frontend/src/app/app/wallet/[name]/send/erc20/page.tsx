@@ -61,8 +61,8 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
-import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
+import { SendAmountField } from "@/components/retail/SendAmountField";
 import { RecentRecipientsChips } from "@/components/retail/RecentRecipientsChips";
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
 import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
@@ -158,7 +158,7 @@ function SendErc20Page() {
   const walletEthAddress = ethBinding ? chainAddress(ethBinding) : null;
 
   // Gate on BOTH isLoading and isFetching so the page doesn't render
-  // "Enable ERC-20 sending" on stale cache while a background refetch
+  // "Turn on token sending" on stale cache while a background refetch
   // (triggered by refetchOnMount: "always") is still fetching the
   // post-setup intent list. See the matching note on /send/eth.
   const allSettled =
@@ -481,11 +481,11 @@ function SendErc20Page() {
   if (allLoaded && needsBinding) {
     return (
       <PreFlightCard
-        title="Add Ethereum to this wallet first"
-        body="ERC-20 sending uses the wallet's Ethereum address. Add Ethereum on the chains page (about 30 seconds), then come back here."
+        title="Turn on token sending"
+        body="One setup adds Ethereum to this wallet and unlocks ERC-20 sends."
         cta={{
-          href: `/app/wallet/${encodeURIComponent(walletName)}/chains/add`,
-          label: "Add Ethereum",
+          href: `/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=evm_1559&next=erc20&autostart=1`,
+          label: "Turn on token sending",
         }}
       />
     );
@@ -493,11 +493,11 @@ function SendErc20Page() {
   if (allLoaded && needsIntent) {
     return (
       <PreFlightCard
-        title="Enable ERC-20 sending first"
-        body="Ethereum is bound to this wallet, but ERC-20 sending is not turned on yet. One quick setup, then per-token sends are unlocked."
+        title="Turn on token sending"
+        body="Ethereum is on this wallet. Finish setup to unlock ERC-20 sends."
         cta={{
-          href: `/app/wallet/${encodeURIComponent(walletName)}/setup/erc20`,
-          label: "Enable ERC-20 sending",
+          href: `/app/wallet/${encodeURIComponent(walletName)}/setup/erc20?autostart=1`,
+          label: "Turn on token sending",
         }}
       />
     );
@@ -666,17 +666,17 @@ function ComposeStage({
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       {/* Compact left-aligned header. Matches SOL / ETH / BTC /send. */}
-      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex items-center gap-3">
           {ethMeta ? <ChainBadge chain={ethMeta} size="md" /> : null}
           <div className="flex flex-col gap-0.5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Send · one flow
+              Send
             </p>
-            <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
-              Send clearly
+            <h1 className="hidden font-display text-2xl font-semibold leading-tight text-text-strong md:block">
+              Send token
             </h1>
           </div>
         </div>
@@ -724,99 +724,82 @@ function ComposeStage({
           )}
         </Field>
 
-        <Field
-          label="Amount"
-          hint={
-            amount.trim() && !amountValid && metadata
-              ? `Must be a positive ${metadata.symbol} amount.`
-              : undefined
+        <SendAmountField
+          id="send-erc20-amount-input"
+          ticker={symbol}
+          value={amount}
+          onChange={(e) => {
+            const stripped = e.target.value.replace(/[^\d.]/g, "");
+            const [whole = "", frac] = stripped.split(".");
+            const next =
+              frac === undefined
+                ? whole.slice(0, 24)
+                : `${whole.slice(0, 24)}.${frac.slice(0, decimals)}`;
+            setAmount(next);
+          }}
+          placeholder="0"
+          disabled={!metadata}
+          action={
+            typeof walletBalance === "bigint" &&
+            walletBalance > 0n &&
+            metadata ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setAmount(
+                    tokenAmountToString(
+                      walletBalance,
+                      metadata.decimals,
+                      metadata.decimals,
+                    ),
+                  );
+                }}
+                className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent transition-colors duration-base ease-out-soft hover:bg-accent/15"
+              >
+                Use max
+              </button>
+            ) : null
           }
-        >
-          <div className="flex items-baseline gap-2">
-            <input
-              type="text"
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => {
-                const stripped = e.target.value.replace(/[^\d.]/g, "");
-                const [whole = "", frac] = stripped.split(".");
-                const next =
-                  frac === undefined
-                    ? whole.slice(0, 24)
-                    : `${whole.slice(0, 24)}.${frac.slice(0, decimals)}`;
-                setAmount(next);
-              }}
-              placeholder="0.0"
-              disabled={!metadata}
-              // font-numerals tabular-nums - same financial typography
-              // as SOL / ETH amount inputs.
-              className={
-                "flex-1 rounded-card border border-border-soft bg-surface-raised px-4 py-3 font-numerals text-2xl font-semibold text-text-strong tabular-nums outline-none " +
-                "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-                "focus:border-accent focus:shadow-accent-rest " +
-                "disabled:cursor-not-allowed disabled:opacity-60"
-              }
-            />
-            <span className="font-display text-sm font-semibold uppercase tracking-[0.24em] text-text-soft">
-              {symbol}
-            </span>
-          </div>
-          {/* Balance chip - single pill consolidates the
-              "Wallet has X TOKEN" + Max button. Tabular-numeric
-              digits keep the value column aligned. */}
-          <div className="mt-2 inline-flex min-h-tap items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-2 text-xs">
-            <span className="text-text-soft">Wallet has</span>
-            <span className="font-numerals font-semibold text-text-strong tabular-nums">
-              {balanceLoading
-                ? "…"
-                : typeof walletBalance === "bigint" && metadata
-                  ? tokenAmountToString(walletBalance, metadata.decimals, 6)
-                  : "-"}
-            </span>
-            <span className="text-text-soft">{metadata?.symbol ?? symbol}</span>
-            {typeof walletBalance === "bigint" &&
-              walletBalance > 0n &&
-              metadata && (
-                <UsdHint
-                  amount={walletBalance}
-                  smallestPerWhole={10n ** BigInt(metadata.decimals)}
-                  ticker={metadata.symbol}
-                  variant="plain"
-                  className="text-text-soft"
-                />
+          footer={
+            <>
+              <span>Wallet has </span>
+              <span className="font-numerals font-semibold text-text-strong tabular-nums">
+                {balanceLoading
+                  ? "..."
+                  : typeof walletBalance === "bigint" && metadata
+                    ? tokenAmountToString(walletBalance, metadata.decimals, 6)
+                    : "-"}
+              </span>
+              <span> {metadata?.symbol ?? symbol}</span>
+              {typeof walletBalance === "bigint" &&
+                walletBalance > 0n &&
+                metadata && (
+                  <UsdHint
+                    amount={walletBalance}
+                    smallestPerWhole={10n ** BigInt(metadata.decimals)}
+                    ticker={metadata.symbol}
+                    variant="plain"
+                    className="text-text-soft"
+                  />
+                )}
+              {amount.trim() && !amountValid && metadata && (
+                <span className="ml-1.5 text-warning">
+                  Must be a positive {metadata.symbol} amount.
+                </span>
               )}
-            {typeof walletBalance === "bigint" &&
-              walletBalance > 0n &&
-              metadata && (
-                <>
-                  <span aria-hidden="true" className="h-3 w-px bg-border-soft" />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAmount(
-                        tokenAmountToString(
-                          walletBalance,
-                          metadata.decimals,
-                          metadata.decimals,
-                        ),
-                      );
-                    }}
-                    className="-mr-2 inline-flex min-h-tap min-w-tap items-center justify-center rounded-full px-3 text-[11px] font-semibold uppercase tracking-wider text-accent transition-colors hover:bg-accent/10"
-                  >
-                    Max
-                  </button>
-                </>
-              )}
-          </div>
-          {insufficientBalance && walletBalance !== null && metadata && (
-            <p className="mt-2 rounded-soft border border-warning/40 bg-warning/[0.07] px-3 py-2 text-xs text-text-strong">
-              <span className="font-medium">Insufficient balance.</span> You
-              have {tokenAmountToString(walletBalance, metadata.decimals, 6)}{" "}
-              {metadata.symbol} - need{" "}
-              {tokenAmountToString(amountBase, metadata.decimals, 6)}.
-            </p>
-          )}
-        </Field>
+            </>
+          }
+          warning={
+            insufficientBalance && walletBalance !== null && metadata ? (
+              <>
+                <span className="font-medium">Insufficient balance.</span> You
+                have {tokenAmountToString(walletBalance, metadata.decimals, 6)}{" "}
+                {metadata.symbol} - need{" "}
+                {tokenAmountToString(amountBase, metadata.decimals, 6)}.
+              </>
+            ) : null
+          }
+        />
 
         <RecentRecipientsChips
           walletName={walletName}
@@ -860,7 +843,7 @@ function ComposeStage({
         </Field>
       </div>
 
-      <div className="mt-6 flex flex-col gap-3">
+      <div className="flex flex-col gap-2">
         <SignPayloadPreview
           action={
             amountValid && recipientValid && metadata
@@ -870,7 +853,6 @@ function ComposeStage({
           details={previewDetails}
           warning="Cross-chain send is in alpha. The Solana sig you give here authorises Ika's dWallet network to broadcast the actual ERC-20 transfer on Ethereum. If anything is wrong with the EVM-side params, the broadcast fails and the wallet's Solana state stays untouched."
         />
-        <WalletPopupNarration action="send this token request" popups={1} />
       </div>
 
       {/* Sticky-bottom CTA on mobile - see SOL send for rationale. */}

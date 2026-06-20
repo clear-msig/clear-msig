@@ -23,11 +23,8 @@
 //      to Sepolia.
 //
 // SignPayloadPreview shows the user the EVM-side facts BEFORE the
-// wallet popup fires: chain, recipient, amount-in-ETH, the budget
-// impact under the policy. The wallet popup itself still shows the
-// raw Solana sign-message bytes because we cannot change what
-// Phantom / Solflare render; the disclaimer in WalletPopupNarration
-// reminds them that's normal.
+// signing request fires: chain, recipient, amount-in-ETH, and the budget
+// impact under the policy.
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -76,9 +73,8 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
-import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
-import { InfoTip } from "@/components/retail/InfoTip";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
+import { SendAmountField } from "@/components/retail/SendAmountField";
 import {
   SendReceipt,
   type ReceiptDetail,
@@ -169,7 +165,7 @@ function SendEthPage() {
     // the cache is technically still fresh. Without this, a user who
     // just completed /setup/eth navigates here with the old
     // (pre-setup) intents list in cache. StaleTime hasn't elapsed ,
-    // and the page renders "Enable Ethereum sending" again because
+    // and the page renders "Turn on Ethereum sending" again because
     // it doesn't see the just-created EvmTransfer intent. The Solana
     // RPC propagation race makes the background refetch a moment
     // later, but the user has already re-clicked Enable by then.
@@ -589,11 +585,11 @@ function SendEthPage() {
   if (allLoaded && needsBinding) {
     return (
       <PreFlightCard
-        title={`Add ${EVM_LABEL} to this wallet first`}
-        body={`This wallet doesn't have a ${EVM_LABEL} address yet. Adding ${EVM_LABEL} spins up its dWallet (about 30 seconds), then you can come back here.`}
+        title={`Turn on ${EVM_LABEL} sending`}
+        body={`One setup adds ${EVM_LABEL} to this wallet and unlocks ${EVM_LABEL} sends.`}
         cta={{
-          href: `/app/wallet/${encodeURIComponent(walletName)}/chains/add`,
-          label: `Add ${EVM_LABEL}`,
+          href: `/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=${isHyperliquid ? "hyperliquid_evm" : "evm_1559"}&autostart=1`,
+          label: `Turn on ${EVM_LABEL} sending`,
         }}
       />
     );
@@ -601,11 +597,11 @@ function SendEthPage() {
   if (allLoaded && needsIntent) {
     return (
       <PreFlightCard
-        title={`Enable ${EVM_LABEL} sending first`}
-        body={`${EVM_LABEL} is bound to this wallet, but sending is not turned on yet. One quick setup, then sends are unlocked.`}
+        title={`Turn on ${EVM_LABEL} sending`}
+        body={`${EVM_LABEL} is on this wallet. Finish setup to unlock sends.`}
         cta={{
-          href: `/app/wallet/${encodeURIComponent(walletName)}/setup/eth${isHyperliquid ? "?network=hyperliquid" : ""}`,
-          label: `Enable ${EVM_LABEL} sending`,
+          href: `/app/wallet/${encodeURIComponent(walletName)}/setup/eth${isHyperliquid ? "?network=hyperliquid&autostart=1" : "?autostart=1"}`,
+          label: `Turn on ${EVM_LABEL} sending`,
         }}
       />
     );
@@ -776,20 +772,20 @@ function ComposeStage({
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       {/* Compact left-aligned header. Matches SOL /send. Chain badge
           inline with eyebrow + display title; "From {wallet}" sits on
           the right edge so the network identity is unmistakable
           without burning vertical space. */}
-      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex items-center gap-3">
           {ethMeta ? <ChainBadge chain={ethMeta} size="md" /> : null}
           <div className="flex flex-col gap-0.5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Send · one flow
+              Send
             </p>
-            <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
-              Send clearly
+            <h1 className="hidden font-display text-2xl font-semibold leading-tight text-text-strong md:block">
+              Send {ticker}
             </h1>
           </div>
         </div>
@@ -818,26 +814,37 @@ function ComposeStage({
           SOL /send and BTC /send/btc. */}
       <div
         className={
-          "flex flex-col gap-5 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest " +
-          "lg:grid lg:grid-cols-2 lg:items-start lg:gap-5 " +
+          "flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest " +
+          "lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 " +
           "lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none"
         }
       >
-        {/* Amount card. Eyebrow + Use max pill, underline-style
-            input, balance line as plain text. Card chrome only at
-            lg+; mobile uses the parent wrapper's chrome. */}
+        {/* Amount card. Balance + Max live with the input so the
+            number, asset, and available balance stay visually scoped. */}
         <section
           className={
             "flex flex-col gap-3 " +
-            "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-5 lg:shadow-card-rest"
+            "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-4 lg:shadow-card-rest"
           }
         >
-          <div className="flex items-center justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Amount
-            </p>
-            {typeof walletBalanceWei === "bigint" &&
-              walletBalanceWei > 0n && (
+          <SendAmountField
+            id="send-eth-amount-input"
+            ticker={ticker}
+            value={amount}
+            onChange={(e) => {
+              const stripped = e.target.value.replace(/[^\d.]/g, "");
+              const [whole = "", frac] = stripped.split(".");
+              const next =
+                frac === undefined
+                  ? whole.slice(0, 12)
+                  : `${whole.slice(0, 12)}.${frac.slice(0, 18)}`;
+              setAmount(next);
+            }}
+            autoFocus
+            maxLength={20}
+            action={
+              typeof walletBalanceWei === "bigint" &&
+              walletBalanceWei > 0n ? (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -852,85 +859,50 @@ function ComposeStage({
                 >
                   Use max
                 </button>
-              )}
-          </div>
-          <label htmlFor="send-eth-amount-input" className="sr-only">
-            Amount in {ticker}
-          </label>
-          <div
-            className={
-              "flex items-baseline gap-3 border-b border-glass-soft pb-3 " +
-              "transition-colors duration-base ease-out-soft " +
-              "focus-within:border-glass-strong"
+              ) : null
             }
-          >
-            <input
-              id="send-eth-amount-input"
-              type="text"
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => {
-                const stripped = e.target.value.replace(/[^\d.]/g, "");
-                const [whole = "", frac] = stripped.split(".");
-                const next =
-                  frac === undefined
-                    ? whole.slice(0, 12)
-                    : `${whole.slice(0, 12)}.${frac.slice(0, 18)}`;
-                setAmount(next);
-              }}
-              placeholder="0"
-              autoFocus
-              maxLength={20}
-              aria-label={`Amount in ${ticker}`}
-              className="min-w-0 flex-1 bg-transparent font-numerals text-3xl font-semibold tracking-tight text-text-strong tabular-nums outline-none placeholder:text-text-soft/50 sm:text-4xl"
-            />
-            <span
-              aria-hidden="true"
-              className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft sm:text-lg"
-            >
-              {ticker}
-            </span>
-          </div>
-          <p className="text-xs text-text-soft">
-            <span>Wallet has </span>
-            <span className="font-numerals font-medium text-text-strong tabular-nums">
-              {balanceLoading
-                ? "…"
-                : typeof walletBalanceWei === "bigint"
-                  ? weiToEth(walletBalanceWei)
-                  : "-"}
-            </span>
-            <span> {ticker}</span>
-            {typeof walletBalanceWei === "bigint" &&
-              walletBalanceWei > 0n && (
-                <UsdHint
-                  amount={walletBalanceWei}
-                  smallestPerWhole={1_000_000_000_000_000_000n}
-                  ticker={ticker}
-                />
-              )}
-            {amount.trim() && !amountValid && (
-              <span className="ml-1.5 text-warning">
-                Must be a positive number.
-              </span>
-            )}
-          </p>
-          {insufficientBalance && walletBalanceWei !== null && (
-            <p className="rounded-soft border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-text-strong">
-              <span className="font-medium">Insufficient balance.</span>{" "}
-              You have {weiToEth(walletBalanceWei)} {ticker}
-              <UsdHint
-                amount={walletBalanceWei}
-                smallestPerWhole={1_000_000_000_000_000_000n}
-                ticker={ticker}
-              />
-              {" "}, need at least {weiToEth(amountWei + gasReserveWei)} {ticker}
-              including ~{weiToEth(gasReserveWei)} for gas. Top up the
-              wallet&rsquo;s {chainLabel} address from a faucet
-              {walletEthAddress ? ` (${shortEvmAddress(walletEthAddress)})` : ""}
-              .
-            </p>
-          )}
+            footer={
+              <>
+                <span>Wallet has </span>
+                <span className="font-numerals font-medium text-text-strong tabular-nums">
+                  {balanceLoading
+                    ? "..."
+                    : typeof walletBalanceWei === "bigint"
+                      ? weiToEth(walletBalanceWei)
+                      : "-"}
+                </span>
+                <span> {ticker}</span>
+                {typeof walletBalanceWei === "bigint" &&
+                  walletBalanceWei > 0n && (
+                    <UsdHint
+                      amount={walletBalanceWei}
+                      smallestPerWhole={1_000_000_000_000_000_000n}
+                      ticker={ticker}
+                    />
+                  )}
+                {amount.trim() && !amountValid && (
+                  <span className="ml-1.5 text-warning">
+                    Must be a positive number.
+                  </span>
+                )}
+              </>
+            }
+            warning={
+              insufficientBalance && walletBalanceWei !== null ? (
+                <>
+                  <span className="font-medium">Insufficient balance.</span>{" "}
+                  You have {weiToEth(walletBalanceWei)} {ticker}
+                  <UsdHint
+                    amount={walletBalanceWei}
+                    smallestPerWhole={1_000_000_000_000_000_000n}
+                    ticker={ticker}
+                  />
+                  {" "}, need at least {weiToEth(amountWei + gasReserveWei)}{" "}
+                  {ticker} including ~{weiToEth(gasReserveWei)} for gas.
+                </>
+              ) : null
+            }
+          />
         </section>
 
         {/* Recipient + Note card. Same merged-mobile / split-lg+
@@ -938,7 +910,7 @@ function ComposeStage({
         <section
           className={
             "flex flex-col gap-3 " +
-            "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-5 lg:shadow-card-rest"
+            "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-4 lg:shadow-card-rest"
           }
         >
           <Field
@@ -1018,7 +990,7 @@ function ComposeStage({
       {/* Preview + popup narration. Info-icon mode so the headline +
           warning stay visible and the secondary context is one
           hover/tap away. Same pattern as SOL /send. */}
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2">
         <SignPayloadPreview
           action={
             amountValid && recipientValid && effectiveRecipient
@@ -1031,31 +1003,10 @@ function ComposeStage({
           warning={`Cross-chain send is in alpha. The on-chain Solana sig you give here authorises Ika's dWallet network to broadcast the actual ${chainLabel} tx. If anything is wrong with the EVM-side params, the broadcast fails and the wallet's Solana state stays untouched.`}
           collapsibleDetails
         />
-        <WalletPopupNarration
-          action={`send this ${chainLabel} request`}
-          popups={1}
-          disclaimerBehindInfoTip
-        />
       </div>
 
-      {/* Action footer. InfoTip-backed approval hint + sticky CTA. */}
-      <div className="flex flex-col gap-3 pt-1">
-        <p className="inline-flex items-center gap-1.5 text-xs text-text-soft">
-          Friends in {walletDisplay} approve before it sends.
-          <InfoTip
-            label="How approvals work"
-            width="md"
-            size="xs"
-            side="start"
-          >
-            <span className="block">
-              When you tap Send, this becomes a proposal in {walletDisplay}.
-              The other approvers in this wallet get a notification and the
-              transfer only goes through once the threshold approves. You can
-              cancel anytime before that.
-            </span>
-          </InfoTip>
-        </p>
+      {/* Action footer. Sticky CTA mirrors the other send pages. */}
+      <div className="flex flex-col gap-2 pt-1">
         <div
           className={
             "-mx-3 sm:mx-0 px-3 sm:px-0 " +

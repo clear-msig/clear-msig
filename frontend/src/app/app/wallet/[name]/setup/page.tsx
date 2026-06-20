@@ -23,7 +23,7 @@ import { listIntents } from "@/lib/chain/intents";
 import { IntentType } from "@/lib/msig";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
-import { ArrowLeft, ArrowRight, Check, Clock, Loader2, Send, UserPlus, Wallet, Zap } from "lucide-react";
+import { ArrowRight, Check, Loader2, Send, UserPlus, Wallet } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
@@ -34,7 +34,6 @@ import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { BackToWallets } from "@/components/retail/BackToWallets";
 import { Button } from "@/components/retail/Button";
-import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import { SignPayloadPreview } from "@/components/retail/SignPayloadPreview";
 import { NextStepCard } from "@/components/retail/NextStepCard";
 
@@ -106,11 +105,7 @@ export default function SetupSpendingPage() {
     router,
   ]);
 
-  // Time-lock choice. 0 = ship immediately once approvals land.
-  // 24 * 3600 = 86_400s wait. Per the retail-pivot Months 3-4 spec,
-  // this is "Wait 24h before sending" - a cooling-off period for
-  // shared wallets that want a buffer against impulse / mistakes.
-  const [delaySeconds, setDelaySeconds] = useState<number>(0);
+  const delaySeconds = 0;
   // Stays true after the on-chain enable lands so we can render the
   // NextStepCard inline instead of router.push'ing the user away.
   const [showDone, setShowDone] = useState(false);
@@ -252,7 +247,7 @@ export default function SetupSpendingPage() {
           segments={[
             { label: "Wallets", href: "/app/wallet" },
             { label: toDisplayName(name), href: `/app/wallet/${encodeURIComponent(name)}` },
-            { label: "Set up sending" },
+            { label: "Turn on sending" },
           ]}
         />
       </StickyTopBar>
@@ -315,80 +310,21 @@ export default function SetupSpendingPage() {
               First-time setup
             </p>
             <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-              Set up sending in <span className="text-accent">{toHeadingName(name)}</span>
+              Turn on sending in <span className="text-accent">{toHeadingName(name)}</span>
             </h1>
-            <p className="mt-3 max-w-sm text-base text-text-soft">
-              One quick setup so this wallet can send money. Your wallet
-              will ask you to confirm. That&rsquo;s how sending protection
-              becomes part of {toDisplayName(name)}.
-            </p>
-
-            <div className="mt-6 w-full rounded-card border border-border-soft bg-surface-raised p-5 text-left shadow-card-rest">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-                What this enables
-              </p>
-              <ul className="mt-3 flex flex-col gap-2 text-sm text-text-strong">
-                <li className="flex items-start gap-2">
-                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                  Anyone in the wallet can request to send money out.
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                  Your wallet&rsquo;s approval rules apply (right now,
-                  just you).
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                  You can change this later when you have more
-                  friends.
-                </li>
-              </ul>
-            </div>
-
-            {/* Optional cooling-off period - `timelockSeconds` on the
-                intent. Defaults to ship-immediately; 24h is the
-                second-thoughts buffer for shared wallets. */}
-            <div className="mt-4 w-full rounded-card border border-border-soft bg-surface-raised p-5 text-left shadow-card-rest">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-                When approvals are in
-              </p>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <SpeedOption
-                  selected={delaySeconds === 0}
-                  onSelect={() => setDelaySeconds(0)}
-                  Icon={Zap}
-                  title="Send right away"
-                  body="Goes the moment everyone approves."
-                />
-                <SpeedOption
-                  selected={delaySeconds === 86400}
-                  onSelect={() => setDelaySeconds(86400)}
-                  Icon={Clock}
-                  title="Wait 24 hours"
-                  body="A cooling-off day before it ships."
-                />
-              </div>
-            </div>
 
             <div className="mt-6 flex w-full flex-col gap-3">
               <SignPayloadPreview
-                action={`Enable sending in ${toDisplayName(name)}`}
+                action="Turn on sending"
                 details={[
                   { label: "Wallet", value: toDisplayName(name) },
                   {
-                    label: "Approvers",
-                    value: "Just you for now",
-                  },
-                  {
-                    label: "Pace",
-                    value:
-                      delaySeconds === 0
-                        ? "Ships immediately"
-                        : "Wait 24 hours",
+                    label: "Chain",
+                    value: "Solana",
                   },
                 ]}
+                collapsibleDetails
               />
-              <WalletPopupNarration action="enable sending" />
             </div>
 
             <Button
@@ -405,7 +341,7 @@ export default function SetupSpendingPage() {
                 </>
               ) : (
                 <>
-                  Enable sending
+                  Turn on sending
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </>
               )}
@@ -415,50 +351,5 @@ export default function SetupSpendingPage() {
         </motion.section>
       </div>
     </main>
-  );
-}
-
-// ─── Speed option tile ─────────────────────────────────────────────
-
-interface SpeedOptionProps {
-  selected: boolean;
-  onSelect: () => void;
-  Icon: typeof Zap;
-  title: string;
-  body: string;
-}
-
-function SpeedOption({
-  selected,
-  onSelect,
-  Icon,
-  title,
-  body,
-}: SpeedOptionProps) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      className={
-        "flex flex-col items-start gap-1 rounded-card border p-3 text-left " +
-        "transition-[border-color,background-color,box-shadow] duration-base ease-out-soft " +
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
-        (selected
-          ? "border-accent bg-accent/5 shadow-card-rest"
-          : "border-border-soft bg-canvas")
-      }
-    >
-      <div
-        className={
-          "flex h-9 w-9 items-center justify-center rounded-full " +
-          (selected ? "bg-accent text-white" : "bg-accent/10 text-accent")
-        }
-      >
-        <Icon className="h-4 w-4" strokeWidth={2} />
-      </div>
-      <p className="mt-1 text-sm font-medium text-text-strong">{title}</p>
-      <p className="text-[11px] leading-snug text-text-soft">{body}</p>
-    </button>
   );
 }

@@ -171,4 +171,60 @@ describe("ClearSig Trader Library", () => {
     expect(idea?.entryPrice).toBe("70000");
     expect(idea?.thesis).toContain("live BTC-PERP market data");
   });
+
+  it("uses the active allowance leverage for practice perps", () => {
+    const now = 4_000;
+    const profile = createClearSigLibraryTrader({
+      template: CLEARSIG_TRADER_LIBRARY[1]!,
+      walletName: "library-leverage",
+      id: "trader-leverage",
+      now,
+    });
+    const idea = createClearSigLibraryPracticeIdea({
+      agent: profile,
+      maxNotionalUsd: "250",
+      maxLeverage: 5,
+      id: "idea-leverage",
+      now,
+    });
+
+    expect(idea?.leverage).toBe(5);
+    expect(idea?.thesis).toContain("5x max borrowing");
+  });
+
+  it("can produce a short perps idea from market conditions", () => {
+    const now = 5_000;
+    const profile = createClearSigLibraryTrader({
+      template: CLEARSIG_TRADER_LIBRARY[1]!,
+      walletName: "library-short",
+      id: "trader-short",
+      now,
+    });
+    const idea = createClearSigLibraryPracticeIdea({
+      agent: profile,
+      maxNotionalUsd: "250",
+      maxLeverage: 3,
+      id: "idea-short",
+      now,
+      marketData: {
+        provider: "hyperliquid",
+        source: "live",
+        market: "ETH-PERP",
+        observedAt: now,
+        markPriceUsd: "4200",
+        fundingRatePct: "0.05",
+        openInterestUsd: "1000000",
+        volume24hUsd: "2000000",
+      },
+    });
+
+    expect(idea?.side).toBe("short");
+    expect(idea?.leverage).toBe(3);
+    expect(Number(idea?.stopLossPrice)).toBeGreaterThan(
+      Number(idea?.entryPrice),
+    );
+    expect(Number(idea?.takeProfitPrice)).toBeLessThan(
+      Number(idea?.entryPrice),
+    );
+  });
 });

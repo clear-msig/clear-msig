@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -21,7 +21,6 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { BrandLoader } from "@/components/retail/BrandLoader";
-import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import {
   SignPayloadPreview,
   type SignPayloadDetail,
@@ -32,6 +31,7 @@ import {
 } from "@/components/retail/SendReceipt";
 import { UsdHint } from "@/components/retail/UsdHint";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
+import { SendAmountField } from "@/components/retail/SendAmountField";
 import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
 import { resolvePolicyEnforcement } from "@/lib/policies/enforce";
@@ -57,6 +57,7 @@ type Stage = "compose" | "sending" | "sent";
 
 export default function ZcashSendPage() {
   const params = useParams<{ name: string }>();
+  const searchParams = useSearchParams();
   const name = useMemo(() => {
     try {
       return decodeURIComponent(params?.name ?? "");
@@ -129,6 +130,8 @@ export default function ZcashSendPage() {
     explorerUrl: string | null;
     explorerLabel: string;
   } | null>(null);
+  const [autoStartedSetup, setAutoStartedSetup] = useState(false);
+  const autoStartSetup = searchParams?.get("autostart") === "1";
 
   const recipientDecoded = useMemo(
     () => validateZcashDestination(recipient),
@@ -262,6 +265,13 @@ export default function ZcashSendPage() {
     },
   });
 
+  useEffect(() => {
+    if (!autoStartSetup || autoStartedSetup || !needsIntent) return;
+    if (setup.isPending || setup.isSuccess) return;
+    setAutoStartedSetup(true);
+    setup.mutate();
+  }, [autoStartSetup, autoStartedSetup, needsIntent, setup]);
+
   const send = useMutation({
     mutationFn: async () => {
       if (!wallet.publicKey) throw new Error("Connect your wallet first");
@@ -389,11 +399,11 @@ export default function ZcashSendPage() {
   if (allSettled && needsBinding) {
     return (
       <PreFlightCard
-        title="Add Zcash to this wallet first"
-        body="This wallet doesn't have a Zcash address yet. Add Zcash on the chains page, then come back here."
+        title="Turn on Zcash sending"
+        body="One setup adds Zcash to this wallet and unlocks Zcash sends."
         cta={{
-          href: `/app/wallet/${encodeURIComponent(name)}/chains/add`,
-          label: "Add Zcash",
+          href: `/app/wallet/${encodeURIComponent(name)}/chains/add?chain=zcash_transparent&autostart=1`,
+          label: "Turn on Zcash sending",
         }}
       />
     );
@@ -417,10 +427,10 @@ export default function ZcashSendPage() {
           {stage === "compose" && needsIntent && (
             <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
-                Enable Zcash sending
+                Turn on Zcash sending
               </p>
               <p className="mt-2 text-sm text-text-soft">
-                This wallet has a Zcash address, but Zcash sending is not turned on yet.
+                Finish setup to unlock Zcash sends.
               </p>
               <Button size="lg" fullWidth className="mt-4" onClick={() => setup.mutate()} disabled={setup.isPending || !zcashBinding}>
                 {setup.isPending ? (
@@ -430,7 +440,7 @@ export default function ZcashSendPage() {
                   </>
                 ) : (
                   <>
-                    Enable Zcash sending
+                    Turn on Zcash sending
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </>
                 )}
@@ -490,7 +500,7 @@ function PreFlightCard({
         <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Zcash send
         </p>
-        <h1 className="mt-2 font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong">
+        <h1 className="mt-2 font-display text-2xl font-semibold leading-tight text-text-strong">
           {title}
         </h1>
         <p className="mt-2 text-sm text-text-soft">{body}</p>
@@ -552,16 +562,16 @@ function ZcashCompose({
     details.push({ label: "Amount", value: `${amount.trim()} ZEC`, emphasis: "amount" });
   }
   return (
-    <div className="flex flex-col gap-5">
-      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+    <div className="flex flex-col gap-4">
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex items-center gap-3">
           {zecMeta ? <ChainBadge chain={zecMeta} size="md" /> : null}
           <div className="flex flex-col gap-0.5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Send · one flow
+              Send
             </p>
-            <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
-              Send clearly
+            <h1 className="hidden font-display text-2xl font-semibold leading-tight text-text-strong md:block">
+              Send ZEC
             </h1>
           </div>
         </div>
@@ -570,18 +580,41 @@ function ZcashCompose({
         </p>
       </header>
 
-      <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2">
-          <Field label="Amount">
-            <input
-              type="text"
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))}
-              placeholder="0"
-              className="w-full rounded-card border border-border-soft bg-canvas px-4 py-3 text-sm text-text-strong outline-none"
-            />
-          </Field>
+      <div className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start">
+          <SendAmountField
+            id="zec-amount"
+            ticker="ZEC"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))}
+            footer={
+              <>
+                <span>Wallet has </span>
+                <span className="font-numerals font-medium text-text-strong tabular-nums">
+                  {balance !== null ? formatSats(balance) : "..."}
+                </span>
+                <span> ZEC</span>
+                {balance !== null ? (
+                  <UsdHint
+                    amount={balance}
+                    smallestPerWhole={100_000_000n}
+                    ticker="ZEC"
+                  />
+                ) : null}
+                {selectedUtxo ? (
+                  <span className="block pt-1 text-[11px]">
+                    Using input {selectedUtxo.txid.slice(0, 10)}…:
+                    {selectedUtxo.vout}
+                  </span>
+                ) : null}
+              </>
+            }
+            warning={
+              insufficientBalance ? (
+                <span className="font-medium">Insufficient balance.</span>
+              ) : null
+            }
+          />
           <Field label="To" hint={recipient.trim() && !recipientValid ? recipientDecoded.ok ? undefined : recipientDecoded.reason : undefined}>
             <input
               type="text"
@@ -592,19 +625,9 @@ function ZcashCompose({
             />
           </Field>
         </div>
-        <p className="mt-4 text-xs text-text-soft">
-          Wallet has {balance !== null ? formatSats(balance) : "…"} ZEC
-          {balance !== null ? <UsdHint amount={balance} smallestPerWhole={100_000_000n} ticker="ZEC" /> : null}
-          {selectedUtxo ? (
-            <span className="ml-2">Using input {selectedUtxo.txid.slice(0, 10)}…:{selectedUtxo.vout}</span>
-          ) : null}
-          {insufficientBalance ? <span className="ml-2 text-warning">Insufficient balance.</span> : null}
-        </p>
       </div>
 
       <SignPayloadPreview action={amountValid && recipientValid ? `Send ${amount.trim()} ZEC` : "Fill in the amount and recipient above"} details={details} collapsibleDetails />
-      <WalletPopupNarration action="send this Zcash request" />
-
       <div className="pt-1">
         <Button size="lg" fullWidth onClick={onSubmit} disabled={!canSubmit}>
           Send request

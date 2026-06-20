@@ -56,7 +56,7 @@ export function NextStepCard({
   return (
     <section
       aria-label="What's next"
-      className="clear-receipt-card rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
+      className="clear-receipt-card rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5"
     >
       <span aria-hidden="true" className="block h-px w-10 bg-accent" />
       <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
@@ -88,7 +88,7 @@ function NextStepLink({
   icon: Icon,
 }: NextStepOption) {
   const base =
-    "group flex w-full items-center gap-3 rounded-card px-4 py-3 text-left transition-[border-color,background-color,transform,box-shadow] duration-base ease-out-soft " +
+    "group flex w-full items-center gap-3 rounded-soft px-3 py-2.5 text-left transition-[border-color,background-color,transform,box-shadow] duration-base ease-out-soft sm:px-4 sm:py-3 " +
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised";
   const variant = primary
     ? "border border-accent/40 bg-accent/[0.06] text-text-strong shadow-card-rest hover:-translate-y-0.5 hover:shadow-card-raised"
@@ -98,7 +98,7 @@ function NextStepLink({
       {Icon && (
         <span
           className={
-            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full " +
+            "flex h-7 w-7 shrink-0 items-center justify-center rounded-full sm:h-8 sm:w-8 " +
             (primary
               ? "bg-accent text-text-on-accent"
               : "bg-accent/10 text-accent")

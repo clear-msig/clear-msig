@@ -58,12 +58,10 @@ import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
 import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
-import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import {
   SignPayloadPreview,
   type SignPayloadDetail,
 } from "@/components/retail/SignPayloadPreview";
-import { InfoTip } from "@/components/retail/InfoTip";
 import {
   SendReceipt,
   type ReceiptDetail,
@@ -78,6 +76,7 @@ import { QrScanButton } from "@/components/retail/QrScanButton";
 import { RecentRecipientsChips } from "@/components/retail/RecentRecipientsChips";
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
+import { SendAmountField } from "@/components/retail/SendAmountField";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { chainByKind } from "@/lib/retail/chains";
 import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
@@ -355,6 +354,12 @@ function SendPage() {
   const initialAmount = params?.get("amount")?.trim() ?? "";
   const initialRecipient = params?.get("recipient")?.trim() ?? "";
   const initialNote = params?.get("note")?.trim() ?? "";
+  const selectedAsset = params?.get("asset") ?? null;
+  const showSolanaForm =
+    selectedAsset === "solana" ||
+    !!initialAmount ||
+    !!initialRecipient ||
+    !!initialNote;
   const [amount, setAmount] = useState(initialAmount);
   const [recipientText, setRecipientText] = useState(initialRecipient);
   const [note, setNote] = useState(initialNote);
@@ -541,7 +546,7 @@ function SendPage() {
       if (!destination)
         throw new Error("Pick a contact or paste an address");
 
-      // Policy pre-flight. Block before the wallet popup opens so the
+      // Policy pre-flight. Block before the signing request opens so the
       // user never signs a doomed send. Sources of truth: localStorage
       // allowlist + time window + per-friend allowance + wallet-wide
       // budget. Client-side enforcement; see lib/retail/policyEvaluation.ts.
@@ -981,14 +986,13 @@ function SendPage() {
     // feeling cramped between the sidebar and the empty right edge.
     <div className="mx-auto flex w-full max-w-lg flex-col lg:max-w-3xl">
       <div className="flex flex-1 flex-col">
-          {needsSetup && (
-            <div className="mb-6 rounded-card border border-warning/30 bg-warning/5 p-5 text-center shadow-card-rest">
+          {needsSetup && showSolanaForm && (
+            <div className="mb-4 rounded-card border border-warning/30 bg-warning/5 p-4 text-center shadow-card-rest">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
-                Set up sending first
+                Turn on sending
               </p>
               <p className="mt-2 text-sm text-text-strong">
-                Enable sending for <strong>{walletDisplay}</strong>, then come
-                back here.
+                Finish setup for <strong>{walletDisplay}</strong> to send from this wallet.
               </p>
               <div className="mt-4 flex justify-center">
                 <Link
@@ -998,14 +1002,17 @@ function SendPage() {
                     "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98]"
                   }
                 >
-                  Enable sending
+                  Turn on sending
                   <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                 </Link>
               </div>
             </div>
           )}
           {stage === "compose" && (
-            <SendChainPicker walletName={walletName} activeKind={0} />
+            <SendChainPicker
+              walletName={walletName}
+              activeKind={showSolanaForm ? 0 : null}
+            />
           )}
           {stage === "compose" && policyEvaluation?.matched && (
             <PolicyMatchBanner
@@ -1013,7 +1020,7 @@ function SendPage() {
               evaluation={policyEvaluation}
             />
           )}
-          {stage === "compose" && (
+          {stage === "compose" && showSolanaForm && (
             <ComposeStage
               walletName={walletDisplay || "your shared wallet"}
               amount={amount}
@@ -1145,22 +1152,22 @@ function ComposeStage({
     <motion.section
       {...motionProps}
       transition={STAGE_TRANSITION}
-      className="flex flex-col gap-5"
+      className="flex flex-col gap-4"
     >
       {/* Compact left-aligned header. Chain badge sits inline with
           the title so the network identity is unmistakable without
           eating a full hero block. Matches the rest of the redesigned
           app (Home / Activity / Settings / Account). */}
-      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex items-center gap-3">
           {solMeta ? <ChainBadge chain={solMeta} size="md" /> : null}
           <div className="flex flex-col gap-0.5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Send · one flow
-            </p>
-            <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
-              Send clearly
-            </h1>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+                Send
+              </p>
+              <h1 className="hidden font-display text-2xl font-semibold leading-tight text-text-strong md:block">
+                Send SOL
+              </h1>
           </div>
         </div>
         <p className="text-xs text-text-soft sm:text-sm">
@@ -1183,31 +1190,37 @@ function ComposeStage({
           two-card desktop layout). */}
       <div
         className={
-          "flex flex-col gap-5 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest " +
-          "lg:grid lg:grid-cols-2 lg:items-start lg:gap-5 " +
+          "flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest " +
+          "lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 " +
           "lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none"
         }
       >
 
-      {/* Amount card - proper bordered card with a section eyebrow.
-          The number stays the most prominent pixel on the page, but
-          it now sits inside a clear container instead of floating
-          centered. Balance + Max live as a footer row inside the
-          same card - they're scoped to the amount, not the page.
-          Card chrome only applies at lg+; on mobile the parent
-          already provides the bordered container. */}
+      {/* Amount card. Balance + Max live with the input so the
+          number, asset, and available balance stay visually scoped. */}
       <section
         className={
           "flex flex-col gap-3 " +
-          "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-5 lg:shadow-card-rest"
+          "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-4 lg:shadow-card-rest"
         }
       >
-        <div className="flex items-center justify-between">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            Amount
-          </p>
-          {typeof vaultBalanceLamports === "bigint" &&
-            vaultBalanceLamports > 0n && (
+        <SendAmountField
+          id="send-amount-input"
+          ticker="SOL"
+          value={amount}
+          onChange={(e) => {
+            const raw = e.target.value.replace(/[^\d.]/g, "");
+            const [wholeRaw = "", frac] = raw.split(".");
+            const whole = wholeRaw.slice(0, 12);
+            const next =
+              frac === undefined ? whole : `${whole}.${frac.slice(0, 4)}`;
+            setAmount(next);
+          }}
+          autoFocus
+          maxLength={20}
+          action={
+            typeof vaultBalanceLamports === "bigint" &&
+            vaultBalanceLamports > 0n ? (
               <button
                 type="button"
                 onClick={(e) => {
@@ -1222,73 +1235,39 @@ function ComposeStage({
               >
                 Use max
               </button>
-            )}
-        </div>
-        <label htmlFor="send-amount-input" className="sr-only">
-          Amount in SOL
-        </label>
-        <div
-          className={
-            "flex items-baseline gap-3 border-b border-glass-soft pb-3 " +
-            "transition-colors duration-base ease-out-soft " +
-            "focus-within:border-glass-strong"
+            ) : null
           }
-        >
-          <input
-            id="send-amount-input"
-            type="text"
-            inputMode="decimal"
-            value={amount}
-            onChange={(e) => {
-              const raw = e.target.value.replace(/[^\d.]/g, "");
-              const [wholeRaw = "", frac] = raw.split(".");
-              const whole = wholeRaw.slice(0, 12);
-              const next =
-                frac === undefined ? whole : `${whole}.${frac.slice(0, 4)}`;
-              setAmount(next);
-            }}
-            placeholder="0"
-            autoFocus
-            maxLength={20}
-            aria-label="Amount in SOL"
-            className="min-w-0 flex-1 bg-transparent font-numerals text-3xl font-semibold tracking-tight text-text-strong tabular-nums outline-none placeholder:text-text-soft/50 sm:text-4xl"
-          />
-          <span
-            aria-hidden="true"
-            className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft sm:text-lg"
-          >
-            SOL
-          </span>
-        </div>
-        <p className="text-xs text-text-soft">
-          <span>Wallet has </span>
-          <span className="font-numerals font-medium text-text-strong tabular-nums">
-            {balanceLoading
-              ? "…"
-              : typeof vaultBalanceLamports === "bigint"
-                ? formatLamports(vaultBalanceLamports)
-                : "-"}
-          </span>
-          <span> SOL</span>
-          {typeof vaultBalanceLamports === "bigint" && (
-            <UsdHint
-              amount={vaultBalanceLamports}
-              smallestPerWhole={1_000_000_000n}
-              ticker="SOL"
-            />
-          )}
-          {amount && (
+          footer={
             <>
-              <span aria-hidden="true" className="mx-1.5">
-                ·
+              <span>Wallet has </span>
+              <span className="font-numerals font-medium text-text-strong tabular-nums">
+                {balanceLoading
+                  ? "..."
+                  : typeof vaultBalanceLamports === "bigint"
+                    ? formatLamports(vaultBalanceLamports)
+                    : "-"}
               </span>
-              <span>{display} SOL to send</span>
+              <span> SOL</span>
+              {typeof vaultBalanceLamports === "bigint" && (
+                <UsdHint
+                  amount={vaultBalanceLamports}
+                  smallestPerWhole={1_000_000_000n}
+                  ticker="SOL"
+                />
+              )}
+              {amount && (
+                <>
+                  <span aria-hidden="true" className="mx-1.5">
+                    ·
+                  </span>
+                  <span>{display} SOL to send</span>
+                </>
+              )}
             </>
-          )}
-        </p>
-        {insufficientBalance &&
-          typeof vaultBalanceLamports === "bigint" && (
-            <p className="rounded-soft border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-text-strong">
+          }
+          warning={
+            insufficientBalance && typeof vaultBalanceLamports === "bigint" ? (
+              <>
               <span className="font-medium">Insufficient balance.</span>{" "}
               {walletDisplay} has {formatLamports(vaultBalanceLamports)} SOL
               <UsdHint
@@ -1297,8 +1276,10 @@ function ComposeStage({
                 ticker="SOL"
               />
               {" "}- top up before sending.
-            </p>
-          )}
+              </>
+            ) : null
+          }
+        />
       </section>
 
       {/* Recipient + Note card. Same merged-on-mobile / split-on-lg+
@@ -1306,7 +1287,7 @@ function ComposeStage({
       <section
         className={
           "flex flex-col gap-3 " +
-          "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-5 lg:shadow-card-rest"
+          "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-4 lg:shadow-card-rest"
         }
       >
         <div className="flex items-stretch gap-2">
@@ -1364,7 +1345,7 @@ function ComposeStage({
           they click Send. Both blocks render in their compact
           "details behind an info icon" mode - the headline + warning
           stay visible, secondary context is one hover/tap away. */}
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2">
         <SignPayloadPreview
           action={
             amountValid &&
@@ -1395,28 +1376,13 @@ function ComposeStage({
           })}
           collapsibleDetails
         />
-        <WalletPopupNarration action="send this request" disclaimerBehindInfoTip />
       </div>
 
       {/* Action footer - primary Send CTA + secondary "Send to many"
           link. Sticky on mobile (bottom of viewport, clears safe
           area + BottomNav); inline on sm+ where the page scrolls
           inside the workspace shell. */}
-      <div className="flex flex-col gap-3 pt-1">
-        <p className="inline-flex items-center gap-1.5 text-xs text-text-soft">
-          {walletDisplay} approvers review this request.
-          <InfoTip
-            label="How approvals work"
-            width="md"
-            size="xs"
-            side="start"
-          >
-            <span className="block">
-              Tap Send to create an approval request. It moves only after the
-              wallet reaches threshold.
-            </span>
-          </InfoTip>
-        </p>
+      <div className="flex flex-col gap-2 pt-1">
         <div
           className={
             "-mx-3 sm:mx-0 px-3 sm:px-0 " +
@@ -1922,31 +1888,7 @@ function BudgetHint({
   const remaining = cap - budgetUsage.spentUsd;
   const wouldExceed = pendingUsd > remaining;
   if (!wouldExceed) {
-    // Pass-state used to render as a full text line ("✓ Fits within
-    // $X left…"). On a polished send view that single nice-to-know
-    // ate a row of vertical space without informing the decision -
-    // the hard signal is the over-cap warning below, not the all-
-    // clear. Tucked into a discreet inline chip so the page stays
-    // calm when nothing is wrong.
-    return (
-      <p className="mt-4 inline-flex items-center text-[11px] text-text-soft">
-        Within {walletDisplay}&rsquo;s weekly cap
-        <InfoTip
-          label="Weekly cap detail"
-          width="md"
-          size="xs"
-          side="start"
-        >
-          <span className="block">
-            <span className="font-medium text-text-strong">
-              {formatUsd(remaining)} left
-            </span>{" "}
-            in {walletDisplay}&rsquo;s {formatUsd(cap)} weekly cap. Friends
-            still need to approve every send; the cap is a guide today.
-          </span>
-        </InfoTip>
-      </p>
-    );
+    return null;
   }
   const overage = pendingUsd - Math.max(0, remaining);
   return (

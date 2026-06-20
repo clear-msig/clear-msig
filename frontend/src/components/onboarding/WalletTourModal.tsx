@@ -40,7 +40,7 @@ const STEPS: Step[] = [
   {
     title: "Send and receive money",
     body:
-      "Send starts a transfer. Receive opens a QR for someone to scan; Networks shows each address this wallet can use.",
+      "Send starts a transfer. Receive opens a QR for someone to scan. Extra networks live in Advanced settings.",
   },
   {
     title: "Pending approvals show up everywhere",

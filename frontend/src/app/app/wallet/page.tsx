@@ -251,8 +251,24 @@ function WalletDashboardContent() {
   const showRecent = !isFirstVisit && filteredRecentRows.length > 0;
   const showWatched = !hasError && selectedSurface === null;
 
+  const showWalletGrid =
+    !hasError &&
+    !isFirstVisit &&
+    !(selectedSurface && visibleWallets.length === 0 && !stillLoading);
+  const walletGrid = showWalletGrid ? (
+    <WalletsGrid
+      wallets={visibleWallets}
+      pendingByWallet={visiblePendingByWallet}
+      balances={balancesQuery.data}
+      loadingBalances={balancesQuery.isLoading}
+      loading={stillLoading}
+      selectedSurface={selectedSurface}
+      reduce={!!reduce}
+    />
+  ) : null;
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4 sm:gap-6">
       <UnsupportedSignerBanner />
 
       {/* Compact hero - left-aligned title + dynamic summary line.
@@ -274,9 +290,8 @@ function WalletDashboardContent() {
         />
       ) : null}
 
-      {/* Stats - three at-a-glance metrics. Total balance sums the
-          Solana vault lamports already fetched by balancesQuery; the
-          approval card flips to accent when there's anything pending. */}
+      {selectedSurface ? walletGrid : null}
+
       {showStats && (
         <StatsRow
           visibleWallets={visibleWallets}
@@ -288,10 +303,6 @@ function WalletDashboardContent() {
         />
       )}
 
-      {/* Action-first ordering: surface what needs the user above the
-          wallet grid so a returning user sees their inbox without
-          having to scroll past their cards. */}
-
       {hasError ? (
         <MembershipsErrorCard onRetry={() => memberships.refetch()} />
       ) : isFirstVisit && watched.rows.length === 0 ? (
@@ -299,15 +310,7 @@ function WalletDashboardContent() {
       ) : selectedSurface && visibleWallets.length === 0 && !stillLoading ? (
         <ProductEmptyState selectedSurface={selectedSurface} />
       ) : (
-        <WalletsGrid
-          wallets={visibleWallets}
-          pendingByWallet={visiblePendingByWallet}
-          balances={balancesQuery.data}
-          loadingBalances={balancesQuery.isLoading}
-          loading={stillLoading}
-          selectedSurface={selectedSurface}
-          reduce={!!reduce}
-        />
+        selectedSurface ? null : walletGrid
       )}
 
       {/* Bottom row - Recent activity (8 cols) sits next to Watching
@@ -465,14 +468,14 @@ function ProductWorkspaceSwitcher({
   ];
 
   return (
-    <section className="rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest">
-      <div className="flex items-center gap-2 overflow-x-auto">
+    <section className="rounded-card border border-border-soft bg-surface-raised p-2.5 shadow-card-rest sm:p-3">
+      <div className="flex items-center gap-1.5 overflow-x-auto sm:gap-2">
         <button
           type="button"
           onClick={() => onSelect(null)}
           aria-pressed={selectedSurface === null}
           className={clsx(
-            "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-soft px-3 text-xs font-medium transition-colors",
+            "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-soft px-2.5 text-xs font-medium transition-colors sm:min-h-10 sm:gap-2 sm:px-3",
             selectedSurface === null
               ? "bg-accent/10 text-accent"
               : "text-text-soft hover:bg-glass-mid hover:text-text-strong",
@@ -493,7 +496,7 @@ function ProductWorkspaceSwitcher({
                 key={id}
                 href={productSurfaceWorkspaceHref(id)}
                 className={clsx(
-                  "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-soft px-3 text-xs font-medium transition-colors",
+                  "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-soft px-2.5 text-xs font-medium transition-colors sm:min-h-10 sm:gap-2 sm:px-3",
                   active
                     ? "bg-accent/10 text-accent"
                     : "text-text-soft hover:bg-glass-mid hover:text-text-strong",
@@ -514,7 +517,7 @@ function ProductWorkspaceSwitcher({
               onClick={() => onSelect(id)}
               aria-pressed={active}
               className={clsx(
-                "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-soft px-3 text-xs font-medium transition-colors",
+                "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-soft px-2.5 text-xs font-medium transition-colors sm:min-h-10 sm:gap-2 sm:px-3",
                 active
                   ? "bg-accent/10 text-accent"
                   : "text-text-soft hover:bg-glass-mid hover:text-text-strong",
@@ -574,7 +577,7 @@ function StatsRow({
     <motion.div
       {...motionProps}
       transition={{ duration: 0.2 }}
-      className="flex flex-col gap-3"
+      className="flex flex-col gap-2.5 sm:gap-3"
     >
       <BalanceHeroCard
         amount={totalBalance.amount}
@@ -587,7 +590,7 @@ function StatsRow({
       {/* Secondary stats - Wallets count and pending-approval bell.
           Side-by-side on every viewport so the two metrics carry
           equal visual weight under the hero. */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
         <StatCard
           Icon={Users}
           label={selectedSurface ? "In product" : "Wallets"}
@@ -714,7 +717,7 @@ function BalanceHeroCard({
   return (
     <section
       className={clsx(
-        "relative overflow-hidden rounded-card border p-6 shadow-card-rest sm:p-7",
+        "relative overflow-hidden rounded-card border p-4 shadow-card-rest sm:p-5 lg:p-6",
         selectedSurface
           ? surfaceHeroTone(selectedSurface)
           : "border-border-soft bg-surface-raised",
@@ -724,7 +727,7 @@ function BalanceHeroCard({
 
       {/* Foreground content. relative + z-10 keeps it above both
           decoration layers. */}
-      <div className="relative z-10 grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-center">
+      <div className="relative z-10 grid gap-3 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-center lg:gap-5">
         <div className="min-w-0">
         {/* Brand row - small visible mark + label */}
         <div className="flex items-center justify-between gap-2">
@@ -767,11 +770,11 @@ function BalanceHeroCard({
         </div>
 
         {selectedSurface ? (
-          <div className="mt-5 max-w-2xl">
-            <h2 className="font-display text-2xl font-semibold leading-tight text-text-strong sm:text-3xl">
+          <div className="mt-3 max-w-2xl sm:mt-4">
+            <h2 className="font-display text-xl font-semibold leading-tight text-text-strong sm:text-2xl">
               {surfaceCopy.title}
             </h2>
-            <p className="mt-2 text-sm leading-relaxed text-text-soft">
+            <p className="mt-1 hidden text-sm leading-relaxed text-text-soft sm:block">
               {surfaceCopy.body}
             </p>
           </div>
@@ -779,18 +782,18 @@ function BalanceHeroCard({
 
         {/* Big numerals */}
         {loading ? (
-          <div className="mt-5 h-12 w-44 animate-pulse rounded bg-border-soft/80 sm:h-14 sm:w-56" />
+          <div className="mt-3 h-10 w-40 animate-pulse rounded bg-border-soft/80 sm:mt-5 sm:h-12 sm:w-52" />
         ) : (
           <>
-            <p className={clsx("mt-5 flex items-baseline gap-2 transition-[filter] duration-base", hiddenClass)}>
-              <span className="font-numerals text-4xl font-semibold leading-none tracking-tight text-text-strong tabular-nums sm:text-5xl">
+            <p className={clsx("mt-3 flex items-baseline gap-2 transition-[filter] duration-base sm:mt-5", hiddenClass)}>
+              <span className="font-numerals text-3xl font-semibold leading-none text-text-strong tabular-nums sm:text-4xl">
                 {amount}
               </span>
-              <span className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft sm:text-lg">
+              <span className="font-display text-sm font-semibold uppercase tracking-[0.16em] text-text-soft sm:text-base">
                 {unit}
               </span>
             </p>
-            <p className={clsx("mt-2 text-xs text-text-soft transition-[filter] duration-base sm:text-sm", hiddenClass)}>
+            <p className={clsx("mt-1.5 text-xs text-text-soft transition-[filter] duration-base sm:text-sm", hiddenClass)}>
               <UsdHint
                 amount={BigInt(Math.round(totalLamports))}
                 smallestPerWhole={1_000_000_000n}
@@ -802,7 +805,7 @@ function BalanceHeroCard({
           </>
         )}
 
-        <div className="mt-6 flex items-center justify-between gap-3">
+        <div className="mt-4 flex items-center justify-between gap-3 sm:mt-5">
           <p className="min-w-0 truncate font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft sm:text-[11px]">
             {selectedSurface ? surfaceCopy.footer : "ClearSig - all products"}
           </p>
@@ -891,7 +894,7 @@ function ProductDashboardVisual({ surface }: { surface: WalletProductSurface }) 
   return (
     <div
       aria-hidden="true"
-      className="relative min-h-[13rem] overflow-hidden rounded-card border border-border-soft bg-canvas/55 p-4"
+      className="relative hidden min-h-[10rem] overflow-hidden rounded-card border border-border-soft bg-canvas/55 p-3 lg:block"
     >
       {surface === "personal" ? <PersonalDashboardVisual /> : null}
       {surface === "pro" ? <ProDashboardVisual /> : null}
@@ -903,11 +906,11 @@ function ProductDashboardVisual({ surface }: { surface: WalletProductSurface }) 
 
 function PersonalDashboardVisual() {
   return (
-    <div className="flex h-full flex-col justify-between gap-4">
+    <div className="flex h-full flex-col justify-between gap-3">
       <div className="flex items-center justify-between">
         <div className="flex -space-x-2">
           {["bg-emerald-300", "bg-sky-200", "bg-lime-300"].map((tone) => (
-            <span key={tone} className={clsx("h-9 w-9 rounded-full border-2 border-canvas", tone)} />
+            <span key={tone} className={clsx("h-8 w-8 rounded-full border-2 border-canvas", tone)} />
           ))}
         </div>
         <span className="rounded-full bg-emerald-300/10 px-2.5 py-1 text-[10px] font-semibold text-emerald-300">
@@ -916,7 +919,7 @@ function PersonalDashboardVisual() {
       </div>
       <div className="grid grid-cols-3 gap-2">
         {["Send", "Receive", "Protect"].map((label) => (
-          <span key={label} className="rounded-xl border border-border-soft bg-surface-raised px-2 py-3 text-center text-[10px] font-medium text-text-strong">
+          <span key={label} className="rounded-xl border border-border-soft bg-surface-raised px-2 py-2 text-center text-[10px] font-medium text-text-strong">
             {label}
           </span>
         ))}
@@ -927,9 +930,9 @@ function PersonalDashboardVisual() {
 
 function ProDashboardVisual() {
   return (
-    <div className="flex h-full flex-col gap-3">
+    <div className="flex h-full flex-col gap-2.5">
       {["Payroll", "Vendor payout", "Ops budget"].map((label, index) => (
-        <div key={label} className="rounded-xl border border-border-soft bg-surface-raised p-3">
+        <div key={label} className="rounded-xl border border-border-soft bg-surface-raised p-2.5">
           <div className="flex items-center justify-between text-[10px] font-medium text-text-soft">
             <span>{label}</span>
             <span>{index + 1}/3</span>
@@ -945,7 +948,7 @@ function ProDashboardVisual() {
 
 function AgentDashboardVisual() {
   return (
-    <div className="flex h-full flex-col justify-between gap-4">
+    <div className="flex h-full flex-col justify-between gap-3">
       <div className="flex items-center justify-between">
         <span className="rounded-full bg-accent/10 px-2.5 py-1 text-[10px] font-semibold text-accent">
           Live monitor
@@ -953,7 +956,7 @@ function AgentDashboardVisual() {
         <span className="h-2 w-2 rounded-full bg-accent" />
       </div>
       <div className="flex items-end gap-1.5">
-        {[40, 68, 52, 88, 66, 104, 78].map((height, index) => (
+        {[32, 54, 42, 72, 52, 86, 62].map((height, index) => (
           <span key={index} className="flex-1 rounded-t bg-accent/70" style={{ height }} />
         ))}
       </div>
@@ -1005,12 +1008,12 @@ function StatCard({
   return (
     <div
       className={clsx(
-        "rounded-card border bg-surface-raised p-4 shadow-card-rest",
+        "rounded-card border bg-surface-raised p-3 shadow-card-rest sm:p-4",
         "transition-[border-color,box-shadow] duration-base ease-out-soft",
         accent ? "border-accent/40" : "border-border-soft",
       )}
     >
-      <div className="flex items-center gap-2 text-text-soft">
+      <div className="flex items-center gap-1.5 text-text-soft sm:gap-2">
         <Icon className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
         <span className="text-[11px] font-semibold uppercase tracking-[0.2em]">
           {label}
@@ -1019,10 +1022,10 @@ function StatCard({
       {loading ? (
         <div className="mt-2.5 h-7 w-24 animate-pulse rounded bg-border-soft/80" />
       ) : (
-        <p className="mt-1.5 flex items-baseline gap-1.5">
+        <p className="mt-1 flex items-baseline gap-1.5 sm:mt-1.5">
           <span
             className={clsx(
-              "font-numerals text-2xl font-semibold tabular-nums leading-tight",
+              "font-numerals text-xl font-semibold tabular-nums leading-tight sm:text-2xl",
               accent ? "text-accent" : "text-text-strong",
             )}
           >
@@ -1075,13 +1078,13 @@ function FirstVisitCard({
   const product = productSurfaceById(surface);
   const Icon = PRODUCT_ICON[surface];
   return (
-    <div className="rounded-card border border-border-soft bg-surface-raised p-8 shadow-card-rest">
-      <div className="flex flex-col items-center gap-4 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent/10">
-          <Icon className="h-7 w-7 text-accent" strokeWidth={1.75} />
+    <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-8">
+      <div className="flex flex-col items-center gap-3 text-center sm:gap-4">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 sm:h-14 sm:w-14">
+          <Icon className="h-6 w-6 text-accent sm:h-7 sm:w-7" strokeWidth={1.75} />
         </div>
         <div>
-          <h2 className="font-display text-display-xs text-text-strong">
+          <h2 className="font-display text-xl font-semibold text-text-strong sm:text-display-xs">
             Start with {product.shortName}
           </h2>
         </div>
@@ -1105,17 +1108,17 @@ function ProductEmptyState({
   const Icon = PRODUCT_ICON[selectedSurface];
 
   return (
-    <section className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-8">
-      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 gap-4">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent ring-1 ring-accent/20">
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 gap-3 sm:gap-4">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent ring-1 ring-accent/20 sm:h-12 sm:w-12">
             <Icon className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
           </span>
           <div className="min-w-0">
             <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-text-soft">
               {product.shortName}
             </p>
-            <h2 className="mt-1 font-display text-xl font-semibold text-text-strong">
+            <h2 className="mt-1 font-display text-lg font-semibold text-text-strong sm:text-xl">
               No {productWorkspaceLabel(selectedSurface).toLowerCase()} yet
             </h2>
           </div>
@@ -1370,7 +1373,7 @@ function WalletCard({
       <Link
         href={homeHref}
         className={
-          "group relative flex flex-col gap-3 overflow-hidden rounded-card border bg-surface-raised p-5 shadow-card-rest " +
+          "group relative flex flex-col gap-2.5 overflow-hidden rounded-card border bg-surface-raised p-4 shadow-card-rest sm:gap-3 sm:p-5 " +
           "transition-[transform,box-shadow,border-color] duration-base ease-out-soft " +
           "hover:-translate-y-0.5 hover:shadow-card-raised " +
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
@@ -1379,9 +1382,9 @@ function WalletCard({
       >
         <div className="relative z-10 flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.14)] sm:h-10 sm:w-10">
               <ProductIcon
-                className="h-[18px] w-[18px]"
+                className="h-4 w-4 sm:h-[18px] sm:w-[18px]"
                 strokeWidth={1.9}
                 aria-hidden="true"
               />
@@ -1393,7 +1396,7 @@ function WalletCard({
                   inline copy was duplicate chrome - both icons
                   visible, neither carrying signal the other didn't.
                   Keep only the corner button. */}
-              <p className="font-display text-xl text-text-strong">
+              <p className="font-display text-lg text-text-strong sm:text-xl">
                 <span className="truncate">{name}</span>
               </p>
               {loadingBalance && balance === null ? (
@@ -1453,7 +1456,7 @@ function WalletCard({
           // touch; desktop hover state still rendered fine on the
           // smaller 28px hit-area, but mobile users couldn't reach
           // it reliably.
-          "absolute bottom-3 right-3 items-center justify-center rounded-full border bg-surface-raised " +
+          "absolute bottom-2.5 right-2.5 items-center justify-center rounded-full border bg-surface-raised sm:bottom-3 sm:right-3 " +
           "transition-[color,border-color,transform,opacity] duration-base ease-out-soft " +
           (pinned
             ? // Pinned cards always show the icon (status signal).

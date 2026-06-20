@@ -70,7 +70,7 @@ export default function NewAgentSessionPage() {
   const [allowedVenues, setAllowedVenues] = useState<TradingVenue[]>(["mock_perps"]);
   const [allowedMarkets, setAllowedMarkets] = useState("BTC-PERP, ETH-PERP");
   const [maxNotionalUsd, setMaxNotionalUsd] = useState("250");
-  const [maxLeverage, setMaxLeverage] = useState("1");
+  const [maxLeverage, setMaxLeverage] = useState("2");
   const [maxOpenPositions, setMaxOpenPositions] = useState("1");
   const [durationHours, setDurationHours] = useState("4");
   const [approvalRequest, setApprovalRequest] = useState<AgentOwnerApprovalInput | null>(null);

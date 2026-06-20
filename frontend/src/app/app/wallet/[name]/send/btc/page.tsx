@@ -33,9 +33,9 @@
 // pre-alpha all wallets come up on signet/testnet. `tb` HRP. So
 // `validateBtcDestination` accepts both.)
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -56,7 +56,6 @@ import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useToast } from "@/components/ui/Toast";
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
 import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
-import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import {
   SignPayloadPreview,
   type SignPayloadDetail,
@@ -67,6 +66,7 @@ import {
 } from "@/components/retail/SendReceipt";
 import { UsdHint } from "@/components/retail/UsdHint";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
+import { SendAmountField } from "@/components/retail/SendAmountField";
 import { InfoTip } from "@/components/retail/InfoTip";
 import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
@@ -76,11 +76,9 @@ import { resolvePolicyEnforcement } from "@/lib/policies/enforce";
 import {
   DEFAULT_BITCOIN_NETWORK,
   decodeSegwitAddress,
-  detectBitcoinNetwork,
   esploraBaseUrl,
   bitcoinExplorerLabel,
-  fetchBitcoinBalance,
-  fetchBitcoinUtxos,
+  fetchBitcoinAddressSnapshot,
   formatSats,
   mempoolSpaceTxUrl,
   parseBtcAmount,
@@ -114,6 +112,7 @@ export default function BitcoinSendPageWrapper() {
 
 function BitcoinSendPage() {
   const params = useParams<{ name: string }>();
+  const searchParams = useSearchParams();
   const name = useMemo(() => {
     try {
       return decodeURIComponent(params?.name ?? "");
@@ -160,31 +159,22 @@ function BitcoinSendPage() {
     return btcBinding ? chainAddress(btcBinding) : null;
   }, [btcBinding]);
 
-  // Pre-alpha runs against Solana DEVNET + Ika's mock signer, so
-  // every BTC binding here is testnet-class (the backend returns
-  // both `btc_p2wpkh_mainnet` and `btc_p2wpkh_testnet` for the same
-  // HASH160; chainAddress already prefers the tb-HRP form). The `tb`
-  // HRP is shared between testnet3 and signet though, so we have to
-  // probe both Esplora endpoints to find which one actually has the
-  // user's UTXOs. Default `testnet` while the probe runs so the page
-  // can render skeletons; the network query swaps in once it lands.
-  const networkQuery = useQuery({
-    queryKey: ["btc-network-detect", dwalletAddress ?? "none"],
+  const btcSnapshotQuery = useQuery({
+    queryKey: ["btc-address-snapshot", dwalletAddress ?? "none"],
     queryFn: () =>
       dwalletAddress
-        ? detectBitcoinNetwork(dwalletAddress)
-        : DEFAULT_BITCOIN_NETWORK,
+        ? fetchBitcoinAddressSnapshot(dwalletAddress)
+        : {
+            network: DEFAULT_BITCOIN_NETWORK,
+            balanceSats: 0n,
+            utxos: [],
+          },
     enabled: !!dwalletAddress,
-    // The detection is essentially "what faucet did the user use?" ,
-    // it doesn't change after the first funded UTXO lands, so we can
-    // cache aggressively. 5 min is long enough to not re-probe on
-    // every focus, short enough to pick up a switch if the user
-    // suddenly funds the other chain.
-    staleTime: 5 * 60_000,
-    refetchOnWindowFocus: false,
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
   });
   const btcNetwork: BitcoinNetwork =
-    networkQuery.data ?? DEFAULT_BITCOIN_NETWORK;
+    btcSnapshotQuery.data?.network ?? DEFAULT_BITCOIN_NETWORK;
 
   // sender_pkh: HASH160(dwallet pubkey) = the witness program of the
   // dWallet's own P2WPKH address. We extract by decoding the address
@@ -211,22 +201,16 @@ function BitcoinSendPage() {
   }, [intentsQuery.data]);
 
   // ── Live balance + UTXOs ──────────────────────────────────────────
-  const balanceQuery = useQuery({
-    queryKey: ["btc-balance", dwalletAddress ?? "none", btcNetwork],
-    queryFn: () =>
-      dwalletAddress ? fetchBitcoinBalance(dwalletAddress, btcNetwork) : 0n,
-    enabled: !!dwalletAddress,
-    staleTime: 15_000,
-    refetchOnWindowFocus: true,
-  });
-  const utxosQuery = useQuery({
-    queryKey: ["btc-utxos", dwalletAddress ?? "none", btcNetwork],
-    queryFn: () =>
-      dwalletAddress ? fetchBitcoinUtxos(dwalletAddress, btcNetwork) : [],
-    enabled: !!dwalletAddress,
-    staleTime: 15_000,
-    refetchOnWindowFocus: true,
-  });
+  const balanceSats = btcSnapshotQuery.data?.balanceSats ?? null;
+  const btcUtxos = useMemo(
+    () => btcSnapshotQuery.data?.utxos ?? [],
+    [btcSnapshotQuery.data?.utxos],
+  );
+  const largestSpendableSats = useMemo(() => {
+    const largest = btcUtxos[0];
+    if (!largest || largest.value <= Number(FEE_RESERVE_SATS)) return 0n;
+    return BigInt(largest.value) - FEE_RESERVE_SATS;
+  }, [btcUtxos]);
 
   // ── Form state ────────────────────────────────────────────────────
   const [destination, setDestination] = useState("");
@@ -258,6 +242,8 @@ function BitcoinSendPage() {
     /// far. Helps with on-chain forensics.
     proposalAddress?: string;
   } | null>(null);
+  const [autoStartedSetup, setAutoStartedSetup] = useState(false);
+  const autoStartSetup = searchParams?.get("autostart") === "1";
 
   const sendAmountSats = useMemo<bigint | null>(
     () => parseBtcAmount(amountBtc),
@@ -269,18 +255,18 @@ function BitcoinSendPage() {
   // (`examples/intents/btc_transfer.json`); multi-input would need a
   // template extension.
   const selectedUtxo = useMemo<EsploraUtxo | null>(() => {
-    if (!utxosQuery.data || !sendAmountSats) return null;
+    if (!btcUtxos.length || !sendAmountSats) return null;
     const need = sendAmountSats + FEE_RESERVE_SATS;
     // utxos are sorted desc by value; pick the smallest one that
     // covers `need`. Walking from the smallest up wastes less change
     // (single-input means change isn't returned. Every extra sat
     // becomes the fee).
-    const candidates = [...utxosQuery.data].sort((a, b) => a.value - b.value);
+    const candidates = [...btcUtxos].sort((a, b) => a.value - b.value);
     for (const u of candidates) {
       if (BigInt(u.value) >= need) return u;
     }
     return null;
-  }, [utxosQuery.data, sendAmountSats]);
+  }, [btcUtxos, sendAmountSats]);
 
   const impliedFeeSats = useMemo<bigint | null>(() => {
     if (!selectedUtxo || !sendAmountSats) return null;
@@ -550,11 +536,11 @@ function BitcoinSendPage() {
         broadcast: true,
         dwallet_program: appConfig.preAlpha.dwalletProgramId,
         grpc_url: appConfig.preAlpha.grpcUrl,
-      // BTC needs a Bitcoin RPC/Esplora base, not the backend's
-      // EVM destination RPC. We pass the network-specific Bitcoin
-      // endpoint explicitly so the CLI's Bitcoin broadcast adapter
-      // can choose Alchemy JSON-RPC or Esplora as appropriate.
-      rpc_url: esploraBaseUrl(btcNetwork),
+        // BTC needs a Bitcoin RPC/Esplora base, not the backend's
+        // EVM destination RPC. We pass the network-specific Bitcoin
+        // endpoint explicitly so the CLI's Bitcoin broadcast adapter
+        // can choose Alchemy JSON-RPC or Esplora as appropriate.
+        rpc_url: esploraBaseUrl(btcNetwork),
       });
       const broadcast = (executed as { broadcast?: BroadcastResultLike })
         ?.broadcast;
@@ -582,10 +568,7 @@ function BitcoinSendPage() {
       });
       // Refresh balance + UTXOs so the next send sees the spent state.
       void queryClient.invalidateQueries({
-        queryKey: ["btc-balance", dwalletAddress ?? "none", btcNetwork],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["btc-utxos", dwalletAddress ?? "none", btcNetwork],
+        queryKey: ["btc-address-snapshot", dwalletAddress ?? "none"],
       });
     },
     onError: (err, _vars, _ctx) => {
@@ -630,7 +613,7 @@ function BitcoinSendPage() {
       return;
     }
     if (!selectedUtxo) {
-      const max = utxosQuery.data?.[0]?.value ?? 0;
+      const max = btcUtxos[0]?.value ?? 0;
       setAmountError(
         `No single UTXO covers ${formatSats(sendAmountSats)} BTC + fee reserve (${formatSats(FEE_RESERVE_SATS)} BTC). Largest UTXO: ${formatSats(BigInt(max))} BTC.`,
       );
@@ -686,6 +669,13 @@ function BitcoinSendPage() {
     !unsafeImpliedFee &&
     !policyDenied;
 
+  useEffect(() => {
+    if (!autoStartSetup || autoStartedSetup || !needsSetup) return;
+    if (setupIntent.isPending || setupIntent.isSuccess) return;
+    setAutoStartedSetup(true);
+    setupIntent.mutate();
+  }, [autoStartSetup, autoStartedSetup, needsSetup, setupIntent]);
+
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col lg:max-w-3xl">
       <motion.section
@@ -699,10 +689,10 @@ function BitcoinSendPage() {
             {btcMeta ? <ChainBadge chain={btcMeta} size="md" /> : null}
             <div className="flex flex-col gap-0.5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-                Send · one flow
+                Send
               </p>
-              <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
-                Send clearly
+              <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight text-text-strong sm:text-3xl">
+                Send BTC
               </h1>
             </div>
           </div>
@@ -743,7 +733,10 @@ function BitcoinSendPage() {
           <NeedsSetup
             walletDisplay={walletDisplay}
             address={dwalletAddress}
-            balanceSats={balanceQuery.data ?? null}
+            balanceSats={balanceSats}
+            balanceLoading={btcSnapshotQuery.isLoading}
+            balanceError={btcSnapshotQuery.error}
+            network={btcNetwork}
             onSetup={() => setupIntent.mutate()}
             busy={setupIntent.isPending}
             reduce={!!reduce}
@@ -786,7 +779,6 @@ function BitcoinSendPage() {
               })}
               collapsibleDetails
             />
-            <WalletPopupNarration action="send this Bitcoin request" disclaimerBehindInfoTip />
           </div>
         )}
         {ready && !sentLabel && !awaitingApprovalLabel && (
@@ -797,8 +789,10 @@ function BitcoinSendPage() {
             amountBtc={amountBtc}
             setAmountBtc={setAmountBtc}
             amountError={amountError}
-            balanceSats={balanceQuery.data ?? null}
-            balanceLoading={balanceQuery.isLoading}
+            balanceSats={balanceSats}
+            balanceLoading={btcSnapshotQuery.isLoading}
+            balanceError={btcSnapshotQuery.error}
+            maxSpendableSats={largestSpendableSats}
             selectedUtxo={selectedUtxo}
             impliedFeeSats={impliedFeeSats}
             address={dwalletAddress}
@@ -867,16 +861,15 @@ function NeedsBinding({
       className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
     >
       <p className="text-sm text-text-soft">
-        This wallet isn&rsquo;t bound to Bitcoin yet. Add the Bitcoin chain
-        first. That runs a one-time Ika DKG so the wallet has a Bitcoin
-        address.
+        Turn on Bitcoin sending once. ClearSig will add the Bitcoin address and
+        unlock BTC sends for this wallet.
       </p>
       <Link
-        href={`/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=bitcoin_p2wpkh`}
+        href={`/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=bitcoin_p2wpkh&autostart=1`}
         className="self-start"
       >
         <Button>
-          Add Bitcoin chain
+          Turn on Bitcoin sending
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Button>
       </Link>
@@ -888,6 +881,9 @@ function NeedsSetup({
   walletDisplay,
   address,
   balanceSats,
+  balanceLoading,
+  balanceError,
+  network,
   onSetup,
   busy,
   reduce,
@@ -895,6 +891,9 @@ function NeedsSetup({
   walletDisplay: string;
   address: string | null;
   balanceSats: bigint | null;
+  balanceLoading: boolean;
+  balanceError: Error | null;
+  network: BitcoinNetwork;
   onSetup: () => void;
   busy: boolean;
   reduce: boolean;
@@ -909,10 +908,9 @@ function NeedsSetup({
       className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
     >
       <p className="text-sm text-text-soft">
-        One-time setup: register the Bitcoin spending intent for{" "}
-        <span className="font-medium text-text-strong">{walletDisplay}</span>.
-        After this, sends use the same propose-approve-execute ceremony you
-        use for SOL and ETH.
+        Finish Bitcoin setup for{" "}
+        <span className="font-medium text-text-strong">{walletDisplay}</span>{" "}
+        to unlock BTC sends.
       </p>
       {address && (
         <div className="rounded-soft border border-border-soft bg-canvas p-3">
@@ -922,16 +920,23 @@ function NeedsSetup({
           <p className="mt-1 break-all font-mono text-[11px] text-text-strong">
             {address}
           </p>
-          {balanceSats !== null && (
-            <p className="mt-2 font-numerals text-[11px] tabular-nums text-text-soft">
-              Balance: {formatSats(balanceSats)} BTC
+          <p className="mt-2 font-numerals text-[11px] tabular-nums text-text-soft">
+            Balance:{" "}
+            {balanceLoading ? (
+              "checking..."
+            ) : balanceSats !== null ? (
+              <>
+                {formatSats(balanceSats)} BTC
               <UsdHint
                 amount={balanceSats}
                 smallestPerWhole={100_000_000n}
                 ticker="BTC"
               />
-            </p>
-          )}
+              </>
+            ) : (
+              btcBalanceStatusLabel(balanceError, network)
+            )}
+          </p>
         </div>
       )}
       <Button onClick={onSetup} disabled={busy} fullWidth>
@@ -942,7 +947,7 @@ function NeedsSetup({
           </>
         ) : (
           <>
-            Enable Bitcoin sends
+            Turn on Bitcoin sending
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </>
         )}
@@ -960,6 +965,8 @@ function ComposeForm(props: {
   amountError: string | null;
   balanceSats: bigint | null;
   balanceLoading: boolean;
+  balanceError: Error | null;
+  maxSpendableSats: bigint;
   selectedUtxo: EsploraUtxo | null;
   impliedFeeSats: bigint | null;
   address: string | null;
@@ -978,113 +985,85 @@ function ComposeForm(props: {
           SOL /send and ETH /send/eth. */}
       <div
         className={
-          "flex flex-col gap-5 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest " +
-          "lg:grid lg:grid-cols-2 lg:items-start lg:gap-5 " +
+          "flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest " +
+          "lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 " +
           "lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none"
         }
       >
-        {/* Amount card. Eyebrow + Use max pill, underline-style
-            input, balance line as plain text. */}
+        {/* Amount card. Balance + Use max live with the input so the
+            spendable BTC state stays visually scoped. */}
         <section
           className={
             "flex flex-col gap-3 " +
-            "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-5 lg:shadow-card-rest"
+            "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-4 lg:shadow-card-rest"
           }
         >
-          <div className="flex items-center justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Amount
-            </p>
-            {props.balanceSats !== null && props.balanceSats > 0n && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  // Reserve a tiny fee floor so the UTXO selector
-                  // can still cover input - amount > 0.
-                  const max =
-                    props.balanceSats! > FEE_RESERVE_SATS
-                      ? props.balanceSats! - FEE_RESERVE_SATS
-                      : 0n;
-                  props.setAmountBtc(formatSats(max));
-                }}
-                className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent transition-colors duration-base ease-out-soft hover:bg-accent/15"
-              >
-                Use max
-              </button>
-            )}
-          </div>
-          <label htmlFor="btc-amount" className="sr-only">
-            Amount in BTC
-          </label>
-          <div
-            className={
-              "flex items-baseline gap-3 border-b border-glass-soft pb-3 " +
-              "transition-colors duration-base ease-out-soft " +
-              "focus-within:border-glass-strong"
+          <SendAmountField
+            id="btc-amount"
+            ticker="BTC"
+            value={props.amountBtc}
+            onChange={(e) => props.setAmountBtc(e.target.value)}
+            maxLength={20}
+            action={
+              props.maxSpendableSats > 0n ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    props.setAmountBtc(formatSats(props.maxSpendableSats));
+                  }}
+                  className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent transition-colors duration-base ease-out-soft hover:bg-accent/15"
+                >
+                  Use max
+                </button>
+              ) : null
             }
-          >
-            <input
-              id="btc-amount"
-              type="text"
-              inputMode="decimal"
-              value={props.amountBtc}
-              onChange={(e) => props.setAmountBtc(e.target.value)}
-              placeholder="0"
-              spellCheck={false}
-              autoComplete="off"
-              maxLength={20}
-              aria-label="Amount in BTC"
-              className="min-w-0 flex-1 bg-transparent font-numerals text-3xl font-semibold tracking-tight text-text-strong tabular-nums outline-none placeholder:text-text-soft/50 sm:text-4xl"
-            />
-            <span
-              aria-hidden="true"
-              className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft sm:text-lg"
-            >
-              BTC
-            </span>
-          </div>
-          <p className="text-xs text-text-soft">
-            <span>Wallet has </span>
-            <span className="font-numerals font-medium text-text-strong tabular-nums">
-              {props.balanceLoading ? "…" : balanceBtc !== null ? balanceBtc : "-"}
-            </span>
-            <span> BTC</span>
-            {props.balanceSats !== null && (
-              <UsdHint
-                amount={props.balanceSats}
-                smallestPerWhole={100_000_000n}
-                ticker="BTC"
-              />
-            )}
-            {props.amountError && (
-              <span className="ml-1.5 text-warning">{props.amountError}</span>
-            )}
-          </p>
-          {props.selectedUtxo && props.impliedFeeSats !== null && (
-            <p className="text-[11px] text-text-soft">
-              Using UTXO{" "}
-              <span className="font-mono text-text-strong">
-                {props.selectedUtxo.txid.slice(0, 8)}…:{props.selectedUtxo.vout}
-              </span>
-              {". "}
-              {formatSats(BigInt(props.selectedUtxo.value))} BTC · implicit fee{" "}
-              {formatSats(props.impliedFeeSats)} BTC
-              <InfoTip
-                label="How the fee is picked"
-                width="md"
-                size="xs"
-                side="end"
-              >
-                <span className="block">
-                  Single-input, single-output P2WPKH transfer. Fee is implicit
-                  (input value − output value); we pick the smallest UTXO that
-                  covers your amount + a {Number(FEE_RESERVE_SATS)} sat fee
-                  floor.
+            footer={
+              <>
+                <span>Wallet has </span>
+                <span className="font-numerals font-medium text-text-strong tabular-nums">
+                  {props.balanceLoading
+                    ? "checking..."
+                    : balanceBtc !== null
+                      ? balanceBtc
+                      : btcBalanceStatusLabel(props.balanceError, props.network)}
                 </span>
-              </InfoTip>
-            </p>
-          )}
+                {balanceBtc !== null ? <span> BTC</span> : null}
+                {props.balanceSats !== null && (
+                  <UsdHint
+                    amount={props.balanceSats}
+                    smallestPerWhole={100_000_000n}
+                    ticker="BTC"
+                  />
+                )}
+                {props.amountError && (
+                  <span className="ml-1.5 text-warning">{props.amountError}</span>
+                )}
+                {props.selectedUtxo && props.impliedFeeSats !== null && (
+                  <span className="block pt-1 text-[11px]">
+                    Using UTXO{" "}
+                    <span className="font-mono text-text-strong">
+                      {props.selectedUtxo.txid.slice(0, 8)}…:{props.selectedUtxo.vout}
+                    </span>
+                    {". "}
+                    {formatSats(BigInt(props.selectedUtxo.value))} BTC · fee{" "}
+                    {formatSats(props.impliedFeeSats)} BTC
+                    <InfoTip
+                      label="How the fee is picked"
+                      width="md"
+                      size="xs"
+                      side="end"
+                    >
+                      <span className="block">
+                        Single-input, single-output P2WPKH transfer. Fee is
+                        input value minus output value.
+                      </span>
+                    </InfoTip>
+                  </span>
+                )}
+              </>
+            }
+          />
         </section>
 
         {/* Recipient card. Same merged-mobile / split-lg+
@@ -1092,7 +1071,7 @@ function ComposeForm(props: {
         <section
           className={
             "flex flex-col gap-3 " +
-            "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-5 lg:shadow-card-rest"
+            "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-4 lg:shadow-card-rest"
           }
         >
           <label
@@ -1170,24 +1149,8 @@ function ComposeForm(props: {
           </div>
         )}
 
-      {/* Action footer. InfoTip-backed approval hint + sticky CTA. */}
-      <div className="flex flex-col gap-3 pt-1">
-        <p className="inline-flex items-center gap-1.5 text-xs text-text-soft">
-          Friends in {props.walletDisplay} approve before it sends.
-          <InfoTip
-            label="How approvals work"
-            width="md"
-            size="xs"
-            side="start"
-          >
-            <span className="block">
-              When you tap Send, this becomes a proposal in{" "}
-              {props.walletDisplay}. The other approvers in this wallet get a
-              notification and the transfer only goes through once the
-              threshold approves. You can cancel anytime before that.
-            </span>
-          </InfoTip>
-        </p>
+      {/* Action footer. Sticky CTA mirrors the other send pages. */}
+      <div className="flex flex-col gap-2 pt-1">
         <div
           className={
             "-mx-3 sm:mx-0 px-3 sm:px-0 " +
@@ -1480,6 +1443,25 @@ function bytesToHex(bytes: Uint8Array): string {
 function shortBtcAddress(addr: string): string {
   if (addr.length <= 16) return addr;
   return `${addr.slice(0, 8)}…${addr.slice(-6)}`;
+}
+
+function btcBalanceStatusLabel(
+  error: Error | null | undefined,
+  network: BitcoinNetwork,
+): string {
+  if (!error) return `No balance source on ${network}`;
+  const message = error.message.toLowerCase();
+  if (message.includes("404")) return `No UTXOs on ${network}`;
+  if (message.includes("failed to fetch") || message.includes("network")) {
+    return `${network} RPC unavailable`;
+  }
+  if (message.includes("429") || message.includes("rate")) {
+    return `${network} indexer rate-limited`;
+  }
+  if (message.includes("500") || message.includes("502") || message.includes("503")) {
+    return `${network} indexer unavailable`;
+  }
+  return `Check ${network} balance`;
 }
 
 async function waitForProposalStatus(

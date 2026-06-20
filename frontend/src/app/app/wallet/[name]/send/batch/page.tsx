@@ -3,7 +3,7 @@
 // Batch send - payroll-style "one input, N requests."
 //
 // The proposer enters {recipient, amount} rows, taps "Send batch",
-// and signs once per row in their wallet popup. Each row becomes its
+// and signs once per row. Each row becomes its
 // own SolTransfer proposal under the wallet's first spending rule.
 // Rows are grouped under one batch_id locally so the dashboard can
 // render them as a single line ("Payroll • 50 requests") instead of
@@ -217,7 +217,7 @@ function BatchSendPage() {
           {needsSetup && (
             <div className="rounded-card border border-warning/30 bg-warning/[0.06] p-5 shadow-card-rest">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
-                Set up sending first
+                Turn on sending
               </p>
               <p className="mt-2 text-sm text-text-strong">
                 Batch send needs <strong>{walletDisplay}</strong>&rsquo;s
@@ -330,7 +330,7 @@ function ComposeStage({
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
               Batch send
             </p>
-            <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
+            <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight text-text-strong sm:text-3xl">
               Pay many at once
             </h1>
           </div>
@@ -399,7 +399,7 @@ function ComposeStage({
           </span>
         </div>
         <p className="flex items-baseline gap-2">
-          <span className="font-numerals text-3xl font-semibold leading-none tracking-tight text-text-strong tabular-nums sm:text-4xl">
+          <span className="font-numerals text-3xl font-semibold leading-none text-text-strong tabular-nums sm:text-4xl">
             {formatSol(totalSol)}
           </span>
           <span className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft">
@@ -566,16 +566,12 @@ function ReviewStage({
         <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Review batch
         </p>
-        <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
+        <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight text-text-strong sm:text-3xl">
           {rows.length} request{rows.length === 1 ? "" : "s"} from{" "}
           {walletDisplay}
         </h1>
         <p className="text-xs text-text-soft sm:text-sm">
-          Each row becomes its own request. Your wallet will pop up{" "}
-          <span className="font-medium text-text-strong">
-            {rows.length} time{rows.length === 1 ? "" : "s"}
-          </span>{" "}
-          (once per recipient) so you can confirm each one.
+          Each row becomes its own request. Review the recipients before sending.
         </p>
       </header>
 
@@ -618,7 +614,7 @@ function ReviewStage({
           Total
         </span>
         <span className="inline-flex items-baseline gap-2">
-          <span className="font-numerals text-3xl font-semibold leading-none tracking-tight text-text-strong tabular-nums sm:text-4xl">
+          <span className="font-numerals text-3xl font-semibold leading-none text-text-strong tabular-nums sm:text-4xl">
             {formatSol(totalSol)}
           </span>
           <span className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft">
@@ -677,9 +673,9 @@ function SendingStage({
       </h1>
       <p className="mt-2 max-w-sm text-base text-text-soft">
         {currentLabel
-          ? `Now: ${currentLabel}. Confirm each in your wallet popup.`
+          ? `Now: ${currentLabel}.`
           : completed === 0
-            ? "Getting ready. Your wallet will pop up shortly."
+            ? "Getting ready."
             : "Wrapping up the last few."}
       </p>
 
@@ -750,7 +746,7 @@ function DoneStage({
         </div>
 
         <p className="mt-5 inline-flex items-baseline gap-2">
-          <span className="font-numerals text-3xl font-semibold leading-none tracking-tight text-text-strong tabular-nums sm:text-4xl">
+          <span className="font-numerals text-3xl font-semibold leading-none text-text-strong tabular-nums sm:text-4xl">
             {progress.succeeded}
           </span>
           <span className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft">

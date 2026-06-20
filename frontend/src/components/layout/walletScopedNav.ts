@@ -24,7 +24,6 @@ export function walletSubNav(
   if (surface === "personal") {
     return [
       { sub: "", label: "Overview", Icon: WalletIcon },
-      { sub: "send", label: "Send", Icon: Send },
       { sub: "members", label: "People", Icon: Users },
       { sub: "policy", label: "Protection", Icon: ShieldCheck },
       { sub: "activity", label: "Activity", Icon: ActivityIcon },
@@ -33,7 +32,6 @@ export function walletSubNav(
   if (surface === "pro") {
     return [
       { sub: "", label: "Treasury", Icon: Building2 },
-      { sub: "send", label: "Send", Icon: Send },
       { sub: "members", label: "Team", Icon: Users },
       { sub: "policy", label: "Protection", Icon: ShieldCheck },
       { sub: "activity", label: "Activity", Icon: ActivityIcon },

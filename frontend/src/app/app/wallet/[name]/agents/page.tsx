@@ -148,12 +148,6 @@ type BackendPersistenceStatus = {
   updatedAt?: number;
 };
 
-const agentSecondaryActionClass = clsx(
-  "inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
-  "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-);
-
 const agentPrimaryActionClass = clsx(
   "inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-text-on-accent shadow-accent-rest sm:flex-none",
   "transition-[background-color,box-shadow,transform] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
@@ -1212,26 +1206,16 @@ export default function AgentsPage() {
         </div>
       </header>
 
-      <GettingStartedPanel steps={gettingStartedSteps} />
-
       {!setupComplete ? (
-        <AgentSetupGate steps={gettingStartedSteps} walletEncoded={encoded} />
+        <>
+          <GettingStartedPanel steps={gettingStartedSteps} />
+          <AgentSetupGate steps={gettingStartedSteps} walletEncoded={encoded} />
+        </>
       ) : (
         <>
-      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid gap-2 sm:grid-cols-3">
         <MetricCard label="Active traders" value={String(activeAgents)} Icon={Bot} />
         <MetricCard label="Trade ideas" value={String(proposalCount)} Icon={BrainCircuit} />
-        <MetricCard label="New ideas" value={String(queuedSignals)} Icon={Inbox} />
-        <MetricCard
-          label="Safety"
-          value={policy?.enabled ? "On" : "Off"}
-          Icon={ShieldCheck}
-        />
-        <MetricCard
-          label="Active budgets"
-          value={String(activeSessions)}
-          Icon={Clock}
-        />
         <MetricCard
           label="Open trades"
           value={String(openExecutions)}
@@ -1247,7 +1231,7 @@ export default function AgentsPage() {
                 Next step
               </p>
               <p className="mt-0.5 text-xs text-text-soft">
-                Continue setup or open practice when everything is ready.
+                Open practice trading. Everything else is in More.
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -1258,18 +1242,6 @@ export default function AgentsPage() {
                 <Play size={15} aria-hidden="true" />
                 Open trading
               </Link>
-              {canRunAutonomyScan ? (
-                <button
-                  type="button"
-                  disabled={pendingAction}
-                  title="Scan current markets through active rules"
-                  onClick={runAutonomyScan}
-                  className={agentSecondaryActionClass}
-                >
-                  <BrainCircuit size={13} aria-hidden="true" />
-                  Run scan
-                </button>
-              ) : null}
             </div>
           </div>
         </div>
@@ -1287,25 +1259,11 @@ export default function AgentsPage() {
           </summary>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <Link
-            href={`/app/wallet/${encoded}/agents/start`}
-            className={agentToolClass}
-          >
-            <Play size={15} aria-hidden="true" />
-            <span>Start practice</span>
-          </Link>
-          <Link
             href={`/app/wallet/${encoded}/agents/library`}
             className={agentToolClass}
           >
             <Bot size={15} aria-hidden="true" />
             <span>Choose trader</span>
-          </Link>
-          <Link
-            href={`/app/wallet/${encoded}/agents/hyperliquid`}
-            className={agentToolClass}
-          >
-            <Plug size={15} aria-hidden="true" />
-            <span>Practice account</span>
           </Link>
           <Link
             href={`/app/wallet/${encoded}/agents/policy`}
@@ -1328,27 +1286,18 @@ export default function AgentsPage() {
             <Pause size={15} aria-hidden="true" />
             <span>Pause</span>
           </Link>
-          <Link
-            href="#decision-journal"
-            className={agentToolClass}
-          >
-            <ClipboardList size={15} aria-hidden="true" />
-            <span>Decision journal</span>
-          </Link>
-          <Link
-            href="#live-monitor"
-            className={agentToolClass}
-          >
-            <TrendingUp size={15} aria-hidden="true" />
-            <span>Live monitor</span>
-          </Link>
-          <Link
-            href="/agents"
-            className={agentToolClass}
-          >
-            <Trophy size={13} aria-hidden="true" />
-            Marketplace
-          </Link>
+          {canRunAutonomyScan ? (
+            <button
+              type="button"
+              disabled={pendingAction}
+              title="Scan current markets through active rules"
+              onClick={runAutonomyScan}
+              className={agentToolClass}
+            >
+              <BrainCircuit size={15} aria-hidden="true" />
+              <span>Run scan</span>
+            </button>
+          ) : null}
           </div>
           <details className="group mt-3 rounded-soft border border-border-soft bg-canvas px-3 py-2">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold text-text-strong">
@@ -1572,9 +1521,16 @@ export default function AgentsPage() {
             })}
           </ul>
         ) : (
-          <div className="rounded-card border border-dashed border-border-soft bg-surface-raised p-5 text-sm text-text-soft">
-            No decisions yet. Choose a trader, set a budget, then run a scan.
-          </div>
+          <Link
+            href={`/app/wallet/${encoded}/agents/start`}
+            className="flex items-center justify-between gap-3 rounded-card border border-dashed border-border-soft bg-surface-raised p-4 text-sm text-text-soft transition-colors hover:border-accent/50 hover:text-text-strong"
+          >
+            <span>No trade ideas yet.</span>
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent">
+              Start practice
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </span>
+          </Link>
         )}
       </section>
 
@@ -2826,14 +2782,14 @@ function EmptyAgents({
   onStartDemo: () => void;
 }) {
   return (
-    <div className="rounded-card border border-dashed border-border-soft bg-surface-raised p-8 text-center shadow-card-rest">
+    <div className="rounded-card border border-dashed border-border-soft bg-surface-raised p-5 text-center shadow-card-rest">
       <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">
         <Bot className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
       </div>
       <p className="mt-4 font-display text-base font-semibold text-text-strong">
         No agents yet
       </p>
-      <div className="mt-4 flex flex-wrap justify-center gap-2">
+      <div className="mt-4 flex justify-center">
         <Link
           href={browseHref}
           className="inline-flex items-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest"
@@ -2841,13 +2797,19 @@ function EmptyAgents({
           <Bot size={13} aria-hidden="true" />
           Choose trader
         </Link>
-        <Link
-          href={createHref}
-          className="inline-flex items-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong"
-        >
-          <Plus size={13} aria-hidden="true" />
-          Create your own
-        </Link>
+      </div>
+      <details className="mt-3 text-center">
+        <summary className="cursor-pointer text-xs font-medium text-text-soft hover:text-text-strong">
+          More
+        </summary>
+        <div className="mt-2 flex flex-wrap justify-center gap-2">
+          <Link
+            href={createHref}
+            className="inline-flex items-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong"
+          >
+            <Plus size={13} aria-hidden="true" />
+            Create your own
+          </Link>
         {showDemo ? (
           <button
             type="button"
@@ -2859,7 +2821,8 @@ function EmptyAgents({
             Create sample activity
           </button>
         ) : null}
-      </div>
+        </div>
+      </details>
     </div>
   );
 }

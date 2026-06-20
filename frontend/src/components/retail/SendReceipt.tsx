@@ -107,7 +107,7 @@ export function SendReceipt({
       transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
       className="flex flex-col gap-4"
     >
-      <div className="clear-receipt-card rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest">
+      <div className="clear-receipt-card rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
         <div className="flex items-center gap-3">
           <motion.span
             initial={reduce ? false : { scale: 0.6, opacity: 0 }}
@@ -138,7 +138,7 @@ export function SendReceipt({
         </div>
 
         <p className="mt-5 inline-flex items-baseline gap-2">
-          <span className="font-numerals text-3xl font-semibold leading-none tracking-tight text-text-strong tabular-nums sm:text-4xl">
+          <span className="font-numerals text-3xl font-semibold leading-none text-text-strong tabular-nums sm:text-4xl">
             {amount}
           </span>
           <span className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft">

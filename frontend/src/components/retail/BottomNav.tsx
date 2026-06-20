@@ -32,7 +32,6 @@ import clsx from "clsx";
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
 import { getWalletAppearance } from "@/lib/retail/walletAppearance";
 import { walletProductSurface } from "@/lib/productWorkspace";
-import { productSetupHref } from "@/lib/productSurfaces";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import {
   activeWalletSlugFromPathname,
@@ -227,10 +226,7 @@ function WalletScopedBottomNav({
   const surface = walletProductSurface(getWalletAppearance(slug)?.surface);
   const items = walletSubNav(surface);
   const display = toDisplayName(slug);
-  const createHref = surface ? productSetupHref(surface) : "/app/wallet/new";
-  const createLabel = surface
-    ? `Create another ${surface} wallet`
-    : "Create a new wallet";
+  const productHomeHref = "/app/wallet?surface=all";
   const splitIndex = Math.ceil(items.length / 2);
   const leftItems = items.slice(0, splitIndex);
   const rightItems = items.slice(splitIndex);
@@ -244,7 +240,7 @@ function WalletScopedBottomNav({
     event.preventDefault();
     setLaunchingCreate(true);
     window.setTimeout(() => {
-      router.push(createHref);
+      router.push(productHomeHref);
     }, 260);
   };
 
@@ -259,9 +255,9 @@ function WalletScopedBottomNav({
       )}
     >
       <Link
-        href={createHref}
+        href={productHomeHref}
         onClick={handleCreateClick}
-        aria-label={createLabel}
+        aria-label="Product home"
         className={clsx(
           "absolute left-1/2 -top-7 z-10 -translate-x-1/2",
           "flex h-14 w-14 items-center justify-center rounded-full",
@@ -272,27 +268,32 @@ function WalletScopedBottomNav({
           launchingCreate && "scale-[1.08] shadow-accent-hover",
         )}
       >
-        <Plus
+        <Home
           className={clsx(
             "h-6 w-6 transition-transform duration-300 ease-out-soft",
-            launchingCreate && "rotate-180 scale-110",
+            launchingCreate && "scale-110",
           )}
           strokeWidth={2.5}
           aria-hidden="true"
         />
       </Link>
-      <ul className="flex items-stretch gap-1 overflow-x-auto px-2 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <ul
+        className="grid items-stretch gap-1 px-2 py-1.5"
+        style={{
+          gridTemplateColumns: `${"minmax(0,1fr) ".repeat(leftItems.length)}4.75rem ${"minmax(0,1fr) ".repeat(rightItems.length)}`.trim(),
+        }}
+      >
         {leftItems.map((item) => {
           const href = walletNavHref(base, item.sub);
           const active = isWalletNavActive(pathname, base, item.sub);
           return (
-            <li key={item.sub || "overview"} className="min-w-[76px] flex-1">
+            <li key={item.sub || "overview"} className="min-w-0">
               <Link
                 href={href}
                 aria-current={active ? "page" : undefined}
                 aria-label={item.label}
                 className={clsx(
-                  "relative flex min-h-tap-lg flex-col items-center justify-center gap-1 rounded-soft px-2 py-2",
+                  "relative flex min-h-tap-lg flex-col items-center justify-center gap-1 rounded-soft px-1.5 py-2",
                   "transition-colors duration-base ease-out-soft",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
                   active
@@ -318,18 +319,18 @@ function WalletScopedBottomNav({
             </li>
           );
         })}
-        <li aria-hidden="true" className="w-20 shrink-0" />
+        <li aria-hidden="true" className="min-w-0" />
         {rightItems.map((item) => {
           const href = walletNavHref(base, item.sub);
           const active = isWalletNavActive(pathname, base, item.sub);
           return (
-            <li key={item.sub || "overview"} className="min-w-[76px] flex-1">
+            <li key={item.sub || "overview"} className="min-w-0">
               <Link
                 href={href}
                 aria-current={active ? "page" : undefined}
                 aria-label={item.label}
                 className={clsx(
-                  "relative flex min-h-tap-lg flex-col items-center justify-center gap-1 rounded-soft px-2 py-2",
+                  "relative flex min-h-tap-lg flex-col items-center justify-center gap-1 rounded-soft px-1.5 py-2",
                   "transition-colors duration-base ease-out-soft",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
                   active

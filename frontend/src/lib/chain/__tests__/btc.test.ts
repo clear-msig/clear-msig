@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   decodeSegwitAddress,
+  fetchBitcoinAddressSnapshot,
   formatSats,
   networkForHrp,
   parseBtcAmount,
@@ -228,3 +229,56 @@ describe("parseBtcAmount", () => {
     expect(parseBtcAmount("0.0")).toBeNull();
   });
 });
+
+describe("fetchBitcoinAddressSnapshot", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("uses the funded tb1 network for balance and UTXOs", async () => {
+    const address = "tb1qceq9fm3lzwj8gw379mfv55dhhlak3nm45je7l4";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/testnet/api/address/") && url.endsWith("/utxo")) {
+        return jsonResponse([
+          {
+            txid: "aa".repeat(32),
+            vout: 0,
+            value: 12_345,
+            status: { confirmed: true },
+          },
+        ]);
+      }
+      if (url.includes("/testnet/api/address/")) {
+        return jsonResponse({
+          chain_stats: { funded_txo_sum: 12_345, spent_txo_sum: 0 },
+          mempool_stats: { funded_txo_sum: 0, spent_txo_sum: 0 },
+        });
+      }
+      if (url.includes("/signet/api/address/") && url.endsWith("/utxo")) {
+        return jsonResponse([]);
+      }
+      if (url.includes("/signet/api/address/")) {
+        return jsonResponse({
+          chain_stats: { funded_txo_sum: 0, spent_txo_sum: 0 },
+          mempool_stats: { funded_txo_sum: 0, spent_txo_sum: 0 },
+        });
+      }
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const snapshot = await fetchBitcoinAddressSnapshot(address);
+
+    expect(snapshot.network).toBe("testnet");
+    expect(snapshot.balanceSats).toBe(12_345n);
+    expect(snapshot.utxos).toHaveLength(1);
+  });
+});
+
+function jsonResponse(value: unknown): Response {
+  return new Response(JSON.stringify(value), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+}

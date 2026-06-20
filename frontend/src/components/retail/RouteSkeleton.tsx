@@ -19,7 +19,7 @@ export function RouteSkeleton({ variant = "form" }: RouteSkeletonProps) {
   return (
     <div
       className={clsx(
-        "mx-auto flex w-full animate-pulse flex-col gap-6",
+        "mx-auto flex w-full animate-pulse flex-col gap-4",
         variant === "form" || variant === "detail" ? "max-w-2xl" : "max-w-4xl",
       )}
       aria-hidden="true"
@@ -36,7 +36,7 @@ export function RouteSkeleton({ variant = "form" }: RouteSkeletonProps) {
       <div
         className={clsx(
           "rounded-card border border-border-soft bg-surface-raised shadow-card-rest",
-          variant === "detail" ? "p-6" : "p-5",
+          variant === "detail" ? "p-5" : "p-4 sm:p-5",
         )}
       >
         <div className="h-5 w-36 rounded bg-border-soft" />

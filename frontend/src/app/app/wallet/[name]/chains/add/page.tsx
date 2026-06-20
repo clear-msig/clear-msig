@@ -68,6 +68,8 @@ function AddChainPage() {
     const fromQuery = search?.get("chain");
     return fromQuery ? chainByApiName(fromQuery) : undefined;
   }, [search]);
+  const nextAfterBind = search?.get("next") ?? null;
+  const autoStartAfterBind = search?.get("autostart") === "1";
 
   // Skip the picker if the URL already nominated a chain (e.g. arrived
   // from the chains list's per-chain "Add" link).
@@ -116,7 +118,10 @@ function AddChainPage() {
     if (!initialChain) return;
     if (chainsQuery.isLoading) return;
     if (!boundKinds.has(initialChain.kind)) return;
-    const dest = sendOrSetupPathFor(walletName, initialChain.kind);
+    const dest = sendOrSetupPathFor(walletName, initialChain.kind, {
+      next: nextAfterBind,
+      autostart: autoStartAfterBind,
+    });
     if (dest) {
       router.replace(dest);
     } else {
@@ -131,6 +136,8 @@ function AddChainPage() {
     boundKinds,
     router,
     walletName,
+    nextAfterBind,
+    autoStartAfterBind,
   ]);
 
   // Existing secp256k1 dWallet detection. The "ETH-after-BTC breaks"
@@ -233,6 +240,15 @@ function AddChainPage() {
       queryClient.invalidateQueries({ queryKey: ["wallet-chains"] });
       queryClient.invalidateQueries({ queryKey: ["wallet-chains-api"] });
       queryClient.invalidateQueries({ queryKey: ["wallet", walletName] });
+      if (selected) {
+        router.push(
+          sendOrSetupPathFor(walletName, selected.kind, {
+            next: nextAfterBind,
+            autostart: true,
+          }) ?? `/app/wallet/${encodeURIComponent(walletName)}/send`,
+        );
+        return;
+      }
       setStage("done");
     },
     onError: (err) => {
@@ -345,14 +361,24 @@ function AddChainPage() {
 /// is already bound. Maps chain_kind → the most useful destination:
 /// the send page for that chain. Mirrors `SendChainPicker`'s routing
 /// so the back-pointer behaviour is consistent.
-function sendOrSetupPathFor(walletName: string, kind: number): string | null {
+function sendOrSetupPathFor(
+  walletName: string,
+  kind: number,
+  options?: { next?: string | null; autostart?: boolean },
+): string | null {
   const base = `/app/wallet/${encodeURIComponent(walletName)}`;
-  if (kind === 0) return `${base}/send`;
-  if (kind === 1) return `${base}/setup/eth`;
-  if (kind === 2) return `${base}/send/btc`;
-  if (kind === 3) return `${base}/send/zec`;
+  const auto = options?.autostart ? "autostart=1" : "";
+  if (kind === 0) return `${base}/send?asset=solana`;
+  if (kind === 1 && options?.next === "erc20") {
+    return `${base}/setup/erc20${auto ? `?${auto}` : ""}`;
+  }
+  if (kind === 1) return `${base}/setup/eth${auto ? `?${auto}` : ""}`;
+  if (kind === 2) return `${base}/send/btc${auto ? `?${auto}` : ""}`;
+  if (kind === 3) return `${base}/send/zec${auto ? `?${auto}` : ""}`;
   if (kind === 4) return `${base}/send/erc20`;
-  if (kind === 5) return `${base}/setup/eth?network=hyperliquid`;
+  if (kind === 5) {
+    return `${base}/setup/eth?network=hyperliquid${auto ? "&autostart=1" : ""}`;
+  }
   return null;
 }
 
@@ -373,17 +399,17 @@ function PickStage({
     <motion.section
       {...motionProps}
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col gap-6"
+      className="mx-auto flex w-full max-w-xl flex-col gap-4"
     >
       <header>
         <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-          Add asset network · {walletDisplay}
+          Turn on asset · {walletDisplay}
         </p>
-        <h1 className="mt-2 font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
-          Add an asset
+        <h1 className="mt-1.5 font-display text-2xl leading-tight text-text-strong sm:text-display-xs">
+          Turn on an asset
         </h1>
-        <p className="mt-3 max-w-xl text-sm text-text-soft sm:text-base">
-          Pick where {walletDisplay} should send next.
+        <p className="mt-2 max-w-xl text-sm text-text-soft">
+          Pick the asset you want to send.
         </p>
       </header>
 
@@ -394,13 +420,13 @@ function PickStage({
               type="button"
               onClick={() => onPick(chain)}
               className={
-                "group flex w-full items-center gap-4 rounded-card border border-border-soft bg-surface-raised p-4 text-left shadow-card-rest sm:p-5 " +
+                "group flex w-full items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-3.5 text-left shadow-card-rest sm:p-4 " +
                 "transition-[transform,box-shadow,border-color] duration-base ease-out-soft " +
                 "hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-card-raised " +
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
               }
             >
-              <ChainBadge chain={chain} size="lg" />
+              <ChainBadge chain={chain} size="md" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-2">
                   <p className="truncate text-sm font-semibold text-text-strong">
@@ -445,18 +471,18 @@ function ConfirmStage({
     <motion.section
       {...motionProps}
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col gap-6"
+      className="mx-auto flex w-full max-w-xl flex-col gap-4"
     >
       {/* Header strip. Chain badge + eyebrow + display title.
           Left-aligned to match the rest of the workspace. */}
-      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
-        <div className="flex min-w-0 items-center gap-4">
-          <ChainBadge chain={chain} size="lg" />
+      <header className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <ChainBadge chain={chain} size="md" />
           <div className="flex min-w-0 flex-col">
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
               Add chain · {chain.ticker}
             </p>
-            <h1 className="mt-1.5 font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
+            <h1 className="mt-1 font-display text-2xl leading-tight text-text-strong sm:text-display-xs">
               Add {chain.name}
             </h1>
             <p className="mt-1 text-xs text-text-soft sm:text-sm">
@@ -468,7 +494,7 @@ function ConfirmStage({
 
       {/* Action checklist. Keep the user oriented without turning this into docs. */}
       <section className="overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
-        <header className="border-b border-border-soft px-5 py-3 sm:px-6">
+        <header className="border-b border-border-soft px-4 py-3 sm:px-5">
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
             Next
           </p>
@@ -490,7 +516,7 @@ function ConfirmStage({
           ].map((row) => (
             <li
               key={row.label}
-              className="flex items-start gap-3 px-5 py-3.5 text-sm text-text-strong sm:px-6"
+              className="flex items-start gap-3 px-4 py-3 text-sm text-text-strong sm:px-5"
             >
               <span className="min-w-[5.5rem] font-semibold text-text-strong">
                 {row.label}
@@ -572,11 +598,11 @@ function BindingStage({
     <motion.section
       {...motionProps}
       transition={{ duration: 0.25 }}
-      className="flex flex-col gap-6"
+      className="mx-auto flex w-full max-w-xl flex-col gap-4"
     >
       {/* Header strip. Chain badge + eyebrow + display title. */}
-      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
-        <div className="flex min-w-0 items-center gap-4">
+      <header className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3">
+        <div className="flex min-w-0 items-center gap-3">
           <div className="relative shrink-0">
             <ChainBadge chain={chain} size="lg" />
             <span
@@ -591,7 +617,7 @@ function BindingStage({
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
               Setting up · {chain.ticker}
             </p>
-            <h1 className="mt-1.5 font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
+            <h1 className="mt-1 font-display text-2xl leading-tight text-text-strong sm:text-display-xs">
               Adding {chain.name}…
             </h1>
             <p className="mt-1 font-numerals text-xs tabular-nums text-text-soft">
@@ -609,13 +635,13 @@ function BindingStage({
         </div>
       </header>
 
-      <p className="max-w-xl text-sm text-text-soft sm:text-base">
+      <p className="max-w-xl text-sm text-text-soft">
         Keep this tab open.
       </p>
 
       {/* Progress steps card. Each step lights up as the DKG advances. */}
       <section className="overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
-        <header className="border-b border-border-soft px-5 py-3 sm:px-6">
+        <header className="border-b border-border-soft px-4 py-3 sm:px-5">
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
             Progress
           </p>
@@ -628,7 +654,7 @@ function BindingStage({
               <li
                 key={label}
                 className={
-                  "flex items-center gap-3 px-5 py-3.5 text-sm transition-colors duration-base ease-out-soft sm:px-6 " +
+                  "flex items-center gap-3 px-4 py-3 text-sm transition-colors duration-base ease-out-soft sm:px-5 " +
                   (done
                     ? "bg-accent/[0.04] text-text-strong"
                     : active
@@ -681,11 +707,11 @@ function DoneStage({
       initial={reduce ? false : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col gap-6"
+      className="mx-auto flex w-full max-w-xl flex-col gap-4"
     >
       {/* Header strip. Success chip + eyebrow + display title. */}
-      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
-        <div className="flex min-w-0 items-center gap-4">
+      <header className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3">
+        <div className="flex min-w-0 items-center gap-3">
           <motion.div
             initial={reduce ? false : { scale: 0.6, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -695,7 +721,7 @@ function DoneStage({
               stiffness: 240,
               delay: 0.05,
             }}
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-accent text-text-on-accent shadow-accent-rest sm:h-16 sm:w-16"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent text-text-on-accent shadow-accent-rest sm:h-14 sm:w-14"
           >
             <Check className="h-7 w-7 sm:h-8 sm:w-8" strokeWidth={2.5} />
           </motion.div>
@@ -703,14 +729,14 @@ function DoneStage({
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
               Done · {chain.ticker}
             </p>
-            <h1 className="mt-1.5 font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
+            <h1 className="mt-1 font-display text-2xl leading-tight text-text-strong sm:text-display-xs">
               {chain.name} is ready
             </h1>
           </div>
         </div>
       </header>
 
-      <p className="max-w-xl text-sm text-text-soft sm:text-base">
+      <p className="max-w-xl text-sm text-text-soft">
         You can now send <span className="text-text-strong">{chain.ticker}</span>.
       </p>
 
@@ -739,15 +765,15 @@ function AllChainsBoundStage({
   motionProps: Record<string, unknown>;
 }) {
   return (
-    <motion.section {...motionProps} className="flex flex-col gap-6">
+    <motion.section {...motionProps} className="mx-auto flex w-full max-w-xl flex-col gap-4">
       <header className="flex flex-col gap-2">
         <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Nothing left to add
         </p>
-        <h1 className="font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
+        <h1 className="font-display text-2xl leading-tight text-text-strong sm:text-display-xs">
           {walletDisplay} is bound to every supported chain
         </h1>
-        <p className="max-w-xl text-sm text-text-soft sm:text-base">
+        <p className="max-w-xl text-sm text-text-soft">
           Open Advanced networks to copy addresses or send.
         </p>
       </header>

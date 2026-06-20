@@ -1,6 +1,6 @@
 "use client";
 
-// Enable Ethereum sending. Mirrors /setup but for the EVM transfer
+// Turn on Ethereum sending. Mirrors /setup but for the EVM transfer
 // template instead of SolTransfer. Adds a per-chain spending intent
 // to the wallet so /send/eth can compose proposals against it.
 //
@@ -45,9 +45,6 @@ import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
-import {
-  WalletPopupNarration,
-} from "@/components/retail/WalletPopupNarration";
 import { SignPayloadPreview } from "@/components/retail/SignPayloadPreview";
 import { chainByKind } from "@/lib/retail/chains";
 import { shortEvmAddress } from "@/lib/chain/eth";
@@ -69,6 +66,7 @@ export default function SetupEthPage() {
     : "examples/intents/evm_transfer_sepolia.json";
   const EVM_LABEL = isHyperliquid ? "Hyperliquid" : "Ethereum";
   const EVM_TICKER = isHyperliquid ? "HYPE" : "ETH";
+  const autoStartSetup = searchParams?.get("autostart") === "1";
 
   const router = useRouter();
   const wallet = useWallet();
@@ -143,12 +141,13 @@ export default function SetupEthPage() {
   const needsBinding =
     !chainsQuery.isLoading && !walletQuery.isLoading && !ethBinding;
 
-  const [delaySeconds, setDelaySeconds] = useState<number>(0);
+  const delaySeconds = 0;
   // showDone gates the inline success card. Mirrors /setup (SOL).
   // Replaces the old `router.push(.../send/eth)` which threw the
   // user into the compose form before they could register that the
   // chain was set up.
   const [showDone, setShowDone] = useState(false);
+  const [autoStartedSetup, setAutoStartedSetup] = useState(false);
 
   const setup = useMutation({
     mutationFn: async () => {
@@ -244,6 +243,20 @@ export default function SetupEthPage() {
     },
   });
 
+  useEffect(() => {
+    if (!autoStartSetup || autoStartedSetup || needsBinding || existingEthIntent) return;
+    if (!ethBinding || setup.isPending || setup.isSuccess) return;
+    setAutoStartedSetup(true);
+    setup.mutate();
+  }, [
+    autoStartSetup,
+    autoStartedSetup,
+    needsBinding,
+    existingEthIntent,
+    ethBinding,
+    setup,
+  ]);
+
   const motionProps = reduce
     ? {}
     : {
@@ -334,12 +347,6 @@ export default function SetupEthPage() {
               </p>
             </header>
 
-            <p className="text-sm leading-relaxed text-text-soft">
-              Turns on {EVM_LABEL} sending so {walletDisplay} can move
-              {EVM_TICKER === "HYPE" ? " HYPE" : " ETH"} on the network.
-              One quick setup; sending protection is signed by you and lives on chain.
-            </p>
-
             {needsBinding && (
               <div className="rounded-card border border-warning/30 bg-warning/5 p-5 shadow-card-rest">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
@@ -351,14 +358,14 @@ export default function SetupEthPage() {
                   back here.
                 </p>
                 <Link
-                  href={`/app/wallet/${encodeURIComponent(name)}/chains/add`}
+                  href={`/app/wallet/${encodeURIComponent(name)}/chains/add?chain=${isHyperliquid ? "hyperliquid_evm" : "evm_1559"}&autostart=1`}
                   className={
                     "mt-3 inline-flex items-center gap-1.5 rounded-soft bg-accent px-3.5 py-2 text-sm font-medium text-text-on-accent shadow-accent-rest " +
                     "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] " +
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
                   }
                 >
-                  Add {EVM_LABEL}
+                  Turn on {EVM_LABEL} sending
                   <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                 </Link>
               </div>
@@ -366,54 +373,9 @@ export default function SetupEthPage() {
 
             {!needsBinding && (
               <>
-                <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-                    What this enables
-                  </p>
-                  <ul className="mt-3 flex flex-col gap-2 text-sm text-text-strong">
-                    <li className="flex items-start gap-2">
-                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                      Send {EVM_TICKER} from this wallet.
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                      Same approval rule applies (right now, just you).
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                      Your wallet&rsquo;s {EVM_LABEL} address:{" "}
-                      <span className="font-mono text-xs text-text-soft">
-                        {ethAddress
-                          ? shortEvmAddress(ethAddress)
-                          : "(spinning up)"}
-                      </span>
-                    </li>
-                  </ul>
-                </div>
-
-                <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-                    When approvals are in
-                  </p>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <PaceTile
-                      selected={delaySeconds === 0}
-                      onSelect={() => setDelaySeconds(0)}
-                      title="Send right away"
-                      body="Goes the moment everyone approves."
-                    />
-                    <PaceTile
-                      selected={delaySeconds === 86400}
-                      onSelect={() => setDelaySeconds(86400)}
-                      title="Wait 24 hours"
-                      body="A cooling-off day before it ships."
-                    />
-                  </div>
-                </div>
-
                 <div className="flex flex-col gap-3">
                   <SignPayloadPreview
-                    action={`Enable ${EVM_LABEL} sending in ${walletDisplay}`}
+                    action={`Turn on ${EVM_LABEL} sending`}
                     details={[
                       { label: "Wallet", value: walletDisplay },
                       { label: "Chain", value: EVM_LABEL },
@@ -424,17 +386,8 @@ export default function SetupEthPage() {
                             emphasis: "mono" as const,
                           }
                         : { label: "Address", value: "spinning up" },
-                      {
-                        label: "Pace",
-                        value:
-                          delaySeconds === 0
-                          ? "Ships immediately"
-                          : "Wait 24 hours",
-                      },
                     ]}
-                  />
-                  <WalletPopupNarration
-                    action={`enable ${EVM_LABEL} sending`}
+                    collapsibleDetails
                   />
                 </div>
 
@@ -454,7 +407,7 @@ export default function SetupEthPage() {
                     </>
                   ) : (
                     <>
-                      Enable {EVM_LABEL} sending
+                      Turn on {EVM_LABEL} sending
                       <ArrowRight className="h-4 w-4" aria-hidden="true" />
                     </>
                   )}
@@ -465,41 +418,5 @@ export default function SetupEthPage() {
         )}
       </motion.section>
     </div>
-  );
-}
-
-interface PaceTileProps {
-  selected: boolean;
-  onSelect: () => void;
-  title: string;
-  body: string;
-}
-
-function PaceTile({ selected, onSelect, title, body }: PaceTileProps) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      className={
-        "flex flex-col items-start gap-1 rounded-card border p-3 text-left " +
-        "transition-[border-color,background-color,box-shadow] duration-base ease-out-soft " +
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
-        (selected
-          ? "border-accent bg-accent/5 shadow-card-rest"
-          : "border-border-soft bg-canvas")
-      }
-    >
-      <div
-        className={
-          "flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold " +
-          (selected ? "bg-accent text-white" : "bg-accent/10 text-accent")
-        }
-      >
-        {selected ? <Check className="h-3 w-3" /> : <Send className="h-3 w-3" />}
-      </div>
-      <p className="mt-1 text-sm font-medium text-text-strong">{title}</p>
-      <p className="text-[11px] leading-snug text-text-soft">{body}</p>
-    </button>
   );
 }

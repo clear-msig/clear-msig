@@ -24,13 +24,13 @@ export function SendChainPicker({
   activeKind,
 }: {
   walletName: string;
-  activeKind: number;
+  activeKind: number | null;
 }) {
   const { options, loading } = useSendChains(walletName);
   if (loading) {
     return (
       <div
-        className="mb-5 flex animate-pulse flex-wrap items-center gap-2"
+        className="mb-4 flex animate-pulse flex-wrap items-center gap-2"
         aria-hidden="true"
       >
         <div className="h-[58px] w-32 rounded-card border border-border-soft bg-surface-raised" />
@@ -38,45 +38,31 @@ export function SendChainPicker({
       </div>
     );
   }
-  // Bound + setup-needed chains are tappable. needs_binding chains
-  // are hidden from the row (the trailing "Add chain" tile is the
-  // right entry point for adding new ones).
-  const visible = options.filter((o) => o.status !== "needs_binding");
+  // Show every sendable asset state here. /send is now the user's
+  // single asset chooser: ready assets open the send form, missing
+  // assets start the same "turn on sending" path.
+  const visible = options;
   const boundCount = options.filter(
     (o) => o.status === "ready" || o.status === "needs_setup",
   ).length;
   // Always render the row - even with only Solana bound - because
   // the trailing "Add chain" tile is now part of the row, not a
   // hidden affordance.
-  const addChainHref = `/app/wallet/${encodeURIComponent(walletName)}/chains/add`;
+  const addChainHref = `/app/wallet/${encodeURIComponent(walletName)}/chains/add?autostart=1`;
   return (
     <nav
       aria-label="Choose what to send"
-      className="mb-5 rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest sm:p-4"
+      className="mb-4 rounded-card border border-border-soft bg-surface-raised p-2.5 shadow-card-rest sm:p-3"
     >
-      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            One send flow
-          </p>
-          <h2 className="mt-0.5 text-sm font-medium text-text-strong">
-            Recipient, amount, receipt, sign.
-          </h2>
-        </div>
-        <p className="text-xs text-text-soft">
-          Need another asset? Add it here.
-        </p>
-      </div>
-      <SendFlowSteps />
       <div className="flex gap-2 overflow-x-auto pb-1">
         {visible.map((opt) => {
           const isActive = opt.chain.kind === activeKind;
-          const href = sendHrefFor(walletName, opt.chain.kind, opt.status);
+          const href = sendHrefFor(walletName, opt.chain, opt.status);
           const disabled = opt.status === "coming_soon" || !href;
           const tile = (
             <span
               className={
-                "flex min-w-[9.5rem] items-center gap-2 rounded-card border px-3 py-2 text-left " +
+                "flex min-w-[8.75rem] items-center gap-2 rounded-soft border px-3 py-2 text-left " +
                 "transition-[border-color,background-color,transform] duration-base ease-out-soft " +
                 (disabled
                   ? "cursor-not-allowed opacity-60 border-border-soft bg-canvas"
@@ -118,16 +104,16 @@ export function SendChainPicker({
           );
         })}
 
-        {/* Add-chain tile - always rendered as the last item so users
+        {/* Add-asset tile - always rendered as the last item so users
           can find the chain-management flow without leaving /send.
           Solana-only wallets see this as the only secondary tile;
           multi-chain wallets see it after their bound chains.
           Subtitle adapts so the row reads as a single thought. */}
         <Link
           href={addChainHref}
-          aria-label="Add another asset"
+          aria-label="Turn on another asset"
           className={
-            "flex min-w-[9.5rem] items-center gap-2 rounded-card border border-dashed border-border-soft bg-canvas px-3 py-2 text-left " +
+            "flex min-w-[8.75rem] items-center gap-2 rounded-soft border border-dashed border-border-soft bg-canvas px-3 py-2 text-left " +
             "transition-[border-color,background-color,transform] duration-base ease-out-soft " +
             "hover:-translate-y-px hover:border-accent/40 hover:bg-accent/5 " +
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
@@ -141,7 +127,7 @@ export function SendChainPicker({
           </span>
           <span className="flex min-w-0 flex-col">
             <span className="truncate text-xs font-medium text-text-strong">
-              Add asset
+              Turn on asset
             </span>
             <span className="truncate text-[10px] text-text-soft">
               {boundCount === 1 ? "ETH, BTC, ZEC, HYPE" : "More options"}
@@ -153,63 +139,40 @@ export function SendChainPicker({
   );
 }
 
-function SendFlowSteps() {
-  const steps = ["Recipient", "Amount / asset", "Receipt", "Sign"];
-  return (
-    <ol className="mb-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-      {steps.map((label, index) => (
-        <li
-          key={label}
-          className="flex min-w-0 items-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-2.5 py-2"
-        >
-          <span
-            className={
-              "flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-numerals text-[10px] font-semibold tabular-nums " +
-              (index === 0
-                ? "bg-accent/15 text-accent"
-                : "bg-glass-soft text-text-soft")
-            }
-          >
-            {index + 1}
-          </span>
-          <span className="truncate text-[11px] font-medium text-text-soft">
-            {label}
-          </span>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
 function sendHrefFor(
   walletName: string,
-  kind: number,
+  chain: { kind: number; apiName: string },
   status: "ready" | "needs_setup" | "needs_binding" | "coming_soon",
 ): string | null {
+  const kind = chain.kind;
   if (status === "coming_soon") return null;
   if (status === "needs_binding") {
-    return `/app/wallet/${encodeURIComponent(walletName)}/chains/add`;
+    return `/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=${encodeURIComponent(chain.apiName)}&autostart=1`;
   }
   if (kind === 0) {
-    return `/app/wallet/${encodeURIComponent(walletName)}/send`;
+    return `/app/wallet/${encodeURIComponent(walletName)}/send?asset=solana`;
   }
   if (kind === 1) {
     return status === "needs_setup"
-      ? `/app/wallet/${encodeURIComponent(walletName)}/setup/eth`
+      ? `/app/wallet/${encodeURIComponent(walletName)}/setup/eth?autostart=1`
       : `/app/wallet/${encodeURIComponent(walletName)}/send/eth`;
   }
   if (kind === 2) {
     // Bitcoin: setup + send live in the same /send/btc page (it
     // detects whether the BTC intent already exists and either
     // offers a one-tap setup or jumps to the compose form).
-    return `/app/wallet/${encodeURIComponent(walletName)}/send/btc`;
+    return status === "needs_setup"
+      ? `/app/wallet/${encodeURIComponent(walletName)}/send/btc?autostart=1`
+      : `/app/wallet/${encodeURIComponent(walletName)}/send/btc`;
   }
   if (kind === 3) {
-    return `/app/wallet/${encodeURIComponent(walletName)}/send/zec`;
+    return status === "needs_setup"
+      ? `/app/wallet/${encodeURIComponent(walletName)}/send/zec?autostart=1`
+      : `/app/wallet/${encodeURIComponent(walletName)}/send/zec`;
   }
   if (kind === 5) {
     return status === "needs_setup"
-      ? `/app/wallet/${encodeURIComponent(walletName)}/setup/eth?network=hyperliquid`
+      ? `/app/wallet/${encodeURIComponent(walletName)}/setup/eth?network=hyperliquid&autostart=1`
       : `/app/wallet/${encodeURIComponent(walletName)}/send/eth?network=hyperliquid`;
   }
   return null;

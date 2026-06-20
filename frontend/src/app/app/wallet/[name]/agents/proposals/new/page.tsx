@@ -89,6 +89,29 @@ export default function NewAgentProposalPage() {
 
   const selectedAgent = agents.find((agent) => agent.id === agentId) ?? null;
 
+  useEffect(() => {
+    if (!selectedAgent) return;
+    const now = Date.now();
+    const activeSession =
+      listAgentSessions(name).find(
+        (session) =>
+          session.agentId === selectedAgent.id &&
+          session.status === "active" &&
+          session.expiresAt > now,
+      ) ?? null;
+    const policy = getAgentVaultPolicy(name);
+    const nextLeverage = activeSession?.maxLeverage ?? policy.maxLeverage;
+    if (Number.isFinite(nextLeverage) && nextLeverage > 0) {
+      setLeverage(String(nextLeverage));
+    }
+    if (activeSession?.maxNotionalUsd) {
+      setNotionalUsd(activeSession.maxNotionalUsd);
+    }
+    if (activeSession?.allowedVenues?.[0]) {
+      setVenue(activeSession.allowedVenues[0]);
+    }
+  }, [name, selectedAgent]);
+
   const buildDraft = async (): Promise<{
     proposal: AgentTradeProposal;
     evaluation: AgentPolicyEvaluation;
