@@ -1166,7 +1166,7 @@ function ComposeStage({
                 Send
               </p>
               <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
-                Choose an asset
+                Send SOL
               </h1>
           </div>
         </div>

@@ -25,7 +25,6 @@ import {
   Bell,
   CalendarClock,
   Check,
-  Clock,
   Gauge,
   ListChecks,
   Lock,
@@ -57,9 +56,6 @@ import {
   templateFileForChainKind,
 } from "@/lib/hooks/useUpdateTimelock";
 import { useUpdateApprovalThreshold } from "@/lib/hooks/useUpdateApprovalThreshold";
-import { listPolicies, subscribePolicies } from "@/lib/policies/storage";
-import { getBudget } from "@/lib/retail/spendingBudget";
-import { listAllowances } from "@/lib/retail/allowances";
 
 export default function PolicyPage() {
   const params = useParams<{ name: string }>();
@@ -98,28 +94,6 @@ export default function PolicyPage() {
       )?.account ?? null,
     [intentsQuery.data],
   );
-  const [advancedRuleCount, setAdvancedRuleCount] = useState(0);
-  const [budgetLabel, setBudgetLabel] = useState("Not set");
-  const [allowanceCount, setAllowanceCount] = useState(0);
-
-  useEffect(() => {
-    const refresh = () => {
-      setAdvancedRuleCount(listPolicies(name).length);
-      const budget = getBudget(name);
-      if (!budget) {
-        setBudgetLabel("Not set");
-      } else if (budget.weeklyUsd !== null) {
-        setBudgetLabel(`$${budget.weeklyUsd.toLocaleString()} weekly`);
-      } else if (budget.velocityPerDay) {
-        setBudgetLabel(`${budget.velocityPerDay}/day`);
-      } else {
-        setBudgetLabel("Chain caps set");
-      }
-      setAllowanceCount(listAllowances(name).length);
-    };
-    refresh();
-    return subscribePolicies(refresh);
-  }, [name]);
 
   const motionProps = reduce
     ? {}
@@ -172,32 +146,6 @@ export default function PolicyPage() {
         </div>
       </motion.header>
 
-      <PolicyFlow
-        intent={customIntent}
-        loading={walletQuery.isLoading || intentsQuery.isLoading}
-        advancedRuleCount={advancedRuleCount}
-        budgetLabel={budgetLabel}
-        allowanceCount={allowanceCount}
-        personalRules={personalRules}
-      />
-
-      <section className="grid gap-2 rounded-card border border-border-soft bg-canvas p-3 shadow-card-rest sm:grid-cols-4 sm:p-4">
-        {[
-          ["People", "Who can act"],
-          ["Approvals", "Who must sign"],
-          ["Limits", "How much can move"],
-          ["Checks", "When to slow down"],
-        ].map(([label, body]) => (
-          <div
-            key={label}
-            className="rounded-soft bg-surface-raised px-3 py-2.5"
-          >
-            <p className="text-xs font-semibold text-text-strong">{label}</p>
-            <p className="mt-0.5 text-[11px] text-text-soft">{body}</p>
-          </div>
-        ))}
-      </section>
-
       <ThresholdCard
         walletName={name}
         intent={customIntent}
@@ -218,129 +166,6 @@ export default function PolicyPage() {
       />
     </div>
   );
-}
-
-function PolicyFlow({
-  intent,
-  loading,
-  advancedRuleCount,
-  budgetLabel,
-  allowanceCount,
-  personalRules,
-}: {
-  intent: IntentAccount | null;
-  loading: boolean;
-  advancedRuleCount: number;
-  budgetLabel: string;
-  allowanceCount: number;
-  personalRules: boolean;
-}) {
-  const approverCount = intent?.approvers.length ?? 0;
-  const threshold = intent
-    ? `${intent.approvalThreshold} of ${approverCount}`
-    : loading
-      ? "Loading"
-      : "Not set";
-  const memberStatus = loading && !intent
-    ? "Loading"
-    : approverCount
-      ? `${approverCount} signer${approverCount === 1 ? "" : "s"}`
-      : "No signers";
-  const timelock =
-    intent && intent.timelockSeconds > 0
-      ? `${Math.round(intent.timelockSeconds / 3600)}h hold`
-      : intent
-        ? "No hold"
-        : "Not set";
-
-  const steps: PolicyStep[] = [
-    {
-      href: "#approvals",
-      Icon: ShieldCheck,
-      label: "Approvals",
-      status: threshold,
-      body: "How many trusted people must approve.",
-      enforcement: "active",
-    },
-    {
-      href: "#people",
-      Icon: Users,
-      label: "People",
-      status: memberStatus,
-      body: "Who can request or approve money movement.",
-      enforcement: "active",
-    },
-    {
-      href: "#time-window",
-      Icon: Clock,
-      label: "Slowdowns",
-      status: timelock,
-      body: "When ClearSig should slow or block a send.",
-      enforcement: "active",
-    },
-    ...(!personalRules
-      ? [
-          {
-            href: "#advanced-protection",
-            Icon: Gauge,
-            label: "Limits",
-            status: budgetLabel,
-            body: "How much can move before review.",
-            enforcement: "preview" as const,
-          },
-          {
-            href: "#advanced-protection",
-            Icon: UserCheck,
-            label: "Member limits",
-            status: allowanceCount ? `${allowanceCount} set` : "Not set",
-            body: "How much one person can move alone.",
-            enforcement: "preview" as const,
-          },
-          {
-            href: "#advanced-protection",
-            Icon: ListChecks,
-            label: "Advanced",
-            status: advancedRuleCount ? `${advancedRuleCount} saved` : "None",
-            body: "Extra checks for recipients and amounts.",
-            enforcement: "preview" as const,
-          },
-        ]
-      : []),
-  ];
-
-  return (
-    <section className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            Protection
-          </p>
-          <h2 className="mt-1 font-display text-lg leading-tight text-text-strong">
-            What protects this wallet
-          </h2>
-          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-text-soft sm:text-sm">
-            {personalRules
-              ? "The important safety choices are grouped here so the wallet stays easy to reason about."
-              : "Start with approvals and people. Add limits only when the team needs them."}
-          </p>
-        </div>
-      </div>
-      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-        {steps.map((step) => (
-          <PolicyStepCard key={step.label} step={step} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-interface PolicyStep {
-  href: string;
-  Icon: LucideIcon;
-  label: string;
-  status: string;
-  body: string;
-  enforcement: "active" | "preview";
 }
 
 function PeopleCard({
@@ -448,10 +273,10 @@ function AdvancedProtectionPanel({
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
         <span>
           <span className="text-sm font-semibold text-text-strong">
-            Advanced protection
+            More controls
           </span>
           <span className="mt-0.5 block text-xs text-text-soft">
-            Limits, member caps, deeper checks, and notification settings.
+            Limits, member caps, deeper checks, and alerts.
           </span>
         </span>
         <ArrowRight
@@ -477,7 +302,7 @@ function AdvancedProtectionPanel({
             <NavCard
               href={`/app/wallet/${encoded}/policies`}
               icon={ListChecks}
-              title="Advanced checks"
+              title="Extra checks"
               body="Recipient, amount, review, and cooldown checks."
             />
           </>
@@ -490,59 +315,6 @@ function AdvancedProtectionPanel({
         />
       </div>
     </details>
-  );
-}
-
-function PolicyStepCard({ step }: { step: PolicyStep }) {
-  const { href, Icon, label, status, body, enforcement } = step;
-  return (
-    <Link
-      href={href}
-      className={
-        "group relative flex min-h-[92px] flex-col justify-between overflow-hidden rounded-card bg-canvas p-3.5 " +
-        "transition-[background-color,transform,box-shadow] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-surface-raised hover:shadow-card-rest " +
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-      }
-    >
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-4 bottom-0 h-px bg-gradient-to-r from-transparent via-accent/35 to-transparent opacity-0 transition-opacity duration-base group-hover:opacity-100"
-      />
-      <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
-          <Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <p className="truncate text-sm font-medium text-text-strong">
-              {label}
-            </p>
-            <ArrowRight
-              className="h-3.5 w-3.5 shrink-0 text-text-soft transition-transform group-hover:translate-x-0.5 group-hover:text-accent"
-              aria-hidden="true"
-            />
-          </div>
-          <p className="mt-1 line-clamp-2 text-xs leading-snug text-text-soft">
-            {body}
-          </p>
-        </div>
-      </div>
-      <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-soft">
-          {status}
-        </p>
-        <span
-          className={
-            "inline-flex rounded-full px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.18em] " +
-            (enforcement === "active"
-              ? "bg-accent/10 text-accent"
-              : "bg-warning/10 text-warning")
-          }
-        >
-          {enforcement === "active" ? "Active" : "Preview"}
-        </span>
-      </div>
-    </Link>
   );
 }
 

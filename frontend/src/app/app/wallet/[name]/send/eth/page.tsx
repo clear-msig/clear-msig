@@ -600,7 +600,7 @@ function SendEthPage() {
         title={`Turn on ${EVM_LABEL} sending`}
         body={`${EVM_LABEL} is on this wallet. Finish setup to unlock sends.`}
         cta={{
-          href: `/app/wallet/${encodeURIComponent(walletName)}/setup/eth${isHyperliquid ? "?network=hyperliquid" : ""}`,
+          href: `/app/wallet/${encodeURIComponent(walletName)}/setup/eth${isHyperliquid ? "?network=hyperliquid&autostart=1" : "?autostart=1"}`,
           label: `Turn on ${EVM_LABEL} sending`,
         }}
       />

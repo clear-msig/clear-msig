@@ -148,12 +148,6 @@ type BackendPersistenceStatus = {
   updatedAt?: number;
 };
 
-const agentSecondaryActionClass = clsx(
-  "inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-surface-raised px-3 py-2 text-xs font-medium text-text-strong shadow-card-rest sm:flex-none",
-  "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-);
-
 const agentPrimaryActionClass = clsx(
   "inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-text-on-accent shadow-accent-rest sm:flex-none",
   "transition-[background-color,box-shadow,transform] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
@@ -1212,10 +1206,11 @@ export default function AgentsPage() {
         </div>
       </header>
 
-      <GettingStartedPanel steps={gettingStartedSteps} />
-
       {!setupComplete ? (
-        <AgentSetupGate steps={gettingStartedSteps} walletEncoded={encoded} />
+        <>
+          <GettingStartedPanel steps={gettingStartedSteps} />
+          <AgentSetupGate steps={gettingStartedSteps} walletEncoded={encoded} />
+        </>
       ) : (
         <>
       <div className="grid gap-2 sm:grid-cols-3">
@@ -1236,7 +1231,7 @@ export default function AgentsPage() {
                 Next step
               </p>
               <p className="mt-0.5 text-xs text-text-soft">
-                Continue setup or open practice when everything is ready.
+                Open practice trading. Everything else is in More.
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -1247,18 +1242,6 @@ export default function AgentsPage() {
                 <Play size={15} aria-hidden="true" />
                 Open trading
               </Link>
-              {canRunAutonomyScan ? (
-                <button
-                  type="button"
-                  disabled={pendingAction}
-                  title="Scan current markets through active rules"
-                  onClick={runAutonomyScan}
-                  className={agentSecondaryActionClass}
-                >
-                  <BrainCircuit size={13} aria-hidden="true" />
-                  Run scan
-                </button>
-              ) : null}
             </div>
           </div>
         </div>
@@ -1303,6 +1286,18 @@ export default function AgentsPage() {
             <Pause size={15} aria-hidden="true" />
             <span>Pause</span>
           </Link>
+          {canRunAutonomyScan ? (
+            <button
+              type="button"
+              disabled={pendingAction}
+              title="Scan current markets through active rules"
+              onClick={runAutonomyScan}
+              className={agentToolClass}
+            >
+              <BrainCircuit size={15} aria-hidden="true" />
+              <span>Run scan</span>
+            </button>
+          ) : null}
           </div>
           <details className="group mt-3 rounded-soft border border-border-soft bg-canvas px-3 py-2">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold text-text-strong">

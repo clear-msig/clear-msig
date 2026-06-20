@@ -98,16 +98,6 @@ export default function WalletSettingsPage() {
       Icon: ShieldCheck,
       status: rulesStatus,
     },
-    ...(surface === "pro" || surface === null
-      ? [
-          {
-            href: `/app/wallet/${encoded}/chains`,
-            label: "Connected chains",
-            hint: "Bind Ethereum, Bitcoin, or Zcash. Solana is always on.",
-            Icon: Globe,
-          },
-        ]
-      : []),
   ];
 
   return (
@@ -184,6 +174,38 @@ export default function WalletSettingsPage() {
           </li>
         ))}
       </ul>
+
+      {surface === "pro" || surface === null ? (
+        <details className="group rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-text-strong">
+            <span>Advanced</span>
+            <ArrowRight
+              className="h-4 w-4 text-text-soft transition-transform group-open:rotate-90"
+              aria-hidden="true"
+            />
+          </summary>
+          <Link
+            href={`/app/wallet/${encoded}/chains`}
+            className={
+              "mt-3 flex items-center gap-3 rounded-soft bg-canvas p-3 " +
+              "transition-colors duration-base ease-out-soft hover:text-accent " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+            }
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+              <Globe className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-text-strong">
+                Advanced networks
+              </span>
+              <span className="block truncate text-xs text-text-soft">
+                Add or inspect non-Solana network bindings.
+              </span>
+            </span>
+          </Link>
+        </details>
+      ) : null}
 
     </div>
   );

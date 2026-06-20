@@ -154,21 +154,25 @@ function sendHrefFor(
   }
   if (kind === 1) {
     return status === "needs_setup"
-      ? `/app/wallet/${encodeURIComponent(walletName)}/setup/eth`
+      ? `/app/wallet/${encodeURIComponent(walletName)}/setup/eth?autostart=1`
       : `/app/wallet/${encodeURIComponent(walletName)}/send/eth`;
   }
   if (kind === 2) {
     // Bitcoin: setup + send live in the same /send/btc page (it
     // detects whether the BTC intent already exists and either
     // offers a one-tap setup or jumps to the compose form).
-    return `/app/wallet/${encodeURIComponent(walletName)}/send/btc`;
+    return status === "needs_setup"
+      ? `/app/wallet/${encodeURIComponent(walletName)}/send/btc?autostart=1`
+      : `/app/wallet/${encodeURIComponent(walletName)}/send/btc`;
   }
   if (kind === 3) {
-    return `/app/wallet/${encodeURIComponent(walletName)}/send/zec`;
+    return status === "needs_setup"
+      ? `/app/wallet/${encodeURIComponent(walletName)}/send/zec?autostart=1`
+      : `/app/wallet/${encodeURIComponent(walletName)}/send/zec`;
   }
   if (kind === 5) {
     return status === "needs_setup"
-      ? `/app/wallet/${encodeURIComponent(walletName)}/setup/eth?network=hyperliquid`
+      ? `/app/wallet/${encodeURIComponent(walletName)}/setup/eth?network=hyperliquid&autostart=1`
       : `/app/wallet/${encodeURIComponent(walletName)}/send/eth?network=hyperliquid`;
   }
   return null;
