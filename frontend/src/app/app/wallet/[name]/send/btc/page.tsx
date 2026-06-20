@@ -456,7 +456,7 @@ function BitcoinSendPage() {
       if (!sendAmountSats) throw new Error("Enter an amount");
       if (impliedFeeSats !== null && impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS) {
         throw new Error(
-          `This Bitcoin send would pay ${formatSats(impliedFeeSats)} BTC in fees. Use max, split/fund with a smaller UTXO, or wait for change-output support.`,
+          `This Bitcoin send would pay ${formatSats(impliedFeeSats)} BTC in fees. Use the safe amount for this UTXO or wait for change-output support.`,
         );
       }
       if (!senderPkhHex) throw new Error("Couldn't derive sender pkh");
@@ -625,7 +625,7 @@ function BitcoinSendPage() {
     }
     if (impliedFeeSats !== null && impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS) {
       setAmountError(
-        `Fee would be ${formatSats(impliedFeeSats)} BTC. Use max or a smaller UTXO; current safe cap is ${formatSats(MAX_SAFE_IMPLIED_FEE_SATS)} BTC.`,
+        `Fee would be ${formatSats(impliedFeeSats)} BTC. Use the safe amount for this UTXO.`,
       );
       return;
     }
@@ -1050,19 +1050,26 @@ function ComposeForm(props: {
                       {props.selectedUtxo.txid.slice(0, 8)}…:{props.selectedUtxo.vout}
                     </span>
                     {". "}
-                    {formatSats(BigInt(props.selectedUtxo.value))} BTC · fee{" "}
-                    {formatSats(props.impliedFeeSats)} BTC
-                    <InfoTip
-                      label="How the fee is picked"
-                      width="md"
-                      size="xs"
-                      side="end"
-                    >
-                      <span className="block">
-                        Single-input, single-output P2WPKH transfer. Fee is
-                        input value minus output value.
+                    {props.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS ? (
+                      <span className="font-medium text-warning">
+                        Fee too high
                       </span>
-                    </InfoTip>
+                    ) : (
+                      <>
+                        fee {formatSats(props.impliedFeeSats)} BTC
+                        <InfoTip
+                          label="How the fee is picked"
+                          width="md"
+                          size="xs"
+                          side="end"
+                        >
+                          <span className="block">
+                            Current BTC beta spends one UTXO. Safe sends use
+                            UTXO minus {Number(FEE_RESERVE_SATS)} sats.
+                          </span>
+                        </InfoTip>
+                      </>
+                    )}
                   </span>
                 )}
               </>
@@ -1110,47 +1117,20 @@ function ComposeForm(props: {
         </section>
       </div>
 
-      {/* High-fee warning. Single-input/single-output design means
-          (UTXO value − send amount) becomes the miner fee. There is
-          NO change output yet. If the user picks an amount much
-          smaller than their chosen UTXO, they'll burn the
-          difference. We promote this from the quiet line beneath
-          the amount to a real banner once the burn would be more
-          than the current safe cap. Below that threshold the burn is
-          in normal-fee territory and the quieter UTXO note is enough.
-
-          Real fix is a change output on both sides of the BIP143
-          builder (CLI + on-chain). That's a redeploy + parity
-          tests, deferred. Until then, the "Use max" button + this
-          banner are the safe-path nudges. */}
       {props.selectedUtxo &&
         props.impliedFeeSats !== null &&
         props.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS && (
-          <div
-            role="alert"
-            className="mt-1 flex flex-col gap-2 rounded-card border border-warning/40 bg-warning/[0.08] p-3 text-xs text-text-strong"
-          >
-            <p className="font-semibold">
-              Heads up: {formatSats(props.impliedFeeSats)} BTC will
-              go to the miner as fee.
-            </p>
-            <p className="text-text-soft">
-              Bitcoin sends here use a single-input, single-output
-              transaction. There&rsquo;s no change output yet, so
-              every sat in your chosen UTXO that isn&rsquo;t the
-              send amount becomes the fee. The smallest UTXO that
-              covers your amount is{" "}
-              {formatSats(BigInt(props.selectedUtxo.value))} BTC.
-              Tap{" "}
-              <span className="font-mono text-text-strong">
-                Use max
-              </span>{" "}
-              above to send (UTXO − {Number(FEE_RESERVE_SATS)} sats)
-              and minimize the burn. Sends above{" "}
-              {formatSats(MAX_SAFE_IMPLIED_FEE_SATS)} BTC in implied fees are
-              blocked until change-output support is live.
-            </p>
-          </div>
+          <HighFeeBlocker
+            selectedUtxo={props.selectedUtxo}
+            impliedFeeSats={props.impliedFeeSats}
+            onUseSafeMax={() => {
+              const safeAmount =
+                BigInt(props.selectedUtxo.value) - FEE_RESERVE_SATS;
+              if (safeAmount > 0n) {
+                props.setAmountBtc(formatSats(safeAmount));
+              }
+            }}
+          />
         )}
 
       {/* Action footer. Sticky CTA mirrors the other send pages. */}
@@ -1165,6 +1145,12 @@ function ComposeForm(props: {
           <Button
             onClick={props.onSend}
             disabled={props.sending || !props.canSubmit}
+            variant={
+              props.impliedFeeSats !== null &&
+              props.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS
+                ? "secondary"
+                : "primary"
+            }
             fullWidth
             size="lg"
           >
@@ -1172,6 +1158,12 @@ function ComposeForm(props: {
               <>
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                 Sending…
+              </>
+            ) : props.impliedFeeSats !== null &&
+              props.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS ? (
+              <>
+                <X className="h-4 w-4" aria-hidden="true" />
+                Fee too high
               </>
             ) : (
               <>
@@ -1183,6 +1175,43 @@ function ComposeForm(props: {
         </div>
       </div>
     </>
+  );
+}
+
+function HighFeeBlocker({
+  selectedUtxo,
+  impliedFeeSats,
+  onUseSafeMax,
+}: {
+  selectedUtxo: EsploraUtxo;
+  impliedFeeSats: bigint;
+  onUseSafeMax: () => void;
+}) {
+  const safeAmount = BigInt(selectedUtxo.value) - FEE_RESERVE_SATS;
+  return (
+    <div
+      role="alert"
+      className="mt-1 flex flex-col gap-3 rounded-card border border-warning/40 bg-warning/[0.08] p-3 text-xs text-text-strong"
+    >
+      <div className="flex flex-col gap-1">
+        <p className="font-semibold">
+          Blocked: {formatSats(impliedFeeSats)} BTC would be lost as fee.
+        </p>
+        <p className="text-text-soft">
+          BTC beta sends one UTXO at a time. Until change output ships, use the
+          safe amount for this UTXO.
+        </p>
+      </div>
+      {safeAmount > 0n ? (
+        <button
+          type="button"
+          onClick={onUseSafeMax}
+          className="inline-flex min-h-10 items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-semibold text-text-on-accent shadow-accent-rest transition-colors hover:bg-accent-hover"
+        >
+          Use safe amount: {formatSats(safeAmount)} BTC
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -1329,8 +1358,9 @@ function buildBtcPreviewDetails(args: {
     });
   }
   if (args.selectedUtxo && args.impliedFeeSats !== null) {
+    const unsafeFee = args.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS;
     details.push({
-      label: "UTXO fee",
+      label: unsafeFee ? "Blocked fee" : "Network fee",
       value: `${formatSats(args.impliedFeeSats)} BTC`,
     });
   }
@@ -1346,7 +1376,7 @@ function buildBtcWarning(args: {
     args.impliedFeeSats !== null &&
     args.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS
   ) {
-    return `This send burns ${formatSats(args.impliedFeeSats)} BTC as miner fee because Bitcoin sends here use a single-input, single-output transaction.`;
+    return `Blocked: this amount would burn ${formatSats(args.impliedFeeSats)} BTC as miner fee.`;
   }
   return undefined;
 }
