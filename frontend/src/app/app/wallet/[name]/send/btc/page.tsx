@@ -66,6 +66,7 @@ import {
 } from "@/components/retail/SendReceipt";
 import { UsdHint } from "@/components/retail/UsdHint";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
+import { SendAmountField } from "@/components/retail/SendAmountField";
 import { InfoTip } from "@/components/retail/InfoTip";
 import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
@@ -710,7 +711,7 @@ function BitcoinSendPage() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
                 Send
               </p>
-              <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
+              <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight text-text-strong sm:text-3xl">
                 Send BTC
               </h1>
             </div>
@@ -1002,8 +1003,8 @@ function ComposeForm(props: {
           SOL /send and ETH /send/eth. */}
       <div
         className={
-          "flex flex-col gap-5 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest " +
-          "lg:grid lg:grid-cols-2 lg:items-start lg:gap-5 " +
+          "flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest " +
+          "lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 " +
           "lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none"
         }
       >
@@ -1012,14 +1013,17 @@ function ComposeForm(props: {
         <section
           className={
             "flex flex-col gap-3 " +
-            "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-5 lg:shadow-card-rest"
+            "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-4 lg:shadow-card-rest"
           }
         >
-          <div className="flex items-center justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Amount
-            </p>
-            {props.balanceSats !== null && props.balanceSats > 0n && (
+          <SendAmountField
+            id="btc-amount"
+            ticker="BTC"
+            value={props.amountBtc}
+            onChange={(e) => props.setAmountBtc(e.target.value)}
+            maxLength={20}
+            action={
+              props.balanceSats !== null && props.balanceSats > 0n ? (
               <button
                 type="button"
                 onClick={(e) => {
@@ -1036,83 +1040,54 @@ function ComposeForm(props: {
               >
                 Use max
               </button>
-            )}
-          </div>
-          <label htmlFor="btc-amount" className="sr-only">
-            Amount in BTC
-          </label>
-          <div
-            className={
-              "flex items-baseline gap-3 border-b border-glass-soft pb-3 " +
-              "transition-colors duration-base ease-out-soft " +
-              "focus-within:border-glass-strong"
+              ) : null
             }
-          >
-            <input
-              id="btc-amount"
-              type="text"
-              inputMode="decimal"
-              value={props.amountBtc}
-              onChange={(e) => props.setAmountBtc(e.target.value)}
-              placeholder="0"
-              spellCheck={false}
-              autoComplete="off"
-              maxLength={20}
-              aria-label="Amount in BTC"
-              className="min-w-0 flex-1 bg-transparent font-numerals text-3xl font-semibold tracking-tight text-text-strong tabular-nums outline-none placeholder:text-text-soft/50 sm:text-4xl"
-            />
-            <span
-              aria-hidden="true"
-              className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft sm:text-lg"
-            >
-              BTC
-            </span>
-          </div>
-          <p className="text-xs text-text-soft">
-            <span>Wallet has </span>
-            <span className="font-numerals font-medium text-text-strong tabular-nums">
-              {props.balanceLoading
-                ? "checking..."
-                : balanceBtc !== null
-                  ? balanceBtc
-                  : btcBalanceStatusLabel(props.balanceError, props.network)}
-            </span>
-            {balanceBtc !== null ? <span> BTC</span> : null}
-            {props.balanceSats !== null && (
-              <UsdHint
-                amount={props.balanceSats}
-                smallestPerWhole={100_000_000n}
-                ticker="BTC"
-              />
-            )}
-            {props.amountError && (
-              <span className="ml-1.5 text-warning">{props.amountError}</span>
-            )}
-          </p>
-          {props.selectedUtxo && props.impliedFeeSats !== null && (
-            <p className="text-[11px] text-text-soft">
-              Using UTXO{" "}
-              <span className="font-mono text-text-strong">
-                {props.selectedUtxo.txid.slice(0, 8)}…:{props.selectedUtxo.vout}
-              </span>
-              {". "}
-              {formatSats(BigInt(props.selectedUtxo.value))} BTC · implicit fee{" "}
-              {formatSats(props.impliedFeeSats)} BTC
-              <InfoTip
-                label="How the fee is picked"
-                width="md"
-                size="xs"
-                side="end"
-              >
-                <span className="block">
-                  Single-input, single-output P2WPKH transfer. Fee is implicit
-                  (input value − output value); we pick the smallest UTXO that
-                  covers your amount + a {Number(FEE_RESERVE_SATS)} sat fee
-                  floor.
+            footer={
+              <>
+                <span>Wallet has </span>
+                <span className="font-numerals font-medium text-text-strong tabular-nums">
+                  {props.balanceLoading
+                    ? "checking..."
+                    : balanceBtc !== null
+                      ? balanceBtc
+                      : btcBalanceStatusLabel(props.balanceError, props.network)}
                 </span>
-              </InfoTip>
-            </p>
-          )}
+                {balanceBtc !== null ? <span> BTC</span> : null}
+                {props.balanceSats !== null && (
+                  <UsdHint
+                    amount={props.balanceSats}
+                    smallestPerWhole={100_000_000n}
+                    ticker="BTC"
+                  />
+                )}
+                {props.amountError && (
+                  <span className="ml-1.5 text-warning">{props.amountError}</span>
+                )}
+                {props.selectedUtxo && props.impliedFeeSats !== null && (
+                  <span className="block pt-1 text-[11px]">
+                    Using UTXO{" "}
+                    <span className="font-mono text-text-strong">
+                      {props.selectedUtxo.txid.slice(0, 8)}…:{props.selectedUtxo.vout}
+                    </span>
+                    {". "}
+                    {formatSats(BigInt(props.selectedUtxo.value))} BTC · fee{" "}
+                    {formatSats(props.impliedFeeSats)} BTC
+                    <InfoTip
+                      label="How the fee is picked"
+                      width="md"
+                      size="xs"
+                      side="end"
+                    >
+                      <span className="block">
+                        Single-input, single-output P2WPKH transfer. Fee is
+                        input value minus output value.
+                      </span>
+                    </InfoTip>
+                  </span>
+                )}
+              </>
+            }
+          />
         </section>
 
         {/* Recipient card. Same merged-mobile / split-lg+
@@ -1120,7 +1095,7 @@ function ComposeForm(props: {
         <section
           className={
             "flex flex-col gap-3 " +
-            "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-5 lg:shadow-card-rest"
+            "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-4 lg:shadow-card-rest"
           }
         >
           <label
@@ -1198,24 +1173,8 @@ function ComposeForm(props: {
           </div>
         )}
 
-      {/* Action footer. InfoTip-backed approval hint + sticky CTA. */}
-      <div className="flex flex-col gap-3 pt-1">
-        <p className="inline-flex items-center gap-1.5 text-xs text-text-soft">
-          Friends in {props.walletDisplay} approve before it sends.
-          <InfoTip
-            label="How approvals work"
-            width="md"
-            size="xs"
-            side="start"
-          >
-            <span className="block">
-              When you tap Send, this becomes a proposal in{" "}
-              {props.walletDisplay}. The other approvers in this wallet get a
-              notification and the transfer only goes through once the
-              threshold approves. You can cancel anytime before that.
-            </span>
-          </InfoTip>
-        </p>
+      {/* Action footer. Sticky CTA mirrors the other send pages. */}
+      <div className="flex flex-col gap-2 pt-1">
         <div
           className={
             "-mx-3 sm:mx-0 px-3 sm:px-0 " +

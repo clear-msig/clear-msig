@@ -31,6 +31,7 @@ import {
 } from "@/components/retail/SendReceipt";
 import { UsdHint } from "@/components/retail/UsdHint";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
+import { SendAmountField } from "@/components/retail/SendAmountField";
 import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
 import { resolvePolicyEnforcement } from "@/lib/policies/enforce";
@@ -499,7 +500,7 @@ function PreFlightCard({
         <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Zcash send
         </p>
-        <h1 className="mt-2 font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong">
+        <h1 className="mt-2 font-display text-2xl font-semibold leading-tight text-text-strong">
           {title}
         </h1>
         <p className="mt-2 text-sm text-text-soft">{body}</p>
@@ -561,17 +562,17 @@ function ZcashCompose({
     details.push({ label: "Amount", value: `${amount.trim()} ZEC`, emphasis: "amount" });
   }
   return (
-    <div className="flex flex-col gap-5">
-      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+    <div className="flex flex-col gap-4">
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex items-center gap-3">
           {zecMeta ? <ChainBadge chain={zecMeta} size="md" /> : null}
           <div className="flex flex-col gap-0.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-                Send
-              </p>
-              <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
-                Send ZEC
-              </h1>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              Send
+            </p>
+            <h1 className="hidden font-display text-2xl font-semibold leading-tight text-text-strong md:block">
+              Send ZEC
+            </h1>
           </div>
         </div>
         <p className="text-xs text-text-soft sm:text-sm">
@@ -579,18 +580,41 @@ function ZcashCompose({
         </p>
       </header>
 
-      <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2">
-          <Field label="Amount">
-            <input
-              type="text"
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))}
-              placeholder="0"
-              className="w-full rounded-card border border-border-soft bg-canvas px-4 py-3 text-sm text-text-strong outline-none"
-            />
-          </Field>
+      <div className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start">
+          <SendAmountField
+            id="zec-amount"
+            ticker="ZEC"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))}
+            footer={
+              <>
+                <span>Wallet has </span>
+                <span className="font-numerals font-medium text-text-strong tabular-nums">
+                  {balance !== null ? formatSats(balance) : "..."}
+                </span>
+                <span> ZEC</span>
+                {balance !== null ? (
+                  <UsdHint
+                    amount={balance}
+                    smallestPerWhole={100_000_000n}
+                    ticker="ZEC"
+                  />
+                ) : null}
+                {selectedUtxo ? (
+                  <span className="block pt-1 text-[11px]">
+                    Using input {selectedUtxo.txid.slice(0, 10)}…:
+                    {selectedUtxo.vout}
+                  </span>
+                ) : null}
+              </>
+            }
+            warning={
+              insufficientBalance ? (
+                <span className="font-medium">Insufficient balance.</span>
+              ) : null
+            }
+          />
           <Field label="To" hint={recipient.trim() && !recipientValid ? recipientDecoded.ok ? undefined : recipientDecoded.reason : undefined}>
             <input
               type="text"
@@ -601,14 +625,6 @@ function ZcashCompose({
             />
           </Field>
         </div>
-        <p className="mt-4 text-xs text-text-soft">
-          Wallet has {balance !== null ? formatSats(balance) : "…"} ZEC
-          {balance !== null ? <UsdHint amount={balance} smallestPerWhole={100_000_000n} ticker="ZEC" /> : null}
-          {selectedUtxo ? (
-            <span className="ml-2">Using input {selectedUtxo.txid.slice(0, 10)}…:{selectedUtxo.vout}</span>
-          ) : null}
-          {insufficientBalance ? <span className="ml-2 text-warning">Insufficient balance.</span> : null}
-        </p>
       </div>
 
       <SignPayloadPreview action={amountValid && recipientValid ? `Send ${amount.trim()} ZEC` : "Fill in the amount and recipient above"} details={details} collapsibleDetails />

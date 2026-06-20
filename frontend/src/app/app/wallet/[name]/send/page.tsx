@@ -76,6 +76,7 @@ import { QrScanButton } from "@/components/retail/QrScanButton";
 import { RecentRecipientsChips } from "@/components/retail/RecentRecipientsChips";
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
+import { SendAmountField } from "@/components/retail/SendAmountField";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { chainByKind } from "@/lib/retail/chains";
 import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
@@ -1195,25 +1196,31 @@ function ComposeStage({
         }
       >
 
-      {/* Amount card - proper bordered card with a section eyebrow.
-          The number stays the most prominent pixel on the page, but
-          it now sits inside a clear container instead of floating
-          centered. Balance + Max live as a footer row inside the
-          same card - they're scoped to the amount, not the page.
-          Card chrome only applies at lg+; on mobile the parent
-          already provides the bordered container. */}
+      {/* Amount card. Balance + Max live with the input so the
+          number, asset, and available balance stay visually scoped. */}
       <section
         className={
           "flex flex-col gap-3 " +
           "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-4 lg:shadow-card-rest"
         }
       >
-        <div className="flex items-center justify-between">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            Amount
-          </p>
-          {typeof vaultBalanceLamports === "bigint" &&
-            vaultBalanceLamports > 0n && (
+        <SendAmountField
+          id="send-amount-input"
+          ticker="SOL"
+          value={amount}
+          onChange={(e) => {
+            const raw = e.target.value.replace(/[^\d.]/g, "");
+            const [wholeRaw = "", frac] = raw.split(".");
+            const whole = wholeRaw.slice(0, 12);
+            const next =
+              frac === undefined ? whole : `${whole}.${frac.slice(0, 4)}`;
+            setAmount(next);
+          }}
+          autoFocus
+          maxLength={20}
+          action={
+            typeof vaultBalanceLamports === "bigint" &&
+            vaultBalanceLamports > 0n ? (
               <button
                 type="button"
                 onClick={(e) => {
@@ -1228,73 +1235,39 @@ function ComposeStage({
               >
                 Use max
               </button>
-            )}
-        </div>
-        <label htmlFor="send-amount-input" className="sr-only">
-          Amount in SOL
-        </label>
-        <div
-          className={
-            "flex items-baseline gap-3 border-b border-glass-soft pb-3 " +
-            "transition-colors duration-base ease-out-soft " +
-            "focus-within:border-glass-strong"
+            ) : null
           }
-        >
-          <input
-            id="send-amount-input"
-            type="text"
-            inputMode="decimal"
-            value={amount}
-            onChange={(e) => {
-              const raw = e.target.value.replace(/[^\d.]/g, "");
-              const [wholeRaw = "", frac] = raw.split(".");
-              const whole = wholeRaw.slice(0, 12);
-              const next =
-                frac === undefined ? whole : `${whole}.${frac.slice(0, 4)}`;
-              setAmount(next);
-            }}
-            placeholder="0"
-            autoFocus
-            maxLength={20}
-            aria-label="Amount in SOL"
-            className="min-w-0 flex-1 bg-transparent font-numerals text-3xl font-semibold text-text-strong tabular-nums outline-none placeholder:text-text-soft/50 sm:text-4xl"
-          />
-          <span
-            aria-hidden="true"
-            className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft sm:text-lg"
-          >
-            SOL
-          </span>
-        </div>
-        <p className="text-xs text-text-soft">
-          <span>Wallet has </span>
-          <span className="font-numerals font-medium text-text-strong tabular-nums">
-            {balanceLoading
-              ? "…"
-              : typeof vaultBalanceLamports === "bigint"
-                ? formatLamports(vaultBalanceLamports)
-                : "-"}
-          </span>
-          <span> SOL</span>
-          {typeof vaultBalanceLamports === "bigint" && (
-            <UsdHint
-              amount={vaultBalanceLamports}
-              smallestPerWhole={1_000_000_000n}
-              ticker="SOL"
-            />
-          )}
-          {amount && (
+          footer={
             <>
-              <span aria-hidden="true" className="mx-1.5">
-                ·
+              <span>Wallet has </span>
+              <span className="font-numerals font-medium text-text-strong tabular-nums">
+                {balanceLoading
+                  ? "..."
+                  : typeof vaultBalanceLamports === "bigint"
+                    ? formatLamports(vaultBalanceLamports)
+                    : "-"}
               </span>
-              <span>{display} SOL to send</span>
+              <span> SOL</span>
+              {typeof vaultBalanceLamports === "bigint" && (
+                <UsdHint
+                  amount={vaultBalanceLamports}
+                  smallestPerWhole={1_000_000_000n}
+                  ticker="SOL"
+                />
+              )}
+              {amount && (
+                <>
+                  <span aria-hidden="true" className="mx-1.5">
+                    ·
+                  </span>
+                  <span>{display} SOL to send</span>
+                </>
+              )}
             </>
-          )}
-        </p>
-        {insufficientBalance &&
-          typeof vaultBalanceLamports === "bigint" && (
-            <p className="rounded-soft border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-text-strong">
+          }
+          warning={
+            insufficientBalance && typeof vaultBalanceLamports === "bigint" ? (
+              <>
               <span className="font-medium">Insufficient balance.</span>{" "}
               {walletDisplay} has {formatLamports(vaultBalanceLamports)} SOL
               <UsdHint
@@ -1303,8 +1276,10 @@ function ComposeStage({
                 ticker="SOL"
               />
               {" "}- top up before sending.
-            </p>
-          )}
+              </>
+            ) : null
+          }
+        />
       </section>
 
       {/* Recipient + Note card. Same merged-on-mobile / split-on-lg+

@@ -330,7 +330,7 @@ function ComposeStage({
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
               Batch send
             </p>
-            <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
+            <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight text-text-strong sm:text-3xl">
               Pay many at once
             </h1>
           </div>
@@ -399,7 +399,7 @@ function ComposeStage({
           </span>
         </div>
         <p className="flex items-baseline gap-2">
-          <span className="font-numerals text-3xl font-semibold leading-none tracking-tight text-text-strong tabular-nums sm:text-4xl">
+          <span className="font-numerals text-3xl font-semibold leading-none text-text-strong tabular-nums sm:text-4xl">
             {formatSol(totalSol)}
           </span>
           <span className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft">
@@ -566,7 +566,7 @@ function ReviewStage({
         <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Review batch
         </p>
-        <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
+        <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight text-text-strong sm:text-3xl">
           {rows.length} request{rows.length === 1 ? "" : "s"} from{" "}
           {walletDisplay}
         </h1>
@@ -614,7 +614,7 @@ function ReviewStage({
           Total
         </span>
         <span className="inline-flex items-baseline gap-2">
-          <span className="font-numerals text-3xl font-semibold leading-none tracking-tight text-text-strong tabular-nums sm:text-4xl">
+          <span className="font-numerals text-3xl font-semibold leading-none text-text-strong tabular-nums sm:text-4xl">
             {formatSol(totalSol)}
           </span>
           <span className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft">
@@ -746,7 +746,7 @@ function DoneStage({
         </div>
 
         <p className="mt-5 inline-flex items-baseline gap-2">
-          <span className="font-numerals text-3xl font-semibold leading-none tracking-tight text-text-strong tabular-nums sm:text-4xl">
+          <span className="font-numerals text-3xl font-semibold leading-none text-text-strong tabular-nums sm:text-4xl">
             {progress.succeeded}
           </span>
           <span className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft">
