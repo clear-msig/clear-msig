@@ -24,12 +24,121 @@
 //     are replaced by DynamicContextProvider in AppProviders.
 
 import { useCallback, useMemo } from "react";
-import { Connection, PublicKey } from "@solana/web3.js";
+import {
+  Connection,
+  PublicKey,
+  type Transaction,
+  type VersionedTransaction,
+} from "@solana/web3.js";
 import { useDynamicContext, useUserWallets } from "@dynamic-labs/sdk-react-core";
 import { isSolanaWallet } from "@dynamic-labs/solana-core";
 import { createSolanaConnection } from "@/lib/solana/cluster";
 import { useLedger } from "@/lib/wallet/LedgerProvider";
-import { selectSolanaWallet, walletConnectorId } from "@/lib/wallet/selection";
+import {
+  isCompatibleEmbeddedWallet,
+  selectSolanaWallet,
+  walletConnectorId,
+} from "@/lib/wallet/selection";
+
+type SolanaTransaction = Transaction | VersionedTransaction;
+
+type InjectedSolanaProvider = {
+  isBackpack?: boolean;
+  isPhantom?: boolean;
+  isSolflare?: boolean;
+  publicKey?: { toString(): string };
+  signTransaction?: <T extends SolanaTransaction>(tx: T) => Promise<T>;
+};
+
+type InjectedProviderCandidate = {
+  source: "backpack" | "phantom" | "solana" | "solflare";
+  provider: InjectedSolanaProvider | undefined;
+};
+
+function getInjectedProviderCandidates(
+  connectorKey: string,
+): InjectedProviderCandidate[] {
+  if (typeof window === "undefined") return [];
+  const w = window as unknown as {
+    backpack?: InjectedSolanaProvider;
+    phantom?: { solana?: InjectedSolanaProvider };
+    solana?: InjectedSolanaProvider;
+    solflare?: InjectedSolanaProvider;
+  };
+  const wantsSolflare = /solflare/.test(connectorKey);
+  const wantsPhantom = /phantom/.test(connectorKey);
+  const wantsBackpack = /backpack/.test(connectorKey);
+  if (wantsSolflare) {
+    return [
+      { source: "solflare", provider: w.solflare },
+      { source: "solana", provider: w.solana },
+    ];
+  }
+  if (wantsPhantom) {
+    return [
+      { source: "phantom", provider: w.phantom?.solana },
+      { source: "solana", provider: w.solana },
+    ];
+  }
+  if (wantsBackpack) {
+    return [
+      { source: "backpack", provider: w.backpack },
+      { source: "solana", provider: w.solana },
+    ];
+  }
+  return [
+    { source: "solana", provider: w.solana },
+    { source: "solflare", provider: w.solflare },
+    { source: "phantom", provider: w.phantom?.solana },
+    { source: "backpack", provider: w.backpack },
+  ];
+}
+
+function injectedProviderMatchesConnector(
+  candidate: InjectedProviderCandidate,
+  connectorKey: string,
+) {
+  const { provider, source } = candidate;
+  if (!provider) return false;
+  if (/solflare/.test(connectorKey)) {
+    return source === "solflare" || provider.isSolflare === true;
+  }
+  if (/phantom/.test(connectorKey)) {
+    return source === "phantom" || provider.isPhantom === true;
+  }
+  if (/backpack/.test(connectorKey)) {
+    return source === "backpack" || provider.isBackpack === true;
+  }
+  return true;
+}
+
+async function signTransactionWithInjectedProvider<T extends SolanaTransaction>({
+  connectorKey,
+  expectedPublicKey,
+  transaction,
+}: {
+  connectorKey: string;
+  expectedPublicKey: PublicKey | null;
+  transaction: T;
+}): Promise<T | null> {
+  const expected = expectedPublicKey?.toBase58();
+  if (!expected) return null;
+
+  for (const candidate of getInjectedProviderCandidates(connectorKey)) {
+    const { provider } = candidate;
+    if (
+      !provider ||
+      typeof provider.signTransaction !== "function" ||
+      !injectedProviderMatchesConnector(candidate, connectorKey)
+    ) {
+      continue;
+    }
+    const providerPublicKey = provider.publicKey?.toString();
+    if (!providerPublicKey || providerPublicKey !== expected) continue;
+    return provider.signTransaction(transaction);
+  }
+  return null;
+}
 
 /// Drop-in replacement for `useWallet()` from @solana/wallet-adapter-react.
 /// Returns a Solana wallet view derived from Dynamic's primary wallet,
@@ -253,20 +362,22 @@ export function useWallet() {
     await handleLogOut();
   }, [handleLogOut, ledger]);
 
-  /// Sign a v0 transaction through the active signer. Currently only
-  /// the Dynamic Solana wallet path is wired (Ledger transaction
+  /// Sign a v0 transaction through the active signer. Ledger transaction
   /// signing isn't implemented for clear-msig - every clear-msig flow
-  /// signs ed25519 messages, not transactions). The /app/secure
+  /// signs ed25519 messages, not transactions. The /app/secure
   /// (ikavery vault) flow needs full transaction signing because the
   /// ikavery program is invoked by the user themselves, not via the
-  /// shared multisig.
+  /// shared multisig. External injected wallets are called directly
+  /// when their browser provider matches Dynamic's tracked pubkey; this
+  /// avoids accidentally routing Solflare / Phantom / Backpack through
+  /// an embedded WebAuthn wallet path.
   ///
   /// Throws when called from a Ledger session - caller should detect
   /// `isLedger` and gate accordingly. Throws "no signer" when the
   /// Dynamic Solana wallet isn't ready (e.g. user logged in with email
   /// but the embedded Solana wallet hasn't minted yet).
   const signTransaction = useCallback(
-    async <T extends import("@solana/web3.js").Transaction | import("@solana/web3.js").VersionedTransaction>(
+    async <T extends SolanaTransaction>(
       transaction: T,
     ): Promise<T> => {
       if (ledger.session) {
@@ -277,13 +388,21 @@ export function useWallet() {
       if (!solanaWallet) {
         throw new Error("Connect a wallet before signing");
       }
+      if (!isCompatibleEmbeddedWallet(solanaWallet)) {
+        const injectedSigned = await signTransactionWithInjectedProvider({
+          connectorKey: walletConnectorKey,
+          expectedPublicKey: dynamicPublicKey,
+          transaction,
+        });
+        if (injectedSigned) return injectedSigned;
+      }
       // Dynamic's SolanaWallet exposes getSigner() which returns an
       // object implementing ISolana with signTransaction<T>. Same call
       // path the SolanaWalletConnector uses internally.
       const getter = (
         solanaWallet as unknown as {
           getSigner: () => Promise<{
-            signTransaction: <U extends import("@solana/web3.js").Transaction | import("@solana/web3.js").VersionedTransaction>(
+            signTransaction: <U extends SolanaTransaction>(
               tx: U,
             ) => Promise<U>;
           }>;
@@ -297,7 +416,7 @@ export function useWallet() {
       const signer = await getter.call(solanaWallet);
       return signer.signTransaction(transaction);
     },
-    [solanaWallet, ledger.session],
+    [solanaWallet, ledger.session, walletConnectorKey, dynamicPublicKey],
   );
 
   return {

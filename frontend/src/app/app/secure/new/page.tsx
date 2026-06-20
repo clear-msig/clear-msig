@@ -49,6 +49,7 @@ import {
   type CreatePasskeyProgress,
   type CreateVaultStage,
 } from "@/lib/ikavery/clearmsig-actions";
+import { secureActionErrorCopy } from "@/lib/ikavery/errors";
 import { detectWebauthnAvailability } from "@/lib/ikavery/webauthn";
 
 type Stage = "shape" | "confirm" | "creating" | "done";
@@ -235,9 +236,8 @@ function SecureBuildPage() {
       ]);
     } catch (e) {
       console.error("[secure/build]", e);
-      toast.error("Couldn't build the vault", {
-        details: e instanceof Error ? e.message : String(e),
-      });
+      const copy = secureActionErrorCopy(e, "Couldn't build the vault");
+      toast.error(copy.title, { details: copy.details });
       setCreateSubStage(null);
       setPasskeyProgress(null);
       setStage("confirm");

@@ -61,6 +61,7 @@ import {
 } from "@/lib/ikavery/clearmsig-sweep";
 import { SCHEME_SOLANA_ADDRESS } from "@/lib/ikavery/constants";
 import { decodeProposal } from "@/lib/ikavery/codec/proposal";
+import { secureActionErrorCopy } from "@/lib/ikavery/errors";
 
 interface SplHolding {
   mint: string;
@@ -609,9 +610,8 @@ function SweepPage() {
       });
     } catch (e) {
       console.error("[secure/sweep]", e);
-      toast.error("Sweep failed", {
-        details: e instanceof Error ? e.message : String(e),
-      });
+      const copy = secureActionErrorCopy(e, "Sweep failed");
+      toast.error(copy.title, { details: copy.details });
       setRunStage(null);
       setCollectInfo(null);
       collectResolveRef.current = null;
@@ -658,7 +658,9 @@ function SweepPage() {
       }
     } catch (e) {
       console.error("[secure/sweep] addApproval", e);
-      setCollectError(e instanceof Error ? e.message : String(e));
+      setCollectError(
+        secureActionErrorCopy(e, "Couldn't add approval").details,
+      );
     } finally {
       setCollectBusy(false);
     }

@@ -45,6 +45,7 @@ import {
 import { registerPasskey } from "@/lib/ikavery/passkey/registration";
 import { loadAttestation } from "@/lib/ikavery/clearmsig-attestations";
 import { SCHEME_SOLANA_ADDRESS } from "@/lib/ikavery/constants";
+import { secureActionErrorCopy } from "@/lib/ikavery/errors";
 import {
   detectWebauthnAvailability,
   type WebauthnAvailability,
@@ -321,9 +322,8 @@ function EnrollDevicePage() {
       });
     } catch (e) {
       console.error("[secure/enroll]", e);
-      toast.error("Couldn't enroll the device", {
-        details: e instanceof Error ? e.message : String(e),
-      });
+      const copy = secureActionErrorCopy(e, "Couldn't enroll the device");
+      toast.error(copy.title, { details: copy.details });
       setSubStage(null);
       setStage("intro");
     }

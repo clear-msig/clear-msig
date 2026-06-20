@@ -982,6 +982,14 @@ function ComposeForm(props: {
 }) {
   const balanceBtc =
     props.balanceSats !== null ? formatSats(props.balanceSats) : null;
+  const highFeeBlocked =
+    props.selectedUtxo !== null &&
+    props.impliedFeeSats !== null &&
+    props.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS;
+  const safeMaxSats =
+    highFeeBlocked && props.selectedUtxo
+      ? BigInt(props.selectedUtxo.value) - FEE_RESERVE_SATS
+      : 0n;
   return (
     <>
       {/* Compose grid. Amount + Recipient sit side-by-side on lg+
@@ -1117,17 +1125,13 @@ function ComposeForm(props: {
         </section>
       </div>
 
-      {props.selectedUtxo &&
-        props.impliedFeeSats !== null &&
-        props.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS && (
+      {highFeeBlocked && props.selectedUtxo && props.impliedFeeSats !== null && (
           <HighFeeBlocker
             selectedUtxo={props.selectedUtxo}
             impliedFeeSats={props.impliedFeeSats}
             onUseSafeMax={() => {
-              const safeAmount =
-                BigInt(props.selectedUtxo.value) - FEE_RESERVE_SATS;
-              if (safeAmount > 0n) {
-                props.setAmountBtc(formatSats(safeAmount));
+              if (safeMaxSats > 0n) {
+                props.setAmountBtc(formatSats(safeMaxSats));
               }
             }}
           />
