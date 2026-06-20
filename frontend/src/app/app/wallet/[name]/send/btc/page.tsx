@@ -76,11 +76,9 @@ import { resolvePolicyEnforcement } from "@/lib/policies/enforce";
 import {
   DEFAULT_BITCOIN_NETWORK,
   decodeSegwitAddress,
-  detectBitcoinNetwork,
   esploraBaseUrl,
   bitcoinExplorerLabel,
-  fetchBitcoinBalance,
-  fetchBitcoinUtxos,
+  fetchBitcoinAddressSnapshot,
   formatSats,
   mempoolSpaceTxUrl,
   parseBtcAmount,
@@ -161,31 +159,22 @@ function BitcoinSendPage() {
     return btcBinding ? chainAddress(btcBinding) : null;
   }, [btcBinding]);
 
-  // Pre-alpha runs against Solana DEVNET + Ika's mock signer, so
-  // every BTC binding here is testnet-class (the backend returns
-  // both `btc_p2wpkh_mainnet` and `btc_p2wpkh_testnet` for the same
-  // HASH160; chainAddress already prefers the tb-HRP form). The `tb`
-  // HRP is shared between testnet3 and signet though, so we have to
-  // probe both Esplora endpoints to find which one actually has the
-  // user's UTXOs. Default `testnet` while the probe runs so the page
-  // can render skeletons; the network query swaps in once it lands.
-  const networkQuery = useQuery({
-    queryKey: ["btc-network-detect", dwalletAddress ?? "none"],
+  const btcSnapshotQuery = useQuery({
+    queryKey: ["btc-address-snapshot", dwalletAddress ?? "none"],
     queryFn: () =>
       dwalletAddress
-        ? detectBitcoinNetwork(dwalletAddress)
-        : DEFAULT_BITCOIN_NETWORK,
+        ? fetchBitcoinAddressSnapshot(dwalletAddress)
+        : {
+            network: DEFAULT_BITCOIN_NETWORK,
+            balanceSats: 0n,
+            utxos: [],
+          },
     enabled: !!dwalletAddress,
-    // The detection is essentially "what faucet did the user use?" ,
-    // it doesn't change after the first funded UTXO lands, so we can
-    // cache aggressively. 5 min is long enough to not re-probe on
-    // every focus, short enough to pick up a switch if the user
-    // suddenly funds the other chain.
-    staleTime: 5 * 60_000,
-    refetchOnWindowFocus: false,
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
   });
   const btcNetwork: BitcoinNetwork =
-    networkQuery.data ?? DEFAULT_BITCOIN_NETWORK;
+    btcSnapshotQuery.data?.network ?? DEFAULT_BITCOIN_NETWORK;
 
   // sender_pkh: HASH160(dwallet pubkey) = the witness program of the
   // dWallet's own P2WPKH address. We extract by decoding the address
@@ -212,22 +201,16 @@ function BitcoinSendPage() {
   }, [intentsQuery.data]);
 
   // ── Live balance + UTXOs ──────────────────────────────────────────
-  const balanceQuery = useQuery({
-    queryKey: ["btc-balance", dwalletAddress ?? "none", btcNetwork],
-    queryFn: () =>
-      dwalletAddress ? fetchBitcoinBalance(dwalletAddress, btcNetwork) : 0n,
-    enabled: !!dwalletAddress,
-    staleTime: 15_000,
-    refetchOnWindowFocus: true,
-  });
-  const utxosQuery = useQuery({
-    queryKey: ["btc-utxos", dwalletAddress ?? "none", btcNetwork],
-    queryFn: () =>
-      dwalletAddress ? fetchBitcoinUtxos(dwalletAddress, btcNetwork) : [],
-    enabled: !!dwalletAddress,
-    staleTime: 15_000,
-    refetchOnWindowFocus: true,
-  });
+  const balanceSats = btcSnapshotQuery.data?.balanceSats ?? null;
+  const btcUtxos = useMemo(
+    () => btcSnapshotQuery.data?.utxos ?? [],
+    [btcSnapshotQuery.data?.utxos],
+  );
+  const largestSpendableSats = useMemo(() => {
+    const largest = btcUtxos[0];
+    if (!largest || largest.value <= Number(FEE_RESERVE_SATS)) return 0n;
+    return BigInt(largest.value) - FEE_RESERVE_SATS;
+  }, [btcUtxos]);
 
   // ── Form state ────────────────────────────────────────────────────
   const [destination, setDestination] = useState("");
@@ -272,18 +255,18 @@ function BitcoinSendPage() {
   // (`examples/intents/btc_transfer.json`); multi-input would need a
   // template extension.
   const selectedUtxo = useMemo<EsploraUtxo | null>(() => {
-    if (!utxosQuery.data || !sendAmountSats) return null;
+    if (!btcUtxos.length || !sendAmountSats) return null;
     const need = sendAmountSats + FEE_RESERVE_SATS;
     // utxos are sorted desc by value; pick the smallest one that
     // covers `need`. Walking from the smallest up wastes less change
     // (single-input means change isn't returned. Every extra sat
     // becomes the fee).
-    const candidates = [...utxosQuery.data].sort((a, b) => a.value - b.value);
+    const candidates = [...btcUtxos].sort((a, b) => a.value - b.value);
     for (const u of candidates) {
       if (BigInt(u.value) >= need) return u;
     }
     return null;
-  }, [utxosQuery.data, sendAmountSats]);
+  }, [btcUtxos, sendAmountSats]);
 
   const impliedFeeSats = useMemo<bigint | null>(() => {
     if (!selectedUtxo || !sendAmountSats) return null;
@@ -553,11 +536,11 @@ function BitcoinSendPage() {
         broadcast: true,
         dwallet_program: appConfig.preAlpha.dwalletProgramId,
         grpc_url: appConfig.preAlpha.grpcUrl,
-      // BTC needs a Bitcoin RPC/Esplora base, not the backend's
-      // EVM destination RPC. We pass the network-specific Bitcoin
-      // endpoint explicitly so the CLI's Bitcoin broadcast adapter
-      // can choose Alchemy JSON-RPC or Esplora as appropriate.
-      rpc_url: esploraBaseUrl(btcNetwork),
+        // BTC needs a Bitcoin RPC/Esplora base, not the backend's
+        // EVM destination RPC. We pass the network-specific Bitcoin
+        // endpoint explicitly so the CLI's Bitcoin broadcast adapter
+        // can choose Alchemy JSON-RPC or Esplora as appropriate.
+        rpc_url: esploraBaseUrl(btcNetwork),
       });
       const broadcast = (executed as { broadcast?: BroadcastResultLike })
         ?.broadcast;
@@ -585,10 +568,7 @@ function BitcoinSendPage() {
       });
       // Refresh balance + UTXOs so the next send sees the spent state.
       void queryClient.invalidateQueries({
-        queryKey: ["btc-balance", dwalletAddress ?? "none", btcNetwork],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["btc-utxos", dwalletAddress ?? "none", btcNetwork],
+        queryKey: ["btc-address-snapshot", dwalletAddress ?? "none"],
       });
     },
     onError: (err, _vars, _ctx) => {
@@ -633,7 +613,7 @@ function BitcoinSendPage() {
       return;
     }
     if (!selectedUtxo) {
-      const max = utxosQuery.data?.[0]?.value ?? 0;
+      const max = btcUtxos[0]?.value ?? 0;
       setAmountError(
         `No single UTXO covers ${formatSats(sendAmountSats)} BTC + fee reserve (${formatSats(FEE_RESERVE_SATS)} BTC). Largest UTXO: ${formatSats(BigInt(max))} BTC.`,
       );
@@ -753,9 +733,9 @@ function BitcoinSendPage() {
           <NeedsSetup
             walletDisplay={walletDisplay}
             address={dwalletAddress}
-            balanceSats={balanceQuery.data ?? null}
-            balanceLoading={balanceQuery.isLoading || networkQuery.isLoading}
-            balanceError={balanceQuery.error}
+            balanceSats={balanceSats}
+            balanceLoading={btcSnapshotQuery.isLoading}
+            balanceError={btcSnapshotQuery.error}
             network={btcNetwork}
             onSetup={() => setupIntent.mutate()}
             busy={setupIntent.isPending}
@@ -809,9 +789,10 @@ function BitcoinSendPage() {
             amountBtc={amountBtc}
             setAmountBtc={setAmountBtc}
             amountError={amountError}
-            balanceSats={balanceQuery.data ?? null}
-            balanceLoading={balanceQuery.isLoading || networkQuery.isLoading}
-            balanceError={balanceQuery.error}
+            balanceSats={balanceSats}
+            balanceLoading={btcSnapshotQuery.isLoading}
+            balanceError={btcSnapshotQuery.error}
+            maxSpendableSats={largestSpendableSats}
             selectedUtxo={selectedUtxo}
             impliedFeeSats={impliedFeeSats}
             address={dwalletAddress}
@@ -985,6 +966,7 @@ function ComposeForm(props: {
   balanceSats: bigint | null;
   balanceLoading: boolean;
   balanceError: Error | null;
+  maxSpendableSats: bigint;
   selectedUtxo: EsploraUtxo | null;
   impliedFeeSats: bigint | null;
   address: string | null;
@@ -1008,8 +990,8 @@ function ComposeForm(props: {
           "lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none"
         }
       >
-        {/* Amount card. Eyebrow + Use max pill, underline-style
-            input, balance line as plain text. */}
+        {/* Amount card. Balance + Use max live with the input so the
+            spendable BTC state stays visually scoped. */}
         <section
           className={
             "flex flex-col gap-3 " +
@@ -1023,23 +1005,17 @@ function ComposeForm(props: {
             onChange={(e) => props.setAmountBtc(e.target.value)}
             maxLength={20}
             action={
-              props.balanceSats !== null && props.balanceSats > 0n ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  // Reserve a tiny fee floor so the UTXO selector
-                  // can still cover input - amount > 0.
-                  const max =
-                    props.balanceSats! > FEE_RESERVE_SATS
-                      ? props.balanceSats! - FEE_RESERVE_SATS
-                      : 0n;
-                  props.setAmountBtc(formatSats(max));
-                }}
-                className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent transition-colors duration-base ease-out-soft hover:bg-accent/15"
-              >
-                Use max
-              </button>
+              props.maxSpendableSats > 0n ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    props.setAmountBtc(formatSats(props.maxSpendableSats));
+                  }}
+                  className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent transition-colors duration-base ease-out-soft hover:bg-accent/15"
+                >
+                  Use max
+                </button>
               ) : null
             }
             footer={

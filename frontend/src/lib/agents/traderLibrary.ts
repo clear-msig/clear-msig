@@ -204,8 +204,8 @@ export function createClearSigLibraryPracticeIdea({
     ),
   );
   const mark = positiveNumber(marketData?.markPriceUsd, positiveNumber(template.referencePriceUsd, 1));
-  const side = choosePracticeSide(template, agent, marketData);
-  const leverage = positiveNumber(maxLeverage, template.defaultLeverage);
+  const side = choosePracticeSide(template, agent, marketData, id, now);
+  const leverage = choosePracticeLeverage(template, maxLeverage);
   const isLong = side === "long";
   const stopMultiplier = isLong
     ? 1 - template.stopDistancePct / 100
@@ -244,6 +244,8 @@ function choosePracticeSide(
   template: ClearSigTraderTemplate,
   agent: AgentProfile,
   marketData?: AgentMarketDataSnapshot | null,
+  seed = "",
+  now = Date.now(),
 ): TradeSide {
   const strategyText = [
     agent.strategy?.summary,
@@ -253,10 +255,15 @@ function choosePracticeSide(
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
-  if (strategyText.includes("short") || strategyText.includes("hedge")) {
+  if (
+    strategyText.includes("short") ||
+    strategyText.includes("hedge") ||
+    strategyText.includes("defensive") ||
+    strategyText.includes("falling")
+  ) {
     return "short";
   }
-  if (strategyText.includes("long") || strategyText.includes("trend")) {
+  if (strategyText.includes("long") && !strategyText.includes("short")) {
     return "long";
   }
   const funding = Number(marketData?.fundingRatePct ?? "");
@@ -264,7 +271,36 @@ function choosePracticeSide(
     if (funding > 0.025) return "short";
     if (funding < -0.01) return "long";
   }
+  const mark = Number(marketData?.markPriceUsd ?? "");
+  const reference = Number(template.referencePriceUsd);
+  if (Number.isFinite(mark) && Number.isFinite(reference) && reference > 0) {
+    const move = (mark - reference) / reference;
+    if (move >= 0.03) return "short";
+    if (move <= -0.025) return "long";
+  }
+  if (template.risk === "balanced") {
+    return hashParity(`${agent.id}:${template.id}:${seed}:${Math.floor(now / 60_000)}`)
+      ? "short"
+      : "long";
+  }
   return template.defaultSide;
+}
+
+function choosePracticeLeverage(
+  template: ClearSigTraderTemplate,
+  maxLeverage?: number | null,
+): number {
+  const allowed = Math.floor(positiveNumber(maxLeverage, template.defaultLeverage));
+  if (allowed <= 1) return 1;
+  return Math.max(1, allowed);
+}
+
+function hashParity(value: string): boolean {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  }
+  return hash % 2 === 0;
 }
 
 function customPracticeTemplate(agent: AgentProfile): ClearSigTraderTemplate {

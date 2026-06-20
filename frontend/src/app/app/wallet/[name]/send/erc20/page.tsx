@@ -496,7 +496,7 @@ function SendErc20Page() {
         title="Turn on token sending"
         body="Ethereum is on this wallet. Finish setup to unlock ERC-20 sends."
         cta={{
-          href: `/app/wallet/${encodeURIComponent(walletName)}/setup/erc20`,
+          href: `/app/wallet/${encodeURIComponent(walletName)}/setup/erc20?autostart=1`,
           label: "Turn on token sending",
         }}
       />

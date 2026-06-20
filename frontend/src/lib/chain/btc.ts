@@ -367,6 +367,91 @@ export interface EsploraUtxo {
   status: { confirmed: boolean; block_height?: number; block_time?: number };
 }
 
+export interface BitcoinAddressSnapshot {
+  network: BitcoinNetwork;
+  balanceSats: bigint;
+  utxos: EsploraUtxo[];
+}
+
+/**
+ * Read balance + UTXOs together and pick the funded network for tb1...
+ * addresses. Testnet3 and signet share the `tb` HRP, so a separate
+ * "detect network" call can race or pick the empty side. This helper
+ * keeps the send page honest: whichever testnet-class endpoint sees
+ * funds becomes the active balance/UTXO source.
+ */
+export async function fetchBitcoinAddressSnapshot(
+  address: string,
+): Promise<BitcoinAddressSnapshot> {
+  if (!address) {
+    return {
+      network: DEFAULT_BITCOIN_NETWORK,
+      balanceSats: 0n,
+      utxos: [],
+    };
+  }
+
+  const lower = address.toLowerCase();
+  if (lower.startsWith("bc1")) {
+    return fetchBitcoinAddressSnapshotForNetwork(address, "mainnet");
+  }
+  if (lower.startsWith("bcrt1")) {
+    return fetchBitcoinAddressSnapshotForNetwork(address, "regtest");
+  }
+  if (!lower.startsWith("tb1")) {
+    return fetchBitcoinAddressSnapshotForNetwork(
+      address,
+      DEFAULT_BITCOIN_NETWORK,
+    );
+  }
+
+  const networks: BitcoinNetwork[] = ["testnet", "signet"];
+  const settled = await Promise.allSettled(
+    networks.map((network) =>
+      fetchBitcoinAddressSnapshotForNetwork(address, network),
+    ),
+  );
+  const fulfilled = settled
+    .map((result) => (result.status === "fulfilled" ? result.value : null))
+    .filter((result): result is BitcoinAddressSnapshot => result !== null);
+
+  const funded = fulfilled.find(
+    (snapshot) => snapshot.balanceSats > 0n || snapshot.utxos.length > 0,
+  );
+  if (funded) return funded;
+  const preferred = fulfilled.find(
+    (snapshot) => snapshot.network === DEFAULT_BITCOIN_NETWORK,
+  );
+  if (preferred) return preferred;
+  if (fulfilled[0]) return fulfilled[0];
+
+  const reasons = settled
+    .map((result) =>
+      result.status === "rejected"
+        ? result.reason instanceof Error
+          ? result.reason.message
+          : String(result.reason)
+        : null,
+    )
+    .filter((reason): reason is string => !!reason);
+  throw new Error(
+    reasons.length
+      ? `Bitcoin indexers unavailable: ${reasons.join("; ")}`
+      : "Bitcoin indexers unavailable",
+  );
+}
+
+async function fetchBitcoinAddressSnapshotForNetwork(
+  address: string,
+  network: BitcoinNetwork,
+): Promise<BitcoinAddressSnapshot> {
+  const [balanceSats, utxos] = await Promise.all([
+    fetchBitcoinBalance(address, network),
+    fetchBitcoinUtxos(address, network),
+  ]);
+  return { network, balanceSats, utxos };
+}
+
 /**
  * Confirmed + mempool balance in satoshis for a Bitcoin address.
  * Returns 0 for fresh addresses Esplora doesn't recognise.
