@@ -67,6 +67,10 @@ import { MemberAvatarStack } from "@/components/retail/MemberAvatar";
 import { WalletAvatar } from "@/components/retail/WalletAvatar";
 import { relativeTime } from "@/lib/util/relativeTime";
 import { friendlyIntentLabel, friendlyStatus, statusTextColor } from "@/lib/retail/labels";
+import {
+  activityGroupTitle,
+  groupRecentActivityRows,
+} from "@/lib/retail/activityGroups";
 import { formatBalance } from "@/lib/retail/format";
 import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
 import {
@@ -80,7 +84,11 @@ import { useBalancePrivacy } from "@/lib/hooks/useBalancePrivacy";
 import { formatUsd } from "@/lib/retail/priceConversion";
 import { useDisplayCurrency } from "@/lib/hooks/useDisplayCurrency";
 import { UsdHint } from "@/components/retail/UsdHint";
-import { CHAIN_CATALOG as CHAIN_CATALOG_REF } from "@/lib/retail/chains";
+import { InfoTip } from "@/components/retail/InfoTip";
+import {
+  CHAIN_CATALOG as CHAIN_CATALOG_REF,
+  chainDisplayRank,
+} from "@/lib/retail/chains";
 import { appConfig } from "@/lib/config";
 import {
   isProductSurfaceId,
@@ -674,7 +682,7 @@ function tabLabelsFor(surface: ProductSurfaceId | null): Record<WalletTab, strin
     return { holdings: "Money", activity: "History", manage: "More" };
   }
   if (surface === "pro") {
-    return { holdings: "Assets", activity: "Ledger", manage: "Controls" };
+    return { holdings: "Assets", activity: "Ledger", manage: "Protection" };
   }
   if (surface === "agent") {
     return { holdings: "Funds", activity: "Journal", manage: "Setup" };
@@ -806,12 +814,12 @@ function NativeHoldingsSection({
                     aria-label={`Receive ${row.ticker}`}
                     title={`Receive ${row.ticker}`}
                     className={
-                      "inline-flex h-9 w-9 items-center justify-center rounded-full border border-border-soft bg-surface-raised text-text-soft " +
+                      "inline-flex min-h-9 items-center justify-center rounded-full border border-border-soft bg-surface-raised px-2.5 text-[11px] font-medium text-text-strong " +
                       "transition-[border-color,color,transform] duration-base ease-out-soft hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent " +
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
                     }
                   >
-                    <Download className="h-4 w-4" aria-hidden="true" />
+                    Receive
                   </Link>
                   {sendHref ? (
                     <Link
@@ -819,12 +827,12 @@ function NativeHoldingsSection({
                       aria-label={`Send ${row.ticker}`}
                       title={`Send ${row.ticker}`}
                       className={
-                        "inline-flex h-9 w-9 items-center justify-center rounded-full border border-border-soft bg-surface-raised text-text-soft " +
+                        "inline-flex min-h-9 items-center justify-center rounded-full border border-border-soft bg-surface-raised px-2.5 text-[11px] font-medium text-text-strong " +
                         "transition-[border-color,color,transform] duration-base ease-out-soft hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent " +
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
                       }
                     >
-                      <Send className="h-4 w-4" aria-hidden="true" />
+                      Send
                     </Link>
                   ) : null}
                 </div>
@@ -1000,7 +1008,7 @@ function Hero({
             }}
           />
         </div>
-        <div className="relative z-10 flex flex-col gap-3 p-3 sm:gap-4 sm:p-4 lg:gap-5">
+        <div className="relative z-10 flex flex-col gap-2.5 p-3 sm:gap-4 sm:p-4 lg:gap-5">
           <div className={profile.portfolioWrapClass}>
             <div className="flex min-w-0 items-start justify-between gap-3">
               <PortfolioPanel
@@ -1026,7 +1034,7 @@ function Hero({
               </button>
             </div>
             {profile.stats.length > 0 ? (
-              <ul className="grid grid-cols-3 gap-1.5 sm:gap-2">
+              <ul className="hidden grid-cols-3 gap-1.5 sm:grid sm:gap-2">
                 {profile.stats.map((stat) => (
                   <li
                     key={stat.label}
@@ -1117,14 +1125,14 @@ function productHeroProfile(
       stats: [
         { label: "People", value: ({ members }) => String(members) },
         { label: "Waiting", value: ({ pending }) => String(pending) },
-        { label: "Mode", value: () => "Simple" },
+        { label: "Protection", value: () => "On" },
       ],
     };
   }
   if (surface === "pro") {
     return {
       productName: "Pro",
-      eyebrow: "Pro treasury · controls",
+      eyebrow: "Pro treasury",
       avatarClass: "rounded-full",
       avatarIcon: productSurfaceIcon(surface),
       cardClass: SHARED_BALANCE_CARD_CLASS,
@@ -1276,7 +1284,7 @@ function HeroActionTile({
     <Link
       href={href}
       className={
-        "group flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-card border px-2 py-2.5 sm:min-h-[88px] sm:gap-1.5 sm:px-3 sm:py-3.5 " +
+        "group flex min-h-[60px] flex-col items-center justify-center gap-0.5 rounded-card border px-2 py-2 sm:min-h-[88px] sm:gap-1.5 sm:px-3 sm:py-3.5 " +
         "text-xs font-medium text-text-strong shadow-card-rest " +
         "transition-[transform,border-color,box-shadow,background-color] duration-base ease-out-soft " +
         "hover:-translate-y-0.5 hover:shadow-card-raised " +
@@ -1284,10 +1292,10 @@ function HeroActionTile({
         toneClass
       }
     >
-      <span className={"flex h-8 w-8 items-center justify-center rounded-full transition-colors duration-base ease-out-soft group-hover:bg-accent/15 sm:h-9 sm:w-9 " + iconClass}>
+      <span className={"flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-base ease-out-soft group-hover:bg-accent/15 sm:h-9 sm:w-9 " + iconClass}>
         {icon}
       </span>
-      <span className="text-center text-[13px] font-semibold leading-tight text-text-strong">
+      <span className="text-center text-xs font-semibold leading-tight text-text-strong sm:text-[13px]">
         {label}
       </span>
       {hint && (
@@ -1334,16 +1342,26 @@ function PortfolioPanel({
     // Bumped the value to display-sm so the headline number leads
     // the hero - this is the centerpiece, not a stat.
     return (
-      <div className="flex flex-col items-start gap-2">
-        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-          {label}
-        </p>
+      <div className="flex flex-col items-start gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1">
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            {label}
+          </p>
+          <InfoTip
+            label="About balance prices"
+            title="Balance prices"
+            width="sm"
+            size="xs"
+          >
+            Prices are demo values for now. Treat them as a guide, not a quote.
+          </InfoTip>
+        </div>
         {loadingFallback ? (
           <div className="h-9 w-44 animate-pulse rounded bg-border-soft sm:h-11 sm:w-56" />
         ) : (
           <>
             <p className={`flex items-baseline gap-2 transition-[filter] duration-base ${hiddenClass}`}>
-              <span className="font-numerals text-3xl font-semibold leading-none text-text-strong tabular-nums sm:text-display-sm">
+              <span className="font-numerals text-2xl font-semibold leading-none text-text-strong tabular-nums sm:text-display-sm">
                 {fallbackBalance ? fallbackBalance.amount : "0"}
               </span>
               <span className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-text-soft">
@@ -1369,6 +1387,7 @@ function PortfolioPanel({
 
   const breakdownChips = portfolio.breakdown
     .filter((c) => c.raw !== null)
+    .sort((a, b) => chainDisplayRank(a.kind) - chainDisplayRank(b.kind))
     .map((c) => {
       const meta = chainByKindOnce(c.kind);
       if (!meta) return null;
@@ -1382,15 +1401,28 @@ function PortfolioPanel({
     .filter((c): c is { kind: number; ticker: string; amount: string } => c !== null);
 
   return (
-    <div className="flex flex-col items-start gap-2">
-      <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-        {label}
-      </p>
+    <div className="flex flex-col items-start gap-1.5 sm:gap-2">
+      <div className="flex items-center gap-1">
+        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+          {label}
+        </p>
+        <InfoTip
+          label="About balance prices"
+          title="Balance prices"
+          width="sm"
+          size="xs"
+        >
+          Prices are demo values for now. Treat them as a guide, not a quote.
+          {portfolio.unknownPriceChains.length > 0
+            ? ` No quote is available for ${portfolio.unknownPriceChains.join(", ")} yet.`
+            : ""}
+        </InfoTip>
+      </div>
       {portfolio.isLoading && portfolio.totalUsd === 0 ? (
         <div className="h-9 w-44 animate-pulse rounded bg-border-soft sm:h-11 sm:w-56" />
       ) : (
         <>
-          <p className={`font-numerals text-3xl font-semibold leading-none text-text-strong tabular-nums transition-[filter] duration-base sm:text-display-sm ${hiddenClass}`}>
+          <p className={`font-numerals text-2xl font-semibold leading-none text-text-strong tabular-nums transition-[filter] duration-base sm:text-display-sm ${hiddenClass}`}>
             {fiat.format(portfolio.totalUsd)}
           </p>
           {breakdownChips.length > 0 && (
@@ -1408,15 +1440,6 @@ function PortfolioPanel({
               ))}
             </ul>
           )}
-          <p
-            className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft"
-            title="Prices are demo values today (priceConversion.ts is a stub). Treat as a sketch, not a quote."
-          >
-            demo prices
-            {portfolio.unknownPriceChains.length > 0
-              ? ` · no quote for ${portfolio.unknownPriceChains.join(", ")}`
-              : ""}
-          </p>
         </>
       )}
     </div>
@@ -1618,24 +1641,24 @@ function Erc20HoldingsSection({
                   aria-label={`Receive ${h.symbol}`}
                   title={`Receive ${h.symbol}`}
                   className={
-                    "inline-flex h-9 w-9 items-center justify-center rounded-full border border-border-soft bg-canvas text-text-soft " +
+                    "inline-flex min-h-9 items-center justify-center rounded-full border border-border-soft bg-canvas px-2.5 text-[11px] font-medium text-text-strong " +
                     "transition-[border-color,color,transform] duration-base ease-out-soft hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent " +
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
                   }
                 >
-                  <Download className="h-4 w-4" aria-hidden="true" />
+                  Receive
                 </Link>
                 <Link
                   href={sendHref}
                   aria-label={`Send ${h.symbol}`}
                   title={`Send ${h.symbol}`}
                   className={
-                    "inline-flex h-9 w-9 items-center justify-center rounded-full border border-border-soft bg-canvas text-text-soft " +
+                    "inline-flex min-h-9 items-center justify-center rounded-full border border-border-soft bg-canvas px-2.5 text-[11px] font-medium text-text-strong " +
                     "transition-[border-color,color,transform] duration-base ease-out-soft hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent " +
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
                   }
                 >
-                  <Send className="h-4 w-4" aria-hidden="true" />
+                  Send
                 </Link>
               </div>
             </li>
@@ -1827,7 +1850,7 @@ function manageActionGroups(
   if (surface === "personal") {
     return [
       {
-        label: "More protection",
+        label: "Protection",
         description: "Fine-tune people, approvals, and send safety.",
         rows: rulesActionRows(encoded, "personal"),
       },
@@ -1842,13 +1865,13 @@ function manageActionGroups(
   if (surface === "pro") {
     return [
       {
-        label: "More protection",
+        label: "Protection",
         description: "Fine-tune team approvals and send safety.",
         rows: rulesActionRows(encoded, "pro"),
       },
       {
         label: "More limits",
-        description: "Treasury spending controls.",
+        description: "Treasury spending limits.",
         rows: [
           {
             href: `/app/wallet/${encoded}/budget`,
@@ -1885,7 +1908,7 @@ function manageActionGroups(
 
   return [
     {
-      label: "More protection",
+      label: "Protection",
       description: "Fine-tune people, approvals, and send safety.",
       rows: rulesActionRows(encoded, null),
     },
@@ -1905,7 +1928,7 @@ function rulesActionRows(
     {
       href: `/app/wallet/${encoded}/policy`,
       icon: ShieldCheck,
-      title: surface === "pro" ? "Set protection" : "Set protection",
+      title: "Protection",
       body:
         surface === "pro"
           ? "Approvals, people, limits, and alerts."
@@ -2223,6 +2246,7 @@ function ActivitySection({
     const stamp = new Date().toISOString().slice(0, 10);
     downloadActivityCsv(`clear-msig-${slug || "wallet"}-${stamp}.csv`, csv);
   };
+  const groupedRows = groupRecentActivityRows(rows);
   return (
     <motion.section
       {...motionProps}
@@ -2294,7 +2318,7 @@ function ActivitySection({
           id="recent-activity-list"
           className="mt-3 flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest"
         >
-          {rows.map((row) => (
+          {groupedRows.map(({ row, count }) => (
             <li key={row.proposalPda}>
               <Link
                 href={`/app/proposals/${row.proposalPda}`}
@@ -2306,7 +2330,10 @@ function ActivitySection({
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-text-strong">
-                    {friendlyIntentLabel(row.intentTemplate)}
+                    {activityGroupTitle(
+                      count,
+                      friendlyIntentLabel(row.intentTemplate),
+                    )}
                   </p>
                   <p className="mt-0.5 truncate text-xs text-text-soft">
                     <span className={statusTextColor(row.status)}>

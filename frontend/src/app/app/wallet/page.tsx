@@ -60,6 +60,11 @@ import {
   removeWatchedWallet,
 } from "@/lib/retail/watchedWallets";
 import { type RecentActivityRow } from "@/lib/hooks/useRecentActivity";
+import {
+  activityGroupTitle,
+  groupRecentActivityRows,
+  type RecentActivityGroup,
+} from "@/lib/retail/activityGroups";
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
 import { findVaultAddress, ProposalStatus } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
@@ -1588,7 +1593,7 @@ function RecentActivitySection({ rows, reduce }: RecentActivityProps) {
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
-  const latest = rows.slice(0, 3);
+  const latest = groupRecentActivityRows(rows).slice(0, 3);
   return (
     <motion.section
       {...motionProps}
@@ -1611,14 +1616,14 @@ function RecentActivitySection({ rows, reduce }: RecentActivityProps) {
         </Link>
       </div>
       <ul className="mt-3 grid gap-2">
-        {latest.map((row, i) => (
+        {latest.map((group, i) => (
           <motion.li
-            key={row.proposalPda}
+            key={group.row.proposalPda}
             initial={reduce ? false : { opacity: 0, y: 8 }}
             animate={reduce ? {} : { opacity: 1, y: 0 }}
             transition={{ duration: 0.18, delay: reduce ? 0 : i * 0.025 }}
           >
-            <ActivityRow row={row} />
+            <ActivityRow group={group} />
           </motion.li>
         ))}
       </ul>
@@ -1626,12 +1631,16 @@ function RecentActivitySection({ rows, reduce }: RecentActivityProps) {
   );
 }
 
-function ActivityRow({ row }: { row: RecentActivityRow }) {
+function ActivityRow({ group }: { group: RecentActivityGroup }) {
+  const { row, count } = group;
   // proposedAt is unix seconds (bigint); relativeTime handles the
   // ms conversion. Passing pre-multiplied milliseconds here was a
   // long-standing bug that printed "just now" forever.
   const time = relativeTime(row.proposedAt);
-  const action = friendlyIntentLabel(row.intentTemplate);
+  const action = activityGroupTitle(
+    count,
+    friendlyIntentLabel(row.intentTemplate),
+  );
   return (
       <Link
         href={`/app/proposals/${row.proposalPda}`}
