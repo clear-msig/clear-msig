@@ -70,6 +70,18 @@ export async function fetchIntent(
   };
 }
 
+/// Fetch an intent when a proposal already tells us its intent PDA.
+/// Used by shared approve / cancel surfaces so the signer is selected
+/// from the on-chain approver list instead of whichever wallet happens
+/// to be the current default signer.
+export async function fetchIntentByPda(
+  connection: Connection,
+  pda: PublicKey,
+): Promise<IntentAccount | null> {
+  const info = await connection.getAccountInfo(pda, DEFAULT_COMMITMENT);
+  return info ? parseIntent(new Uint8Array(info.data)) : null;
+}
+
 // ── internals ─────────────────────────────────────────────────────────
 
 async function getMultipleAccountsBatched(

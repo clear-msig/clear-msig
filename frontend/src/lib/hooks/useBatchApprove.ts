@@ -16,9 +16,12 @@
 
 import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Connection, PublicKey } from "@solana/web3.js";
 import { backendApi } from "@/lib/api/endpoints";
 
-import { useWallet } from "@/lib/wallet";
+import { useConnection, useWallet } from "@/lib/wallet";
+import { fetchIntentByPda } from "@/lib/chain/intents";
+import { fetchProposal } from "@/lib/chain/proposals";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { friendlyError } from "@/lib/api/errors";
 
@@ -44,8 +47,8 @@ export interface BatchProgress {
 
 export function useBatchApprove() {
   const { signDescriptor } = useSignWithWallet();
-  const { publicKey } = useWallet();
-  const actorPubkey = publicKey?.toBase58();
+  const wallet = useWallet();
+  const { connection } = useConnection();
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState<BatchProgress | null>(null);
 
@@ -63,12 +66,20 @@ export function useBatchApprove() {
           currentLabel: row.label ?? row.proposalPda.slice(0, 6),
         });
         try {
+          const signerPk = await resolveBatchApprovalSigner({
+            connection,
+            proposalAddress: row.proposalPda,
+            pickSigner: wallet.pickSigner,
+          });
+          const actorPubkey = signerPk.toBase58();
           const dry = await backendApi.prepare.approveProposal(
             row.walletName,
             row.proposalPda,
             { actor_pubkey: actorPubkey },
           );
-          const signed = await signDescriptor(dry);
+          const signed = await signDescriptor(dry, {
+            preferSigner: signerPk,
+          });
           await backendApi.submit.approveProposal(
             row.walletName,
             row.proposalPda,
@@ -99,10 +110,40 @@ export function useBatchApprove() {
       queryClient.invalidateQueries({ queryKey: ["my-organizations"] });
       return { completed: rows.length, total: rows.length };
     },
-    [signDescriptor, queryClient, actorPubkey],
+    [signDescriptor, queryClient, connection, wallet.pickSigner],
   );
 
   const reset = useCallback(() => setProgress(null), []);
 
   return { approveAll, progress, reset };
+}
+
+async function resolveBatchApprovalSigner({
+  connection,
+  proposalAddress,
+  pickSigner,
+}: {
+  connection: Connection;
+  proposalAddress: string;
+  pickSigner: (approvers: readonly string[]) => PublicKey | null;
+}) {
+  let proposalPk: PublicKey;
+  try {
+    proposalPk = new PublicKey(proposalAddress);
+  } catch {
+    throw new Error("Invalid request address.");
+  }
+  const proposal = await fetchProposal(connection, proposalPk);
+  if (!proposal) {
+    throw new Error("Couldn't load this request from chain.");
+  }
+  const intent = await fetchIntentByPda(connection, new PublicKey(proposal.intent));
+  if (!intent) {
+    throw new Error("Couldn't load this request's approval rule from chain.");
+  }
+  const signerPk = pickSigner(intent.approvers);
+  if (!signerPk) {
+    throw new Error("None of your connected wallets can approve this request.");
+  }
+  return signerPk;
 }

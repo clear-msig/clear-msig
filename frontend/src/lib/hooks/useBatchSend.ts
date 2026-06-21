@@ -19,13 +19,19 @@
 import { useCallback, useRef, useState } from "react";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useQueryClient } from "@tanstack/react-query";
-import type { Connection } from "@solana/web3.js";
+import type { Connection, PublicKey } from "@solana/web3.js";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { toHex } from "@/lib/msig";
-import { useSignWithWallet, type SignedPayload } from "@/lib/hooks/useSignWithWallet";
+import {
+  useSignWithWallet,
+  type SignedPayload,
+  type SignOptions,
+} from "@/lib/hooks/useSignWithWallet";
 import type { DryRunDescriptor } from "@/lib/api/types";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
+import { fetchIntent } from "@/lib/chain/intents";
+import { fetchWalletByName } from "@/lib/chain/wallets";
 
 export interface BatchSendRow {
   /// Recipient label (contact name or shortened address) for status UI.
@@ -68,9 +74,8 @@ const BATCH_LOG_KEY = "clear-msig:batches:v1";
 
 export function useBatchSend() {
   const { signDescriptor } = useSignWithWallet();
-  const { publicKey } = useWallet();
+  const { pickSigner } = useWallet();
   const { connection } = useConnection();
-  const actorPubkey = publicKey?.toBase58();
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState<BatchSendProgress | null>(null);
   /// Cancellation goes through a ref because React state updates are
@@ -83,6 +88,18 @@ export function useBatchSend() {
       if (rows.length === 0) {
         return { batchId: null, succeeded: 0, failed: 0, proposalPdas: [] };
       }
+
+      const walletData = await fetchWalletByName(connection, walletName);
+      if (!walletData) throw new Error("Couldn't load wallet");
+      const intentRow = await fetchIntent(connection, walletData.pda, intentIndex);
+      if (!intentRow.account) {
+        throw new Error("Couldn't load this wallet's send rule from chain.");
+      }
+      const proposerPk = pickSigner(intentRow.account.proposers);
+      if (!proposerPk) {
+        throw new Error("None of your connected wallets can propose this send.");
+      }
+      const approverPk = pickSigner(intentRow.account.approvers);
 
       const batchId = generateBatchId();
       const proposalPdas: string[] = [];
@@ -134,7 +151,9 @@ export function useBatchSend() {
           intentIndex,
           row,
           signDescriptor,
-          actorPubkey,
+          proposerPk,
+          approverPk,
+          intentApprovers: intentRow.account.approvers,
           connection,
         });
 
@@ -191,7 +210,7 @@ export function useBatchSend() {
 
       return { batchId, succeeded, failed, proposalPdas };
     },
-    [signDescriptor, queryClient, actorPubkey],
+    [signDescriptor, queryClient, connection, pickSigner],
   );
 
   const cancel = useCallback(() => {
@@ -230,8 +249,13 @@ interface RowAttemptArgs {
   walletName: string;
   intentIndex: number;
   row: BatchSendRow;
-  signDescriptor: (descriptor: DryRunDescriptor) => Promise<SignedPayload>;
-  actorPubkey: string | undefined;
+  signDescriptor: (
+    descriptor: DryRunDescriptor,
+    options?: SignOptions,
+  ) => Promise<SignedPayload>;
+  proposerPk: PublicKey;
+  approverPk: PublicKey | null;
+  intentApprovers: readonly string[];
   connection: Connection;
 }
 
@@ -241,10 +265,20 @@ interface RowAttemptArgs {
 /// rebuilding the message from a fresh prepare. Wallet rejections
 /// fail fast - never re-prompt the user without their click.
 async function runRowWithRetry(
-  { walletName, intentIndex, row, signDescriptor, actorPubkey, connection }: RowAttemptArgs,
+  {
+    walletName,
+    intentIndex,
+    row,
+    signDescriptor,
+    proposerPk,
+    approverPk,
+    intentApprovers,
+    connection,
+  }: RowAttemptArgs,
 ): Promise<RowAttemptResult> {
   const maxAttempts = 3;
   let lastMessage = "Send failed";
+  const proposerPubkey = proposerPk.toBase58();
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -256,9 +290,9 @@ async function runRowWithRetry(
           `amount=${row.lamports}`,
           `nonce_value=${nonceHex}`,
         ],
-        actor_pubkey: actorPubkey,
+        actor_pubkey: proposerPubkey,
       });
-      const signed = await signDescriptor(dry);
+      const signed = await signDescriptor(dry, { preferSigner: proposerPk });
       const submission = await backendApi.submit.createProposal(walletName, {
         ...signed,
         params_data_hex: dry.params_data_hex,
@@ -274,16 +308,26 @@ async function runRowWithRetry(
       // a meaningful UX win for a 50-row payroll. Best-effort: if
       // the user rejects mid-batch we still consider the row a
       // success (proposal's on chain, can be approved later).
-      if (proposalPda && actorPubkey) {
+      if (proposalPda) {
         try {
-          const decision = await approveIfNeeded(connection, proposalPda);
+          const decision = await approveIfNeeded(connection, proposalPda, {
+            approvers: intentApprovers,
+            approverPubkey: proposerPubkey,
+          });
           if (decision.needsApproveSignature) {
+            if (!approverPk) {
+              throw new Error(
+                "The proposal landed, but none of your connected wallets can approve it.",
+              );
+            }
             const approveDry = await backendApi.prepare.approveProposal(
               walletName,
               proposalPda,
-              { actor_pubkey: actorPubkey },
+              { actor_pubkey: approverPk.toBase58() },
             );
-            const approveSigned = await signDescriptor(approveDry);
+            const approveSigned = await signDescriptor(approveDry, {
+              preferSigner: approverPk,
+            });
             await backendApi.submit.approveProposal(walletName, proposalPda, {
               ...approveSigned,
               expiry: approveDry.expiry,
