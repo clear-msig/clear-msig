@@ -41,7 +41,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PublicKey } from "@solana/web3.js";
 import { ArrowRight, Loader2, Send, X } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
-import { listIntents } from "@/lib/chain/intents";
+import { fetchIntent, listIntents } from "@/lib/chain/intents";
 import { IntentType, ProposalStatus } from "@/lib/msig";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { fetchProposal } from "@/lib/chain/proposals";
@@ -458,9 +458,10 @@ function BitcoinSendPage() {
   const upgradeBitcoinIntent = useMutation({
     mutationFn: async () => {
       if (!wallet.publicKey) throw new Error("Connect your wallet first");
+      if (!walletQuery.data) throw new Error("Wallet is still loading");
       const intent = btcIntent;
       if (!intent) throw new Error("Bitcoin sending is not set up yet");
-      if (btcIntentSupportsChange) return;
+      if (btcIntentSupportsChange) return { upgraded: true, awaitingApprovers: false };
       const updateIntent = (intentsQuery.data ?? []).find(
         (it) => it.account?.intentType === IntentType.UpdateIntent,
       );
@@ -534,13 +535,40 @@ function BitcoinSendPage() {
           expiry: approveDry.expiry,
         });
       }
-      const statusBeforeExecute = await waitForProposalStatus(connection, proposal);
+      const statusBeforeExecute = await waitForProposalStatusOneOf(
+        connection,
+        proposal,
+        [ProposalStatus.Approved, ProposalStatus.Executed],
+      );
       if (statusBeforeExecute === ProposalStatus.Approved) {
         await backendApi.executeProposal(name, proposal, {});
       }
+      if (statusBeforeExecute !== ProposalStatus.Approved && statusBeforeExecute !== ProposalStatus.Executed) {
+        return { upgraded: false, awaitingApprovers: true };
+      }
+
+      const upgraded = await waitForIntentParamCount(
+        connection,
+        walletQuery.data.pda,
+        intent.intentIndex,
+        8,
+      );
+      if (!upgraded) {
+        throw new Error(
+          "The Bitcoin upgrade transaction was submitted, but the wallet still reports the old Bitcoin intent. Wait a moment and refresh.",
+        );
+      }
+      return { upgraded: true, awaitingApprovers: false };
     },
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       await queryClient.refetchQueries({ queryKey: ["wallet-intents"] });
+      if (result?.awaitingApprovers) {
+        toast.success("Bitcoin upgrade requested", {
+          details:
+            "It still needs the remaining approval before BTC sends can return change.",
+        });
+        return;
+      }
       toast.success("Bitcoin sending upgraded", {
         details: "BTC sends now return change to the wallet.",
       });
@@ -1699,4 +1727,46 @@ async function waitForProposalStatus(
     await new Promise((resolve) => setTimeout(resolve, 350 * (i + 1)));
   }
   return null;
+}
+
+async function waitForProposalStatusOneOf(
+  connection: Parameters<typeof fetchProposal>[0],
+  proposalPda: string,
+  accepted: readonly ProposalStatus[],
+): Promise<ProposalStatus | null> {
+  for (let i = 0; i < 12; i++) {
+    try {
+      const proposal = await fetchProposal(connection, new PublicKey(proposalPda));
+      if (proposal && accepted.includes(proposal.status)) return proposal.status;
+      if (
+        proposal &&
+        (proposal.status === ProposalStatus.Cancelled ||
+          proposal.status === ProposalStatus.Executed)
+      ) {
+        return proposal.status;
+      }
+    } catch {
+      // Keep waiting; RPC read lag is common right after a signed write.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500 * (i + 1)));
+  }
+  return null;
+}
+
+async function waitForIntentParamCount(
+  connection: Parameters<typeof fetchIntent>[0],
+  walletPda: PublicKey,
+  intentIndex: number,
+  minParams: number,
+): Promise<boolean> {
+  for (let i = 0; i < 12; i++) {
+    try {
+      const intent = await fetchIntent(connection, walletPda, intentIndex);
+      if ((intent.account?.params.length ?? 0) >= minParams) return true;
+    } catch {
+      // keep waiting for RPC/account propagation
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500 * (i + 1)));
+  }
+  return false;
 }

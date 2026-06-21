@@ -411,9 +411,39 @@ export function useWallet() {
         });
         if (injectedSigned) return injectedSigned;
       }
-      // Dynamic's SolanaWallet exposes getSigner() which returns an
-      // object implementing ISolana with signTransaction<T>. Same call
-      // path the SolanaWalletConnector uses internally.
+      // Dynamic's embedded Solana connector wraps `signTransaction` in a
+      // UI simulation modal. When the user signed in with Google, Dynamic can
+      // keep the embedded EVM wallet as primary and that modal renders as
+      // "Ethereum Mainnet" even for a Solana transaction. For Secure, bypass
+      // only that UI wrapper and call Turnkey's Solana transaction signer
+      // directly. External wallets still use their injected Solana popup.
+      if (isCompatibleEmbeddedWallet(solanaWallet)) {
+        const connector = (
+          solanaWallet as unknown as {
+            connector?: {
+              validateActiveWallet?: (expectedAddress: string) => Promise<void>;
+              internalSignTransaction?: <U extends SolanaTransaction>(
+                tx: U,
+              ) => Promise<U>;
+            };
+          }
+        ).connector;
+        const expected = dynamicPublicKey?.toBase58();
+        if (
+          expected &&
+          connector &&
+          typeof connector.internalSignTransaction === "function"
+        ) {
+          if (typeof connector.validateActiveWallet === "function") {
+            await connector.validateActiveWallet(expected);
+          }
+          return connector.internalSignTransaction(transaction);
+        }
+      }
+
+      // Dynamic's SolanaWallet exposes getSigner() which returns an object
+      // implementing ISolana with signTransaction<T>. This is the fallback for
+      // embedded connector versions that do not expose internalSignTransaction.
       const getter = (
         solanaWallet as unknown as {
           getSigner: () => Promise<{
