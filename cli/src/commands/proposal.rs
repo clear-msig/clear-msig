@@ -913,13 +913,26 @@ fn build_broadcast_inputs(
             //   [3] sender_pkh      : Bytes20 (committed via scriptCode)
             //   [4] recipient_pkh   : Bytes20 ← needed for output assembly
             //   [5] send_amount_sats: U64    ← needed for output assembly
+            //   [6] change_pkh      : Bytes20 ← v2 optional change output
+            //   [7] fee_sats        : U64    ← v2 exact miner fee
             let prev_txid = ika::read_param_bytes32(intent, params_data, 0)?;
             let prev_vout = ika::read_param_u64(intent, params_data, 1)? as u32;
-            // Skip prev_amount (committed via the BIP143 preimage) and
-            // sender_pkh (committed via scriptCode); we don't need them
+            let prev_amount_sats = ika::read_param_u64(intent, params_data, 2)?;
+            // Skip sender_pkh (committed via scriptCode); we don't need it
             // again for the witness tx body.
             let recipient_pkh = ika::read_param_bytes20(intent, params_data, 4)?;
             let send_amount_sats = ika::read_param_u64(intent, params_data, 5)?;
+            let (change_pkh, change_amount_sats) = if intent.params.len() >= 8 {
+                let change_pkh = ika::read_param_bytes20(intent, params_data, 6)?;
+                let fee_sats = ika::read_param_u64(intent, params_data, 7)?;
+                let change_amount_sats = prev_amount_sats
+                    .checked_sub(send_amount_sats)
+                    .and_then(|remaining| remaining.checked_sub(fee_sats))
+                    .ok_or_else(|| anyhow!("bitcoin change amount underflow"))?;
+                (Some(change_pkh), change_amount_sats)
+            } else {
+                (None, 0)
+            };
 
             // tx_template layout (16 bytes):
             //   version(4) || lock_time(4) || sequence(4) || sighash_type(4)
@@ -945,6 +958,8 @@ fn build_broadcast_inputs(
                 sequence,
                 recipient_pkh,
                 send_amount_sats,
+                change_pkh,
+                change_amount_sats,
                 lock_time,
             })
         }

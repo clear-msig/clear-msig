@@ -14,7 +14,7 @@
 //!      consensus rejects compact 64-byte sigs — segwit witness items must
 //!      carry strict-DER encoded signatures.
 //!   2. **Builds the segwit transaction body** for the single-input,
-//!      single-output P2WPKH spend that matches the on-chain
+//!      one-or-two-output P2WPKH spend that matches the on-chain
 //!      [`clear_wallet::chains::bitcoin::build_preimage`] layout. The body
 //!      we emit is byte-for-byte the same transaction that the BIP143
 //!      sighash committed to, only now with the witness filled in.
@@ -38,6 +38,7 @@
 //!   value_sats         : 8 bytes  LE
 //!   scriptPubKey_len   : varint = 22
 //!   scriptPubKey       : OP_0 || 0x14 || 20-byte pkh   ← P2WPKH
+//!   [optional change output with the same shape]
 //! witness_for_input_0:
 //!   stack_count        : varint = 2
 //!   item_0_len         : varint                          (DER + sighash byte)
@@ -50,7 +51,7 @@
 //! Adding additional inputs/outputs is a matter of looping over more
 //! `(prev_txid, vout, ...)` and `(value, scriptPubKey)` blocks; the witness
 //! assembly stays one item per input. The current single-input,
-//! single-output shape matches what
+//! one-or-two-output shape matches what
 //! `clear_wallet::chains::bitcoin::build_preimage` understands and what
 //! the on-chain BIP143 sighash commits to.
 
@@ -73,6 +74,8 @@ pub struct SpendInputs {
     pub sequence: u32,
     pub recipient_pkh: [u8; 20],
     pub send_amount_sats: u64,
+    pub change_pkh: Option<[u8; 20]>,
+    pub change_amount_sats: u64,
     pub lock_time: u32,
 }
 
@@ -365,14 +368,12 @@ fn build_segwit_tx(
     write_varint(&mut out, 0); // empty scriptSig — P2WPKH spend
     out.extend_from_slice(&inputs.sequence.to_le_bytes());
 
-    // outputs (1) — single P2WPKH output to recipient_pkh
-    write_varint(&mut out, 1);
-    out.extend_from_slice(&inputs.send_amount_sats.to_le_bytes());
-    // P2WPKH scriptPubKey: OP_0 (0x00) + push20 (0x14) + 20-byte pkh = 22 bytes
-    write_varint(&mut out, 22);
-    out.push(0x00); // OP_0
-    out.push(0x14); // OP_PUSHBYTES_20
-    out.extend_from_slice(&inputs.recipient_pkh);
+    let has_change = inputs.change_pkh.is_some() && inputs.change_amount_sats > 0;
+    write_varint(&mut out, if has_change { 2 } else { 1 });
+    write_p2wpkh_output(&mut out, inputs.send_amount_sats, &inputs.recipient_pkh);
+    if let (true, Some(change_pkh)) = (has_change, inputs.change_pkh) {
+        write_p2wpkh_output(&mut out, inputs.change_amount_sats, &change_pkh);
+    }
 
     // witness for input 0: stack of [sig||hashtype, compressed_pubkey]
     write_varint(&mut out, 2);
@@ -402,6 +403,14 @@ fn write_varint(out: &mut Vec<u8>, n: u64) {
         out.push(0xff);
         out.extend_from_slice(&n.to_le_bytes());
     }
+}
+
+fn write_p2wpkh_output(out: &mut Vec<u8>, amount_sats: u64, pkh: &[u8; 20]) {
+    out.extend_from_slice(&amount_sats.to_le_bytes());
+    write_varint(out, 22);
+    out.push(0x00);
+    out.push(0x14);
+    out.extend_from_slice(pkh);
 }
 
 fn hex_encode(bytes: &[u8]) -> String {
@@ -553,6 +562,8 @@ mod tests {
             sequence: 0xffff_fffd, // RBF-enabled
             recipient_pkh: [0xcd; 20],
             send_amount_sats: 1_234,
+            change_pkh: Some([0xef; 20]),
+            change_amount_sats: 4_321,
             lock_time: 0,
         };
         // 64 dummy DER bytes + sighash byte (won't pass DER validation, but
@@ -586,8 +597,8 @@ mod tests {
         // sequence (4)
         assert_eq!(&tx[p..p + 4], &0xffff_fffdu32.to_le_bytes());
         p += 4;
-        // output_count varint = 1
-        assert_eq!(tx[p], 1);
+        // output_count varint = 2
+        assert_eq!(tx[p], 2);
         p += 1;
         // value_sats (8) = 1_234
         assert_eq!(&tx[p..p + 8], &1_234u64.to_le_bytes());
@@ -599,6 +610,16 @@ mod tests {
         assert_eq!(tx[p], 0x00);
         assert_eq!(tx[p + 1], 0x14);
         assert_eq!(&tx[p + 2..p + 22], &[0xcd; 20]);
+        p += 22;
+        // change value_sats (8) = 4_321
+        assert_eq!(&tx[p..p + 8], &4_321u64.to_le_bytes());
+        p += 8;
+        // change scriptPubKey_len varint = 22
+        assert_eq!(tx[p], 22);
+        p += 1;
+        assert_eq!(tx[p], 0x00);
+        assert_eq!(tx[p + 1], 0x14);
+        assert_eq!(&tx[p + 2..p + 22], &[0xef; 20]);
         p += 22;
         // witness stack_count varint = 2
         assert_eq!(tx[p], 2);

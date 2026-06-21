@@ -20,7 +20,7 @@ export function secureActionErrorCopy(
     return {
       title: "Passkey unavailable",
       details:
-        "Use Chrome, Safari, or Edge in a normal browser tab. If you connected Solflare, try again now; ClearSig signs Secure transactions through the Solana wallet directly.",
+        "Multi-member Secure vaults use passkeys. Open ClearSig in Chrome, Safari, or Edge in a normal browser tab, or build a Just me vault for now.",
     };
   }
 

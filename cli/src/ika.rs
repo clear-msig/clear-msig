@@ -767,6 +767,14 @@ fn bitcoin_p2wpkh_preimage(
     let sender_pkh = read_param_bytes20(intent, params_data, 3)?;
     let recipient_pkh = read_param_bytes20(intent, params_data, 4)?;
     let send_amount_sats = read_param_u64(intent, params_data, 5)?;
+    let (change_pkh, fee_sats) = if intent.params.len() >= 8 {
+        (
+            Some(read_param_bytes20(intent, params_data, 6)?),
+            read_param_u64(intent, params_data, 7)?,
+        )
+    } else {
+        (None, 0)
+    };
 
     let spend = P2wpkhSpend {
         version,
@@ -779,6 +787,8 @@ fn bitcoin_p2wpkh_preimage(
         sender_pkh,
         recipient_pkh,
         send_amount_sats,
+        change_pkh,
+        fee_sats,
     };
     Ok(spend.bip143_preimage())
 }
