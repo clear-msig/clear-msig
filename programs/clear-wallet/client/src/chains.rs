@@ -18,7 +18,7 @@
 pub mod bitcoin {
     //! Bitcoin P2WPKH BIP143 sighash mirror.
     //!
-    //! Single-input, single-output P2WPKH. Identical wire bytes to
+    //! Single-input, one-or-two-output P2WPKH. Identical wire bytes to
     //! `clear_wallet::chains::bitcoin::build_sighash`. Returns `sha256d` of
     //! the BIP143 preimage — that's the 32 bytes Bitcoin's `OP_CHECKSIG`
     //! verifier expects to be ECDSA-signed.
@@ -38,6 +38,8 @@ pub mod bitcoin {
         pub sender_pkh: [u8; 20],
         pub recipient_pkh: [u8; 20],
         pub send_amount_sats: u64,
+        pub change_pkh: Option<[u8; 20]>,
+        pub fee_sats: u64,
     }
 
     impl P2wpkhSpend {
@@ -51,13 +53,18 @@ pub mod bitcoin {
             let hash_prevouts = sha256d(&outpoint);
             let hash_sequence = sha256d(&self.sequence.to_le_bytes());
 
-            // P2WPKH output: amount(8 LE) || varint(22) || OP_0 push20 pkh
-            let mut output_buf = [0u8; 8 + 1 + 22];
-            output_buf[..8].copy_from_slice(&self.send_amount_sats.to_le_bytes());
-            output_buf[8] = 22;
-            output_buf[9] = 0x00;
-            output_buf[10] = 0x14;
-            output_buf[11..31].copy_from_slice(&self.recipient_pkh);
+            let mut output_buf = Vec::with_capacity(62);
+            write_p2wpkh_output(&mut output_buf, self.send_amount_sats, &self.recipient_pkh);
+            if let Some(change_pkh) = self.change_pkh {
+                let change_amount = self
+                    .prev_amount_sats
+                    .checked_sub(self.send_amount_sats)
+                    .and_then(|remaining| remaining.checked_sub(self.fee_sats))
+                    .expect("bitcoin change amount underflow");
+                if change_amount > 0 {
+                    write_p2wpkh_output(&mut output_buf, change_amount, &change_pkh);
+                }
+            }
             let hash_outputs = sha256d(&output_buf);
 
             // scriptCode = 0x19 76 a9 14 <pkh> 88 ac
@@ -100,6 +107,14 @@ pub mod bitcoin {
         out
     }
 
+    fn write_p2wpkh_output(out: &mut Vec<u8>, amount_sats: u64, pkh: &[u8; 20]) {
+        out.extend_from_slice(&amount_sats.to_le_bytes());
+        out.push(22);
+        out.push(0x00);
+        out.push(0x14);
+        out.extend_from_slice(pkh);
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -136,9 +151,11 @@ pub mod bitcoin {
             // Deterministic key for the test (NOT for production).
             let sender_sk = SecretKey::from_slice(&[0x11u8; 32]).unwrap();
             let recipient_sk = SecretKey::from_slice(&[0x22u8; 32]).unwrap();
+            let change_sk = SecretKey::from_slice(&[0x33u8; 32]).unwrap();
 
             let sender_pkh = pkh_of(&secp, &sender_sk);
             let recipient_pkh = pkh_of(&secp, &recipient_sk);
+            let change_pkh = pkh_of(&secp, &change_sk);
 
             // Tx parameters.
             let prev_txid_bytes: [u8; 32] = [
@@ -148,7 +165,9 @@ pub mod bitcoin {
             ];
             let prev_vout: u32 = 0;
             let prev_amount_sats: u64 = 100_000_000; // 1 BTC
-            let send_amount_sats: u64 = 99_990_000; // ~10k sats fee
+            let send_amount_sats: u64 = 99_000_000;
+            let fee_sats: u64 = 300;
+            let change_amount_sats = prev_amount_sats - send_amount_sats - fee_sats;
             let version: u32 = 2;
             let lock_time: u32 = 0;
             let sequence: u32 = 0xfffffffd;
@@ -166,6 +185,8 @@ pub mod bitcoin {
                 sender_pkh,
                 recipient_pkh,
                 send_amount_sats,
+                change_pkh: Some(change_pkh),
+                fee_sats,
             };
             let our_sighash = spend.sighash();
 
@@ -186,8 +207,14 @@ pub mod bitcoin {
                 &bitcoin::PrivateKey::new(recipient_sk, Network::Bitcoin),
             )
             .unwrap();
+            let change_compressed = CompressedPublicKey::from_private_key(
+                &secp,
+                &bitcoin::PrivateKey::new(change_sk, Network::Bitcoin),
+            )
+            .unwrap();
             let sender_addr = BtcAddress::p2wpkh(&sender_compressed, Network::Bitcoin);
             let recipient_addr = BtcAddress::p2wpkh(&recipient_compressed, Network::Bitcoin);
+            let change_addr = BtcAddress::p2wpkh(&change_compressed, Network::Bitcoin);
 
             let tx = Transaction {
                 version: Version(version as i32),
@@ -201,10 +228,16 @@ pub mod bitcoin {
                     sequence: Sequence(sequence),
                     witness: Witness::new(),
                 }],
-                output: vec![TxOut {
-                    value: Amount::from_sat(send_amount_sats),
-                    script_pubkey: recipient_addr.script_pubkey(),
-                }],
+                output: vec![
+                    TxOut {
+                        value: Amount::from_sat(send_amount_sats),
+                        script_pubkey: recipient_addr.script_pubkey(),
+                    },
+                    TxOut {
+                        value: Amount::from_sat(change_amount_sats),
+                        script_pubkey: change_addr.script_pubkey(),
+                    },
+                ],
             };
 
             let mut cache = SighashCache::new(&tx);
@@ -272,6 +305,8 @@ pub mod bitcoin {
                 sender_pkh: [0xcd; 20],
                 recipient_pkh: [0xef; 20],
                 send_amount_sats: 49_000,
+                change_pkh: Some([0xaa; 20]),
+                fee_sats: 300,
             };
             let preimage = spend.bip143_preimage();
 

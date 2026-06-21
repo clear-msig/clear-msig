@@ -34,13 +34,15 @@ pub enum BroadcastInputs {
     },
     /// EVM EIP-1559 native transfer or ERC-20 — nothing extra needed.
     Evm,
-    /// Bitcoin P2WPKH single-input single-output spend.
+    /// Bitcoin P2WPKH single-input spend with optional change output.
     BitcoinP2wpkh {
         prev_txid: [u8; 32],
         prev_vout: u32,
         sequence: u32,
         recipient_pkh: [u8; 20],
         send_amount_sats: u64,
+        change_pkh: Option<[u8; 20]>,
+        change_amount_sats: u64,
         lock_time: u32,
     },
     /// Zcash transparent P2PKH single-input single-output spend.
@@ -146,6 +148,8 @@ pub fn broadcast_signed_tx(
                 sequence,
                 recipient_pkh,
                 send_amount_sats,
+                change_pkh,
+                change_amount_sats,
                 lock_time,
             } = inputs
             else {
@@ -160,6 +164,8 @@ pub fn broadcast_signed_tx(
                     sequence,
                     recipient_pkh,
                     send_amount_sats,
+                    change_pkh,
+                    change_amount_sats,
                     lock_time,
                 },
                 preimage,

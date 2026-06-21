@@ -153,7 +153,13 @@ async function signTransactionWithInjectedProvider<T extends SolanaTransaction>(
 /// claim - the Solana app on the Ledger renders the offchain message
 /// body as text on the device screen rather than hex in a popup.
 export function useWallet() {
-  const { primaryWallet, handleLogOut, sdkHasLoaded } = useDynamicContext();
+  const dynamicContext = useDynamicContext();
+  const { primaryWallet, handleLogOut, sdkHasLoaded } = dynamicContext;
+  const setPrimaryWallet = (
+    dynamicContext as unknown as {
+      setPrimaryWallet?: (walletId: string) => Promise<void>;
+    }
+  ).setPrimaryWallet;
   const allWallets = useUserWallets();
   const ledger = useLedger();
 
@@ -388,6 +394,15 @@ export function useWallet() {
       if (!solanaWallet) {
         throw new Error("Connect a wallet before signing");
       }
+      const solanaWalletId = (solanaWallet as { id?: string })?.id;
+      const primaryWalletId = (primaryWallet as { id?: string } | null)?.id;
+      if (
+        solanaWalletId &&
+        primaryWalletId !== solanaWalletId &&
+        typeof setPrimaryWallet === "function"
+      ) {
+        await setPrimaryWallet(solanaWalletId);
+      }
       if (!isCompatibleEmbeddedWallet(solanaWallet)) {
         const injectedSigned = await signTransactionWithInjectedProvider({
           connectorKey: walletConnectorKey,
@@ -416,7 +431,14 @@ export function useWallet() {
       const signer = await getter.call(solanaWallet);
       return signer.signTransaction(transaction);
     },
-    [solanaWallet, ledger.session, walletConnectorKey, dynamicPublicKey],
+    [
+      solanaWallet,
+      ledger.session,
+      walletConnectorKey,
+      dynamicPublicKey,
+      primaryWallet,
+      setPrimaryWallet,
+    ],
   );
 
   return {

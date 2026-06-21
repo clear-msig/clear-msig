@@ -4,7 +4,7 @@
 //
 // Mirrors the eth flow's two halves (`/setup/eth` then `/send/eth`)
 // in a single component because Bitcoin's intent template is fixed
-// (single-input, single-output, no fee param. Fee is implicit) and
+// (single-input, explicit change output/fee) and
 // the user has no decisions to make at setup time. Showing two pages
 // for "register the intent" + "use the intent" was overhead with no
 // payoff.
@@ -18,10 +18,9 @@
 //
 // Send flow:
 //   1. User enters destination (bech32) + amount.
-//   2. We auto-pick the largest single UTXO that covers the amount + a
+//   2. We auto-pick one UTXO that covers the amount + a
 //      conservative fee floor (300 sats. Signet/testnet fees are
-//      tiny). Single-input, single-output: the fee is implicit
-//      (`prev_amount_sats - send_amount_sats`).
+//      tiny). New BTC intents return the remainder as change.
 //   3. Build proposal params, propose+auto-approve, execute with
 //      `broadcast=true`. Backend forwards to mempool.space's Esplora
 //      `POST /tx`.
@@ -203,6 +202,7 @@ function BitcoinSendPage() {
           a.chainKind === BTC_CHAIN_KIND,
       );
   }, [intentsQuery.data]);
+  const btcIntentSupportsChange = (btcIntent?.params.length ?? 0) >= 8;
 
   // ── Live balance + UTXOs ──────────────────────────────────────────
   const balanceSats = btcSnapshotQuery.data?.balanceSats ?? null;
@@ -254,10 +254,8 @@ function BitcoinSendPage() {
     [amountBtc],
   );
 
-  // Largest single UTXO that's ≥ requested amount + fee reserve.
-  // Single-input simplicity matches the on-chain BTC template
-  // (`examples/intents/btc_transfer.json`); multi-input would need a
-  // template extension.
+  // Single UTXO that's ≥ requested amount + fee reserve. The BTC template now
+  // returns change; multi-input still needs a future template extension.
   const selectedUtxo = useMemo<EsploraUtxo | null>(() => {
     if (!btcUtxos.length || !sendAmountSats) return null;
     const need = sendAmountSats + FEE_RESERVE_SATS;
@@ -276,6 +274,15 @@ function BitcoinSendPage() {
     if (!selectedUtxo || !sendAmountSats) return null;
     return BigInt(selectedUtxo.value) - sendAmountSats;
   }, [selectedUtxo, sendAmountSats]);
+  const effectiveFeeSats = useMemo<bigint | null>(() => {
+    if (!selectedUtxo || !sendAmountSats) return null;
+    return btcIntentSupportsChange ? FEE_RESERVE_SATS : impliedFeeSats;
+  }, [btcIntentSupportsChange, impliedFeeSats, selectedUtxo, sendAmountSats]);
+  const changeSats = useMemo<bigint | null>(() => {
+    if (!btcIntentSupportsChange || !selectedUtxo || !sendAmountSats) return null;
+    const change = BigInt(selectedUtxo.value) - sendAmountSats - FEE_RESERVE_SATS;
+    return change > 0n ? change : 0n;
+  }, [btcIntentSupportsChange, selectedUtxo, sendAmountSats]);
 
   // ── Mutations: setup intent (one-time), then send ─────────────────
   const setupIntent = useMutation({
@@ -448,15 +455,116 @@ function BitcoinSendPage() {
     },
   });
 
+  const upgradeBitcoinIntent = useMutation({
+    mutationFn: async () => {
+      if (!wallet.publicKey) throw new Error("Connect your wallet first");
+      const intent = btcIntent;
+      if (!intent) throw new Error("Bitcoin sending is not set up yet");
+      if (btcIntentSupportsChange) return;
+      const updateIntent = (intentsQuery.data ?? []).find(
+        (it) => it.account?.intentType === IntentType.UpdateIntent,
+      );
+      const signerPk = updateIntent?.account
+        ? wallet.pickSigner(updateIntent.account.approvers)
+        : wallet.pickSigner(intent.approvers);
+      if (!signerPk) {
+        throw new Error(
+          "None of your connected wallets can approve the Bitcoin upgrade.",
+        );
+      }
+      const enc = new TextEncoder();
+      const encrypted = await encryptPolicyBatch([
+        { plaintext: enc.encode(JSON.stringify(intent.proposers)), fheType: "ebytes" },
+        { plaintext: enc.encode(JSON.stringify(intent.approvers)), fheType: "ebytes" },
+        { plaintext: new Uint8Array([intent.approvalThreshold]), fheType: "euint8" },
+        { plaintext: u32LeBytes(intent.timelockSeconds), fheType: "euint32" },
+      ]);
+      const policy_ciphertexts = encrypted
+        .map((p) => p.ciphertextIdentifier)
+        .filter((id): id is string => typeof id === "string");
+
+      const dry = await backendApi.prepare.updateIntent(name, {
+        index: intent.intentIndex,
+        file: BTC_TEMPLATE,
+        proposers: intent.proposers,
+        approvers: intent.approvers,
+        threshold: intent.approvalThreshold,
+        cancellation_threshold: intent.cancellationThreshold,
+        timelock: intent.timelockSeconds,
+        policy_ciphertexts,
+      });
+      const signed = await signDescriptor(dry, { preferSigner: signerPk });
+      const submitted = await backendApi.submit.updateIntent(name, {
+        ...signed,
+        params_data_hex: dry.params_data_hex,
+        expiry: dry.expiry,
+        index: intent.intentIndex,
+        file: BTC_TEMPLATE,
+      });
+      const proposal = (submitted as Record<string, unknown>)?.proposal;
+      if (typeof proposal !== "string" || proposal.length === 0) {
+        throw new Error("Backend didn't return an upgrade proposal address");
+      }
+
+      const decision = await approveIfNeeded(connection, proposal, {
+        approvers: updateIntent?.account?.approvers ?? intent.approvers,
+        approverPubkey: signerPk.toBase58(),
+        approvalThreshold:
+          updateIntent?.account?.approvalThreshold ?? intent.approvalThreshold,
+      });
+      if (decision.needsApproveSignature) {
+        const approverPk = updateIntent?.account
+          ? wallet.pickSigner(updateIntent.account.approvers)
+          : wallet.pickSigner(intent.approvers);
+        if (!approverPk) {
+          throw new Error(
+            "The upgrade proposal landed, but none of your connected wallets can approve it.",
+          );
+        }
+        const approveDry = await backendApi.prepare.approveProposal(
+          name,
+          proposal,
+          { actor_pubkey: approverPk.toBase58() },
+        );
+        const approveSigned = await signDescriptor(approveDry, {
+          preferSigner: approverPk,
+        });
+        await backendApi.submit.approveProposal(name, proposal, {
+          ...approveSigned,
+          expiry: approveDry.expiry,
+        });
+      }
+      const statusBeforeExecute = await waitForProposalStatus(connection, proposal);
+      if (statusBeforeExecute === ProposalStatus.Approved) {
+        await backendApi.executeProposal(name, proposal, {});
+      }
+    },
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ["wallet-intents"] });
+      toast.success("Bitcoin sending upgraded", {
+        details: "BTC sends now return change to the wallet.",
+      });
+    },
+    onError: (err) => {
+      console.error("[upgrade-btc]", err);
+      const fe = friendlyError(err, "set-up-spending");
+      toast.error(fe.title, { details: fe.body });
+    },
+  });
+
   const send = useMutation({
     mutationFn: async () => {
       if (!wallet.publicKey) throw new Error("Connect your wallet first");
       if (!btcIntent) throw new Error("Bitcoin sends not yet enabled");
       if (!selectedUtxo) throw new Error("No suitable UTXO available");
       if (!sendAmountSats) throw new Error("Enter an amount");
-      if (impliedFeeSats !== null && impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS) {
+      if (
+        !btcIntentSupportsChange &&
+        impliedFeeSats !== null &&
+        impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS
+      ) {
         throw new Error(
-          `This Bitcoin send would pay ${formatSats(impliedFeeSats)} BTC in fees. Use the safe amount for this UTXO or wait for change-output support.`,
+          `This Bitcoin send would pay ${formatSats(impliedFeeSats)} BTC in fees. Upgrade Bitcoin sending to return change to your wallet.`,
         );
       }
       if (!senderPkhHex) throw new Error("Couldn't derive sender pkh");
@@ -484,16 +592,24 @@ function BitcoinSendPage() {
       // mempool will look up at broadcast time.
       const prevTxidInternal = reverseHex(selectedUtxo.txid);
 
+      const proposalParams = [
+        `prev_txid=0x${prevTxidInternal}`,
+        `prev_vout=${selectedUtxo.vout}`,
+        `prev_amount_sats=${selectedUtxo.value}`,
+        `sender_pkh=0x${senderPkhHex}`,
+        `recipient_pkh=0x${bytesToHex(dest.pkh)}`,
+        `send_amount_sats=${sendAmountSats.toString()}`,
+      ];
+      if (btcIntentSupportsChange) {
+        proposalParams.push(
+          `change_pkh=0x${senderPkhHex}`,
+          `fee_sats=${FEE_RESERVE_SATS.toString()}`,
+        );
+      }
+
       const dry = await backendApi.prepare.createProposal(name, {
         intent_index: btcIntent.intentIndex,
-        params: [
-          `prev_txid=0x${prevTxidInternal}`,
-          `prev_vout=${selectedUtxo.vout}`,
-          `prev_amount_sats=${selectedUtxo.value}`,
-          `sender_pkh=0x${senderPkhHex}`,
-          `recipient_pkh=0x${bytesToHex(dest.pkh)}`,
-          `send_amount_sats=${sendAmountSats.toString()}`,
-        ],
+        params: proposalParams,
         actor_pubkey: proposerPk.toBase58(),
       });
       const signed = await signDescriptor(dry, { preferSigner: proposerPk });
@@ -623,9 +739,13 @@ function BitcoinSendPage() {
       );
       return;
     }
-    if (impliedFeeSats !== null && impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS) {
+    if (
+      !btcIntentSupportsChange &&
+      impliedFeeSats !== null &&
+      impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS
+    ) {
       setAmountError(
-        `Fee would be ${formatSats(impliedFeeSats)} BTC. Use the safe amount for this UTXO.`,
+        `Upgrade Bitcoin sending to return ${formatSats(impliedFeeSats - FEE_RESERVE_SATS)} BTC as change.`,
       );
       return;
     }
@@ -660,6 +780,7 @@ function BitcoinSendPage() {
   const policyDenied =
     policyEvaluation?.matched && policyEvaluation.action === "deny";
   const unsafeImpliedFee =
+    !btcIntentSupportsChange &&
     impliedFeeSats !== null && impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS;
   const canSubmit =
     !!btcBinding &&
@@ -776,10 +897,14 @@ function BitcoinSendPage() {
                 amountBtc,
                 selectedUtxo,
                 impliedFeeSats,
+                effectiveFeeSats,
+                changeSats,
+                supportsChange: btcIntentSupportsChange,
               })}
               warning={buildBtcWarning({
                 selectedUtxo,
                 impliedFeeSats,
+                supportsChange: btcIntentSupportsChange,
               })}
               collapsibleDetails
             />
@@ -799,12 +924,17 @@ function BitcoinSendPage() {
             maxSpendableSats={largestSpendableSats}
             selectedUtxo={selectedUtxo}
             impliedFeeSats={impliedFeeSats}
+            effectiveFeeSats={effectiveFeeSats}
+            changeSats={changeSats}
+            supportsChange={btcIntentSupportsChange}
             address={dwalletAddress}
             network={btcNetwork}
             sending={send.isPending}
             canSubmit={canSubmit}
+            upgrading={upgradeBitcoinIntent.isPending}
             walletDisplay={walletDisplay}
             onSend={handleSend}
+            onUpgrade={() => upgradeBitcoinIntent.mutate()}
           />
         )}
         {sentLabel && (
@@ -973,16 +1103,22 @@ function ComposeForm(props: {
   maxSpendableSats: bigint;
   selectedUtxo: EsploraUtxo | null;
   impliedFeeSats: bigint | null;
+  effectiveFeeSats: bigint | null;
+  changeSats: bigint | null;
+  supportsChange: boolean;
   address: string | null;
   network: BitcoinNetwork;
   sending: boolean;
   canSubmit: boolean;
+  upgrading: boolean;
   walletDisplay: string;
   onSend: () => void;
+  onUpgrade: () => void;
 }) {
   const balanceBtc =
     props.balanceSats !== null ? formatSats(props.balanceSats) : null;
   const highFeeBlocked =
+    !props.supportsChange &&
     props.selectedUtxo !== null &&
     props.impliedFeeSats !== null &&
     props.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS;
@@ -1051,20 +1187,25 @@ function ComposeForm(props: {
                 {props.amountError && (
                   <span className="ml-1.5 text-warning">{props.amountError}</span>
                 )}
-                {props.selectedUtxo && props.impliedFeeSats !== null && (
+                {props.selectedUtxo && props.effectiveFeeSats !== null && (
                   <span className="block pt-1 text-[11px]">
                     Using UTXO{" "}
                     <span className="font-mono text-text-strong">
                       {props.selectedUtxo.txid.slice(0, 8)}…:{props.selectedUtxo.vout}
                     </span>
                     {". "}
-                    {props.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS ? (
+                    {!props.supportsChange &&
+                    props.impliedFeeSats !== null &&
+                    props.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS ? (
                       <span className="font-medium text-warning">
-                        Fee too high
+                        Upgrade needed
                       </span>
                     ) : (
                       <>
-                        fee {formatSats(props.impliedFeeSats)} BTC
+                        fee {formatSats(props.effectiveFeeSats)} BTC
+                        {props.supportsChange && props.changeSats !== null && props.changeSats > 0n ? (
+                          <> · change {formatSats(props.changeSats)} BTC</>
+                        ) : null}
                         <InfoTip
                           label="How the fee is picked"
                           width="md"
@@ -1072,8 +1213,8 @@ function ComposeForm(props: {
                           side="end"
                         >
                           <span className="block">
-                            Current BTC beta spends one UTXO. Safe sends use
-                            UTXO minus {Number(FEE_RESERVE_SATS)} sats.
+                            Bitcoin spends one UTXO and returns the remainder
+                            to your wallet as change.
                           </span>
                         </InfoTip>
                       </>
@@ -1134,6 +1275,8 @@ function ComposeForm(props: {
                 props.setAmountBtc(formatSats(safeMaxSats));
               }
             }}
+            onUpgrade={props.onUpgrade}
+            upgrading={props.upgrading}
           />
         )}
 
@@ -1150,6 +1293,7 @@ function ComposeForm(props: {
             onClick={props.onSend}
             disabled={props.sending || !props.canSubmit}
             variant={
+              !props.supportsChange &&
               props.impliedFeeSats !== null &&
               props.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS
                 ? "secondary"
@@ -1163,11 +1307,12 @@ function ComposeForm(props: {
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                 Sending…
               </>
-            ) : props.impliedFeeSats !== null &&
+            ) : !props.supportsChange &&
+              props.impliedFeeSats !== null &&
               props.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS ? (
               <>
                 <X className="h-4 w-4" aria-hidden="true" />
-                Fee too high
+                Upgrade Bitcoin sending
               </>
             ) : (
               <>
@@ -1186,12 +1331,17 @@ function HighFeeBlocker({
   selectedUtxo,
   impliedFeeSats,
   onUseSafeMax,
+  onUpgrade,
+  upgrading,
 }: {
   selectedUtxo: EsploraUtxo;
   impliedFeeSats: bigint;
   onUseSafeMax: () => void;
+  onUpgrade: () => void;
+  upgrading: boolean;
 }) {
   const safeAmount = BigInt(selectedUtxo.value) - FEE_RESERVE_SATS;
+  const changeAmount = impliedFeeSats - FEE_RESERVE_SATS;
   return (
     <div
       role="alert"
@@ -1202,10 +1352,23 @@ function HighFeeBlocker({
           Blocked: {formatSats(impliedFeeSats)} BTC would be lost as fee.
         </p>
         <p className="text-text-soft">
-          BTC beta sends one UTXO at a time. Until change output ships, use the
-          safe amount for this UTXO.
+          This wallet is using the old BTC template. Upgrade once to return{" "}
+          {formatSats(changeAmount)} BTC as change.
         </p>
       </div>
+      <Button onClick={onUpgrade} disabled={upgrading} fullWidth>
+        {upgrading ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            Upgrading…
+          </>
+        ) : (
+          <>
+            Upgrade Bitcoin sending
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </>
+        )}
+      </Button>
       {safeAmount > 0n ? (
         <button
           type="button"
@@ -1341,6 +1504,9 @@ function buildBtcPreviewDetails(args: {
   amountBtc: string;
   selectedUtxo: EsploraUtxo | null;
   impliedFeeSats: bigint | null;
+  effectiveFeeSats: bigint | null;
+  changeSats: bigint | null;
+  supportsChange: boolean;
 }): SignPayloadDetail[] {
   const details: SignPayloadDetail[] = [
     { label: "From wallet", value: args.walletDisplay },
@@ -1361,12 +1527,21 @@ function buildBtcPreviewDetails(args: {
       emphasis: "amount",
     });
   }
-  if (args.selectedUtxo && args.impliedFeeSats !== null) {
-    const unsafeFee = args.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS;
+  if (args.selectedUtxo && args.effectiveFeeSats !== null) {
+    const unsafeFee =
+      !args.supportsChange &&
+      args.impliedFeeSats !== null &&
+      args.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS;
     details.push({
       label: unsafeFee ? "Blocked fee" : "Network fee",
-      value: `${formatSats(args.impliedFeeSats)} BTC`,
+      value: `${formatSats(args.effectiveFeeSats)} BTC`,
     });
+    if (args.supportsChange && args.changeSats !== null && args.changeSats > 0n) {
+      details.push({
+        label: "Change",
+        value: `${formatSats(args.changeSats)} BTC back to this wallet`,
+      });
+    }
   }
   return details;
 }
@@ -1374,13 +1549,15 @@ function buildBtcPreviewDetails(args: {
 function buildBtcWarning(args: {
   selectedUtxo: EsploraUtxo | null;
   impliedFeeSats: bigint | null;
+  supportsChange: boolean;
 }): string | undefined {
   if (
+    !args.supportsChange &&
     args.selectedUtxo &&
     args.impliedFeeSats !== null &&
     args.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS
   ) {
-    return `Blocked: this amount would burn ${formatSats(args.impliedFeeSats)} BTC as miner fee.`;
+    return `Upgrade Bitcoin sending to return ${formatSats(args.impliedFeeSats - FEE_RESERVE_SATS)} BTC as change.`;
   }
   return undefined;
 }
@@ -1476,6 +1653,12 @@ function bytesToHex(bytes: Uint8Array): string {
     s += (bytes[i] ?? 0).toString(16).padStart(2, "0");
   }
   return s;
+}
+
+function u32LeBytes(value: number): Uint8Array {
+  const out = new Uint8Array(4);
+  new DataView(out.buffer).setUint32(0, value >>> 0, true);
+  return out;
 }
 
 function shortBtcAddress(addr: string): string {

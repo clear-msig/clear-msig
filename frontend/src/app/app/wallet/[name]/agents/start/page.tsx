@@ -1288,20 +1288,18 @@ function LaunchStepRow({
           <span className="rounded-full border border-border-soft px-1.5 py-0.5 text-[10px] font-medium text-text-soft">
             {ownerLabel(step.owner)}
           </span>
+          <details className="group relative">
+            <summary
+              className="inline-flex h-6 w-6 cursor-pointer list-none items-center justify-center rounded-full border border-border-soft text-text-soft transition-colors hover:border-accent/40 hover:text-accent"
+              aria-label={`Show details for ${step.label}`}
+            >
+              <Info className="h-3.5 w-3.5" aria-hidden="true" />
+            </summary>
+            <p className="absolute left-0 z-20 mt-2 w-[min(18rem,70vw)] rounded-soft border border-border-soft bg-surface-raised p-3 text-xs leading-relaxed text-text-soft shadow-card-rest">
+              {step.description}
+            </p>
+          </details>
         </div>
-        <details className="group mt-1">
-          <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-[11px] font-medium text-text-soft transition-colors hover:text-accent">
-            <Info className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Info</span>
-            <ArrowRight
-              className="h-3 w-3 transition-transform group-open:rotate-90"
-              aria-hidden="true"
-            />
-          </summary>
-          <p className="mt-1.5 max-w-2xl break-words text-xs leading-relaxed text-text-soft">
-            {step.description}
-          </p>
-        </details>
       </div>
       {step.status === "current" ? <div className="w-full sm:w-auto">{action}</div> : null}
       {step.status === "waiting" ? <Circle className="h-3.5 w-3.5 text-text-muted" aria-hidden="true" /> : null}
