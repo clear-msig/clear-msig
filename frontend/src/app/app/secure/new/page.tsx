@@ -49,6 +49,8 @@ import {
   type CreatePasskeyProgress,
   type CreateVaultStage,
 } from "@/lib/ikavery/clearmsig-actions";
+import { secureActionErrorCopy } from "@/lib/ikavery/errors";
+import { detectWebauthnAvailability } from "@/lib/ikavery/webauthn";
 
 type Stage = "shape" | "confirm" | "creating" | "done";
 
@@ -147,6 +149,29 @@ function SecureBuildPage() {
       toast.error("Connect a wallet first");
       return;
     }
+    if (shape.members > 1) {
+      const webauthn = detectWebauthnAvailability({
+        isSecureContext:
+          typeof window !== "undefined" ? window.isSecureContext : undefined,
+        hasCredentialsCreate:
+          typeof navigator !== "undefined" &&
+          !!navigator.credentials &&
+          typeof navigator.credentials.create === "function",
+        hasCredentialsGet:
+          typeof navigator !== "undefined" &&
+          !!navigator.credentials &&
+          typeof navigator.credentials.get === "function",
+      });
+      if (!webauthn.ok) {
+        toast.error("Passkeys are not available here", {
+          details:
+            webauthn.reason === "insecure"
+              ? "Open ClearSig over HTTPS, then build the vault again."
+              : "Use Chrome, Safari, or Edge in a normal browser tab, or choose Just me for now.",
+        });
+        return;
+      }
+    }
     // For multi-member shapes, the wizard fires `memberCount - 1`
     // passkey-create prompts back-to-back BEFORE DKG. Set the initial
     // sub-stage accordingly so the UI shows "Creating passkey 1 of N"
@@ -211,9 +236,8 @@ function SecureBuildPage() {
       ]);
     } catch (e) {
       console.error("[secure/build]", e);
-      toast.error("Couldn't build the vault", {
-        details: e instanceof Error ? e.message : String(e),
-      });
+      const copy = secureActionErrorCopy(e, "Couldn't build the vault");
+      toast.error(copy.title, { details: copy.details });
       setCreateSubStage(null);
       setPasskeyProgress(null);
       setStage("confirm");

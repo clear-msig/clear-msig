@@ -373,6 +373,13 @@ export interface BitcoinAddressSnapshot {
   utxos: EsploraUtxo[];
 }
 
+interface BitcoinAddressSnapshotApiResponse {
+  network?: BitcoinNetwork;
+  balanceSats?: string;
+  utxos?: EsploraUtxo[];
+  error?: string;
+}
+
 /**
  * Read balance + UTXOs together and pick the funded network for tb1...
  * addresses. Testnet3 and signet share the `tb` HRP, so a separate
@@ -389,6 +396,16 @@ export async function fetchBitcoinAddressSnapshot(
       balanceSats: 0n,
       utxos: [],
     };
+  }
+
+  if (typeof window !== "undefined") {
+    try {
+      return await fetchBitcoinAddressSnapshotViaApi(address);
+    } catch {
+      // Same-origin route avoids browser CORS/rate-limit weirdness.
+      // Keep direct Esplora probing as a fallback so local dev and
+      // temporary API deploy issues do not blank the user's BTC balance.
+    }
   }
 
   const lower = address.toLowerCase();
@@ -439,6 +456,35 @@ export async function fetchBitcoinAddressSnapshot(
       ? `Bitcoin indexers unavailable: ${reasons.join("; ")}`
       : "Bitcoin indexers unavailable",
   );
+}
+
+async function fetchBitcoinAddressSnapshotViaApi(
+  address: string,
+): Promise<BitcoinAddressSnapshot> {
+  const response = await fetch(
+    `/api/bitcoin/address?address=${encodeURIComponent(address)}`,
+    {
+      method: "GET",
+      headers: { accept: "application/json" },
+      credentials: "same-origin",
+    },
+  );
+  const json = (await response.json().catch(() => ({}))) as BitcoinAddressSnapshotApiResponse;
+  if (!response.ok) {
+    throw new Error(json.error ?? `Bitcoin balance API HTTP ${response.status}`);
+  }
+  if (
+    !json.network ||
+    typeof json.balanceSats !== "string" ||
+    !Array.isArray(json.utxos)
+  ) {
+    throw new Error("Bitcoin balance API returned an invalid snapshot");
+  }
+  return {
+    network: json.network,
+    balanceSats: BigInt(json.balanceSats),
+    utxos: json.utxos,
+  };
 }
 
 async function fetchBitcoinAddressSnapshotForNetwork(

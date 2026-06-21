@@ -79,6 +79,7 @@ import {
   fetchVault,
   type CreateVaultStage,
 } from "@/lib/ikavery/clearmsig-actions";
+import { secureActionErrorCopy } from "@/lib/ikavery/errors";
 import { parseSolanaSecretKey, maskAddress } from "@/lib/secure/import";
 import { expectedCanonicalHost } from "@/lib/security/phishingGuard";
 
@@ -389,9 +390,8 @@ function SecureImportPage() {
       console.error("[secure/import]", e);
       // Don't wipe the keypair on failure. The user might want to
       // retry without re-pasting. Wipe-on-unmount still applies.
-      toast.error("Couldn't import the wallet", {
-        details: e instanceof Error ? e.message : String(e),
-      });
+      const copy = secureActionErrorCopy(e, "Couldn't import the wallet");
+      toast.error(copy.title, { details: copy.details });
       setCreateSubStage(null);
       setStage("review");
     }

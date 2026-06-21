@@ -50,6 +50,7 @@ import {
   type WebauthnAvailability,
 } from "@/lib/ikavery/webauthn";
 import { SCHEME_SOLANA_ADDRESS, SCHEME_WEBAUTHN } from "@/lib/ikavery/constants";
+import { secureActionErrorCopy } from "@/lib/ikavery/errors";
 
 type Stage = "intro" | "running" | "done";
 
@@ -355,9 +356,8 @@ function ThresholdPage() {
       });
     } catch (e) {
       console.error("[secure/threshold]", e);
-      toast.error("Couldn't bump threshold", {
-        details: e instanceof Error ? e.message : String(e),
-      });
+      const copy = secureActionErrorCopy(e, "Couldn't change protection");
+      toast.error(copy.title, { details: copy.details });
       setRunStage(null);
       setCollectInfo(null);
       setCollectBusy(false);
@@ -406,7 +406,9 @@ function ThresholdPage() {
       }
     } catch (e) {
       console.error("[secure/threshold] addApproval", e);
-      setCollectError(e instanceof Error ? e.message : String(e));
+      setCollectError(
+        secureActionErrorCopy(e, "Couldn't add approval").details,
+      );
     } finally {
       setCollectBusy(false);
     }

@@ -14,9 +14,10 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useConnection, useWallet } from "@/lib/wallet";
-import { PublicKey } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 import { backendApi } from "@/lib/api/endpoints";
 import type { ExecuteProposalInput } from "@/lib/api/types";
+import { fetchIntentByPda } from "@/lib/chain/intents";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import {
   fetchProposal,
@@ -29,9 +30,8 @@ import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 
 export function useProposalWorkflow(walletName: string, selectedProposal: string) {
   const { connection } = useConnection();
-  const { publicKey } = useWallet();
+  const wallet = useWallet();
   const { signDescriptor } = useSignWithWallet();
-  const actorPubkey = publicKey?.toBase58();
 
   // Push live bitmap updates straight into the ["proposal", addr] cache.
   useProposalSubscription(selectedProposal);
@@ -68,12 +68,19 @@ export function useProposalWorkflow(walletName: string, selectedProposal: string
   // backend default it.
   const approveMutation = useMutation({
     mutationFn: async () => {
+      const { signerPk } = await resolveProposalSigner({
+        connection,
+        proposalAddress: selectedProposal,
+        pickSigner: wallet.pickSigner,
+        action: "approve",
+      });
+      const actorPubkey = signerPk.toBase58();
       const dry = await backendApi.prepare.approveProposal(
         walletName,
         selectedProposal,
         { actor_pubkey: actorPubkey },
       );
-      const signed = await signDescriptor(dry);
+      const signed = await signDescriptor(dry, { preferSigner: signerPk });
       return backendApi.submit.approveProposal(walletName, selectedProposal, {
         ...signed,
         expiry: dry.expiry,
@@ -87,12 +94,19 @@ export function useProposalWorkflow(walletName: string, selectedProposal: string
 
   const cancelMutation = useMutation({
     mutationFn: async () => {
+      const { signerPk } = await resolveProposalSigner({
+        connection,
+        proposalAddress: selectedProposal,
+        pickSigner: wallet.pickSigner,
+        action: "decline",
+      });
+      const actorPubkey = signerPk.toBase58();
       const dry = await backendApi.prepare.cancelProposal(
         walletName,
         selectedProposal,
         { actor_pubkey: actorPubkey },
       );
-      const signed = await signDescriptor(dry);
+      const signed = await signDescriptor(dry, { preferSigner: signerPk });
       return backendApi.submit.cancelProposal(walletName, selectedProposal, {
         ...signed,
         expiry: dry.expiry,
@@ -128,4 +142,38 @@ export function useProposalWorkflow(walletName: string, selectedProposal: string
     executeMutation,
     cleanupMutation,
   };
+}
+
+async function resolveProposalSigner({
+  connection,
+  proposalAddress,
+  pickSigner,
+  action,
+}: {
+  connection: Connection;
+  proposalAddress: string;
+  pickSigner: (approvers: readonly string[]) => PublicKey | null;
+  action: "approve" | "decline";
+}) {
+  let proposalPk: PublicKey;
+  try {
+    proposalPk = new PublicKey(proposalAddress);
+  } catch {
+    throw new Error("Invalid proposal address.");
+  }
+  const proposal = await fetchProposal(connection, proposalPk);
+  if (!proposal) {
+    throw new Error("Couldn't load this request from chain.");
+  }
+  const intent = await fetchIntentByPda(connection, new PublicKey(proposal.intent));
+  if (!intent) {
+    throw new Error("Couldn't load this request's signing rule from chain.");
+  }
+  const signerPk = pickSigner(intent.approvers);
+  if (!signerPk) {
+    throw new Error(
+      `None of your connected wallets can ${action} this request.`,
+    );
+  }
+  return { proposal, intent, signerPk };
 }
