@@ -194,7 +194,7 @@ export default function WalletSwapPage() {
               Private swap starts public
             </p>
             <h1 className="mt-1 font-display text-2xl font-semibold text-text-strong sm:text-3xl">
-              Swap BTC to SOL.
+              Swap your crypto.
             </h1>
           </div>
         </div>

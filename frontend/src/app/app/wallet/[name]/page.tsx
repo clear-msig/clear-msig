@@ -1902,8 +1902,8 @@ function manageActionGroups(
           {
             href: `/app/wallet/${encoded}/swap`,
             icon: Repeat2,
-            title: "Swap draft",
-            body: "Manual BTC to SOL review before agent automation.",
+            title: "Swap crypto",
+            body: "Manual review before agent automation.",
           },
         ],
       },
