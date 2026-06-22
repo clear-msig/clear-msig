@@ -24,7 +24,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { proposerDisplayName } from "@/lib/retail/proposerName";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ArrowRight, Banknote, Bell, Bot, ChevronDown, Coins, Download, Eye, EyeOff, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
+import { Activity, ArrowRight, Banknote, Bell, Bot, ChevronDown, Coins, Download, Eye, EyeOff, Repeat2, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
 import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -1901,6 +1901,12 @@ function manageActionGroups(
             title: "Trading budget",
             body: "Bounded capital for trader activity.",
           },
+          {
+            href: `/app/wallet/${encoded}/swap`,
+            icon: Repeat2,
+            title: "Swap draft",
+            body: "Manual BTC to SOL review before agent automation.",
+          },
         ],
       },
     ];
@@ -1939,6 +1945,12 @@ function rulesActionRows(
 
 function moneyActionRows(encoded: string): ManageActionGroup["rows"] {
   return [
+    {
+      href: `/app/wallet/${encoded}/swap`,
+      icon: Repeat2,
+      title: "Swap",
+      body: "Draft BTC to SOL, review, then approve.",
+    },
     {
       href: `/app/wallet/${encoded}/buy`,
       icon: Banknote,

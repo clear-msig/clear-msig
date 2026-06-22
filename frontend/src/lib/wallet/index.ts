@@ -439,6 +439,9 @@ export function useWallet() {
           }
           return connector.internalSignTransaction(transaction);
         }
+        throw new Error(
+          "Embedded Solana transaction signing is unavailable. Reconnect your Google account, then try again. ClearSig will not open Dynamic's generic transaction modal for Secure actions.",
+        );
       }
 
       // Dynamic's SolanaWallet exposes getSigner() which returns an object

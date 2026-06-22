@@ -114,6 +114,7 @@ function isAllowedAgentPath(pathname: string, base: string): boolean {
   return (
     pathname === `${base}/agents` ||
     pathname.startsWith(`${base}/agents/`) ||
+    pathname === `${base}/swap` ||
     pathname === `${base}/activity` ||
     pathname === `${base}/settings`
   );
@@ -135,6 +136,7 @@ function isAllowedPersonalPath(pathname: string, base: string): boolean {
     "send/erc20",
     "send/eth",
     "send/zec",
+    "swap",
     "receive",
     "buy",
     "sell",
@@ -167,6 +169,7 @@ function isAllowedProPath(pathname: string, base: string): boolean {
     "send/erc20",
     "send/eth",
     "send/zec",
+    "swap",
     "receive",
     "buy",
     "sell",
