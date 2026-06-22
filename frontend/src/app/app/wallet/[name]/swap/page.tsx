@@ -29,13 +29,17 @@ import {
   type SwapAssetId,
   type SwapDraft,
   type SwapExecutionReceipt,
+  type SwapFill,
   type SwapPolicyCheck,
   type SwapQuote,
+  type SwapReservation,
 } from "@/lib/swap/drafts";
 import {
   requestSwapDraft,
-  requestSwapExecution,
+  requestSwapFill,
   requestSwapQuote,
+  requestSwapReserve,
+  requestSwapStatus,
 } from "@/lib/swap/client";
 
 export default function WalletSwapPage() {
@@ -60,6 +64,8 @@ export default function WalletSwapPage() {
   const [draftLoading, setDraftLoading] = useState(false);
   const [executeLoading, setExecuteLoading] = useState(false);
   const [receipt, setReceipt] = useState<SwapExecutionReceipt | null>(null);
+  const [reservation, setReservation] = useState<SwapReservation | null>(null);
+  const [fill, setFill] = useState<SwapFill | null>(null);
   const [executionMessage, setExecutionMessage] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<SwapDraft[]>(() =>
     listSwapDrafts(walletName),
@@ -71,6 +77,8 @@ export default function WalletSwapPage() {
     const trimmed = amount.trim();
     setDraft(null);
     setReceipt(null);
+    setReservation(null);
+    setFill(null);
     setExecutionMessage(null);
     if (!trimmed || Number(trimmed) <= 0 || from === to) {
       setQuote(null);
@@ -126,10 +134,16 @@ export default function WalletSwapPage() {
   async function checkExecution() {
     if (!draft) return;
     setExecuteLoading(true);
+    setExecutionMessage(null);
     try {
-      const response = await requestSwapExecution({ draft });
-      setReceipt(response.receipt);
-      setExecutionMessage(response.readiness.message);
+      const reserve = await requestSwapReserve({ draft });
+      setReservation(reserve.reservation);
+      const filled = await requestSwapFill({
+        reservationId: reserve.reservation.id,
+      });
+      setFill(filled.fill);
+      setReceipt(filled.fill.receipt);
+      setExecutionMessage(filled.fill.message);
     } catch (error) {
       setExecutionMessage(
         error instanceof Error ? error.message : "Could not check execution.",
@@ -138,6 +152,28 @@ export default function WalletSwapPage() {
       setExecuteLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (!fill) return;
+    if (fill.status === "settled" || fill.status === "blocked") return;
+    const timer = window.setInterval(() => {
+      void requestSwapStatus(fill.id)
+        .then((response) => {
+          if (response.fill) {
+            setFill(response.fill);
+            setReceipt(response.fill.receipt);
+            setExecutionMessage(response.fill.message);
+          }
+          if (response.reservation) setReservation(response.reservation);
+        })
+        .catch((error) => {
+          setExecutionMessage(
+            error instanceof Error ? error.message : "Could not refresh status.",
+          );
+        });
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [fill]);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
@@ -225,7 +261,12 @@ export default function WalletSwapPage() {
             />
           ) : null}
           {receipt ? (
-            <ExecutionReceipt receipt={receipt} message={executionMessage} />
+            <ExecutionReceipt
+              receipt={receipt}
+              message={executionMessage}
+              reservation={reservation}
+              fill={fill}
+            />
           ) : null}
           {drafts.length > 0 ? <RecentDrafts drafts={drafts} /> : null}
         </aside>
@@ -538,9 +579,13 @@ function DraftReceipt({
 function ExecutionReceipt({
   receipt,
   message,
+  reservation,
+  fill,
 }: {
   receipt: SwapExecutionReceipt;
   message: string | null;
+  reservation: SwapReservation | null;
+  fill: SwapFill | null;
 }) {
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
@@ -557,6 +602,27 @@ function ExecutionReceipt({
           </p>
         </div>
       </div>
+      {reservation ? (
+        <div className="mt-3 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs text-text-soft">
+          <div className="flex items-center justify-between gap-3">
+            <span>Liquidity</span>
+            <span className="font-medium text-text-strong">
+              {reservation.status}
+            </span>
+          </div>
+          <div className="mt-1 flex items-center justify-between gap-3">
+            <span>Collateral</span>
+            <span className="font-medium text-text-strong">
+              {formatUsd(reservation.collateral.availableUsd)}
+            </span>
+          </div>
+        </div>
+      ) : null}
+      {fill ? (
+        <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+          Status · {fill.status.replace(/_/g, " ")}
+        </p>
+      ) : null}
       <details className="group mt-3 rounded-soft border border-border-soft bg-canvas">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs font-medium text-text-strong">
           Execution path

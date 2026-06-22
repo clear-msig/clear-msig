@@ -75,6 +75,37 @@ export interface SwapExecutionReceipt {
   };
 }
 
+export interface SwapReservation {
+  id: string;
+  draft: SwapDraft;
+  receiveAsset: SwapAssetId;
+  receiveAmount: number;
+  expiresAt: number;
+  status: "reserved" | "expired" | "filled" | "blocked";
+  collateral: {
+    state: "configured" | "dev-placeholder";
+    solverId: string;
+    vaultAddress: string;
+    requiredUsd: number;
+    availableUsd: number;
+    message: string;
+  };
+}
+
+export interface SwapFill {
+  id: string;
+  reservationId: string;
+  status:
+    | "awaiting_ika"
+    | "adapter_not_configured"
+    | "submitted"
+    | "settled"
+    | "blocked";
+  receipt: SwapExecutionReceipt;
+  message: string;
+  updatedAt: number;
+}
+
 const STORAGE_KEY = "clearsig.swap.drafts.v1";
 
 const PRICE_USD: Record<SwapAssetId, number> = {

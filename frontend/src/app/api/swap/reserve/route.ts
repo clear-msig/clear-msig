@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin, clientIp } from "@/lib/api/guard";
 import { checkRateLimit } from "@/lib/api/rateLimit";
 import { type SwapDraft } from "@/lib/swap/drafts";
-import { solverFill, solverReserve } from "@/lib/swap/solverService";
+import { solverReserve } from "@/lib/swap/solverService";
 
 export async function POST(request: NextRequest) {
   const blocked = assertSameOrigin(request);
   if (blocked) return blocked;
 
-  const limited = await checkRateLimit("swap-execute", clientIp(request), {
+  const limited = await checkRateLimit("swap-reserve", clientIp(request), {
     capacity: 12,
     refillPerSec: 1 / 5,
   });
@@ -21,35 +21,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Body must be JSON." }, { status: 400 });
   }
 
-  const draft = normalizeExecutionRequest(body);
-  if (!draft.ok) {
-    return NextResponse.json({ error: draft.error }, { status: 400 });
-  }
+  const draft = normalizeDraftBody(body);
+  if (!draft.ok) return NextResponse.json({ error: draft.error }, { status: 400 });
 
-  const reserved = solverReserve({ draft: draft.value });
-  if (!reserved.ok) {
-    return NextResponse.json({ error: reserved.error }, { status: 409 });
-  }
-
-  const filled = solverFill({ reservationId: reserved.reservation.id });
-  if (!filled.ok) {
-    return NextResponse.json({ error: filled.error }, { status: 409 });
-  }
-  const adapterReady = filled.fill.status !== "adapter_not_configured";
-
-  return NextResponse.json({
-    ok: adapterReady,
-    reservation: reserved.reservation,
-    fill: filled.fill,
-    receipt: filled.fill.receipt,
-    readiness: {
-      state: adapterReady ? "ready_for_ika" : "adapter_not_configured",
-      message: filled.fill.message,
-    },
-  }, { status: adapterReady ? 200 : 409 });
+  const result = solverReserve({ draft: draft.value });
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: 409 });
+  return NextResponse.json({ ok: true, reservation: result.reservation });
 }
 
-function normalizeExecutionRequest(body: unknown):
+function normalizeDraftBody(body: unknown):
   | { ok: true; value: SwapDraft }
   | { ok: false; error: string } {
   if (!body || typeof body !== "object") {

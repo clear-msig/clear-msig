@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin, clientIp } from "@/lib/api/guard";
 import { checkRateLimit } from "@/lib/api/rateLimit";
-import {
-  buildSwapQuote,
-  swapAsset,
-  type SwapAssetId,
-} from "@/lib/swap/drafts";
+import { type SwapAssetId } from "@/lib/swap/drafts";
+import { solverQuote } from "@/lib/swap/solverService";
 
 const ASSETS = new Set<SwapAssetId>(["SOL", "ETH", "BTC", "ZEC", "HYPE"]);
 
@@ -31,21 +28,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: input.error }, { status: 400 });
   }
 
-  const quote = buildSwapQuote(input.value);
-  if (!quote) {
-    return NextResponse.json(
-      { error: "Enter a valid amount and choose two different assets." },
-      { status: 400 },
-    );
+  const result = solverQuote(input.value);
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: 400 });
   }
 
   return NextResponse.json({
     ok: true,
-    quote,
-    assets: {
-      from: swapAsset(quote.from),
-      to: swapAsset(quote.to),
-    },
+    quote: result.quote,
+    inventory: result.inventory,
+    collateral: result.collateral,
   });
 }
 

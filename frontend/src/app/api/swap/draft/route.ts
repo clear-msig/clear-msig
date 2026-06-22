@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin, clientIp } from "@/lib/api/guard";
 import { checkRateLimit } from "@/lib/api/rateLimit";
 import {
-  buildSwapQuote,
-  createSwapDraft,
   type SwapAssetId,
   type SwapQuote,
 } from "@/lib/swap/drafts";
+import { solverCreateDraft } from "@/lib/swap/solverService";
 
 export async function POST(request: NextRequest) {
   const blocked = assertSameOrigin(request);
@@ -30,25 +29,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: input.error }, { status: 400 });
   }
 
-  const quote = buildSwapQuote({
-    from: input.quote.from,
-    to: input.quote.to,
-    amount: input.quote.amount,
-  });
-  if (!quote) {
-    return NextResponse.json({ error: "Quote is no longer valid." }, { status: 400 });
-  }
+  const result = solverCreateDraft(input);
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
 
-  const draft = createSwapDraft(input.walletName, {
-    ...quote,
-    id: input.quote.id,
-    intentHash: input.quote.intentHash,
-    expiresAt: input.quote.expiresAt,
-  });
   return NextResponse.json({
     ok: true,
-    draft,
-    next: draft.policyDecision.allowed ? "execute" : "review_policy",
+    draft: result.draft,
+    collateral: result.collateral,
+    next: result.draft.policyDecision.allowed ? "reserve" : "review_policy",
   });
 }
 
