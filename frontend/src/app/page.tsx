@@ -137,14 +137,14 @@ interface FadeInFn {
 
 function Hero({ fadeIn }: { fadeIn: FadeInFn }) {
   return (
-    <section className="relative left-1/2 isolate z-10 min-h-[100svh] w-screen -translate-x-1/2 overflow-hidden bg-[#070807]">
+    <section className="relative left-1/2 isolate z-10 -mt-[72px] min-h-[calc(100svh_+_72px)] w-screen -translate-x-1/2 overflow-hidden bg-[#070807] sm:-mt-[100px] sm:min-h-[calc(100svh_+_100px)]">
       <Image
         src="/assets/clearsig-hero-bg.png"
         alt=""
         fill
         priority
         sizes="100vw"
-        className="pointer-events-none absolute inset-0 z-0 scale-[1.04] object-cover object-[64%_50%] opacity-90 sm:scale-[1.02] sm:object-[60%_56%] sm:opacity-95"
+        className="pointer-events-none absolute inset-0 z-0 h-full w-full scale-[1.04] object-cover object-[64%_50%] opacity-90 sm:scale-[1.02] sm:object-[60%_56%] sm:opacity-95"
         aria-hidden="true"
       />
       <div
@@ -159,7 +159,7 @@ function Hero({ fadeIn }: { fadeIn: FadeInFn }) {
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 bottom-0 z-[3] h-40 bg-gradient-to-b from-transparent via-[#0c0c0c]/74 to-[#0c0c0c]"
       />
-      <div className="relative z-10 mx-auto grid min-h-[100svh] w-full max-w-[1600px] grid-cols-1 items-start gap-10 px-5 pb-20 pt-20 sm:items-center sm:gap-12 sm:px-10 sm:pb-28 sm:pt-32 lg:grid-cols-12 lg:gap-10 lg:pb-36 lg:pt-36">
+      <div className="relative z-10 mx-auto grid min-h-[calc(100svh_+_72px)] w-full max-w-[1600px] grid-cols-1 items-start gap-10 px-5 pb-16 pt-20 sm:min-h-[calc(100svh_+_100px)] sm:items-center sm:gap-12 sm:px-10 sm:pb-28 sm:pt-32 lg:grid-cols-12 lg:gap-10 lg:pb-36 lg:pt-36">
         {/* Left - copy */}
         <div className="relative mx-auto max-w-3xl text-center lg:col-span-7 lg:mx-0 lg:text-left">
 
@@ -217,25 +217,49 @@ function ClearSigningHeroMockup() {
   const route = ["Intent", "Owners", "Ika", "SOL"];
 
   return (
-    <div className="relative mx-auto w-full max-w-[410px] [perspective:1200px] sm:max-w-[560px] lg:mx-0 lg:ml-auto">
+    <div className="group relative mx-auto w-full max-w-[410px] [perspective:1500px] sm:max-w-[560px] lg:mx-0 lg:ml-auto">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -inset-8 -z-10 rounded-[2.6rem] bg-[#ccff00]/[0.06] blur-3xl"
+        className="pointer-events-none absolute -inset-8 -z-10 rounded-[2.8rem] bg-[#ccff00]/[0.055] blur-3xl"
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-8 -bottom-5 h-12 rounded-full bg-black/70 blur-2xl"
+        className="pointer-events-none absolute inset-x-8 -bottom-8 h-16 rounded-full bg-black/80 blur-2xl"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-4 -z-10 rounded-[2.2rem] bg-[#070908] shadow-[0_38px_80px_-44px_rgba(0,0,0,1)]"
+        style={{
+          transform: "rotateX(9deg) rotateY(-9deg) translate3d(28px, 30px, -74px)",
+          transformStyle: "preserve-3d",
+        }}
       />
 
       <div
-        className="relative overflow-hidden rounded-[1.55rem] bg-[#0b0e0d]/96 p-2.5 shadow-[0_34px_100px_-56px_rgba(0,0,0,0.98)] sm:rounded-[2rem] sm:p-4"
+        className="relative overflow-hidden rounded-[1.65rem] bg-[#0a0d0c]/98 p-2.5 shadow-[0_42px_110px_-58px_rgba(0,0,0,1)] sm:rounded-[2.1rem] sm:p-4"
         style={{
-          transform: "rotateX(6deg) rotateY(-6deg)",
+          transform: "rotateX(9deg) rotateY(-9deg) rotateZ(0.35deg) translateZ(28px)",
           transformStyle: "preserve-3d",
         }}
       >
-        <div className="rounded-[1.25rem] bg-[#111412] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:rounded-[1.65rem] sm:p-5">
-          <div className="flex items-center justify-between gap-4">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-[linear-gradient(130deg,rgba(255,255,255,0.14)_0%,transparent_23%,transparent_68%,rgba(204,255,0,0.08)_100%)] opacity-55"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-8 top-12 h-40 w-10 rounded-full bg-[#ccff00]/20 blur-2xl"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-5 top-3 h-px bg-white/12"
+        />
+
+        <div
+          className="relative rounded-[1.35rem] bg-[#111412] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.055),inset_0_-18px_40px_rgba(0,0,0,0.22)] sm:rounded-[1.75rem] sm:p-5"
+          style={{ transform: "translateZ(34px)", transformStyle: "preserve-3d" }}
+        >
+          <div className="flex items-center justify-between gap-4" style={{ transform: "translateZ(46px)" }}>
             <div className="flex items-center gap-3">
               <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#ccff00] text-black shadow-[0_14px_30px_-20px_rgba(204,255,0,0.8)] sm:h-10 sm:w-10">
                 <ReceiptText className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" strokeWidth={2.2} />
@@ -253,12 +277,15 @@ function ClearSigningHeroMockup() {
           </div>
 
           <div className="mt-4 grid gap-3 sm:mt-6 sm:gap-4 lg:grid-cols-[1.05fr_0.95fr]">
-            <section className="rounded-[1.15rem] bg-[#080a09] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] sm:rounded-[1.35rem] sm:p-4">
+            <section
+              className="rounded-[1.15rem] bg-[#080a09] p-3 shadow-[0_22px_45px_-34px_rgba(0,0,0,1),inset_0_1px_0_rgba(255,255,255,0.05)] sm:rounded-[1.35rem] sm:p-4"
+              style={{ transform: "translateZ(64px)" }}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[11px] font-medium text-white/46">Send</p>
                   <div className="mt-2 flex items-end gap-2">
-                    <span className="text-[2.75rem] font-semibold leading-none tracking-[-0.06em] text-white sm:text-[3.25rem]">
+                    <span className="text-[2.75rem] font-semibold leading-none tracking-[-0.06em] text-white drop-shadow-[0_10px_28px_rgba(204,255,0,0.08)] sm:text-[3.25rem]">
                       5
                     </span>
                     <span className="pb-1.5 text-base font-semibold text-white/48">SOL</span>
@@ -283,7 +310,10 @@ function ClearSigningHeroMockup() {
               </div>
             </section>
 
-            <section className="hidden rounded-[1.35rem] bg-[#151a12] p-4 shadow-[inset_0_1px_0_rgba(204,255,0,0.05)] sm:block">
+            <section
+              className="hidden rounded-[1.35rem] bg-[#151a12] p-4 shadow-[0_22px_45px_-34px_rgba(0,0,0,1),inset_0_1px_0_rgba(204,255,0,0.07)] sm:block"
+              style={{ transform: "translateZ(52px)" }}
+            >
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#ccff00]">
@@ -319,7 +349,10 @@ function ClearSigningHeroMockup() {
             </section>
           </div>
 
-          <div className="mt-3 rounded-[1.15rem] bg-[#080a09] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] sm:mt-4 sm:rounded-[1.35rem] sm:p-4">
+          <div
+            className="mt-3 rounded-[1.15rem] bg-[#080a09] p-3 shadow-[0_22px_45px_-36px_rgba(0,0,0,1),inset_0_1px_0_rgba(255,255,255,0.04)] sm:mt-4 sm:rounded-[1.35rem] sm:p-4"
+            style={{ transform: "translateZ(50px)" }}
+          >
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center">
                 {approvers.map((approver, index) => (
@@ -366,11 +399,11 @@ function ClearSigningHeroMockup() {
             </div>
           </div>
 
-          <div className="mt-3 flex items-center justify-between gap-3 sm:mt-4">
+          <div className="mt-3 flex items-center justify-between gap-3 sm:mt-4" style={{ transform: "translateZ(70px)" }}>
             <p className="hidden text-xs font-medium text-white/42 sm:block">
               Clear intent, policy checked, ready to sign.
             </p>
-            <span className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-full bg-[#ccff00] px-5 text-sm font-bold text-black sm:min-h-11 sm:flex-none">
+            <span className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-full bg-[#ccff00] px-5 text-sm font-bold text-black shadow-[0_18px_38px_-24px_rgba(204,255,0,0.95)] sm:min-h-11 sm:flex-none">
               Approve
               <Send className="h-4 w-4" aria-hidden="true" strokeWidth={2.6} />
             </span>
