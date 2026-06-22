@@ -38,6 +38,7 @@ import { useConnection, useWallet } from "@/lib/wallet";
 import { useOnboarding } from "@/lib/hooks/useOnboarding";
 import { useNotificationFeed } from "@/lib/hooks/useNotificationFeed";
 import { BrandMark } from "@/components/retail/BrandMark";
+import { TestnetFaucetLinks } from "@/components/layout/TestnetFaucetLinks";
 import { useToast } from "@/components/ui/Toast";
 import { addressUrl } from "@/lib/explorer";
 import { avatarGradient } from "@/lib/retail/avatar";
@@ -454,6 +455,7 @@ export function HeaderBar() {
                           />
                           Refresh balance
                         </button>
+                        <TestnetFaucetLinks itemClass={MOBILE_WALLET_MENU_ITEM_CLASS} />
                         <Link
                           role="menuitem"
                           href="/app/notifications"

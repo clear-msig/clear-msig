@@ -13,7 +13,7 @@ export function walletConnectorId(wallet: unknown): string {
 }
 
 export function isCompatibleEmbeddedWallet(wallet: unknown): boolean {
-  return /turnkey/.test(walletConnectorId(wallet));
+  return /(turnkey|embedded|dynamicwaas|waas)/.test(walletConnectorId(wallet));
 }
 
 export function selectSolanaWallet<T>(

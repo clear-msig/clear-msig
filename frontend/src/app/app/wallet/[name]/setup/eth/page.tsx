@@ -227,9 +227,12 @@ export default function SetupEthPage() {
       await backendApi.executeProposal(name, proposal, {});
       return submitted;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });
-      queryClient.invalidateQueries({ queryKey: ["wallet", name] });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["wallet-intents"] }),
+        queryClient.invalidateQueries({ queryKey: ["wallet", name] }),
+        queryClient.refetchQueries({ queryKey: ["wallet-intents"] }),
+      ]);
       toast.success(`${toHeadingName(name)} can now send ${EVM_LABEL}`);
       // Inline success - parity with /setup (SOL). The previous
       // router.push to /send/eth threw the user into the compose
@@ -352,11 +355,6 @@ export default function SetupEthPage() {
                 <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
                   Bind {EVM_LABEL} first
                 </p>
-                <p className="mt-2 text-sm text-text-strong">
-                  This wallet does not have a {EVM_LABEL} address yet. Add
-                  {EVM_LABEL} on the chains page (about 30 seconds) and come
-                  back here.
-                </p>
                 <Link
                   href={`/app/wallet/${encodeURIComponent(name)}/chains/add?chain=${isHyperliquid ? "hyperliquid_evm" : "evm_1559"}&autostart=1`}
                   className={
@@ -365,7 +363,7 @@ export default function SetupEthPage() {
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
                   }
                 >
-                  Turn on {EVM_LABEL} sending
+                  Turn on {EVM_LABEL}
                   <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                 </Link>
               </div>
@@ -407,7 +405,7 @@ export default function SetupEthPage() {
                     </>
                   ) : (
                     <>
-                      Turn on {EVM_LABEL} sending
+                      Turn on {EVM_LABEL}
                       <ArrowRight className="h-4 w-4" aria-hidden="true" />
                     </>
                   )}

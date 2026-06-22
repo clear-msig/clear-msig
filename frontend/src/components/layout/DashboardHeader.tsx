@@ -41,6 +41,7 @@ import { avatarGradient } from "@/lib/retail/avatar";
 import { formatBalance } from "@/lib/retail/format";
 import { getSectionLabel } from "@/lib/retail/sectionLabel";
 import { ThemeModeButton } from "@/components/security/ThemeModeButton";
+import { TestnetFaucetLinks } from "@/components/layout/TestnetFaucetLinks";
 
 const ROOT_ROUTES = new Set([
   "/app/wallet",
@@ -429,6 +430,7 @@ function HeaderWalletPill() {
               />
               Refresh balance
             </button>
+            <TestnetFaucetLinks itemClass={WALLET_MENU_ITEM_CLASS} />
             <button
               type="button"
               role="menuitem"

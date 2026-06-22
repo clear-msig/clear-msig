@@ -189,6 +189,10 @@ export type SignedRemoveIntentInput = PreSignedPayload & {
 export type SignedUpdateIntentInput = PreSignedPayload & {
   index: number;
   file: string;
+  /// Must match the prepare request when the updated intent stores
+  /// encrypted policy metadata. Keeping it on submit prevents backend
+  /// rebuild paths from silently dropping policy bytes.
+  policy_ciphertexts?: string[];
 };
 
 export type SignedCreateProposalInput = PreSignedPayload & {

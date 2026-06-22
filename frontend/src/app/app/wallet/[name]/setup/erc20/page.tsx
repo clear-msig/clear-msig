@@ -215,9 +215,12 @@ export default function SetupErc20Page() {
       await backendApi.executeProposal(name, proposal, {});
       return submitted;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });
-      queryClient.invalidateQueries({ queryKey: ["wallet", name] });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["wallet-intents"] }),
+        queryClient.invalidateQueries({ queryKey: ["wallet", name] }),
+        queryClient.refetchQueries({ queryKey: ["wallet-intents"] }),
+      ]);
       toast.success(`${toHeadingName(name)} can now send ERC-20 tokens`);
       router.push(`/app/wallet/${encodeURIComponent(name)}/send/erc20`);
     },

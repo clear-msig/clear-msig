@@ -202,7 +202,23 @@ function BitcoinSendPage() {
           a.chainKind === BTC_CHAIN_KIND,
       );
   }, [intentsQuery.data]);
-  const btcIntentSupportsChange = (btcIntent?.params.length ?? 0) >= 8;
+  const btcChangeMarkerKey =
+    walletQuery.data && btcIntent
+      ? `clearsig:btc-change-v2:${walletQuery.data.pda.toBase58()}:${btcIntent.intentIndex}`
+      : null;
+  const [btcChangeUpgradeConfirmed, setBtcChangeUpgradeConfirmed] =
+    useState(false);
+  useEffect(() => {
+    if (!btcChangeMarkerKey || typeof window === "undefined") {
+      setBtcChangeUpgradeConfirmed(false);
+      return;
+    }
+    setBtcChangeUpgradeConfirmed(
+      window.localStorage.getItem(btcChangeMarkerKey) === "1",
+    );
+  }, [btcChangeMarkerKey]);
+  const btcIntentSupportsChange =
+    (btcIntent?.params.length ?? 0) >= 8 || btcChangeUpgradeConfirmed;
 
   // ── Live balance + UTXOs ──────────────────────────────────────────
   const balanceSats = btcSnapshotQuery.data?.balanceSats ?? null;
@@ -259,10 +275,9 @@ function BitcoinSendPage() {
   const selectedUtxo = useMemo<EsploraUtxo | null>(() => {
     if (!btcUtxos.length || !sendAmountSats) return null;
     const need = sendAmountSats + FEE_RESERVE_SATS;
-    // utxos are sorted desc by value; pick the smallest one that
-    // covers `need`. Walking from the smallest up wastes less change
-    // (single-input means change isn't returned. Every extra sat
-    // becomes the fee).
+    // UTXOs arrive sorted by value in Esplora. Pick the smallest one
+    // that covers `need`; v2 BTC intents return the remainder as change,
+    // while older intents still block unsafe implied fees below.
     const candidates = [...btcUtxos].sort((a, b) => a.value - b.value);
     for (const u of candidates) {
       if (BigInt(u.value) >= need) return u;
@@ -501,6 +516,7 @@ function BitcoinSendPage() {
         expiry: dry.expiry,
         index: intent.intentIndex,
         file: BTC_TEMPLATE,
+        policy_ciphertexts,
       });
       const proposal = (submitted as Record<string, unknown>)?.proposal;
       if (typeof proposal !== "string" || proposal.length === 0) {
@@ -557,6 +573,10 @@ function BitcoinSendPage() {
         throw new Error(
           "The Bitcoin upgrade transaction was submitted, but the wallet still reports the old Bitcoin intent. Wait a moment and refresh.",
         );
+      }
+      if (btcChangeMarkerKey && typeof window !== "undefined") {
+        window.localStorage.setItem(btcChangeMarkerKey, "1");
+        setBtcChangeUpgradeConfirmed(true);
       }
       return { upgraded: true, awaitingApprovers: false };
     },
@@ -1022,16 +1042,12 @@ function NeedsBinding({
       transition={{ duration: 0.25 }}
       className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
     >
-      <p className="text-sm text-text-soft">
-        Turn on Bitcoin sending once. ClearSig will add the Bitcoin address and
-        unlock BTC sends for this wallet.
-      </p>
       <Link
         href={`/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=bitcoin_p2wpkh&autostart=1`}
         className="self-start"
       >
         <Button>
-          Turn on Bitcoin sending
+          Turn on Bitcoin
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Button>
       </Link>
@@ -1069,11 +1085,6 @@ function NeedsSetup({
       transition={{ duration: 0.25 }}
       className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
     >
-      <p className="text-sm text-text-soft">
-        Finish Bitcoin setup for{" "}
-        <span className="font-medium text-text-strong">{walletDisplay}</span>{" "}
-        to unlock BTC sends.
-      </p>
       {address && (
         <div className="rounded-soft border border-border-soft bg-canvas p-3">
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
@@ -1109,7 +1120,7 @@ function NeedsSetup({
           </>
         ) : (
           <>
-            Turn on Bitcoin sending
+            Turn on Bitcoin
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </>
         )}

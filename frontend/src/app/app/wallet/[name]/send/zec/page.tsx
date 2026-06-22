@@ -253,10 +253,14 @@ export default function ZcashSendPage() {
       return proposal;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });
-      queryClient.invalidateQueries({ queryKey: ["wallet", name] });
-      toast.success(`${walletDisplay} can now send ZEC`);
-      setStage("compose");
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["wallet-intents"] }),
+        queryClient.invalidateQueries({ queryKey: ["wallet", name] }),
+        queryClient.refetchQueries({ queryKey: ["wallet-intents"] }),
+      ]).then(() => {
+        toast.success(`${walletDisplay} can now send ZEC`);
+        setStage("compose");
+      });
     },
     onError: (err) => {
       console.error("[setup-zec]", err);
@@ -399,11 +403,11 @@ export default function ZcashSendPage() {
   if (allSettled && needsBinding) {
     return (
       <PreFlightCard
-        title="Turn on Zcash sending"
-        body="One setup adds Zcash to this wallet and unlocks Zcash sends."
+        title="Turn on Zcash"
+        body=""
         cta={{
           href: `/app/wallet/${encodeURIComponent(name)}/chains/add?chain=zcash_transparent&autostart=1`,
-          label: "Turn on Zcash sending",
+          label: "Turn on Zcash",
         }}
       />
     );
@@ -427,7 +431,7 @@ export default function ZcashSendPage() {
           {stage === "compose" && needsIntent && (
             <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
-                Turn on Zcash sending
+                Turn on Zcash
               </p>
               <p className="mt-2 text-sm text-text-soft">
                 Finish setup to unlock Zcash sends.
@@ -440,7 +444,7 @@ export default function ZcashSendPage() {
                   </>
                 ) : (
                   <>
-                    Turn on Zcash sending
+                    Turn on Zcash
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </>
                 )}
@@ -491,7 +495,7 @@ function PreFlightCard({
   cta,
 }: {
   title: string;
-  body: string;
+  body?: string;
   cta: { href: string; label: string };
 }) {
   return (
@@ -503,7 +507,7 @@ function PreFlightCard({
         <h1 className="mt-2 font-display text-2xl font-semibold leading-tight text-text-strong">
           {title}
         </h1>
-        <p className="mt-2 text-sm text-text-soft">{body}</p>
+        {body ? <p className="mt-2 text-sm text-text-soft">{body}</p> : null}
         <Link
           href={cta.href}
           className="mt-4 inline-flex items-center gap-1.5 rounded-soft bg-accent px-3.5 py-2 text-sm font-medium text-text-on-accent shadow-accent-rest"
