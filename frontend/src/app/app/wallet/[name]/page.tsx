@@ -1839,7 +1839,7 @@ type ManageActionGroup = {
     href: string;
     icon: LucideIcon;
     title: string;
-    body: string;
+    body?: string;
   }>;
 };
 
@@ -1856,7 +1856,6 @@ function manageActionGroups(
       },
       {
         label: "More money",
-        description: "Top up or withdraw through supported rails.",
         rows: moneyActionRows(encoded),
       },
     ];
@@ -1883,7 +1882,6 @@ function manageActionGroups(
       },
       {
         label: "More money",
-        description: "Top up or withdraw through supported rails.",
         rows: moneyActionRows(encoded),
       },
     ];
@@ -1920,7 +1918,6 @@ function manageActionGroups(
     },
     {
       label: "More money",
-      description: "Top up or withdraw through supported rails.",
       rows: moneyActionRows(encoded),
     },
   ];
@@ -1948,20 +1945,17 @@ function moneyActionRows(encoded: string): ManageActionGroup["rows"] {
     {
       href: `/app/wallet/${encoded}/swap`,
       icon: Repeat2,
-      title: "Swap",
-      body: "Draft BTC to SOL, review, then approve.",
+      title: "Swap crypto",
     },
     {
       href: `/app/wallet/${encoded}/buy`,
       icon: Banknote,
-      title: "Buy crypto",
-      body: "Fund SOL or ETH from a Nigerian bank account.",
+      title: "Buy crypto with your bank account",
     },
     {
       href: `/app/wallet/${encoded}/sell`,
       icon: TrendingDown,
-      title: "Withdraw to bank",
-      body: "Convert crypto to NGN.",
+      title: "Withdraw crypto to your bank account",
     },
   ];
 }
@@ -2003,13 +1997,13 @@ function ActionRow({
   href: string;
   icon: LucideIcon;
   title: string;
-  body: string;
+  body?: string;
 }) {
   return (
     <Link
       href={href}
       className={
-        "group relative flex min-h-[82px] items-center gap-3 overflow-hidden rounded-card border border-border-soft bg-surface-raised px-4 py-3.5 shadow-card-rest " +
+        "group relative flex min-h-[64px] items-center gap-3 overflow-hidden rounded-card border border-border-soft bg-surface-raised px-4 py-3 shadow-card-rest " +
         "transition-[transform,border-color,box-shadow,background-color] duration-base ease-out-soft " +
         "hover:-translate-y-0.5 hover:border-accent/35 hover:bg-canvas hover:shadow-card-raised " +
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
@@ -2026,9 +2020,11 @@ function ActionRow({
         <p className="truncate text-sm font-semibold text-text-strong">
           {title}
         </p>
-        <p className="mt-1 line-clamp-2 text-xs leading-snug text-text-soft">
-          {body}
-        </p>
+        {body ? (
+          <p className="mt-1 line-clamp-2 text-xs leading-snug text-text-soft">
+            {body}
+          </p>
+        ) : null}
       </div>
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-canvas/70 text-text-soft transition-[color,transform] duration-base group-hover:translate-x-0.5 group-hover:text-accent">
         <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
