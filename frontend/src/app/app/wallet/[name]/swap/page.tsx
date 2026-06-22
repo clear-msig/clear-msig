@@ -19,6 +19,7 @@ import { toDisplayName } from "@/lib/retail/walletNames";
 import { formatUsd } from "@/lib/retail/priceConversion";
 import {
   SWAP_ASSETS,
+  buildSwapQuote,
   quoteIsExecutable,
   storeSwapDraft,
   swapAsset,
@@ -32,7 +33,6 @@ import {
 import {
   requestSwapDraft,
   requestSwapFill,
-  requestSwapQuote,
   requestSwapReserve,
   requestSwapStatus,
 } from "@/lib/swap/client";
@@ -53,7 +53,6 @@ export default function WalletSwapPage() {
   const [to, setTo] = useState<SwapAssetId>("SOL");
   const [amount, setAmount] = useState("");
   const [quote, setQuote] = useState<SwapQuote | null>(null);
-  const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [draft, setDraft] = useState<SwapDraft | null>(null);
   const [draftLoading, setDraftLoading] = useState(false);
@@ -78,34 +77,10 @@ export default function WalletSwapPage() {
     if (!trimmed || Number(trimmed) <= 0 || from === to) {
       setQuote(null);
       setQuoteError(null);
-      setQuoteLoading(false);
       return;
     }
-    let cancelled = false;
-    setQuote(null);
-    setQuoteLoading(true);
     setQuoteError(null);
-    const timer = window.setTimeout(() => {
-      void requestSwapQuote({ from, to, amount: trimmed })
-        .then((response) => {
-          if (cancelled) return;
-          setQuote(response.quote);
-        })
-        .catch((error) => {
-          if (cancelled) return;
-          setQuote(null);
-          setQuoteError(
-            error instanceof Error ? error.message : "Could not quote swap.",
-          );
-        })
-        .finally(() => {
-          if (!cancelled) setQuoteLoading(false);
-        });
-    }, 220);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
+    setQuote(buildSwapQuote({ from, to, amount: trimmed }));
   }, [amount, from, to]);
 
   async function saveDraft() {
@@ -170,16 +145,16 @@ export default function WalletSwapPage() {
   }, [fill]);
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col gap-2.5 px-3 sm:max-w-3xl sm:gap-4 sm:px-4 lg:max-w-5xl">
-      <header className="flex items-center justify-between gap-3">
+    <div className="mx-auto box-border flex w-full max-w-[calc(100vw-1.5rem)] flex-col gap-2.5 overflow-hidden sm:max-w-3xl sm:gap-4 lg:max-w-5xl">
+      <header className="flex min-w-0 items-center justify-between gap-2">
         <Link
           href={`/app/wallet/${encoded}`}
-          className="inline-flex min-h-tap items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 text-xs font-medium text-text-soft transition-colors hover:border-border-strong hover:text-text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          className="inline-flex min-h-tap min-w-0 items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 text-xs font-medium text-text-soft transition-colors hover:border-border-strong hover:text-text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Wallet
         </Link>
-        <span className="rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-[11px] font-semibold text-accent">
+        <span className="hidden rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-[11px] font-semibold text-accent sm:inline-flex">
           Testnet MVP
         </span>
       </header>
@@ -200,8 +175,8 @@ export default function WalletSwapPage() {
         </div>
       </section>
 
-      <section className="grid gap-2.5 sm:gap-3 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
-        <div className="flex flex-col gap-2.5 sm:gap-3">
+      <section className="grid min-w-0 gap-2.5 sm:gap-3 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+        <div className="flex min-w-0 flex-col gap-2.5 sm:gap-3">
           <SwapPairPicker
             from={from}
             to={to}
@@ -223,7 +198,7 @@ export default function WalletSwapPage() {
               setOpenAssetPicker(null);
             }}
           />
-          <section className="rounded-card border border-border-soft bg-surface-raised p-2.5 shadow-card-rest sm:p-4">
+          <section className="w-full min-w-0 overflow-hidden rounded-card border border-border-soft bg-surface-raised p-2.5 shadow-card-rest sm:p-4">
             <SendAmountField
               id="swap-amount"
               ticker={from}
@@ -239,12 +214,12 @@ export default function WalletSwapPage() {
           </section>
         </div>
 
-        <aside className="flex flex-col gap-2.5 sm:gap-4">
+        <aside className="flex min-w-0 flex-col gap-2.5 sm:gap-4">
           <SwapReview
             quote={quote}
             draft={draft}
             executable={executable}
-            loading={quoteLoading || draftLoading || executeLoading}
+            loading={draftLoading || executeLoading}
             error={quoteError}
             onSave={saveDraft}
             onExecute={checkExecution}
@@ -281,8 +256,8 @@ function SwapPairPicker({
   onSelectTo: (asset: SwapAssetId) => void;
 }) {
   return (
-    <section className="rounded-card border border-border-soft bg-surface-raised p-2.5 shadow-card-rest sm:p-4">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-stretch gap-1.5 sm:gap-2">
+    <section className="w-full min-w-0 overflow-hidden rounded-card border border-border-soft bg-surface-raised p-2.5 shadow-card-rest sm:p-4">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_2.25rem_minmax(0,1fr)] items-stretch gap-1.5 sm:grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)] sm:gap-2">
         <AssetSelectButton
           label="From"
           asset={from}
@@ -293,7 +268,7 @@ function SwapPairPicker({
           type="button"
           aria-label="Reverse swap pair"
           onClick={onReverse}
-          className="flex min-h-tap w-9 items-center justify-center rounded-full border border-border-soft bg-canvas text-text-soft transition-colors hover:border-accent/60 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised sm:w-10"
+          className="flex min-h-tap w-9 min-w-0 items-center justify-center rounded-full border border-border-soft bg-canvas text-text-soft transition-colors hover:border-accent/60 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised sm:w-10"
         >
           <Repeat2 className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -332,7 +307,7 @@ function AssetSelectButton({
       aria-expanded={open}
       onClick={onClick}
       className={clsx(
-        "flex min-h-tap items-center gap-2 rounded-soft border px-2 py-2 text-left transition-colors sm:gap-3 sm:px-3",
+        "flex min-h-tap min-w-0 items-center gap-2 overflow-hidden rounded-soft border px-2 py-2 text-left transition-colors sm:gap-3 sm:px-3",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
         open
           ? "border-accent/60 bg-accent/10"
@@ -340,7 +315,7 @@ function AssetSelectButton({
       )}
     >
       <ChainBadge chain={meta.chain} size="sm" />
-      <span className="min-w-0 flex-1">
+      <span className="min-w-0 flex-1 overflow-hidden">
         <span className="block font-mono text-[9px] uppercase tracking-[0.18em] text-text-soft">
           {label}
         </span>
@@ -369,7 +344,7 @@ function AssetChooser({
   onSelect: (asset: SwapAssetId) => void;
 }) {
   return (
-    <div className="mt-2 grid gap-1.5 rounded-soft border border-border-soft bg-canvas p-1.5 sm:gap-2 sm:p-2">
+    <div className="mt-2 grid min-w-0 gap-1.5 rounded-soft border border-border-soft bg-canvas p-1.5 sm:gap-2 sm:p-2">
       {SWAP_ASSETS.map((asset) => {
         const active = asset.id === selected;
         const disabled = asset.id === other;
@@ -380,7 +355,7 @@ function AssetChooser({
             disabled={disabled}
             onClick={() => onSelect(asset.id)}
             className={clsx(
-              "flex min-h-tap items-center gap-2 rounded-soft border px-2.5 py-2 text-left transition-colors sm:gap-3 sm:px-3",
+              "flex min-h-tap min-w-0 items-center gap-2 overflow-hidden rounded-soft border px-2.5 py-2 text-left transition-colors sm:gap-3 sm:px-3",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
               active
                 ? "border-accent/60 bg-accent/10 text-text-strong"
@@ -427,7 +402,7 @@ function SwapReview({
   const canSwap = Boolean(draft && executable);
 
   return (
-    <section className="rounded-card border border-border-soft bg-surface-raised p-2.5 shadow-card-rest sm:p-4">
+    <section className="w-full min-w-0 overflow-hidden rounded-card border border-border-soft bg-surface-raised p-2.5 shadow-card-rest sm:p-4">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-medium text-text-strong">Review</h2>
         {quote ? (
@@ -436,7 +411,7 @@ function SwapReview({
           </span>
         ) : null}
       </div>
-      <div className="mt-2.5 rounded-soft border border-border-soft bg-canvas p-2.5 sm:mt-3 sm:p-3 lg:flex lg:items-center lg:justify-between lg:gap-5">
+      <div className="mt-2.5 min-w-0 overflow-hidden rounded-soft border border-border-soft bg-canvas p-2.5 sm:mt-3 sm:p-3 lg:flex lg:items-center lg:justify-between lg:gap-5">
         {quote && fromAsset && toAsset ? (
           <>
             <div className="min-w-0 flex-1">
@@ -462,9 +437,7 @@ function SwapReview({
             </div>
           </>
         ) : (
-          <p className="text-sm text-text-soft">
-            {loading ? "Getting quote..." : "Enter an amount to see the result."}
-          </p>
+          <p className="text-sm text-text-soft">Enter an amount to see the result.</p>
         )}
       </div>
       {error ? (

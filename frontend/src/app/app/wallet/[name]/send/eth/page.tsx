@@ -585,11 +585,11 @@ function SendEthPage() {
   if (allLoaded && needsBinding) {
     return (
       <PreFlightCard
-        title={`Turn on ${EVM_LABEL} sending`}
-        body={`One setup adds ${EVM_LABEL} to this wallet and unlocks ${EVM_LABEL} sends.`}
+        title={`Turn on ${EVM_LABEL}`}
+        body=""
         cta={{
           href: `/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=${isHyperliquid ? "hyperliquid_evm" : "evm_1559"}&autostart=1`,
-          label: `Turn on ${EVM_LABEL} sending`,
+          label: `Turn on ${EVM_LABEL}`,
         }}
       />
     );
@@ -597,11 +597,11 @@ function SendEthPage() {
   if (allLoaded && needsIntent) {
     return (
       <PreFlightCard
-        title={`Turn on ${EVM_LABEL} sending`}
-        body={`${EVM_LABEL} is on this wallet. Finish setup to unlock sends.`}
+        title={`Turn on ${EVM_LABEL}`}
+        body=""
         cta={{
           href: `/app/wallet/${encodeURIComponent(walletName)}/setup/eth${isHyperliquid ? "?network=hyperliquid&autostart=1" : "?autostart=1"}`,
-          label: `Turn on ${EVM_LABEL} sending`,
+          label: `Turn on ${EVM_LABEL}`,
         }}
       />
     );
@@ -1138,7 +1138,7 @@ function PreFlightCard({
   cta,
 }: {
   title: string;
-  body: string;
+  body?: string;
   cta: { href: string; label: string };
 }) {
   return (
@@ -1150,7 +1150,7 @@ function PreFlightCard({
         <h2 className="mt-3 font-display text-display-xs text-text-strong">
           {title}
         </h2>
-        <p className="mt-2 text-sm text-text-soft">{body}</p>
+        {body ? <p className="mt-2 text-sm text-text-soft">{body}</p> : null}
         <Link href={cta.href} className="mt-4 inline-block">
           <Button size="md">
             {cta.label}

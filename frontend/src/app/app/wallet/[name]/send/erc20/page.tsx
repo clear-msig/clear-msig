@@ -482,7 +482,7 @@ function SendErc20Page() {
     return (
       <PreFlightCard
         title="Turn on token sending"
-        body="One setup adds Ethereum to this wallet and unlocks ERC-20 sends."
+        body=""
         cta={{
           href: `/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=evm_1559&next=erc20&autostart=1`,
           label: "Turn on token sending",
@@ -494,7 +494,7 @@ function SendErc20Page() {
     return (
       <PreFlightCard
         title="Turn on token sending"
-        body="Ethereum is on this wallet. Finish setup to unlock ERC-20 sends."
+        body=""
         cta={{
           href: `/app/wallet/${encodeURIComponent(walletName)}/setup/erc20?autostart=1`,
           label: "Turn on token sending",
@@ -990,7 +990,7 @@ function PreFlightCard({
   cta,
 }: {
   title: string;
-  body: string;
+  body?: string;
   cta: { href: string; label: string };
 }) {
   return (
@@ -1002,7 +1002,7 @@ function PreFlightCard({
         <h2 className="mt-3 font-display text-display-xs text-text-strong">
           {title}
         </h2>
-        <p className="mt-2 text-sm text-text-soft">{body}</p>
+        {body ? <p className="mt-2 text-sm text-text-soft">{body}</p> : null}
         <Link href={cta.href} className="mt-4 inline-block">
           <Button size="md">
             {cta.label}
