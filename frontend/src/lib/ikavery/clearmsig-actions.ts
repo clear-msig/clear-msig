@@ -274,6 +274,7 @@ export async function createSoloVault(
   // Stage 3: hand off to the user's wallet for the creator signature.
   progress("sign");
   const signedTx = await signTransaction(tx);
+  assertSignedBy(signedTx, creator, "Secure create vault");
 
   // Stage 4: submit + wait for confirmation.
   progress("submit");
@@ -466,6 +467,7 @@ export async function createMultiMemberVault(
 
   progress("sign");
   const signedTx = await signTransaction(tx);
+  assertSignedBy(signedTx, creator, "Secure create vault");
 
   progress("submit");
   const sig = await connection.sendRawTransaction(signedTx.serialize(), {
@@ -499,6 +501,26 @@ export async function createMultiMemberVault(
     txSignature: sig,
     dwalletPubkey: dkg.publicKey,
   };
+}
+
+function assertSignedBy(
+  tx: VersionedTransaction,
+  signer: PublicKey,
+  action: string,
+) {
+  const index = tx.message.staticAccountKeys.findIndex((key) =>
+    key.equals(signer),
+  );
+  if (index < 0 || index >= tx.message.header.numRequiredSignatures) {
+    throw new Error(`${action} could not find the connected signer.`);
+  }
+  const signature = tx.signatures[index];
+  const signed = signature?.some((byte) => byte !== 0) ?? false;
+  if (!signed) {
+    throw new Error(
+      `${action} was not signed by your Solana wallet. Reconnect Solflare or Phantom and approve the wallet popup.`,
+    );
+  }
 }
 
 /**

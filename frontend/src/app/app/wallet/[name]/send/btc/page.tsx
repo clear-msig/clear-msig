@@ -516,6 +516,7 @@ function BitcoinSendPage() {
         expiry: dry.expiry,
         index: intent.intentIndex,
         file: BTC_TEMPLATE,
+        policy_ciphertexts,
       });
       const proposal = (submitted as Record<string, unknown>)?.proposal;
       if (typeof proposal !== "string" || proposal.length === 0) {
