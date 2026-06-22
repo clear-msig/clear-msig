@@ -37,10 +37,12 @@ import {
 import {
   requestSwapDraft,
   requestSwapFill,
+  requestSwapOperatorStatus,
   requestSwapQuote,
   requestSwapReserve,
   requestSwapStatus,
 } from "@/lib/swap/client";
+import type { SwapOperatorStatus } from "@/lib/swap/operatorConfig";
 
 export default function WalletSwapPage() {
   const params = useParams<{ name: string }>();
@@ -67,11 +69,27 @@ export default function WalletSwapPage() {
   const [reservation, setReservation] = useState<SwapReservation | null>(null);
   const [fill, setFill] = useState<SwapFill | null>(null);
   const [executionMessage, setExecutionMessage] = useState<string | null>(null);
+  const [operatorStatus, setOperatorStatus] =
+    useState<SwapOperatorStatus | null>(null);
   const [drafts, setDrafts] = useState<SwapDraft[]>(() =>
     listSwapDrafts(walletName),
   );
 
   const executable = quoteIsExecutable(quote);
+
+  useEffect(() => {
+    let cancelled = false;
+    void requestSwapOperatorStatus()
+      .then((response) => {
+        if (!cancelled) setOperatorStatus(response.operator);
+      })
+      .catch(() => {
+        if (!cancelled) setOperatorStatus(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const trimmed = amount.trim();
@@ -253,6 +271,7 @@ export default function WalletSwapPage() {
             error={quoteError}
             onSave={saveDraft}
           />
+          <OperatorSetup status={operatorStatus} />
           {draft ? (
             <DraftReceipt
               draft={draft}
@@ -272,6 +291,87 @@ export default function WalletSwapPage() {
         </aside>
       </section>
     </div>
+  );
+}
+
+function OperatorSetup({ status }: { status: SwapOperatorStatus | null }) {
+  if (!status) return null;
+  const missing = status.requirements.filter((item) => item.state === "missing");
+  const ready = status.requirements.length - missing.length;
+
+  return (
+    <details className="group rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-text-strong">
+        <span className="min-w-0">
+          <span className="block">Solver setup</span>
+          <span className="block truncate text-xs font-normal text-text-soft">
+            {status.message}
+          </span>
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          <span
+            className={clsx(
+              "rounded-full border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.16em]",
+              status.state === "ready"
+                ? "border-accent/40 bg-accent/10 text-accent"
+                : "border-warning/40 bg-warning/10 text-warning",
+            )}
+          >
+            {ready}/{status.requirements.length}
+          </span>
+          <ChevronDown className="h-4 w-4 text-text-soft transition-transform group-open:rotate-180" />
+        </span>
+      </summary>
+      <div className="border-t border-border-soft px-4 py-3">
+        <div className="grid gap-2">
+          {status.requirements.map((item) => (
+            <div
+              key={item.key}
+              className="flex items-center justify-between gap-3 rounded-soft border border-border-soft bg-canvas px-3 py-2"
+            >
+              <span className="min-w-0">
+                <span className="block truncate text-xs font-medium text-text-strong">
+                  {item.label}
+                </span>
+                <span className="block truncate font-mono text-[10px] text-text-soft">
+                  {item.key}
+                </span>
+              </span>
+              <span
+                className={clsx(
+                  "shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]",
+                  item.state === "ready" && "bg-accent/10 text-accent",
+                  item.state === "dev" && "bg-warning/10 text-warning",
+                  item.state === "missing" && "bg-danger/10 text-danger",
+                )}
+              >
+                {item.state}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 grid gap-2">
+          {status.funding.map((item) => (
+            <div
+              key={item.asset}
+              className="rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs text-text-soft"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-medium text-text-strong">
+                  {item.asset} vault
+                </span>
+                <span>
+                  {item.available} {item.asset === "Collateral" ? "USD" : item.asset}
+                </span>
+              </div>
+              <p className="mt-1 truncate font-mono text-[10px]">
+                {item.address || item.vaultEnv}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </details>
   );
 }
 

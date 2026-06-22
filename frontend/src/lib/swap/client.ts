@@ -8,6 +8,7 @@ import type {
   SwapQuote,
   SwapReservation,
 } from "@/lib/swap/drafts";
+import type { SwapOperatorStatus } from "@/lib/swap/operatorConfig";
 
 export interface SwapQuoteResponse {
   ok: true;
@@ -48,6 +49,11 @@ export interface SwapStatusResponse {
   ok: true;
   fill: SwapFill | null;
   reservation: SwapReservation | null;
+}
+
+export interface SwapOperatorResponse {
+  ok: true;
+  operator: SwapOperatorStatus;
 }
 
 export function requestSwapQuote(input: {
@@ -91,6 +97,10 @@ export function requestSwapFill(input: {
 
 export function requestSwapStatus(id: string): Promise<SwapStatusResponse> {
   return swapGet<SwapStatusResponse>(`/api/swap/status/${encodeURIComponent(id)}`);
+}
+
+export function requestSwapOperatorStatus(): Promise<SwapOperatorResponse> {
+  return swapGet<SwapOperatorResponse>("/api/swap/operator");
 }
 
 async function swapRequest<T>(
