@@ -69,6 +69,9 @@ export default function WalletSwapPage() {
   const [reservation, setReservation] = useState<SwapReservation | null>(null);
   const [fill, setFill] = useState<SwapFill | null>(null);
   const [executionMessage, setExecutionMessage] = useState<string | null>(null);
+  const [openAssetPicker, setOpenAssetPicker] = useState<"from" | "to" | null>(
+    null,
+  );
   const [operatorStatus, setOperatorStatus] =
     useState<SwapOperatorStatus | null>(null);
   const [drafts, setDrafts] = useState<SwapDraft[]>(() =>
@@ -229,25 +232,23 @@ export default function WalletSwapPage() {
 
       <section className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="flex flex-col gap-4">
-          <SwapAssetPicker
-            title="From"
-            selected={from}
-            other={to}
-            onSelect={(next) => {
+          <SwapPairPicker
+            from={from}
+            to={to}
+            open={openAssetPicker}
+            onToggle={setOpenAssetPicker}
+            onSelectFrom={(next) => {
               setFrom(next);
               if (next === to) setTo(from);
+              setOpenAssetPicker(null);
             }}
-          />
-          <SwapAssetPicker
-            title="To"
-            selected={to}
-            other={from}
-            onSelect={(next) => {
+            onSelectTo={(next) => {
               setTo(next);
               if (next === from) setFrom(to);
+              setOpenAssetPicker(null);
             }}
           />
-          <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
+          <section className="rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest sm:p-4">
             <SendAmountField
               id="swap-amount"
               ticker={from}
@@ -375,59 +376,138 @@ function OperatorSetup({ status }: { status: SwapOperatorStatus | null }) {
   );
 }
 
-function SwapAssetPicker({
-  title,
+function SwapPairPicker({
+  from,
+  to,
+  open,
+  onToggle,
+  onSelectFrom,
+  onSelectTo,
+}: {
+  from: SwapAssetId;
+  to: SwapAssetId;
+  open: "from" | "to" | null;
+  onToggle: (next: "from" | "to" | null) => void;
+  onSelectFrom: (asset: SwapAssetId) => void;
+  onSelectTo: (asset: SwapAssetId) => void;
+}) {
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest sm:p-4">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-2">
+        <AssetSelectButton
+          label="From"
+          asset={from}
+          open={open === "from"}
+          onClick={() => onToggle(open === "from" ? null : "from")}
+        />
+        <span className="flex w-9 items-center justify-center text-text-soft">
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <AssetSelectButton
+          label="To"
+          asset={to}
+          open={open === "to"}
+          onClick={() => onToggle(open === "to" ? null : "to")}
+        />
+      </div>
+      {open === "from" ? (
+        <AssetChooser selected={from} other={to} onSelect={onSelectFrom} />
+      ) : null}
+      {open === "to" ? (
+        <AssetChooser selected={to} other={from} onSelect={onSelectTo} />
+      ) : null}
+    </section>
+  );
+}
+
+function AssetSelectButton({
+  label,
+  asset,
+  open,
+  onClick,
+}: {
+  label: string;
+  asset: SwapAssetId;
+  open: boolean;
+  onClick: () => void;
+}) {
+  const meta = swapAsset(asset);
+  return (
+    <button
+      type="button"
+      aria-expanded={open}
+      onClick={onClick}
+      className={clsx(
+        "flex min-h-tap items-center gap-3 rounded-soft border px-3 py-2 text-left transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+        open
+          ? "border-accent/60 bg-accent/10"
+          : "border-border-soft bg-canvas hover:border-border-strong",
+      )}
+    >
+      <ChainBadge chain={meta.chain} size="sm" />
+      <span className="min-w-0 flex-1">
+        <span className="block font-mono text-[9px] uppercase tracking-[0.18em] text-text-soft">
+          {label}
+        </span>
+        <span className="block truncate text-sm font-semibold text-text-strong">
+          {asset}
+        </span>
+      </span>
+      <ChevronDown
+        className={clsx(
+          "h-4 w-4 shrink-0 text-text-soft transition-transform",
+          open && "rotate-180",
+        )}
+        aria-hidden="true"
+      />
+    </button>
+  );
+}
+
+function AssetChooser({
   selected,
   other,
   onSelect,
 }: {
-  title: string;
   selected: SwapAssetId;
   other: SwapAssetId;
   onSelect: (asset: SwapAssetId) => void;
 }) {
   return (
-    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-          {title}
-        </h2>
-        <span className="text-xs font-medium text-text-soft">{selected}</span>
-      </div>
-      <div className="grid gap-2">
-        {SWAP_ASSETS.map((asset) => {
-          const active = asset.id === selected;
-          const disabled = asset.id === other;
-          return (
-            <button
-              key={asset.id}
-              type="button"
-              disabled={disabled}
-              onClick={() => onSelect(asset.id)}
-              className={clsx(
-                "flex min-h-tap items-center gap-3 rounded-soft border px-3 py-2 text-left transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
-                active
-                  ? "border-accent/60 bg-accent/10 text-text-strong"
-                  : "border-border-soft bg-canvas text-text-soft hover:border-border-strong hover:text-text-strong",
-                disabled && "cursor-not-allowed opacity-40",
-              )}
-            >
-              <ChainBadge chain={asset.chain} size="sm" />
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium">
-                  {asset.chain.name}
-                </span>
-                <span className="block text-xs text-text-soft">
-                  {asset.phase === "testnet-ready" ? "Testnet route" : "Later"}
-                </span>
+    <div className="mt-2 grid gap-2 rounded-soft border border-border-soft bg-canvas p-2">
+      {SWAP_ASSETS.map((asset) => {
+        const active = asset.id === selected;
+        const disabled = asset.id === other;
+        return (
+          <button
+            key={asset.id}
+            type="button"
+            disabled={disabled}
+            onClick={() => onSelect(asset.id)}
+            className={clsx(
+              "flex min-h-tap items-center gap-3 rounded-soft border px-3 py-2 text-left transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+              active
+                ? "border-accent/60 bg-accent/10 text-text-strong"
+                : "border-border-soft bg-surface-raised text-text-soft hover:border-border-strong hover:text-text-strong",
+              disabled && "cursor-not-allowed opacity-40",
+            )}
+          >
+            <ChainBadge chain={asset.chain} size="sm" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium">
+                {asset.chain.name}
               </span>
-              {active ? <Check className="h-4 w-4 text-accent" /> : null}
-            </button>
-          );
-        })}
-      </div>
-    </section>
+              <span className="block text-xs text-text-soft">
+                {asset.phase === "testnet-ready" ? "Testnet" : "Later"}
+              </span>
+            </span>
+            {active ? <Check className="h-4 w-4 text-accent" /> : null}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
