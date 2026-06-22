@@ -1,8 +1,13 @@
-"use client";
-
 import { CHAIN_CATALOG, type ChainMeta } from "@/lib/retail/chains";
 
 export type SwapAssetId = "SOL" | "ETH" | "BTC" | "ZEC" | "HYPE";
+export type SwapMode = "testnet-mock";
+export type SwapExecutionStatus =
+  | "draft"
+  | "policy_checked"
+  | "execution_unavailable"
+  | "ready_for_ika"
+  | "executed";
 
 export interface SwapAsset {
   id: SwapAssetId;
@@ -11,7 +16,7 @@ export interface SwapAsset {
 }
 
 export interface SwapPolicyCheck {
-  id: "amount" | "slippage" | "route" | "replay" | "privacy";
+  id: "amount" | "slippage" | "route" | "solver" | "replay" | "privacy";
   label: string;
   passed: boolean;
   detail: string;
@@ -19,7 +24,7 @@ export interface SwapPolicyCheck {
 
 export interface SwapQuote {
   id: string;
-  mode: "testnet-mock";
+  mode: SwapMode;
   from: SwapAssetId;
   to: SwapAssetId;
   amount: string;
@@ -35,6 +40,8 @@ export interface SwapQuote {
     status: "allowlisted" | "demo" | "research";
   };
   policyChecks: SwapPolicyCheck[];
+  expiresAt: number;
+  intentHash: string;
 }
 
 export interface SwapDraft {
@@ -42,7 +49,30 @@ export interface SwapDraft {
   walletName: string;
   quote: SwapQuote;
   createdAt: number;
-  status: "draft";
+  status: "draft" | "policy_checked";
+  nonce: string;
+  policyDecision: SwapPolicyDecision;
+}
+
+export interface SwapPolicyDecision {
+  allowed: boolean;
+  checks: SwapPolicyCheck[];
+  reason: string;
+}
+
+export interface SwapExecutionReceipt {
+  id: string;
+  draftId: string;
+  status: SwapExecutionStatus;
+  title: string;
+  message: string;
+  sourceExplorerUrl: string | null;
+  destinationExplorerUrl: string | null;
+  route: string[];
+  privatePolicy: {
+    state: "prototype" | "live";
+    message: string;
+  };
 }
 
 const STORAGE_KEY = "clearsig.swap.drafts.v1";
@@ -56,6 +86,7 @@ const PRICE_USD: Record<SwapAssetId, number> = {
 };
 
 const TESTNET_READY = new Set<SwapAssetId>(["SOL", "ETH", "BTC"]);
+const ALLOWED_PUBLIC_ROUTES = new Set(["BTC:SOL", "SOL:BTC", "ETH:SOL", "SOL:ETH"]);
 
 export const SWAP_ASSETS: SwapAsset[] = CHAIN_CATALOG.map((chain) => ({
   id: chain.ticker as SwapAssetId,
@@ -90,9 +121,11 @@ export function buildSwapQuote({
   const minReceiveAmount = receiveAmount * 0.995;
   const policyChecks = buildPolicyChecks({ from, to, amountUsd });
   const solver = selectSolver(from, to, amountUsd);
+  const id = createDraftId();
+  const expiresAt = Date.now() + 2 * 60_000;
 
   return {
-    id: createDraftId(),
+    id,
     mode: "testnet-mock",
     from,
     to,
@@ -110,6 +143,8 @@ export function buildSwapQuote({
     ],
     solver,
     policyChecks,
+    expiresAt,
+    intentHash: buildIntentHash({ id, from, to, amount: trimAmount(parsed, 8) }),
   };
 }
 
@@ -125,16 +160,97 @@ export function saveSwapDraft(
   walletName: string,
   quote: SwapQuote,
 ): SwapDraft {
+  const policyDecision = enforceSwapPolicy(quote);
   const draft: SwapDraft = {
     id: quote.id,
     walletName,
     quote,
     createdAt: Date.now(),
-    status: "draft",
+    status: policyDecision.allowed ? "policy_checked" : "draft",
+    nonce: createDraftId(),
+    policyDecision,
   };
   const existing = listSwapDrafts().filter((item) => item.id !== draft.id);
   writeDrafts([draft, ...existing].slice(0, 16));
   return draft;
+}
+
+export function storeSwapDraft(draft: SwapDraft): SwapDraft {
+  const existing = listSwapDrafts().filter((item) => item.id !== draft.id);
+  writeDrafts([draft, ...existing].slice(0, 16));
+  return draft;
+}
+
+export function createSwapDraft(
+  walletName: string,
+  quote: SwapQuote,
+): SwapDraft {
+  const policyDecision = enforceSwapPolicy(quote);
+  return {
+    id: quote.id,
+    walletName,
+    quote,
+    createdAt: Date.now(),
+    status: policyDecision.allowed ? "policy_checked" : "draft",
+    nonce: createDraftId(),
+    policyDecision,
+  };
+}
+
+export function enforceSwapPolicy(quote: SwapQuote): SwapPolicyDecision {
+  const checks = buildPolicyChecks({
+    from: quote.from,
+    to: quote.to,
+    amountUsd: quote.amountUsd,
+  });
+  const solverReady = quote.solver.status === "allowlisted";
+  const withSolver = checks.map((check) =>
+    check.id === "solver"
+      ? {
+          ...check,
+          passed: solverReady,
+          detail: solverReady
+            ? "Solver is allowlisted for this testnet route."
+            : "Solver is not allowlisted for execution yet.",
+        }
+      : check,
+  );
+  const allowed = withSolver.every((check) => check.passed);
+  return {
+    allowed,
+    checks: withSolver,
+    reason: allowed
+      ? "Policy passed. Ready for backend and Ika execution wiring."
+      : "Policy did not pass. Keep this as a draft.",
+  };
+}
+
+export function buildSwapExecutionReceipt(draft: SwapDraft): SwapExecutionReceipt {
+  const ready = draft.policyDecision.allowed;
+  return {
+    id: createDraftId(),
+    draftId: draft.id,
+    status: ready ? "ready_for_ika" : "execution_unavailable",
+    title: ready ? "Execution draft ready" : "Execution blocked",
+    message: ready
+      ? "Backend quote verification, on-chain policy enforcement, and Ika signing are the next live adapters for this route."
+      : draft.policyDecision.reason,
+    sourceExplorerUrl: null,
+    destinationExplorerUrl: null,
+    route: ready
+      ? [
+          "Backend verifies quote",
+          "Solana program enforces policy",
+          "Ika signs source-chain transaction",
+          "Backend broadcasts and records receipt",
+        ]
+      : ["Fix the blocked policy check before execution."],
+    privatePolicy: {
+      state: "prototype",
+      message:
+        "Private amount, slippage, and route policy are marked for Encrypt integration after public settlement is stable.",
+    },
+  };
 }
 
 export function listSwapDrafts(walletName?: string): SwapDraft[] {
@@ -182,10 +298,20 @@ function buildPolicyChecks({
     {
       id: "route",
       label: "Route",
+      passed: routeReady && ALLOWED_PUBLIC_ROUTES.has(`${from}:${to}`),
+      detail: routeReady
+        ? ALLOWED_PUBLIC_ROUTES.has(`${from}:${to}`)
+          ? "This pair can use the public testnet route."
+          : "This pair is visible for planning but not execution yet."
+        : "This asset stays hidden from execution until the route is live.",
+    },
+    {
+      id: "solver",
+      label: "Solver",
       passed: routeReady,
       detail: routeReady
-        ? "This pair can use the mocked public testnet route."
-        : "This asset stays hidden from execution until the route is live.",
+        ? "Solver allowlist checked before draft execution."
+        : "Solver unavailable until route is live.",
     },
     {
       id: "replay",
@@ -232,6 +358,20 @@ function createDraftId(): string {
   return `${Date.now().toString(16)}${Math.floor(Math.random() * 1e6).toString(16)}`;
 }
 
+function buildIntentHash(input: {
+  id: string;
+  from: SwapAssetId;
+  to: SwapAssetId;
+  amount: string;
+}): string {
+  const raw = `${input.id}:${input.from}:${input.to}:${input.amount}:clearsig-swap-v1`;
+  let hash = 0;
+  for (let i = 0; i < raw.length; i += 1) {
+    hash = (hash * 31 + raw.charCodeAt(i)) >>> 0;
+  }
+  return `swap_${hash.toString(16).padStart(8, "0")}`;
+}
+
 function trimAmount(value: number, decimals: number): string {
   return value
     .toFixed(decimals)
@@ -245,7 +385,8 @@ function isSwapDraft(value: unknown): value is SwapDraft {
   return (
     typeof draft.id === "string" &&
     typeof draft.walletName === "string" &&
-    draft.status === "draft" &&
+    (draft.status === "draft" || draft.status === "policy_checked") &&
+    typeof draft.nonce === "string" &&
     typeof draft.createdAt === "number" &&
     !!draft.quote &&
     typeof draft.quote === "object"

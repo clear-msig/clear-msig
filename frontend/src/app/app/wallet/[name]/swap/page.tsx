@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -22,16 +22,21 @@ import { toDisplayName } from "@/lib/retail/walletNames";
 import { formatUsd } from "@/lib/retail/priceConversion";
 import {
   SWAP_ASSETS,
-  buildSwapQuote,
   listSwapDrafts,
   quoteIsExecutable,
-  saveSwapDraft,
+  storeSwapDraft,
   swapAsset,
   type SwapAssetId,
   type SwapDraft,
+  type SwapExecutionReceipt,
   type SwapPolicyCheck,
   type SwapQuote,
 } from "@/lib/swap/drafts";
+import {
+  requestSwapDraft,
+  requestSwapExecution,
+  requestSwapQuote,
+} from "@/lib/swap/client";
 
 export default function WalletSwapPage() {
   const params = useParams<{ name: string }>();
@@ -48,22 +53,90 @@ export default function WalletSwapPage() {
   const [from, setFrom] = useState<SwapAssetId>("BTC");
   const [to, setTo] = useState<SwapAssetId>("SOL");
   const [amount, setAmount] = useState("");
+  const [quote, setQuote] = useState<SwapQuote | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
   const [draft, setDraft] = useState<SwapDraft | null>(null);
+  const [draftLoading, setDraftLoading] = useState(false);
+  const [executeLoading, setExecuteLoading] = useState(false);
+  const [receipt, setReceipt] = useState<SwapExecutionReceipt | null>(null);
+  const [executionMessage, setExecutionMessage] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<SwapDraft[]>(() =>
     listSwapDrafts(walletName),
   );
 
-  const quote = useMemo(
-    () => buildSwapQuote({ from, to, amount }),
-    [amount, from, to],
-  );
   const executable = quoteIsExecutable(quote);
 
-  function saveDraft() {
+  useEffect(() => {
+    const trimmed = amount.trim();
+    setDraft(null);
+    setReceipt(null);
+    setExecutionMessage(null);
+    if (!trimmed || Number(trimmed) <= 0 || from === to) {
+      setQuote(null);
+      setQuoteError(null);
+      setQuoteLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setQuote(null);
+    setQuoteLoading(true);
+    setQuoteError(null);
+    const timer = window.setTimeout(() => {
+      void requestSwapQuote({ from, to, amount: trimmed })
+        .then((response) => {
+          if (cancelled) return;
+          setQuote(response.quote);
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          setQuote(null);
+          setQuoteError(
+            error instanceof Error ? error.message : "Could not quote swap.",
+          );
+        })
+        .finally(() => {
+          if (!cancelled) setQuoteLoading(false);
+        });
+    }, 220);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [amount, from, to]);
+
+  async function saveDraft() {
     if (!quote || !executable) return;
-    const next = saveSwapDraft(walletName, quote);
-    setDraft(next);
-    setDrafts(listSwapDrafts(walletName));
+    setDraftLoading(true);
+    setExecutionMessage(null);
+    try {
+      const response = await requestSwapDraft({ walletName, quote });
+      const next = storeSwapDraft(response.draft);
+      setDraft(next);
+      setDrafts(listSwapDrafts(walletName));
+    } catch (error) {
+      setQuoteError(
+        error instanceof Error ? error.message : "Could not save swap draft.",
+      );
+    } finally {
+      setDraftLoading(false);
+    }
+  }
+
+  async function checkExecution() {
+    if (!draft) return;
+    setExecuteLoading(true);
+    try {
+      const response = await requestSwapExecution({ draft });
+      setReceipt(response.receipt);
+      setExecutionMessage(response.readiness.message);
+    } catch (error) {
+      setExecutionMessage(
+        error instanceof Error ? error.message : "Could not check execution.",
+      );
+    } finally {
+      setExecuteLoading(false);
+    }
   }
 
   return (
@@ -137,8 +210,23 @@ export default function WalletSwapPage() {
         </div>
 
         <aside className="flex flex-col gap-4">
-          <SwapReview quote={quote} executable={executable} onSave={saveDraft} />
-          {draft ? <DraftReceipt draft={draft} /> : null}
+          <SwapReview
+            quote={quote}
+            executable={executable}
+            loading={quoteLoading || draftLoading}
+            error={quoteError}
+            onSave={saveDraft}
+          />
+          {draft ? (
+            <DraftReceipt
+              draft={draft}
+              onExecute={checkExecution}
+              busy={executeLoading}
+            />
+          ) : null}
+          {receipt ? (
+            <ExecutionReceipt receipt={receipt} message={executionMessage} />
+          ) : null}
           {drafts.length > 0 ? <RecentDrafts drafts={drafts} /> : null}
         </aside>
       </section>
@@ -205,10 +293,14 @@ function SwapAssetPicker({
 function SwapReview({
   quote,
   executable,
+  loading,
+  error,
   onSave,
 }: {
   quote: SwapQuote | null;
   executable: boolean;
+  loading: boolean;
+  error: string | null;
   onSave: () => void;
 }) {
   const fromAsset = quote ? swapAsset(quote.from) : null;
@@ -237,10 +329,13 @@ function SwapReview({
           </div>
         ) : (
           <p className="text-sm text-text-soft">
-            Enter an amount to see the result.
+            {loading ? "Getting quote..." : "Enter an amount to see the result."}
           </p>
         )}
       </div>
+      {error ? (
+        <p className="mt-2 text-xs leading-5 text-danger">{error}</p>
+      ) : null}
 
       <div className="mt-4 grid gap-2">
         <PlanRow
@@ -320,10 +415,12 @@ function SwapReview({
         className="mt-4"
         size="lg"
         fullWidth
-        disabled={!executable}
+        disabled={!executable || loading}
         onClick={onSave}
       >
-        {quote
+        {loading
+          ? "Checking"
+          : quote
           ? executable
             ? "Save draft"
             : "Route not ready"
@@ -400,7 +497,15 @@ function PolicyChecks({ checks }: { checks: SwapPolicyCheck[] }) {
   );
 }
 
-function DraftReceipt({ draft }: { draft: SwapDraft }) {
+function DraftReceipt({
+  draft,
+  onExecute,
+  busy,
+}: {
+  draft: SwapDraft;
+  onExecute: () => void;
+  busy: boolean;
+}) {
   return (
     <section className="rounded-card border border-accent/40 bg-accent/10 p-4 shadow-card-rest">
       <div className="flex items-start gap-3">
@@ -416,6 +521,65 @@ function DraftReceipt({ draft }: { draft: SwapDraft }) {
           </p>
         </div>
       </div>
+      <Button
+        className="mt-4"
+        size="md"
+        fullWidth
+        onClick={onExecute}
+        disabled={busy}
+      >
+        {busy ? "Checking execution" : "Check execution"}
+        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+      </Button>
+    </section>
+  );
+}
+
+function ExecutionReceipt({
+  receipt,
+  message,
+}: {
+  receipt: SwapExecutionReceipt;
+  message: string | null;
+}) {
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <div className="flex items-start gap-3">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-canvas text-accent">
+          <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-text-strong">
+            {receipt.title}
+          </h2>
+          <p className="mt-1 text-xs leading-5 text-text-soft">
+            {message ?? receipt.message}
+          </p>
+        </div>
+      </div>
+      <details className="group mt-3 rounded-soft border border-border-soft bg-canvas">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs font-medium text-text-strong">
+          Execution path
+          <ChevronDown className="h-4 w-4 text-text-soft transition-transform group-open:rotate-180" />
+        </summary>
+        <ol className="grid gap-2 border-t border-border-soft px-3 py-3 text-xs text-text-soft">
+          {receipt.route.map((step, index) => (
+            <li key={step} className="flex gap-2">
+              <span className="text-accent">{index + 1}</span>
+              <span>{step}</span>
+            </li>
+          ))}
+        </ol>
+      </details>
+      <details className="group mt-3 rounded-soft border border-border-soft bg-canvas">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs font-medium text-text-strong">
+          Private policy
+          <ChevronDown className="h-4 w-4 text-text-soft transition-transform group-open:rotate-180" />
+        </summary>
+        <p className="border-t border-border-soft px-3 py-3 text-xs leading-5 text-text-soft">
+          {receipt.privatePolicy.message}
+        </p>
+      </details>
     </section>
   );
 }
