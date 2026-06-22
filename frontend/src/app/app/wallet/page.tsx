@@ -84,7 +84,6 @@ import { formatChainBalance } from "@/lib/balances";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
 import { UsdHint } from "@/components/retail/UsdHint";
-import { getWalletAppearance } from "@/lib/retail/walletAppearance";
 import {
   useWalletPortfolio,
   type WalletPortfolio,
@@ -92,11 +91,13 @@ import {
 import { chainByKind, chainDisplayRank } from "@/lib/retail/chains";
 import { useDisplayCurrency } from "@/lib/hooks/useDisplayCurrency";
 import {
+  filterWalletsByProductSurface,
   productWorkspaceHomeHref,
   productWorkspaceLabel,
   resolveWalletProductSurface,
   type WalletProductSurface,
   walletProductSurface,
+  walletProductSurfaceCounts,
 } from "@/lib/productWorkspace";
 import {
   isProductSurfaceId,
@@ -154,13 +155,36 @@ function WalletDashboardContent() {
     queryFn: () => fetchOnchainMemberships(address),
     enabled: address.length > 0,
     staleTime: 30_000,
+    placeholderData: (previous) => previous,
   });
 
   const action = useActionNeeded();
   const recent = action.activity;
   const watched = useWatchedWallets();
 
-  const wallets = useMemo(() => memberships.data ?? [], [memberships.data]);
+  const [walletCacheByAddress, setWalletCacheByAddress] = useState<
+    Map<string, OnchainMembership[]>
+  >(() => new Map());
+  useEffect(() => {
+    if (!address || memberships.data === undefined) return;
+    setWalletCacheByAddress((previous) => {
+      const cached = previous.get(address);
+      if (cached === memberships.data) return previous;
+      const next = new Map(previous);
+      next.set(address, memberships.data);
+      return next;
+    });
+  }, [address, memberships.data]);
+  const cachedWallets = useMemo(
+    () => (address ? walletCacheByAddress.get(address) ?? [] : []),
+    [address, walletCacheByAddress],
+  );
+  const wallets = useMemo(
+    () => memberships.data ?? cachedWallets,
+    [cachedWallets, memberships.data],
+  );
+  const showingCachedWallets =
+    memberships.data === undefined && cachedWallets.length > 0;
   const selectedSurface = activeSurface;
   const selectSurface = (surface: WalletProductSurface | null) => {
     setActiveSurface(surface);
@@ -174,13 +198,7 @@ function WalletDashboardContent() {
     }
   };
   const visibleWallets = useMemo(() => {
-    if (!selectedSurface) return wallets;
-    return wallets.filter(
-      (membership) =>
-        walletProductSurface(
-          getWalletAppearance(membership.wallet_name ?? "")?.surface,
-        ) === selectedSurface,
-    );
+    return filterWalletsByProductSurface(wallets, selectedSurface);
   }, [wallets, selectedSurface]);
   const visibleWalletPdas = useMemo(
     () => new Set(visibleWallets.map((membership) => membership.wallet)),
@@ -195,12 +213,12 @@ function WalletDashboardContent() {
       ),
     [visibleWallets],
   );
-  const stillLoading = memberships.isLoading;
+  const stillLoading = memberships.isLoading && !showingCachedWallets;
   // Distinguish "RPC errored" from "user genuinely has no wallets."
   // Without this guard, a transient memberships failure renders the
   // first-visit CTA - which then sends the user through /welcome to
   // create a duplicate wallet.
-  const hasError = !stillLoading && memberships.isError;
+  const hasError = !stillLoading && memberships.isError && wallets.length === 0;
   const isFirstVisit = !stillLoading && !hasError && wallets.length === 0;
 
   // Batch-fetch every wallet's vault balance in a single RPC. Re-keys
@@ -465,13 +483,7 @@ function ProductWorkspaceSwitcher({
   onSelect: (surface: WalletProductSurface | null) => void;
 }) {
   const counts = useMemo(() => {
-    const next = new Map<WalletProductSurface, number>();
-    for (const membership of wallets) {
-      const surface = resolveWalletProductSurface(membership.wallet_name ?? "");
-      if (!surface) continue;
-      next.set(surface, (next.get(surface) ?? 0) + 1);
-    }
-    return next;
+    return walletProductSurfaceCounts(wallets);
   }, [wallets]);
   const items: Array<{ id: WalletProductSurface; Icon: LucideIcon }> = [
     { id: "personal", Icon: PRODUCT_SURFACE_ICON.personal },
@@ -777,7 +789,7 @@ function NextActionStrip({
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
   const walletName = wallet.wallet_name ?? "Wallet";
   const displayName = toDisplayName(walletName);
-  const surface = walletProductSurface(getWalletAppearance(walletName)?.surface);
+  const surface = resolveWalletProductSurface(walletName);
   const primaryHref =
     pendingCount > 0 && firstApprovalHref
       ? firstApprovalHref
@@ -1349,8 +1361,8 @@ function WalletsGrid({
     void pinTick;
     return sortPinnedFirst(wallets, (m) => m.wallet_name ?? "");
   }, [wallets, pinTick]);
-  const canStack = ordered.length > 1;
-  const visible = expanded || !canStack ? ordered : ordered.slice(0, 3);
+  const canStack = false;
+  const visible = ordered;
 
   return (
     <section>
@@ -1996,9 +2008,7 @@ function WatchedWalletsSection({
               const display = toDisplayName(m.wallet_name ?? "");
               const pending = pendingByWallet.get(m.wallet) ?? 0;
               const walletName = m.wallet_name ?? "";
-              const surface = walletProductSurface(
-                getWalletAppearance(walletName)?.surface,
-              );
+              const surface = resolveWalletProductSurface(walletName);
               return (
                 <li key={m.wallet}>
                   <div className="group flex items-center justify-between gap-3 px-5 py-3">

@@ -71,6 +71,11 @@ import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { chainByKind } from "@/lib/retail/chains";
 import { appConfig } from "@/lib/config";
+import {
+  SEND_NOTE_LABEL,
+  SEND_NOTE_MAX_LENGTH,
+  SEND_NOTE_PLACEHOLDER,
+} from "@/lib/sendFields";
 import { resolvePolicyEnforcement } from "@/lib/policies/enforce";
 import {
   DEFAULT_BITCOIN_NETWORK,
@@ -235,11 +240,13 @@ function BitcoinSendPage() {
   // ── Form state ────────────────────────────────────────────────────
   const [destination, setDestination] = useState("");
   const [amountBtc, setAmountBtc] = useState("");
+  const [note, setNote] = useState(() => searchParams?.get("note")?.trim() ?? "");
   const [destinationError, setDestinationError] = useState<string | null>(null);
   const [amountError, setAmountError] = useState<string | null>(null);
   const [sentLabel, setSentLabel] = useState<{
     amountBtc: string;
     to: string;
+    note: string;
     txid: string | null;
     explorerUrl: string | null;
   } | null>(null);
@@ -263,6 +270,10 @@ function BitcoinSendPage() {
     proposalAddress?: string;
   } | null>(null);
   const [autoStartedSetup, setAutoStartedSetup] = useState(false);
+  const [sendAfterUpgrade, setSendAfterUpgrade] = useState(false);
+  const [btcSetupPendingApproval, setBtcSetupPendingApproval] = useState<{
+    proposal: string | null;
+  } | null>(null);
   const autoStartSetup = searchParams?.get("autostart") === "1";
 
   const sendAmountSats = useMemo<bigint | null>(
@@ -476,7 +487,9 @@ function BitcoinSendPage() {
       if (!walletQuery.data) throw new Error("Wallet is still loading");
       const intent = btcIntent;
       if (!intent) throw new Error("Bitcoin sending is not set up yet");
-      if (btcIntentSupportsChange) return { upgraded: true, awaitingApprovers: false };
+      if (btcIntentSupportsChange) {
+        return { upgraded: true, awaitingApprovers: false, proposal: null };
+      }
       const updateIntent = (intentsQuery.data ?? []).find(
         (it) => it.account?.intentType === IntentType.UpdateIntent,
       );
@@ -485,7 +498,7 @@ function BitcoinSendPage() {
         : wallet.pickSigner(intent.approvers);
       if (!signerPk) {
         throw new Error(
-          "None of your connected wallets can approve the Bitcoin upgrade.",
+          "None of your connected wallets can approve the Bitcoin setup.",
         );
       }
       const enc = new TextEncoder();
@@ -520,7 +533,7 @@ function BitcoinSendPage() {
       });
       const proposal = (submitted as Record<string, unknown>)?.proposal;
       if (typeof proposal !== "string" || proposal.length === 0) {
-        throw new Error("Backend didn't return an upgrade proposal address");
+        throw new Error("Backend didn't return a Bitcoin setup proposal address");
       }
 
       const decision = await approveIfNeeded(connection, proposal, {
@@ -535,7 +548,7 @@ function BitcoinSendPage() {
           : wallet.pickSigner(intent.approvers);
         if (!approverPk) {
           throw new Error(
-            "The upgrade proposal landed, but none of your connected wallets can approve it.",
+            "The Bitcoin setup proposal landed, but none of your connected wallets can approve it.",
           );
         }
         const approveDry = await backendApi.prepare.approveProposal(
@@ -560,7 +573,7 @@ function BitcoinSendPage() {
         await backendApi.executeProposal(name, proposal, {});
       }
       if (statusBeforeExecute !== ProposalStatus.Approved && statusBeforeExecute !== ProposalStatus.Executed) {
-        return { upgraded: false, awaitingApprovers: true };
+        return { upgraded: false, awaitingApprovers: true, proposal };
       }
 
       const upgraded = await waitForIntentParamCount(
@@ -571,30 +584,34 @@ function BitcoinSendPage() {
       );
       if (!upgraded) {
         throw new Error(
-          "The Bitcoin upgrade transaction was submitted, but the wallet still reports the old Bitcoin intent. Wait a moment and refresh.",
+          "The Bitcoin setup transaction was submitted, but the wallet still reports the old Bitcoin intent. Wait a moment and refresh.",
         );
       }
       if (btcChangeMarkerKey && typeof window !== "undefined") {
         window.localStorage.setItem(btcChangeMarkerKey, "1");
         setBtcChangeUpgradeConfirmed(true);
       }
-      return { upgraded: true, awaitingApprovers: false };
+      return { upgraded: true, awaitingApprovers: false, proposal };
     },
     onSuccess: async (result) => {
       await queryClient.refetchQueries({ queryKey: ["wallet-intents"] });
       if (result?.awaitingApprovers) {
-        toast.success("Bitcoin upgrade requested", {
+        setBtcSetupPendingApproval({ proposal: result.proposal ?? null });
+        setSendAfterUpgrade(false);
+        toast.success("Bitcoin setup requested", {
           details:
             "It still needs the remaining approval before BTC sends can return change.",
         });
         return;
       }
-      toast.success("Bitcoin sending upgraded", {
+      setBtcSetupPendingApproval(null);
+      toast.success("Bitcoin sending ready", {
         details: "BTC sends now return change to the wallet.",
       });
     },
     onError: (err) => {
       console.error("[upgrade-btc]", err);
+      setSendAfterUpgrade(false);
       const fe = friendlyError(err, "set-up-spending");
       toast.error(fe.title, { details: fe.body });
     },
@@ -612,7 +629,7 @@ function BitcoinSendPage() {
         impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS
       ) {
         throw new Error(
-          `This Bitcoin send would pay ${formatSats(impliedFeeSats)} BTC in fees. Upgrade Bitcoin sending to return change to your wallet.`,
+          `This Bitcoin send needs change-output setup before it can continue.`,
         );
       }
       if (!senderPkhHex) throw new Error("Couldn't derive sender pkh");
@@ -731,6 +748,7 @@ function BitcoinSendPage() {
       setSentLabel({
         amountBtc: amountBtc.trim(),
         to: shortBtcAddress(destination.trim()),
+        note: note.trim(),
         txid,
         explorerUrl,
       });
@@ -787,14 +805,10 @@ function BitcoinSendPage() {
       );
       return;
     }
-    if (
-      !btcIntentSupportsChange &&
-      impliedFeeSats !== null &&
-      impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS
-    ) {
-      setAmountError(
-        `Upgrade Bitcoin sending to return ${formatSats(impliedFeeSats - FEE_RESERVE_SATS)} BTC as change.`,
-      );
+    if (!btcIntentSupportsChange) {
+      setBtcSetupPendingApproval(null);
+      setSendAfterUpgrade(true);
+      upgradeBitcoinIntent.mutate();
       return;
     }
     send.mutate();
@@ -827,9 +841,6 @@ function BitcoinSendPage() {
   });
   const policyDenied =
     policyEvaluation?.matched && policyEvaluation.action === "deny";
-  const unsafeImpliedFee =
-    !btcIntentSupportsChange &&
-    impliedFeeSats !== null && impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS;
   const canSubmit =
     !!btcBinding &&
     !!btcIntent &&
@@ -839,8 +850,20 @@ function BitcoinSendPage() {
     !!sendAmountSats &&
     !!selectedUtxo &&
     !!senderPkhHex &&
-    !unsafeImpliedFee &&
     !policyDenied;
+
+  useEffect(() => {
+    if (!sendAfterUpgrade) return;
+    if (upgradeBitcoinIntent.isPending) return;
+    if (!btcIntentSupportsChange) return;
+    setSendAfterUpgrade(false);
+    setBtcSetupPendingApproval(null);
+    send.mutate();
+  }, [btcIntentSupportsChange, sendAfterUpgrade, send, upgradeBitcoinIntent.isPending]);
+
+  useEffect(() => {
+    if (btcIntentSupportsChange) setBtcSetupPendingApproval(null);
+  }, [btcIntentSupportsChange]);
 
   useEffect(() => {
     if (!autoStartSetup || autoStartedSetup || !needsSetup) return;
@@ -928,6 +951,16 @@ function BitcoinSendPage() {
             onDismiss={() => setSendError(null)}
           />
         )}
+        {ready &&
+          !sentLabel &&
+          !awaitingApprovalLabel &&
+          !sendError &&
+          btcSetupPendingApproval && (
+            <BitcoinSetupPendingCard
+              walletName={name}
+              proposal={btcSetupPendingApproval.proposal}
+            />
+          )}
         {ready && !sentLabel && !awaitingApprovalLabel && policyEvaluation?.matched && (
           <PolicyMatchBanner walletName={name} evaluation={policyEvaluation} />
         )}
@@ -948,6 +981,7 @@ function BitcoinSendPage() {
                 effectiveFeeSats,
                 changeSats,
                 supportsChange: btcIntentSupportsChange,
+                note,
               })}
               warning={buildBtcWarning({
                 selectedUtxo,
@@ -965,6 +999,8 @@ function BitcoinSendPage() {
             destinationError={destinationError}
             amountBtc={amountBtc}
             setAmountBtc={setAmountBtc}
+            note={note}
+            setNote={setNote}
             amountError={amountError}
             balanceSats={balanceSats}
             balanceLoading={btcSnapshotQuery.isLoading}
@@ -979,10 +1015,9 @@ function BitcoinSendPage() {
             network={btcNetwork}
             sending={send.isPending}
             canSubmit={canSubmit}
-            upgrading={upgradeBitcoinIntent.isPending}
+            autoUpgrading={sendAfterUpgrade || upgradeBitcoinIntent.isPending}
             walletDisplay={walletDisplay}
             onSend={handleSend}
-            onUpgrade={() => upgradeBitcoinIntent.mutate()}
           />
         )}
         {sentLabel && (
@@ -995,6 +1030,7 @@ function BitcoinSendPage() {
               setSentLabel(null);
               setDestination("");
               setAmountBtc("");
+              setNote("");
             }}
           />
         )}
@@ -1007,6 +1043,7 @@ function BitcoinSendPage() {
               setAwaitingApprovalLabel(null);
               setDestination("");
               setAmountBtc("");
+              setNote("");
             }}
           />
         )}
@@ -1135,6 +1172,8 @@ function ComposeForm(props: {
   destinationError: string | null;
   amountBtc: string;
   setAmountBtc: (v: string) => void;
+  note: string;
+  setNote: (v: string) => void;
   amountError: string | null;
   balanceSats: bigint | null;
   balanceLoading: boolean;
@@ -1149,22 +1188,12 @@ function ComposeForm(props: {
   network: BitcoinNetwork;
   sending: boolean;
   canSubmit: boolean;
-  upgrading: boolean;
+  autoUpgrading: boolean;
   walletDisplay: string;
   onSend: () => void;
-  onUpgrade: () => void;
 }) {
   const balanceBtc =
     props.balanceSats !== null ? formatSats(props.balanceSats) : null;
-  const highFeeBlocked =
-    !props.supportsChange &&
-    props.selectedUtxo !== null &&
-    props.impliedFeeSats !== null &&
-    props.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS;
-  const safeMaxSats =
-    highFeeBlocked && props.selectedUtxo
-      ? BigInt(props.selectedUtxo.value) - FEE_RESERVE_SATS
-      : 0n;
   return (
     <>
       {/* Compose grid. Amount + Recipient sit side-by-side on lg+
@@ -1237,7 +1266,7 @@ function ComposeForm(props: {
                     props.impliedFeeSats !== null &&
                     props.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS ? (
                       <span className="font-medium text-warning">
-                        Upgrade needed
+                        Change setup needed
                       </span>
                     ) : (
                       <>
@@ -1302,22 +1331,32 @@ function ComposeForm(props: {
               </span>
             )}
           </label>
+
+          <label
+            htmlFor="btc-note"
+            className="flex flex-col gap-1"
+          >
+            <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              {SEND_NOTE_LABEL}
+            </span>
+            <input
+              id="btc-note"
+              type="text"
+              value={props.note}
+              onChange={(e) =>
+                props.setNote(e.target.value.slice(0, SEND_NOTE_MAX_LENGTH))
+              }
+              placeholder={SEND_NOTE_PLACEHOLDER}
+              maxLength={SEND_NOTE_MAX_LENGTH}
+              className={
+                "w-full rounded-card border border-border-soft bg-canvas px-4 py-3 text-sm text-text-strong outline-none " +
+                "transition-[border-color,box-shadow] duration-base ease-out-soft " +
+                "focus:border-accent focus:shadow-accent-rest"
+              }
+            />
+          </label>
         </section>
       </div>
-
-      {highFeeBlocked && props.selectedUtxo && props.impliedFeeSats !== null && (
-          <HighFeeBlocker
-            selectedUtxo={props.selectedUtxo}
-            impliedFeeSats={props.impliedFeeSats}
-            onUseSafeMax={() => {
-              if (safeMaxSats > 0n) {
-                props.setAmountBtc(formatSats(safeMaxSats));
-              }
-            }}
-            onUpgrade={props.onUpgrade}
-            upgrading={props.upgrading}
-          />
-        )}
 
       {/* Action footer. Sticky CTA mirrors the other send pages. */}
       <div className="flex flex-col gap-2 pt-1">
@@ -1330,28 +1369,15 @@ function ComposeForm(props: {
         >
           <Button
             onClick={props.onSend}
-            disabled={props.sending || !props.canSubmit}
-            variant={
-              !props.supportsChange &&
-              props.impliedFeeSats !== null &&
-              props.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS
-                ? "secondary"
-                : "primary"
-            }
+            disabled={props.sending || props.autoUpgrading || !props.canSubmit}
+            variant="primary"
             fullWidth
             size="lg"
           >
-            {props.sending ? (
+            {props.sending || props.autoUpgrading ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Sending…
-              </>
-            ) : !props.supportsChange &&
-              props.impliedFeeSats !== null &&
-              props.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS ? (
-              <>
-                <X className="h-4 w-4" aria-hidden="true" />
-                Upgrade Bitcoin sending
+                {props.autoUpgrading && !props.sending ? "Preparing…" : "Sending…"}
               </>
             ) : (
               <>
@@ -1366,58 +1392,39 @@ function ComposeForm(props: {
   );
 }
 
-function HighFeeBlocker({
-  selectedUtxo,
-  impliedFeeSats,
-  onUseSafeMax,
-  onUpgrade,
-  upgrading,
+function BitcoinSetupPendingCard({
+  walletName,
+  proposal,
 }: {
-  selectedUtxo: EsploraUtxo;
-  impliedFeeSats: bigint;
-  onUseSafeMax: () => void;
-  onUpgrade: () => void;
-  upgrading: boolean;
+  walletName: string;
+  proposal: string | null;
 }) {
-  const safeAmount = BigInt(selectedUtxo.value) - FEE_RESERVE_SATS;
-  const changeAmount = impliedFeeSats - FEE_RESERVE_SATS;
   return (
-    <div
-      role="alert"
-      className="mt-1 flex flex-col gap-3 rounded-card border border-warning/40 bg-warning/[0.08] p-3 text-xs text-text-strong"
-    >
-      <div className="flex flex-col gap-1">
-        <p className="font-semibold">
-          Blocked: {formatSats(impliedFeeSats)} BTC would be lost as fee.
-        </p>
-        <p className="text-text-soft">
-          This wallet is using the old BTC template. Upgrade once to return{" "}
-          {formatSats(changeAmount)} BTC as change.
-        </p>
-      </div>
-      <Button onClick={onUpgrade} disabled={upgrading} fullWidth>
-        {upgrading ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Upgrading…
-          </>
-        ) : (
-          <>
-            Upgrade Bitcoin sending
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </>
-        )}
-      </Button>
-      {safeAmount > 0n ? (
-        <button
-          type="button"
-          onClick={onUseSafeMax}
-          className="inline-flex min-h-10 items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-semibold text-text-on-accent shadow-accent-rest transition-colors hover:bg-accent-hover"
+    <aside className="rounded-card border border-accent/35 bg-accent/[0.07] p-4 text-sm text-text-soft shadow-card-rest">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="font-semibold text-text-strong">
+            Bitcoin setup requested
+          </p>
+          <p className="mt-1">
+            Waiting for approval. When it is approved, BTC sends will return
+            change automatically.
+          </p>
+          {proposal ? (
+            <p className="mt-2 font-mono text-[11px] text-text-soft">
+              {shortHash(proposal)}
+            </p>
+          ) : null}
+        </div>
+        <Link
+          href={`/app/wallet/${encodeURIComponent(walletName)}/activity`}
+          className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-accent/30 bg-accent/[0.12] px-4 text-xs font-semibold text-accent transition-colors hover:bg-accent/[0.18]"
         >
-          Use safe amount: {formatSats(safeAmount)} BTC
-        </button>
-      ) : null}
-    </div>
+          View activity
+          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </Link>
+      </div>
+    </aside>
   );
 }
 
@@ -1431,6 +1438,7 @@ function SentCard({
   sent: {
     amountBtc: string;
     to: string;
+    note: string;
     txid: string | null;
     explorerUrl: string | null;
   };
@@ -1452,6 +1460,9 @@ function SentCard({
       mono: true,
       copyText: sent.txid,
     });
+  }
+  if (sent.note) {
+    details.push({ label: "Note", value: sent.note });
   }
   return (
     <SendReceipt
@@ -1546,6 +1557,7 @@ function buildBtcPreviewDetails(args: {
   effectiveFeeSats: bigint | null;
   changeSats: bigint | null;
   supportsChange: boolean;
+  note: string;
 }): SignPayloadDetail[] {
   const details: SignPayloadDetail[] = [
     { label: "From wallet", value: args.walletDisplay },
@@ -1582,6 +1594,12 @@ function buildBtcPreviewDetails(args: {
       });
     }
   }
+  if (args.note.trim()) {
+    details.push({
+      label: "Note",
+      value: args.note.trim(),
+    });
+  }
   return details;
 }
 
@@ -1590,14 +1608,7 @@ function buildBtcWarning(args: {
   impliedFeeSats: bigint | null;
   supportsChange: boolean;
 }): string | undefined {
-  if (
-    !args.supportsChange &&
-    args.selectedUtxo &&
-    args.impliedFeeSats !== null &&
-    args.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS
-  ) {
-    return `Upgrade Bitcoin sending to return ${formatSats(args.impliedFeeSats - FEE_RESERVE_SATS)} BTC as change.`;
-  }
+  void args;
   return undefined;
 }
 

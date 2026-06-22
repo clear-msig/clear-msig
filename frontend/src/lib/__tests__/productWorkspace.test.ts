@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  filterWalletsByProductSurface,
   productWorkspaceHomeHref,
   productWorkspaceRedirectHref,
   walletProductSurface,
+  walletProductSurfaceCounts,
 } from "@/lib/productWorkspace";
 
 describe("product workspace routing", () => {
@@ -157,5 +159,34 @@ describe("product workspace routing", () => {
     expect(walletProductSurface("agent")).toBe("agent");
     expect(walletProductSurface("payments")).toBeNull();
     expect(walletProductSurface("p2pdefi")).toBeNull();
+  });
+
+  it("uses the same product resolver for dashboard counts and visible wallets", () => {
+    const wallets = [
+      { wallet_name: "My wallet#abc123" },
+      { wallet_name: "Team#def456" },
+      { wallet_name: "Agent vault#ghi789" },
+      { wallet_name: "Recovery vault#jkl012" },
+    ];
+
+    const counts = walletProductSurfaceCounts(wallets);
+
+    expect(counts.get("personal")).toBe(1);
+    expect(counts.get("pro")).toBe(1);
+    expect(counts.get("agent")).toBe(1);
+    expect(counts.get("secure")).toBe(1);
+    expect(filterWalletsByProductSurface(wallets, "personal")).toEqual([
+      wallets[0],
+    ]);
+    expect(filterWalletsByProductSurface(wallets, "pro")).toEqual([
+      wallets[1],
+    ]);
+    expect(filterWalletsByProductSurface(wallets, "agent")).toEqual([
+      wallets[2],
+    ]);
+    expect(filterWalletsByProductSurface(wallets, "secure")).toEqual([
+      wallets[3],
+    ]);
+    expect(filterWalletsByProductSurface(wallets, null)).toEqual(wallets);
   });
 });
