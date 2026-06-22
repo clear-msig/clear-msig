@@ -6,7 +6,7 @@
 // the brand stays identical across the marketing surface and the
 // onboarding wizard.
 //
-// Pill-nav anchors are absolute (`/#bento`, `/#methodology`) so they
+// Pill-nav anchors are absolute (`/#bento`, `/#why`) so they
 // resolve correctly when the user is on `/welcome` and clicks back to
 // a landing section.
 //
@@ -37,7 +37,6 @@ const NAV_ITEMS: {
 }[] = [
   { href: "/", label: "Home" },
   { href: "/#why", label: "Why Clear" },
-  { href: "/#methodology", label: "How it works" },
 ];
 
 const NAV_PRODUCT_IDS: ProductSurfaceId[] = [
@@ -236,7 +235,7 @@ export function LandingNav({
                 productOpen ? "bg-white/[0.07] text-white" : "text-white/70",
               )}
             >
-              Product
+              Products
               <ChevronDown
                 className={clsx(
                   "h-3.5 w-3.5 transition-transform duration-300",

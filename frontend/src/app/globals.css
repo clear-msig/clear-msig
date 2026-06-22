@@ -379,6 +379,10 @@ select:focus-visible {
   0%, 100% { transform: translate(0, 0); }
   50% { transform: translate(40px, -30px); }
 }
+@keyframes landing-chain-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
 
 .landing-shell {
   --lime: #ccff00;
@@ -386,11 +390,18 @@ select:focus-visible {
   --obsidian: #0c0c0c;
   --glass-bg: rgba(255, 255, 255, 0.03);
   --glass-border: rgba(255, 255, 255, 0.1);
-  font-family: var(--font-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --landing-display-font: var(--font-grotesk), var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  --landing-small-font: "Montserrat", var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--landing-small-font);
   letter-spacing: -0.01em;
 }
+.landing-shell *,
 .landing-shell .font-mono-tech {
-  font-family: var(--font-numerals), ui-monospace, SFMono-Regular, monospace;
+  font-family: var(--landing-small-font);
+}
+.landing-shell .landing-section-heading,
+.landing-shell .landing-section-heading * {
+  font-family: var(--landing-display-font);
 }
 .landing-shell .glass {
   background: var(--glass-bg);
@@ -411,6 +422,41 @@ select:focus-visible {
 .landing-shell .float-slow { animation: float-slow 6s ease-in-out infinite; }
 .landing-shell .float-slower { animation: float-slower 7.5s ease-in-out infinite; }
 .landing-shell .glow-drift { animation: glow-drift 14s ease-in-out infinite; }
+.landing-shell .landing-chain-marquee {
+  --marquee-fade: 24%;
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 var(--marquee-fade),
+    #000 calc(100% - var(--marquee-fade)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 var(--marquee-fade),
+    #000 calc(100% - var(--marquee-fade)),
+    transparent 100%
+  );
+}
+.landing-shell .landing-chain-marquee-track {
+  animation: landing-chain-marquee 30s linear infinite;
+  will-change: transform;
+}
+.landing-shell .landing-chain-marquee:hover .landing-chain-marquee-track {
+  animation-play-state: paused;
+}
+@media (min-width: 640px) {
+  .landing-shell .landing-chain-marquee {
+    --marquee-fade: 16%;
+  }
+}
+
+@media (min-width: 1024px) {
+  .landing-shell .landing-chain-marquee {
+    --marquee-fade: 10%;
+  }
+}
 
 /* Heading "italic" - Space Grotesk has no true italic, so we slant
  * via skew. Paired with the lime→white gradient text for the
@@ -447,55 +493,6 @@ select:focus-visible {
 }
 .landing-shell .neon-cta:hover { transform: scale(1.03); box-shadow: 0 0 18px rgba(204, 255, 0, 0.22); }
 .landing-shell .neon-cta:hover::before { transform: translateY(0); }
-
-/* ── Methodology orb 3D rotation ──────────────────────────────────
- * The static orb on the methodology section gets a continuous
- * "spinning sphere" feel by sliding its longitude gridlines
- * horizontally. The radial mask on the wrapper fades the lines
- * toward the rim, so the slide reads as a curved rotation, not a
- * flat scroll. The light-source highlight (radial gradient at
- * 35%/30%) stays fixed - sells the illusion of a fixed light over
- * a rotating sphere.
- *
- * The grid pattern repeats every 19px (latitude + longitude lines
- * every 18px gap + 1px line). Animating background-position-x by
- * -19px = exactly one cell, so the loop is seamless.
- *
- * The first background layer is the latitude lines (0deg) - kept
- * static. The second layer is longitude (90deg) - this is the one
- * we slide. background-position handles each layer separately via
- * comma-separated values.
- *
- * Tilt: a subtle perspective + rotateX(8deg) on the wrapper gives
- * the sphere a "viewed from above" angle so the rotation reads as
- * 3D depth rather than a 2D pinwheel.
- */
-@keyframes orb-spin {
-  from { background-position: 0 0, 0 0; }
-  to   { background-position: 0 0, -19px 0; }
-}
-
-/* Orb wrapper - perspective lets the inner tilt feel 3D. We
- * intentionally DO NOT use `transform-style: preserve-3d` here
- * (or on the tilt) because preserve-3d sorts descendants by
- * their 3D z-position, and that ignores normal z-index stacking
- * rules. With preserve-3d the rotated orb plane was rendering
- * on top of the quote card sibling regardless of `z-index: 10`.
- * Flat 2D rasterisation of the tilted plane keeps the visual
- * tilt while letting the quote card layer above via z-index. */
-.landing-shell .orb-3d-wrap {
-  perspective: 800px;
-  isolation: isolate;
-}
-
-.landing-shell .orb-3d-tilt {
-  transform: rotateX(6deg) rotateY(-3deg);
-}
-
-.landing-shell .orb-rotating {
-  animation: orb-spin 16s linear infinite;
-  will-change: background-position;
-}
 
 /* Hero mockup - flat glass approval card.
  * The previous 3D tilt distorted the card and clipped content
@@ -736,7 +733,7 @@ select:focus-visible {
   .landing-shell .float-slow,
   .landing-shell .float-slower,
   .landing-shell .glow-drift,
-  .landing-shell .orb-rotating,
+  .landing-shell .landing-chain-marquee-track,
   .landing-shell .amount-glow { animation: none !important; }
   .signing-dot { animation: none !important; }
   .landing-shell .receipt-scan::after,

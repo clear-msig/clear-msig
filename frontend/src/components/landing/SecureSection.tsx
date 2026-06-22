@@ -57,7 +57,7 @@ export function SecureSection() {
       <div className="lg:col-span-5 lg:self-center">
         <motion.h2
           {...fadeIn(0.05)}
-          className="mt-5 text-[clamp(2.25rem,6.5vw,5rem)] font-medium leading-[0.9] tracking-[-0.04em] text-white sm:mt-7"
+          className="landing-section-heading mt-5 text-[clamp(2.25rem,6.5vw,5rem)] font-medium leading-[0.9] tracking-[-0.04em] text-white sm:mt-7"
         >
           Lose a device.
           <br />
