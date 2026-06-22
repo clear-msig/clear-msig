@@ -21,6 +21,7 @@
     "@dynamic-labs/waas-svm": "^4.79.0",
     "@dynamic-labs/wallet-connector-core": "^4.79.0",
     "@encrypt.xyz/pre-alpha-solana-client": "^0.1.1",
+    "@fontsource/montserrat": "^5.2.8",
     "@ledgerhq/hw-app-solana": "^7.10.1",
     "@ledgerhq/hw-transport-webhid": "^6.35.1",
     "@mysten/bcs": "^2.0.5",

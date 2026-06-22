@@ -104,7 +104,7 @@ function ConnectPage() {
                 </span>
               </div>
 
-              <h1 className="mt-6 text-[clamp(2.5rem,6.5vw,5rem)] font-light leading-[0.9] tracking-[-0.05em] text-white text-balance">
+              <h1 className="landing-section-heading mt-6 text-[clamp(2.5rem,6.5vw,5rem)] font-light leading-[0.9] tracking-[-0.05em] text-white text-balance">
                 {selectedSurface ? (
                   <>
                     Continue to
@@ -169,7 +169,7 @@ function ConnectPage() {
                   <div className="mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[#ccff00]/10 text-[#ccff00] ring-1 ring-[#ccff00]/30 shadow-[0_0_24px_rgba(204, 255, 0,0.15)]">
                     <ShieldCheck className="h-7 w-7" strokeWidth={1.75} />
                   </div>
-                  <h2 className="mt-3 text-[clamp(1.75rem,3.5vw,2.5rem)] font-light leading-[1] tracking-[-0.03em] text-white">
+                  <h2 className="landing-section-heading mt-3 text-[clamp(1.75rem,3.5vw,2.5rem)] font-light leading-[1] tracking-[-0.03em] text-white">
                     {selectedSurface ? (
                       <>
                         Sign in for{" "}
@@ -332,7 +332,7 @@ function SignedInWaiting({ reduce }: { reduce: boolean }) {
                 session ready
               </span>
             </div>
-            <h1 className="mt-3 text-[clamp(2rem,5vw,3rem)] font-light leading-[0.95] tracking-[-0.04em] text-white">
+            <h1 className="landing-section-heading mt-3 text-[clamp(2rem,5vw,3rem)] font-light leading-[0.95] tracking-[-0.04em] text-white">
               You&rsquo;re <span className="italic-skew">in</span>.
             </h1>
             <p className="mt-3 text-base leading-relaxed text-white/60">

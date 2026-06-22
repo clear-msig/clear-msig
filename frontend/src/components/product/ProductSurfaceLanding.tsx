@@ -60,7 +60,7 @@ export function ProductChooserPage() {
           <p className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
             Choose what you need
           </p>
-          <h1 className="mt-5 text-[clamp(2.4rem,7vw,5.8rem)] font-medium leading-[0.9] text-white">
+          <h1 className="landing-section-heading mt-5 text-[clamp(2.4rem,7vw,5.8rem)] font-medium leading-[0.9] text-white">
             What are you here to do?
           </h1>
         </div>
@@ -97,7 +97,7 @@ export function ProductSurfaceLanding({ id }: { id: ProductSurfaceId }) {
               </span>
             ) : null}
           </p>
-          <h1 className="mt-5 max-w-4xl text-[clamp(2.4rem,7vw,5.8rem)] font-medium leading-[0.9] text-white">
+          <h1 className="landing-section-heading mt-5 max-w-4xl text-[clamp(2.4rem,7vw,5.8rem)] font-medium leading-[0.9] text-white">
             {surface.headline}
           </h1>
           <p className="mt-5 max-w-xl text-base leading-snug text-white/62 sm:text-lg">
