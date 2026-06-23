@@ -106,6 +106,10 @@ interface BroadcastResultLike {
   raw_tx_hex?: string;
 }
 
+type BtcIntentAccount = NonNullable<
+  Awaited<ReturnType<typeof listIntents>>[number]["account"]
+>;
+
 export default function BitcoinSendPageWrapper() {
   return (
     <main className="relative flex min-h-screen flex-col bg-canvas">
@@ -198,32 +202,21 @@ function BitcoinSendPage() {
   }, [dwalletAddress]);
 
   const btcIntent = useMemo(() => {
-    return (intentsQuery.data ?? [])
-      .map((it) => it.account)
-      .find(
-        (a) =>
-          a !== null &&
-          a.intentType === IntentType.Custom &&
-          a.chainKind === BTC_CHAIN_KIND,
-      );
-  }, [intentsQuery.data]);
-  const btcChangeMarkerKey =
-    walletQuery.data && btcIntent
-      ? `clearsig:btc-change-v2:${walletQuery.data.pda.toBase58()}:${btcIntent.intentIndex}`
-      : null;
-  const [btcChangeUpgradeConfirmed, setBtcChangeUpgradeConfirmed] =
-    useState(false);
-  useEffect(() => {
-    if (!btcChangeMarkerKey || typeof window === "undefined") {
-      setBtcChangeUpgradeConfirmed(false);
-      return;
+    let best: BtcIntentAccount | null = null;
+    for (const intent of intentsQuery.data ?? []) {
+      const account = intent.account;
+      if (
+        !account ||
+        account.intentType !== IntentType.Custom ||
+        account.chainKind !== BTC_CHAIN_KIND
+      ) {
+        continue;
+      }
+      if (!best || account.params.length > best.params.length) best = account;
     }
-    setBtcChangeUpgradeConfirmed(
-      window.localStorage.getItem(btcChangeMarkerKey) === "1",
-    );
-  }, [btcChangeMarkerKey]);
-  const btcIntentSupportsChange =
-    (btcIntent?.params.length ?? 0) >= 8 || btcChangeUpgradeConfirmed;
+    return best;
+  }, [intentsQuery.data]);
+  const btcIntentSupportsChange = (btcIntent?.params.length ?? 0) >= 8;
 
   // ── Live balance + UTXOs ──────────────────────────────────────────
   const balanceSats = btcSnapshotQuery.data?.balanceSats ?? null;
@@ -587,10 +580,6 @@ function BitcoinSendPage() {
           "The Bitcoin setup transaction was submitted, but the wallet still reports the old Bitcoin intent. Wait a moment and refresh.",
         );
       }
-      if (btcChangeMarkerKey && typeof window !== "undefined") {
-        window.localStorage.setItem(btcChangeMarkerKey, "1");
-        setBtcChangeUpgradeConfirmed(true);
-      }
       return { upgraded: true, awaitingApprovers: false, proposal };
     },
     onSuccess: async (result) => {
@@ -805,10 +794,15 @@ function BitcoinSendPage() {
       );
       return;
     }
-    if (!btcIntentSupportsChange) {
-      setBtcSetupPendingApproval(null);
-      setSendAfterUpgrade(true);
-      upgradeBitcoinIntent.mutate();
+    if (
+      !btcIntentSupportsChange &&
+      impliedFeeSats !== null &&
+      impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS
+    ) {
+      const safeAmount = BigInt(selectedUtxo.value) - FEE_RESERVE_SATS;
+      setAmountError(
+        `Use max for this UTXO (${formatSats(safeAmount)} BTC). Partial BTC sends need change setup first.`,
+      );
       return;
     }
     send.mutate();
@@ -828,9 +822,17 @@ function BitcoinSendPage() {
   const needsBinding =
     !blockedByDisconnect && !blockedByLedger && !isLoading && !btcBinding;
   const needsSetup =
-    !blockedByDisconnect && !blockedByLedger && !isLoading && btcBinding && !btcIntent;
+    !blockedByDisconnect &&
+    !blockedByLedger &&
+    !isLoading &&
+    btcBinding &&
+    !btcIntentSupportsChange;
   const ready =
-    !blockedByDisconnect && !blockedByLedger && !isLoading && btcBinding && btcIntent;
+    !blockedByDisconnect &&
+    !blockedByLedger &&
+    !isLoading &&
+    btcBinding &&
+    btcIntentSupportsChange;
   const policyEvaluation = usePolicyEvaluation({
     walletName: name,
     chainKind: BTC_CHAIN_KIND,

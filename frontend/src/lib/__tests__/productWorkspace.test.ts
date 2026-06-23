@@ -3,9 +3,11 @@ import {
   filterWalletsByProductSurface,
   productWorkspaceHomeHref,
   productWorkspaceRedirectHref,
+  resolveWalletProductSurface,
   walletProductSurface,
   walletProductSurfaceCounts,
 } from "@/lib/productWorkspace";
+import { walletSubNav } from "@/components/layout/walletScopedNav";
 
 describe("product workspace routing", () => {
   it("sends agent vaults to Agent Trading as their home", () => {
@@ -188,5 +190,39 @@ describe("product workspace routing", () => {
       wallets[3],
     ]);
     expect(filterWalletsByProductSurface(wallets, null)).toEqual(wallets);
+  });
+
+  it("keeps Send out of Personal, Pro, and Agent mobile wallet nav", () => {
+    const personalLabels = walletSubNav(
+      resolveWalletProductSurface("My wallet#abc123"),
+    ).map((item) => item.label);
+    const proLabels = walletSubNav(
+      resolveWalletProductSurface("Team#def456"),
+    ).map((item) => item.label);
+    const agentLabels = walletSubNav(
+      resolveWalletProductSurface("Agent vault#ghi789"),
+    ).map((item) => item.label);
+
+    expect(personalLabels).toEqual([
+      "Overview",
+      "People",
+      "Protection",
+      "Activity",
+    ]);
+    expect(proLabels).toEqual([
+      "Treasury",
+      "Team",
+      "Protection",
+      "Activity",
+    ]);
+    expect(agentLabels).toEqual([
+      "Overview",
+      "Traders",
+      "Rules",
+      "Trades",
+    ]);
+    expect(personalLabels).not.toContain("Send");
+    expect(proLabels).not.toContain("Send");
+    expect(agentLabels).not.toContain("Send");
   });
 });

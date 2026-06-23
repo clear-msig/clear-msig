@@ -30,8 +30,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
-import { getWalletAppearance } from "@/lib/retail/walletAppearance";
-import { walletProductSurface } from "@/lib/productWorkspace";
+import { resolveWalletProductSurface } from "@/lib/productWorkspace";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import {
   activeWalletSlugFromPathname,
@@ -223,7 +222,7 @@ function WalletScopedBottomNav({
   const router = useRouter();
   const [launchingCreate, setLaunchingCreate] = useState(false);
   const base = `/app/wallet/${encodeURIComponent(slug)}`;
-  const surface = walletProductSurface(getWalletAppearance(slug)?.surface);
+  const surface = resolveWalletProductSurface(slug);
   const items = walletSubNav(surface);
   const display = toDisplayName(slug);
   const productHomeHref = "/app/wallet?surface=all";
