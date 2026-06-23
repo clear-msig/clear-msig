@@ -22,7 +22,7 @@
 // throwaway recoveryId keypair (PDA seed). The throwaway is generated
 // client-side and never referenced again.
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
@@ -126,6 +126,31 @@ function SecureBuildPage() {
   const [createSubStage, setCreateSubStage] = useState<CreateVaultStage | null>(
     null,
   );
+  const webauthn = useMemo(
+    () =>
+      detectWebauthnAvailability({
+        isSecureContext:
+          typeof window !== "undefined" ? window.isSecureContext : undefined,
+        hasCredentialsCreate:
+          typeof navigator !== "undefined" &&
+          !!navigator.credentials &&
+          typeof navigator.credentials.create === "function",
+        hasCredentialsGet:
+          typeof navigator !== "undefined" &&
+          !!navigator.credentials &&
+          typeof navigator.credentials.get === "function",
+      }),
+    [],
+  );
+  const passkeysAvailable = webauthn.ok;
+
+  useEffect(() => {
+    if (passkeysAvailable || shape.members === 1 || stage === "creating" || stage === "done") {
+      return;
+    }
+    setShape(SHAPES[0]!);
+    setStage("shape");
+  }, [passkeysAvailable, shape.members, stage]);
 
   const fadeIn = (delay = 0) =>
     reduce
@@ -268,6 +293,7 @@ function SecureBuildPage() {
           setShape={setShape}
           onContinue={handleConfirm}
           reduce={!!reduce}
+          passkeysAvailable={passkeysAvailable}
         />
       )}
       {!isBlocked && stage === "confirm" && (
@@ -277,6 +303,7 @@ function SecureBuildPage() {
           onBack={() => setStage("shape")}
           onBuild={handleBuild}
           reduce={!!reduce}
+          passkeysAvailable={passkeysAvailable}
         />
       )}
       {!isBlocked && stage === "creating" && (
@@ -394,9 +421,16 @@ interface ShapeStageProps {
   setShape: (s: ThresholdShape) => void;
   onContinue: () => void;
   reduce: boolean;
+  passkeysAvailable: boolean;
 }
 
-function ShapeStage({ shape, setShape, onContinue, reduce }: ShapeStageProps) {
+function ShapeStage({
+  shape,
+  setShape,
+  onContinue,
+  reduce,
+  passkeysAvailable,
+}: ShapeStageProps) {
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
@@ -419,17 +453,21 @@ function ShapeStage({ shape, setShape, onContinue, reduce }: ShapeStageProps) {
         {SHAPES.map((s) => {
           const selected = s.id === shape.id;
           const Icon = s.id === "solo" ? User : Fingerprint;
+          const disabled = s.members > 1 && !passkeysAvailable;
           return (
             <li key={s.id}>
               <button
                 type="button"
                 onClick={() => setShape(s)}
+                disabled={disabled}
                 aria-pressed={selected}
                 className={
                   "group relative block w-full overflow-hidden rounded-card border p-5 text-left sm:p-6 " +
                   "transition-[border-color,background-color,transform,box-shadow] duration-base ease-out-soft " +
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
-                  (selected
+                  (disabled
+                    ? "cursor-not-allowed border-border-soft bg-surface-raised opacity-55"
+                    : selected
                     ? "border-accent bg-accent/[0.04] shadow-card-rest"
                     : "border-border-soft bg-surface-raised hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-card-raised")
                 }
@@ -463,7 +501,11 @@ function ShapeStage({ shape, setShape, onContinue, reduce }: ShapeStageProps) {
                       {s.label}
                     </p>
                     <p className="mt-2.5 max-w-md text-[13.5px] text-text-soft">
-                      {s.blurb}
+                      {disabled
+                        ? "Passkeys are unavailable in this browser."
+                        : s.members === 1
+                          ? "Solana wallet signs."
+                          : "Solana wallet plus passkeys."}
                     </p>
 
                     {/* Threshold dot pattern - sits under the body
@@ -550,6 +592,7 @@ interface ConfirmStageProps {
   onBack: () => void;
   onBuild: () => void;
   reduce: boolean;
+  passkeysAvailable: boolean;
 }
 
 function ConfirmStage({
@@ -558,6 +601,7 @@ function ConfirmStage({
   onBack,
   onBuild,
   reduce,
+  passkeysAvailable,
 }: ConfirmStageProps) {
   const motionProps = reduce
     ? {}
@@ -565,6 +609,8 @@ function ConfirmStage({
   const short = creatorAddress
     ? `${creatorAddress.slice(0, 4)}…${creatorAddress.slice(-4)}`
     : "";
+  const sharedVault = shape.members > 1;
+  const buildDisabled = sharedVault && !passkeysAvailable;
   return (
     <motion.section
       {...motionProps}
@@ -603,7 +649,7 @@ function ConfirmStage({
                 {shape.label}
               </p>
               <p className="mt-0.5 text-[12px] text-text-soft">
-                Solana key under quorum
+                {sharedVault ? "Wallet plus passkeys" : "Solana wallet only"}
               </p>
             </div>
           </div>
@@ -628,9 +674,18 @@ function ConfirmStage({
               aligned via flex-justify-between within each row. */}
           <ul className="mt-4 divide-y divide-border-soft border-y border-border-soft">
             <PreviewRow label="First signer" value={short} mono />
-            <PreviewRow label="Curve" value="ed25519 (Solana)" />
+            <PreviewRow
+              label="Signs with"
+              value={sharedVault ? "Solana wallet + passkeys" : "Solana wallet"}
+            />
             <PreviewRow label="Network" value="Solana devnet" />
           </ul>
+          {buildDisabled ? (
+            <p className="mt-3 rounded-xl bg-warning/10 px-3 py-2 text-xs text-text-strong">
+              Passkeys are not available here. Choose Just me or open ClearSig
+              in Chrome, Safari, or Edge.
+            </p>
+          ) : null}
 
         </div>
       </article>
@@ -642,7 +697,7 @@ function ConfirmStage({
           "border-t border-border-soft bg-canvas pt-3 sm:border-0 sm:bg-transparent sm:pt-0"
         }
       >
-        <Button size="lg" fullWidth onClick={onBuild}>
+        <Button size="lg" fullWidth onClick={onBuild} disabled={buildDisabled}>
           Build vault
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Button>

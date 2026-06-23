@@ -5,7 +5,6 @@ import {
   ListChecks,
   Search,
   ShieldCheck,
-  Send,
   Users,
   Wallet as WalletIcon,
   type LucideIcon,
@@ -47,7 +46,6 @@ export function walletSubNav(
   }
   return [
     { sub: "", label: "Overview", Icon: WalletIcon },
-    { sub: "send", label: "Send", Icon: Send },
     { sub: "members", label: "People", Icon: Users },
     { sub: "policy", label: "Protection", Icon: ListChecks },
     { sub: "activity", label: "Activity", Icon: ActivityIcon },
