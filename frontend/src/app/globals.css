@@ -81,6 +81,9 @@
     radial-gradient(40% 30% at 90% 100%, rgba(16, 185, 129, 0.05) 0%, rgba(0, 0, 0, 0) 70%),
     linear-gradient(180deg, #0a0a0a 0%, #0c0c0c 55%, #0a0a0a 100%);
   --clear-body-text: #ebebeb;
+  --wallet-dot-primary: rgba(235, 235, 235, 0.075);
+  --wallet-dot-accent: rgba(204, 255, 0, 0.13);
+  --wallet-dot-size: 34px;
 
   /* Theme switch transition. Apply via .theme-transitioning class on
      <html> so we only pay the cost during the actual swap, never on
@@ -154,6 +157,8 @@
     radial-gradient(40% 30% at 90% 100%, rgba(16, 185, 129, 0.08) 0%, rgba(247, 248, 250, 0) 70%),
     linear-gradient(180deg, #ffffff 0%, #f6f7f9 55%, #f1f3f6 100%);
   --clear-body-text: #0a0e16;
+  --wallet-dot-primary: rgba(10, 14, 22, 0.13);
+  --wallet-dot-accent: rgba(77, 124, 15, 0.16);
 }
 
 /* Theme-swap transition. Class is added to <html> by setStoredTheme
@@ -536,22 +541,26 @@ select:focus-visible {
 .app-experience,
 .clear-ui-root main[class*="bg-canvas"] {
   isolation: isolate;
-  background-image:
-    linear-gradient(90deg, rgba(204, 255, 0, 0.024) 0 1px, transparent 1px 100%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.024) 0 1px, transparent 1px 100%),
-    var(--clear-body-bg-image);
-  background-size: 72px 72px, 72px 72px, auto;
+  background: var(--clear-canvas);
 }
 
 .app-experience .app-content-stage::before {
-  content: "";
+  content: none;
   pointer-events: none;
   position: fixed;
   inset: 0;
   z-index: -1;
-  background:
-    linear-gradient(90deg, rgba(204, 255, 0, 0.035), transparent 24%, transparent 76%, rgba(204, 255, 0, 0.018)),
-    repeating-linear-gradient(180deg, transparent 0 47px, rgba(255, 255, 255, 0.026) 47px 48px);
+}
+
+.app-experience.wallet-dot-canvas {
+  background-color: var(--clear-canvas);
+  background-image:
+    radial-gradient(circle, var(--wallet-dot-accent) 0 1px, transparent 1.2px),
+    radial-gradient(circle, var(--wallet-dot-primary) 0 1px, transparent 1.2px);
+  background-position: 0 0, calc(var(--wallet-dot-size) / 2) calc(var(--wallet-dot-size) / 2);
+  background-size:
+    var(--wallet-dot-size) var(--wallet-dot-size),
+    var(--wallet-dot-size) var(--wallet-dot-size);
 }
 
 .app-experience .app-sidebar-shell,

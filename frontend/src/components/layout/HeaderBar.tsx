@@ -4,9 +4,9 @@
 //
 // On /app/* mobile the header now reads like a native app navbar:
 //   • LEFT  - circular back button (only off home)
-//   • CENTER - plain page title text ("Welcome back" on home,
-//     section label everywhere else). No pill, no border, just
-//     centered text - the way iOS / Android navbars do it.
+//   • CENTER - plain page title text on every connected app route.
+//     No pill, no border, just centered text - the way iOS / Android
+//     navbars do it.
 //   • RIGHT - Scan (only on send routes) + Settings cluster.
 //
 // On public surfaces (landing / connect / welcome / privacy / security)
@@ -259,39 +259,22 @@ export function HeaderBar() {
         </Link>
       )}
 
-      {/* HOME title - left edge, mobile only. Renders BEFORE the
-          right cluster so the greeting hugs the leading edge while
-          the right cluster's `ml-auto` pushes the action icons all
-          the way to the trailing edge. The two ends never overlap. */}
-      {showTitle && isHome && (
-        <motion.h1
-          initial={{ opacity: 0, y: -3 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          className="flex items-center gap-2 md:hidden"
-        >
-          <span className="flex h-6 w-6 items-center justify-center drop-shadow-[0_0_6px_rgba(204,255,0,0.5)]">
-            <BrandMark size={20} />
-          </span>
-          <span className="text-lg font-semibold tracking-tight text-text-strong">
-            Welcome back
-          </span>
-        </motion.h1>
-      )}
-
-      {/* OFF-HOME title - absolutely-centered text. Stays
-          centered in the safe space between the back button and the
-          right wallet menu, so narrow mobile pages never overlap.
-          pointer-events-none lets clicks fall through to the
-          back/scan/settings buttons. */}
-      {showTitle && !isHome && (
-        <div className="pointer-events-none absolute left-14 right-[9.5rem] top-1/2 flex -translate-y-1/2 justify-center sm:right-40 md:hidden">
+      {/* Mobile page title - one centered placement for every app
+          route. It is independent of the left back button and the
+          right wallet cluster, so page identity stays visually
+          centered across Home, wallet detail, settings, and send
+          screens. */}
+      {showTitle && (
+        <div className="pointer-events-none absolute left-1/2 top-1/2 flex w-[min(52vw,18rem)] -translate-x-1/2 -translate-y-1/2 justify-center sm:w-[min(56vw,20rem)] md:hidden">
           <motion.h1
             key={pageTitle}
             initial={{ opacity: 0, y: -3 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-            className="max-w-full truncate text-base font-semibold tracking-tight text-text-strong"
+            className={clsx(
+              "max-w-full truncate text-center font-semibold tracking-tight text-text-strong",
+              isHome ? "text-lg" : "text-base",
+            )}
           >
             {pageTitle}
           </motion.h1>

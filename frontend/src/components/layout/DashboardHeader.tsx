@@ -74,6 +74,7 @@ function getParentRoute(pathname: string): string {
 export function DashboardHeader() {
   const pathname = usePathname() ?? "";
   const router = useRouter();
+  const contentScrolled = useContentStageScrolled(pathname);
   // Track in-app navigations so router.back() only fires when it'll
   // actually land somewhere in our app. Mount counts as 1; each
   // pathname change increments. count > 1 ⇒ at least one in-app jump
@@ -99,7 +100,8 @@ export function DashboardHeader() {
       role="banner"
       className={clsx(
         "app-dashboard-header relative z-30 hidden h-14 shrink-0 items-center gap-3 px-6 md:flex lg:px-8 xl:px-10",
-        "border-b border-border-soft bg-canvas/95",
+        "border-b border-border-soft bg-canvas transition-shadow duration-200 ease-out",
+        contentScrolled && "shadow-[0_14px_34px_-28px_rgba(0,0,0,0.95)]",
       )}
     >
       {!isRoot ? (
@@ -144,6 +146,36 @@ export function DashboardHeader() {
       </div>
     </header>
   );
+}
+
+function useContentStageScrolled(pathname: string) {
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const stage = document.querySelector<HTMLElement>(".app-content-stage");
+    if (!stage) return;
+
+    let frame = 0;
+    const update = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        setScrolled(stage.scrollTop > 2);
+      });
+    };
+
+    update();
+    stage.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      stage.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, [pathname]);
+
+  return scrolled;
 }
 
 function HeaderNotificationsButton() {

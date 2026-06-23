@@ -501,14 +501,14 @@ function SettingsNav() {
       role="tablist"
       aria-label="Settings sections"
       className={clsx(
-        // top-14 on mobile clears the fixed mobile-backdrop (h-14)
+        // top-16 on mobile clears the fixed mobile-backdrop (h-16)
         // that sits above the body scroll, so the nav sticks directly
         // below the floating header pill. Desktop has no backdrop -
         // the parent scroll container starts directly below the
         // DashboardHeader, so md:top-0 sticks the nav flush against
         // the header bottom (no gap, no double-line).
-        "sticky top-14 z-10 -mx-3 md:top-0 sm:-mx-4 md:-mx-8 lg:-mx-10 xl:-mx-12",
-        "border-b border-border-soft bg-canvas/90 backdrop-blur-xl",
+        "sticky top-16 z-10 -mx-3 md:top-0 sm:-mx-4 md:-mx-8 lg:-mx-10 xl:-mx-12",
+        "border-b border-border-soft bg-canvas",
         // Soft downward shadow gives the nav a stronger "stuck" cue
         // on mobile (the pill above + the nav below need to read as
         // distinct chrome layers, not one merged blur).
