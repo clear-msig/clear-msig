@@ -27,9 +27,9 @@ import {
   Bell,
   ChevronDown,
   ChevronLeft,
-  Copy,
   ExternalLink,
   LogOut,
+  PlugZap,
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
@@ -303,17 +303,6 @@ function HeaderWalletPill() {
         ? "Phantom"
         : "Connected wallet";
 
-  const handleCopyAddress = async () => {
-    try {
-      await navigator.clipboard.writeText(address);
-      toast.success("Wallet address copied");
-    } catch (err) {
-      toast.error("Could not copy wallet address", {
-        details: err instanceof Error ? err.message : String(err),
-      });
-    }
-  };
-
   const handleRefreshBalance = async () => {
     try {
       await balanceQuery.refetch();
@@ -358,7 +347,11 @@ function HeaderWalletPill() {
             grad.to,
           )}
         >
-          <span className="block h-1.5 w-1.5 rounded-full bg-white/90" />
+          <PlugZap
+            className="h-3.5 w-3.5 text-white/95 drop-shadow-[0_1px_4px_rgba(0,0,0,0.28)]"
+            strokeWidth={2.2}
+            aria-hidden="true"
+          />
         </span>
         <span className="flex min-w-0 flex-col items-start leading-none">
           <span className="font-mono text-[11px] text-text-strong">{short}</span>
@@ -395,7 +388,11 @@ function HeaderWalletPill() {
                   grad.to,
                 )}
               >
-                <span className="block h-2 w-2 rounded-full bg-white/90" />
+                <PlugZap
+                  className="h-4 w-4 text-white/95 drop-shadow-[0_1px_4px_rgba(0,0,0,0.28)]"
+                  strokeWidth={2.2}
+                  aria-hidden="true"
+                />
               </span>
               <div className="min-w-0">
                 <p className="text-xs font-semibold text-text-strong">
@@ -429,15 +426,6 @@ function HeaderWalletPill() {
           </div>
 
           <div className="p-1.5">
-            <button
-              type="button"
-              role="menuitem"
-              onClick={handleCopyAddress}
-              className={WALLET_MENU_ITEM_CLASS}
-            >
-              <Copy size={14} aria-hidden="true" />
-              Copy address
-            </button>
             <a
               role="menuitem"
               href={explorerHref}
