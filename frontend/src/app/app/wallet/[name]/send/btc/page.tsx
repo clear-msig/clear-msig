@@ -11,8 +11,9 @@
 //
 // Pre-flight gates (in order):
 //   1. Wallet bound to Bitcoin? If no → "/chains/add?chain=bitcoin_p2wpkh".
-//   2. BTC `Custom` intent exists on the wallet? If no → register one
-//      via the standard add-intent meta proposal flow + auto-execute.
+//   2. BTC 8-param `Custom` intent exists on the wallet? If no →
+//      register one via the standard add-intent meta proposal flow +
+//      auto-execute.
 //   3. dWallet has UTXOs >= amount + min fee? If no → fund-the-vault
 //      copy with the deposit address.
 //
@@ -42,7 +43,7 @@ import { PublicKey } from "@solana/web3.js";
 import { ArrowRight, Loader2, Send, X } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
-import { IntentType, ProposalStatus } from "@/lib/msig";
+import { fromHex, IntentType, parseIntent, ProposalStatus } from "@/lib/msig";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { fetchProposal } from "@/lib/chain/proposals";
 import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
@@ -108,6 +109,8 @@ interface BroadcastResultLike {
   tx_id?: string;
   raw_tx_hex?: string;
 }
+
+type BtcSetupPendingReason = "approval" | "sync";
 
 export default function BitcoinSendPageWrapper() {
   return (
@@ -252,6 +255,7 @@ function BitcoinSendPage() {
   const [autoStartedSetup, setAutoStartedSetup] = useState(false);
   const [btcSetupPendingApproval, setBtcSetupPendingApproval] = useState<{
     proposal: string | null;
+    reason: BtcSetupPendingReason;
   } | null>(null);
   const autoStartSetup = searchParams?.get("autostart") === "1";
 
@@ -333,6 +337,7 @@ function BitcoinSendPage() {
         timelock: 0,
         policy_ciphertexts,
       });
+      assertPreparedBitcoinSetupIsCurrent(dry.params_data_hex);
       const signed = await signDescriptor(dry, { preferSigner: signerPk });
       const submitted = await backendApi.submit.addIntent(name, {
         ...signed,
@@ -381,15 +386,13 @@ function BitcoinSendPage() {
         await backendApi.executeProposal(name, proposal, {});
       }
       if (status !== ProposalStatus.Approved && status !== ProposalStatus.Executed) {
-        return { proposal, awaitingApprovers: true };
+        return { proposal, status: "pending_approval" as const };
       }
       const ready = await waitForBitcoinChangeIntent(connection, name);
       if (!ready) {
-        throw new Error(
-          "Bitcoin setup was submitted, but the wallet still does not show the new BTC send model. Wait a moment and refresh.",
-        );
+        return { proposal, status: "pending_sync" as const };
       }
-      return { proposal, awaitingApprovers: false };
+      return { proposal, status: "ready" as const };
     },
     onSuccess: async (result) => {
       // BTC's setup+send live in the same page, so the next render
@@ -404,11 +407,18 @@ function BitcoinSendPage() {
         queryClient.refetchQueries({ queryKey: ["wallet-intents"] }),
         queryClient.refetchQueries({ queryKey: ["wallet", name] }),
       ]);
-      if (result?.awaitingApprovers) {
-        setBtcSetupPendingApproval({ proposal: result.proposal ?? null });
+      if (result?.status === "pending_approval" || result?.status === "pending_sync") {
+        const reason =
+          result.status === "pending_approval" ? "approval" : "sync";
+        setBtcSetupPendingApproval({
+          proposal: result.proposal ?? null,
+          reason,
+        });
         toast.success("Bitcoin setup requested", {
           details:
-            "It still needs the remaining approval before BTC sends can return change.",
+            reason === "approval"
+              ? "It still needs the remaining approval before BTC sends can return change."
+              : "The request landed. Refresh in a moment if Bitcoin still asks to turn on sending.",
         });
         return;
       }
@@ -735,6 +745,7 @@ function BitcoinSendPage() {
           <BitcoinSetupPendingCard
             walletName={name}
             proposal={btcSetupPendingApproval.proposal}
+            reason={btcSetupPendingApproval.reason}
           />
         )}
         {ready && !sentLabel && !awaitingApprovalLabel && sendError && (
@@ -758,6 +769,7 @@ function BitcoinSendPage() {
             <BitcoinSetupPendingCard
               walletName={name}
               proposal={btcSetupPendingApproval.proposal}
+              reason={btcSetupPendingApproval.reason}
             />
           )}
         {ready && !sentLabel && !awaitingApprovalLabel && policyEvaluation?.matched && (
@@ -1169,10 +1181,16 @@ function ComposeForm(props: {
 function BitcoinSetupPendingCard({
   walletName,
   proposal,
+  reason,
 }: {
   walletName: string;
   proposal: string | null;
+  reason: BtcSetupPendingReason;
 }) {
+  const body =
+    reason === "approval"
+      ? "Waiting for approval. When it is approved, BTC sends will return change automatically."
+      : "The setup request landed. If Bitcoin still asks to turn on sending, refresh in a moment.";
   return (
     <aside className="rounded-card border border-accent/35 bg-accent/[0.07] p-4 text-sm text-text-soft shadow-card-rest">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1180,10 +1198,7 @@ function BitcoinSetupPendingCard({
           <p className="font-semibold text-text-strong">
             Bitcoin setup requested
           </p>
-          <p className="mt-1">
-            Waiting for approval. When it is approved, BTC sends will return
-            change automatically.
-          </p>
+          <p className="mt-1">{body}</p>
           {proposal ? (
             <p className="mt-2 font-mono text-[11px] text-text-soft">
               {shortHash(proposal)}
@@ -1369,6 +1384,27 @@ function buildBtcPreviewDetails(args: {
     });
   }
   return details;
+}
+
+function assertPreparedBitcoinSetupIsCurrent(paramsDataHex: string) {
+  let preparedParams = 0;
+  try {
+    const body = fromHex(paramsDataHex);
+    const accountData = new Uint8Array(body.length + 1);
+    accountData[0] = 2;
+    accountData.set(body, 1);
+    const intent = parseIntent(accountData);
+    preparedParams = intent.params.length;
+    if (intent.chainKind === BTC_CHAIN_KIND && bitcoinSendReady(intent)) return;
+  } catch (err) {
+    throw new Error(
+      `Bitcoin setup could not read the prepared intent from the backend. ${err instanceof Error ? err.message : ""}`.trim(),
+    );
+  }
+
+  throw new Error(
+    `ClearSig backend prepared the old Bitcoin send model (${preparedParams} params). Deploy the latest backend, then tap Turn on Bitcoin sending again.`,
+  );
 }
 
 // ─── error banner ─────────────────────────────────────────────────
