@@ -12,6 +12,9 @@
 // reachable via HeaderBar's left-sliding drawer; BottomNav handles
 // primary navigation. DashboardHeader is desktop-only.
 
+import { useEffect, useState } from "react";
+import clsx from "clsx";
+import { usePathname } from "next/navigation";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { useActionNotifications } from "@/lib/hooks/useActionNotifications";
 import { AppLockOverlay } from "@/components/security/AppLockOverlay";
@@ -48,6 +51,8 @@ export default function WorkspaceLayout({
 function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
   const sidebar = useSidebar();
   const expanded = sidebar?.expanded ?? true;
+  const pathname = usePathname() ?? "";
+  const isWalletHub = pathname === "/app/wallet";
   // Multisig collab signal: when something lands in the user's
   // pending-approvals list and the tab is hidden, fire a browser
   // Notification. Hook is rendered here so it runs across every
@@ -55,14 +60,22 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
   // components.
   useActionNotifications();
   return (
-    <main className="app-experience relative bg-canvas font-sans md:flex md:h-screen md:overflow-hidden">
+    <main
+      className={clsx(
+        "app-experience relative bg-canvas font-sans md:flex md:h-screen md:overflow-hidden",
+        isWalletHub && "wallet-dot-canvas",
+      )}
+    >
       {/* Atmospheric accents - two soft radial blooms anchoring the
           page corners. Pure decoration, pointer-events-none, lifts
           the obsidian canvas off the "flat black" reading without
           competing with foreground content. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none fixed inset-0 -z-0 overflow-hidden"
+        className={clsx(
+          "pointer-events-none fixed inset-0 -z-0 overflow-hidden",
+          isWalletHub && "hidden",
+        )}
       >
         <div
           className="absolute -left-40 -top-40 h-[560px] w-[560px] rounded-full opacity-35"
@@ -80,13 +93,7 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
         />
       </div>
 
-      {/* Mobile-only header backdrop - covers the gap between the
-          floating hamburger and the brand pill so scrolled content
-          doesn't peek through. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none fixed inset-x-0 top-0 z-[90] h-14 bg-canvas/95 md:hidden"
-      />
+      <MobileHeaderBackdrop />
       <HeaderBar />
       <CommandPaletteLoader />
 
@@ -134,4 +141,51 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
       <BottomNav />
     </main>
   );
+}
+
+function MobileHeaderBackdrop() {
+  const scrolled = useBodyScrolled();
+
+  return (
+    <div
+      aria-hidden="true"
+      className={clsx(
+        "pointer-events-none fixed inset-x-0 top-0 z-[90] h-16 md:hidden",
+        "transition-[background-color,box-shadow] duration-200 ease-out",
+        scrolled
+          ? "bg-canvas shadow-[0_12px_32px_-24px_rgba(0,0,0,0.9)]"
+          : "bg-canvas/95",
+      )}
+    />
+  );
+}
+
+function useBodyScrolled() {
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    let frame = 0;
+
+    const update = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        setScrolled(
+          window.scrollY > 2 || document.documentElement.scrollTop > 2,
+        );
+      });
+    };
+
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+
+  return scrolled;
 }
