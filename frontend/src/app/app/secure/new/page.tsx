@@ -188,10 +188,10 @@ function SecureBuildPage() {
           typeof navigator.credentials.get === "function",
       });
       if (!webauthn.ok) {
-        toast.error("Passkeys are not available here", {
+        toast.error("Shared vaults need passkeys", {
           details:
             webauthn.reason === "insecure"
-              ? "Open ClearSig over HTTPS, then build the vault again."
+              ? "Open ClearSig over HTTPS, then create the vault again."
               : "Use Chrome, Safari, or Edge in a normal browser tab, or choose Just me for now.",
         });
         return;
@@ -502,10 +502,10 @@ function ShapeStage({
                     </p>
                     <p className="mt-2.5 max-w-md text-[13.5px] text-text-soft">
                       {disabled
-                        ? "Passkeys are unavailable in this browser."
+                        ? "Shared vaults need passkeys. Try Chrome, Safari, or Edge."
                         : s.members === 1
-                          ? "Solana wallet signs."
-                          : "Solana wallet plus passkeys."}
+                          ? "Uses your Solana wallet."
+                          : "Uses your wallet and passkeys."}
                     </p>
 
                     {/* Threshold dot pattern - sits under the body
@@ -622,7 +622,7 @@ function ConfirmStage({
           Step 2 · Confirm
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] tracking-[-0.02em] text-text-strong text-balance sm:mt-3">
-          Build a {shape.threshold}-of-{shape.members} vault
+          Create a {shape.threshold}-of-{shape.members} vault
         </h1>
       </header>
 
@@ -649,7 +649,7 @@ function ConfirmStage({
                 {shape.label}
               </p>
               <p className="mt-0.5 text-[12px] text-text-soft">
-                {sharedVault ? "Wallet plus passkeys" : "Solana wallet only"}
+                {sharedVault ? "Wallet + passkeys" : "Solana wallet only"}
               </p>
             </div>
           </div>
@@ -676,14 +676,14 @@ function ConfirmStage({
             <PreviewRow label="First signer" value={short} mono />
             <PreviewRow
               label="Signs with"
-              value={sharedVault ? "Solana wallet + passkeys" : "Solana wallet"}
+              value={sharedVault ? "Wallet + passkeys" : "Solana wallet"}
             />
-            <PreviewRow label="Network" value="Solana devnet" />
+            <PreviewRow label="Chain" value="Solana" />
           </ul>
           {buildDisabled ? (
             <p className="mt-3 rounded-xl bg-warning/10 px-3 py-2 text-xs text-text-strong">
-              Passkeys are not available here. Choose Just me or open ClearSig
-              in Chrome, Safari, or Edge.
+              Shared vaults need passkeys. Choose Just me, or open ClearSig in
+              Chrome, Safari, or Edge.
             </p>
           ) : null}
 
@@ -698,7 +698,7 @@ function ConfirmStage({
         }
       >
         <Button size="lg" fullWidth onClick={onBuild} disabled={buildDisabled}>
-          Build vault
+          Create vault
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Button>
         <button

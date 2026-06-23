@@ -1195,18 +1195,13 @@ export default function AgentsPage() {
             {encrypt.live ? "Privacy on" : "Privacy ready"}
           </Link>
         </div>
-        <div className="mt-5 grid gap-2 sm:grid-cols-4">
+        <div className="mt-5 grid gap-2 sm:grid-cols-3">
           <DeskStatus label="Trader" value={activeAgents ? "Chosen" : "Needed"} tone={activeAgents ? "accent" : "warn"} />
           <DeskStatus label="Mode" value="Practice" tone="soft" />
           <DeskStatus
             label="Safety"
             value={policy?.enabled ? "On" : "Needed"}
             tone={policy?.enabled ? "accent" : "warn"}
-          />
-          <DeskStatus
-            label="Pause"
-            value={policy?.emergencyPaused ? "Paused" : "Ready"}
-            tone={policy?.emergencyPaused ? "warn" : "accent"}
           />
         </div>
       </header>
@@ -1270,13 +1265,6 @@ export default function AgentsPage() {
           >
             <CircleDollarSign size={15} aria-hidden="true" />
             <span>Budget</span>
-          </Link>
-          <Link
-            href="#kill-switch"
-            className={agentToolClass}
-          >
-            <Pause size={15} aria-hidden="true" />
-            <span>Pause</span>
           </Link>
           {canRunAutonomyScan ? (
             <button
@@ -1378,7 +1366,7 @@ export default function AgentsPage() {
         </details>
       </section>
 
-      {policy ? (
+      {policy?.emergencyPaused ? (
         <section id="kill-switch" className="scroll-mt-24">
           <KillSwitchPanel
             paused={policy.emergencyPaused}
@@ -1388,6 +1376,31 @@ export default function AgentsPage() {
             onToggle={setKillSwitch}
           />
         </section>
+      ) : policy ? (
+        <details
+          id="kill-switch"
+          className="group rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest sm:p-4"
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-text-strong">
+            <span className="inline-flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-accent" aria-hidden="true" />
+              Safety controls
+            </span>
+            <ChevronDown
+              className="h-4 w-4 text-text-soft transition-transform group-open:rotate-180"
+              aria-hidden="true"
+            />
+          </summary>
+          <div className="mt-3">
+            <KillSwitchPanel
+              paused={policy.emergencyPaused}
+              pending={pendingAction}
+              executorState={liveVenueReadiness?.executorProbe?.state ?? null}
+              handoff={killSwitchHandoff}
+              onToggle={setKillSwitch}
+            />
+          </div>
+        </details>
       ) : null}
 
       {agentNotificationSummary.notifications.length > 0 ? (
@@ -1406,7 +1419,7 @@ export default function AgentsPage() {
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-text-strong">
           <span className="inline-flex items-center gap-2">
             <SlidersHorizontal className="h-4 w-4 text-accent" aria-hidden="true" />
-            More trading controls
+            Details
           </span>
           <ChevronDown
             className="h-4 w-4 text-text-soft transition-transform group-open:rotate-180"
@@ -2287,8 +2300,8 @@ function KillSwitchPanel({
                   ? "Trading is paused. The connected account stop path is configured."
                   : "Trading is paused. Connected account stop path still needs setup."
                 : executorReady
-                  ? "Kill switch can also notify the connected practice executor."
-                  : "Kill switch will pause ClearSig; finish practice account setup for executor handoff."}
+                  ? "Emergency stop can notify the connected practice account."
+                  : "Emergency stop pauses ClearSig. Finish practice account setup for account handoff."}
             </p>
             <span
               className={clsx(
