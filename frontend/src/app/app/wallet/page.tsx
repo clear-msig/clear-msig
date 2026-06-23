@@ -33,13 +33,9 @@ import {
   Bot,
   Building2,
   ChevronLeft,
-  ChevronDown,
-  ChevronUp,
   Eye,
   EyeOff,
   KeyRound,
-  Pin,
-  PinOff,
   Plus,
   ShieldCheck,
   Users,
@@ -47,10 +43,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import {
-  isWalletPinned,
   sortPinnedFirst,
   subscribePinnedWallets,
-  togglePinnedWallet,
 } from "@/lib/security/pinnedWallets";
 import { fetchOnchainMemberships, type OnchainMembership } from "@/lib/memberships/client";
 import {
@@ -68,10 +62,9 @@ import {
   type RecentActivityGroup,
 } from "@/lib/retail/activityGroups";
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
-import { findVaultAddress, ProposalStatus } from "@/lib/msig";
+import { findVaultAddress } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
 import { Button } from "@/components/retail/Button";
-import { BadgePill } from "@/components/retail/BadgePill";
 import { BrandMark } from "@/components/retail/BrandMark";
 import { BalanceCardPattern } from "@/components/retail/BalanceCardPattern";
 import { relativeTime } from "@/lib/util/relativeTime";
@@ -290,22 +283,6 @@ function WalletDashboardContent() {
     !isFirstVisit && (filteredRecentRows.length > 0 || action.loading);
   const showWatched = !hasError && displaySurface === null;
 
-  const showWalletGrid =
-    !hasError &&
-    !isFirstVisit &&
-    !(displaySurface && visibleWallets.length === 0 && !stillLoading);
-  const walletGrid = showWalletGrid ? (
-    <WalletsGrid
-      wallets={visibleWallets}
-      pendingByWallet={visiblePendingByWallet}
-      balances={balancesQuery.data}
-      loadingBalances={balancesQuery.isLoading}
-      loading={stillLoading}
-      selectedSurface={displaySurface}
-      reduce={!!reduce}
-    />
-  ) : null;
-
   return (
     <div className="flex flex-col gap-4 sm:gap-6">
       <UnsupportedSignerBanner />
@@ -329,8 +306,6 @@ function WalletDashboardContent() {
         />
       ) : null}
 
-      {displaySurface ? walletGrid : null}
-
       {showStats && (
         <StatsRow
           visibleWallets={visibleWallets}
@@ -352,7 +327,7 @@ function WalletDashboardContent() {
       ) : displaySurface && visibleWallets.length === 0 && !stillLoading ? (
         <ProductEmptyState selectedSurface={displaySurface} />
       ) : (
-        displaySurface ? null : walletGrid
+        null
       )}
 
       {/* Bottom row - Recent activity (8 cols) sits next to Watching
@@ -434,10 +409,6 @@ function WalletDashboardShell() {
             <BrandMark size={36} />
           </div>
         </div>
-      </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <CardSkeleton />
-        <CardSkeleton />
       </div>
     </div>
   );
@@ -722,24 +693,17 @@ function StatsRow({
         pendingByWallet={pendingByWallet}
         onClose={() => setWalletSwitcherOpen(false)}
       />
-      {/* Secondary stats - Wallets count and pending-approval bell.
-          Side-by-side on every viewport so the two metrics carry
-          equal visual weight under the hero. */}
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-        <StatCard
-          Icon={Users}
-          label={selectedSurface ? "In product" : "Wallets"}
-          value={String(visibleWallets.length)}
-          loading={loadingWallets}
-        />
-        <StatCard
-          Icon={Bell}
-          label="Need approval"
-          value={String(pendingCount)}
-          loading={pendingLoading}
-          accent={pendingCount > 0}
-        />
-      </div>
+      {pendingCount > 0 || pendingLoading ? (
+        <div className="grid grid-cols-1 gap-2.5 sm:gap-3">
+          <StatCard
+            Icon={Bell}
+            label="Need approval"
+            value={String(pendingCount)}
+            loading={pendingLoading}
+            accent={pendingCount > 0}
+          />
+        </div>
+      ) : null}
     </motion.div>
   );
 }
@@ -1665,414 +1629,6 @@ const PRODUCT_ICON: Record<WalletProductSurface, LucideIcon> = {
   secure: PRODUCT_SURFACE_ICON.secure,
 };
 
-// â”€â”€â”€ Wallets grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-interface WalletsGridProps {
-  wallets: OnchainMembership[];
-  pendingByWallet: Map<string, number>;
-  balances: Map<string, number> | undefined;
-  loadingBalances: boolean;
-  loading: boolean;
-  selectedSurface: WalletProductSurface | null;
-  reduce: boolean;
-}
-
-function WalletsGrid({
-  wallets,
-  pendingByWallet,
-  balances,
-  loadingBalances,
-  loading,
-  selectedSurface,
-  reduce,
-}: WalletsGridProps) {
-  // Re-sort whenever the user pins/unpins. The hook subscribes to
-  // both the same-tab event and cross-tab storage events so a pin
-  // change in another tab also bubbles up here.
-  const [pinTick, setPinTick] = useState(0);
-  const [expanded, setExpanded] = useState(false);
-  useEffect(() => subscribePinnedWallets(() => setPinTick((n) => n + 1)), []);
-  const ordered = useMemo(() => {
-    void pinTick;
-    return sortPinnedFirst(wallets, (m) => m.wallet_name ?? "");
-  }, [wallets, pinTick]);
-  const canStack = false;
-  const visible = ordered;
-
-  return (
-    <section>
-      <div className="flex items-center justify-between gap-3">
-        <SectionLabel>
-          {selectedSurface
-            ? productSurfaceById(selectedSurface).shortName
-            : "Your wallets"}
-        </SectionLabel>
-        {canStack && !loading ? (
-          <button
-            type="button"
-            onClick={() => setExpanded((value) => !value)}
-            aria-expanded={expanded}
-            className="inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-[11px] font-medium text-text-soft transition-colors duration-base hover:border-accent/40 hover:text-text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-          >
-            {expanded ? "Hide" : "Expand"}
-            {expanded ? (
-              <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
-            ) : (
-              <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
-            )}
-          </button>
-        ) : null}
-      </div>
-      <div
-        className={clsx(
-          "mt-3",
-          expanded || !canStack
-            ? "grid grid-cols-1 gap-3 sm:grid-cols-2"
-            : "flex flex-col [perspective:1200px]",
-        )}
-      >
-        {loading && wallets.length === 0 ? (
-          <>
-            <CardSkeleton />
-            <CardSkeleton />
-          </>
-        ) : (
-          <AnimatePresence initial={false}>
-            {visible.map((m, i) => {
-              const stacked = !expanded && canStack;
-              const stackDepth = stacked ? Math.min(i, 2) : 0;
-              return (
-                <motion.div
-                  key={m.wallet}
-                  layout={!reduce}
-                  initial={
-                    reduce
-                      ? false
-                      : {
-                          opacity: 0,
-                          y: stacked ? 16 + stackDepth * 6 : 14,
-                          scale: stacked ? 0.96 - stackDepth * 0.015 : 0.98,
-                        }
-                  }
-                  animate={
-                    reduce
-                      ? {}
-                      : {
-                          opacity: 1,
-                          y: 0,
-                          scale: stacked ? 1 - stackDepth * 0.025 : 1,
-                          rotateX: stacked ? stackDepth * -1.5 : 0,
-                        }
-                  }
-                  exit={
-                    reduce
-                      ? {}
-                      : {
-                          opacity: 0,
-                          y: -18,
-                          scale: 0.97,
-                          transition: { duration: 0.14, ease: [0.4, 0, 1, 1] },
-                        }
-                  }
-                  transition={
-                    reduce
-                      ? undefined
-                      : {
-                          layout: {
-                            type: "spring",
-                            stiffness: 420,
-                            damping: 34,
-                            mass: 0.8,
-                          },
-                          opacity: { duration: 0.18, delay: Math.min(i, 4) * 0.025 },
-                          y: {
-                            type: "spring",
-                            stiffness: 420,
-                            damping: 32,
-                            mass: 0.8,
-                            delay: expanded ? Math.min(i, 6) * 0.025 : 0,
-                          },
-                          scale: {
-                            type: "spring",
-                            stiffness: 420,
-                            damping: 34,
-                            mass: 0.8,
-                          },
-                        }
-                  }
-                  className={clsx(
-                    "relative origin-top transform-gpu",
-                    stacked && i > 0 && "-mt-14",
-                  )}
-                  style={stacked ? { zIndex: visible.length - i } : undefined}
-                >
-                  <WalletCard
-                    membership={m}
-                    pendingCount={pendingByWallet.get(m.wallet) ?? 0}
-                    balanceLamports={balances?.get(m.wallet) ?? null}
-                    loadingBalance={loadingBalances}
-                    // Cap the stagger at 4 so the last card paints in
-                    // 80ms regardless of wallet count. Treasury users
-                    // with 6+ wallets used to see 240ms+ of cascade,
-                    // which read as jank on slow networks.
-                    delay={reduce ? 0 : Math.min(i, 4) * 0.02}
-                    reduce={reduce}
-                    selectedSurface={selectedSurface}
-                  />
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
-        )}
-      </div>
-      <AnimatePresence initial={false}>
-        {!expanded && canStack && ordered.length > visible.length ? (
-          <motion.p
-            initial={reduce ? false : { opacity: 0, y: -4 }}
-            animate={reduce ? {} : { opacity: 1, y: 0 }}
-            exit={reduce ? {} : { opacity: 0, y: -4 }}
-            transition={{ duration: 0.16 }}
-            className="mt-2 text-center text-[11px] text-text-soft sm:text-left"
-          >
-            Showing {visible.length} of {ordered.length}
-          </motion.p>
-        ) : null}
-      </AnimatePresence>
-    </section>
-  );
-}
-
-interface WalletCardProps {
-  membership: OnchainMembership;
-  pendingCount: number;
-  balanceLamports: number | null;
-  loadingBalance: boolean;
-  delay: number;
-  reduce: boolean;
-  selectedSurface: WalletProductSurface | null;
-}
-
-function WalletCard({
-  membership,
-  pendingCount,
-  balanceLamports,
-  loadingBalance,
-  delay,
-  reduce,
-  selectedSurface,
-}: WalletCardProps) {
-  const onChainName = membership.wallet_name ?? "Wallet";
-  // The on-chain name carries a creator-derived suffix to keep PDAs
-  // unique per user (see lib/retail/walletNames). Strip it for
-  // display; URLs and API calls keep using the on-chain form.
-  const name = toDisplayName(onChainName);
-  const motionProps = reduce
-    ? {}
-    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
-  const solBalance =
-    balanceLamports !== null ? formatBalance(balanceLamports) : null;
-  const portfolio = useWalletPortfolio(onChainName);
-  const portfolioBalances = useMemo(() => {
-    return portfolio.breakdown
-      .filter((chain) => chain.raw !== null && chain.raw > 0n)
-      .map((row) => {
-        const meta = chainByKind(row.kind);
-        if (!meta || row.raw === null) return null;
-        const amount = formatChainBalance(
-          row.raw,
-          meta.smallestPerWhole,
-          meta.displayDecimals,
-        );
-        if (!amount) return null;
-        return {
-          amount,
-          raw: row.raw,
-          smallestPerWhole: meta.smallestPerWhole,
-          ticker: meta.ticker,
-          kind: row.kind,
-        };
-      })
-      .filter(
-        (
-          row,
-        ): row is {
-          amount: string;
-          raw: bigint;
-          smallestPerWhole: bigint;
-          ticker: string;
-          kind: number;
-        } => row !== null,
-      );
-  }, [portfolio.breakdown]);
-  const balance = portfolioBalances[0] ?? solBalance;
-  const surface = resolveWalletProductSurface(onChainName);
-  const homeHref = productWorkspaceHomeHref(onChainName, surface);
-  const productLabel = surface ? productWorkspaceLabel(surface) : null;
-  const ProductIcon = surface ? PRODUCT_SURFACE_ICON[surface] : Wallet;
-  const [pinned, setPinned] = useState(false);
-  const { hidden } = useBalancePrivacy();
-  const hiddenClass = hidden ? "blur-sm select-none" : "";
-  useEffect(() => {
-    setPinned(isWalletPinned(onChainName));
-    return subscribePinnedWallets(() => setPinned(isWalletPinned(onChainName)));
-  }, [onChainName]);
-  const handlePinClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    // Card body is a <Link>; the pin button is nested. Stop
-    // propagation so a click on the pin doesn't navigate to the
-    // wallet detail.
-    e.preventDefault();
-    e.stopPropagation();
-    setPinned(togglePinnedWallet(onChainName));
-  };
-
-  return (
-    <motion.div
-      {...motionProps}
-      transition={{ duration: 0.35, delay, ease: [0.22, 1, 0.36, 1] }}
-      className="group/card relative"
-    >
-      <Link
-        href={homeHref}
-        className={
-          "group relative flex flex-col gap-2.5 overflow-hidden rounded-card border bg-surface-raised p-4 shadow-card-rest sm:gap-3 sm:p-5 " +
-          "transition-[transform,box-shadow,border-color] duration-base ease-out-soft " +
-          "hover:-translate-y-0.5 hover:shadow-card-raised " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas " +
-          (pinned ? "border-accent/40" : "border-border-soft")
-        }
-      >
-        <div className="relative z-10 flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-start gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.14)] sm:h-10 sm:w-10">
-              <ProductIcon
-                className="h-4 w-4 sm:h-[18px] sm:w-[18px]"
-                strokeWidth={1.9}
-                aria-hidden="true"
-              />
-            </span>
-            <div className="min-w-0">
-              {/* The pinned-state Pin icon used to also render inline
-                  next to the name. With the corner pin button in
-                  place (accent border + Pin icon when pinned) the
-                  inline copy was duplicate chrome - both icons
-                  visible, neither carrying signal the other didn't.
-                  Keep only the corner button. */}
-              <p className="font-display text-lg text-text-strong sm:text-xl">
-                <span className="truncate">{name}</span>
-              </p>
-              {(portfolio.isLoading || loadingBalance) && balance === null ? (
-                <Shimmer className="mt-1 h-5 w-20 rounded" />
-              ) : (
-                // Editorial-sans: JetBrains Mono numerals for the
-                // balance value, Manrope display caps for the ticker.
-                // Same currency-code treatment as /send/* and Hero
-                // single-chain balance - one shared pattern app-wide.
-                portfolioBalances.length > 1 ? (
-                  <ul className={clsx("mt-1 flex flex-wrap gap-1.5 transition-[filter] duration-base", hiddenClass)}>
-                    {portfolioBalances.map((item) => (
-                      <li
-                        key={item.kind}
-                        className="inline-flex items-baseline gap-1 rounded-full border border-border-soft bg-canvas px-2 py-0.5"
-                      >
-                        <span className="font-numerals text-xs font-semibold text-text-strong tabular-nums">
-                          {item.amount}
-                        </span>
-                        <span className="font-display text-[9px] font-semibold uppercase tracking-[0.14em] text-text-soft">
-                          {item.ticker}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className={clsx("mt-1 flex items-baseline gap-1.5 transition-[filter] duration-base", hiddenClass)}>
-                    <span className="font-numerals text-base font-semibold text-text-strong tabular-nums">
-                      {balance ? balance.amount : "0"}
-                    </span>
-                    <span className="font-display text-[11px] font-semibold uppercase tracking-[0.16em] text-text-soft">
-                      {balance?.ticker ?? "SOL"}
-                    </span>
-                    {portfolioBalances[0] ? (
-                      <UsdHint
-                        amount={portfolioBalances[0].raw}
-                        smallestPerWhole={portfolioBalances[0].smallestPerWhole}
-                        ticker={portfolioBalances[0].ticker}
-                        className="text-[11px] text-text-soft tabular-nums"
-                      />
-                    ) : balanceLamports !== null && balanceLamports > 0 ? (
-                      <UsdHint
-                        amount={BigInt(Math.round(balanceLamports))}
-                        smallestPerWhole={1_000_000_000n}
-                        ticker="SOL"
-                        className="text-[11px] text-text-soft tabular-nums"
-                      />
-                    ) : null}
-                  </p>
-                )
-              )}
-            </div>
-          </div>
-          <ArrowRight
-            className="mt-1 h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
-            aria-hidden="true"
-          />
-        </div>
-        {!selectedSurface && productLabel ? (
-          <span className="inline-flex self-start rounded-full border border-border-soft bg-canvas px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-soft">
-            {productLabel}
-          </span>
-        ) : null}
-        {pendingCount > 0 && (
-          <div className="inline-flex items-center self-start rounded-full bg-accent/10 px-2 py-1 text-xs font-medium text-accent">
-            {pendingCount} need{pendingCount === 1 ? "s" : ""} approval
-          </div>
-        )}
-      </Link>
-      <button
-        type="button"
-        onClick={handlePinClick}
-        aria-label={pinned ? `Unpin ${name}` : `Pin ${name} to the top`}
-        title={pinned ? "Unpin" : "Pin to top"}
-        className={
-          // Anchored to the bottom-right corner so it doesn't fight the
-          // navigation arrow in the top-right of the card header. The
-          // pending-approval pill is self-start (bottom-LEFT), so this
-          // sits opposite it on the same baseline - reads as a balanced
-          // corner control rather than chrome stacked on chrome.
-          // Tap target is h-tap w-tap (44px) when pinned for mobile
-          // touch; desktop hover state still rendered fine on the
-          // smaller 28px hit-area, but mobile users couldn't reach
-          // it reliably.
-          "absolute bottom-2.5 right-2.5 items-center justify-center rounded-full border bg-surface-raised sm:bottom-3 sm:right-3 " +
-          "transition-[color,border-color,transform,opacity] duration-base ease-out-soft " +
-          (pinned
-            ? // Pinned cards always show the icon (status signal).
-              // Accent border so it reads as "this is intentionally
-              // here", not chrome. Full tap target for mobile.
-              "inline-flex h-tap w-tap border-accent/40 text-accent"
-            : // Unpinned: hide on mobile (pin/unpin is rarely a
-              // touch-first action and the icon read as clutter on
-              // every card). Desktop reveals it on card hover so the
-              // resting state stays clean.
-              "hidden h-7 w-7 border-border-soft text-text-soft/60 opacity-0 group-hover/card:opacity-100 hover:text-accent md:inline-flex") +
-          " focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-        }
-      >
-        {pinned ? (
-          <Pin className="h-3.5 w-3.5" strokeWidth={2} />
-        ) : (
-          <PinOff className="h-3.5 w-3.5" strokeWidth={2} />
-        )}
-      </button>
-    </motion.div>
-  );
-}
-
-// Geometry-matched skeleton for WalletCard. The previous version
-// was 110px tall and had two short stripes - real cards land at
-// 140-170px and have title-line + balance-line + optional pending
-// pill, so the swap-in caused a visible layout jump. This shape
-// matches the populated card closely enough that the transition
-// looks like content fading in, not the layout shifting.
 function Shimmer({ className }: { className?: string }) {
   return (
     <span
@@ -2082,30 +1638,6 @@ function Shimmer({ className }: { className?: string }) {
         className,
       )}
     />
-  );
-}
-
-function CardSkeleton() {
-  return (
-    <div
-      aria-hidden="true"
-      className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          {/* Title line - same width as font-display text-xl. */}
-          <Shimmer className="h-6 w-1/2 rounded" />
-          {/* Balance line - slightly tighter than the title. */}
-          <Shimmer className="mt-2.5 h-5 w-24 rounded" />
-        </div>
-        {/* Pin button placeholder - keeps the right edge stable. */}
-        <Shimmer className="h-7 w-7 shrink-0 rounded-full" />
-      </div>
-      {/* Pending-approval pill - most loaded cards have at least
-          one badge slot worth of vertical space. Quieter pulse so
-          it doesn't read as required. */}
-      <Shimmer className="mt-4 h-6 w-32 rounded-full" />
-    </div>
   );
 }
 
@@ -2240,9 +1772,8 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 // Local-first watch list. Adds a wallet by its on-chain name (with
 // the `#XXXXXX` creator suffix) to localStorage; on mount, every
 // watched wallet is re-fetched on chain so balances stay current.
-// Watching surfaces the same WalletCard the membership grid uses,
-// flagged with a ðŸ‘ badge so users see at a glance which entries
-// they can act on (their memberships) vs read-only (watched).
+// Watching stays read-only: these rows are for monitoring, not for
+// switching into an owned wallet.
 //
 // Sign-action enforcement is implicit: the existing pickSigner()
 // check on every send/approve/setup flow returns null when the
