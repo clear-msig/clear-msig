@@ -41,7 +41,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PublicKey } from "@solana/web3.js";
 import { ArrowRight, Loader2, Send, X } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
-import { fetchIntent, listIntents } from "@/lib/chain/intents";
+import { listIntents } from "@/lib/chain/intents";
 import { IntentType, ProposalStatus } from "@/lib/msig";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { fetchProposal } from "@/lib/chain/proposals";
@@ -91,24 +91,23 @@ import {
   type BitcoinNetwork,
   type EsploraUtxo,
 } from "@/lib/chain/btc";
+import {
+  BTC_CHAIN_KIND,
+  bitcoinSendReady,
+  selectBitcoinSendIntent,
+} from "@/lib/chain/btcIntentReadiness";
 
 const BTC_TEMPLATE = "examples/intents/btc_transfer.json";
-const BTC_CHAIN_KIND = 2;
 /// Conservative fee floor. Signet/testnet routinely accept ≤200 sats
 /// but we leave headroom so a stale Esplora UTXO snapshot doesn't
 /// trigger a "min relay fee not met" rejection on broadcast.
 const FEE_RESERVE_SATS = 300n;
-const MAX_SAFE_IMPLIED_FEE_SATS = 1000n;
 
 interface BroadcastResultLike {
   chain_kind?: number;
   tx_id?: string;
   raw_tx_hex?: string;
 }
-
-type BtcIntentAccount = NonNullable<
-  Awaited<ReturnType<typeof listIntents>>[number]["account"]
->;
 
 export default function BitcoinSendPageWrapper() {
   return (
@@ -202,21 +201,9 @@ function BitcoinSendPage() {
   }, [dwalletAddress]);
 
   const btcIntent = useMemo(() => {
-    let best: BtcIntentAccount | null = null;
-    for (const intent of intentsQuery.data ?? []) {
-      const account = intent.account;
-      if (
-        !account ||
-        account.intentType !== IntentType.Custom ||
-        account.chainKind !== BTC_CHAIN_KIND
-      ) {
-        continue;
-      }
-      if (!best || account.params.length > best.params.length) best = account;
-    }
-    return best;
+    return selectBitcoinSendIntent((intentsQuery.data ?? []).map((it) => it.account));
   }, [intentsQuery.data]);
-  const btcIntentSupportsChange = (btcIntent?.params.length ?? 0) >= 8;
+  const btcIntentSupportsChange = bitcoinSendReady(btcIntent);
 
   // ── Live balance + UTXOs ──────────────────────────────────────────
   const balanceSats = btcSnapshotQuery.data?.balanceSats ?? null;
@@ -263,7 +250,6 @@ function BitcoinSendPage() {
     proposalAddress?: string;
   } | null>(null);
   const [autoStartedSetup, setAutoStartedSetup] = useState(false);
-  const [sendAfterUpgrade, setSendAfterUpgrade] = useState(false);
   const [btcSetupPendingApproval, setBtcSetupPendingApproval] = useState<{
     proposal: string | null;
   } | null>(null);
@@ -280,8 +266,8 @@ function BitcoinSendPage() {
     if (!btcUtxos.length || !sendAmountSats) return null;
     const need = sendAmountSats + FEE_RESERVE_SATS;
     // UTXOs arrive sorted by value in Esplora. Pick the smallest one
-    // that covers `need`; v2 BTC intents return the remainder as change,
-    // while older intents still block unsafe implied fees below.
+    // that covers `need`; the 8-param BTC intent returns the remainder
+    // as change.
     const candidates = [...btcUtxos].sort((a, b) => a.value - b.value);
     for (const u of candidates) {
       if (BigInt(u.value) >= need) return u;
@@ -289,25 +275,22 @@ function BitcoinSendPage() {
     return null;
   }, [btcUtxos, sendAmountSats]);
 
-  const impliedFeeSats = useMemo<bigint | null>(() => {
-    if (!selectedUtxo || !sendAmountSats) return null;
-    return BigInt(selectedUtxo.value) - sendAmountSats;
-  }, [selectedUtxo, sendAmountSats]);
   const effectiveFeeSats = useMemo<bigint | null>(() => {
     if (!selectedUtxo || !sendAmountSats) return null;
-    return btcIntentSupportsChange ? FEE_RESERVE_SATS : impliedFeeSats;
-  }, [btcIntentSupportsChange, impliedFeeSats, selectedUtxo, sendAmountSats]);
+    return FEE_RESERVE_SATS;
+  }, [selectedUtxo, sendAmountSats]);
   const changeSats = useMemo<bigint | null>(() => {
-    if (!btcIntentSupportsChange || !selectedUtxo || !sendAmountSats) return null;
+    if (!selectedUtxo || !sendAmountSats) return null;
     const change = BigInt(selectedUtxo.value) - sendAmountSats - FEE_RESERVE_SATS;
     return change > 0n ? change : 0n;
-  }, [btcIntentSupportsChange, selectedUtxo, sendAmountSats]);
+  }, [selectedUtxo, sendAmountSats]);
 
   // ── Mutations: setup intent (one-time), then send ─────────────────
   const setupIntent = useMutation({
     mutationFn: async () => {
       if (!wallet.publicKey) throw new Error("Connect your wallet first");
       if (!btcBinding) throw new Error("Bind Bitcoin to this wallet first");
+      if (!walletQuery.data) throw new Error("Wallet is still loading");
       const addIntent = (intentsQuery.data ?? []).find(
         (it) => it.account?.intentType === IntentType.AddIntent,
       );
@@ -361,7 +344,6 @@ function BitcoinSendPage() {
       if (typeof proposal !== "string" || proposal.length === 0) {
         throw new Error("Backend didn't return a proposal address");
       }
-      const intent = btcIntent;
       const decision = await approveIfNeeded(connection, proposal, {
         approvers: addIntent?.account?.approvers,
         approverPubkey: addIntent?.account
@@ -391,68 +373,25 @@ function BitcoinSendPage() {
           expiry: approveDry.expiry,
         });
       }
-
-      const policyPlan = await resolvePolicyEnforcement(name, {
-        walletName: name,
-        chainKind: BTC_CHAIN_KIND,
-        recipient: destination,
-        ticker: "BTC",
-        amountDisplay: amountBtc,
-      });
-      if (policyPlan.evaluation?.matched) {
-        if (policyPlan.rule?.action === "require-extra-approvers") {
-          if (!intent) {
-            throw new Error("Bitcoin sending isn't set up for this wallet");
-          }
-          const seen = new Set<string>([signerPk.toBase58()]);
-          const extraApprovers = policyPlan.extraApprovers.filter((addr) => {
-            const normalized = addr.trim();
-            if (!normalized || seen.has(normalized)) return false;
-            seen.add(normalized);
-            return true;
-          });
-          if (extraApprovers.length === 0) {
-            throw new Error(
-              `Policy "${policyPlan.rule.name}" requires extra approvers, but none were configured.`,
-            );
-          }
-          for (const extraApprover of extraApprovers) {
-            if (!intent.approvers.includes(extraApprover)) {
-              throw new Error(
-                `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but that signer is not in the wallet's approver list.`,
-              );
-            }
-            const extraSigner = wallet.pickSigner([extraApprover]);
-            if (!extraSigner) {
-              throw new Error(
-                `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but none of your connected wallets can sign as that approver.`,
-              );
-            }
-            const extraDry = await backendApi.prepare.approveProposal(
-              name,
-              proposal,
-              { actor_pubkey: extraSigner.toBase58() },
-            );
-            const extraSigned = await signDescriptor(extraDry, {
-              preferSigner: extraSigner,
-            });
-            await backendApi.submit.approveProposal(name, proposal, {
-              ...extraSigned,
-              expiry: extraDry.expiry,
-            });
-          }
-        } else if (
-          policyPlan.rule?.action === "require-cooldown" &&
-          policyPlan.extraCooldownSeconds > 0
-        ) {
-          await new Promise((resolve) =>
-            setTimeout(resolve, policyPlan.extraCooldownSeconds * 1000),
-          );
-        }
+      const status = await waitForProposalStatusOneOf(connection, proposal, [
+        ProposalStatus.Approved,
+        ProposalStatus.Executed,
+      ]);
+      if (status === ProposalStatus.Approved) {
+        await backendApi.executeProposal(name, proposal, {});
       }
-      await backendApi.executeProposal(name, proposal, {});
+      if (status !== ProposalStatus.Approved && status !== ProposalStatus.Executed) {
+        return { proposal, awaitingApprovers: true };
+      }
+      const ready = await waitForBitcoinChangeIntent(connection, name);
+      if (!ready) {
+        throw new Error(
+          "Bitcoin setup was submitted, but the wallet still does not show the new BTC send model. Wait a moment and refresh.",
+        );
+      }
+      return { proposal, awaitingApprovers: false };
     },
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       // BTC's setup+send live in the same page, so the next render
       // after this mutation flips us from "needs setup" to "compose".
       // `invalidateQueries` alone marks queries stale but returns
@@ -465,128 +404,8 @@ function BitcoinSendPage() {
         queryClient.refetchQueries({ queryKey: ["wallet-intents"] }),
         queryClient.refetchQueries({ queryKey: ["wallet", name] }),
       ]);
-      toast.success(`${toHeadingName(name)} can now send Bitcoin`);
-    },
-    onError: (err) => {
-      console.error("[setup-btc]", err);
-      const fe = friendlyError(err, "set-up-spending");
-      toast.error(fe.title, { details: fe.body });
-    },
-  });
-
-  const upgradeBitcoinIntent = useMutation({
-    mutationFn: async () => {
-      if (!wallet.publicKey) throw new Error("Connect your wallet first");
-      if (!walletQuery.data) throw new Error("Wallet is still loading");
-      const intent = btcIntent;
-      if (!intent) throw new Error("Bitcoin sending is not set up yet");
-      if (btcIntentSupportsChange) {
-        return { upgraded: true, awaitingApprovers: false, proposal: null };
-      }
-      const updateIntent = (intentsQuery.data ?? []).find(
-        (it) => it.account?.intentType === IntentType.UpdateIntent,
-      );
-      const signerPk = updateIntent?.account
-        ? wallet.pickSigner(updateIntent.account.approvers)
-        : wallet.pickSigner(intent.approvers);
-      if (!signerPk) {
-        throw new Error(
-          "None of your connected wallets can approve the Bitcoin setup.",
-        );
-      }
-      const enc = new TextEncoder();
-      const encrypted = await encryptPolicyBatch([
-        { plaintext: enc.encode(JSON.stringify(intent.proposers)), fheType: "ebytes" },
-        { plaintext: enc.encode(JSON.stringify(intent.approvers)), fheType: "ebytes" },
-        { plaintext: new Uint8Array([intent.approvalThreshold]), fheType: "euint8" },
-        { plaintext: u32LeBytes(intent.timelockSeconds), fheType: "euint32" },
-      ]);
-      const policy_ciphertexts = encrypted
-        .map((p) => p.ciphertextIdentifier)
-        .filter((id): id is string => typeof id === "string");
-
-      const dry = await backendApi.prepare.updateIntent(name, {
-        index: intent.intentIndex,
-        file: BTC_TEMPLATE,
-        proposers: intent.proposers,
-        approvers: intent.approvers,
-        threshold: intent.approvalThreshold,
-        cancellation_threshold: intent.cancellationThreshold,
-        timelock: intent.timelockSeconds,
-        policy_ciphertexts,
-      });
-      const signed = await signDescriptor(dry, { preferSigner: signerPk });
-      const submitted = await backendApi.submit.updateIntent(name, {
-        ...signed,
-        params_data_hex: dry.params_data_hex,
-        expiry: dry.expiry,
-        index: intent.intentIndex,
-        file: BTC_TEMPLATE,
-        policy_ciphertexts,
-      });
-      const proposal = (submitted as Record<string, unknown>)?.proposal;
-      if (typeof proposal !== "string" || proposal.length === 0) {
-        throw new Error("Backend didn't return a Bitcoin setup proposal address");
-      }
-
-      const decision = await approveIfNeeded(connection, proposal, {
-        approvers: updateIntent?.account?.approvers ?? intent.approvers,
-        approverPubkey: signerPk.toBase58(),
-        approvalThreshold:
-          updateIntent?.account?.approvalThreshold ?? intent.approvalThreshold,
-      });
-      if (decision.needsApproveSignature) {
-        const approverPk = updateIntent?.account
-          ? wallet.pickSigner(updateIntent.account.approvers)
-          : wallet.pickSigner(intent.approvers);
-        if (!approverPk) {
-          throw new Error(
-            "The Bitcoin setup proposal landed, but none of your connected wallets can approve it.",
-          );
-        }
-        const approveDry = await backendApi.prepare.approveProposal(
-          name,
-          proposal,
-          { actor_pubkey: approverPk.toBase58() },
-        );
-        const approveSigned = await signDescriptor(approveDry, {
-          preferSigner: approverPk,
-        });
-        await backendApi.submit.approveProposal(name, proposal, {
-          ...approveSigned,
-          expiry: approveDry.expiry,
-        });
-      }
-      const statusBeforeExecute = await waitForProposalStatusOneOf(
-        connection,
-        proposal,
-        [ProposalStatus.Approved, ProposalStatus.Executed],
-      );
-      if (statusBeforeExecute === ProposalStatus.Approved) {
-        await backendApi.executeProposal(name, proposal, {});
-      }
-      if (statusBeforeExecute !== ProposalStatus.Approved && statusBeforeExecute !== ProposalStatus.Executed) {
-        return { upgraded: false, awaitingApprovers: true, proposal };
-      }
-
-      const upgraded = await waitForIntentParamCount(
-        connection,
-        walletQuery.data.pda,
-        intent.intentIndex,
-        8,
-      );
-      if (!upgraded) {
-        throw new Error(
-          "The Bitcoin setup transaction was submitted, but the wallet still reports the old Bitcoin intent. Wait a moment and refresh.",
-        );
-      }
-      return { upgraded: true, awaitingApprovers: false, proposal };
-    },
-    onSuccess: async (result) => {
-      await queryClient.refetchQueries({ queryKey: ["wallet-intents"] });
       if (result?.awaitingApprovers) {
         setBtcSetupPendingApproval({ proposal: result.proposal ?? null });
-        setSendAfterUpgrade(false);
         toast.success("Bitcoin setup requested", {
           details:
             "It still needs the remaining approval before BTC sends can return change.",
@@ -599,8 +418,7 @@ function BitcoinSendPage() {
       });
     },
     onError: (err) => {
-      console.error("[upgrade-btc]", err);
-      setSendAfterUpgrade(false);
+      console.error("[setup-btc]", err);
       const fe = friendlyError(err, "set-up-spending");
       toast.error(fe.title, { details: fe.body });
     },
@@ -612,15 +430,6 @@ function BitcoinSendPage() {
       if (!btcIntent) throw new Error("Bitcoin sends not yet enabled");
       if (!selectedUtxo) throw new Error("No suitable UTXO available");
       if (!sendAmountSats) throw new Error("Enter an amount");
-      if (
-        !btcIntentSupportsChange &&
-        impliedFeeSats !== null &&
-        impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS
-      ) {
-        throw new Error(
-          `This Bitcoin send needs change-output setup before it can continue.`,
-        );
-      }
       if (!senderPkhHex) throw new Error("Couldn't derive sender pkh");
       const proposerPk = wallet.pickSigner(btcIntent.proposers);
       if (!proposerPk) {
@@ -654,12 +463,10 @@ function BitcoinSendPage() {
         `recipient_pkh=0x${bytesToHex(dest.pkh)}`,
         `send_amount_sats=${sendAmountSats.toString()}`,
       ];
-      if (btcIntentSupportsChange) {
-        proposalParams.push(
-          `change_pkh=0x${senderPkhHex}`,
-          `fee_sats=${FEE_RESERVE_SATS.toString()}`,
-        );
-      }
+      proposalParams.push(
+        `change_pkh=0x${senderPkhHex}`,
+        `fee_sats=${FEE_RESERVE_SATS.toString()}`,
+      );
 
       const dry = await backendApi.prepare.createProposal(name, {
         intent_index: btcIntent.intentIndex,
@@ -794,17 +601,6 @@ function BitcoinSendPage() {
       );
       return;
     }
-    if (
-      !btcIntentSupportsChange &&
-      impliedFeeSats !== null &&
-      impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS
-    ) {
-      const safeAmount = BigInt(selectedUtxo.value) - FEE_RESERVE_SATS;
-      setAmountError(
-        `Use max for this UTXO (${formatSats(safeAmount)} BTC). Partial BTC sends need change setup first.`,
-      );
-      return;
-    }
     send.mutate();
   };
 
@@ -839,13 +635,18 @@ function BitcoinSendPage() {
     recipient: destination.trim(),
     ticker: "BTC",
     amountDisplay: amountBtc,
-    enabled: !!destination.trim() && !!sendAmountSats && !!btcBinding && !!btcIntent,
+    enabled:
+      !!destination.trim() &&
+      !!sendAmountSats &&
+      !!btcBinding &&
+      btcIntentSupportsChange,
   });
   const policyDenied =
     policyEvaluation?.matched && policyEvaluation.action === "deny";
   const canSubmit =
     !!btcBinding &&
     !!btcIntent &&
+    btcIntentSupportsChange &&
     !blockedByDisconnect &&
     !blockedByLedger &&
     !isLoading &&
@@ -853,15 +654,6 @@ function BitcoinSendPage() {
     !!selectedUtxo &&
     !!senderPkhHex &&
     !policyDenied;
-
-  useEffect(() => {
-    if (!sendAfterUpgrade) return;
-    if (upgradeBitcoinIntent.isPending) return;
-    if (!btcIntentSupportsChange) return;
-    setSendAfterUpgrade(false);
-    setBtcSetupPendingApproval(null);
-    send.mutate();
-  }, [btcIntentSupportsChange, sendAfterUpgrade, send, upgradeBitcoinIntent.isPending]);
 
   useEffect(() => {
     if (btcIntentSupportsChange) setBtcSetupPendingApproval(null);
@@ -927,9 +719,8 @@ function BitcoinSendPage() {
         {needsBinding && (
           <NeedsBinding walletName={name} reduce={!!reduce} />
         )}
-        {needsSetup && (
+        {needsSetup && !btcSetupPendingApproval && (
           <NeedsSetup
-            walletDisplay={walletDisplay}
             address={dwalletAddress}
             balanceSats={balanceSats}
             balanceLoading={btcSnapshotQuery.isLoading}
@@ -938,6 +729,12 @@ function BitcoinSendPage() {
             onSetup={() => setupIntent.mutate()}
             busy={setupIntent.isPending}
             reduce={!!reduce}
+          />
+        )}
+        {needsSetup && btcSetupPendingApproval && (
+          <BitcoinSetupPendingCard
+            walletName={name}
+            proposal={btcSetupPendingApproval.proposal}
           />
         )}
         {ready && !sentLabel && !awaitingApprovalLabel && sendError && (
@@ -979,16 +776,9 @@ function BitcoinSendPage() {
                 destination,
                 amountBtc,
                 selectedUtxo,
-                impliedFeeSats,
                 effectiveFeeSats,
                 changeSats,
-                supportsChange: btcIntentSupportsChange,
                 note,
-              })}
-              warning={buildBtcWarning({
-                selectedUtxo,
-                impliedFeeSats,
-                supportsChange: btcIntentSupportsChange,
               })}
               collapsibleDetails
             />
@@ -1009,15 +799,12 @@ function BitcoinSendPage() {
             balanceError={btcSnapshotQuery.error}
             maxSpendableSats={largestSpendableSats}
             selectedUtxo={selectedUtxo}
-            impliedFeeSats={impliedFeeSats}
             effectiveFeeSats={effectiveFeeSats}
             changeSats={changeSats}
-            supportsChange={btcIntentSupportsChange}
             address={dwalletAddress}
             network={btcNetwork}
             sending={send.isPending}
             canSubmit={canSubmit}
-            autoUpgrading={sendAfterUpgrade || upgradeBitcoinIntent.isPending}
             walletDisplay={walletDisplay}
             onSend={handleSend}
           />
@@ -1086,7 +873,7 @@ function NeedsBinding({
         className="self-start"
       >
         <Button>
-          Turn on Bitcoin
+          Turn on Bitcoin sending
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Button>
       </Link>
@@ -1095,7 +882,6 @@ function NeedsBinding({
 }
 
 function NeedsSetup({
-  walletDisplay,
   address,
   balanceSats,
   balanceLoading,
@@ -1105,7 +891,6 @@ function NeedsSetup({
   busy,
   reduce,
 }: {
-  walletDisplay: string;
   address: string | null;
   balanceSats: bigint | null;
   balanceLoading: boolean;
@@ -1139,11 +924,11 @@ function NeedsSetup({
             ) : balanceSats !== null ? (
               <>
                 {formatSats(balanceSats)} BTC
-              <UsdHint
-                amount={balanceSats}
-                smallestPerWhole={100_000_000n}
-                ticker="BTC"
-              />
+                <UsdHint
+                  amount={balanceSats}
+                  smallestPerWhole={100_000_000n}
+                  ticker="BTC"
+                />
               </>
             ) : (
               btcBalanceStatusLabel(balanceError, network)
@@ -1155,11 +940,11 @@ function NeedsSetup({
         {busy ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Registering…
+            Turning on Bitcoin…
           </>
         ) : (
           <>
-            Turn on Bitcoin
+            Turn on Bitcoin sending
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </>
         )}
@@ -1182,15 +967,12 @@ function ComposeForm(props: {
   balanceError: Error | null;
   maxSpendableSats: bigint;
   selectedUtxo: EsploraUtxo | null;
-  impliedFeeSats: bigint | null;
   effectiveFeeSats: bigint | null;
   changeSats: bigint | null;
-  supportsChange: boolean;
   address: string | null;
   network: BitcoinNetwork;
   sending: boolean;
   canSubmit: boolean;
-  autoUpgrading: boolean;
   walletDisplay: string;
   onSend: () => void;
 }) {
@@ -1264,31 +1046,21 @@ function ComposeForm(props: {
                       {props.selectedUtxo.txid.slice(0, 8)}…:{props.selectedUtxo.vout}
                     </span>
                     {". "}
-                    {!props.supportsChange &&
-                    props.impliedFeeSats !== null &&
-                    props.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS ? (
-                      <span className="font-medium text-warning">
-                        Change setup needed
+                    fee {formatSats(props.effectiveFeeSats)} BTC
+                    {props.changeSats !== null && props.changeSats > 0n ? (
+                      <> · change {formatSats(props.changeSats)} BTC</>
+                    ) : null}
+                    <InfoTip
+                      label="How the fee is picked"
+                      width="md"
+                      size="xs"
+                      side="end"
+                    >
+                      <span className="block">
+                        Bitcoin spends one UTXO and returns the remainder to
+                        your wallet as change.
                       </span>
-                    ) : (
-                      <>
-                        fee {formatSats(props.effectiveFeeSats)} BTC
-                        {props.supportsChange && props.changeSats !== null && props.changeSats > 0n ? (
-                          <> · change {formatSats(props.changeSats)} BTC</>
-                        ) : null}
-                        <InfoTip
-                          label="How the fee is picked"
-                          width="md"
-                          size="xs"
-                          side="end"
-                        >
-                          <span className="block">
-                            Bitcoin spends one UTXO and returns the remainder
-                            to your wallet as change.
-                          </span>
-                        </InfoTip>
-                      </>
-                    )}
+                    </InfoTip>
                   </span>
                 )}
               </>
@@ -1371,15 +1143,15 @@ function ComposeForm(props: {
         >
           <Button
             onClick={props.onSend}
-            disabled={props.sending || props.autoUpgrading || !props.canSubmit}
+            disabled={props.sending || !props.canSubmit}
             variant="primary"
             fullWidth
             size="lg"
           >
-            {props.sending || props.autoUpgrading ? (
+            {props.sending ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                {props.autoUpgrading && !props.sending ? "Preparing…" : "Sending…"}
+                Sending…
               </>
             ) : (
               <>
@@ -1555,15 +1327,13 @@ function buildBtcPreviewDetails(args: {
   destination: string;
   amountBtc: string;
   selectedUtxo: EsploraUtxo | null;
-  impliedFeeSats: bigint | null;
   effectiveFeeSats: bigint | null;
   changeSats: bigint | null;
-  supportsChange: boolean;
   note: string;
 }): SignPayloadDetail[] {
   const details: SignPayloadDetail[] = [
     { label: "From wallet", value: args.walletDisplay },
-    { label: "Network", value: "Bitcoin", },
+    { label: "Network", value: "Bitcoin" },
   ];
   const destination = args.destination.trim();
   if (destination) {
@@ -1581,15 +1351,11 @@ function buildBtcPreviewDetails(args: {
     });
   }
   if (args.selectedUtxo && args.effectiveFeeSats !== null) {
-    const unsafeFee =
-      !args.supportsChange &&
-      args.impliedFeeSats !== null &&
-      args.impliedFeeSats > MAX_SAFE_IMPLIED_FEE_SATS;
     details.push({
-      label: unsafeFee ? "Blocked fee" : "Network fee",
+      label: "Network fee",
       value: `${formatSats(args.effectiveFeeSats)} BTC`,
     });
-    if (args.supportsChange && args.changeSats !== null && args.changeSats > 0n) {
+    if (args.changeSats !== null && args.changeSats > 0n) {
       details.push({
         label: "Change",
         value: `${formatSats(args.changeSats)} BTC back to this wallet`,
@@ -1603,15 +1369,6 @@ function buildBtcPreviewDetails(args: {
     });
   }
   return details;
-}
-
-function buildBtcWarning(args: {
-  selectedUtxo: EsploraUtxo | null;
-  impliedFeeSats: bigint | null;
-  supportsChange: boolean;
-}): string | undefined {
-  void args;
-  return undefined;
 }
 
 // ─── error banner ─────────────────────────────────────────────────
@@ -1707,12 +1464,6 @@ function bytesToHex(bytes: Uint8Array): string {
   return s;
 }
 
-function u32LeBytes(value: number): Uint8Array {
-  const out = new Uint8Array(4);
-  new DataView(out.buffer).setUint32(0, value >>> 0, true);
-  return out;
-}
-
 function shortBtcAddress(addr: string): string {
   if (addr.length <= 16) return addr;
   return `${addr.slice(0, 8)}…${addr.slice(-6)}`;
@@ -1777,16 +1528,24 @@ async function waitForProposalStatusOneOf(
   return null;
 }
 
-async function waitForIntentParamCount(
-  connection: Parameters<typeof fetchIntent>[0],
-  walletPda: PublicKey,
-  intentIndex: number,
-  minParams: number,
+async function waitForBitcoinChangeIntent(
+  connection: Parameters<typeof fetchWalletByName>[0],
+  walletName: string,
 ): Promise<boolean> {
   for (let i = 0; i < 12; i++) {
     try {
-      const intent = await fetchIntent(connection, walletPda, intentIndex);
-      if ((intent.account?.params.length ?? 0) >= minParams) return true;
+      const wallet = await fetchWalletByName(connection, walletName);
+      if (!wallet) continue;
+      const intents = await listIntents(
+        connection,
+        wallet.pda,
+        wallet.account.intentIndex,
+      );
+      if (
+        bitcoinSendReady(selectBitcoinSendIntent(intents.map((it) => it.account)))
+      ) {
+        return true;
+      }
     } catch {
       // keep waiting for RPC/account propagation
     }
