@@ -19,6 +19,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import clsx from "clsx";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -31,6 +32,7 @@ import {
   Bell,
   Bot,
   Building2,
+  ChevronLeft,
   ChevronDown,
   ChevronUp,
   Eye,
@@ -125,6 +127,7 @@ function WalletDashboardContent() {
   const search = useSearchParams();
   const address = wallet.publicKey?.toBase58() ?? "";
   const reduce = useReducedMotion();
+  const mobileWelcome = useMobileWalletWelcome();
   const requested = search.get("surface");
   const requestedAll = requested === "all";
   const requestedSurface = walletProductSurface(
@@ -162,6 +165,7 @@ function WalletDashboardContent() {
 
   const wallets = useMemo(() => memberships.data ?? [], [memberships.data]);
   const selectedSurface = activeSurface;
+  const displaySurface = mobileWelcome ? null : selectedSurface;
   const selectSurface = (surface: WalletProductSurface | null) => {
     setActiveSurface(surface);
     if (surface) {
@@ -174,14 +178,14 @@ function WalletDashboardContent() {
     }
   };
   const visibleWallets = useMemo(() => {
-    if (!selectedSurface) return wallets;
+    if (!displaySurface) return wallets;
     return wallets.filter(
       (membership) =>
         walletProductSurface(
           getWalletAppearance(membership.wallet_name ?? "")?.surface,
-        ) === selectedSurface,
+        ) === displaySurface,
     );
-  }, [wallets, selectedSurface]);
+  }, [wallets, displaySurface]);
   const visibleWalletPdas = useMemo(
     () => new Set(visibleWallets.map((membership) => membership.wallet)),
     [visibleWallets],
@@ -236,38 +240,42 @@ function WalletDashboardContent() {
 
   const filteredActionRows = useMemo(
     () =>
-      selectedSurface
+      displaySurface
         ? action.rows.filter((row) => visibleWalletNames.has(row.walletName))
         : action.rows,
-    [action.rows, selectedSurface, visibleWalletNames],
+    [action.rows, displaySurface, visibleWalletNames],
   );
   const filteredRecentRows = useMemo(
     () =>
-      selectedSurface
+      displaySurface
         ? recent.rows.filter((row) => visibleWalletPdas.has(row.walletPda))
         : recent.rows,
-    [recent.rows, selectedSurface, visibleWalletPdas],
+    [recent.rows, displaySurface, visibleWalletPdas],
   );
   const visiblePendingByWallet = useMemo(() => {
-    if (!selectedSurface) return recent.pendingByWallet;
+    if (!displaySurface) return recent.pendingByWallet;
     const next = new Map<string, number>();
     for (const membership of visibleWallets) {
       const count = recent.pendingByWallet.get(membership.wallet) ?? 0;
       if (count > 0) next.set(membership.wallet, count);
     }
     return next;
-  }, [recent.pendingByWallet, selectedSurface, visibleWallets]);
+  }, [recent.pendingByWallet, displaySurface, visibleWallets]);
   const filteredPendingCount = filteredActionRows.length;
 
   const showStats =
-    !selectedSurface && !hasError && !isFirstVisit && visibleWallets.length > 0;
-  const showRecent = !isFirstVisit && filteredRecentRows.length > 0;
-  const showWatched = !hasError && selectedSurface === null;
+    !displaySurface &&
+    !hasError &&
+    !isFirstVisit &&
+    (visibleWallets.length > 0 || stillLoading);
+  const showRecent =
+    !isFirstVisit && (filteredRecentRows.length > 0 || action.loading);
+  const showWatched = !hasError && displaySurface === null;
 
   const showWalletGrid =
     !hasError &&
     !isFirstVisit &&
-    !(selectedSurface && visibleWallets.length === 0 && !stillLoading);
+    !(displaySurface && visibleWallets.length === 0 && !stillLoading);
   const walletGrid = showWalletGrid ? (
     <WalletsGrid
       wallets={visibleWallets}
@@ -275,7 +283,7 @@ function WalletDashboardContent() {
       balances={balancesQuery.data}
       loadingBalances={balancesQuery.isLoading}
       loading={stillLoading}
-      selectedSurface={selectedSurface}
+      selectedSurface={displaySurface}
       reduce={!!reduce}
     />
   ) : null;
@@ -290,7 +298,7 @@ function WalletDashboardContent() {
       <Hero
         walletCount={visibleWallets.length}
         pendingCount={filteredPendingCount}
-        selectedSurface={selectedSurface}
+        selectedSurface={displaySurface}
         loading={stillLoading}
         reduce={!!reduce}
       />
@@ -303,15 +311,18 @@ function WalletDashboardContent() {
         />
       ) : null}
 
-      {selectedSurface ? walletGrid : null}
+      {displaySurface ? walletGrid : null}
 
       {showStats && (
         <StatsRow
           visibleWallets={visibleWallets}
           balances={balancesQuery.data}
           loadingBalances={balancesQuery.isLoading}
+          loadingWallets={stillLoading}
+          pendingByWallet={visiblePendingByWallet}
           pendingCount={filteredPendingCount}
-          selectedSurface={selectedSurface}
+          pendingLoading={action.loading}
+          selectedSurface={displaySurface}
           reduce={!!reduce}
         />
       )}
@@ -319,11 +330,11 @@ function WalletDashboardContent() {
       {hasError ? (
         <MembershipsErrorCard onRetry={() => memberships.refetch()} />
       ) : isFirstVisit && watched.rows.length === 0 ? (
-        <FirstVisitCard selectedSurface={selectedSurface} />
-      ) : selectedSurface && visibleWallets.length === 0 && !stillLoading ? (
-        <ProductEmptyState selectedSurface={selectedSurface} />
+        <FirstVisitCard selectedSurface={displaySurface} />
+      ) : displaySurface && visibleWallets.length === 0 && !stillLoading ? (
+        <ProductEmptyState selectedSurface={displaySurface} />
       ) : (
-        selectedSurface ? null : walletGrid
+        displaySurface ? null : walletGrid
       )}
 
       {/* Bottom row - Recent activity (8 cols) sits next to Watching
@@ -338,7 +349,11 @@ function WalletDashboardContent() {
                 showWatched ? "lg:col-span-8" : "lg:col-span-12",
               )}
             >
-              <RecentActivitySection rows={filteredRecentRows} reduce={!!reduce} />
+              <RecentActivitySection
+                rows={filteredRecentRows}
+                loading={action.loading}
+                reduce={!!reduce}
+              />
             </div>
           )}
           {showWatched && (
@@ -360,6 +375,21 @@ function WalletDashboardContent() {
       )}
     </div>
   );
+}
+
+function useMobileWalletWelcome() {
+  const [mobile, setMobile] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 767px)");
+    const update = () => setMobile(query.matches);
+
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  return mobile;
 }
 
 function WalletDashboardShell() {
@@ -443,7 +473,7 @@ function Hero({
     <motion.div
       {...motionProps}
       transition={{ duration: 0.2 }}
-      className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3"
+      className="hidden flex-wrap items-end justify-between gap-x-4 gap-y-3 md:flex"
     >
       <div className="min-w-0">
         <h1 className="hidden font-display text-display-xs leading-tight text-text-strong md:block">
@@ -481,7 +511,7 @@ function ProductWorkspaceSwitcher({
   ];
 
   return (
-    <section className="rounded-card border border-border-soft bg-surface-raised p-2.5 shadow-card-rest sm:p-3">
+    <section className="hidden rounded-card border border-border-soft bg-surface-raised p-2.5 shadow-card-rest md:block sm:p-3">
       <div className="flex items-center gap-1.5 overflow-x-auto sm:gap-2">
         <button
           type="button"
@@ -561,14 +591,20 @@ function StatsRow({
   visibleWallets,
   balances,
   loadingBalances,
+  loadingWallets,
+  pendingByWallet,
   pendingCount,
+  pendingLoading,
   selectedSurface,
   reduce,
 }: {
   visibleWallets: OnchainMembership[];
   balances: Map<string, number> | undefined;
   loadingBalances: boolean;
+  loadingWallets: boolean;
+  pendingByWallet: Map<string, number>;
   pendingCount: number;
+  pendingLoading: boolean;
   selectedSurface: WalletProductSurface | null;
   reduce: boolean;
 }) {
@@ -579,6 +615,7 @@ function StatsRow({
   const [portfolioByWallet, setPortfolioByWallet] = useState<
     Map<string, PortfolioSnapshot>
   >(() => new Map());
+  const [walletSwitcherOpen, setWalletSwitcherOpen] = useState(false);
   const visibleWalletNames = useMemo(
     () =>
       visibleWallets
@@ -632,6 +669,7 @@ function StatsRow({
   );
   const totalBalance = formatBalance(totalLamports);
   const balanceLoading =
+    loadingWallets ||
     (loadingBalances && balances === undefined) ||
     visibleWalletNames.some(
       (name) =>
@@ -660,7 +698,17 @@ function StatsRow({
         aggregate={aggregate}
         walletCount={visibleWallets.length}
         selectedSurface={selectedSurface}
-        loading={balanceLoading}
+        balanceLoading={balanceLoading}
+        walletCountLoading={loadingWallets}
+        onOpenWalletSwitcher={() => setWalletSwitcherOpen(true)}
+      />
+      <MobileWalletSwitchModal
+        open={walletSwitcherOpen}
+        wallets={visibleWallets}
+        balances={balances}
+        loadingBalances={loadingBalances}
+        pendingByWallet={pendingByWallet}
+        onClose={() => setWalletSwitcherOpen(false)}
       />
       {/* Secondary stats - Wallets count and pending-approval bell.
           Side-by-side on every viewport so the two metrics carry
@@ -670,11 +718,13 @@ function StatsRow({
           Icon={Users}
           label={selectedSurface ? "In product" : "Wallets"}
           value={String(visibleWallets.length)}
+          loading={loadingWallets}
         />
         <StatCard
           Icon={Bell}
           label="Need approval"
           value={String(pendingCount)}
+          loading={pendingLoading}
           accent={pendingCount > 0}
         />
       </div>
@@ -852,7 +902,9 @@ function BalanceHeroCard({
   aggregate,
   walletCount,
   selectedSurface,
-  loading,
+  balanceLoading,
+  walletCountLoading,
+  onOpenWalletSwitcher,
 }: {
   amount: string;
   unit: string;
@@ -860,7 +912,9 @@ function BalanceHeroCard({
   aggregate: AggregatePortfolio;
   walletCount: number;
   selectedSurface: WalletProductSurface | null;
-  loading: boolean;
+  balanceLoading: boolean;
+  walletCountLoading: boolean;
+  onOpenWalletSwitcher?: () => void;
 }) {
   const label = selectedSurface
     ? productWorkspaceLabel(selectedSurface)
@@ -874,7 +928,7 @@ function BalanceHeroCard({
   return (
     <section
       className={clsx(
-        "relative overflow-hidden rounded-card border p-4 shadow-card-rest sm:p-5",
+        "relative min-h-[10.75rem] overflow-hidden rounded-card border p-4 shadow-card-rest md:min-h-0 md:p-5",
         selectedSurface
           ? surfaceHeroTone(selectedSurface)
           : "border-border-soft bg-surface-raised",
@@ -882,7 +936,7 @@ function BalanceHeroCard({
     >
       {/* Foreground content. relative + z-10 keeps it above both
           decoration layers. */}
-      <div className="relative z-10 grid gap-3 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-center lg:gap-5">
+      <div className="relative z-10 grid gap-4 md:gap-3 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-center lg:gap-5">
         <div className="min-w-0">
         {/* Brand row - small visible mark + label */}
         <div className="flex items-center justify-between gap-2">
@@ -898,30 +952,53 @@ function BalanceHeroCard({
               {label}
             </span>
           </div>
-          {!loading && (
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-text-soft/70">
-                {walletCount === 0
-                  ? "-"
-                  : walletCount === 1
-                    ? "1 wallet"
-                    : `${walletCount} wallets`}
-              </span>
-              <button
-                type="button"
-                onClick={toggle}
-                aria-label={hidden ? "Show balances" : "Hide balances"}
-                title={hidden ? "Show balances" : "Hide balances"}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border-soft bg-canvas/60 text-text-soft transition-colors hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-              >
-                {hidden ? (
-                  <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
-                ) : (
-                  <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-                )}
-              </button>
+          {(!balanceLoading ||
+            walletCountLoading ||
+            (onOpenWalletSwitcher && walletCount > 0)) && (
+            <div className="hidden items-center gap-2 md:flex">
+              {walletCountLoading ? (
+                <Shimmer className="h-3.5 w-16 rounded-full" />
+              ) : (
+                <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-text-soft/70">
+                  {walletCount === 0
+                    ? "-"
+                    : walletCount === 1
+                      ? "1 wallet"
+                      : `${walletCount} wallets`}
+                </span>
+              )}
+              {!balanceLoading ? (
+                <button
+                  type="button"
+                  onClick={toggle}
+                  aria-label={hidden ? "Show balances" : "Hide balances"}
+                  title={hidden ? "Show balances" : "Hide balances"}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border-soft bg-canvas/60 text-text-soft transition-colors hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+                >
+                  {hidden ? (
+                    <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
+                  ) : (
+                    <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                  )}
+                </button>
+              ) : null}
             </div>
           )}
+          {!balanceLoading ? (
+            <button
+              type="button"
+              onClick={toggle}
+              aria-label={hidden ? "Show balances" : "Hide balances"}
+              title={hidden ? "Show balances" : "Hide balances"}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border-soft bg-canvas/70 text-text-soft transition-colors hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised md:hidden"
+            >
+              {hidden ? (
+                <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
+              ) : (
+                <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
+            </button>
+          ) : null}
         </div>
 
         {selectedSurface ? (
@@ -936,26 +1013,26 @@ function BalanceHeroCard({
         ) : null}
 
         {/* Big numerals */}
-        {loading ? (
-          <div className="mt-3 h-10 w-40 animate-pulse rounded bg-border-soft/80 sm:mt-5 sm:h-12 sm:w-52" />
+        {balanceLoading ? (
+          <Shimmer className="mt-2 h-10 w-40 rounded md:mt-5 md:h-12 md:w-52" />
         ) : (
           <>
-            <p className={clsx("mt-3 flex items-baseline gap-2 transition-[filter] duration-base sm:mt-5", hiddenClass)}>
-              <span className="font-numerals text-3xl font-semibold leading-none text-text-strong tabular-nums sm:text-4xl">
+            <p className={clsx("mt-2 flex items-baseline gap-2 transition-[filter] duration-base md:mt-5", hiddenClass)}>
+              <span className="font-numerals text-[2.15rem] font-semibold leading-none text-text-strong tabular-nums md:text-4xl">
                 {headline}
               </span>
               {!hasPortfolioTotal ? (
-                <span className="font-display text-sm font-semibold uppercase tracking-[0.16em] text-text-soft sm:text-base">
+                <span className="font-display text-sm font-semibold uppercase tracking-[0.16em] text-text-soft md:text-base">
                   {unit}
                 </span>
               ) : null}
             </p>
             {hasPortfolioTotal ? (
-              <ul className={clsx("mt-2 flex flex-wrap gap-1.5 transition-[filter] duration-base", hiddenClass)}>
+              <ul className={clsx("mt-3 flex flex-wrap gap-1.5 transition-[filter] duration-base md:mt-2", hiddenClass)}>
                 {aggregate.chains.map((chain) => (
                   <li
                     key={chain.kind}
-                    className="inline-flex items-baseline gap-1 rounded-full border border-border-soft bg-canvas px-2 py-0.5"
+                    className="inline-flex items-baseline gap-1 rounded-full border border-border-soft bg-canvas/85 px-2.5 py-1 md:bg-canvas md:px-2 md:py-0.5"
                   >
                     <span className="font-numerals text-xs font-semibold text-text-strong tabular-nums">
                       {chain.amount}
@@ -967,7 +1044,7 @@ function BalanceHeroCard({
                 ))}
               </ul>
             ) : (
-              <p className={clsx("mt-1.5 text-xs text-text-soft transition-[filter] duration-base sm:text-sm", hiddenClass)}>
+              <p className={clsx("mt-1.5 text-xs text-text-soft transition-[filter] duration-base md:text-sm", hiddenClass)}>
                 <UsdHint
                   amount={BigInt(Math.round(totalLamports))}
                   smallestPerWhole={1_000_000_000n}
@@ -979,6 +1056,31 @@ function BalanceHeroCard({
             )}
           </>
         )}
+
+        {!selectedSurface ? (
+          <div className="mt-4 flex items-center justify-between gap-3 md:hidden">
+            {walletCountLoading ? (
+              <Shimmer className="h-8 w-24 rounded-full" />
+            ) : (
+              <span className="inline-flex h-8 items-center rounded-full bg-canvas/70 px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+                {walletCount === 0
+                  ? "No wallets"
+                  : walletCount === 1
+                    ? "1 wallet"
+                    : `${walletCount} wallets`}
+              </span>
+            )}
+            {onOpenWalletSwitcher && !walletCountLoading && walletCount > 0 ? (
+              <button
+                type="button"
+                onClick={onOpenWalletSwitcher}
+                className="inline-flex h-9 items-center justify-center rounded-full bg-accent px-4 text-[11px] font-semibold text-text-on-accent shadow-accent-rest transition-[background-color,transform,box-shadow] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-accent-hover hover:shadow-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+              >
+                Switch
+              </button>
+            ) : null}
+          </div>
+        ) : null}
 
         {selectedSurface ? (
           <div className="mt-4 flex items-center justify-between gap-3 sm:mt-5">
@@ -1000,6 +1102,239 @@ function BalanceHeroCard({
         ) : null}
       </div>
     </section>
+  );
+}
+
+function MobileWalletSwitchModal({
+  open,
+  wallets,
+  balances,
+  loadingBalances,
+  pendingByWallet,
+  onClose,
+}: {
+  open: boolean;
+  wallets: OnchainMembership[];
+  balances: Map<string, number> | undefined;
+  loadingBalances: boolean;
+  pendingByWallet: Map<string, number>;
+  onClose: () => void;
+}) {
+  const [pinTick, setPinTick] = useState(0);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+  useEffect(() => subscribePinnedWallets(() => setPinTick((n) => n + 1)), []);
+
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
+
+  const ordered = useMemo(() => {
+    void pinTick;
+    return sortPinnedFirst(wallets, (membership) => membership.wallet_name ?? "");
+  }, [wallets, pinTick]);
+
+  const grouped = useMemo(() => {
+    const buckets = new Map<WalletProductSurface | "shared", OnchainMembership[]>();
+    for (const membership of ordered) {
+      const surface =
+        resolveWalletProductSurface(membership.wallet_name ?? "") ?? "shared";
+      const bucket = buckets.get(surface) ?? [];
+      bucket.push(membership);
+      buckets.set(surface, bucket);
+    }
+
+    const productGroups = (
+      ["personal", "pro", "agent", "secure"] satisfies WalletProductSurface[]
+    )
+      .map((surface) => ({
+        key: surface,
+        label: productWorkspaceLabel(surface),
+        Icon: PRODUCT_SURFACE_ICON[surface],
+        wallets: buckets.get(surface) ?? [],
+      }))
+      .filter((group) => group.wallets.length > 0);
+
+    const shared = buckets.get("shared") ?? [];
+    return shared.length > 0
+      ? [
+          ...productGroups,
+          {
+            key: "shared",
+            label: "Shared wallets",
+            Icon: Wallet,
+            wallets: shared,
+          },
+        ]
+      : productGroups;
+  }, [ordered]);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <AnimatePresence>
+      {open ? (
+        <motion.div
+          className="fixed inset-0 z-[500] bg-canvas md:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Switch wallet"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.16 }}
+        >
+          <motion.div
+            className="flex h-full flex-col bg-canvas"
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", stiffness: 360, damping: 34 }}
+          >
+            <header className="relative flex h-16 shrink-0 items-center justify-between border-b border-border-soft bg-canvas px-4">
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Back to wallet home"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border-soft bg-surface-raised text-text-strong shadow-[0_10px_28px_-20px_rgba(0,0,0,0.7)] transition-colors hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+              >
+                <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+              </button>
+              <h2 className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-base font-semibold tracking-tight text-text-strong">
+                Switch wallet
+              </h2>
+              <span className="h-10 w-10" aria-hidden="true" />
+            </header>
+
+            <div className="flex-1 overflow-y-auto px-4 pb-8 pt-4">
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.28em] text-text-soft">
+                    Your wallets
+                  </p>
+                  <p className="mt-1 text-sm text-text-soft">
+                    Pick a wallet to open its workspace.
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full bg-surface-raised px-2.5 py-1 font-numerals text-xs font-semibold text-text-soft">
+                  {wallets.length}
+                </span>
+              </div>
+              <div className="mt-5 flex flex-col gap-5">
+                {grouped.map(({ key, label, Icon, wallets: groupWallets }) => (
+                  <section key={key}>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+                          <Icon
+                            className="h-3.5 w-3.5"
+                            strokeWidth={1.9}
+                            aria-hidden="true"
+                          />
+                        </span>
+                        <p className="truncate font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-text-soft">
+                          {label}
+                        </p>
+                      </div>
+                      <span className="font-numerals text-xs font-semibold text-text-soft tabular-nums">
+                        {groupWallets.length}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-2.5">
+                      {groupWallets.map((membership) => (
+                        <MobileWalletSwitchRow
+                          key={membership.wallet}
+                          membership={membership}
+                          balanceLamports={balances?.get(membership.wallet) ?? null}
+                          loadingBalance={loadingBalances}
+                          pendingCount={pendingByWallet.get(membership.wallet) ?? 0}
+                          onNavigate={onClose}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>,
+    document.body,
+  );
+}
+
+function MobileWalletSwitchRow({
+  membership,
+  balanceLamports,
+  loadingBalance,
+  pendingCount,
+  onNavigate,
+}: {
+  membership: OnchainMembership;
+  balanceLamports: number | null;
+  loadingBalance: boolean;
+  pendingCount: number;
+  onNavigate: () => void;
+}) {
+  const onChainName = membership.wallet_name ?? "Wallet";
+  const name = toDisplayName(onChainName);
+  const surface = resolveWalletProductSurface(onChainName);
+  const ProductIcon = surface ? PRODUCT_SURFACE_ICON[surface] : Wallet;
+  const productLabel = surface ? productWorkspaceLabel(surface) : "Shared wallet";
+  const href = productWorkspaceHomeHref(onChainName, surface);
+  const balance = balanceLamports !== null ? formatBalance(balanceLamports) : null;
+  const { hidden } = useBalancePrivacy();
+  const hiddenClass = hidden ? "blur-sm select-none" : "";
+
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      className="group flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest transition-[border-color,transform] duration-base hover:-translate-y-0.5 hover:border-accent/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+    >
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+        <ProductIcon className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-base font-semibold text-text-strong">
+          {name}
+        </span>
+        <span className="mt-0.5 flex min-w-0 items-center gap-2">
+          <span className="truncate font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+            {productLabel}
+          </span>
+          <span className="h-1 w-1 shrink-0 rounded-full bg-border-strong" />
+          {loadingBalance && balance === null ? (
+            <Shimmer className="h-3.5 w-14 rounded-full" />
+          ) : (
+            <span
+              className={clsx(
+                "font-numerals text-xs font-semibold text-text-soft tabular-nums transition-[filter] duration-base",
+                hiddenClass,
+              )}
+            >
+              {`${balance?.amount ?? "0"} ${balance?.ticker ?? "SOL"}`}
+            </span>
+          )}
+        </span>
+      </span>
+      {pendingCount > 0 ? (
+        <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold text-text-on-accent">
+          {pendingCount}
+        </span>
+      ) : null}
+      <ArrowRight
+        className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
+        aria-hidden="true"
+      />
+    </Link>
   );
 }
 
@@ -1197,7 +1532,7 @@ function StatCard({
         </span>
       </div>
       {loading ? (
-        <div className="mt-2.5 h-7 w-24 animate-pulse rounded bg-border-soft/80" />
+        <Shimmer className="mt-2.5 h-7 w-24 rounded" />
       ) : (
         <p className="mt-1 flex items-baseline gap-1.5 sm:mt-1.5">
           <span
@@ -1614,7 +1949,7 @@ function WalletCard({
                 <span className="truncate">{name}</span>
               </p>
               {(portfolio.isLoading || loadingBalance) && balance === null ? (
-                <div className="mt-1 h-5 w-20 animate-pulse rounded bg-border-soft" />
+                <Shimmer className="mt-1 h-5 w-20 rounded" />
               ) : (
                 // Editorial-sans: JetBrains Mono numerals for the
                 // balance value, Manrope display caps for the ticker.
@@ -1726,6 +2061,18 @@ function WalletCard({
 // pill, so the swap-in caused a visible layout jump. This shape
 // matches the populated card closely enough that the transition
 // looks like content fading in, not the layout shifting.
+function Shimmer({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={clsx(
+        "block animate-shimmer bg-border-soft/55 bg-skeleton-shimmer bg-[length:200%_100%]",
+        className,
+      )}
+    />
+  );
+}
+
 function CardSkeleton() {
   return (
     <div
@@ -1735,17 +2082,17 @@ function CardSkeleton() {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           {/* Title line - same width as font-display text-xl. */}
-          <div className="h-6 w-1/2 animate-pulse rounded bg-border-soft" />
+          <Shimmer className="h-6 w-1/2 rounded" />
           {/* Balance line - slightly tighter than the title. */}
-          <div className="mt-2.5 h-5 w-24 animate-pulse rounded bg-border-soft/80" />
+          <Shimmer className="mt-2.5 h-5 w-24 rounded" />
         </div>
         {/* Pin button placeholder - keeps the right edge stable. */}
-        <div className="h-7 w-7 shrink-0 animate-pulse rounded-full bg-border-soft/60" />
+        <Shimmer className="h-7 w-7 shrink-0 rounded-full" />
       </div>
       {/* Pending-approval pill - most loaded cards have at least
           one badge slot worth of vertical space. Quieter pulse so
           it doesn't read as required. */}
-      <div className="mt-4 h-6 w-32 animate-pulse rounded-full bg-border-soft/40" />
+      <Shimmer className="mt-4 h-6 w-32 rounded-full" />
     </div>
   );
 }
@@ -1754,10 +2101,11 @@ function CardSkeleton() {
 
 interface RecentActivityProps {
   rows: RecentActivityRow[];
+  loading: boolean;
   reduce: boolean;
 }
 
-function RecentActivitySection({ rows, reduce }: RecentActivityProps) {
+function RecentActivitySection({ rows, loading, reduce }: RecentActivityProps) {
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
@@ -1784,18 +2132,42 @@ function RecentActivitySection({ rows, reduce }: RecentActivityProps) {
         </Link>
       </div>
       <ul className="mt-3 grid gap-2">
-        {latest.map((group, i) => (
-          <motion.li
-            key={group.row.proposalPda}
-            initial={reduce ? false : { opacity: 0, y: 8 }}
-            animate={reduce ? {} : { opacity: 1, y: 0 }}
-            transition={{ duration: 0.18, delay: reduce ? 0 : i * 0.025 }}
-          >
-            <ActivityRow group={group} />
-          </motion.li>
-        ))}
+        {loading && latest.length === 0 ? (
+          <>
+            <ActivitySkeleton />
+            <ActivitySkeleton />
+            <ActivitySkeleton />
+          </>
+        ) : (
+          latest.map((group, i) => (
+            <motion.li
+              key={group.row.proposalPda}
+              initial={reduce ? false : { opacity: 0, y: 8 }}
+              animate={reduce ? {} : { opacity: 1, y: 0 }}
+              transition={{ duration: 0.18, delay: reduce ? 0 : i * 0.025 }}
+            >
+              <ActivityRow group={group} />
+            </motion.li>
+          ))
+        )}
       </ul>
     </motion.section>
+  );
+}
+
+function ActivitySkeleton() {
+  return (
+    <li
+      aria-hidden="true"
+      className="flex items-center justify-between gap-3 rounded-card border border-border-soft bg-surface-raised px-4 py-3 shadow-card-rest"
+    >
+      <Shimmer className="h-9 w-9 shrink-0 rounded-full" />
+      <span className="min-w-0 flex-1">
+        <Shimmer className="h-4 w-36 rounded" />
+        <Shimmer className="mt-2 h-3 w-48 max-w-full rounded" />
+      </span>
+      <Shimmer className="h-4 w-4 shrink-0 rounded-full" />
+    </li>
   );
 }
 
@@ -1988,8 +2360,12 @@ function WatchedWalletsSection({
       {(rows.length > 0 || loading) && (
         <ul className="mt-3 flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
           {loading && rows.length === 0 ? (
-            <li className="px-5 py-3 text-xs text-text-soft">
-              Loading watched wallets...
+            <li className="flex items-center gap-3 px-5 py-3">
+              <Shimmer className="h-8 w-8 shrink-0 rounded-full" />
+              <span className="min-w-0 flex-1">
+                <Shimmer className="h-3.5 w-28 rounded" />
+                <Shimmer className="mt-2 h-3 w-20 rounded" />
+              </span>
             </li>
           ) : (
             rows.map((m) => {

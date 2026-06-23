@@ -265,15 +265,23 @@ export function HeaderBar() {
           centered across Home, wallet detail, settings, and send
           screens. */}
       {showTitle && (
-        <div className="pointer-events-none absolute left-1/2 top-1/2 flex w-[min(52vw,18rem)] -translate-x-1/2 -translate-y-1/2 justify-center sm:w-[min(56vw,20rem)] md:hidden">
+        <div
+          className={clsx(
+            "pointer-events-none top-1/2 flex md:hidden",
+            isHome
+              ? "min-w-0 flex-1 justify-start"
+              : "absolute left-1/2 w-[min(52vw,18rem)] -translate-x-1/2 -translate-y-1/2 justify-center sm:w-[min(56vw,20rem)]",
+          )}
+        >
           <motion.h1
             key={pageTitle}
             initial={{ opacity: 0, y: -3 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
             className={clsx(
-              "max-w-full truncate text-center font-semibold tracking-tight text-text-strong",
+              "max-w-full truncate font-semibold tracking-tight text-text-strong",
               isHome ? "text-lg" : "text-base",
+              isHome ? "text-left" : "text-center",
             )}
           >
             {pageTitle}
