@@ -23,3 +23,15 @@ export function chainSendSubtitle(status: ChainSendStatus): string {
       return "Coming soon";
   }
 }
+
+export function chainSendActionLabel(status: ChainSendStatus): string {
+  switch (status) {
+    case "ready":
+      return "Send";
+    case "needs_setup":
+    case "needs_binding":
+      return "Turn on";
+    case "coming_soon":
+      return "Soon";
+  }
+}

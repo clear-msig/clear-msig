@@ -50,6 +50,11 @@ import {
   broadcastExplorerUrl,
 } from "@/lib/explorer";
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
+import { useSendChains } from "@/lib/hooks/useSendChains";
+import {
+  chainSendActionLabel,
+  type ChainSendStatus,
+} from "@/lib/chain/send-support";
 import {
   fetchErc20Holdings,
   tokenAmountToString,
@@ -738,6 +743,12 @@ function NativeHoldingsSection({
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
   const encoded = encodeURIComponent(walletName);
+  const readiness = useSendChains(walletName);
+  const readinessByKind = useMemo(() => {
+    const map = new Map<number, (typeof readiness.options)[number]>();
+    for (const option of readiness.options) map.set(option.chain.kind, option);
+    return map;
+  }, [readiness.options]);
 
   return (
     <motion.section
@@ -762,6 +773,7 @@ function NativeHoldingsSection({
         <ul className="mt-4 grid gap-2 sm:grid-cols-2">
           {rows.map((row) => {
             const meta = CHAIN_CATALOG_REF.find((c) => c.kind === row.kind);
+            const sendStatus = readinessByKind.get(row.kind)?.status ?? null;
             const amount =
               row.raw !== null && meta
                 ? formatChainAmount(
@@ -770,7 +782,15 @@ function NativeHoldingsSection({
                     meta.displayDecimals,
                   )
                 : null;
-            const sendHref = nativeHoldingSendHref(encoded, row.kind);
+            const sendHref =
+              meta && sendStatus
+                ? nativeHoldingSendHref(
+                    encoded,
+                    row.kind,
+                    meta.apiName,
+                    sendStatus,
+                  )
+                : null;
             const receiveHref = meta
               ? `/app/wallet/${encoded}/receive?chain=${encodeURIComponent(meta.apiName)}`
               : `/app/wallet/${encoded}/receive`;
@@ -832,7 +852,7 @@ function NativeHoldingsSection({
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
                       }
                     >
-                      Send
+                      {sendStatus ? chainSendActionLabel(sendStatus) : "Send"}
                     </Link>
                   ) : null}
                 </div>
@@ -845,12 +865,37 @@ function NativeHoldingsSection({
   );
 }
 
-function nativeHoldingSendHref(encodedWalletName: string, kind: number): string | null {
+function nativeHoldingSendHref(
+  encodedWalletName: string,
+  kind: number,
+  apiName: string,
+  status: ChainSendStatus,
+): string | null {
+  if (status === "coming_soon") return null;
+  if (status === "needs_binding") {
+    return `/app/wallet/${encodedWalletName}/chains/add?chain=${encodeURIComponent(apiName)}&autostart=1`;
+  }
   if (kind === 0) return `/app/wallet/${encodedWalletName}/send`;
-  if (kind === 1) return `/app/wallet/${encodedWalletName}/send/eth`;
-  if (kind === 2) return `/app/wallet/${encodedWalletName}/send/btc`;
-  if (kind === 3) return `/app/wallet/${encodedWalletName}/send/zec`;
-  if (kind === 5) return `/app/wallet/${encodedWalletName}/send/eth?network=hyperliquid`;
+  if (kind === 1) {
+    return status === "needs_setup"
+      ? `/app/wallet/${encodedWalletName}/setup/eth?autostart=1`
+      : `/app/wallet/${encodedWalletName}/send/eth`;
+  }
+  if (kind === 2) {
+    return status === "needs_setup"
+      ? `/app/wallet/${encodedWalletName}/send/btc?autostart=1`
+      : `/app/wallet/${encodedWalletName}/send/btc`;
+  }
+  if (kind === 3) {
+    return status === "needs_setup"
+      ? `/app/wallet/${encodedWalletName}/send/zec?autostart=1`
+      : `/app/wallet/${encodedWalletName}/send/zec`;
+  }
+  if (kind === 5) {
+    return status === "needs_setup"
+      ? `/app/wallet/${encodedWalletName}/setup/eth?network=hyperliquid&autostart=1`
+      : `/app/wallet/${encodedWalletName}/send/eth?network=hyperliquid`;
+  }
   return null;
 }
 

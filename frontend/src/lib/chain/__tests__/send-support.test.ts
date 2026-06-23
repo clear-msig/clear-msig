@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   baseChainSendStatus,
+  chainSendActionLabel,
   chainSendSubtitle,
 } from "../send-support";
 
@@ -18,8 +19,15 @@ describe("chain send support", () => {
 
   it("maps labels for picker badges", () => {
     expect(chainSendSubtitle("ready")).toBe("Ready");
-    expect(chainSendSubtitle("needs_setup")).toBe("Set up sending");
-    expect(chainSendSubtitle("needs_binding")).toBe("Add chain");
+    expect(chainSendSubtitle("needs_setup")).toBe("Turn on");
+    expect(chainSendSubtitle("needs_binding")).toBe("Turn on");
     expect(chainSendSubtitle("coming_soon")).toBe("Coming soon");
+  });
+
+  it("maps action labels for asset rows", () => {
+    expect(chainSendActionLabel("ready")).toBe("Send");
+    expect(chainSendActionLabel("needs_setup")).toBe("Turn on");
+    expect(chainSendActionLabel("needs_binding")).toBe("Turn on");
+    expect(chainSendActionLabel("coming_soon")).toBe("Soon");
   });
 });

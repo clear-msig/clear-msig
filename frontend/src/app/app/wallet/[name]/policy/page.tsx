@@ -27,7 +27,6 @@ import {
   Check,
   Gauge,
   ListChecks,
-  Lock,
   ShieldCheck,
   Slash,
   Trash2,
@@ -153,14 +152,33 @@ export default function PolicyPage() {
         intent={customIntent}
         loading={walletQuery.isLoading || intentsQuery.isLoading}
       />
-      <AllowlistCard walletName={name} />
-      <TimeWindowCard walletName={name} />
+      <ProtectionCoreLinks walletName={name} />
 
       <AdvancedProtectionPanel
         walletName={name}
         personalRules={personalRules}
       />
     </div>
+  );
+}
+
+function ProtectionCoreLinks({ walletName }: { walletName: string }) {
+  const encoded = encodeURIComponent(walletName);
+  return (
+    <section className="grid gap-3 sm:grid-cols-2" aria-label="Core protection controls">
+      <NavCard
+        href={`/app/wallet/${encoded}/budget`}
+        icon={Gauge}
+        title="Spending limits"
+        body="Daily and weekly caps."
+      />
+      <NavCard
+        href={`/app/wallet/${encoded}/rules`}
+        icon={CalendarClock}
+        title="Send delay"
+        body="Wait before money moves."
+      />
+    </section>
   );
 }
 
@@ -269,10 +287,10 @@ function AdvancedProtectionPanel({
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
         <span>
           <span className="text-sm font-semibold text-text-strong">
-            More controls
+            Advanced
           </span>
           <span className="mt-0.5 block text-xs text-text-soft">
-            Limits, member caps, deeper checks, and alerts.
+            Recipient checks, allowed hours, member caps, and alerts.
           </span>
         </span>
         <ArrowRight
@@ -281,25 +299,21 @@ function AdvancedProtectionPanel({
         />
       </summary>
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <AllowlistCard walletName={walletName} />
+        <TimeWindowCard walletName={walletName} />
         {!personalRules ? (
           <>
-            <NavCard
-              href={`/app/wallet/${encoded}/budget`}
-              icon={Gauge}
-              title="Limits"
-              body="How much this wallet can send in a period."
-            />
             <NavCard
               href={`/app/wallet/${encoded}/allowances`}
               icon={UserCheck}
               title="Member limits"
-              body="How much each person can move without extra review."
+              body="Caps per person."
             />
             <NavCard
               href={`/app/wallet/${encoded}/policies`}
               icon={ListChecks}
               title="Extra checks"
-              body="Recipient, amount, review, and cooldown checks."
+              body="Policy internals."
             />
           </>
         ) : null}
@@ -307,7 +321,7 @@ function AdvancedProtectionPanel({
           href="/app/settings#notifications"
           icon={Bell}
           title="Notifications"
-          body="How this device alerts you when approvals wait."
+          body="Approval alerts."
         />
       </div>
     </details>

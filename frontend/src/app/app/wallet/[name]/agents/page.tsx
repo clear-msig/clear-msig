@@ -268,8 +268,9 @@ export default function AgentsPage() {
   }, [name]);
 
   useEffect(() => {
+    if (!showDeveloperSurfaces) return;
     void refreshBackendState();
-  }, [refreshBackendState]);
+  }, [refreshBackendState, showDeveloperSurfaces]);
 
   useEffect(() => {
     const refresh = () => setSeenAgentNotifications(readSeenAgentNotificationIds(name));
@@ -366,13 +367,17 @@ export default function AgentsPage() {
     void loadAgentMarketDataSnapshots(watchedMarkets).then((snapshots) => {
       if (!cancelled) setMarketByMarket(snapshots);
     });
-    void loadAgentMarketIntelligenceSnapshots(watchedMarkets).then((snapshots) => {
-      if (!cancelled) setIntelligenceByMarket(snapshots);
-    });
+    if (showDeveloperSurfaces) {
+      void loadAgentMarketIntelligenceSnapshots(watchedMarkets).then((snapshots) => {
+        if (!cancelled) setIntelligenceByMarket(snapshots);
+      });
+    } else {
+      setIntelligenceByMarket({});
+    }
     return () => {
       cancelled = true;
     };
-  }, [watchedMarketKey]);
+  }, [showDeveloperSurfaces, watchedMarketKey]);
 
   const motionProps = reduce
     ? {}
@@ -1210,25 +1215,15 @@ export default function AgentsPage() {
         <GettingStartedPanel steps={gettingStartedSteps} walletEncoded={encoded} />
       ) : (
         <>
-      <div className="grid gap-2 sm:grid-cols-3">
-        <MetricCard label="Active traders" value={String(activeAgents)} Icon={Bot} />
-        <MetricCard label="Trade ideas" value={String(proposalCount)} Icon={BrainCircuit} />
-        <MetricCard
-          label="Open trades"
-          value={String(openExecutions)}
-          Icon={Play}
-        />
-      </div>
-
       <section className="flex flex-col gap-3">
         <div className="rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest sm:p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-text-strong">
-                Next step
+                Trading remote
               </p>
               <p className="mt-0.5 text-xs text-text-soft">
-                Open practice trading. Everything else is in More.
+                Open practice trading. More controls stay folded until needed.
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -2711,32 +2706,6 @@ function ReadinessRow({
           {readinessActionLabel(readiness.primaryAction)}
           <ArrowRight className="h-3 w-3" aria-hidden="true" />
         </Link>
-      </div>
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  Icon,
-}: {
-  label: string;
-  value: string;
-  Icon: typeof Bot;
-}) {
-  return (
-    <div className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
-      <div className="flex items-center gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
-          <Icon className="h-4 w-4" aria-hidden="true" strokeWidth={1.75} />
-        </span>
-        <div className="min-w-0">
-          <p className="text-[11px] font-medium text-text-soft">{label}</p>
-          <p className="mt-0.5 truncate text-sm font-semibold text-text-strong">
-            {value}
-          </p>
-        </div>
       </div>
     </div>
   );
