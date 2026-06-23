@@ -142,6 +142,8 @@ function isAllowedAgentPath(pathname: string, base: string): boolean {
   return (
     pathname === `${base}/agents` ||
     pathname.startsWith(`${base}/agents/`) ||
+    pathname === `${base}/chains` ||
+    pathname.startsWith(`${base}/chains/`) ||
     pathname === `${base}/swap` ||
     pathname === `${base}/activity` ||
     pathname === `${base}/settings`

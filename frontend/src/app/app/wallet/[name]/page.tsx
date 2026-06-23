@@ -24,7 +24,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { proposerDisplayName } from "@/lib/retail/proposerName";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ArrowRight, Banknote, Bell, Bot, ChevronDown, Coins, Download, Eye, EyeOff, Repeat2, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
+import { Activity, ArrowRight, Banknote, Bell, Bot, ChevronDown, Coins, Download, Eye, EyeOff, Network, Repeat2, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
 import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -1855,6 +1855,11 @@ function manageActionGroups(
         rows: rulesActionRows(encoded, "personal"),
       },
       {
+        label: "Networks",
+        description: "Add another chain to this wallet.",
+        rows: networkActionRows(encoded),
+      },
+      {
         label: "More money",
         rows: moneyActionRows(encoded),
       },
@@ -1867,6 +1872,11 @@ function manageActionGroups(
         label: "Protection",
         description: "Fine-tune team approvals and send safety.",
         rows: rulesActionRows(encoded, "pro"),
+      },
+      {
+        label: "Networks",
+        description: "Add another chain to this treasury.",
+        rows: networkActionRows(encoded),
       },
       {
         label: "More limits",
@@ -1889,6 +1899,11 @@ function manageActionGroups(
 
   if (surface === "agent") {
     return [
+      {
+        label: "Networks",
+        description: "Add a chain before funding or trading there.",
+        rows: networkActionRows(encoded),
+      },
       {
         label: "More budget",
         description: "Fine-tune capital assigned to trader activity.",
@@ -1917,6 +1932,11 @@ function manageActionGroups(
       rows: rulesActionRows(encoded, null),
     },
     {
+      label: "Networks",
+      description: "Add another chain to this wallet.",
+      rows: networkActionRows(encoded),
+    },
+    {
       label: "More money",
       rows: moneyActionRows(encoded),
     },
@@ -1936,6 +1956,17 @@ function rulesActionRows(
         surface === "pro"
           ? "Approvals, people, limits, and alerts."
           : "Approvals, people, and alerts.",
+    },
+  ];
+}
+
+function networkActionRows(encoded: string): ManageActionGroup["rows"] {
+  return [
+    {
+      href: `/app/wallet/${encoded}/chains/add?autostart=1`,
+      icon: Network,
+      title: "Add chain",
+      body: "Add ETH, BTC, Zcash, or Hyperliquid support.",
     },
   ];
 }

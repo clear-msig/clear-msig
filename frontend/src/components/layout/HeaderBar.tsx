@@ -25,10 +25,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
   ChevronLeft,
-  Copy,
   ExternalLink,
   LogOut,
   Palette,
+  PlugZap,
   RefreshCw,
   ScanLine,
   ShieldCheck,
@@ -161,18 +161,6 @@ export function HeaderBar() {
     toast.info("Coming soon", {
       details: "Scan-to-send is on the way - sit tight, this is rolling out.",
     });
-  };
-
-  const handleCopyAddress = async () => {
-    if (!address) return;
-    try {
-      await navigator.clipboard.writeText(address);
-      toast.success("Wallet address copied");
-    } catch (err) {
-      toast.error("Could not copy wallet address", {
-        details: err instanceof Error ? err.message : String(err),
-      });
-    }
   };
 
   const handleRefreshBalance = async () => {
@@ -349,7 +337,11 @@ export function HeaderBar() {
                         grad.to,
                       )}
                     >
-                      <span className="h-2 w-2 rounded-full bg-white/90" />
+                      <PlugZap
+                        className="h-4 w-4 text-white/95 drop-shadow-[0_1px_4px_rgba(0,0,0,0.28)]"
+                        strokeWidth={2.2}
+                        aria-hidden="true"
+                      />
                     </span>
                   </button>
 
@@ -377,7 +369,11 @@ export function HeaderBar() {
                               grad.to,
                             )}
                           >
-                            <span className="block h-2 w-2 rounded-full bg-white/90" />
+                            <PlugZap
+                              className="h-4 w-4 text-white/95 drop-shadow-[0_1px_4px_rgba(0,0,0,0.28)]"
+                              strokeWidth={2.2}
+                              aria-hidden="true"
+                            />
                           </span>
                           <div className="min-w-0">
                             <p className="text-xs font-semibold text-text-strong">
@@ -410,15 +406,6 @@ export function HeaderBar() {
                       </div>
 
                       <div className="p-1.5">
-                        <button
-                          type="button"
-                          role="menuitem"
-                          onClick={handleCopyAddress}
-                          className={MOBILE_WALLET_MENU_ITEM_CLASS}
-                        >
-                          <Copy size={14} aria-hidden="true" />
-                          Copy address
-                        </button>
                         <a
                           role="menuitem"
                           href={addressUrl(address)}
