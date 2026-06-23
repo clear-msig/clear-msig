@@ -41,6 +41,34 @@ export function resolveWalletProductSurface(
   return null;
 }
 
+export type WalletProductSurfaceSource = {
+  wallet_name?: string | null;
+};
+
+export function walletProductSurfaceCounts(
+  wallets: readonly WalletProductSurfaceSource[],
+): Map<WalletProductSurface, number> {
+  const counts = new Map<WalletProductSurface, number>();
+  for (const wallet of wallets) {
+    const surface = resolveWalletProductSurface(wallet.wallet_name ?? "");
+    if (!surface) continue;
+    counts.set(surface, (counts.get(surface) ?? 0) + 1);
+  }
+  return counts;
+}
+
+export function filterWalletsByProductSurface<
+  Wallet extends WalletProductSurfaceSource,
+>(
+  wallets: readonly Wallet[],
+  surface: WalletProductSurface | null,
+): Wallet[] {
+  if (!surface) return [...wallets];
+  return wallets.filter(
+    (wallet) => resolveWalletProductSurface(wallet.wallet_name ?? "") === surface,
+  );
+}
+
 export function productWorkspaceLabel(surface: WalletProductSurface | null): string {
   switch (surface) {
     case "personal":

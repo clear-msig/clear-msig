@@ -48,6 +48,11 @@ import { parseBtcAmount, formatSats, reverseHex } from "@/lib/chain/btc";
 import { shortEvmAddress } from "@/lib/chain/eth";
 import { recordAttempt } from "@/lib/retail/txLog";
 import { broadcastExplorerUrl, explorerLabelForChainKind } from "@/lib/explorer";
+import {
+  SEND_NOTE_LABEL,
+  SEND_NOTE_MAX_LENGTH,
+  SEND_NOTE_PLACEHOLDER,
+} from "@/lib/sendFields";
 
 const ZEC_TEMPLATE = "examples/intents/zcash_transfer.json";
 const ZEC_CHAIN_KIND = 3;
@@ -124,9 +129,11 @@ export default function ZcashSendPage() {
   const [stage, setStage] = useState<Stage>("compose");
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
+  const [note, setNote] = useState(() => searchParams?.get("note")?.trim() ?? "");
   const [sentLabel, setSentLabel] = useState<{
     amount: string;
     to: string;
+    note: string;
     explorerUrl: string | null;
     explorerLabel: string;
   } | null>(null);
@@ -373,6 +380,7 @@ export default function ZcashSendPage() {
       setSentLabel({
         amount: amount.trim(),
         to: recipientText,
+        note: note.trim(),
         explorerUrl,
         explorerLabel,
       });
@@ -458,6 +466,8 @@ export default function ZcashSendPage() {
               balance={zcashBalance}
               amount={amount}
               setAmount={setAmount}
+              note={note}
+              setNote={setNote}
               recipient={recipient}
               setRecipient={setRecipient}
               recipientDecoded={recipientDecoded}
@@ -479,6 +489,7 @@ export default function ZcashSendPage() {
               walletDisplay={walletDisplay}
               amount={sentLabel.amount}
               to={sentLabel.to}
+              note={sentLabel.note}
               explorerUrl={sentLabel.explorerUrl}
               explorerLabel={sentLabel.explorerLabel}
             />
@@ -526,6 +537,8 @@ function ZcashCompose({
   balance,
   amount,
   setAmount,
+  note,
+  setNote,
   recipient,
   setRecipient,
   recipientDecoded,
@@ -541,6 +554,8 @@ function ZcashCompose({
   balance: bigint | null;
   amount: string;
   setAmount: (s: string) => void;
+  note: string;
+  setNote: (s: string) => void;
   recipient: string;
   setRecipient: (s: string) => void;
   recipientDecoded: ReturnType<typeof validateZcashDestination>;
@@ -564,6 +579,9 @@ function ZcashCompose({
   }
   if (amountValid) {
     details.push({ label: "Amount", value: `${amount.trim()} ZEC`, emphasis: "amount" });
+  }
+  if (note.trim()) {
+    details.push({ label: "Note", value: note.trim() });
   }
   return (
     <div className="flex flex-col gap-4">
@@ -628,6 +646,18 @@ function ZcashCompose({
               className="w-full rounded-card border border-border-soft bg-canvas px-4 py-3 font-mono text-sm text-text-strong outline-none"
             />
           </Field>
+          <Field label={SEND_NOTE_LABEL}>
+            <input
+              type="text"
+              value={note}
+              onChange={(e) =>
+                setNote(e.target.value.slice(0, SEND_NOTE_MAX_LENGTH))
+              }
+              placeholder={SEND_NOTE_PLACEHOLDER}
+              maxLength={SEND_NOTE_MAX_LENGTH}
+              className="w-full rounded-card border border-border-soft bg-canvas px-4 py-3 text-sm text-text-strong outline-none"
+            />
+          </Field>
         </div>
       </div>
 
@@ -686,6 +716,7 @@ function SentStage({
   walletDisplay,
   amount,
   to,
+  note,
   explorerUrl,
   explorerLabel,
 }: {
@@ -693,6 +724,7 @@ function SentStage({
   walletDisplay: string;
   amount: string;
   to: string;
+  note: string;
   explorerUrl: string | null;
   explorerLabel: string;
 }) {
@@ -700,6 +732,9 @@ function SentStage({
     { label: "From", value: walletDisplay },
     { label: "Network", value: "Zcash" },
   ];
+  if (note) {
+    details.push({ label: "Note", value: note });
+  }
   return (
     <SendReceipt
       status="confirmed"

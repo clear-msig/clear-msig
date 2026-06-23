@@ -81,6 +81,7 @@ import { ChainBadge } from "@/components/retail/ChainBadge";
 import { chainByKind } from "@/lib/retail/chains";
 import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
 import { resolvePolicyEnforcement } from "@/lib/policies/enforce";
+import { SEND_NOTE_MAX_LENGTH, SEND_NOTE_PLACEHOLDER } from "@/lib/sendFields";
 
 type Stage = "compose" | "sending" | "sent";
 const STAGE_TRANSITION = {
@@ -1326,9 +1327,9 @@ function ComposeStage({
           label="Note"
           value={note}
           onChange={setNote}
-          placeholder="What's it for? (optional)"
+          placeholder={SEND_NOTE_PLACEHOLDER}
           optional
-          maxLength={140}
+          maxLength={SEND_NOTE_MAX_LENGTH}
         />
       </section>
 
