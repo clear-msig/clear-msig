@@ -101,6 +101,8 @@ import {
   productWorkspaceHref as productSurfaceWorkspaceHref,
 } from "@/lib/productSurfaces";
 import {
+  clearPendingProductSurface,
+  readPendingProductSurface,
   readSelectedProductSurface,
   saveSelectedProductSurface,
 } from "@/lib/productSession";
@@ -131,10 +133,29 @@ function WalletDashboardContent() {
     useState<WalletProductSurface | null>(null);
   const [activeSurface, setActiveSurface] =
     useState<WalletProductSurface | null>(null);
+  const [pendingLaunchSurface, setPendingLaunchSurface] =
+    useState<WalletProductSurface | null>(null);
 
   useEffect(() => {
     setStoredSurface(walletProductSurface(readSelectedProductSurface(address)));
   }, [address]);
+
+  useEffect(() => {
+    const pendingSurface = walletProductSurface(readPendingProductSurface());
+    if (!pendingSurface) return;
+    saveSelectedProductSurface(pendingSurface, address);
+    clearPendingProductSurface();
+    setPendingLaunchSurface(pendingSurface);
+    setStoredSurface(pendingSurface);
+    setActiveSurface(pendingSurface);
+    if (typeof window !== "undefined" && !requestedSurface && !requestedAll) {
+      window.history.replaceState(
+        null,
+        "",
+        `/app/wallet?surface=${pendingSurface}`,
+      );
+    }
+  }, [address, requestedAll, requestedSurface]);
 
   useEffect(() => {
     setActiveSurface(requestedAll ? null : requestedSurface ?? storedSurface);
@@ -182,7 +203,9 @@ function WalletDashboardContent() {
   const showingCachedWallets =
     memberships.data === undefined && cachedWallets.length > 0;
   const selectedSurface = activeSurface;
-  const displaySurface = mobileWelcome ? null : selectedSurface;
+  const launchedIntoProduct = Boolean(requestedSurface ?? pendingLaunchSurface);
+  const displaySurface =
+    mobileWelcome && !launchedIntoProduct ? null : selectedSurface;
   const selectSurface = (surface: WalletProductSurface | null) => {
     setActiveSurface(surface);
     if (surface) {
