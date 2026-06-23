@@ -87,6 +87,11 @@ import {
 import { chainByKind } from "@/lib/retail/chains";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { appConfig } from "@/lib/config";
+import {
+  SEND_NOTE_LABEL,
+  SEND_NOTE_MAX_LENGTH,
+  SEND_NOTE_PLACEHOLDER,
+} from "@/lib/sendFields";
 
 type Stage = "compose" | "sending" | "sent";
 
@@ -970,13 +975,15 @@ function ComposeStage({
             onPick={(addr) => setRecipient(addr)}
           />
 
-          <Field label="Note">
+          <Field label={SEND_NOTE_LABEL}>
             <input
               type="text"
               value={note}
-              onChange={(e) => setNote(e.target.value.slice(0, 80))}
-              placeholder="What's it for? (optional)"
-              maxLength={80}
+              onChange={(e) =>
+                setNote(e.target.value.slice(0, SEND_NOTE_MAX_LENGTH))
+              }
+              placeholder={SEND_NOTE_PLACEHOLDER}
+              maxLength={SEND_NOTE_MAX_LENGTH}
               className={
                 "w-full rounded-card border border-border-soft bg-canvas px-4 py-3 text-sm text-text-strong outline-none " +
                 "transition-[border-color,box-shadow] duration-base ease-out-soft " +
@@ -1000,7 +1007,6 @@ function ComposeStage({
               : "Fill in the amount and recipient above"
           }
           details={previewDetails}
-          warning={`Cross-chain send is in alpha. The on-chain Solana sig you give here authorises Ika's dWallet network to broadcast the actual ${chainLabel} tx. If anything is wrong with the EVM-side params, the broadcast fails and the wallet's Solana state stays untouched.`}
           collapsibleDetails
         />
       </div>

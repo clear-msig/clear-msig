@@ -79,6 +79,11 @@ import {
 import { chainByKind } from "@/lib/retail/chains";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { appConfig } from "@/lib/config";
+import {
+  SEND_NOTE_LABEL,
+  SEND_NOTE_MAX_LENGTH,
+  SEND_NOTE_PLACEHOLDER,
+} from "@/lib/sendFields";
 
 const ERC20_CHAIN_KIND = 4;
 const ETH_CHAIN_KIND = 1;
@@ -828,12 +833,15 @@ function ComposeStage({
           />
         </Field>
 
-        <Field label="Note (optional)">
+        <Field label={SEND_NOTE_LABEL}>
           <input
             type="text"
             value={note}
-            onChange={(e) => setNote(e.target.value.slice(0, 80))}
-            placeholder="What's it for?"
+            onChange={(e) =>
+              setNote(e.target.value.slice(0, SEND_NOTE_MAX_LENGTH))
+            }
+            placeholder={SEND_NOTE_PLACEHOLDER}
+            maxLength={SEND_NOTE_MAX_LENGTH}
             className={
               "w-full rounded-card border border-border-soft bg-surface-raised px-4 py-3 text-sm text-text-strong outline-none " +
               "transition-[border-color,box-shadow] duration-base ease-out-soft " +
@@ -851,7 +859,6 @@ function ComposeStage({
               : "Fill in the token, amount and recipient above"
           }
           details={previewDetails}
-          warning="Cross-chain send is in alpha. The Solana sig you give here authorises Ika's dWallet network to broadcast the actual ERC-20 transfer on Ethereum. If anything is wrong with the EVM-side params, the broadcast fails and the wallet's Solana state stays untouched."
         />
       </div>
 

@@ -32,6 +32,11 @@ import {
   baseChainSendStatus,
   type ChainSendStatus,
 } from "@/lib/chain/send-support";
+import {
+  BTC_CHAIN_KIND,
+  bitcoinSendReady,
+  selectBitcoinSendIntent,
+} from "@/lib/chain/btcIntentReadiness";
 
 export interface SendChainOption {
   chain: ChainMeta;
@@ -100,7 +105,9 @@ export function useSendChains(walletName: string) {
           ? chainAddress(binding)
           : null;
       const intent =
-        customIntents.find((it) => it.chainKind === chain.kind) ?? null;
+        chain.kind === BTC_CHAIN_KIND
+          ? selectBitcoinSendIntent(customIntents)
+          : customIntents.find((it) => it.chainKind === chain.kind) ?? null;
 
       let status: SendChainOption["status"];
       const support = baseChainSendStatus(chain.kind);
@@ -109,6 +116,8 @@ export function useSendChains(walletName: string) {
       } else if (!hasBinding) {
         status = "needs_binding";
       } else if (!intent) {
+        status = "needs_setup";
+      } else if (chain.kind === BTC_CHAIN_KIND && !bitcoinSendReady(intent)) {
         status = "needs_setup";
       } else {
         status = "ready";

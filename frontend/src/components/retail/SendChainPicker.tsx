@@ -4,8 +4,9 @@
 // pages showing every chain the wallet can act on. Solana is always
 // present. Ethereum shows up when bound; tapping it routes to
 // /app/wallet/[name]/send/eth (or to the per-chain setup page when
-// the EvmTransfer intent isn't there yet). Bitcoin is fully enabled.
-// Zcash is surfaced the same way as the other live chains.
+// the EvmTransfer intent isn't there yet). Bitcoin uses the same
+// readiness check as the BTC send page, so old 6-param intents do not
+// show as ready.
 //
 // activeKind dims the current chain so the user knows where they
 // are. Always renders - even on a Solana-only wallet - so the
