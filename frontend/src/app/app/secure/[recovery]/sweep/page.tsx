@@ -176,43 +176,43 @@ interface RunStageInfo {
 const WALLET_RUN_STAGES: RunStageInfo[] = [
   {
     id: "build",
-    label: "Building sweep",
-    detail: "Encoding the SOL transfer + structural intent digest.",
+    label: "Preparing transfer",
+    detail: "Checking the amount and destination.",
   },
   {
     id: "propose-approve-sign",
-    label: "Sign propose + approve",
-    detail: "Confirm the bundle in your wallet.",
+    label: "Approve transfer",
+    detail: "Confirm in your wallet.",
   },
   {
     id: "propose-approve-confirm",
-    label: "Submitting propose + approve",
-    detail: "Recording the proposal on Solana.",
+    label: "Saving approval",
+    detail: "Recording your approval.",
   },
   {
     id: "execute-sign",
-    label: "Sign execute",
-    detail: "Authorising the dWallet message approval CPI.",
+    label: "Approve release",
+    detail: "Confirm the final release.",
   },
   {
     id: "execute-confirm",
-    label: "Submitting execute",
-    detail: "Confirming the MessageApproval row on chain.",
+    label: "Releasing funds",
+    detail: "Confirming the release.",
   },
   {
     id: "presign-sign",
-    label: "Ika network sign",
-    detail: "Asking the Ika network to sign the sweep with the dWallet key.",
+    label: "Securing transfer",
+    detail: "Completing vault approval.",
   },
   {
     id: "broadcast",
-    label: "Broadcasting sweep",
-    detail: "Sending the dWallet-signed sweep to a Solana RPC.",
+    label: "Sending transfer",
+    detail: "Sending funds to the destination.",
   },
   {
     id: "broadcast-confirm",
     label: "Waiting for confirmation",
-    detail: "Solana confirms the funds have moved.",
+    detail: "Confirming the funds moved.",
   },
 ];
 
@@ -254,28 +254,28 @@ const PASSKEY_RUN_STAGES: RunStageInfo[] = [
   },
   {
     id: "execute-sign",
-    label: "Sign execute",
-    detail: "Authorising the dWallet message approval CPI.",
+    label: "Approve release",
+    detail: "Confirm the final release.",
   },
   {
     id: "execute-confirm",
-    label: "Submitting execute",
-    detail: "Confirming the MessageApproval row on chain.",
+    label: "Releasing funds",
+    detail: "Confirming the release.",
   },
   {
     id: "presign-sign",
-    label: "Ika network sign",
-    detail: "Asking the Ika network to sign the sweep with the dWallet key.",
+    label: "Securing transfer",
+    detail: "Completing vault approval.",
   },
   {
     id: "broadcast",
-    label: "Broadcasting sweep",
-    detail: "Sending the dWallet-signed sweep to a Solana RPC.",
+    label: "Sending transfer",
+    detail: "Sending funds to the destination.",
   },
   {
     id: "broadcast-confirm",
     label: "Waiting for confirmation",
-    detail: "Solana confirms the funds have moved.",
+    detail: "Confirming the funds moved.",
   },
 ];
 

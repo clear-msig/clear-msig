@@ -2509,13 +2509,13 @@ function StepLink({ href, label }: { href: string; label: string }) {
 function ownerLabel(owner: TradingLaunchStep["owner"]): string {
   switch (owner) {
     case "you":
-      return "Your action";
+      return "You";
     case "trader":
-      return "Trader action";
+      return "Trader";
     case "host":
-      return "ClearSig host";
+      return "ClearSig";
     case "clearsig":
-      return "ClearSig check";
+      return "ClearSig";
   }
 }
 

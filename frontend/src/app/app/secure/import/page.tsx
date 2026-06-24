@@ -103,33 +103,33 @@ interface RunStageInfo {
 const RUN_STAGES: RunStageInfo[] = [
   {
     id: "dkg",
-    label: "Generating dWallet",
-    detail: "Ika network mints a fresh keypair under quorum protection.",
+    label: "Preparing vault",
+    detail: "Creating the protected vault.",
   },
   {
     id: "wait-dwallet",
     label: "Waiting for confirmation",
-    detail: "Solana commits the new dWallet account.",
+    detail: "Confirming the vault on-chain.",
   },
   {
     id: "build",
-    label: "Bundling transaction",
-    detail: "Packing create + transfer-authority + funds-move into one tx.",
+    label: "Preparing transfer",
+    detail: "Moving the funds into the new vault.",
   },
   {
     id: "sign",
     label: "Sign in your wallet",
-    detail: "One signature authorises the whole atomic flow.",
+    detail: "Approve once to continue.",
   },
   {
     id: "submit",
-    label: "Submitting on Solana",
-    detail: "Recording the new vault + moving funds.",
+    label: "Finishing import",
+    detail: "Saving the vault and moving funds.",
   },
   {
     id: "confirm",
     label: "Finalising",
-    detail: "Funds are on their way under quorum protection.",
+    detail: "Funds are moving into the protected vault.",
   },
 ];
 

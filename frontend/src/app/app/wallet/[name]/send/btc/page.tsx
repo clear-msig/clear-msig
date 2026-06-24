@@ -607,7 +607,7 @@ function BitcoinSendPage() {
     if (!selectedUtxo) {
       const max = btcUtxos[0]?.value ?? 0;
       setAmountError(
-        `No single UTXO covers ${formatSats(sendAmountSats)} BTC + fee reserve (${formatSats(FEE_RESERVE_SATS)} BTC). Largest UTXO: ${formatSats(BigInt(max))} BTC.`,
+        `This amount is too high right now. Tap Use max or enter less than ${formatSats(BigInt(max))} BTC.`,
       );
       return;
     }
@@ -1053,12 +1053,7 @@ function ComposeForm(props: {
                 )}
                 {props.selectedUtxo && props.effectiveFeeSats !== null && (
                   <span className="block pt-1 text-[11px]">
-                    Using UTXO{" "}
-                    <span className="font-mono text-text-strong">
-                      {props.selectedUtxo.txid.slice(0, 8)}…:{props.selectedUtxo.vout}
-                    </span>
-                    {". "}
-                    fee {formatSats(props.effectiveFeeSats)} BTC
+                    Fee {formatSats(props.effectiveFeeSats)} BTC
                     {props.changeSats !== null && props.changeSats > 0n ? (
                       <> · change {formatSats(props.changeSats)} BTC</>
                     ) : null}
@@ -1069,8 +1064,8 @@ function ComposeForm(props: {
                       side="end"
                     >
                       <span className="block">
-                        Bitcoin spends one UTXO and returns the remainder to
-                        your wallet as change.
+                        Bitcoin sends the amount, pays the network fee, and
+                        returns the remainder to this wallet.
                       </span>
                     </InfoTip>
                   </span>
@@ -1403,7 +1398,7 @@ function assertPreparedBitcoinSetupIsCurrent(paramsDataHex: string) {
   }
 
   throw new Error(
-    `Bitcoin sending needs the latest ClearSig server. Redeploy Render, then tap Turn on Bitcoin sending again. (${preparedParams} params)`,
+    `Bitcoin setup needs a server refresh. Update the ClearSig server, then tap Turn on Bitcoin sending again. (${preparedParams} params)`,
   );
 }
 
@@ -1507,21 +1502,21 @@ function shortBtcAddress(addr: string): string {
 
 function btcBalanceStatusLabel(
   error: Error | null | undefined,
-  network: BitcoinNetwork,
+  _network: BitcoinNetwork,
 ): string {
-  if (!error) return `No balance source on ${network}`;
+  if (!error) return "Balance unavailable";
   const message = error.message.toLowerCase();
-  if (message.includes("404")) return `No UTXOs on ${network}`;
+  if (message.includes("404")) return "No Bitcoin found";
   if (message.includes("failed to fetch") || message.includes("network")) {
-    return `${network} RPC unavailable`;
+    return "Balance unavailable";
   }
   if (message.includes("429") || message.includes("rate")) {
-    return `${network} indexer rate-limited`;
+    return "Balance temporarily unavailable";
   }
   if (message.includes("500") || message.includes("502") || message.includes("503")) {
-    return `${network} indexer unavailable`;
+    return "Balance temporarily unavailable";
   }
-  return `Check ${network} balance`;
+  return "Check balance";
 }
 
 async function waitForProposalStatus(

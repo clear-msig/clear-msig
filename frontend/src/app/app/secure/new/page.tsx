@@ -773,11 +773,11 @@ function CreatingStage({
     },
     {
       id: "dkg",
-      label: "Running DKG",
+      label: "Preparing protection",
     },
     {
       id: "wait-dwallet",
-      label: "Activating dWallet",
+      label: "Activating vault",
     },
     {
       id: "build",
@@ -789,7 +789,7 @@ function CreatingStage({
     },
     {
       id: "submit",
-      label: "Submitting on Solana",
+      label: "Finishing setup",
     },
     {
       id: "confirm",
