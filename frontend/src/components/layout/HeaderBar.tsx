@@ -28,10 +28,10 @@ import {
   ExternalLink,
   LogOut,
   Palette,
-  PlugZap,
   RefreshCw,
   ScanLine,
   ShieldCheck,
+  Usb,
   UserCircle2,
 } from "lucide-react";
 import { useConnection, useWallet } from "@/lib/wallet";
@@ -41,7 +41,6 @@ import { BrandMark } from "@/components/retail/BrandMark";
 import { TestnetFaucetLinks } from "@/components/layout/TestnetFaucetLinks";
 import { useToast } from "@/components/ui/Toast";
 import { addressUrl } from "@/lib/explorer";
-import { avatarGradient } from "@/lib/retail/avatar";
 import { formatBalance } from "@/lib/retail/format";
 import { getSectionLabel, isSendRoute } from "@/lib/retail/sectionLabel";
 
@@ -187,7 +186,6 @@ export function HeaderBar() {
   };
 
   const shortAddress = address ? `${address.slice(0, 4)}…${address.slice(-4)}` : "";
-  const grad = address ? avatarGradient(address) : null;
   const formattedBalance =
     typeof balanceQuery.data === "number" ? formatBalance(balanceQuery.data) : null;
   const balanceLabel = balanceQuery.isLoading
@@ -311,7 +309,7 @@ export function HeaderBar() {
                   <ScanLine size={18} />
                 </motion.button>
               )}
-              {showWallet && address && grad && (
+              {showWallet && address && (
                 <motion.div
                   key="wallet"
                   ref={walletMenuRef}
@@ -327,22 +325,9 @@ export function HeaderBar() {
                     aria-label={`Connected wallet ${shortAddress}`}
                     aria-haspopup="menu"
                     aria-expanded={walletMenuOpen}
-                    className={clsx(MOBILE_HEADER_BTN, "overflow-hidden p-0")}
+                    className={MOBILE_HEADER_BTN}
                   >
-                    <span
-                      aria-hidden="true"
-                      className={clsx(
-                        "flex h-full w-full items-center justify-center rounded-full bg-gradient-to-br",
-                        grad.from,
-                        grad.to,
-                      )}
-                    >
-                      <PlugZap
-                        className="h-4 w-4 text-white/95 drop-shadow-[0_1px_4px_rgba(0,0,0,0.28)]"
-                        strokeWidth={2.2}
-                        aria-hidden="true"
-                      />
-                    </span>
+                    <Usb className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
                   </button>
 
                   {walletMenuOpen && (
@@ -363,17 +348,9 @@ export function HeaderBar() {
                         <div className="flex items-center gap-2">
                           <span
                             aria-hidden="true"
-                            className={clsx(
-                              "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br shadow-sm",
-                              grad.from,
-                              grad.to,
-                            )}
+                            className="flex h-8 w-8 shrink-0 items-center justify-center text-accent"
                           >
-                            <PlugZap
-                              className="h-4 w-4 text-white/95 drop-shadow-[0_1px_4px_rgba(0,0,0,0.28)]"
-                              strokeWidth={2.2}
-                              aria-hidden="true"
-                            />
+                            <Usb className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
                           </span>
                           <div className="min-w-0">
                             <p className="text-xs font-semibold text-text-strong">
