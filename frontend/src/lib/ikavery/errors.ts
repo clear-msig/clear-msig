@@ -20,7 +20,7 @@ export function secureActionErrorCopy(
     return {
       title: "Passkey unavailable",
       details:
-        "Multi-member Secure vaults use passkeys. Open ClearSig in Chrome, Safari, or Edge in a normal browser tab, or build a Just me vault for now.",
+        "Use Chrome, Safari, or Edge in a normal browser tab, then try again.",
     };
   }
 
@@ -37,5 +37,8 @@ export function secureActionErrorCopy(
     };
   }
 
-  return { title: fallbackTitle, details };
+  return {
+    title: fallbackTitle,
+    details: "Nothing moved. Try again, or switch to a Solana wallet and retry.",
+  };
 }

@@ -25,7 +25,9 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchOnchainMemberships } from "@/lib/memberships/client";
 import { productWorkspaceHref } from "@/lib/productSurfaces";
 import {
+  clearPendingProductSurface,
   productSurfaceFromPath,
+  readPendingProductSurface,
   readSelectedProductSurface,
   saveSelectedProductSurface,
 } from "@/lib/productSession";
@@ -88,6 +90,7 @@ export function useWalletGate() {
           const nextSurface = productSurfaceFromPath(explicitNext);
           if (nextSurface) {
             saveSelectedProductSurface(nextSurface, address);
+            clearPendingProductSurface();
           }
           router.replace(explicitNext);
           return;
@@ -96,13 +99,19 @@ export function useWalletGate() {
         // to /welcome before discovering existing wallets.
         if (memberships.isLoading || memberships.isFetching) return;
         const hasWallets = (memberships.data?.length ?? 0) > 0;
+        const pendingSurface = readPendingProductSurface();
+        if (pendingSurface) {
+          saveSelectedProductSurface(pendingSurface, address);
+          clearPendingProductSurface();
+        }
         if (hasWallets) {
           // Already onboarded - honor an explicit product/deep-link
           // destination, but do not let stale generic /welcome links
           // push returning users back through a duplicate create flow.
-          const storedSurface = readSelectedProductSurface(address);
-          const fallback = storedSurface
-            ? productWorkspaceHref(storedSurface)
+          const fallbackSurface =
+            pendingSurface ?? readSelectedProductSurface(address);
+          const fallback = fallbackSurface
+            ? productWorkspaceHref(fallbackSurface)
             : "/app/wallet";
           router.replace(fallback);
         } else {
@@ -113,12 +122,23 @@ export function useWalletGate() {
           // ("javascript:..."), and reject anything containing ":".
           // Without these gates an attacker crafts /connect?next=//evil
           // and gets the user dropped on evil.com after sign-in.
-          router.replace("/choose");
+          router.replace(
+            pendingSurface ? productWorkspaceHref(pendingSurface) : "/choose",
+          );
         }
         return;
       }
       if (pathname === "/") {
-        router.replace("/app/wallet");
+        const pendingSurface = readPendingProductSurface();
+        if (pendingSurface) {
+          saveSelectedProductSurface(pendingSurface, address);
+          clearPendingProductSurface();
+        }
+        const fallbackSurface =
+          pendingSurface ?? readSelectedProductSurface(address);
+        router.replace(
+          fallbackSurface ? productWorkspaceHref(fallbackSurface) : "/app/wallet",
+        );
         return;
       }
       return;

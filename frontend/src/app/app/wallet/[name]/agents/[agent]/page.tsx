@@ -818,7 +818,7 @@ export default function AgentDetailPage() {
       ) : null}
 
       <section className="grid gap-3 lg:grid-cols-[1fr_1.2fr]">
-        <Panel title="Agent Profile" Icon={Bot}>
+        <Panel title="Trader" Icon={Bot}>
           {editingAgent ? (
             <div className="grid gap-3">
               <label className="grid gap-1.5">
@@ -840,7 +840,7 @@ export default function AgentDetailPage() {
               </label>
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-1.5">
-                  <span className="text-xs font-medium text-text-soft">Endpoint</span>
+                  <span className="text-xs font-medium text-text-soft">Connection URL</span>
                   <input
                     value={agentEndpointDraft}
                     onChange={(event) => setAgentEndpointDraft(event.target.value)}
@@ -861,8 +861,15 @@ export default function AgentDetailPage() {
             <div className="grid gap-3 text-sm">
               <InfoRow label="Type" value={agentKindLabel(agent.kind)} />
               <InfoRow label="Status" value={agent.status} />
-              <InfoRow label="Public key" value={agent.identityPubkey || "Not set"} />
-              <InfoRow label="Endpoint" value={agent.endpoint || "Not set"} />
+              <details className="rounded-soft border border-border-soft bg-canvas px-3 py-2">
+                <summary className="cursor-pointer list-none text-xs font-medium text-text-soft transition-colors hover:text-text-strong">
+                  Technical details
+                </summary>
+                <div className="mt-2 grid gap-2">
+                  <InfoRow label="Public key" value={agent.identityPubkey || "Not set"} />
+                  <InfoRow label="Connection URL" value={agent.endpoint || "Not set"} />
+                </div>
+              </details>
               <InfoRow label="Created" value={new Date(agent.createdAt).toLocaleString()} />
               {agent.description ? (
                 <div>
@@ -1160,7 +1167,7 @@ function ReadinessPanel({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-sm font-semibold text-text-strong">
-                Trading Readiness
+                Ready to trade
               </h2>
               <Badge tone={readinessBadgeTone(readiness.status)}>
                 {readiness.score}% Â· {readiness.headline}
@@ -1199,7 +1206,7 @@ function ReadinessPanel({
             </div>
             <details className="group mt-1">
               <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-[11px] font-medium text-text-soft transition-colors hover:text-accent">
-                Info
+                Why
                 <ArrowRight
                   className="h-3 w-3 transition-transform group-open:rotate-90"
                   aria-hidden="true"
@@ -1242,7 +1249,7 @@ function AllowanceDecisionPanel({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-sm font-semibold text-text-strong">
-                Budget recommendation
+                Suggested budget
               </h2>
               <Badge tone={allocationBadgeTone(recommendation.action)}>
                 {allocationActionLabel(recommendation.action)}
@@ -1258,7 +1265,7 @@ function AllowanceDecisionPanel({
             {activeSession ? "Start practice" : "Set budget"}
           </LinkButton>
           <LinkButton href={`/app/wallet/${walletEncoded}/agents/library`} Icon={Trophy}>
-            Agent Library
+            Explore traders
           </LinkButton>
         </div>
       </div>

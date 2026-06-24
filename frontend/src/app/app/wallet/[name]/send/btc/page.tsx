@@ -414,11 +414,11 @@ function BitcoinSendPage() {
           proposal: result.proposal ?? null,
           reason,
         });
-        toast.success("Bitcoin setup requested", {
+        toast.success("Bitcoin is turning on", {
           details:
             reason === "approval"
-              ? "It still needs the remaining approval before BTC sends can return change."
-              : "The request landed. Refresh in a moment if Bitcoin still asks to turn on sending.",
+              ? "One more approval is needed before BTC sending is ready."
+              : "Almost done. Reopen this page in a moment if Bitcoin still asks you to turn it on.",
         });
         return;
       }
@@ -607,7 +607,7 @@ function BitcoinSendPage() {
     if (!selectedUtxo) {
       const max = btcUtxos[0]?.value ?? 0;
       setAmountError(
-        `No single UTXO covers ${formatSats(sendAmountSats)} BTC + fee reserve (${formatSats(FEE_RESERVE_SATS)} BTC). Largest UTXO: ${formatSats(BigInt(max))} BTC.`,
+        `This amount is too high right now. Tap Use max or enter less than ${formatSats(BigInt(max))} BTC.`,
       );
       return;
     }
@@ -1053,12 +1053,7 @@ function ComposeForm(props: {
                 )}
                 {props.selectedUtxo && props.effectiveFeeSats !== null && (
                   <span className="block pt-1 text-[11px]">
-                    Using UTXO{" "}
-                    <span className="font-mono text-text-strong">
-                      {props.selectedUtxo.txid.slice(0, 8)}…:{props.selectedUtxo.vout}
-                    </span>
-                    {". "}
-                    fee {formatSats(props.effectiveFeeSats)} BTC
+                    Fee {formatSats(props.effectiveFeeSats)} BTC
                     {props.changeSats !== null && props.changeSats > 0n ? (
                       <> · change {formatSats(props.changeSats)} BTC</>
                     ) : null}
@@ -1069,8 +1064,8 @@ function ComposeForm(props: {
                       side="end"
                     >
                       <span className="block">
-                        Bitcoin spends one UTXO and returns the remainder to
-                        your wallet as change.
+                        Bitcoin sends the amount, pays the network fee, and
+                        returns the remainder to this wallet.
                       </span>
                     </InfoTip>
                   </span>
@@ -1189,14 +1184,14 @@ function BitcoinSetupPendingCard({
 }) {
   const body =
     reason === "approval"
-      ? "Waiting for approval. When it is approved, BTC sends will return change automatically."
-      : "The setup request landed. If Bitcoin still asks to turn on sending, refresh in a moment.";
+      ? "Waiting for approval. After that, Bitcoin sends will work normally."
+      : "Almost done. If this still appears after a minute, reopen this page.";
   return (
     <aside className="rounded-card border border-accent/35 bg-accent/[0.07] p-4 text-sm text-text-soft shadow-card-rest">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="font-semibold text-text-strong">
-            Bitcoin setup requested
+            Bitcoin is turning on
           </p>
           <p className="mt-1">{body}</p>
           {proposal ? (
@@ -1398,12 +1393,12 @@ function assertPreparedBitcoinSetupIsCurrent(paramsDataHex: string) {
     if (intent.chainKind === BTC_CHAIN_KIND && bitcoinSendReady(intent)) return;
   } catch (err) {
     throw new Error(
-      `Bitcoin setup could not read the prepared intent from the backend. ${err instanceof Error ? err.message : ""}`.trim(),
+      `Bitcoin sending could not be prepared right now. ${err instanceof Error ? err.message : ""}`.trim(),
     );
   }
 
   throw new Error(
-    `ClearSig backend prepared the old Bitcoin send model (${preparedParams} params). Deploy the latest backend, then tap Turn on Bitcoin sending again.`,
+    `Bitcoin setup needs a server refresh. Update the ClearSig server, then tap Turn on Bitcoin sending again. (${preparedParams} params)`,
   );
 }
 
@@ -1459,7 +1454,7 @@ function SendErrorBanner({
           onToggle={(e) => setExpanded((e.target as HTMLDetailsElement).open)}
         >
           <summary className="cursor-pointer text-text-soft hover:text-text-strong">
-            Show technical details
+            Details
           </summary>
           <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-black/30 p-3 font-mono text-[11px] leading-relaxed text-text-soft">
             {error.stderr.trim()}
@@ -1468,7 +1463,7 @@ function SendErrorBanner({
       )}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button variant="ghost" size="sm" onClick={onReset}>
-          Start fresh attempt
+          Try again
         </Button>
         {error.stderr && (
           <Button
@@ -1507,21 +1502,21 @@ function shortBtcAddress(addr: string): string {
 
 function btcBalanceStatusLabel(
   error: Error | null | undefined,
-  network: BitcoinNetwork,
+  _network: BitcoinNetwork,
 ): string {
-  if (!error) return `No balance source on ${network}`;
+  if (!error) return "Balance unavailable";
   const message = error.message.toLowerCase();
-  if (message.includes("404")) return `No UTXOs on ${network}`;
+  if (message.includes("404")) return "No Bitcoin found";
   if (message.includes("failed to fetch") || message.includes("network")) {
-    return `${network} RPC unavailable`;
+    return "Balance unavailable";
   }
   if (message.includes("429") || message.includes("rate")) {
-    return `${network} indexer rate-limited`;
+    return "Balance temporarily unavailable";
   }
   if (message.includes("500") || message.includes("502") || message.includes("503")) {
-    return `${network} indexer unavailable`;
+    return "Balance temporarily unavailable";
   }
-  return `Check ${network} balance`;
+  return "Check balance";
 }
 
 async function waitForProposalStatus(

@@ -5,6 +5,7 @@ import {
 
 const GLOBAL_KEY = "clear-msig:selected-product:v1";
 const ACCOUNT_KEY_PREFIX = "clear-msig:selected-product:v1:";
+const PENDING_KEY = "clear-msig:pending-product:v1";
 
 export function productSurfaceFromPath(
   path: string | null | undefined,
@@ -38,6 +39,30 @@ export function saveSelectedProductSurface(
   writeSurface(GLOBAL_KEY, surface);
   const account = normalizeAddress(address);
   if (account) writeSurface(`${ACCOUNT_KEY_PREFIX}${account}`, surface);
+}
+
+export function readPendingProductSurface(): ProductSurfaceId | null {
+  if (typeof window === "undefined") return null;
+  return readSurface(PENDING_KEY);
+}
+
+export function savePendingProductSurface(surface: ProductSurfaceId): void {
+  if (typeof window === "undefined") return;
+  writeSurface(PENDING_KEY, surface);
+}
+
+export function clearPendingProductSurface(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(PENDING_KEY);
+  } catch {
+    // Non-critical preference; login still works without storage.
+  }
+}
+
+export function rememberProductSurfaceChoice(surface: ProductSurfaceId): void {
+  saveSelectedProductSurface(surface);
+  savePendingProductSurface(surface);
 }
 
 function readSurface(key: string): ProductSurfaceId | null {

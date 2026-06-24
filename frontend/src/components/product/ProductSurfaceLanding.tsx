@@ -22,6 +22,7 @@ import {
   type ProductSurface,
   type ProductSurfaceId,
 } from "@/lib/productSurfaces";
+import { rememberProductSurfaceChoice } from "@/lib/productSession";
 import { LandingAtmospherics, LandingNav } from "@/components/landing/LandingChrome";
 import { BrandMark } from "@/components/retail/BrandMark";
 
@@ -107,6 +108,7 @@ export function ProductSurfaceLanding({ id }: { id: ProductSurfaceId }) {
             <Link
               href={surface.ctaHref}
               aria-disabled={surface.status !== "live"}
+              onClick={() => rememberProductSurfaceChoice(surface.id)}
               className={clsx(
                 "inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-6 text-sm font-bold",
                 surface.status === "live"
@@ -203,6 +205,7 @@ function ProductIconLink({ surface }: {
   return (
     <Link
       href={surface.ctaHref}
+      onClick={() => rememberProductSurfaceChoice(surface.id)}
       className={clsx(
         "product-choice-card group flex min-h-[21rem] flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.08] bg-white/[0.035] p-3 text-left shadow-[0_24px_90px_rgba(0,0,0,0.22)]",
         "transition-[transform,border-color,background-color] duration-200 hover:-translate-y-1 hover:border-[#ccff00]/35 hover:bg-white/[0.055]",

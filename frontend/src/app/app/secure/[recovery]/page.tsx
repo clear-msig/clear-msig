@@ -206,7 +206,7 @@ function SecureRecoveryPage() {
           here. */}
       <header className="px-gutter">
         <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-          Vault · powered by Ika
+          Secure vault
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] tracking-[-0.02em] text-text-strong">
           Vault {recoveryShort}
@@ -252,7 +252,7 @@ function SecureRecoveryPage() {
           {/* Balance card + actions. The one number a user will check
               on every visit ("do I have anything to sweep?") plus the
               two actions they're going to take from this page ,
-              Receive (fund the dWallet) and Sweep (move funds out).
+              Receive and Sweep.
               The receive QR is collapsed by default so the page
               doesn't feel front-loaded. */}
           {dwalletPubkey && (
@@ -427,33 +427,34 @@ function SecureRecoveryPage() {
             )}
           </section>
 
-          {/* Pre-alpha disclosure - lighter treatment, neutral
-              surface with the warning icon carrying the tone. */}
+          {/* Testnet details stay available without interrupting the vault. */}
           <motion.aside
             {...fadeIn(0.2)}
-            className="flex items-start gap-3 rounded-card border border-border-soft bg-surface-raised/60 p-4 text-xs text-text-soft sm:p-5"
+            className="rounded-card border border-border-soft bg-surface-raised/60 p-4 text-xs text-text-soft sm:p-5"
           >
-            <ShieldAlert
-              className="mt-0.5 h-4 w-4 shrink-0 text-warning"
-              strokeWidth={2}
-              aria-hidden="true"
-            />
-            <p className="leading-relaxed">
-              <span className="font-medium text-text-strong">Pre-alpha.</span>{" "}
-              The dWallet was minted by Ika&rsquo;s pre-alpha network and
-              lives on-chain. Device enrollment, sweep, and threshold
-              updates are available here; the stack is still devnet-only
-              and still linked to the upstream demo at{" "}
-              <a
-                href={IKAVERY_LIVE}
-                target="_blank"
-                rel="noreferrer"
-                className="text-accent hover:text-accent-hover"
-              >
-                solana.ikavery.com
-              </a>
-              .
-            </p>
+            <details className="group">
+              <summary className="flex cursor-pointer list-none items-center gap-2 font-medium text-text-soft transition-colors hover:text-text-strong">
+                <ShieldAlert
+                  className="h-4 w-4 shrink-0 text-warning"
+                  strokeWidth={2}
+                  aria-hidden="true"
+                />
+                Testnet details
+              </summary>
+              <p className="mt-2 pl-6 leading-relaxed">
+                This vault is on devnet. Use test funds only. Advanced
+                technical details remain available at{" "}
+                <a
+                  href={IKAVERY_LIVE}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-accent hover:text-accent-hover"
+                >
+                  solana.ikavery.com
+                </a>
+                .
+              </p>
+            </details>
           </motion.aside>
         </>
       )}
@@ -501,7 +502,7 @@ function BalancePanel({
       <div className="flex flex-wrap items-end justify-between gap-3 p-5">
         <div className="flex min-w-0 flex-col gap-0.5">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            dWallet balance
+            Vault balance
           </p>
           <p className="font-mono text-[11px] text-text-soft">
             {`${address.slice(0, 4)}…${address.slice(-4)}`}

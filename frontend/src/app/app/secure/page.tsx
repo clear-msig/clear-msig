@@ -47,8 +47,6 @@ import { loadAttestation } from "@/lib/ikavery/clearmsig-attestations";
 import { listProposals } from "@/lib/ikavery/proposals";
 import { STATUS_ACTIVE, STATUS_APPROVED } from "@/lib/ikavery/constants";
 
-const IKAVERY_GITHUB = "https://github.com/Iamknownasfesal/ikavery";
-
 export default function SecurePage() {
   const reduce = useReducedMotion();
   const { connection } = useConnection();
@@ -168,28 +166,25 @@ export default function SecurePage() {
         </>
       )}
 
-      {/* Pre-alpha disclosure - rendered on every state. */}
+      {/* Testnet details stay available without interrupting the main flow. */}
       <motion.aside
         {...fadeIn(0.2)}
-        className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised/60 p-3 text-xs text-text-soft"
+        className="rounded-card border border-border-soft bg-surface-raised/60 p-3 text-xs text-text-soft"
       >
-        <ShieldAlert
-          className="h-4 w-4 shrink-0 text-warning"
-          strokeWidth={2}
-          aria-hidden="true"
-        />
-        <p>
-          <span className="font-medium text-text-strong">Pre-alpha · Devnet only.</span>
-          {" · "}
-          <a
-            href={IKAVERY_GITHUB}
-            target="_blank"
-            rel="noreferrer"
-            className="text-accent hover:text-accent-hover"
-          >
-            ikavery
-          </a>
-        </p>
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center gap-2 font-medium text-text-soft transition-colors hover:text-text-strong">
+            <ShieldAlert
+              className="h-4 w-4 shrink-0 text-warning"
+              strokeWidth={2}
+              aria-hidden="true"
+            />
+            Testnet details
+          </summary>
+          <p className="mt-2 pl-6 leading-relaxed">
+            Secure is running on devnet while the vault network matures.
+            Use test funds only.
+          </p>
+        </details>
       </motion.aside>
     </motion.div>
   );
@@ -229,7 +224,7 @@ function VaultsHero({ vaults, loading, onRefresh, fadeIn }: VaultsHeroProps) {
           </h1>
           <p className="mt-1 text-[13px] leading-relaxed text-text-soft sm:text-sm">
             {count}{" "}
-            {count === 1 ? "vault" : "vaults"} protected by quorum recovery.
+            {count === 1 ? "vault" : "vaults"} protected.
           </p>
         </div>
 
