@@ -24,7 +24,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { proposerDisplayName } from "@/lib/retail/proposerName";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ArrowRight, Banknote, Bell, Bot, ChevronDown, Coins, Download, Eye, EyeOff, Heart, Network, PauseCircle, Repeat2, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
+import { Activity, ArrowRight, Banknote, Bell, Bot, ChevronDown, Coins, Download, Eye, EyeOff, Heart, Network, PauseCircle, ReceiptText, Repeat2, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
 import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -101,6 +101,11 @@ import {
   saveSpendingCategories,
   type SpendingCategory,
 } from "@/lib/retail/spendingCategories";
+import {
+  listPersonalReceipts,
+  recordPersonalReceipt,
+  type PersonalReceipt,
+} from "@/lib/retail/personalReceipts";
 import { useDisplayCurrency } from "@/lib/hooks/useDisplayCurrency";
 import { UsdHint } from "@/components/retail/UsdHint";
 import { InfoTip } from "@/components/retail/InfoTip";
@@ -2630,17 +2635,41 @@ function PersonalSafetyPanel({ walletName }: { walletName: string }) {
   const [categories, setCategories] = useState<SpendingCategory[]>(() =>
     getSpendingCategories(walletName),
   );
+  const [receipts, setReceipts] = useState<PersonalReceipt[]>(() =>
+    listPersonalReceipts(walletName),
+  );
 
   useEffect(() => {
-    setPause(getEmergencyPause(walletName));
-    setCategories(getSpendingCategories(walletName));
+    const refresh = () => {
+      setPause(getEmergencyPause(walletName));
+      setCategories(getSpendingCategories(walletName));
+      setReceipts(listPersonalReceipts(walletName));
+    };
+    refresh();
+    window.addEventListener("clear:personal-receipts-changed", refresh);
+    window.addEventListener("clear:emergency-pause-changed", refresh);
+    window.addEventListener("clear:spending-categories-changed", refresh);
+    return () => {
+      window.removeEventListener("clear:personal-receipts-changed", refresh);
+      window.removeEventListener("clear:emergency-pause-changed", refresh);
+      window.removeEventListener("clear:spending-categories-changed", refresh);
+    };
   }, [walletName]);
 
   const togglePause = () => {
-    setPause(saveEmergencyPause(walletName, !pause.paused));
+    const next = saveEmergencyPause(walletName, !pause.paused);
+    setPause(next);
+    const paused = next.paused;
+    recordPersonalReceipt(walletName, {
+      title: paused ? "You paused sends." : "You resumed sends.",
+      body: paused
+        ? "New sends are blocked until you resume from Protection."
+        : "This wallet can send again under its approval rules.",
+    });
   };
 
   const toggleCategory = (id: SpendingCategory["id"]) => {
+    const changed = categories.find((category) => category.id === id);
     const next = categories.map((category) =>
       category.id === id
         ? { ...category, enabled: !category.enabled }
@@ -2648,7 +2677,17 @@ function PersonalSafetyPanel({ walletName }: { walletName: string }) {
     );
     setCategories(next);
     saveSpendingCategories(walletName, next);
+    const updated = next.find((category) => category.id === id);
+    if (changed && updated) {
+      recordPersonalReceipt(walletName, {
+        title: `${updated.label} ${updated.enabled ? "added" : "hidden"}.`,
+        body: updated.enabled
+          ? `${updated.label} is now visible as a spending category.`
+          : `${updated.label} is hidden from the category shortcuts.`,
+      });
+    }
   };
+  const latestReceipt = receipts[0] ?? null;
 
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
@@ -2741,6 +2780,23 @@ function PersonalSafetyPanel({ walletName }: { walletName: string }) {
               {category.label}
             </button>
           ))}
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-soft border border-border-soft bg-canvas px-3 py-2.5">
+        <div className="flex items-start gap-2.5">
+          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+            <ReceiptText className="h-3.5 w-3.5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-text-strong">
+              {latestReceipt?.title ?? "Receipts will appear here."}
+            </p>
+            <p className="mt-0.5 text-xs leading-snug text-text-soft">
+              {latestReceipt?.body ??
+                "Every protection change gets a readable receipt."}
+            </p>
+          </div>
         </div>
       </div>
     </section>

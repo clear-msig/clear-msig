@@ -34,6 +34,11 @@ import {
   saveEmailPrefs,
 } from "@/lib/security/emailNotifications";
 import {
+  loadApprovalReminderPrefs,
+  saveApprovalReminderPrefs,
+  shouldSendApprovalReminder,
+} from "@/lib/security/approvalReminders";
+import {
   fireWebhook,
   loadWebhookPrefs,
   shouldFireWebhook,
@@ -268,6 +273,58 @@ export function useActionNotifications(): UseActionNotificationsResult {
       }
     }
     setLastFiredAt(Date.now());
+  }, [rows, userAddress]);
+
+  useEffect(() => {
+    if (!userAddress || rows.length === 0) return;
+    const interval = window.setInterval(() => {
+      const prefs = loadApprovalReminderPrefs();
+      if (!shouldSendApprovalReminder(prefs)) return;
+      const first = rows[0];
+      if (!first) return;
+      const walletName = toDisplayName(first.walletName) || first.walletName;
+      const title =
+        rows.length === 1
+          ? `${walletName} still needs your approval`
+          : `${rows.length} approvals are waiting`;
+      const body =
+        rows.length === 1
+          ? friendlyIntentLabel(first.intentTemplate)
+          : "Open ClearSig to review what needs you.";
+      recordNotificationFeed(userAddress, {
+        kind: "pending_approval",
+        walletName: first.walletName,
+        title,
+        body,
+        href: `/app/proposals/${encodeURIComponent(first.proposalPda)}`,
+      });
+      if ("Notification" in window && window.Notification.permission === "granted") {
+        try {
+          const n = new window.Notification(title, {
+            body,
+            icon: "/icon",
+            tag: `clear-reminder-${first.proposalPda}`,
+          });
+          n.onclick = () => {
+            try {
+              window.focus();
+              window.location.assign(
+                `/app/proposals/${encodeURIComponent(first.proposalPda)}`,
+              );
+            } finally {
+              n.close();
+            }
+          };
+        } catch {
+          /* browser blocked the reminder */
+        }
+      }
+      saveApprovalReminderPrefs({
+        ...prefs,
+        lastReminderAt: Date.now(),
+      });
+    }, 60_000);
+    return () => window.clearInterval(interval);
   }, [rows, userAddress]);
 
   useEffect(() => {

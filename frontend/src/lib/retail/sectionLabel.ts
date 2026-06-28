@@ -9,7 +9,7 @@ const SUB_LABELS: Record<string, string> = {
   send: "Send",
   members: "People",
   chains: "Networks",
-  setup: "Finish setup",
+  setup: "Turn on sending",
   policies: "Rules",
   activity: "Activity",
   budget: "Budget",

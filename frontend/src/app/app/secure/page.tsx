@@ -116,11 +116,11 @@ export default function SecurePage() {
             >
               <span className="inline-flex items-center rounded-full border border-border-soft bg-surface-raised px-3 py-1.5">
                 <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-text-soft">
-                  Encrypted recovery
+                  Recovery
                 </span>
               </span>
               <h1 className="mt-4 font-display text-display-md leading-[1.02] tracking-[-0.03em] text-text-strong text-balance sm:text-display-lg">
-                Secure vaults
+                Recovery vaults
               </h1>
               <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-text-soft lg:mx-0">
                 Recover Solana capital without exposing the key.
@@ -166,7 +166,7 @@ export default function SecurePage() {
         </>
       )}
 
-      {/* Testnet details stay available without interrupting the main flow. */}
+      {/* Preview details stay available without interrupting the main flow. */}
       <motion.aside
         {...fadeIn(0.2)}
         className="rounded-card border border-border-soft bg-surface-raised/60 p-3 text-xs text-text-soft"
@@ -178,11 +178,11 @@ export default function SecurePage() {
               strokeWidth={2}
               aria-hidden="true"
             />
-            Testnet details
+            Preview details
           </summary>
           <p className="mt-2 pl-6 leading-relaxed">
-            Secure is running on devnet while the vault network matures.
-            Use test funds only.
+            Secure is in preview. Use test funds while this protection flow
+            finishes hardening.
           </p>
         </details>
       </motion.aside>
@@ -216,11 +216,11 @@ function VaultsHero({ vaults, loading, onRefresh, fadeIn }: VaultsHeroProps) {
         <div className="min-w-0">
           <span className="inline-flex items-center rounded-full border border-border-soft bg-surface-raised px-3 py-1.5">
             <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-text-soft">
-              Encrypted recovery
+              Recovery
             </span>
           </span>
           <h1 className="mt-3 font-display text-display-sm leading-[1.02] tracking-[-0.03em] text-text-strong sm:text-display-md">
-            Secure vaults
+            Recovery vaults
           </h1>
           <p className="mt-1 text-[13px] leading-relaxed text-text-soft sm:text-sm">
             {count}{" "}
@@ -450,7 +450,7 @@ function VaultMockup() {
                 Treasury vault
               </p>
               <p className="mt-0.5 text-[12px] text-text-soft">
-                Solana key under quorum
+                Key protected by trusted devices
               </p>
             </div>
           </div>
@@ -691,9 +691,17 @@ function ErrorCallout({
   return (
     <section className="rounded-card border border-warning/40 bg-warning/[0.06] p-4 text-sm text-text-soft sm:p-5">
       <p className="font-medium text-text-strong">
-        Couldn&rsquo;t read vaults from devnet.
+        Couldn&rsquo;t load recovery vaults.
       </p>
-      <p className="mt-1 leading-snug">{message}</p>
+      <p className="mt-1 leading-snug">
+        Check your connection, then try again.
+      </p>
+      <details className="mt-2">
+        <summary className="cursor-pointer text-xs text-text-soft hover:text-text-strong">
+          Details
+        </summary>
+        <p className="mt-1 break-words text-xs text-text-soft">{message}</p>
+      </details>
       <button
         type="button"
         onClick={onRetry}

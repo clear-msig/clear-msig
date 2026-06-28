@@ -20,6 +20,7 @@ import {
   Bell,
   BellOff,
   Check,
+  Clock3,
   Coins,
   Download,
   ExternalLink,
@@ -72,6 +73,11 @@ import {
   saveEmailPrefs,
   type EmailNotificationPrefs,
 } from "@/lib/security/emailNotifications";
+import {
+  loadApprovalReminderPrefs,
+  saveApprovalReminderPrefs,
+  type ApprovalReminderPrefs,
+} from "@/lib/security/approvalReminders";
 import {
   ALL_EVENT_TYPES,
   emptyWebhookPrefs,
@@ -155,8 +161,7 @@ export default function SettingsPage() {
             Privacy
           </p>
           <p className="mt-0.5 text-xs text-text-soft">
-            How your wallet&rsquo;s rules stay private. Encryption-ready,
-            switches on when Encrypt&rsquo;s network leaves pre-alpha.
+            How ClearSig keeps personal wallet details quiet and controlled.
           </p>
         </div>
         <ArrowRight
@@ -204,7 +209,7 @@ export default function SettingsPage() {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-text-strong">Security architecture</p>
           <p className="mt-0.5 text-xs text-text-soft">
-            Browser proposes. Backend verifies. Chain enforces.
+            A plain-English view of how ClearSig checks actions before money moves.
           </p>
         </div>
         <ArrowRight
@@ -242,14 +247,9 @@ export default function SettingsPage() {
 
       {/* Email-on-pending - opt-in email when a new approval lands
           and the tab is in the background. Fires from the browser
-          (no server-side cron yet), so it only sends while the app
-          is loaded somewhere. */}
+          while the app is open somewhere. */}
       <EmailNotificationsSettingRow />
-
-      {/* Webhooks - POST events to a user-supplied URL so treasury
-          teams can pipe Clear into Slack / Discord / PagerDuty /
-          Zapier without us shipping per-tool integrations. */}
-      <WebhooksSettingRow />
+      <ApprovalReminderSettingRow />
 
       {/* Sent invitations - audit log of email invites this device
           dispatched, with a withdrawal email for mistakes. */}
@@ -283,6 +283,8 @@ export default function SettingsPage() {
 
       {/* ── Advanced ───────────────────────────────────────── */}
       <Group id="advanced" label="Advanced">
+      <WebhooksSettingRow />
+
       {/* Network indicator - hoisted from the old Connection group
           since it's a network setting and lives next to the RPC
           overrides. Single info card, no interaction. */}
@@ -778,6 +780,69 @@ function EmailNotificationsSettingRow() {
           That doesn&rsquo;t look like a valid email address.
         </p>
       )}
+    </section>
+  );
+}
+
+function ApprovalReminderSettingRow() {
+  const [prefs, setPrefs] = useState<ApprovalReminderPrefs | null>(null);
+
+  useEffect(() => {
+    const refresh = () => setPrefs(loadApprovalReminderPrefs());
+    refresh();
+    window.addEventListener("clear:approval-reminders-changed", refresh);
+    return () =>
+      window.removeEventListener("clear:approval-reminders-changed", refresh);
+  }, []);
+
+  if (!prefs) {
+    return (
+      <section className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
+          <Clock3 className="h-5 w-5" strokeWidth={1.75} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-text-strong">Approval reminders</p>
+          <p className="mt-0.5 text-xs text-text-soft">Loading…</p>
+        </div>
+      </section>
+    );
+  }
+
+  const toggle = () => {
+    const next = { ...prefs, enabled: !prefs.enabled };
+    setPrefs(next);
+    saveApprovalReminderPrefs(next);
+  };
+
+  return (
+    <section className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
+        <Clock3 className="h-5 w-5" strokeWidth={1.75} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-text-strong">
+          {prefs.enabled ? "Approval reminders on" : "Approval reminders paused"}
+        </p>
+        <p className="mt-0.5 text-xs text-text-soft">
+          {prefs.enabled
+            ? "ClearSig will keep nudging you while approvals are waiting."
+            : "Pending approvals still appear in Home and Notifications."}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={toggle}
+        aria-pressed={prefs.enabled}
+        className={
+          "shrink-0 inline-flex min-h-tap items-center justify-center rounded-full px-4 py-2 text-xs font-medium transition-[background-color,transform] duration-base ease-out-soft active:scale-[0.98] " +
+          (prefs.enabled
+            ? "border border-border-soft bg-canvas text-text-soft hover:border-rose-500 hover:text-rose-600"
+            : "bg-accent text-text-on-accent hover:bg-accent-hover")
+        }
+      >
+        {prefs.enabled ? "Pause" : "Turn on"}
+      </button>
     </section>
   );
 }

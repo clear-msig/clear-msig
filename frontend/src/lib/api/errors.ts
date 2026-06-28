@@ -127,11 +127,11 @@ export function friendlyError(
     return {
       title:
         context === "create-wallet"
-          ? "Wallet setup is taking longer than expected"
+          ? "Wallet creation is taking longer than expected"
           : "This is taking longer than expected",
       body:
         context === "create-wallet"
-          ? "The request may still finish. Open your wallet list or wait a moment before trying again, so you do not create a duplicate."
+          ? "Your wallet may still appear. Wait a moment before trying again."
           : "Wait a moment, then try again.",
       durationMs: 10_000,
     };
@@ -149,11 +149,11 @@ export function friendlyError(
     return {
       title:
         context === "create-wallet"
-          ? "Wallet setup is still processing"
+          ? "Wallet creation is still processing"
           : "This is taking longer than expected",
       body:
         context === "create-wallet"
-          ? "The request may have landed even though the browser timed out. Open your wallet list before retrying."
+          ? "Your wallet may still appear. Wait a moment before trying again."
           : "Wait a moment, then try again.",
       durationMs: 10_000,
     };
@@ -397,7 +397,7 @@ export function friendlyError(
     return {
       title: "That chain is already on this wallet",
       body:
-        "Give the previous setup a few seconds to finish. " +
+        "Give the previous request a few seconds to finish. " +
         "If the chain still doesn't show up, try again in a minute.",
     };
   }
@@ -759,7 +759,7 @@ const WALLET_ERRORS: Record<string, FriendlyError> = {
   },
   InvalidSignature: {
     title: "Signature didn't verify",
-    body: "The wallet signature did not match the request bytes or signer expected by the program. Reconnect the wallet that belongs to this rule, then try from the send screen again.",
+    body: "Reconnect the wallet that belongs to this rule, then try from the send screen again.",
   },
   NotProposer: {
     title: "Your wallet can't propose from this rule",
@@ -767,7 +767,7 @@ const WALLET_ERRORS: Record<string, FriendlyError> = {
   },
   IntentNotApproved: {
     title: "This rule needs more approvals before it can be used",
-    body: "Approve the rule's setup first; once it's Approved, sends can flow through it.",
+    body: "Approve the rule first; once it is approved, sends can flow through it.",
   },
   IntentHasActiveProposals: {
     title: "There's a pending request on this rule",

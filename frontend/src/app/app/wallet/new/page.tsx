@@ -191,7 +191,7 @@ function productSetupFor(surface: string | null): {
   }
   return {
     label: "Shared wallet",
-    body: "Invite people after setup.",
+    body: "Invite people next.",
     Icon: Users,
   };
 }
@@ -386,7 +386,7 @@ function NewWalletContent() {
           // Continue into setup instead of making the user create another wallet.
         } else if (await walletExistsAfterCreateFailure(walletSlug, err)) {
           toast.info("Wallet create confirmed", {
-            details: "The backend response timed out, but the wallet exists. Continuing setup.",
+            details: "The wallet exists. Finishing the last step now.",
           });
         } else {
           throw err;
@@ -460,7 +460,7 @@ function NewWalletContent() {
         details:
           purpose === "agent"
             ? "The vault is ready. Choose a trader and set safety checks."
-            : "Sending is enabled. Open the wallet to send your first request.",
+            : "Your wallet is ready. Open it to send your first request.",
       });
       router.push(
         postCreateHref(walletSlug, surface, purpose),
@@ -567,13 +567,13 @@ function NewWalletContent() {
               onClick={() => setPurpose(null)}
               className="self-start font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-text-soft hover:text-text-strong"
             >
-              Pick a different shape
+              Choose another option
             </button>
           )}
 
           <div className="rounded-card border border-border-soft bg-surface-raised p-5 sm:p-6">
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
-              Threshold
+              Trusted devices
             </p>
             <p className="mt-1 text-xs text-text-soft">
               Choose how many devices must sign.
@@ -707,10 +707,10 @@ function NewWalletContent() {
           <div className="flex flex-col gap-3">
             <div>
               <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
-                Pick a starter setup
+                Pick a starter wallet
               </span>
               <p className="mt-1 text-xs text-text-soft">
-                Pick a starting shape.
+                You can invite more people later.
               </p>
             </div>
             <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -851,7 +851,7 @@ function NewWalletContent() {
 
         <div className="inline-flex items-center gap-2 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs text-text-soft">
           <ShieldCheck className="h-3.5 w-3.5 text-accent" strokeWidth={2} aria-hidden="true" />
-          <span>Two wallet popups. No funds move.</span>
+          <span>Your wallet will ask you to confirm. No funds move.</span>
         </div>
 
         {/* Create CTA */}
@@ -870,7 +870,7 @@ function NewWalletContent() {
           {setupAll.isPending ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              Setting up
+              Creating
             </>
           ) : isBrokenSigner ? (
             <span className="truncate">Sign in with a different wallet</span>

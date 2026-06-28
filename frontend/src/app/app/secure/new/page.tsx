@@ -68,7 +68,7 @@ const SHAPES: ThresholdShape[] = [
     label: "Just me",
     threshold: 1,
     members: 1,
-    blurb: "Fastest setup.",
+    blurb: "Fastest start.",
   },
   {
     id: "2of3",
@@ -341,7 +341,7 @@ function SecureBuildPage() {
 // 3-step product flow, not 4.
 
 const STRIP_STAGES: { id: Stage | "confirm-or-creating"; label: string }[] = [
-  { id: "shape", label: "Shape" },
+  { id: "shape", label: "Choose" },
   { id: "confirm-or-creating", label: "Confirm" },
   { id: "done", label: "Done" },
 ];
@@ -414,7 +414,7 @@ function StageStrip({ stage }: { stage: Stage }) {
   );
 }
 
-// ─── Stage 1 · Shape ─────────────────────────────────────────────
+// ─── Stage 1 · Choose ────────────────────────────────────────────
 
 interface ShapeStageProps {
   shape: ThresholdShape;
@@ -442,10 +442,10 @@ function ShapeStage({
     >
       <header className="px-gutter text-center">
         <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-          Step 1 · Pick a shape
+          Step 1 · Choose
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] tracking-[-0.02em] text-text-strong text-balance sm:mt-3">
-          How many signers?
+          How many trusted devices?
         </h1>
       </header>
 
@@ -495,7 +495,7 @@ function ShapeStage({
 
                   <div className="flex min-w-0 flex-1 flex-col leading-tight">
                     <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-soft">
-                      Threshold {s.threshold} of {s.members}
+                      {s.threshold} of {s.members} needed
                     </p>
                     <p className="mt-1.5 font-display text-lg font-semibold tracking-[-0.015em] text-text-strong">
                       {s.label}
@@ -508,13 +508,13 @@ function ShapeStage({
                           : "Uses your wallet and passkeys."}
                     </p>
 
-                    {/* Threshold dot pattern - sits under the body
+                    {/* Device-needed dot pattern - sits under the body
                         copy, prefixed with a small label so it
                         reads as a spec line rather than a stray
                         graphic. */}
                     <div className="mt-4 inline-flex items-center gap-2">
                       <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
-                        Quorum
+                        Needed
                       </span>
                       <ThresholdDots
                         threshold={s.threshold}
@@ -622,13 +622,13 @@ function ConfirmStage({
           Step 2 · Confirm
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] tracking-[-0.02em] text-text-strong text-balance sm:mt-3">
-          Create a {shape.threshold}-of-{shape.members} vault
+          Create a recovery vault
         </h1>
       </header>
 
       {/* Receipt-style preview card. Header strip with vault
-          identity + threshold pill, identity row, an at-a-glance
-          quorum visualisation, and a clean key-value spec list. */}
+          identity + needed-count pill, identity row, an at-a-glance
+          confirmation visualisation, and a clean key-value spec list. */}
       <article className="mx-gutter overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
         <header className="flex items-center justify-between border-b border-border-soft px-5 py-3 sm:px-6">
           <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
@@ -654,11 +654,11 @@ function ConfirmStage({
             </div>
           </div>
 
-          {/* Quorum visualisation - mirrors the shape card so the
+          {/* Confirmation visualisation - mirrors the shape card so the
               user sees the same dots they tapped, now confirmed. */}
           <div className="mt-5 flex items-center gap-3 rounded-xl border border-border-soft bg-canvas px-3.5 py-3">
             <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
-              Quorum
+              Needed
             </span>
             <ThresholdDots
               threshold={shape.threshold}
@@ -706,7 +706,7 @@ function ConfirmStage({
           onClick={onBack}
           className="inline-flex w-full items-center justify-center text-sm text-text-soft transition-colors duration-base hover:text-text-strong"
         >
-          Back to shape
+          Back
         </button>
       </div>
     </motion.section>
@@ -764,8 +764,8 @@ function CreatingStage({
   // re-rendered as the index ticks; doesn't add a new stage row.
   const passkeyLabel =
     passkeyProgress != null
-      ? `Creating passkey ${passkeyProgress.index} of ${passkeyProgress.total}`
-      : "Creating passkeys";
+      ? `Adding passkey ${passkeyProgress.index} of ${passkeyProgress.total}`
+      : "Adding passkeys";
   const STAGES: { id: CreateVaultStage; label: string }[] = [
     {
       id: "create-passkey",
@@ -781,19 +781,19 @@ function CreatingStage({
     },
     {
       id: "build",
-      label: "Building transaction",
+      label: "Preparing confirmation",
     },
     {
       id: "sign",
-      label: "Waiting for your signature",
+      label: "Waiting for your wallet",
     },
     {
       id: "submit",
-      label: "Finishing setup",
+      label: "Finishing",
     },
     {
       id: "confirm",
-      label: "Waiting for confirmation",
+      label: "Almost done",
     },
   ];
   const activeIdx = subStage ? STAGES.findIndex((s) => s.id === subStage) : 0;
@@ -923,30 +923,41 @@ function DoneStage({
               Vault is live
             </p>
             <h1 className="mt-2 font-display text-display-sm leading-[1.05] tracking-[-0.02em] text-text-strong">
-              Your key is under quorum
+              Your recovery vault is ready
             </h1>
+            <p className="mt-2 text-sm leading-relaxed text-text-soft">
+              If this key is ever at risk, trusted devices can help recover it.
+            </p>
           </div>
         </div>
       </article>
 
-      {/* Result details - copyable recovery address + explorer link. */}
-      {recoveryAddress && (
-        <ResultRow
-          label="Recovery address"
-          value={recoveryAddress}
-          copyable
-        />
-      )}
-      {txSignature && (
-        <a
-          href={`https://explorer.solana.com/tx/${txSignature}?cluster=devnet`}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent transition-colors duration-base hover:text-accent-hover"
-        >
-          View transaction on Solana Explorer
-          <ExternalLink className="h-3 w-3" aria-hidden="true" />
-        </a>
+      {(recoveryAddress || txSignature) && (
+        <details className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+          <summary className="cursor-pointer text-sm font-medium text-text-strong">
+            Details
+          </summary>
+          <div className="mt-3 flex flex-col gap-3">
+            {recoveryAddress && (
+              <ResultRow
+                label="Recovery address"
+                value={recoveryAddress}
+                copyable
+              />
+            )}
+            {txSignature && (
+              <a
+                href={`https://explorer.solana.com/tx/${txSignature}?cluster=devnet`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent transition-colors duration-base hover:text-accent-hover"
+              >
+                View proof
+                <ExternalLink className="h-3 w-3" aria-hidden="true" />
+              </a>
+            )}
+          </div>
+        </details>
       )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
