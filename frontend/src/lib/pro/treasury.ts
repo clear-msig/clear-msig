@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiRequest } from "@/lib/api/client";
 import type { TxAttempt } from "@/lib/retail/txLog";
 
 export type ProScheduleCategory = "vendor" | "payroll";
@@ -17,6 +18,7 @@ export interface ProSchedule {
   nextRun: string;
   note?: string;
   createdAt: number;
+  updatedAt?: number;
 }
 
 export interface ProTreasuryRuntime {
@@ -38,6 +40,7 @@ export interface ProAccountingExportInput {
 }
 
 const SCHEDULE_STORAGE_PREFIX = "clear.pro.schedules.v1:";
+const PRO_SYNC_TIMEOUT_MS = 8_000;
 
 export function getProTreasuryRuntime(): ProTreasuryRuntime {
   return {
@@ -108,7 +111,8 @@ function isProSchedule(value: unknown): value is ProSchedule {
     (row.cadence === "Weekly" || row.cadence === "Monthly") &&
     typeof row.nextRun === "string" &&
     (row.note === undefined || typeof row.note === "string") &&
-    typeof row.createdAt === "number"
+    typeof row.createdAt === "number" &&
+    (row.updatedAt === undefined || typeof row.updatedAt === "number")
   );
 }
 
@@ -117,43 +121,183 @@ export function useProSchedules(walletName: string) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    let cancelled = false;
     try {
       const raw = window.localStorage.getItem(proSchedulesKey(walletName));
       if (!raw) {
         setRows([]);
-        return;
+      } else {
+        const parsed = JSON.parse(raw);
+        setRows(Array.isArray(parsed) ? parsed.filter(isProSchedule) : []);
       }
-      const parsed = JSON.parse(raw);
-      setRows(Array.isArray(parsed) ? parsed.filter(isProSchedule) : []);
     } catch {
       setRows([]);
     }
+
+    void listProSchedules(walletName)
+      .then((remoteRows) => {
+        if (cancelled) return;
+        setRows((current) => {
+          const remoteIds = new Set(remoteRows.map((row) => row.id));
+          for (const row of current) {
+            if (!remoteIds.has(row.id)) {
+              void upsertProSchedule(walletName, row);
+            }
+          }
+          const merged = mergeSchedules(current, remoteRows);
+          persistSchedules(walletName, merged);
+          return merged;
+        });
+      })
+      .catch(() => {
+        // Backend persistence is progressive. Local schedules remain
+        // usable before Render has the Pro routes deployed.
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [walletName]);
 
   const saveRows = (next: ProSchedule[]) => {
     setRows(next);
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem(
-        proSchedulesKey(walletName),
-        JSON.stringify(next),
-      );
-    } catch {
-      /* local schedule reminders are best-effort */
-    }
+    persistSchedules(walletName, next);
   };
 
   return {
     rows,
     add: (draft: Omit<ProSchedule, "id" | "createdAt">) => {
+      const now = Date.now();
       const id =
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
           : Math.random().toString(36).slice(2);
-      saveRows([{ ...draft, id, createdAt: Date.now() }, ...rows].slice(0, 50));
+      const row = { ...draft, id, createdAt: now, updatedAt: now };
+      saveRows([row, ...rows].slice(0, 50));
+      void upsertProSchedule(walletName, row);
+      void appendProAuditEvent({
+        walletName,
+        eventType: "schedule_saved",
+        title: `Saved ${row.name}`,
+        reference: row.id,
+        metadata: {
+          amount: row.amount,
+          asset: row.asset,
+          cadence: row.cadence,
+          category: row.category,
+          nextRun: row.nextRun,
+        },
+      });
     },
-    remove: (id: string) => saveRows(rows.filter((row) => row.id !== id)),
+    remove: (id: string) => {
+      const row = rows.find((item) => item.id === id);
+      saveRows(rows.filter((item) => item.id !== id));
+      void deleteProSchedule(walletName, id);
+      void appendProAuditEvent({
+        walletName,
+        eventType: "schedule_removed",
+        title: row ? `Removed ${row.name}` : "Removed schedule",
+        reference: id,
+      });
+    },
   };
+}
+
+function persistSchedules(walletName: string, next: ProSchedule[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      proSchedulesKey(walletName),
+      JSON.stringify(next),
+    );
+  } catch {
+    /* local schedule reminders are best-effort */
+  }
+}
+
+function mergeSchedules(
+  localRows: ProSchedule[],
+  remoteRows: ProSchedule[],
+): ProSchedule[] {
+  const byId = new Map<string, ProSchedule>();
+  for (const row of [...localRows, ...remoteRows]) {
+    const current = byId.get(row.id);
+    if (!current) {
+      byId.set(row.id, row);
+      continue;
+    }
+    const currentStamp = current.updatedAt ?? current.createdAt;
+    const rowStamp = row.updatedAt ?? row.createdAt;
+    if (rowStamp >= currentStamp) byId.set(row.id, row);
+  }
+  return [...byId.values()]
+    .sort((a, b) => a.nextRun.localeCompare(b.nextRun) || a.name.localeCompare(b.name))
+    .slice(0, 50);
+}
+
+interface ProBackendEnvelope<T> {
+  ok: boolean;
+  data: T;
+}
+
+interface ProSchedulesData {
+  walletName: string;
+  schedules: ProSchedule[];
+}
+
+interface ProAuditEventInput {
+  walletName: string;
+  eventType: string;
+  title: string;
+  reference?: string;
+  metadata?: Record<string, unknown>;
+}
+
+async function listProSchedules(walletName: string): Promise<ProSchedule[]> {
+  if (!walletName.trim()) return [];
+  const response = await apiRequest<ProBackendEnvelope<ProSchedulesData>>(
+    `/v1/pro/wallets/${encodeURIComponent(walletName)}/schedules`,
+    "GET",
+    undefined,
+    { timeoutMs: PRO_SYNC_TIMEOUT_MS },
+  );
+  return response.data.schedules.filter(isProSchedule);
+}
+
+async function upsertProSchedule(
+  walletName: string,
+  row: ProSchedule,
+): Promise<void> {
+  if (!walletName.trim()) return;
+  await apiRequest(
+    `/v1/pro/wallets/${encodeURIComponent(walletName)}/schedules`,
+    "POST",
+    row,
+    { timeoutMs: PRO_SYNC_TIMEOUT_MS },
+  );
+}
+
+async function deleteProSchedule(walletName: string, id: string): Promise<void> {
+  if (!walletName.trim() || !id.trim()) return;
+  await apiRequest(
+    `/v1/pro/wallets/${encodeURIComponent(walletName)}/schedules/delete`,
+    "POST",
+    { id },
+    { timeoutMs: PRO_SYNC_TIMEOUT_MS },
+  );
+}
+
+async function appendProAuditEvent(input: ProAuditEventInput): Promise<void> {
+  if (!input.walletName.trim() || !input.title.trim()) return;
+  await apiRequest(
+    "/v1/pro/audit-events",
+    "POST",
+    {
+      ...input,
+      metadata: input.metadata ?? {},
+    },
+    { timeoutMs: PRO_SYNC_TIMEOUT_MS },
+  );
 }
 
 export function buildProAccountingCsv(input: ProAccountingExportInput): string {

@@ -54,6 +54,7 @@ This sets backend-owned runtime defaults for Solana devnet + Ika pre-alpha so th
 - `CLEAR_MSIG_DEFAULT_DWALLET_PROGRAM` (optional default `--dwallet-program` for chain bind + execute)
 - `CLEAR_MSIG_DEFAULT_GRPC_URL` (optional default `--grpc-url` for chain bind + execute)
 - `CLEAR_MSIG_DEFAULT_DEST_RPC_URL` (optional default `--rpc-url` for execute)
+- `CLEAR_MSIG_PRO_STORE_PATH` (optional Pro schedules/audit JSON store; defaults to `/data/pro-store.json` on Render when `/data` exists)
 
 ## Core endpoints
 
@@ -73,6 +74,11 @@ This sets backend-owned runtime defaults for Solana devnet + Ika pre-alpha so th
 - `POST /wallets/{name}/proposals/{proposal}/execute`
 - `GET /proposals/{proposal}`
 - `POST /proposals/{proposal}/cleanup`
+- `GET /v1/pro/wallets/{name}/schedules`
+- `POST /v1/pro/wallets/{name}/schedules`
+- `POST /v1/pro/wallets/{name}/schedules/delete`
+- `GET /v1/pro/wallets/{name}/audit-events`
+- `POST /v1/pro/audit-events`
 
 ## Error behavior
 
