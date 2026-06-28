@@ -7,7 +7,7 @@ import { toDisplayName } from "@/lib/retail/walletNames";
 
 const SUB_LABELS: Record<string, string> = {
   send: "Send",
-  members: "Members",
+  members: "People",
   chains: "Networks",
   setup: "Finish setup",
   policies: "Rules",
@@ -29,7 +29,7 @@ export function getSectionLabel(pathname: string): string {
   if (pathname === "/app/wallet/new") return "New wallet";
   if (pathname === "/app/activity") return "Activity";
   if (pathname.startsWith("/app/notifications")) return "Notifications";
-  if (pathname === "/app/contacts") return "Contacts";
+  if (pathname === "/app/contacts") return "People";
   if (pathname.startsWith("/app/settings")) return "Settings";
   if (pathname.startsWith("/app/account")) return "Account";
   if (pathname.startsWith("/app/proposals")) return "Request";

@@ -119,7 +119,7 @@ export default function MembersPage() {
 
   const memberCount = members.length;
   const summary = intentsQuery.isLoading
-    ? "Loading members…"
+    ? "Loading people…"
     : memberCount === 1
       ? "Just you for now."
       : `${memberCount} ${memberCount === 1 ? "member" : "members"} · ${memberCount - 1} other${memberCount - 1 === 1 ? "" : "s"} can act with you.`;
@@ -135,7 +135,7 @@ export default function MembersPage() {
       <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <div className="flex flex-col gap-1">
           <h1 className="hidden font-display text-display-xs leading-tight text-text-strong md:block">
-            Members
+            People
           </h1>
           <p className="text-xs text-text-soft sm:text-sm">{summary}</p>
         </div>
@@ -173,7 +173,7 @@ export default function MembersPage() {
           stack of identical containers. */}
       <section className="flex flex-col gap-3">
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-          Member list
+          People
         </h2>
         {intentsQuery.isLoading ? (
           <ul className="flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
@@ -288,7 +288,7 @@ function MemberRow({
     }
     try {
       onRename(trimmed);
-      toast.success(`Saved “${trimmed}” for this member`);
+      toast.success(`Saved “${trimmed}”`);
       setEditingNickname(false);
     } catch (err) {
       console.error("[rename-member]", err);
@@ -426,7 +426,7 @@ function MemberRow({
             {hasNickname ? "Rename" : "Give a nickname"}
           </p>
           <p className="mt-1 text-[11px] text-text-soft">
-            Saved on this device only - your friend never sees it.
+            This name is only for you.
           </p>
           <div className="mt-2 flex items-center gap-2">
             <input
@@ -503,7 +503,7 @@ function MemberRow({
             <span className="text-text-soft">
               {updateRole.isPending
                 ? "Updating…"
-                : "You'll sign 2 wallet popups unless switching to/from watcher only."}
+                : "Your wallet will ask you to confirm."}
             </span>
             <button
               type="button"
@@ -521,7 +521,7 @@ function MemberRow({
           <span className="text-text-strong">
             {role === "watcher"
               ? `Stop watching with ${displayName}?`
-              : `Remove ${displayName} from ${walletDisplay}? You'll sign 2 wallet popups.`}
+              : `Remove ${displayName} from ${walletDisplay}?`}
           </span>
           <div className="flex shrink-0 items-center gap-2">
             <button

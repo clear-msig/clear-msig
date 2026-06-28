@@ -20,7 +20,6 @@
 import { BackendApiError, BackendTimeoutError } from "@/lib/api/client";
 import { WalletSignError } from "@/lib/hooks/useSignWithWallet";
 import { PolicyViolationError } from "@/lib/retail/policyEvaluation";
-import { appConfig } from "@/lib/config";
 
 export interface FriendlyError {
   /// Short headline shown as the toast message.
@@ -129,11 +128,11 @@ export function friendlyError(
       title:
         context === "create-wallet"
           ? "Wallet setup is taking longer than expected"
-          : "ClearSig is still waiting on the backend",
+          : "This is taking longer than expected",
       body:
         context === "create-wallet"
-          ? "The request may still finish on-chain. Open your wallet list or wait a moment before trying again, so you do not create a duplicate."
-          : "This can happen when devnet or the command runner is slow. Wait a moment, then retry.",
+          ? "The request may still finish. Open your wallet list or wait a moment before trying again, so you do not create a duplicate."
+          : "Wait a moment, then try again.",
       durationMs: 10_000,
     };
   }
@@ -151,11 +150,11 @@ export function friendlyError(
       title:
         context === "create-wallet"
           ? "Wallet setup is still processing"
-          : "ClearSig backend timed out",
+          : "This is taking longer than expected",
       body:
         context === "create-wallet"
-          ? "The chain write may have landed even though the browser timed out. Refresh your wallets before retrying."
-          : "The backend took too long to answer. Wait a moment, then retry.",
+          ? "The request may have landed even though the browser timed out. Open your wallet list before retrying."
+          : "Wait a moment, then try again.",
       durationMs: 10_000,
     };
   }
@@ -163,11 +162,8 @@ export function friendlyError(
   // ── Network: backend unreachable ──────────────────────────────
   if (bag.isNetwork) {
     return {
-      title: "We can't reach Clear right now",
-      body:
-        `Tried ${appConfig.backendApiUrl}. ` +
-        "Check your connection, then try again. If you're running " +
-        "locally, start the backend with `cargo run -p clear-msig-backend-api`.",
+      title: "ClearSig can't connect right now",
+      body: "Check your connection, then try again.",
     };
   }
 
@@ -270,7 +266,7 @@ export function friendlyError(
     return {
       title: "This request expired",
       body:
-        "The signing request timed out before it could be submitted. Refresh the send screen and try again.",
+        "The signing request timed out before it could be submitted. Open the send screen again and try once more.",
     };
   }
 
@@ -364,9 +360,9 @@ export function friendlyError(
     return {
       title: "Solana didn't accept that transaction",
       body: tail
-        ? `${tail.slice(0, 220)} Wait a few seconds and try again. If it keeps failing, refresh the page and retry from a fresh state.`
+        ? `${tail.slice(0, 220)} Wait a few seconds and try again. If it keeps failing, open the wallet again and retry.`
         : "The network rejected this submission. Wait a few seconds and try again. " +
-          "If the wallet name is new and it still fails, the previous attempt might still be confirming - refresh to see.",
+          "If the wallet name is new and it still fails, the previous attempt might still be confirming.",
     };
   }
 
@@ -377,7 +373,7 @@ export function friendlyError(
   if (rpcCodeMatch) {
     return {
       title: "Solana rejected the transaction",
-      body: `The network refused the request (code ${rpcCodeMatch[1]}). Try again in a few seconds. If it keeps happening, refresh and retry from a fresh state.`,
+      body: `The network refused the request (code ${rpcCodeMatch[1]}). Try again in a few seconds. If it keeps happening, open the wallet again and retry.`,
     };
   }
 
@@ -401,7 +397,7 @@ export function friendlyError(
     return {
       title: "That chain is already on this wallet",
       body:
-        "Give the previous setup a few seconds to finish, then refresh. " +
+        "Give the previous setup a few seconds to finish. " +
         "If the chain still doesn't show up, try again in a minute.",
     };
   }
@@ -495,7 +491,7 @@ export function friendlyError(
   ) {
     return {
       title: "That friend is already in the wallet",
-      body: "Members are unique by address. You can't add the same address twice.",
+      body: "That address is already saved for this wallet.",
     };
   }
 
@@ -524,9 +520,9 @@ export function friendlyError(
         hay.includes("not available")))
   ) {
     return {
-      title: "Your Solana RPC plan can't scan wallets",
+      title: "Wallet scanning is not available right now",
       body:
-        "ClearSig needs getProgramAccounts during wallet setup. Use an RPC provider or paid plan that supports it, then redeploy the backend with CLEAR_MSIG_URL updated.",
+        "ClearSig needs a provider that can list wallets. Switch to the supported devnet provider, then try again.",
       durationMs: 12_000,
     };
   }
@@ -542,8 +538,7 @@ export function friendlyError(
     return {
       title: "Something in the request didn't look right",
       body:
-        "Double-check addresses and amounts, then try again. If everything " +
-        "looks correct, refresh the page and retry.",
+        "Double-check addresses and amounts, then try again.",
     };
   }
 
@@ -556,7 +551,7 @@ export function friendlyError(
   ) {
     return {
       title: "This request has already been handled",
-      body: "Refresh to see the current state of the wallet.",
+      body: "Open the wallet again to see the latest state.",
     };
   }
 
@@ -600,7 +595,7 @@ export function friendlyError(
     title: fallbackTitle[context],
     body: detail
       ? truncate(detail.trim(), 320)
-      : "Try again. If it keeps happening, check the console for details.",
+      : "Try again. If it keeps happening, contact support.",
   };
 }
 
@@ -651,8 +646,7 @@ function walletProgramErrorMessage(hay: string): FriendlyError | null {
       return {
         title: "An account already exists with that address",
         body:
-          "The wallet or proposal slot you're trying to create is already on chain. " +
-          "Pick a different name (for create) or refresh to see the existing record.",
+          "The wallet or request slot already exists. Pick a different name, or open the wallet again to see the existing record.",
       };
     }
     if (code === 0x1) {
@@ -729,7 +723,7 @@ const WALLET_ERRORS: Record<string, FriendlyError> = {
   },
   ProposalNotActive: {
     title: "This request isn't open anymore",
-    body: "It was already approved, executed, or cancelled by someone else. Refresh to see the latest state.",
+    body: "It was already approved, sent, or cancelled by someone else. Open the wallet again to see the latest state.",
   },
   ProposalNotApproved: {
     title: "This request still needs approvals before it can run",
@@ -749,15 +743,15 @@ const WALLET_ERRORS: Record<string, FriendlyError> = {
   },
   AlreadyApproved: {
     title: "You already approved this request",
-    body: "Refresh to see the current state. Another approval would be a no-op.",
+    body: "Open the wallet again to see the current state.",
   },
   AlreadyCancelled: {
     title: "You already declined this request",
-    body: "Refresh to see the current state. Another decline would be a no-op.",
+    body: "Open the wallet again to see the current state.",
   },
   InvalidMemberIndex: {
     title: "Couldn't match your wallet to a slot in this request",
-    body: "Your wallet may have been removed from the approvers list. Refresh and check the members page.",
+    body: "Your wallet may have been removed from the approvers list. Open People and check who can approve.",
   },
   InvalidProposalIndex: {
     title: "Another request landed before yours",
@@ -793,11 +787,11 @@ const WALLET_ERRORS: Record<string, FriendlyError> = {
   },
   AccountCountMismatch: {
     title: "Rule definition is out of sync",
-    body: "The accounts the request needs don't match the rule on chain. Refresh the wallet and retry; if it persists, the rule may need to be re-saved.",
+    body: "This request no longer matches the saved rule. Open the wallet again and retry; if it persists, save the rule again.",
   },
   AccountAddressMismatch: {
     title: "An account address didn't match",
-    body: "One of the accounts the program expected doesn't match what was passed. This is usually a stale state - refresh and retry.",
+    body: "One of the addresses no longer matches the saved rule. Open the wallet again and retry.",
   },
   ParamConstraintViolation: {
     title: "A value in this request breaks the rule's constraints",

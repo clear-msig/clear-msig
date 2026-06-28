@@ -1398,7 +1398,9 @@ function assertPreparedBitcoinSetupIsCurrent(paramsDataHex: string) {
   }
 
   throw new Error(
-    `Bitcoin setup needs a server refresh. Update the ClearSig server, then tap Turn on Bitcoin sending again. (${preparedParams} params)`,
+    preparedParams > 0
+      ? "Bitcoin sending is not ready yet. Turn it on once more after the latest ClearSig update is live."
+      : "Bitcoin sending is not ready yet. Turn it on before sending BTC.",
   );
 }
 

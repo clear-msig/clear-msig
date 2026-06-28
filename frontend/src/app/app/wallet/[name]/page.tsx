@@ -24,7 +24,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { proposerDisplayName } from "@/lib/retail/proposerName";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ArrowRight, Banknote, Bell, Bot, ChevronDown, Coins, Download, Eye, EyeOff, Network, Repeat2, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
+import { Activity, ArrowRight, Banknote, Bell, Bot, ChevronDown, Coins, Download, Eye, EyeOff, Heart, Network, PauseCircle, Repeat2, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
 import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -92,6 +92,15 @@ import {
   shortAddress,
 } from "@/lib/retail/contacts";
 import { formatUsd } from "@/lib/retail/priceConversion";
+import {
+  getEmergencyPause,
+  saveEmergencyPause,
+} from "@/lib/retail/policy";
+import {
+  getSpendingCategories,
+  saveSpendingCategories,
+  type SpendingCategory,
+} from "@/lib/retail/spendingCategories";
 import { useDisplayCurrency } from "@/lib/hooks/useDisplayCurrency";
 import { UsdHint } from "@/components/retail/UsdHint";
 import { InfoTip } from "@/components/retail/InfoTip";
@@ -2539,9 +2548,10 @@ function Actions({
   const encoded = encodeURIComponent(name);
   const sendingReady = hasIntents !== false;
   const groups = manageActionGroups(productSurface, encoded);
+  const isPersonal = productSurface === "personal";
   const showSetupPrompt =
     !sendingReady &&
-    (productSurface === "personal" ||
+    (isPersonal ||
       productSurface === "pro" ||
       productSurface === null);
 
@@ -2579,6 +2589,8 @@ function Actions({
         </Link>
       )}
 
+      {isPersonal ? <PersonalSafetyPanel walletName={name} /> : null}
+
       {groups.map((group) => (
         <ActionGroup
           key={group.label}
@@ -2611,6 +2623,160 @@ type ManageActionGroup = {
   }>;
 };
 
+function PersonalSafetyPanel({ walletName }: { walletName: string }) {
+  const encoded = encodeURIComponent(walletName);
+  const contacts = useContacts();
+  const [pause, setPause] = useState(() => getEmergencyPause(walletName));
+  const [categories, setCategories] = useState<SpendingCategory[]>(() =>
+    getSpendingCategories(walletName),
+  );
+
+  useEffect(() => {
+    setPause(getEmergencyPause(walletName));
+    setCategories(getSpendingCategories(walletName));
+  }, [walletName]);
+
+  const togglePause = () => {
+    setPause(saveEmergencyPause(walletName, !pause.paused));
+  };
+
+  const toggleCategory = (id: SpendingCategory["id"]) => {
+    const next = categories.map((category) =>
+      category.id === id
+        ? { ...category, enabled: !category.enabled }
+        : category,
+    );
+    setCategories(next);
+    saveSpendingCategories(walletName, next);
+  };
+
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
+            Protection
+          </p>
+          <h2 className="mt-1 font-display text-lg leading-tight text-text-strong">
+            A shared wallet normal people can trust.
+          </h2>
+        </div>
+        <button
+          type="button"
+          onClick={togglePause}
+          className={
+            "inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition " +
+            (pause.paused
+              ? "border border-warning/40 bg-warning/10 text-warning"
+              : "border border-border-soft bg-canvas text-text-strong hover:border-accent/40 hover:text-accent")
+          }
+        >
+          <PauseCircle className="h-3.5 w-3.5" aria-hidden="true" />
+          {pause.paused ? "Resume" : "Pause"}
+        </button>
+      </div>
+
+      {pause.paused ? (
+        <div className="mt-3 rounded-soft border border-warning/30 bg-warning/[0.07] px-3 py-2 text-xs leading-relaxed text-text-soft">
+          Sends are paused. Receiving money and reviewing history still work.
+        </div>
+      ) : null}
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        <PersonalSafetyLink
+          href={`/app/wallet/${encoded}/members`}
+          icon={Users}
+          title="People"
+          value={`${contacts.contacts.length} saved`}
+        />
+        <PersonalSafetyLink
+          href={`/app/wallet/${encoded}/policy`}
+          icon={ShieldCheck}
+          title="Approvals"
+          value="Readable"
+        />
+        <PersonalSafetyLink
+          href="/app/secure"
+          icon={Heart}
+          title="Recovery"
+          value="Calm"
+        />
+        <PersonalSafetyLink
+          href="/app/settings#notifications"
+          icon={Bell}
+          title="Notifications"
+          value="Mobile-first"
+        />
+        <PersonalSafetyLink
+          href={`/app/wallet/${encoded}/buy`}
+          icon={Banknote}
+          title="Buy"
+          value="Bank"
+        />
+        <PersonalSafetyLink
+          href={`/app/wallet/${encoded}/sell`}
+          icon={TrendingDown}
+          title="Withdraw"
+          value="Bank"
+        />
+      </div>
+
+      <div className="mt-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-text-soft">
+          Categories
+        </p>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {categories.map((category) => (
+            <button
+              key={category.id}
+              type="button"
+              onClick={() => toggleCategory(category.id)}
+              className={
+                "rounded-full border px-3 py-1.5 text-xs font-medium transition " +
+                (category.enabled
+                  ? "border-accent/30 bg-accent/10 text-accent"
+                  : "border-border-soft bg-canvas text-text-soft hover:text-text-strong")
+              }
+            >
+              {category.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PersonalSafetyLink({
+  href,
+  icon: Icon,
+  title,
+  value,
+}: {
+  href: string;
+  icon: LucideIcon;
+  title: string;
+  value: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group flex min-h-16 items-center gap-3 rounded-soft border border-border-soft bg-canvas px-3 py-2 transition hover:border-accent/40"
+    >
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+        <Icon className="h-4 w-4" aria-hidden="true" />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-semibold text-text-strong">
+          {title}
+        </span>
+        <span className="block truncate text-xs text-text-soft">{value}</span>
+      </span>
+      <ArrowRight className="ml-auto h-3.5 w-3.5 shrink-0 text-text-soft transition group-hover:translate-x-0.5 group-hover:text-accent" />
+    </Link>
+  );
+}
+
 function manageActionGroups(
   surface: ProductSurfaceId | null,
   encoded: string,
@@ -2618,18 +2784,18 @@ function manageActionGroups(
   if (surface === "personal") {
     return [
       {
-        label: "Protection",
-        description: "Fine-tune people, approvals, and send safety.",
-        rows: rulesActionRows(encoded, "personal"),
+        label: "Money",
+        rows: personalMoneyActionRows(encoded),
       },
       {
-        label: "Networks",
-        description: "Add another chain to this wallet.",
-        rows: networkActionRows(encoded),
-      },
-      {
-        label: "More money",
-        rows: moneyActionRows(encoded),
+        label: "More",
+        rows: [
+          {
+            href: `/app/wallet/${encoded}/chains/add?autostart=1`,
+            icon: Network,
+            title: "Add asset",
+          },
+        ],
       },
     ];
   }
@@ -2746,6 +2912,21 @@ function moneyActionRows(encoded: string): ManageActionGroup["rows"] {
       icon: Repeat2,
       title: "Swap crypto",
     },
+    {
+      href: `/app/wallet/${encoded}/buy`,
+      icon: Banknote,
+      title: "Buy crypto with your bank account",
+    },
+    {
+      href: `/app/wallet/${encoded}/sell`,
+      icon: TrendingDown,
+      title: "Withdraw crypto to your bank account",
+    },
+  ];
+}
+
+function personalMoneyActionRows(encoded: string): ManageActionGroup["rows"] {
+  return [
     {
       href: `/app/wallet/${encoded}/buy`,
       icon: Banknote,
