@@ -379,6 +379,7 @@ export default function WalletDetailPage() {
         // Manage tab data
         name={name}
         productSurface={productSurface}
+        actionRows={walletAction}
         hasIntents={hasIntents}
         reduce={!!reduce}
       />
@@ -418,6 +419,7 @@ interface WalletDetailTabsProps {
   erc20Holdings: Erc20Holding[];
   name: string;
   productSurface: ProductSurfaceId | null;
+  actionRows: ActionNeededRow[];
   /// Tri-state to match the upstream useMemo: null while the
   /// intents query is in flight, true/false once known. NextStepsStripe
   /// already handles the null case for its loading skeleton.
@@ -439,6 +441,7 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
     erc20Holdings,
     name,
     productSurface,
+    actionRows,
     hasIntents,
     reduce,
   } = props;
@@ -574,6 +577,15 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
 
       {tab === "manage" && (
         <div className="flex flex-col gap-4">
+          {productSurface === "pro" ? (
+            <ProOperationsPanel
+              name={name}
+              actionRows={actionRows}
+              activityRows={activityAllRows}
+              attempts={sendAttempts}
+              reduce={reduce}
+            />
+          ) : null}
           {productSurface === "pro" ? <BudgetStripe name={name} /> : null}
           <Actions
             name={name}
@@ -748,7 +760,7 @@ function NativeHoldingsSection({
     const map = new Map<number, (typeof readiness.options)[number]>();
     for (const option of readiness.options) map.set(option.chain.kind, option);
     return map;
-  }, [readiness.options]);
+  }, [readiness]);
 
   return (
     <motion.section
@@ -1797,6 +1809,488 @@ function ChainTxHistorySection({
 // The Manage tab owns low-frequency actions, but it must not become a
 // product switcher. Rows are generated from the wallet's selected
 // surface so Personal, Pro, and Agent vaults keep separate affordances.
+
+type ProSchedule = {
+  id: string;
+  name: string;
+  category: "vendor" | "payroll";
+  amount: string;
+  asset: string;
+  cadence: "Weekly" | "Monthly";
+  nextRun: string;
+  createdAt: number;
+};
+
+function proSchedulesKey(walletName: string): string {
+  return `clear.pro.schedules.v1:${walletName}`;
+}
+
+function isProSchedule(value: unknown): value is ProSchedule {
+  if (!value || typeof value !== "object") return false;
+  const row = value as Record<string, unknown>;
+  return (
+    typeof row.id === "string" &&
+    typeof row.name === "string" &&
+    (row.category === "vendor" || row.category === "payroll") &&
+    typeof row.amount === "string" &&
+    typeof row.asset === "string" &&
+    (row.cadence === "Weekly" || row.cadence === "Monthly") &&
+    typeof row.nextRun === "string" &&
+    typeof row.createdAt === "number"
+  );
+}
+
+function useProSchedules(walletName: string) {
+  const [rows, setRows] = useState<ProSchedule[]>([]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(proSchedulesKey(walletName));
+      if (!raw) {
+        setRows([]);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      setRows(Array.isArray(parsed) ? parsed.filter(isProSchedule) : []);
+    } catch {
+      setRows([]);
+    }
+  }, [walletName]);
+
+  const saveRows = (next: ProSchedule[]) => {
+    setRows(next);
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        proSchedulesKey(walletName),
+        JSON.stringify(next),
+      );
+    } catch {
+      /* local schedule reminders are best-effort */
+    }
+  };
+
+  return {
+    rows,
+    add: (draft: Omit<ProSchedule, "id" | "createdAt">) => {
+      const id =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : Math.random().toString(36).slice(2);
+      saveRows([{ ...draft, id, createdAt: Date.now() }, ...rows].slice(0, 12));
+    },
+    remove: (id: string) => saveRows(rows.filter((row) => row.id !== id)),
+  };
+}
+
+function ProOperationsPanel({
+  name,
+  actionRows,
+  activityRows,
+  attempts,
+  reduce,
+}: {
+  name: string;
+  actionRows: ActionNeededRow[];
+  activityRows: RecentActivityRow[];
+  attempts: TxAttempt[];
+  reduce: boolean;
+}) {
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  const encoded = encodeURIComponent(name);
+  const schedules = useProSchedules(name);
+  const [scheduleDraft, setScheduleDraft] = useState({
+    name: "",
+    category: "vendor" as ProSchedule["category"],
+    amount: "",
+    asset: "USDC",
+    cadence: "Monthly" as ProSchedule["cadence"],
+    nextRun: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10),
+  });
+  const lastReceipt = attempts[0] ?? null;
+
+  const saveSchedule = () => {
+    const payee = scheduleDraft.name.trim();
+    const amount = scheduleDraft.amount.trim();
+    if (!payee || !amount) return;
+    schedules.add({
+      ...scheduleDraft,
+      name: payee,
+      amount,
+      asset: scheduleDraft.asset.trim().toUpperCase() || "USDC",
+    });
+    setScheduleDraft((current) => ({ ...current, name: "", amount: "" }));
+  };
+
+  const exportAudit = () => {
+    const csv = buildActivityCsv({
+      walletName: name,
+      rows: activityRows,
+      attempts,
+    });
+    const slug = name.replace(/[^a-z0-9-]+/gi, "-").toLowerCase();
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadActivityCsv(`clearsig-pro-${slug || "treasury"}-${stamp}.csv`, csv);
+  };
+
+  return (
+    <motion.section
+      {...motionProps}
+      transition={{ duration: 0.2 }}
+      className="flex flex-col gap-4"
+      aria-label="Pro treasury operations"
+    >
+      <div className="rounded-card border border-accent/25 bg-surface-raised p-4 shadow-card-rest sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
+              Pro command center
+            </p>
+            <h2 className="mt-1 font-display text-xl leading-tight text-text-strong">
+              Pay, protect, and prove.
+            </h2>
+          </div>
+          <Link
+            href={
+              actionRows.length > 0
+                ? "#action-needed"
+                : `/app/wallet/${encoded}/send/batch`
+            }
+            className={
+              "inline-flex min-h-tap items-center justify-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-text-on-accent shadow-accent-rest " +
+              "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+            }
+          >
+            {actionRows.length > 0 ? "Review queue" : "Batch pay"}
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <ProMetricTile label="Approval inbox" value={String(actionRows.length)} />
+          <ProMetricTile label="Schedules" value={String(schedules.rows.length)} />
+          <ProMetricTile label="Receipts" value={String(attempts.length)} />
+        </div>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-[1.15fr_0.85fr]">
+        <ActionGroup label="Payments">
+          <ActionRow
+            href={`/app/wallet/${encoded}/send`}
+            icon={Send}
+            title="Send payment"
+          />
+          <ActionRow
+            href={`/app/wallet/${encoded}/send/batch`}
+            icon={Users}
+            title="Batch payments"
+          />
+          <ActionRow
+            href={`/app/wallet/${encoded}/send/batch?template=payroll`}
+            icon={Banknote}
+            title="Payroll"
+          />
+          <ActionRow
+            href={`/app/wallet/${encoded}/send?kind=vendor`}
+            icon={Coins}
+            title="Vendor payment"
+          />
+        </ActionGroup>
+
+        <ProScheduleCard
+          draft={scheduleDraft}
+          rows={schedules.rows}
+          onDraftChange={setScheduleDraft}
+          onSave={saveSchedule}
+          onRemove={schedules.remove}
+        />
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <ActionGroup label="Protection">
+          <ActionRow
+            href={`/app/wallet/${encoded}/policy`}
+            icon={ShieldCheck}
+            title="Approval rules"
+          />
+          <ActionRow
+            href={`/app/wallet/${encoded}/members`}
+            icon={Users}
+            title="People and roles"
+          />
+          <ActionRow
+            href={`/app/wallet/${encoded}/budget`}
+            icon={Banknote}
+            title="Spending limits"
+          />
+          <ActionRow
+            href={`/app/wallet/${encoded}/policy#risk`}
+            icon={Activity}
+            title="Risk checks"
+          />
+        </ActionGroup>
+
+        <ActionGroup label="Agent allocation">
+          <ActionRow
+            href={`/app/wallet/${encoded}/agents`}
+            icon={Bot}
+            title="Agent vaults"
+          />
+          <ActionRow
+            href={`/app/wallet/${encoded}/agents/funding`}
+            icon={TrendingDown}
+            title="Trading budget"
+          />
+          <ActionRow
+            href={`/app/wallet/${encoded}/swap`}
+            icon={Repeat2}
+            title="Swap crypto"
+          />
+          <ActionRow
+            href={`/app/wallet/${encoded}/receive`}
+            icon={Download}
+            title="Fund treasury"
+          />
+        </ActionGroup>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <ProAuditCard
+          activityCount={activityRows.length}
+          lastReceipt={lastReceipt}
+          onExport={exportAudit}
+          activityHref={`/app/wallet/${encoded}/activity`}
+        />
+        <ActionGroup label="Admin">
+          <ActionRow
+            href={`/app/wallet/${encoded}/settings`}
+            icon={SettingsIcon}
+            title="Webhooks"
+          />
+          <ActionRow
+            href={`/app/wallet/new?surface=pro&import=1`}
+            icon={Download}
+            title="Import treasury"
+          />
+          <ActionRow
+            href={`/app/settings`}
+            icon={Network}
+            title="Accounting"
+          />
+          <ActionRow
+            href={`/security`}
+            icon={ShieldCheck}
+            title="Security posture"
+          />
+        </ActionGroup>
+      </div>
+    </motion.section>
+  );
+}
+
+function ProMetricTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-soft border border-border-soft bg-canvas/70 px-3 py-2.5">
+      <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-text-soft">
+        {label}
+      </p>
+      <p className="mt-1 font-numerals text-lg font-semibold tabular-nums text-text-strong">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function ProScheduleCard({
+  draft,
+  rows,
+  onDraftChange,
+  onSave,
+  onRemove,
+}: {
+  draft: Omit<ProSchedule, "id" | "createdAt">;
+  rows: ProSchedule[];
+  onDraftChange: (next: Omit<ProSchedule, "id" | "createdAt">) => void;
+  onSave: () => void;
+  onRemove: (id: string) => void;
+}) {
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-[10px] font-semibold uppercase tracking-[0.26em] text-text-soft">
+          Recurring
+        </h3>
+        <span className="font-numerals text-xs tabular-nums text-text-soft">
+          {rows.length}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-2">
+        <input
+          value={draft.name}
+          onChange={(event) =>
+            onDraftChange({ ...draft, name: event.target.value })
+          }
+          placeholder="Vendor or teammate"
+          className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none placeholder:text-text-soft focus:border-accent/50"
+        />
+        <div className="grid grid-cols-[1fr_88px] gap-2">
+          <input
+            value={draft.amount}
+            onChange={(event) =>
+              onDraftChange({ ...draft, amount: event.target.value })
+            }
+            placeholder="Amount"
+            inputMode="decimal"
+            className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none placeholder:text-text-soft focus:border-accent/50"
+          />
+          <input
+            value={draft.asset}
+            onChange={(event) =>
+              onDraftChange({ ...draft, asset: event.target.value })
+            }
+            aria-label="Asset"
+            className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm font-semibold uppercase text-text-strong outline-none focus:border-accent/50"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <select
+            value={draft.category}
+            onChange={(event) =>
+              onDraftChange({
+                ...draft,
+                category: event.target.value as ProSchedule["category"],
+              })
+            }
+            className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none focus:border-accent/50"
+          >
+            <option value="vendor">Vendor</option>
+            <option value="payroll">Payroll</option>
+          </select>
+          <select
+            value={draft.cadence}
+            onChange={(event) =>
+              onDraftChange({
+                ...draft,
+                cadence: event.target.value as ProSchedule["cadence"],
+              })
+            }
+            className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none focus:border-accent/50"
+          >
+            <option value="Weekly">Weekly</option>
+            <option value="Monthly">Monthly</option>
+          </select>
+        </div>
+        <input
+          type="date"
+          value={draft.nextRun}
+          onChange={(event) =>
+            onDraftChange({ ...draft, nextRun: event.target.value })
+          }
+          className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none focus:border-accent/50"
+        />
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={!draft.name.trim() || !draft.amount.trim()}
+          className={
+            "min-h-11 rounded-soft bg-accent px-4 text-sm font-semibold text-text-on-accent shadow-accent-rest " +
+            "transition-[background-color,transform,opacity] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
+          }
+        >
+          Save schedule
+        </button>
+      </div>
+      {rows.length > 0 ? (
+        <ul className="mt-3 divide-y divide-border-soft">
+          {rows.slice(0, 4).map((row) => (
+            <li key={row.id} className="flex items-center justify-between gap-3 py-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-text-strong">
+                  {row.name}
+                </p>
+                <p className="truncate text-xs text-text-soft">
+                  {row.amount} {row.asset} · {row.cadence} · {row.nextRun}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onRemove(row.id)}
+                className="shrink-0 rounded-full border border-border-soft px-2.5 py-1 text-[11px] text-text-soft transition hover:text-text-strong"
+              >
+                Done
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
+function ProAuditCard({
+  activityCount,
+  lastReceipt,
+  onExport,
+  activityHref,
+}: {
+  activityCount: number;
+  lastReceipt: TxAttempt | null;
+  onExport: () => void;
+  activityHref: string;
+}) {
+  const receiptCopy = lastReceipt
+    ? humanReceipt(lastReceipt)
+    : "Receipts appear after sends and approvals.";
+
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-[10px] font-semibold uppercase tracking-[0.26em] text-text-soft">
+          Audit
+        </h3>
+        <span className="font-numerals text-xs tabular-nums text-text-soft">
+          {activityCount}
+        </span>
+      </div>
+      <div className="mt-3 rounded-soft border border-border-soft bg-canvas/70 p-3">
+        <p className="text-sm font-medium text-text-strong">Latest receipt</p>
+        <p className="mt-1 text-xs leading-relaxed text-text-soft">
+          {receiptCopy}
+        </p>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={onExport}
+          className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm font-semibold text-text-strong transition hover:border-accent/40 hover:text-accent"
+        >
+          Export CSV
+        </button>
+        <Link
+          href={activityHref}
+          className="inline-flex min-h-11 items-center justify-center rounded-soft border border-border-soft bg-canvas px-3 text-sm font-semibold text-text-strong transition hover:border-accent/40 hover:text-accent"
+        >
+          Audit view
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function humanReceipt(row: TxAttempt): string {
+  const action = row.status === "success" ? "Sent" : "Tried to send";
+  const amount = [row.amountDisplay, row.ticker].filter(Boolean).join(" ");
+  const target = row.recipientShort ? ` to ${row.recipientShort}` : "";
+  if (row.status === "failed") {
+    return `${action} ${amount || "money"}${target}. It did not leave the treasury.`;
+  }
+  return `${action} ${amount || "money"}${target}. Receipt saved.`;
+}
 
 function Actions({
   name,
