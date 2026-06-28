@@ -1937,6 +1937,7 @@ function ProOperationsPanel({
         <ProScheduleCard
           draft={scheduleDraft}
           rows={schedules.rows}
+          walletName={name}
           defaultAsset={runtime.defaultPaymentAsset}
           onDraftChange={setScheduleDraft}
           onSave={saveSchedule}
@@ -2058,6 +2059,7 @@ function ProMetricTile({ label, value }: { label: string; value: string }) {
 function ProScheduleCard({
   draft,
   rows,
+  walletName,
   defaultAsset,
   onDraftChange,
   onSave,
@@ -2065,11 +2067,13 @@ function ProScheduleCard({
 }: {
   draft: Omit<ProSchedule, "id" | "createdAt">;
   rows: ProSchedule[];
+  walletName: string;
   defaultAsset: string;
   onDraftChange: (next: Omit<ProSchedule, "id" | "createdAt">) => void;
   onSave: () => void;
   onRemove: (id: string) => void;
 }) {
+  const encoded = encodeURIComponent(walletName);
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
       <div className="flex items-center justify-between gap-3">
@@ -2169,13 +2173,25 @@ function ProScheduleCard({
                   {row.amount} {row.asset} · {row.cadence} · {row.nextRun}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => onRemove(row.id)}
-                className="shrink-0 rounded-full border border-border-soft px-2.5 py-1 text-[11px] text-text-soft transition hover:text-text-strong"
-              >
-                Done
-              </button>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <Link
+                  href={
+                    row.category === "payroll"
+                      ? `/app/wallet/${encoded}/send/batch?template=payroll`
+                      : `/app/wallet/${encoded}/send?kind=vendor`
+                  }
+                  className="rounded-full border border-border-soft px-2.5 py-1 text-[11px] font-semibold text-text-strong transition hover:border-accent/40 hover:text-accent"
+                >
+                  Pay
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => onRemove(row.id)}
+                  className="rounded-full border border-border-soft px-2.5 py-1 text-[11px] text-text-soft transition hover:text-text-strong"
+                >
+                  Done
+                </button>
+              </div>
             </li>
           ))}
         </ul>

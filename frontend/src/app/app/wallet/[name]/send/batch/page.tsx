@@ -23,9 +23,11 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
   Check,
+  Download,
   Loader2,
   Plus,
   Trash2,
+  Upload,
   Users,
 } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
@@ -43,6 +45,7 @@ import { useBatchSend, type BatchSendRow } from "@/lib/hooks/useBatchSend";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
+import { getProTreasuryRuntime } from "@/lib/pro/treasury";
 
 // Hard cap on rows per batch - high enough for real payroll, low
 // enough to prevent runaway sign-prompt loops.
@@ -78,6 +81,7 @@ function BatchSendPage() {
   const contacts = useContacts();
   const toast = useToast();
   const batch = useBatchSend();
+  const runtime = useMemo(() => getProTreasuryRuntime(), []);
 
   const walletName = useMemo(() => {
     const raw = route?.name ?? "";
@@ -128,6 +132,7 @@ function BatchSendPage() {
 
   const [stage, setStage] = useState<Stage>("compose");
   const [drafts, setDrafts] = useState<DraftRow[]>(() => [emptyRow()]);
+  const [csvText, setCsvText] = useState("");
 
   const resolvedRows = useMemo(
     () => drafts.map((d) => resolveRow(d, contacts.contacts)),
@@ -157,6 +162,25 @@ function BatchSendPage() {
     setDrafts((rows) =>
       rows.map((r) => (r.id === id ? { ...r, ...patch } : r)),
     );
+  };
+  const importCsv = () => {
+    const parsed = parseBatchCsv(csvText);
+    if (parsed.rows.length === 0) {
+      toast.error("No payable rows found", {
+        details: "Use columns: name,address,asset,amount,note.",
+      });
+      return;
+    }
+    setDrafts(parsed.rows.slice(0, MAX_ROWS));
+    setCsvText("");
+    toast.success(
+      parsed.skipped > 0
+        ? `Imported ${parsed.rows.length}, skipped ${parsed.skipped}`
+        : `Imported ${parsed.rows.length} row${parsed.rows.length === 1 ? "" : "s"}`,
+    );
+  };
+  const downloadTemplate = () => {
+    downloadBatchCsvTemplate(runtime.batchCsvColumns, batchTemplate);
   };
 
   const canReview = validRows.length === drafts.length && validRows.length > 0;
@@ -243,11 +267,16 @@ function BatchSendPage() {
             <ComposeStage
               walletName={walletName}
               template={batchTemplate}
+              csvColumns={runtime.batchCsvColumns}
+              csvText={csvText}
               drafts={drafts}
               resolved={resolvedRows}
               contacts={contacts.contacts}
               totalSol={totalSol}
               canReview={canReview}
+              onCsvTextChange={setCsvText}
+              onImportCsv={importCsv}
+              onDownloadTemplate={downloadTemplate}
               onAddRow={addRow}
               onRemoveRow={removeRow}
               onUpdateRow={updateRow}
@@ -291,12 +320,17 @@ function BatchSendPage() {
 interface ComposeProps {
   walletName: string;
   template: "batch" | "payroll";
+  csvColumns: string[];
+  csvText: string;
   drafts: DraftRow[];
   resolved: ResolvedRow[];
   contacts: Contact[];
   totalSol: number;
   canReview: boolean;
   onAddRow: () => void;
+  onCsvTextChange: (next: string) => void;
+  onImportCsv: () => void;
+  onDownloadTemplate: () => void;
   onRemoveRow: (id: string) => void;
   onUpdateRow: (id: string, patch: Partial<DraftRow>) => void;
   onReview: () => void;
@@ -305,11 +339,16 @@ interface ComposeProps {
 function ComposeStage({
   walletName,
   template,
+  csvColumns,
+  csvText,
   drafts,
   resolved,
   contacts,
   totalSol,
   canReview,
+  onCsvTextChange,
+  onImportCsv,
+  onDownloadTemplate,
   onAddRow,
   onRemoveRow,
   onUpdateRow,
@@ -354,6 +393,51 @@ function ComposeStage({
       <p className="text-sm leading-relaxed text-text-soft">
         {helper}
       </p>
+
+      <details className="group rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+          <span className="inline-flex items-center gap-2 text-sm font-semibold text-text-strong">
+            <Upload className="h-4 w-4 text-accent" aria-hidden="true" />
+            Import CSV
+          </span>
+          <ArrowRight
+            className="h-4 w-4 text-text-soft transition-transform group-open:rotate-90"
+            aria-hidden="true"
+          />
+        </summary>
+        <div className="mt-3 grid gap-3">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+            {csvColumns.join(", ")}
+          </p>
+          <textarea
+            value={csvText}
+            onChange={(event) => onCsvTextChange(event.target.value)}
+            rows={5}
+            placeholder="name,address,asset,amount,note"
+            spellCheck={false}
+            className="min-h-28 resize-y rounded-soft border border-border-soft bg-canvas px-3 py-2 font-mono text-xs leading-relaxed text-text-strong outline-none placeholder:text-text-soft/60 focus:border-accent/50"
+          />
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={onDownloadTemplate}
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 text-sm font-semibold text-text-strong transition hover:border-accent/40 hover:text-accent"
+            >
+              <Download className="h-4 w-4" aria-hidden="true" />
+              Template
+            </button>
+            <button
+              type="button"
+              onClick={onImportCsv}
+              disabled={!csvText.trim()}
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 text-sm font-semibold text-text-on-accent shadow-accent-rest transition-[background-color,opacity,transform] hover:bg-accent-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <Upload className="h-4 w-4" aria-hidden="true" />
+              Fill rows
+            </button>
+          </div>
+        </div>
+      </details>
 
       <ul className="flex flex-col gap-3">
         {drafts.map((draft, i) => {
@@ -843,10 +927,111 @@ function validRows(resolved: ResolvedRow[]): number {
 
 function emptyRow(): DraftRow {
   return {
-    id: Math.random().toString(36).slice(2, 10),
+    id:
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2, 10),
     recipient: "",
     amount: "",
   };
+}
+
+function parseBatchCsv(raw: string): { rows: DraftRow[]; skipped: number } {
+  const lines = raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return { rows: [], skipped: 0 };
+
+  const first = parseCsvLine(lines[0] ?? "").map((cell) =>
+    cell.trim().toLowerCase(),
+  );
+  const hasHeader =
+    first.includes("amount") ||
+    first.includes("address") ||
+    first.includes("recipient");
+  const header = hasHeader ? first : ["name", "address", "asset", "amount", "note"];
+  const body = hasHeader ? lines.slice(1) : lines;
+  const indexOf = (...keys: string[]) =>
+    keys.map((key) => header.indexOf(key)).find((idx) => idx >= 0) ?? -1;
+  const nameIdx = indexOf("name", "recipient", "payee");
+  const addressIdx = indexOf("address", "wallet", "wallet_address");
+  const assetIdx = indexOf("asset", "token", "ticker");
+  const amountIdx = indexOf("amount", "sol");
+
+  const rows: DraftRow[] = [];
+  let skipped = 0;
+
+  for (const line of body) {
+    const cells = parseCsvLine(line).map((cell) => cell.trim());
+    const asset = assetIdx >= 0 ? (cells[assetIdx] ?? "").toUpperCase() : "SOL";
+    const recipient =
+      (addressIdx >= 0 ? cells[addressIdx] : "") ||
+      (nameIdx >= 0 ? cells[nameIdx] : "");
+    const amount = amountIdx >= 0 ? cells[amountIdx] ?? "" : "";
+    if (!recipient || !amount || (asset && asset !== "SOL")) {
+      skipped += 1;
+      continue;
+    }
+    rows.push({
+      id:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : Math.random().toString(36).slice(2, 10),
+      recipient,
+      amount: sanitizeAmount(amount),
+    });
+  }
+
+  return { rows, skipped };
+}
+
+function parseCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let current = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (quoted && line[i + 1] === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        quoted = !quoted;
+      }
+      continue;
+    }
+    if (ch === "," && !quoted) {
+      out.push(current);
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  out.push(current);
+  return out;
+}
+
+function downloadBatchCsvTemplate(
+  columns: string[],
+  template: "batch" | "payroll",
+): void {
+  if (typeof window === "undefined") return;
+  const header = columns.length > 0 ? columns : ["name", "address", "asset", "amount", "note"];
+  const sample =
+    template === "payroll"
+      ? ["Teammate", "SOLANA_ADDRESS", "SOL", "0.25", "Payroll"]
+      : ["Vendor", "SOLANA_ADDRESS", "SOL", "0.25", "Invoice"];
+  const csv = [header.join(","), sample.slice(0, header.length).join(",")].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `clearsig-${template}-template.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 function sanitizeAmount(raw: string): string {
