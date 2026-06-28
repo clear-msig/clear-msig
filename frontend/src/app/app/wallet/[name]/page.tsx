@@ -2003,7 +2003,7 @@ function ProOperationsPanel({
         />
         <ActionGroup label="Admin">
           <ActionRow
-            href={`/app/wallet/${encoded}/settings`}
+            href="/app/settings#notifications"
             icon={SettingsIcon}
             title="Webhooks"
           />
@@ -2013,7 +2013,7 @@ function ProOperationsPanel({
             title={`Import ${runtime.importSources.join(" / ")}`}
           />
           <ActionRow
-            href={`/app/settings`}
+            href="/app/settings#advanced"
             icon={Network}
             title={`Accounting: ${runtime.accountingTargets.join(" / ")}`}
           />
