@@ -86,6 +86,11 @@ import {
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { useWalletPortfolio } from "@/lib/hooks/useWalletPortfolio";
 import { useBalancePrivacy } from "@/lib/hooks/useBalancePrivacy";
+import { useContacts } from "@/lib/hooks/useContacts";
+import {
+  isValidSolanaAddress,
+  shortAddress,
+} from "@/lib/retail/contacts";
 import { formatUsd } from "@/lib/retail/priceConversion";
 import { useDisplayCurrency } from "@/lib/hooks/useDisplayCurrency";
 import { UsdHint } from "@/components/retail/UsdHint";
@@ -1842,6 +1847,7 @@ function ProOperationsPanel({
   const [alertsReady, setAlertsReady] = useState(false);
   const [scheduleDraft, setScheduleDraft] = useState({
     name: "",
+    address: "",
     category: "vendor" as ProSchedule["category"],
     amount: "",
     asset: runtime.defaultPaymentAsset,
@@ -1849,6 +1855,7 @@ function ProOperationsPanel({
     nextRun: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       .toISOString()
       .slice(0, 10),
+    note: "",
   });
   const lastReceipt = attempts[0] ?? null;
   const dueSchedules = schedules.rows.filter(isScheduleDue);
@@ -1865,10 +1872,18 @@ function ProOperationsPanel({
     schedules.add({
       ...scheduleDraft,
       name: payee,
+      address: scheduleDraft.address.trim(),
       amount,
       asset: scheduleDraft.asset.trim().toUpperCase() || "USDC",
+      note: scheduleDraft.note.trim(),
     });
-    setScheduleDraft((current) => ({ ...current, name: "", amount: "" }));
+    setScheduleDraft((current) => ({
+      ...current,
+      name: "",
+      address: "",
+      amount: "",
+      note: "",
+    }));
   };
 
   const exportAudit = () => {
@@ -2204,6 +2219,11 @@ function ProReadinessStrip({
   );
 }
 
+type ProScheduleDraft = Omit<ProSchedule, "id" | "createdAt"> & {
+  address: string;
+  note: string;
+};
+
 function ProScheduleCard({
   draft,
   rows,
@@ -2213,15 +2233,17 @@ function ProScheduleCard({
   onSave,
   onRemove,
 }: {
-  draft: Omit<ProSchedule, "id" | "createdAt">;
+  draft: ProScheduleDraft;
   rows: ProSchedule[];
   walletName: string;
   defaultAsset: string;
-  onDraftChange: (next: Omit<ProSchedule, "id" | "createdAt">) => void;
+  onDraftChange: (next: ProScheduleDraft) => void;
   onSave: () => void;
   onRemove: (id: string) => void;
 }) {
   const encoded = encodeURIComponent(walletName);
+  const contacts = useContacts();
+  const datalistId = `pro-payees-${encoded}`;
   const sortedRows = useMemo(
     () =>
       [...rows].sort((a, b) => {
@@ -2254,6 +2276,24 @@ function ProScheduleCard({
           placeholder="Vendor or teammate"
           className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none placeholder:text-text-soft focus:border-accent/50"
         />
+        <input
+          value={draft.address ?? ""}
+          onChange={(event) =>
+            onDraftChange({ ...draft, address: event.target.value })
+          }
+          list={datalistId}
+          placeholder="Wallet address or saved contact"
+          spellCheck={false}
+          autoComplete="off"
+          className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none placeholder:text-text-soft focus:border-accent/50"
+        />
+        <datalist id={datalistId}>
+          {contacts.contacts.map((contact) => (
+            <option key={contact.address} value={contact.address}>
+              {contact.name}
+            </option>
+          ))}
+        </datalist>
         <div className="grid grid-cols-[1fr_88px] gap-2">
           <input
             value={draft.amount}
@@ -2310,6 +2350,15 @@ function ProScheduleCard({
           }
           className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none focus:border-accent/50"
         />
+        <input
+          value={draft.note ?? ""}
+          onChange={(event) =>
+            onDraftChange({ ...draft, note: event.target.value })
+          }
+          placeholder="Note (optional)"
+          maxLength={80}
+          className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none placeholder:text-text-soft focus:border-accent/50"
+        />
         <button
           type="button"
           onClick={onSave}
@@ -2340,6 +2389,7 @@ function ProScheduleCard({
                 </p>
                 <p className="truncate text-xs text-text-soft">
                   {row.amount} {row.asset} · {row.cadence} · {row.nextRun}
+                  {row.address ? ` · ${formatScheduleAddress(row.address)}` : ""}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
@@ -2379,11 +2429,17 @@ function schedulePaymentHref(row: ProSchedule, encodedWalletName: string): strin
   const asset = row.asset.trim().toUpperCase();
   const params = new URLSearchParams({ kind: "vendor" });
   if (asset === "SOL") {
-    params.set("recipient", row.name);
+    params.set("recipient", row.address?.trim() || row.name);
     params.set("amount", row.amount);
-    params.set("note", `${row.cadence} vendor payment`);
+    params.set("note", row.note?.trim() || `${row.cadence} vendor payment`);
   }
   return `/app/wallet/${encodedWalletName}/send?${params.toString()}`;
+}
+
+function formatScheduleAddress(address: string): string {
+  const trimmed = address.trim();
+  if (!trimmed) return "";
+  return isValidSolanaAddress(trimmed) ? shortAddress(trimmed) : trimmed;
 }
 
 function ProAuditCard({

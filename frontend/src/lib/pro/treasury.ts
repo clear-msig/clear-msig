@@ -9,11 +9,13 @@ export type ProScheduleCadence = "Weekly" | "Monthly";
 export interface ProSchedule {
   id: string;
   name: string;
+  address?: string;
   category: ProScheduleCategory;
   amount: string;
   asset: string;
   cadence: ProScheduleCadence;
   nextRun: string;
+  note?: string;
   createdAt: number;
 }
 
@@ -99,11 +101,13 @@ function isProSchedule(value: unknown): value is ProSchedule {
   return (
     typeof row.id === "string" &&
     typeof row.name === "string" &&
+    (row.address === undefined || typeof row.address === "string") &&
     (row.category === "vendor" || row.category === "payroll") &&
     typeof row.amount === "string" &&
     typeof row.asset === "string" &&
     (row.cadence === "Weekly" || row.cadence === "Monthly") &&
     typeof row.nextRun === "string" &&
+    (row.note === undefined || typeof row.note === "string") &&
     typeof row.createdAt === "number"
   );
 }
@@ -164,6 +168,8 @@ export function buildProAccountingCsv(input: ProAccountingExportInput): string {
       "status",
       "reference",
       "note",
+      "address",
+      "cadence",
     ],
   ];
 
@@ -178,6 +184,8 @@ export function buildProAccountingCsv(input: ProAccountingExportInput): string {
       attempt.status,
       attempt.txId ?? attempt.id,
       attempt.errorBrief ?? "",
+      attempt.recipientFull ?? "",
+      "",
     ]);
   }
 
@@ -191,6 +199,8 @@ export function buildProAccountingCsv(input: ProAccountingExportInput): string {
       schedule.amount,
       schedule.category,
       schedule.id,
+      schedule.note ?? schedule.cadence,
+      schedule.address ?? "",
       schedule.cadence,
     ]);
   }

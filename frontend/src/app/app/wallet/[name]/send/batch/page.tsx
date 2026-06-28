@@ -42,10 +42,12 @@ import {
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { useContacts } from "@/lib/hooks/useContacts";
 import { useBatchSend, type BatchSendRow } from "@/lib/hooks/useBatchSend";
+import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { getProTreasuryRuntime } from "@/lib/pro/treasury";
+import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
 
 // Hard cap on rows per batch - high enough for real payroll, low
 // enough to prevent runaway sign-prompt loops.
@@ -91,6 +93,7 @@ function BatchSendPage() {
       return raw.trim();
     }
   }, [route?.name]);
+  const budgetUsage = useWalletBudgetUsage(walletName);
   const walletDisplay = toDisplayName(walletName);
   const batchTemplate = params.get("template") === "payroll" ? "payroll" : "batch";
 
@@ -148,6 +151,10 @@ function BatchSendPage() {
     [validRows],
   );
   const totalSol = totalLamports / 1_000_000_000;
+  const batchRisk = useMemo(
+    () => buildBatchRiskSummary(totalSol, validRows.length, budgetUsage),
+    [totalSol, validRows.length, budgetUsage],
+  );
 
   const addRow = () => {
     if (drafts.length >= MAX_ROWS) return;
@@ -288,6 +295,7 @@ function BatchSendPage() {
               walletName={walletName}
               rows={validRows}
               totalSol={totalSol}
+              risk={batchRisk}
               onBack={() => setStage("compose")}
               onSend={handleSendBatch}
             />
@@ -643,12 +651,14 @@ function ReviewStage({
   walletName,
   rows,
   totalSol,
+  risk,
   onBack,
   onSend,
 }: {
   walletName: string;
   rows: ResolvedValid[];
   totalSol: number;
+  risk: BatchRiskSummary | null;
   onBack: () => void;
   onSend: () => void;
 }) {
@@ -715,6 +725,15 @@ function ReviewStage({
           </span>
         </span>
       </section>
+
+      {risk ? (
+        <section className="rounded-card border border-warning/30 bg-warning/[0.07] p-4 shadow-card-rest">
+          <p className="text-sm font-semibold text-text-strong">{risk.title}</p>
+          <p className="mt-1 text-xs leading-relaxed text-text-soft">
+            {risk.body}
+          </p>
+        </section>
+      ) : null}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
         <button
@@ -897,6 +916,52 @@ type ResolvedRow =
   | { kind: "empty" }
   | { kind: "invalid-address" }
   | { kind: "invalid-amount" };
+
+interface BatchRiskSummary {
+  title: string;
+  body: string;
+}
+
+function buildBatchRiskSummary(
+  totalSol: number,
+  rowCount: number,
+  budgetUsage: ReturnType<typeof useWalletBudgetUsage>,
+): BatchRiskSummary | null {
+  if (rowCount <= 0 || totalSol <= 0) return null;
+  const quote = quotePerWhole("SOL");
+  const pendingUsd = quote ? totalSol * quote.usdPerWhole : 0;
+  const solCap = budgetUsage.perChain.find((row) => row.ticker === "SOL");
+  if (solCap && solCap.cap !== null && pendingUsd > 0) {
+    const after = solCap.spentUsd + pendingUsd;
+    if (after > solCap.cap) {
+      return {
+        title: "Above Solana limit",
+        body: `${formatUsd(after)} would be used this week, above the saved ${formatUsd(solCap.cap)} Solana limit.`,
+      };
+    }
+  }
+
+  const weeklyCap = budgetUsage.budget?.weeklyUsd ?? null;
+  if (weeklyCap !== null && weeklyCap > 0 && pendingUsd > 0) {
+    const after = budgetUsage.spentUsd + pendingUsd;
+    if (after > weeklyCap) {
+      return {
+        title: "Above weekly limit",
+        body: `${formatUsd(after)} would be used this week, above the saved ${formatUsd(weeklyCap)} treasury limit.`,
+      };
+    }
+  }
+
+  const velocityCap = budgetUsage.budget?.velocityPerDay ?? null;
+  if (velocityCap && budgetUsage.sendsLast24h + rowCount > velocityCap) {
+    return {
+      title: "Above daily send limit",
+      body: `${budgetUsage.sendsLast24h + rowCount} sends would count in the last 24 hours, above the saved limit of ${velocityCap}.`,
+    };
+  }
+
+  return null;
+}
 
 function resolveRow(draft: DraftRow, contacts: Contact[]): ResolvedRow {
   const recipientRaw = draft.recipient.trim();
