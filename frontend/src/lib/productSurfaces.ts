@@ -49,7 +49,7 @@ export function productWorkspaceHref(id: ProductSurfaceId): string {
 }
 
 export function productConnectHref(id: ProductSurfaceId): string {
-  return `/connect?next=${encodeURIComponent(productWorkspaceHref(id))}`;
+  return `/connect?surface=${id}&next=${encodeURIComponent(productWorkspaceHref(id))}`;
 }
 
 export const PRODUCT_SURFACES: ProductSurface[] = [

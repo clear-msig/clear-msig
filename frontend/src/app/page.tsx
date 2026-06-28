@@ -11,8 +11,7 @@
 //      same subhead, same single CTA.
 //   2. Bento grid - features re-cast from the old Trust / How-it-works
 //      content into a 4-col bento with lime accent + glass cards.
-//   3. Footer - black with massive 'CLEAR' watermark, oversized lime
-//      CTA, 3-col policy/social/copyright block.
+//   3. Footer - black CTA, 3-col policy/social/copyright block.
 //
 // Typography: Space Grotesk (display + body) + JetBrains Mono
 // (technical labels). Scoped via .landing-shell so /app/* keeps
@@ -1707,15 +1706,6 @@ function AgentLaneIllustration() {
 function Footer({ fadeIn }: { fadeIn: FadeInFn }) {
   return (
     <footer className="relative left-1/2 right-1/2 z-10 -ml-[50vw] -mr-[50vw] w-screen overflow-hidden bg-black pb-10 pt-20 sm:pt-32">
-      {/* Massive watermark */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 bottom-0 select-none text-center font-medium leading-[0.85] tracking-[-0.06em] text-white/[0.04]"
-        style={{ fontSize: "clamp(6rem, 18vw, 16rem)" }}
-      >
-        CLEAR
-      </div>
-
       <div className="relative mx-auto w-full max-w-[1600px] px-5 sm:px-10">
         {/* CTA stack */}
         <div className="relative mx-auto max-w-3xl text-center">
@@ -1858,4 +1848,3 @@ function MailGlyph() {
     </svg>
   );
 }
-

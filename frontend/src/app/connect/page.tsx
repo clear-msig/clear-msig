@@ -59,7 +59,9 @@ function ConnectPage() {
   const search = useSearchParams();
   const wallet = useWallet();
   const reduce = useReducedMotion();
-  const selectedSurface = productSurfaceFromNext(search.get("next"));
+  const selectedSurface =
+    productSurfaceFromSearch(search.get("surface")) ??
+    productSurfaceFromNext(search.get("next"));
 
   // Bridge state: Dynamic auth is done, wallet.connected is true, but
   // useWalletGate is still waiting for the memberships RPC to settle
@@ -245,6 +247,10 @@ function ConnectPage() {
       </main>
     </div>
   );
+}
+
+function productSurfaceFromSearch(surface: string | null): ProductSurface | null {
+  return isProductSurfaceId(surface) ? productSurfaceById(surface) : null;
 }
 
 function productSurfaceFromNext(next: string | null): ProductSurface | null {

@@ -92,13 +92,11 @@ import {
   resolveWalletProductSurface,
   type WalletProductSurface,
   walletProductSurface,
-  walletProductSurfaceCounts,
 } from "@/lib/productWorkspace";
 import {
   isProductSurfaceId,
   productSetupHref,
   productSurfaceById,
-  productWorkspaceHref as productSurfaceWorkspaceHref,
 } from "@/lib/productSurfaces";
 import {
   clearPendingProductSurface,
@@ -206,17 +204,6 @@ function WalletDashboardContent() {
   const launchedIntoProduct = Boolean(requestedSurface ?? pendingLaunchSurface);
   const displaySurface =
     mobileWelcome && !launchedIntoProduct ? null : selectedSurface;
-  const selectSurface = (surface: WalletProductSurface | null) => {
-    setActiveSurface(surface);
-    if (surface) {
-      saveSelectedProductSurface(surface, address);
-      setStoredSurface(surface);
-    }
-    if (typeof window !== "undefined") {
-      const url = surface ? `/app/wallet?surface=${surface}` : "/app/wallet?surface=all";
-      window.history.pushState(null, "", url);
-    }
-  };
   const visibleWallets = useMemo(() => {
     return filterWalletsByProductSurface(wallets, displaySurface);
   }, [wallets, displaySurface]);
@@ -298,7 +285,6 @@ function WalletDashboardContent() {
   const filteredPendingCount = filteredActionRows.length;
 
   const showStats =
-    !displaySurface &&
     !hasError &&
     !isFirstVisit &&
     (visibleWallets.length > 0 || stillLoading);
@@ -321,21 +307,15 @@ function WalletDashboardContent() {
         reduce={!!reduce}
       />
 
-      {!hasError && !isFirstVisit ? (
-        <ProductWorkspaceSwitcher
-          selectedSurface={selectedSurface}
-          wallets={wallets}
-          onSelect={selectSurface}
-        />
-      ) : null}
-
       {showStats && (
         <StatsRow
           visibleWallets={visibleWallets}
+          switcherWallets={wallets}
           balances={balancesQuery.data}
           loadingBalances={balancesQuery.isLoading}
           loadingWallets={stillLoading}
           pendingByWallet={visiblePendingByWallet}
+          switcherPendingByWallet={recent.pendingByWallet}
           pendingCount={filteredPendingCount}
           pendingLoading={action.loading}
           selectedSurface={displaySurface}
@@ -497,94 +477,6 @@ function Hero({
   );
 }
 
-function ProductWorkspaceSwitcher({
-  selectedSurface,
-  wallets,
-  onSelect,
-}: {
-  selectedSurface: WalletProductSurface | null;
-  wallets: OnchainMembership[];
-  onSelect: (surface: WalletProductSurface | null) => void;
-}) {
-  const counts = useMemo(() => {
-    return walletProductSurfaceCounts(wallets);
-  }, [wallets]);
-  const items: Array<{ id: WalletProductSurface; Icon: LucideIcon }> = [
-    { id: "personal", Icon: PRODUCT_SURFACE_ICON.personal },
-    { id: "pro", Icon: PRODUCT_SURFACE_ICON.pro },
-    { id: "agent", Icon: PRODUCT_SURFACE_ICON.agent },
-    { id: "secure", Icon: PRODUCT_SURFACE_ICON.secure },
-  ];
-
-  return (
-    <section className="hidden rounded-card border border-border-soft bg-surface-raised p-2.5 shadow-card-rest md:block sm:p-3">
-      <div className="flex items-center gap-1.5 overflow-x-auto sm:gap-2">
-        <button
-          type="button"
-          onClick={() => onSelect(null)}
-          aria-pressed={selectedSurface === null}
-          className={clsx(
-            "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-soft px-2.5 text-xs font-medium transition-colors sm:min-h-10 sm:gap-2 sm:px-3",
-            selectedSurface === null
-              ? "bg-accent/10 text-accent"
-              : "text-text-soft hover:bg-glass-mid hover:text-text-strong",
-          )}
-        >
-          <Wallet className="h-4 w-4" aria-hidden="true" />
-          All
-          <span className="font-numerals text-[11px] tabular-nums">
-            {wallets.length}
-          </span>
-        </button>
-        {items.map(({ id, Icon }) => {
-          const product = productSurfaceById(id);
-          const active = selectedSurface === id;
-          if (id === "secure") {
-            return (
-              <Link
-                key={id}
-                href={productSurfaceWorkspaceHref(id)}
-                className={clsx(
-                  "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-soft px-2.5 text-xs font-medium transition-colors sm:min-h-10 sm:gap-2 sm:px-3",
-                  active
-                    ? "bg-accent/10 text-accent"
-                    : "text-text-soft hover:bg-glass-mid hover:text-text-strong",
-                )}
-              >
-                <Icon className="h-4 w-4" aria-hidden="true" />
-                {product.shortName}
-                <span className="font-numerals text-[11px] tabular-nums">
-                  {counts.get(id) ?? 0}
-                </span>
-              </Link>
-            );
-          }
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => onSelect(id)}
-              aria-pressed={active}
-              className={clsx(
-                "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-soft px-2.5 text-xs font-medium transition-colors sm:min-h-10 sm:gap-2 sm:px-3",
-                active
-                  ? "bg-accent/10 text-accent"
-                  : "text-text-soft hover:bg-glass-mid hover:text-text-strong",
-              )}
-            >
-              <Icon className="h-4 w-4" aria-hidden="true" />
-              {product.shortName}
-              <span className="font-numerals text-[11px] tabular-nums">
-                {counts.get(id) ?? 0}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
 // â”€â”€â”€ Stats row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // Three at-a-glance metrics: total balance (sum of Solana vault
@@ -595,20 +487,24 @@ function ProductWorkspaceSwitcher({
 
 function StatsRow({
   visibleWallets,
+  switcherWallets,
   balances,
   loadingBalances,
   loadingWallets,
   pendingByWallet,
+  switcherPendingByWallet,
   pendingCount,
   pendingLoading,
   selectedSurface,
   reduce,
 }: {
   visibleWallets: OnchainMembership[];
+  switcherWallets: OnchainMembership[];
   balances: Map<string, number> | undefined;
   loadingBalances: boolean;
   loadingWallets: boolean;
   pendingByWallet: Map<string, number>;
+  switcherPendingByWallet: Map<string, number>;
   pendingCount: number;
   pendingLoading: boolean;
   selectedSurface: WalletProductSurface | null;
@@ -710,10 +606,10 @@ function StatsRow({
       />
       <MobileWalletSwitchModal
         open={walletSwitcherOpen}
-        wallets={visibleWallets}
+        wallets={switcherWallets}
         balances={balances}
         loadingBalances={loadingBalances}
-        pendingByWallet={pendingByWallet}
+        pendingByWallet={switcherPendingByWallet}
         onClose={() => setWalletSwitcherOpen(false)}
       />
       {pendingCount > 0 || pendingLoading ? (
@@ -883,9 +779,6 @@ function NextActionStrip({
 // Lead card on Home - total SOL balance across every wallet the
 // member belongs to. Treated like a premium debit-card surface:
 //   â€¢ A subtle accent gradient washes the panel (top-left â†’ bottom-right)
-//   â€¢ A grid of large, very-low-opacity BrandMark icons sits behind
-//     the content as a watermark - ties the card to the product
-//     identity without competing with the number
 //   â€¢ A small visible BrandMark badge in the top-left anchors the
 //     "this is yours, on Clear" cue
 //   â€¢ Numerals are oversized (text-4xl / sm:text-5xl) so the balance
@@ -961,11 +854,24 @@ function BalanceHeroCard({
                 <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-text-soft/70">
                   {walletCount === 0
                     ? "-"
-                    : walletCount === 1
-                      ? "1 wallet"
-                      : `${walletCount} wallets`}
+                    : selectedSurface
+                      ? walletCount === 1
+                        ? "1 workspace"
+                        : `${walletCount} workspaces`
+                      : walletCount === 1
+                        ? "1 wallet"
+                        : `${walletCount} wallets`}
                 </span>
               )}
+              {onOpenWalletSwitcher && walletCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={onOpenWalletSwitcher}
+                  className="inline-flex h-8 items-center justify-center rounded-full bg-accent px-3 text-[11px] font-semibold text-text-on-accent shadow-accent-rest transition-[background-color,transform,box-shadow] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-accent-hover hover:shadow-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+                >
+                  Switch
+                </button>
+              ) : null}
               {!balanceLoading ? (
                 <button
                   type="button"
@@ -1086,13 +992,24 @@ function BalanceHeroCard({
           <p className="min-w-0 truncate font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft sm:text-[11px]">
             {surfaceCopy.footer}
           </p>
-          <Link
-            href={productSetupHref(selectedSurface)}
-            className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full bg-accent px-3 text-[11px] font-semibold text-text-on-accent shadow-accent-rest transition-[background-color,transform,box-shadow] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-accent-hover hover:shadow-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-          >
-            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-            {surfaceCopy.cta}
-          </Link>
+          <div className="flex shrink-0 items-center gap-2">
+            {onOpenWalletSwitcher && walletCount > 0 ? (
+              <button
+                type="button"
+                onClick={onOpenWalletSwitcher}
+                className="inline-flex min-h-9 items-center rounded-full border border-border-soft bg-canvas/70 px-3 text-[11px] font-semibold text-text-soft transition-colors hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised md:hidden"
+              >
+                Switch
+              </button>
+            ) : null}
+            <Link
+              href={productSetupHref(selectedSurface)}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-accent px-3 text-[11px] font-semibold text-text-on-accent shadow-accent-rest transition-[background-color,transform,box-shadow] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-accent-hover hover:shadow-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+            >
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              {surfaceCopy.cta}
+            </Link>
+          </div>
           </div>
         ) : null}
         </div>
@@ -1180,17 +1097,17 @@ function MobileWalletSwitchModal({
     <AnimatePresence>
       {open ? (
         <motion.div
-          className="fixed inset-0 z-[500] bg-canvas md:hidden"
+          className="fixed inset-0 z-[500] bg-canvas md:flex md:items-center md:justify-center md:bg-black/55 md:p-6 md:backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
-          aria-label="Switch wallet"
+          aria-label="Switch workspace"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.16 }}
         >
           <motion.div
-            className="flex h-full flex-col bg-canvas"
+            className="flex h-full flex-col bg-canvas md:h-auto md:max-h-[min(760px,calc(100vh-3rem))] md:w-full md:max-w-xl md:overflow-hidden md:rounded-card md:border md:border-border-soft md:bg-surface-raised md:shadow-card-rest"
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
@@ -1206,7 +1123,7 @@ function MobileWalletSwitchModal({
                 <ChevronLeft className="h-5 w-5" aria-hidden="true" />
               </button>
               <h2 className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-base font-semibold tracking-tight text-text-strong">
-                Switch wallet
+                Switch
               </h2>
               <span className="h-10 w-10" aria-hidden="true" />
             </header>
@@ -1215,7 +1132,7 @@ function MobileWalletSwitchModal({
               <div className="flex items-end justify-between gap-3">
                 <div>
                   <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.28em] text-text-soft">
-                    Your wallets
+                    Choose workspace
                   </p>
                   <p className="mt-1 text-sm text-text-soft">
                     Pick a wallet to open its workspace.
@@ -1568,7 +1485,7 @@ function MembershipsErrorCard({ onRetry }: { onRetry: () => void }) {
         Couldn&rsquo;t load your wallets
       </p>
       <p className="mt-2 text-sm text-text-strong">
-        Quick hiccup talking to the network. Your wallets are safe; we
+        Quick hiccup talking to the network. Your workspaces are safe; we
         just couldn&rsquo;t fetch them right now.
       </p>
       <Button size="md" className="mt-4" onClick={onRetry}>

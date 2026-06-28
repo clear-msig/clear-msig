@@ -128,7 +128,7 @@ export function CommandPalette() {
 
           {wallets.length > 0 && (
             <Command.Group
-              heading="Your wallets"
+              heading="Workspaces"
               className="mb-2 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-white/40"
             >
               {wallets.map((m) => {

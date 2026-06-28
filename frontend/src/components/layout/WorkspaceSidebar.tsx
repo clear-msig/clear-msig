@@ -156,7 +156,7 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
               layout. Tapping a row swaps the sidebar to the wallet-
               scoped variant above. */}
           <SidebarSection
-            label="Your wallets"
+            label="Workspaces"
             count={memberships.length}
             loading={myOrganizationsQuery.isLoading}
             expanded={expanded}
