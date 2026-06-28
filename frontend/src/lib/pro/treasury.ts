@@ -35,7 +35,7 @@ export function getProTreasuryRuntime(): ProTreasuryRuntime {
     environmentLabel:
       process.env.NEXT_PUBLIC_CLEARSIG_ENVIRONMENT_LABEL ?? "Devnet",
     defaultPaymentAsset:
-      process.env.NEXT_PUBLIC_CLEARSIG_PRO_DEFAULT_PAYMENT_ASSET ?? "USDC",
+      process.env.NEXT_PUBLIC_CLEARSIG_PRO_DEFAULT_PAYMENT_ASSET ?? "SOL",
     batchCsvColumns: envList(
       process.env.NEXT_PUBLIC_CLEARSIG_PRO_BATCH_CSV_COLUMNS,
       ["name", "address", "asset", "amount", "note"],

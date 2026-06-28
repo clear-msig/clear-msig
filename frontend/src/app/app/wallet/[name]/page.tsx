@@ -1845,6 +1845,7 @@ function ProOperationsPanel({
       .slice(0, 10),
   });
   const lastReceipt = attempts[0] ?? null;
+  const dueSchedules = schedules.rows.filter(isScheduleDue);
 
   const saveSchedule = () => {
     const payee = scheduleDraft.name.trim();
@@ -1905,7 +1906,7 @@ function ProOperationsPanel({
         </div>
         <div className="mt-4 grid gap-2 sm:grid-cols-3">
           <ProMetricTile label="Approval inbox" value={String(actionRows.length)} />
-          <ProMetricTile label="Schedules" value={String(schedules.rows.length)} />
+          <ProMetricTile label="Due payments" value={String(dueSchedules.length)} />
           <ProMetricTile label="Receipts" value={String(attempts.length)} />
         </div>
       </div>
@@ -2074,6 +2075,16 @@ function ProScheduleCard({
   onRemove: (id: string) => void;
 }) {
   const encoded = encodeURIComponent(walletName);
+  const sortedRows = useMemo(
+    () =>
+      [...rows].sort((a, b) => {
+        const aDue = isScheduleDue(a) ? 0 : 1;
+        const bDue = isScheduleDue(b) ? 0 : 1;
+        if (aDue !== bDue) return aDue - bDue;
+        return a.nextRun.localeCompare(b.nextRun);
+      }),
+    [rows],
+  );
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
       <div className="flex items-center justify-between gap-3">
@@ -2163,11 +2174,19 @@ function ProScheduleCard({
       </div>
       {rows.length > 0 ? (
         <ul className="mt-3 divide-y divide-border-soft">
-          {rows.slice(0, 4).map((row) => (
+          {sortedRows.slice(0, 4).map((row) => {
+            const due = isScheduleDue(row);
+            const payHref = schedulePaymentHref(row, encoded);
+            return (
             <li key={row.id} className="flex items-center justify-between gap-3 py-2">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-text-strong">
                   {row.name}
+                  {due ? (
+                    <span className="ml-2 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-accent">
+                      Due
+                    </span>
+                  ) : null}
                 </p>
                 <p className="truncate text-xs text-text-soft">
                   {row.amount} {row.asset} · {row.cadence} · {row.nextRun}
@@ -2175,11 +2194,7 @@ function ProScheduleCard({
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
                 <Link
-                  href={
-                    row.category === "payroll"
-                      ? `/app/wallet/${encoded}/send/batch?template=payroll`
-                      : `/app/wallet/${encoded}/send?kind=vendor`
-                  }
+                  href={payHref}
                   className="rounded-full border border-border-soft px-2.5 py-1 text-[11px] font-semibold text-text-strong transition hover:border-accent/40 hover:text-accent"
                 >
                   Pay
@@ -2193,11 +2208,32 @@ function ProScheduleCard({
                 </button>
               </div>
             </li>
-          ))}
+          );
+          })}
         </ul>
       ) : null}
     </section>
   );
+}
+
+function isScheduleDue(row: ProSchedule): boolean {
+  if (!row.nextRun) return false;
+  const dueAt = new Date(`${row.nextRun}T00:00:00`);
+  return Number.isFinite(dueAt.getTime()) && dueAt.getTime() <= Date.now();
+}
+
+function schedulePaymentHref(row: ProSchedule, encodedWalletName: string): string {
+  if (row.category === "payroll") {
+    return `/app/wallet/${encodedWalletName}/send/batch?template=payroll`;
+  }
+  const asset = row.asset.trim().toUpperCase();
+  const params = new URLSearchParams({ kind: "vendor" });
+  if (asset === "SOL") {
+    params.set("recipient", row.name);
+    params.set("amount", row.amount);
+    params.set("note", `${row.cadence} vendor payment`);
+  }
+  return `/app/wallet/${encodedWalletName}/send?${params.toString()}`;
 }
 
 function ProAuditCard({
