@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { TxAttempt } from "@/lib/retail/txLog";
 
 export type ProScheduleCategory = "vendor" | "payroll";
 export type ProScheduleCadence = "Weekly" | "Monthly";
@@ -26,6 +27,12 @@ export interface ProTreasuryRuntime {
   auditUrl: string;
   securityUrl: string;
   recoveryUrl: string;
+}
+
+export interface ProAccountingExportInput {
+  walletName: string;
+  attempts: TxAttempt[];
+  schedules: ProSchedule[];
 }
 
 const SCHEDULE_STORAGE_PREFIX = "clear.pro.schedules.v1:";
@@ -143,4 +150,71 @@ export function useProSchedules(walletName: string) {
     },
     remove: (id: string) => saveRows(rows.filter((row) => row.id !== id)),
   };
+}
+
+export function buildProAccountingCsv(input: ProAccountingExportInput): string {
+  const rows: string[][] = [
+    [
+      "record_type",
+      "wallet",
+      "date",
+      "name",
+      "asset",
+      "amount",
+      "status",
+      "reference",
+      "note",
+    ],
+  ];
+
+  for (const attempt of input.attempts) {
+    rows.push([
+      "payment_attempt",
+      input.walletName,
+      new Date(attempt.ts).toISOString(),
+      attempt.recipientShort ?? "",
+      attempt.ticker ?? "",
+      attempt.amountDisplay ?? "",
+      attempt.status,
+      attempt.txId ?? attempt.id,
+      attempt.errorBrief ?? "",
+    ]);
+  }
+
+  for (const schedule of input.schedules) {
+    rows.push([
+      "recurring_schedule",
+      input.walletName,
+      schedule.nextRun,
+      schedule.name,
+      schedule.asset,
+      schedule.amount,
+      schedule.category,
+      schedule.id,
+      schedule.cadence,
+    ]);
+  }
+
+  return rows.map((row) => row.map(csvCell).join(",")).join("\n");
+}
+
+export function downloadProAccountingCsv(
+  filename: string,
+  csv: string,
+): void {
+  if (typeof window === "undefined") return;
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function csvCell(value: string): string {
+  if (!/[",\n\r]/.test(value)) return value;
+  return `"${value.replace(/"/g, '""')}"`;
 }

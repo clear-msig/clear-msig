@@ -96,10 +96,14 @@ import {
 } from "@/lib/retail/chains";
 import { appConfig } from "@/lib/config";
 import {
+  buildProAccountingCsv,
+  downloadProAccountingCsv,
   getProTreasuryRuntime,
   useProSchedules,
   type ProSchedule,
 } from "@/lib/pro/treasury";
+import { loadEmailPrefs } from "@/lib/security/emailNotifications";
+import { loadWebhookPrefs } from "@/lib/security/webhookNotifications";
 import {
   isProductSurfaceId,
   type ProductSurfaceId,
@@ -1834,6 +1838,8 @@ function ProOperationsPanel({
   const encoded = encodeURIComponent(name);
   const runtime = useMemo(() => getProTreasuryRuntime(), []);
   const schedules = useProSchedules(name);
+  const budgetUsage = useWalletBudgetUsage(name);
+  const [alertsReady, setAlertsReady] = useState(false);
   const [scheduleDraft, setScheduleDraft] = useState({
     name: "",
     category: "vendor" as ProSchedule["category"],
@@ -1846,6 +1852,11 @@ function ProOperationsPanel({
   });
   const lastReceipt = attempts[0] ?? null;
   const dueSchedules = schedules.rows.filter(isScheduleDue);
+  const limitsReady = hasAnyProLimit(budgetUsage);
+
+  useEffect(() => {
+    setAlertsReady(loadEmailPrefs().enabled || loadWebhookPrefs().enabled);
+  }, []);
 
   const saveSchedule = () => {
     const payee = scheduleDraft.name.trim();
@@ -1869,6 +1880,20 @@ function ProOperationsPanel({
     const slug = name.replace(/[^a-z0-9-]+/gi, "-").toLowerCase();
     const stamp = new Date().toISOString().slice(0, 10);
     downloadActivityCsv(`clearsig-pro-${slug || "treasury"}-${stamp}.csv`, csv);
+  };
+
+  const exportAccounting = () => {
+    const csv = buildProAccountingCsv({
+      walletName: name,
+      attempts,
+      schedules: schedules.rows,
+    });
+    const slug = name.replace(/[^a-z0-9-]+/gi, "-").toLowerCase();
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadProAccountingCsv(
+      `clearsig-accounting-${slug || "treasury"}-${stamp}.csv`,
+      csv,
+    );
   };
 
   return (
@@ -1910,6 +1935,16 @@ function ProOperationsPanel({
           <ProMetricTile label="Receipts" value={String(attempts.length)} />
         </div>
       </div>
+
+      <ProReadinessStrip
+        walletName={name}
+        actionCount={actionRows.length}
+        dueCount={dueSchedules.length}
+        hasSchedules={schedules.rows.length > 0}
+        limitsReady={limitsReady}
+        alertsReady={alertsReady}
+        auditReady={activityRows.length + attempts.length > 0}
+      />
 
       <div className="grid gap-3 lg:grid-cols-[1.15fr_0.85fr]">
         <ActionGroup label="Payments">
@@ -1999,8 +2034,10 @@ function ProOperationsPanel({
           activityCount={activityRows.length}
           lastReceipt={lastReceipt}
           onExport={exportAudit}
+          onExportAccounting={exportAccounting}
           activityHref={`/app/wallet/${encoded}/activity`}
           csvColumns={runtime.batchCsvColumns}
+          accountingTargets={runtime.accountingTargets}
         />
         <ActionGroup label="Admin">
           <ActionRow
@@ -2057,6 +2094,116 @@ function ProMetricTile({ label, value }: { label: string; value: string }) {
   );
 }
 
+function hasAnyProLimit(usage: ReturnType<typeof useWalletBudgetUsage>): boolean {
+  const weeklyCap = usage.budget?.weeklyUsd;
+  const velocity = usage.budget?.velocityPerDay;
+  return (
+    (weeklyCap !== null && weeklyCap !== undefined) ||
+    !!velocity ||
+    usage.perChain.some((row) => row.cap !== null)
+  );
+}
+
+function ProReadinessStrip({
+  walletName,
+  actionCount,
+  dueCount,
+  hasSchedules,
+  limitsReady,
+  alertsReady,
+  auditReady,
+}: {
+  walletName: string;
+  actionCount: number;
+  dueCount: number;
+  hasSchedules: boolean;
+  limitsReady: boolean;
+  alertsReady: boolean;
+  auditReady: boolean;
+}) {
+  const encoded = encodeURIComponent(walletName);
+  const items = [
+    {
+      label: "Approvals",
+      value: actionCount > 0 ? `${actionCount} waiting` : "Ready",
+      href: actionCount > 0 ? "#action-needed" : undefined,
+      active: actionCount === 0,
+    },
+    {
+      label: "Limits",
+      value: limitsReady ? "Set" : "Add",
+      href: `/app/wallet/${encoded}/budget`,
+      active: limitsReady,
+    },
+    {
+      label: "Recurring",
+      value: hasSchedules ? (dueCount > 0 ? `${dueCount} due` : "Ready") : "Add",
+      href: hasSchedules ? undefined : "#pro-recurring",
+      active: hasSchedules && dueCount === 0,
+    },
+    {
+      label: "Alerts",
+      value: alertsReady ? "On" : "Add",
+      href: "/app/settings#notifications",
+      active: alertsReady,
+    },
+    {
+      label: "Audit",
+      value: auditReady ? "Ready" : "Waiting",
+      href: `/app/wallet/${encoded}/activity`,
+      active: auditReady,
+    },
+  ];
+
+  return (
+    <section
+      aria-label="Pro readiness"
+      className="rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest"
+    >
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        {items.map((item) => {
+          const body = (
+            <>
+              <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-text-soft">
+                {item.label}
+              </span>
+              <span
+                className={
+                  "mt-1 text-sm font-semibold " +
+                  (item.active ? "text-text-strong" : "text-accent")
+                }
+              >
+                {item.value}
+              </span>
+            </>
+          );
+
+          if (item.href) {
+            return (
+              <Link
+                key={item.label}
+                href={item.href}
+                className="flex min-h-14 flex-col justify-center rounded-soft border border-border-soft bg-canvas/70 px-3 py-2 transition hover:border-accent/40"
+              >
+                {body}
+              </Link>
+            );
+          }
+
+          return (
+            <div
+              key={item.label}
+              className="flex min-h-14 flex-col justify-center rounded-soft border border-border-soft bg-canvas/70 px-3 py-2"
+            >
+              {body}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function ProScheduleCard({
   draft,
   rows,
@@ -2086,7 +2233,10 @@ function ProScheduleCard({
     [rows],
   );
   return (
-    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+    <section
+      id="pro-recurring"
+      className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest"
+    >
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-[10px] font-semibold uppercase tracking-[0.26em] text-text-soft">
           Recurring
@@ -2240,14 +2390,18 @@ function ProAuditCard({
   activityCount,
   lastReceipt,
   onExport,
+  onExportAccounting,
   activityHref,
   csvColumns,
+  accountingTargets,
 }: {
   activityCount: number;
   lastReceipt: TxAttempt | null;
   onExport: () => void;
+  onExportAccounting: () => void;
   activityHref: string;
   csvColumns: string[];
+  accountingTargets: string[];
 }) {
   const receiptCopy = lastReceipt
     ? humanReceipt(lastReceipt)
@@ -2271,14 +2425,24 @@ function ProAuditCard({
         <p className="mt-2 truncate font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft/70">
           CSV · {csvColumns.join(", ")}
         </p>
+        <p className="mt-1 truncate font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft/70">
+          Finance · {accountingTargets.join(" / ")}
+        </p>
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-2">
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
         <button
           type="button"
           onClick={onExport}
           className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm font-semibold text-text-strong transition hover:border-accent/40 hover:text-accent"
         >
           Export CSV
+        </button>
+        <button
+          type="button"
+          onClick={onExportAccounting}
+          className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm font-semibold text-text-strong transition hover:border-accent/40 hover:text-accent"
+        >
+          Accounting
         </button>
         <Link
           href={activityHref}
