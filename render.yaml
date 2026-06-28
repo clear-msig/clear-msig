@@ -34,6 +34,8 @@ services:
         value: 0.0.0.0:10000
       - key: CLEAR_MSIG_ATTESTATION_DIR
         value: /data/attestations
+      - key: CLEAR_MSIG_PRO_STORE_PATH
+        value: /data/pro-store.json
       - key: CLEAR_MSIG_ALLOWED_ORIGIN
         value: https://clearsig.xyz,https://www.clearsig.xyz
       - key: RUST_LOG

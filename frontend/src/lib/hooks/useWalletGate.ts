@@ -23,7 +23,10 @@ import { useWallet } from "@/lib/wallet";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { fetchOnchainMemberships } from "@/lib/memberships/client";
-import { productWorkspaceHref } from "@/lib/productSurfaces";
+import {
+  isProductSurfaceId,
+  productWorkspaceHref,
+} from "@/lib/productSurfaces";
 import {
   clearPendingProductSurface,
   productSurfaceFromPath,
@@ -51,6 +54,13 @@ export function useWalletGate() {
     const params = new URLSearchParams(window.location.search);
     const next = params.get("next");
     return isSafeNext(next) ? next : null;
+  }, [pathname]);
+  const explicitSurface = useMemo(() => {
+    if (pathname !== "/connect") return null;
+    if (typeof window === "undefined") return null;
+    const params = new URLSearchParams(window.location.search);
+    const surface = params.get("surface");
+    return isProductSurfaceId(surface) ? surface : null;
   }, [pathname]);
 
   // Only need the memberships count on /connect to pick the post-
@@ -87,7 +97,7 @@ export function useWalletGate() {
     if (wallet.connected) {
       if (pathname === "/connect") {
         if (explicitNext) {
-          const nextSurface = productSurfaceFromPath(explicitNext);
+          const nextSurface = productSurfaceFromPath(explicitNext) ?? explicitSurface;
           if (nextSurface) {
             saveSelectedProductSurface(nextSurface, address);
             clearPendingProductSurface();
@@ -99,7 +109,7 @@ export function useWalletGate() {
         // to /welcome before discovering existing wallets.
         if (memberships.isLoading || memberships.isFetching) return;
         const hasWallets = (memberships.data?.length ?? 0) > 0;
-        const pendingSurface = readPendingProductSurface();
+        const pendingSurface = explicitSurface ?? readPendingProductSurface();
         if (pendingSurface) {
           saveSelectedProductSurface(pendingSurface, address);
           clearPendingProductSurface();
@@ -159,6 +169,7 @@ export function useWalletGate() {
     wallet.loggedInWithoutSolana,
     address,
     explicitNext,
+    explicitSurface,
     pathname,
     router,
     memberships.isLoading,

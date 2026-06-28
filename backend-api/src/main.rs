@@ -31,6 +31,7 @@ struct AppState {
     runner: Arc<CliRunner>,
     /// Per-pubkey rate limiter for pre-signed writes.
     rate_limiter: Arc<RateLimiter>,
+    pro_store: Arc<ProStore>,
 }
 
 #[derive(Clone)]
@@ -537,6 +538,243 @@ struct MembershipResponse {
     organizations: Vec<OrganizationMembership>,
 }
 
+#[derive(Clone)]
+struct ProStore {
+    path: PathBuf,
+    lock: Arc<tokio::sync::Mutex<()>>,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+struct ProStoreDocument {
+    schedules: Vec<ProScheduleRecord>,
+    audit_events: Vec<ProAuditEvent>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProScheduleRecord {
+    id: String,
+    wallet_name: String,
+    name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    address: Option<String>,
+    category: String,
+    amount: String,
+    asset: String,
+    cadence: String,
+    next_run: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    note: Option<String>,
+    created_at: i64,
+    updated_at: i64,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProScheduleInput {
+    id: String,
+    name: String,
+    #[serde(default)]
+    address: Option<String>,
+    category: String,
+    amount: String,
+    asset: String,
+    cadence: String,
+    next_run: String,
+    #[serde(default)]
+    note: Option<String>,
+    created_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProSchedulesResponse {
+    wallet_name: String,
+    schedules: Vec<ProScheduleRecord>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProScheduleDeleteRequest {
+    id: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProAuditEvent {
+    id: String,
+    wallet_name: String,
+    event_type: String,
+    title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    reference: Option<String>,
+    #[serde(default)]
+    metadata: Value,
+    created_at: i64,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProAuditEventInput {
+    id: Option<String>,
+    wallet_name: String,
+    event_type: String,
+    title: String,
+    #[serde(default)]
+    reference: Option<String>,
+    #[serde(default)]
+    metadata: Value,
+    created_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProAuditEventsResponse {
+    wallet_name: String,
+    events: Vec<ProAuditEvent>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProPersistResponse<T> {
+    ok: bool,
+    data: T,
+}
+
+impl ProStore {
+    fn new(path: PathBuf) -> Self {
+        Self {
+            path,
+            lock: Arc::new(tokio::sync::Mutex::new(())),
+        }
+    }
+
+    async fn list_schedules(&self, wallet_name: &str) -> Result<Vec<ProScheduleRecord>, ApiError> {
+        let _guard = self.lock.lock().await;
+        let doc = self.read_locked().await?;
+        let mut rows: Vec<ProScheduleRecord> = doc
+            .schedules
+            .into_iter()
+            .filter(|row| row.wallet_name == wallet_name)
+            .collect();
+        rows.sort_by(|a, b| {
+            a.next_run
+                .cmp(&b.next_run)
+                .then_with(|| a.name.cmp(&b.name))
+        });
+        Ok(rows)
+    }
+
+    async fn upsert_schedule(
+        &self,
+        wallet_name: String,
+        input: ProScheduleInput,
+    ) -> Result<ProScheduleRecord, ApiError> {
+        validate_pro_schedule(&input)?;
+        let _guard = self.lock.lock().await;
+        let mut doc = self.read_locked().await?;
+        let now = current_unix_timestamp_ms()?;
+        let created_at = input.created_at.unwrap_or(now);
+        let record = ProScheduleRecord {
+            id: input.id.trim().to_string(),
+            wallet_name,
+            name: input.name.trim().to_string(),
+            address: trim_optional(input.address),
+            category: input.category.trim().to_ascii_lowercase(),
+            amount: input.amount.trim().to_string(),
+            asset: input.asset.trim().to_ascii_uppercase(),
+            cadence: normalize_cadence(&input.cadence)?,
+            next_run: input.next_run.trim().to_string(),
+            note: trim_optional(input.note),
+            created_at,
+            updated_at: now,
+        };
+
+        doc.schedules
+            .retain(|row| !(row.wallet_name == record.wallet_name && row.id == record.id));
+        doc.schedules.push(record.clone());
+        self.write_locked(&doc).await?;
+        Ok(record)
+    }
+
+    async fn delete_schedule(&self, wallet_name: String, id: String) -> Result<bool, ApiError> {
+        ensure_non_empty(&id, "id")?;
+        let _guard = self.lock.lock().await;
+        let mut doc = self.read_locked().await?;
+        let before = doc.schedules.len();
+        doc.schedules
+            .retain(|row| !(row.wallet_name == wallet_name && row.id == id));
+        let removed = doc.schedules.len() != before;
+        if removed {
+            self.write_locked(&doc).await?;
+        }
+        Ok(removed)
+    }
+
+    async fn append_audit_event(
+        &self,
+        input: ProAuditEventInput,
+    ) -> Result<ProAuditEvent, ApiError> {
+        validate_pro_audit_event(&input)?;
+        let _guard = self.lock.lock().await;
+        let mut doc = self.read_locked().await?;
+        let now = current_unix_timestamp_ms()?;
+        let event = ProAuditEvent {
+            id: input.id.unwrap_or_else(|| format!("evt-{now}")),
+            wallet_name: input.wallet_name.trim().to_string(),
+            event_type: input.event_type.trim().to_ascii_lowercase(),
+            title: input.title.trim().to_string(),
+            reference: trim_optional(input.reference),
+            metadata: input.metadata,
+            created_at: input.created_at.unwrap_or(now),
+        };
+        doc.audit_events.push(event.clone());
+        doc.audit_events
+            .sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        doc.audit_events.truncate(2_000);
+        self.write_locked(&doc).await?;
+        Ok(event)
+    }
+
+    async fn list_audit_events(&self, wallet_name: &str) -> Result<Vec<ProAuditEvent>, ApiError> {
+        let _guard = self.lock.lock().await;
+        let doc = self.read_locked().await?;
+        let mut rows: Vec<ProAuditEvent> = doc
+            .audit_events
+            .into_iter()
+            .filter(|row| row.wallet_name == wallet_name)
+            .collect();
+        rows.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        Ok(rows.into_iter().take(200).collect())
+    }
+
+    async fn read_locked(&self) -> Result<ProStoreDocument, ApiError> {
+        match tokio::fs::read_to_string(&self.path).await {
+            Ok(raw) => serde_json::from_str(&raw)
+                .map_err(|e| ApiError::InvalidOutput(format!("invalid Pro store JSON: {e}"))),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                Ok(ProStoreDocument::default())
+            }
+            Err(error) => Err(ApiError::Internal(format!(
+                "failed to read Pro store: {error}"
+            ))),
+        }
+    }
+
+    async fn write_locked(&self, doc: &ProStoreDocument) -> Result<(), ApiError> {
+        if let Some(parent) = self.path.parent() {
+            tokio::fs::create_dir_all(parent).await.map_err(|e| {
+                ApiError::Internal(format!("failed to create Pro store directory: {e}"))
+            })?;
+        }
+        let body = serde_json::to_vec_pretty(doc)
+            .map_err(|e| ApiError::Internal(format!("failed to encode Pro store: {e}")))?;
+        tokio::fs::write(&self.path, body)
+            .await
+            .map_err(|e| ApiError::Internal(format!("failed to write Pro store: {e}")))
+    }
+}
+
 #[derive(Serialize)]
 struct OrganizationMembership {
     wallet: String,
@@ -957,6 +1195,73 @@ async fn membership_lookup(
     Ok(Json(MembershipResponse { organizations }))
 }
 
+async fn list_pro_schedules(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+) -> Result<Json<ProPersistResponse<ProSchedulesResponse>>, ApiError> {
+    ensure_non_empty(&name, "walletName")?;
+    let schedules = state.pro_store.list_schedules(&name).await?;
+    Ok(Json(ProPersistResponse {
+        ok: true,
+        data: ProSchedulesResponse {
+            wallet_name: name,
+            schedules,
+        },
+    }))
+}
+
+async fn upsert_pro_schedule(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Json(input): Json<ProScheduleInput>,
+) -> Result<Json<ProPersistResponse<ProScheduleRecord>>, ApiError> {
+    ensure_non_empty(&name, "walletName")?;
+    let schedule = state.pro_store.upsert_schedule(name, input).await?;
+    Ok(Json(ProPersistResponse {
+        ok: true,
+        data: schedule,
+    }))
+}
+
+async fn delete_pro_schedule(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Json(input): Json<ProScheduleDeleteRequest>,
+) -> Result<Json<ProPersistResponse<Value>>, ApiError> {
+    ensure_non_empty(&name, "walletName")?;
+    let removed = state.pro_store.delete_schedule(name, input.id).await?;
+    Ok(Json(ProPersistResponse {
+        ok: true,
+        data: serde_json::json!({ "removed": removed }),
+    }))
+}
+
+async fn append_pro_audit_event(
+    State(state): State<AppState>,
+    Json(input): Json<ProAuditEventInput>,
+) -> Result<Json<ProPersistResponse<ProAuditEvent>>, ApiError> {
+    let event = state.pro_store.append_audit_event(input).await?;
+    Ok(Json(ProPersistResponse {
+        ok: true,
+        data: event,
+    }))
+}
+
+async fn list_pro_audit_events(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+) -> Result<Json<ProPersistResponse<ProAuditEventsResponse>>, ApiError> {
+    ensure_non_empty(&name, "walletName")?;
+    let events = state.pro_store.list_audit_events(&name).await?;
+    Ok(Json(ProPersistResponse {
+        ok: true,
+        data: ProAuditEventsResponse {
+            wallet_name: name,
+            events,
+        },
+    }))
+}
+
 /// Convert a Unix expiry timestamp into the `YYYY-MM-DD HH:MM:SS` form
 /// the CLI expects on `--expiry`. This is the mirror of the CLI's
 /// `message::parse_expiry`. We do it here (rather than accepting a string
@@ -998,12 +1303,75 @@ fn ensure_non_empty(value: &str, field: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
+fn validate_pro_schedule(input: &ProScheduleInput) -> Result<(), ApiError> {
+    ensure_non_empty(&input.id, "id")?;
+    ensure_non_empty(&input.name, "name")?;
+    ensure_non_empty(&input.amount, "amount")?;
+    ensure_non_empty(&input.asset, "asset")?;
+    ensure_non_empty(&input.next_run, "nextRun")?;
+    match input.category.trim().to_ascii_lowercase().as_str() {
+        "vendor" | "payroll" => {}
+        _ => {
+            return Err(ApiError::BadRequest(
+                "category must be vendor or payroll".to_string(),
+            ))
+        }
+    }
+    normalize_cadence(&input.cadence)?;
+    Ok(())
+}
+
+fn validate_pro_audit_event(input: &ProAuditEventInput) -> Result<(), ApiError> {
+    ensure_non_empty(&input.wallet_name, "walletName")?;
+    ensure_non_empty(&input.event_type, "eventType")?;
+    ensure_non_empty(&input.title, "title")?;
+    Ok(())
+}
+
+fn normalize_cadence(value: &str) -> Result<String, ApiError> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "weekly" => Ok("Weekly".to_string()),
+        "monthly" => Ok("Monthly".to_string()),
+        _ => Err(ApiError::BadRequest(
+            "cadence must be Weekly or Monthly".to_string(),
+        )),
+    }
+}
+
+fn trim_optional(value: Option<String>) -> Option<String> {
+    value
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
 fn current_unix_timestamp() -> Result<i64, ApiError> {
     let duration = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| ApiError::Internal(format!("system clock before unix epoch: {e}")))?;
     i64::try_from(duration.as_secs())
         .map_err(|_| ApiError::Internal("system clock timestamp out of range".into()))
+}
+
+fn current_unix_timestamp_ms() -> Result<i64, ApiError> {
+    let duration = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| ApiError::Internal(format!("system clock before unix epoch: {e}")))?;
+    i64::try_from(duration.as_millis())
+        .map_err(|_| ApiError::Internal("system clock timestamp out of range".into()))
+}
+
+fn default_pro_store_path() -> PathBuf {
+    if let Ok(path) = env::var("CLEAR_MSIG_PRO_STORE_PATH") {
+        let trimmed = path.trim();
+        if !trimmed.is_empty() {
+            return PathBuf::from(trimmed);
+        }
+    }
+    let render_path = PathBuf::from("/data/pro-store.json");
+    if PathBuf::from("/data").exists() {
+        return render_path;
+    }
+    PathBuf::from("backend-api-pro-store.json")
 }
 
 fn ensure_hex(value: &str, field: &str) -> Result<(), ApiError> {
@@ -2265,8 +2633,11 @@ async fn main() -> anyhow::Result<()> {
         .and_then(|v| v.parse::<u32>().ok())
         .unwrap_or(30);
 
+    let pro_store_path = default_pro_store_path();
+
     info!(
         cli_bin = %runner.cli_bin,
+        pro_store_path = %pro_store_path.display(),
         rate_limit_window_secs,
         rate_limit_max,
         "starting backend adapter"
@@ -2278,6 +2649,7 @@ async fn main() -> anyhow::Result<()> {
             Duration::from_secs(rate_limit_window_secs),
             rate_limit_max,
         )),
+        pro_store: Arc::new(ProStore::new(pro_store_path)),
     };
 
     // Every route here is open. Wallet bootstrap + chain binding do not
@@ -2289,6 +2661,19 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/health", get(health))
         .route("/memberships", get(membership_lookup))
+        .route(
+            "/v1/pro/wallets/{name}/schedules",
+            get(list_pro_schedules).post(upsert_pro_schedule),
+        )
+        .route(
+            "/v1/pro/wallets/{name}/schedules/delete",
+            post(delete_pro_schedule),
+        )
+        .route(
+            "/v1/pro/wallets/{name}/audit-events",
+            get(list_pro_audit_events),
+        )
+        .route("/v1/pro/audit-events", post(append_pro_audit_event))
         .route("/wallets", post(create_wallet))
         .route("/wallets/{name}", get(show_wallet))
         .route("/wallets/{name}/chains", get(list_wallet_chains))

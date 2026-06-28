@@ -281,7 +281,7 @@ function AdvancedProtectionPanel({
   const encoded = encodeURIComponent(walletName);
   return (
     <details
-      id="advanced-protection"
+      id="risk"
       className="group rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5"
     >
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3">

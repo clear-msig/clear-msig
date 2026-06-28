@@ -24,7 +24,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { proposerDisplayName } from "@/lib/retail/proposerName";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ArrowRight, Banknote, Bell, Bot, ChevronDown, Coins, Download, Eye, EyeOff, Network, Repeat2, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
+import { Activity, ArrowRight, Banknote, Bell, Bot, ChevronDown, Coins, Download, Eye, EyeOff, Heart, Network, PauseCircle, ReceiptText, Repeat2, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
 import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -86,7 +86,26 @@ import {
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { useWalletPortfolio } from "@/lib/hooks/useWalletPortfolio";
 import { useBalancePrivacy } from "@/lib/hooks/useBalancePrivacy";
+import { useContacts } from "@/lib/hooks/useContacts";
+import {
+  isValidSolanaAddress,
+  shortAddress,
+} from "@/lib/retail/contacts";
 import { formatUsd } from "@/lib/retail/priceConversion";
+import {
+  getEmergencyPause,
+  saveEmergencyPause,
+} from "@/lib/retail/policy";
+import {
+  getSpendingCategories,
+  saveSpendingCategories,
+  type SpendingCategory,
+} from "@/lib/retail/spendingCategories";
+import {
+  listPersonalReceipts,
+  recordPersonalReceipt,
+  type PersonalReceipt,
+} from "@/lib/retail/personalReceipts";
 import { useDisplayCurrency } from "@/lib/hooks/useDisplayCurrency";
 import { UsdHint } from "@/components/retail/UsdHint";
 import { InfoTip } from "@/components/retail/InfoTip";
@@ -95,6 +114,15 @@ import {
   chainDisplayRank,
 } from "@/lib/retail/chains";
 import { appConfig } from "@/lib/config";
+import {
+  buildProAccountingCsv,
+  downloadProAccountingCsv,
+  getProTreasuryRuntime,
+  useProSchedules,
+  type ProSchedule,
+} from "@/lib/pro/treasury";
+import { loadEmailPrefs } from "@/lib/security/emailNotifications";
+import { loadWebhookPrefs } from "@/lib/security/webhookNotifications";
 import {
   isProductSurfaceId,
   type ProductSurfaceId,
@@ -379,6 +407,7 @@ export default function WalletDetailPage() {
         // Manage tab data
         name={name}
         productSurface={productSurface}
+        actionRows={walletAction}
         hasIntents={hasIntents}
         reduce={!!reduce}
       />
@@ -418,6 +447,7 @@ interface WalletDetailTabsProps {
   erc20Holdings: Erc20Holding[];
   name: string;
   productSurface: ProductSurfaceId | null;
+  actionRows: ActionNeededRow[];
   /// Tri-state to match the upstream useMemo: null while the
   /// intents query is in flight, true/false once known. NextStepsStripe
   /// already handles the null case for its loading skeleton.
@@ -439,6 +469,7 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
     erc20Holdings,
     name,
     productSurface,
+    actionRows,
     hasIntents,
     reduce,
   } = props;
@@ -574,6 +605,15 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
 
       {tab === "manage" && (
         <div className="flex flex-col gap-4">
+          {productSurface === "pro" ? (
+            <ProOperationsPanel
+              name={name}
+              actionRows={actionRows}
+              activityRows={activityAllRows}
+              attempts={sendAttempts}
+              reduce={reduce}
+            />
+          ) : null}
           {productSurface === "pro" ? <BudgetStripe name={name} /> : null}
           <Actions
             name={name}
@@ -748,7 +788,7 @@ function NativeHoldingsSection({
     const map = new Map<number, (typeof readiness.options)[number]>();
     for (const option of readiness.options) map.set(option.chain.kind, option);
     return map;
-  }, [readiness.options]);
+  }, [readiness]);
 
   return (
     <motion.section
@@ -1798,6 +1838,703 @@ function ChainTxHistorySection({
 // product switcher. Rows are generated from the wallet's selected
 // surface so Personal, Pro, and Agent vaults keep separate affordances.
 
+function ProOperationsPanel({
+  name,
+  actionRows,
+  activityRows,
+  attempts,
+  reduce,
+}: {
+  name: string;
+  actionRows: ActionNeededRow[];
+  activityRows: RecentActivityRow[];
+  attempts: TxAttempt[];
+  reduce: boolean;
+}) {
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  const encoded = encodeURIComponent(name);
+  const runtime = useMemo(() => getProTreasuryRuntime(), []);
+  const schedules = useProSchedules(name);
+  const budgetUsage = useWalletBudgetUsage(name);
+  const [alertsReady, setAlertsReady] = useState(false);
+  const [scheduleDraft, setScheduleDraft] = useState({
+    name: "",
+    address: "",
+    category: "vendor" as ProSchedule["category"],
+    amount: "",
+    asset: runtime.defaultPaymentAsset,
+    cadence: "Monthly" as ProSchedule["cadence"],
+    nextRun: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10),
+    note: "",
+  });
+  const lastReceipt = attempts[0] ?? null;
+  const dueSchedules = schedules.rows.filter(isScheduleDue);
+  const limitsReady = hasAnyProLimit(budgetUsage);
+
+  useEffect(() => {
+    setAlertsReady(loadEmailPrefs().enabled || loadWebhookPrefs().enabled);
+  }, []);
+
+  const saveSchedule = () => {
+    const payee = scheduleDraft.name.trim();
+    const amount = scheduleDraft.amount.trim();
+    if (!payee || !amount) return;
+    schedules.add({
+      ...scheduleDraft,
+      name: payee,
+      address: scheduleDraft.address.trim(),
+      amount,
+      asset: scheduleDraft.asset.trim().toUpperCase() || "USDC",
+      note: scheduleDraft.note.trim(),
+    });
+    setScheduleDraft((current) => ({
+      ...current,
+      name: "",
+      address: "",
+      amount: "",
+      note: "",
+    }));
+  };
+
+  const exportAudit = () => {
+    const csv = buildActivityCsv({
+      walletName: name,
+      rows: activityRows,
+      attempts,
+    });
+    const slug = name.replace(/[^a-z0-9-]+/gi, "-").toLowerCase();
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadActivityCsv(`clearsig-pro-${slug || "treasury"}-${stamp}.csv`, csv);
+  };
+
+  const exportAccounting = () => {
+    const csv = buildProAccountingCsv({
+      walletName: name,
+      attempts,
+      schedules: schedules.rows,
+    });
+    const slug = name.replace(/[^a-z0-9-]+/gi, "-").toLowerCase();
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadProAccountingCsv(
+      `clearsig-accounting-${slug || "treasury"}-${stamp}.csv`,
+      csv,
+    );
+  };
+
+  return (
+    <motion.section
+      {...motionProps}
+      transition={{ duration: 0.2 }}
+      className="flex flex-col gap-4"
+      aria-label="Pro treasury operations"
+    >
+      <div className="rounded-card border border-accent/25 bg-surface-raised p-4 shadow-card-rest sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
+              Pro command center · {runtime.environmentLabel}
+            </p>
+            <h2 className="mt-1 font-display text-xl leading-tight text-text-strong">
+              Pay, protect, and prove.
+            </h2>
+          </div>
+          <Link
+            href={
+              actionRows.length > 0
+                ? "#action-needed"
+                : `/app/wallet/${encoded}/send/batch`
+            }
+            className={
+              "inline-flex min-h-tap items-center justify-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-text-on-accent shadow-accent-rest " +
+              "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] " +
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+            }
+          >
+            {actionRows.length > 0 ? "Review queue" : "Batch pay"}
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <ProMetricTile label="Approval inbox" value={String(actionRows.length)} />
+          <ProMetricTile label="Due payments" value={String(dueSchedules.length)} />
+          <ProMetricTile label="Receipts" value={String(attempts.length)} />
+        </div>
+      </div>
+
+      <ProReadinessStrip
+        walletName={name}
+        actionCount={actionRows.length}
+        dueCount={dueSchedules.length}
+        hasSchedules={schedules.rows.length > 0}
+        limitsReady={limitsReady}
+        alertsReady={alertsReady}
+        auditReady={activityRows.length + attempts.length > 0}
+      />
+
+      <div className="grid gap-3 lg:grid-cols-[1.15fr_0.85fr]">
+        <ActionGroup label="Payments">
+          <ActionRow
+            href={`/app/wallet/${encoded}/send`}
+            icon={Send}
+            title="Send payment"
+          />
+          <ActionRow
+            href={`/app/wallet/${encoded}/send/batch`}
+            icon={Users}
+            title="Batch payments"
+          />
+          <ActionRow
+            href={`/app/wallet/${encoded}/send/batch?template=payroll`}
+            icon={Banknote}
+            title="Payroll"
+          />
+          <ActionRow
+            href={`/app/wallet/${encoded}/send?kind=vendor`}
+            icon={Coins}
+            title="Vendor payment"
+          />
+        </ActionGroup>
+
+        <ProScheduleCard
+          draft={scheduleDraft}
+          rows={schedules.rows}
+          walletName={name}
+          defaultAsset={runtime.defaultPaymentAsset}
+          onDraftChange={setScheduleDraft}
+          onSave={saveSchedule}
+          onRemove={schedules.remove}
+        />
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <ActionGroup label="Protection">
+          <ActionRow
+            href={`/app/wallet/${encoded}/policy`}
+            icon={ShieldCheck}
+            title="Approval rules"
+          />
+          <ActionRow
+            href={`/app/wallet/${encoded}/members`}
+            icon={Users}
+            title="People and roles"
+          />
+          <ActionRow
+            href={`/app/wallet/${encoded}/budget`}
+            icon={Banknote}
+            title="Spending limits"
+          />
+          <ActionRow
+            href={`/app/wallet/${encoded}/policy#risk`}
+            icon={Activity}
+            title="Risk checks"
+          />
+        </ActionGroup>
+
+        <ActionGroup label="Agent allocation">
+          <ActionRow
+            href={`/app/wallet/${encoded}/agents`}
+            icon={Bot}
+            title="Agent vaults"
+          />
+          <ActionRow
+            href={`/app/wallet/${encoded}/agents/funding`}
+            icon={TrendingDown}
+            title="Trading budget"
+          />
+          <ActionRow
+            href={`/app/wallet/${encoded}/swap`}
+            icon={Repeat2}
+            title="Swap crypto"
+          />
+          <ActionRow
+            href={`/app/wallet/${encoded}/receive`}
+            icon={Download}
+            title="Fund treasury"
+          />
+        </ActionGroup>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <ProAuditCard
+          activityCount={activityRows.length}
+          lastReceipt={lastReceipt}
+          onExport={exportAudit}
+          onExportAccounting={exportAccounting}
+          activityHref={`/app/wallet/${encoded}/activity`}
+          csvColumns={runtime.batchCsvColumns}
+          accountingTargets={runtime.accountingTargets}
+        />
+        <ActionGroup label="Admin">
+          <ActionRow
+            href="/app/settings#notifications"
+            icon={SettingsIcon}
+            title="Webhooks"
+          />
+          <ActionRow
+            href={`/app/wallet/new?surface=pro&import=1`}
+            icon={Download}
+            title={`Import ${runtime.importSources.join(" / ")}`}
+          />
+          <ActionRow
+            href="/app/settings#advanced"
+            icon={Network}
+            title={`Accounting: ${runtime.accountingTargets.join(" / ")}`}
+          />
+          <ActionRow
+            href={runtime.securityUrl}
+            icon={ShieldCheck}
+            title="Security posture"
+          />
+          <ActionRow
+            href={runtime.auditUrl}
+            icon={Activity}
+            title="Audit evidence"
+          />
+          <ActionRow
+            href={runtime.statusUrl}
+            icon={Bell}
+            title="Status"
+          />
+          <ActionRow
+            href={runtime.recoveryUrl}
+            icon={ShieldCheck}
+            title="Recovery policy"
+          />
+        </ActionGroup>
+      </div>
+    </motion.section>
+  );
+}
+
+function ProMetricTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-soft border border-border-soft bg-canvas/70 px-3 py-2.5">
+      <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-text-soft">
+        {label}
+      </p>
+      <p className="mt-1 font-numerals text-lg font-semibold tabular-nums text-text-strong">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function hasAnyProLimit(usage: ReturnType<typeof useWalletBudgetUsage>): boolean {
+  const weeklyCap = usage.budget?.weeklyUsd;
+  const velocity = usage.budget?.velocityPerDay;
+  return (
+    (weeklyCap !== null && weeklyCap !== undefined) ||
+    !!velocity ||
+    usage.perChain.some((row) => row.cap !== null)
+  );
+}
+
+function ProReadinessStrip({
+  walletName,
+  actionCount,
+  dueCount,
+  hasSchedules,
+  limitsReady,
+  alertsReady,
+  auditReady,
+}: {
+  walletName: string;
+  actionCount: number;
+  dueCount: number;
+  hasSchedules: boolean;
+  limitsReady: boolean;
+  alertsReady: boolean;
+  auditReady: boolean;
+}) {
+  const encoded = encodeURIComponent(walletName);
+  const items = [
+    {
+      label: "Approvals",
+      value: actionCount > 0 ? `${actionCount} waiting` : "Ready",
+      href: actionCount > 0 ? "#action-needed" : undefined,
+      active: actionCount === 0,
+    },
+    {
+      label: "Limits",
+      value: limitsReady ? "Set" : "Add",
+      href: `/app/wallet/${encoded}/budget`,
+      active: limitsReady,
+    },
+    {
+      label: "Recurring",
+      value: hasSchedules ? (dueCount > 0 ? `${dueCount} due` : "Ready") : "Add",
+      href: hasSchedules ? undefined : "#pro-recurring",
+      active: hasSchedules && dueCount === 0,
+    },
+    {
+      label: "Alerts",
+      value: alertsReady ? "On" : "Add",
+      href: "/app/settings#notifications",
+      active: alertsReady,
+    },
+    {
+      label: "Audit",
+      value: auditReady ? "Ready" : "Waiting",
+      href: `/app/wallet/${encoded}/activity`,
+      active: auditReady,
+    },
+  ];
+
+  return (
+    <section
+      aria-label="Pro readiness"
+      className="rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest"
+    >
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        {items.map((item) => {
+          const body = (
+            <>
+              <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-text-soft">
+                {item.label}
+              </span>
+              <span
+                className={
+                  "mt-1 text-sm font-semibold " +
+                  (item.active ? "text-text-strong" : "text-accent")
+                }
+              >
+                {item.value}
+              </span>
+            </>
+          );
+
+          if (item.href) {
+            return (
+              <Link
+                key={item.label}
+                href={item.href}
+                className="flex min-h-14 flex-col justify-center rounded-soft border border-border-soft bg-canvas/70 px-3 py-2 transition hover:border-accent/40"
+              >
+                {body}
+              </Link>
+            );
+          }
+
+          return (
+            <div
+              key={item.label}
+              className="flex min-h-14 flex-col justify-center rounded-soft border border-border-soft bg-canvas/70 px-3 py-2"
+            >
+              {body}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+type ProScheduleDraft = Omit<ProSchedule, "id" | "createdAt"> & {
+  address: string;
+  note: string;
+};
+
+function ProScheduleCard({
+  draft,
+  rows,
+  walletName,
+  defaultAsset,
+  onDraftChange,
+  onSave,
+  onRemove,
+}: {
+  draft: ProScheduleDraft;
+  rows: ProSchedule[];
+  walletName: string;
+  defaultAsset: string;
+  onDraftChange: (next: ProScheduleDraft) => void;
+  onSave: () => void;
+  onRemove: (id: string) => void;
+}) {
+  const encoded = encodeURIComponent(walletName);
+  const contacts = useContacts();
+  const datalistId = `pro-payees-${encoded}`;
+  const sortedRows = useMemo(
+    () =>
+      [...rows].sort((a, b) => {
+        const aDue = isScheduleDue(a) ? 0 : 1;
+        const bDue = isScheduleDue(b) ? 0 : 1;
+        if (aDue !== bDue) return aDue - bDue;
+        return a.nextRun.localeCompare(b.nextRun);
+      }),
+    [rows],
+  );
+  return (
+    <section
+      id="pro-recurring"
+      className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-[10px] font-semibold uppercase tracking-[0.26em] text-text-soft">
+          Recurring
+        </h3>
+        <span className="font-numerals text-xs tabular-nums text-text-soft">
+          {rows.length}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-2">
+        <input
+          value={draft.name}
+          onChange={(event) =>
+            onDraftChange({ ...draft, name: event.target.value })
+          }
+          placeholder="Vendor or teammate"
+          className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none placeholder:text-text-soft focus:border-accent/50"
+        />
+        <input
+          value={draft.address ?? ""}
+          onChange={(event) =>
+            onDraftChange({ ...draft, address: event.target.value })
+          }
+          list={datalistId}
+          placeholder="Wallet address or saved contact"
+          spellCheck={false}
+          autoComplete="off"
+          className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none placeholder:text-text-soft focus:border-accent/50"
+        />
+        <datalist id={datalistId}>
+          {contacts.contacts.map((contact) => (
+            <option key={contact.address} value={contact.address}>
+              {contact.name}
+            </option>
+          ))}
+        </datalist>
+        <div className="grid grid-cols-[1fr_88px] gap-2">
+          <input
+            value={draft.amount}
+            onChange={(event) =>
+              onDraftChange({ ...draft, amount: event.target.value })
+            }
+            placeholder="Amount"
+            inputMode="decimal"
+            className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none placeholder:text-text-soft focus:border-accent/50"
+          />
+          <input
+            value={draft.asset}
+            onChange={(event) =>
+              onDraftChange({ ...draft, asset: event.target.value })
+            }
+            aria-label="Asset"
+            placeholder={defaultAsset}
+            className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm font-semibold uppercase text-text-strong outline-none focus:border-accent/50"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <select
+            value={draft.category}
+            onChange={(event) =>
+              onDraftChange({
+                ...draft,
+                category: event.target.value as ProSchedule["category"],
+              })
+            }
+            className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none focus:border-accent/50"
+          >
+            <option value="vendor">Vendor</option>
+            <option value="payroll">Payroll</option>
+          </select>
+          <select
+            value={draft.cadence}
+            onChange={(event) =>
+              onDraftChange({
+                ...draft,
+                cadence: event.target.value as ProSchedule["cadence"],
+              })
+            }
+            className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none focus:border-accent/50"
+          >
+            <option value="Weekly">Weekly</option>
+            <option value="Monthly">Monthly</option>
+          </select>
+        </div>
+        <input
+          type="date"
+          value={draft.nextRun}
+          onChange={(event) =>
+            onDraftChange({ ...draft, nextRun: event.target.value })
+          }
+          className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none focus:border-accent/50"
+        />
+        <input
+          value={draft.note ?? ""}
+          onChange={(event) =>
+            onDraftChange({ ...draft, note: event.target.value })
+          }
+          placeholder="Note (optional)"
+          maxLength={80}
+          className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none placeholder:text-text-soft focus:border-accent/50"
+        />
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={!draft.name.trim() || !draft.amount.trim()}
+          className={
+            "min-h-11 rounded-soft bg-accent px-4 text-sm font-semibold text-text-on-accent shadow-accent-rest " +
+            "transition-[background-color,transform,opacity] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
+          }
+        >
+          Save schedule
+        </button>
+      </div>
+      {rows.length > 0 ? (
+        <ul className="mt-3 divide-y divide-border-soft">
+          {sortedRows.slice(0, 4).map((row) => {
+            const due = isScheduleDue(row);
+            const payHref = schedulePaymentHref(row, encoded);
+            return (
+            <li key={row.id} className="flex items-center justify-between gap-3 py-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-text-strong">
+                  {row.name}
+                  {due ? (
+                    <span className="ml-2 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-accent">
+                      Due
+                    </span>
+                  ) : null}
+                </p>
+                <p className="truncate text-xs text-text-soft">
+                  {row.amount} {row.asset} · {row.cadence} · {row.nextRun}
+                  {row.address ? ` · ${formatScheduleAddress(row.address)}` : ""}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <Link
+                  href={payHref}
+                  className="rounded-full border border-border-soft px-2.5 py-1 text-[11px] font-semibold text-text-strong transition hover:border-accent/40 hover:text-accent"
+                >
+                  Pay
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => onRemove(row.id)}
+                  className="rounded-full border border-border-soft px-2.5 py-1 text-[11px] text-text-soft transition hover:text-text-strong"
+                >
+                  Done
+                </button>
+              </div>
+            </li>
+          );
+          })}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
+function isScheduleDue(row: ProSchedule): boolean {
+  if (!row.nextRun) return false;
+  const dueAt = new Date(`${row.nextRun}T00:00:00`);
+  return Number.isFinite(dueAt.getTime()) && dueAt.getTime() <= Date.now();
+}
+
+function schedulePaymentHref(row: ProSchedule, encodedWalletName: string): string {
+  if (row.category === "payroll") {
+    return `/app/wallet/${encodedWalletName}/send/batch?template=payroll`;
+  }
+  const asset = row.asset.trim().toUpperCase();
+  const params = new URLSearchParams({ kind: "vendor" });
+  if (asset === "SOL") {
+    params.set("recipient", row.address?.trim() || row.name);
+    params.set("amount", row.amount);
+    params.set("note", row.note?.trim() || `${row.cadence} vendor payment`);
+  }
+  return `/app/wallet/${encodedWalletName}/send?${params.toString()}`;
+}
+
+function formatScheduleAddress(address: string): string {
+  const trimmed = address.trim();
+  if (!trimmed) return "";
+  return isValidSolanaAddress(trimmed) ? shortAddress(trimmed) : trimmed;
+}
+
+function ProAuditCard({
+  activityCount,
+  lastReceipt,
+  onExport,
+  onExportAccounting,
+  activityHref,
+  csvColumns,
+  accountingTargets,
+}: {
+  activityCount: number;
+  lastReceipt: TxAttempt | null;
+  onExport: () => void;
+  onExportAccounting: () => void;
+  activityHref: string;
+  csvColumns: string[];
+  accountingTargets: string[];
+}) {
+  const receiptCopy = lastReceipt
+    ? humanReceipt(lastReceipt)
+    : "Receipts appear after sends and approvals.";
+
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-[10px] font-semibold uppercase tracking-[0.26em] text-text-soft">
+          Audit
+        </h3>
+        <span className="font-numerals text-xs tabular-nums text-text-soft">
+          {activityCount}
+        </span>
+      </div>
+      <div className="mt-3 rounded-soft border border-border-soft bg-canvas/70 p-3">
+        <p className="text-sm font-medium text-text-strong">Latest receipt</p>
+        <p className="mt-1 text-xs leading-relaxed text-text-soft">
+          {receiptCopy}
+        </p>
+        <p className="mt-2 truncate font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft/70">
+          CSV · {csvColumns.join(", ")}
+        </p>
+        <p className="mt-1 truncate font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft/70">
+          Finance · {accountingTargets.join(" / ")}
+        </p>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <button
+          type="button"
+          onClick={onExport}
+          className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm font-semibold text-text-strong transition hover:border-accent/40 hover:text-accent"
+        >
+          Export CSV
+        </button>
+        <button
+          type="button"
+          onClick={onExportAccounting}
+          className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm font-semibold text-text-strong transition hover:border-accent/40 hover:text-accent"
+        >
+          Accounting
+        </button>
+        <Link
+          href={activityHref}
+          className="inline-flex min-h-11 items-center justify-center rounded-soft border border-border-soft bg-canvas px-3 text-sm font-semibold text-text-strong transition hover:border-accent/40 hover:text-accent"
+        >
+          Audit view
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function humanReceipt(row: TxAttempt): string {
+  const action = row.status === "success" ? "Sent" : "Tried to send";
+  const amount = [row.amountDisplay, row.ticker].filter(Boolean).join(" ");
+  const target = row.recipientShort ? ` to ${row.recipientShort}` : "";
+  if (row.status === "failed") {
+    return `${action} ${amount || "money"}${target}. It did not leave the treasury.`;
+  }
+  return `${action} ${amount || "money"}${target}. Receipt saved.`;
+}
+
 function Actions({
   name,
   productSurface,
@@ -1816,9 +2553,10 @@ function Actions({
   const encoded = encodeURIComponent(name);
   const sendingReady = hasIntents !== false;
   const groups = manageActionGroups(productSurface, encoded);
+  const isPersonal = productSurface === "personal";
   const showSetupPrompt =
     !sendingReady &&
-    (productSurface === "personal" ||
+    (isPersonal ||
       productSurface === "pro" ||
       productSurface === null);
 
@@ -1856,6 +2594,8 @@ function Actions({
         </Link>
       )}
 
+      {isPersonal ? <PersonalSafetyPanel walletName={name} /> : null}
+
       {groups.map((group) => (
         <ActionGroup
           key={group.label}
@@ -1888,6 +2628,211 @@ type ManageActionGroup = {
   }>;
 };
 
+function PersonalSafetyPanel({ walletName }: { walletName: string }) {
+  const encoded = encodeURIComponent(walletName);
+  const contacts = useContacts();
+  const [pause, setPause] = useState(() => getEmergencyPause(walletName));
+  const [categories, setCategories] = useState<SpendingCategory[]>(() =>
+    getSpendingCategories(walletName),
+  );
+  const [receipts, setReceipts] = useState<PersonalReceipt[]>(() =>
+    listPersonalReceipts(walletName),
+  );
+
+  useEffect(() => {
+    const refresh = () => {
+      setPause(getEmergencyPause(walletName));
+      setCategories(getSpendingCategories(walletName));
+      setReceipts(listPersonalReceipts(walletName));
+    };
+    refresh();
+    window.addEventListener("clear:personal-receipts-changed", refresh);
+    window.addEventListener("clear:emergency-pause-changed", refresh);
+    window.addEventListener("clear:spending-categories-changed", refresh);
+    return () => {
+      window.removeEventListener("clear:personal-receipts-changed", refresh);
+      window.removeEventListener("clear:emergency-pause-changed", refresh);
+      window.removeEventListener("clear:spending-categories-changed", refresh);
+    };
+  }, [walletName]);
+
+  const togglePause = () => {
+    const next = saveEmergencyPause(walletName, !pause.paused);
+    setPause(next);
+    const paused = next.paused;
+    recordPersonalReceipt(walletName, {
+      title: paused ? "You paused sends." : "You resumed sends.",
+      body: paused
+        ? "New sends are blocked until you resume from Protection."
+        : "This wallet can send again under its approval rules.",
+    });
+  };
+
+  const toggleCategory = (id: SpendingCategory["id"]) => {
+    const changed = categories.find((category) => category.id === id);
+    const next = categories.map((category) =>
+      category.id === id
+        ? { ...category, enabled: !category.enabled }
+        : category,
+    );
+    setCategories(next);
+    saveSpendingCategories(walletName, next);
+    const updated = next.find((category) => category.id === id);
+    if (changed && updated) {
+      recordPersonalReceipt(walletName, {
+        title: `${updated.label} ${updated.enabled ? "added" : "hidden"}.`,
+        body: updated.enabled
+          ? `${updated.label} is now visible as a spending category.`
+          : `${updated.label} is hidden from the category shortcuts.`,
+      });
+    }
+  };
+  const latestReceipt = receipts[0] ?? null;
+
+  return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
+            Protection
+          </p>
+          <h2 className="mt-1 font-display text-lg leading-tight text-text-strong">
+            A shared wallet normal people can trust.
+          </h2>
+        </div>
+        <button
+          type="button"
+          onClick={togglePause}
+          className={
+            "inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition " +
+            (pause.paused
+              ? "border border-warning/40 bg-warning/10 text-warning"
+              : "border border-border-soft bg-canvas text-text-strong hover:border-accent/40 hover:text-accent")
+          }
+        >
+          <PauseCircle className="h-3.5 w-3.5" aria-hidden="true" />
+          {pause.paused ? "Resume" : "Pause"}
+        </button>
+      </div>
+
+      {pause.paused ? (
+        <div className="mt-3 rounded-soft border border-warning/30 bg-warning/[0.07] px-3 py-2 text-xs leading-relaxed text-text-soft">
+          Sends are paused. Receiving money and reviewing history still work.
+        </div>
+      ) : null}
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        <PersonalSafetyLink
+          href={`/app/wallet/${encoded}/members`}
+          icon={Users}
+          title="People"
+          value={`${contacts.contacts.length} saved`}
+        />
+        <PersonalSafetyLink
+          href={`/app/wallet/${encoded}/policy`}
+          icon={ShieldCheck}
+          title="Approvals"
+          value="Readable"
+        />
+        <PersonalSafetyLink
+          href="/app/secure"
+          icon={Heart}
+          title="Recovery"
+          value="Calm"
+        />
+        <PersonalSafetyLink
+          href="/app/settings#notifications"
+          icon={Bell}
+          title="Notifications"
+          value="Mobile-first"
+        />
+        <PersonalSafetyLink
+          href={`/app/wallet/${encoded}/buy`}
+          icon={Banknote}
+          title="Buy"
+          value="Bank"
+        />
+        <PersonalSafetyLink
+          href={`/app/wallet/${encoded}/sell`}
+          icon={TrendingDown}
+          title="Withdraw"
+          value="Bank"
+        />
+      </div>
+
+      <div className="mt-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-text-soft">
+          Categories
+        </p>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {categories.map((category) => (
+            <button
+              key={category.id}
+              type="button"
+              onClick={() => toggleCategory(category.id)}
+              className={
+                "rounded-full border px-3 py-1.5 text-xs font-medium transition " +
+                (category.enabled
+                  ? "border-accent/30 bg-accent/10 text-accent"
+                  : "border-border-soft bg-canvas text-text-soft hover:text-text-strong")
+              }
+            >
+              {category.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-soft border border-border-soft bg-canvas px-3 py-2.5">
+        <div className="flex items-start gap-2.5">
+          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+            <ReceiptText className="h-3.5 w-3.5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-text-strong">
+              {latestReceipt?.title ?? "Receipts will appear here."}
+            </p>
+            <p className="mt-0.5 text-xs leading-snug text-text-soft">
+              {latestReceipt?.body ??
+                "Every protection change gets a readable receipt."}
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PersonalSafetyLink({
+  href,
+  icon: Icon,
+  title,
+  value,
+}: {
+  href: string;
+  icon: LucideIcon;
+  title: string;
+  value: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group flex min-h-16 items-center gap-3 rounded-soft border border-border-soft bg-canvas px-3 py-2 transition hover:border-accent/40"
+    >
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+        <Icon className="h-4 w-4" aria-hidden="true" />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-semibold text-text-strong">
+          {title}
+        </span>
+        <span className="block truncate text-xs text-text-soft">{value}</span>
+      </span>
+      <ArrowRight className="ml-auto h-3.5 w-3.5 shrink-0 text-text-soft transition group-hover:translate-x-0.5 group-hover:text-accent" />
+    </Link>
+  );
+}
+
 function manageActionGroups(
   surface: ProductSurfaceId | null,
   encoded: string,
@@ -1895,18 +2840,18 @@ function manageActionGroups(
   if (surface === "personal") {
     return [
       {
-        label: "Protection",
-        description: "Fine-tune people, approvals, and send safety.",
-        rows: rulesActionRows(encoded, "personal"),
+        label: "Money",
+        rows: personalMoneyActionRows(encoded),
       },
       {
-        label: "Networks",
-        description: "Add another chain to this wallet.",
-        rows: networkActionRows(encoded),
-      },
-      {
-        label: "More money",
-        rows: moneyActionRows(encoded),
+        label: "More",
+        rows: [
+          {
+            href: `/app/wallet/${encoded}/chains/add?autostart=1`,
+            icon: Network,
+            title: "Add asset",
+          },
+        ],
       },
     ];
   }
@@ -2023,6 +2968,21 @@ function moneyActionRows(encoded: string): ManageActionGroup["rows"] {
       icon: Repeat2,
       title: "Swap crypto",
     },
+    {
+      href: `/app/wallet/${encoded}/buy`,
+      icon: Banknote,
+      title: "Buy crypto with your bank account",
+    },
+    {
+      href: `/app/wallet/${encoded}/sell`,
+      icon: TrendingDown,
+      title: "Withdraw crypto to your bank account",
+    },
+  ];
+}
+
+function personalMoneyActionRows(encoded: string): ManageActionGroup["rows"] {
+  return [
     {
       href: `/app/wallet/${encoded}/buy`,
       icon: Banknote,

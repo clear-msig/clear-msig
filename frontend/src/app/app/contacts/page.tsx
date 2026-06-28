@@ -149,8 +149,8 @@ function Hero({
   const summary = !hydrated
     ? "Loading…"
     : count === 0
-      ? "Saved on this device only."
-      : `${count} ${count === 1 ? "contact" : "contacts"} · saved on this device only`;
+      ? "No people saved yet."
+      : `${count} ${count === 1 ? "person" : "people"} saved`;
   return (
     <motion.div
       {...motionProps}
@@ -161,10 +161,10 @@ function Hero({
     >
       <div className="flex flex-col items-center gap-1 md:items-start">
         <h1 className="hidden md:block font-display text-display-xs leading-tight text-text-strong">
-          Contacts
+          People
         </h1>
         <p className="text-xs text-text-soft sm:text-sm">
-          Names you&rsquo;ve saved for sending money.
+          People you trust to receive money.
         </p>
       </div>
       <p className="text-xs text-text-soft sm:text-sm">{summary}</p>
@@ -198,7 +198,7 @@ function Toolbar({
           type="search"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search by name or address…"
+          placeholder="Search people…"
           disabled={!searchEnabled}
           className={clsx(
             "h-full w-full rounded-soft border border-border-soft bg-surface-raised py-2 pl-9 pr-3 text-sm text-text-strong shadow-card-rest outline-none",
@@ -222,7 +222,7 @@ function Toolbar({
         )}
       >
         <Plus size={13} aria-hidden="true" />
-        <span className="hidden sm:inline">Add contact</span>
+        <span className="hidden sm:inline">Add person</span>
         <span className="sm:hidden">Add</span>
       </button>
     </div>
@@ -272,7 +272,7 @@ function AddContactForm({
           />
         </span>
         <p className="font-display text-base font-semibold text-text-strong">
-          New contact
+          New person
         </p>
       </div>
 
@@ -335,7 +335,7 @@ function AddContactForm({
           Cancel
         </button>
         <Button type="submit" size="md" disabled={!canSubmit}>
-          Save contact
+          Save
         </Button>
       </div>
     </motion.form>
@@ -382,12 +382,11 @@ function TamperedAlert({ count }: { count: number }) {
     >
       <p className="font-medium">
         {count === 1
-          ? "1 contact failed an integrity check and was removed."
-          : `${count} contacts failed an integrity check and were removed.`}
+          ? "1 person was removed for safety."
+          : `${count} people were removed for safety.`}
       </p>
       <p className="mt-1 text-xs text-text-soft">
-        Something edited the saved list outside this app. Re-add the
-        person from a trusted source before sending.
+        Re-add them from a trusted source before sending.
       </p>
     </div>
   );
@@ -521,15 +520,14 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
         <Users className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
       </div>
       <p className="mt-4 font-display text-base font-semibold text-text-strong">
-        No contacts yet
+        No people yet
       </p>
       <p className="mx-auto mt-2 max-w-sm text-sm text-text-soft">
-        Save a friend&rsquo;s name and address here, or do it inline
-        the first time you send them money.
+        Add someone once, then send to their name next time.
       </p>
       <Button size="md" className="mt-5" onClick={onAdd}>
         <Plus className="h-4 w-4" aria-hidden="true" />
-        Add your first contact
+        Add your first person
       </Button>
     </div>
   );
@@ -545,7 +543,7 @@ function NoMatchState({
   return (
     <div className="rounded-card border border-border-soft bg-surface-raised p-8 text-center shadow-card-rest">
       <p className="text-sm text-text-soft">
-        No contacts matching{" "}
+        No people matching{" "}
         <span className="font-medium text-text-strong">
           &ldquo;{query}&rdquo;
         </span>

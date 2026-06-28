@@ -23,9 +23,11 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
   Check,
+  Download,
   Loader2,
   Plus,
   Trash2,
+  Upload,
   Users,
 } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
@@ -40,9 +42,12 @@ import {
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { useContacts } from "@/lib/hooks/useContacts";
 import { useBatchSend, type BatchSendRow } from "@/lib/hooks/useBatchSend";
+import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
+import { getProTreasuryRuntime } from "@/lib/pro/treasury";
+import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
 
 // Hard cap on rows per batch - high enough for real payroll, low
 // enough to prevent runaway sign-prompt loops.
@@ -78,6 +83,7 @@ function BatchSendPage() {
   const contacts = useContacts();
   const toast = useToast();
   const batch = useBatchSend();
+  const runtime = useMemo(() => getProTreasuryRuntime(), []);
 
   const walletName = useMemo(() => {
     const raw = route?.name ?? "";
@@ -87,7 +93,9 @@ function BatchSendPage() {
       return raw.trim();
     }
   }, [route?.name]);
+  const budgetUsage = useWalletBudgetUsage(walletName);
   const walletDisplay = toDisplayName(walletName);
+  const batchTemplate = params.get("template") === "payroll" ? "payroll" : "batch";
 
   const walletQuery = useQuery({
     queryKey: ["wallet", walletName],
@@ -127,6 +135,7 @@ function BatchSendPage() {
 
   const [stage, setStage] = useState<Stage>("compose");
   const [drafts, setDrafts] = useState<DraftRow[]>(() => [emptyRow()]);
+  const [csvText, setCsvText] = useState("");
 
   const resolvedRows = useMemo(
     () => drafts.map((d) => resolveRow(d, contacts.contacts)),
@@ -142,6 +151,10 @@ function BatchSendPage() {
     [validRows],
   );
   const totalSol = totalLamports / 1_000_000_000;
+  const batchRisk = useMemo(
+    () => buildBatchRiskSummary(totalSol, validRows.length, budgetUsage),
+    [totalSol, validRows.length, budgetUsage],
+  );
 
   const addRow = () => {
     if (drafts.length >= MAX_ROWS) return;
@@ -156,6 +169,25 @@ function BatchSendPage() {
     setDrafts((rows) =>
       rows.map((r) => (r.id === id ? { ...r, ...patch } : r)),
     );
+  };
+  const importCsv = () => {
+    const parsed = parseBatchCsv(csvText);
+    if (parsed.rows.length === 0) {
+      toast.error("No payable rows found", {
+        details: "Use columns: name,address,asset,amount,note.",
+      });
+      return;
+    }
+    setDrafts(parsed.rows.slice(0, MAX_ROWS));
+    setCsvText("");
+    toast.success(
+      parsed.skipped > 0
+        ? `Imported ${parsed.rows.length}, skipped ${parsed.skipped}`
+        : `Imported ${parsed.rows.length} row${parsed.rows.length === 1 ? "" : "s"}`,
+    );
+  };
+  const downloadTemplate = () => {
+    downloadBatchCsvTemplate(runtime.batchCsvColumns, batchTemplate);
   };
 
   const canReview = validRows.length === drafts.length && validRows.length > 0;
@@ -241,11 +273,17 @@ function BatchSendPage() {
           {stage === "compose" && (
             <ComposeStage
               walletName={walletName}
+              template={batchTemplate}
+              csvColumns={runtime.batchCsvColumns}
+              csvText={csvText}
               drafts={drafts}
               resolved={resolvedRows}
               contacts={contacts.contacts}
               totalSol={totalSol}
               canReview={canReview}
+              onCsvTextChange={setCsvText}
+              onImportCsv={importCsv}
+              onDownloadTemplate={downloadTemplate}
               onAddRow={addRow}
               onRemoveRow={removeRow}
               onUpdateRow={updateRow}
@@ -257,6 +295,7 @@ function BatchSendPage() {
               walletName={walletName}
               rows={validRows}
               totalSol={totalSol}
+              risk={batchRisk}
               onBack={() => setStage("compose")}
               onSend={handleSendBatch}
             />
@@ -288,12 +327,18 @@ function BatchSendPage() {
 
 interface ComposeProps {
   walletName: string;
+  template: "batch" | "payroll";
+  csvColumns: string[];
+  csvText: string;
   drafts: DraftRow[];
   resolved: ResolvedRow[];
   contacts: Contact[];
   totalSol: number;
   canReview: boolean;
   onAddRow: () => void;
+  onCsvTextChange: (next: string) => void;
+  onImportCsv: () => void;
+  onDownloadTemplate: () => void;
   onRemoveRow: (id: string) => void;
   onUpdateRow: (id: string, patch: Partial<DraftRow>) => void;
   onReview: () => void;
@@ -301,11 +346,17 @@ interface ComposeProps {
 
 function ComposeStage({
   walletName,
+  template,
+  csvColumns,
+  csvText,
   drafts,
   resolved,
   contacts,
   totalSol,
   canReview,
+  onCsvTextChange,
+  onImportCsv,
+  onDownloadTemplate,
   onAddRow,
   onRemoveRow,
   onUpdateRow,
@@ -313,6 +364,12 @@ function ComposeStage({
 }: ComposeProps) {
   const walletDisplay = toDisplayName(walletName);
   const validCount = validRows(resolved);
+  const title = template === "payroll" ? "Run payroll" : "Pay many at once";
+  const eyebrow = template === "payroll" ? "Payroll" : "Batch send";
+  const helper =
+    template === "payroll"
+      ? "Each teammate gets their own request and receipt."
+      : "Each recipient gets their own request and receipt.";
   return (
     <div className="flex flex-col gap-5">
       {/* Compact left-aligned header - matches the rest of the
@@ -328,10 +385,10 @@ function ComposeStage({
           </span>
           <div className="flex flex-col gap-0.5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Batch send
+              {eyebrow}
             </p>
             <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight text-text-strong sm:text-3xl">
-              Pay many at once
+              {title}
             </h1>
           </div>
         </div>
@@ -342,9 +399,53 @@ function ComposeStage({
       </header>
 
       <p className="text-sm leading-relaxed text-text-soft">
-        Each row becomes its own request your friends can approve together -
-        ideal for payroll, splits, or event payouts.
+        {helper}
       </p>
+
+      <details className="group rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+          <span className="inline-flex items-center gap-2 text-sm font-semibold text-text-strong">
+            <Upload className="h-4 w-4 text-accent" aria-hidden="true" />
+            Import CSV
+          </span>
+          <ArrowRight
+            className="h-4 w-4 text-text-soft transition-transform group-open:rotate-90"
+            aria-hidden="true"
+          />
+        </summary>
+        <div className="mt-3 grid gap-3">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+            {csvColumns.join(", ")}
+          </p>
+          <textarea
+            value={csvText}
+            onChange={(event) => onCsvTextChange(event.target.value)}
+            rows={5}
+            placeholder="name,address,asset,amount,note"
+            spellCheck={false}
+            className="min-h-28 resize-y rounded-soft border border-border-soft bg-canvas px-3 py-2 font-mono text-xs leading-relaxed text-text-strong outline-none placeholder:text-text-soft/60 focus:border-accent/50"
+          />
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={onDownloadTemplate}
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 text-sm font-semibold text-text-strong transition hover:border-accent/40 hover:text-accent"
+            >
+              <Download className="h-4 w-4" aria-hidden="true" />
+              Template
+            </button>
+            <button
+              type="button"
+              onClick={onImportCsv}
+              disabled={!csvText.trim()}
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 text-sm font-semibold text-text-on-accent shadow-accent-rest transition-[background-color,opacity,transform] hover:bg-accent-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <Upload className="h-4 w-4" aria-hidden="true" />
+              Fill rows
+            </button>
+          </div>
+        </div>
+      </details>
 
       <ul className="flex flex-col gap-3">
         {drafts.map((draft, i) => {
@@ -550,12 +651,14 @@ function ReviewStage({
   walletName,
   rows,
   totalSol,
+  risk,
   onBack,
   onSend,
 }: {
   walletName: string;
   rows: ResolvedValid[];
   totalSol: number;
+  risk: BatchRiskSummary | null;
   onBack: () => void;
   onSend: () => void;
 }) {
@@ -622,6 +725,15 @@ function ReviewStage({
           </span>
         </span>
       </section>
+
+      {risk ? (
+        <section className="rounded-card border border-warning/30 bg-warning/[0.07] p-4 shadow-card-rest">
+          <p className="text-sm font-semibold text-text-strong">{risk.title}</p>
+          <p className="mt-1 text-xs leading-relaxed text-text-soft">
+            {risk.body}
+          </p>
+        </section>
+      ) : null}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
         <button
@@ -805,6 +917,52 @@ type ResolvedRow =
   | { kind: "invalid-address" }
   | { kind: "invalid-amount" };
 
+interface BatchRiskSummary {
+  title: string;
+  body: string;
+}
+
+function buildBatchRiskSummary(
+  totalSol: number,
+  rowCount: number,
+  budgetUsage: ReturnType<typeof useWalletBudgetUsage>,
+): BatchRiskSummary | null {
+  if (rowCount <= 0 || totalSol <= 0) return null;
+  const quote = quotePerWhole("SOL");
+  const pendingUsd = quote ? totalSol * quote.usdPerWhole : 0;
+  const solCap = budgetUsage.perChain.find((row) => row.ticker === "SOL");
+  if (solCap && solCap.cap !== null && pendingUsd > 0) {
+    const after = solCap.spentUsd + pendingUsd;
+    if (after > solCap.cap) {
+      return {
+        title: "Above Solana limit",
+        body: `${formatUsd(after)} would be used this week, above the saved ${formatUsd(solCap.cap)} Solana limit.`,
+      };
+    }
+  }
+
+  const weeklyCap = budgetUsage.budget?.weeklyUsd ?? null;
+  if (weeklyCap !== null && weeklyCap > 0 && pendingUsd > 0) {
+    const after = budgetUsage.spentUsd + pendingUsd;
+    if (after > weeklyCap) {
+      return {
+        title: "Above weekly limit",
+        body: `${formatUsd(after)} would be used this week, above the saved ${formatUsd(weeklyCap)} treasury limit.`,
+      };
+    }
+  }
+
+  const velocityCap = budgetUsage.budget?.velocityPerDay ?? null;
+  if (velocityCap && budgetUsage.sendsLast24h + rowCount > velocityCap) {
+    return {
+      title: "Above daily send limit",
+      body: `${budgetUsage.sendsLast24h + rowCount} sends would count in the last 24 hours, above the saved limit of ${velocityCap}.`,
+    };
+  }
+
+  return null;
+}
+
 function resolveRow(draft: DraftRow, contacts: Contact[]): ResolvedRow {
   const recipientRaw = draft.recipient.trim();
   const amountRaw = draft.amount.trim();
@@ -834,10 +992,111 @@ function validRows(resolved: ResolvedRow[]): number {
 
 function emptyRow(): DraftRow {
   return {
-    id: Math.random().toString(36).slice(2, 10),
+    id:
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2, 10),
     recipient: "",
     amount: "",
   };
+}
+
+function parseBatchCsv(raw: string): { rows: DraftRow[]; skipped: number } {
+  const lines = raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return { rows: [], skipped: 0 };
+
+  const first = parseCsvLine(lines[0] ?? "").map((cell) =>
+    cell.trim().toLowerCase(),
+  );
+  const hasHeader =
+    first.includes("amount") ||
+    first.includes("address") ||
+    first.includes("recipient");
+  const header = hasHeader ? first : ["name", "address", "asset", "amount", "note"];
+  const body = hasHeader ? lines.slice(1) : lines;
+  const indexOf = (...keys: string[]) =>
+    keys.map((key) => header.indexOf(key)).find((idx) => idx >= 0) ?? -1;
+  const nameIdx = indexOf("name", "recipient", "payee");
+  const addressIdx = indexOf("address", "wallet", "wallet_address");
+  const assetIdx = indexOf("asset", "token", "ticker");
+  const amountIdx = indexOf("amount", "sol");
+
+  const rows: DraftRow[] = [];
+  let skipped = 0;
+
+  for (const line of body) {
+    const cells = parseCsvLine(line).map((cell) => cell.trim());
+    const asset = assetIdx >= 0 ? (cells[assetIdx] ?? "").toUpperCase() : "SOL";
+    const recipient =
+      (addressIdx >= 0 ? cells[addressIdx] : "") ||
+      (nameIdx >= 0 ? cells[nameIdx] : "");
+    const amount = amountIdx >= 0 ? cells[amountIdx] ?? "" : "";
+    if (!recipient || !amount || (asset && asset !== "SOL")) {
+      skipped += 1;
+      continue;
+    }
+    rows.push({
+      id:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : Math.random().toString(36).slice(2, 10),
+      recipient,
+      amount: sanitizeAmount(amount),
+    });
+  }
+
+  return { rows, skipped };
+}
+
+function parseCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let current = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (quoted && line[i + 1] === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        quoted = !quoted;
+      }
+      continue;
+    }
+    if (ch === "," && !quoted) {
+      out.push(current);
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  out.push(current);
+  return out;
+}
+
+function downloadBatchCsvTemplate(
+  columns: string[],
+  template: "batch" | "payroll",
+): void {
+  if (typeof window === "undefined") return;
+  const header = columns.length > 0 ? columns : ["name", "address", "asset", "amount", "note"];
+  const sample =
+    template === "payroll"
+      ? ["Teammate", "SOLANA_ADDRESS", "SOL", "0.25", "Payroll"]
+      : ["Vendor", "SOLANA_ADDRESS", "SOL", "0.25", "Invoice"];
+  const csv = [header.join(","), sample.slice(0, header.length).join(",")].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `clearsig-${template}-template.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 function sanitizeAmount(raw: string): string {

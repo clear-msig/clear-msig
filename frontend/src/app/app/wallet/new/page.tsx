@@ -25,6 +25,7 @@ import {
   Handshake,
   KeyRound,
   Loader2,
+  Upload,
   ShieldCheck,
   Sparkles,
   Users,
@@ -39,6 +40,8 @@ import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { useToast } from "@/components/ui/Toast";
 import { saveWalletAppearance } from "@/lib/retail/walletAppearance";
+import { isValidSolanaAddress, shortAddress } from "@/lib/retail/contacts";
+import { getProTreasuryRuntime } from "@/lib/pro/treasury";
 import { saveSelectedProductSurface } from "@/lib/productSession";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
 import {
@@ -188,7 +191,7 @@ function productSetupFor(surface: string | null): {
   }
   return {
     label: "Shared wallet",
-    body: "Invite people after setup.",
+    body: "Invite people next.",
     Icon: Users,
   };
 }
@@ -242,6 +245,7 @@ function NewWalletContent() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const reduce = useReducedMotion();
+  const proRuntime = useMemo(() => getProTreasuryRuntime(), []);
 
   const isBrokenSigner = wallet.signerIssue !== null;
   const signerIssue = wallet.signerIssue;
@@ -251,6 +255,8 @@ function NewWalletContent() {
     return isProductSurfaceId(requested) ? requested : null;
   }, [search]);
   const [surface, setSurface] = useState<ProductSurfaceId | null>(requestedSurface);
+  const importMode = search.get("import") === "1" && requestedSurface === "pro";
+  const [importText, setImportText] = useState("");
 
   useEffect(() => {
     setSurface(requestedSurface);
@@ -325,6 +331,10 @@ function NewWalletContent() {
   );
 
   const cleanName = useMemo(() => name.trim(), [name]);
+  const importedSigners = useMemo(
+    () => parseTreasuryImport(importText, me),
+    [importText, me],
+  );
   // The on-chain wallet name field is `String<64>`. The frontend
   // appends a 7-byte creator suffix ("#XXXXXX") in toOnChainName so
   // PDAs are unique per (typed-name, creator). Cap the typed name at
@@ -344,8 +354,10 @@ function NewWalletContent() {
     mutationFn: async () => {
       if (!me) throw new Error("Connect your wallet first.");
       const walletSlug = toOnChainName(slug(cleanName), me);
-      const initialMembers = [me];
-      const threshold = 1;
+      const initialMembers = Array.from(
+        new Set([me, ...(importMode ? importedSigners : [])]),
+      );
+      const threshold = initialMembers.length > 1 ? Math.min(2, initialMembers.length) : 1;
 
       // ── popup 1: create wallet ──
       const enc = new TextEncoder();
@@ -374,7 +386,7 @@ function NewWalletContent() {
           // Continue into setup instead of making the user create another wallet.
         } else if (await walletExistsAfterCreateFailure(walletSlug, err)) {
           toast.info("Wallet create confirmed", {
-            details: "The backend response timed out, but the wallet exists. Continuing setup.",
+            details: "The wallet exists. Finishing the last step now.",
           });
         } else {
           throw err;
@@ -448,7 +460,7 @@ function NewWalletContent() {
         details:
           purpose === "agent"
             ? "The vault is ready. Choose a trader and set safety checks."
-            : "Sending is enabled. Open the wallet to send your first request.",
+            : "Your wallet is ready. Open it to send your first request.",
       });
       router.push(
         postCreateHref(walletSlug, surface, purpose),
@@ -555,13 +567,13 @@ function NewWalletContent() {
               onClick={() => setPurpose(null)}
               className="self-start font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-text-soft hover:text-text-strong"
             >
-              Pick a different shape
+              Choose another option
             </button>
           )}
 
           <div className="rounded-card border border-border-soft bg-surface-raised p-5 sm:p-6">
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
-              Threshold
+              Trusted devices
             </p>
             <p className="mt-1 text-xs text-text-soft">
               Choose how many devices must sign.
@@ -695,10 +707,10 @@ function NewWalletContent() {
           <div className="flex flex-col gap-3">
             <div>
               <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
-                Pick a starter setup
+                Pick a starter wallet
               </span>
               <p className="mt-1 text-xs text-text-soft">
-                Pick a starting shape.
+                You can invite more people later.
               </p>
             </div>
             <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -766,6 +778,45 @@ function NewWalletContent() {
           </div>
         )}
 
+        {importMode && surface === "pro" ? (
+          <section className="rounded-soft border border-border-soft bg-canvas p-4">
+            <div className="flex items-start gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+                <Upload className="h-4 w-4" strokeWidth={1.75} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-display text-sm font-semibold leading-tight text-text-strong">
+                  Import signers
+                </p>
+                <p className="mt-1 text-xs text-text-soft">
+                  {proRuntime.importSources.join(" / ")}
+                </p>
+              </div>
+            </div>
+            <textarea
+              value={importText}
+              onChange={(event) => setImportText(event.target.value)}
+              rows={5}
+              placeholder="name,address,role"
+              spellCheck={false}
+              className="mt-3 min-h-28 w-full resize-y rounded-soft border border-border-soft bg-surface-raised px-3 py-2 font-mono text-xs leading-relaxed text-text-strong outline-none placeholder:text-text-soft/60 focus:border-accent/50"
+            />
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-border-soft bg-surface-raised px-2.5 py-1 font-numerals text-[11px] tabular-nums text-text-soft">
+                {importedSigners.length + 1} signer{importedSigners.length === 0 ? "" : "s"}
+              </span>
+              {importedSigners.slice(0, 3).map((address) => (
+                <span
+                  key={address}
+                  className="rounded-full border border-border-soft bg-surface-raised px-2.5 py-1 font-mono text-[10px] text-text-soft"
+                >
+                  {shortAddress(address)}
+                </span>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         {/* Name */}
         <div className="flex flex-col gap-2">
           <label
@@ -800,7 +851,7 @@ function NewWalletContent() {
 
         <div className="inline-flex items-center gap-2 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs text-text-soft">
           <ShieldCheck className="h-3.5 w-3.5 text-accent" strokeWidth={2} aria-hidden="true" />
-          <span>Two wallet popups. No funds move.</span>
+          <span>Your wallet will ask you to confirm. No funds move.</span>
         </div>
 
         {/* Create CTA */}
@@ -819,7 +870,7 @@ function NewWalletContent() {
           {setupAll.isPending ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              Setting up
+              Creating
             </>
           ) : isBrokenSigner ? (
             <span className="truncate">Sign in with a different wallet</span>
@@ -932,6 +983,17 @@ function postCreateHref(
     return `/app/wallet/${encoded}?surface=${surface}`;
   }
   return `/app/wallet/${encoded}`;
+}
+
+function parseTreasuryImport(raw: string, creator: string): string[] {
+  const out = new Set<string>();
+  const creatorKey = creator.trim();
+  for (const token of raw.split(/[\s,;]+/)) {
+    const cleaned = token.trim();
+    if (!cleaned || cleaned === creatorKey) continue;
+    if (isValidSolanaAddress(cleaned)) out.add(cleaned);
+  }
+  return Array.from(out);
 }
 
 function ProductComingSoon({ title }: { title: string }) {
