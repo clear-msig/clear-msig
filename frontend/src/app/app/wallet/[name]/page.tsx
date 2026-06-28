@@ -96,6 +96,11 @@ import {
 } from "@/lib/retail/chains";
 import { appConfig } from "@/lib/config";
 import {
+  getProTreasuryRuntime,
+  useProSchedules,
+  type ProSchedule,
+} from "@/lib/pro/treasury";
+import {
   isProductSurfaceId,
   type ProductSurfaceId,
 } from "@/lib/productSurfaces";
@@ -1810,80 +1815,6 @@ function ChainTxHistorySection({
 // product switcher. Rows are generated from the wallet's selected
 // surface so Personal, Pro, and Agent vaults keep separate affordances.
 
-type ProSchedule = {
-  id: string;
-  name: string;
-  category: "vendor" | "payroll";
-  amount: string;
-  asset: string;
-  cadence: "Weekly" | "Monthly";
-  nextRun: string;
-  createdAt: number;
-};
-
-function proSchedulesKey(walletName: string): string {
-  return `clear.pro.schedules.v1:${walletName}`;
-}
-
-function isProSchedule(value: unknown): value is ProSchedule {
-  if (!value || typeof value !== "object") return false;
-  const row = value as Record<string, unknown>;
-  return (
-    typeof row.id === "string" &&
-    typeof row.name === "string" &&
-    (row.category === "vendor" || row.category === "payroll") &&
-    typeof row.amount === "string" &&
-    typeof row.asset === "string" &&
-    (row.cadence === "Weekly" || row.cadence === "Monthly") &&
-    typeof row.nextRun === "string" &&
-    typeof row.createdAt === "number"
-  );
-}
-
-function useProSchedules(walletName: string) {
-  const [rows, setRows] = useState<ProSchedule[]>([]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const raw = window.localStorage.getItem(proSchedulesKey(walletName));
-      if (!raw) {
-        setRows([]);
-        return;
-      }
-      const parsed = JSON.parse(raw);
-      setRows(Array.isArray(parsed) ? parsed.filter(isProSchedule) : []);
-    } catch {
-      setRows([]);
-    }
-  }, [walletName]);
-
-  const saveRows = (next: ProSchedule[]) => {
-    setRows(next);
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem(
-        proSchedulesKey(walletName),
-        JSON.stringify(next),
-      );
-    } catch {
-      /* local schedule reminders are best-effort */
-    }
-  };
-
-  return {
-    rows,
-    add: (draft: Omit<ProSchedule, "id" | "createdAt">) => {
-      const id =
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? crypto.randomUUID()
-          : Math.random().toString(36).slice(2);
-      saveRows([{ ...draft, id, createdAt: Date.now() }, ...rows].slice(0, 12));
-    },
-    remove: (id: string) => saveRows(rows.filter((row) => row.id !== id)),
-  };
-}
-
 function ProOperationsPanel({
   name,
   actionRows,
@@ -1901,12 +1832,13 @@ function ProOperationsPanel({
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
   const encoded = encodeURIComponent(name);
+  const runtime = useMemo(() => getProTreasuryRuntime(), []);
   const schedules = useProSchedules(name);
   const [scheduleDraft, setScheduleDraft] = useState({
     name: "",
     category: "vendor" as ProSchedule["category"],
     amount: "",
-    asset: "USDC",
+    asset: runtime.defaultPaymentAsset,
     cadence: "Monthly" as ProSchedule["cadence"],
     nextRun: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       .toISOString()
@@ -1949,7 +1881,7 @@ function ProOperationsPanel({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
-              Pro command center
+              Pro command center · {runtime.environmentLabel}
             </p>
             <h2 className="mt-1 font-display text-xl leading-tight text-text-strong">
               Pay, protect, and prove.
@@ -2005,6 +1937,7 @@ function ProOperationsPanel({
         <ProScheduleCard
           draft={scheduleDraft}
           rows={schedules.rows}
+          defaultAsset={runtime.defaultPaymentAsset}
           onDraftChange={setScheduleDraft}
           onSave={saveSchedule}
           onRemove={schedules.remove}
@@ -2065,6 +1998,7 @@ function ProOperationsPanel({
           lastReceipt={lastReceipt}
           onExport={exportAudit}
           activityHref={`/app/wallet/${encoded}/activity`}
+          csvColumns={runtime.batchCsvColumns}
         />
         <ActionGroup label="Admin">
           <ActionRow
@@ -2075,17 +2009,32 @@ function ProOperationsPanel({
           <ActionRow
             href={`/app/wallet/new?surface=pro&import=1`}
             icon={Download}
-            title="Import treasury"
+            title={`Import ${runtime.importSources.join(" / ")}`}
           />
           <ActionRow
             href={`/app/settings`}
             icon={Network}
-            title="Accounting"
+            title={`Accounting: ${runtime.accountingTargets.join(" / ")}`}
           />
           <ActionRow
-            href={`/security`}
+            href={runtime.securityUrl}
             icon={ShieldCheck}
             title="Security posture"
+          />
+          <ActionRow
+            href={runtime.auditUrl}
+            icon={Activity}
+            title="Audit evidence"
+          />
+          <ActionRow
+            href={runtime.statusUrl}
+            icon={Bell}
+            title="Status"
+          />
+          <ActionRow
+            href={runtime.recoveryUrl}
+            icon={ShieldCheck}
+            title="Recovery policy"
           />
         </ActionGroup>
       </div>
@@ -2109,12 +2058,14 @@ function ProMetricTile({ label, value }: { label: string; value: string }) {
 function ProScheduleCard({
   draft,
   rows,
+  defaultAsset,
   onDraftChange,
   onSave,
   onRemove,
 }: {
   draft: Omit<ProSchedule, "id" | "createdAt">;
   rows: ProSchedule[];
+  defaultAsset: string;
   onDraftChange: (next: Omit<ProSchedule, "id" | "createdAt">) => void;
   onSave: () => void;
   onRemove: (id: string) => void;
@@ -2154,6 +2105,7 @@ function ProScheduleCard({
               onDraftChange({ ...draft, asset: event.target.value })
             }
             aria-label="Asset"
+            placeholder={defaultAsset}
             className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm font-semibold uppercase text-text-strong outline-none focus:border-accent/50"
           />
         </div>
@@ -2237,11 +2189,13 @@ function ProAuditCard({
   lastReceipt,
   onExport,
   activityHref,
+  csvColumns,
 }: {
   activityCount: number;
   lastReceipt: TxAttempt | null;
   onExport: () => void;
   activityHref: string;
+  csvColumns: string[];
 }) {
   const receiptCopy = lastReceipt
     ? humanReceipt(lastReceipt)
@@ -2261,6 +2215,9 @@ function ProAuditCard({
         <p className="text-sm font-medium text-text-strong">Latest receipt</p>
         <p className="mt-1 text-xs leading-relaxed text-text-soft">
           {receiptCopy}
+        </p>
+        <p className="mt-2 truncate font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft/70">
+          CSV · {csvColumns.join(", ")}
         </p>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">

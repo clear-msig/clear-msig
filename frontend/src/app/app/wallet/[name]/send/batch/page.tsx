@@ -88,6 +88,7 @@ function BatchSendPage() {
     }
   }, [route?.name]);
   const walletDisplay = toDisplayName(walletName);
+  const batchTemplate = params.get("template") === "payroll" ? "payroll" : "batch";
 
   const walletQuery = useQuery({
     queryKey: ["wallet", walletName],
@@ -241,6 +242,7 @@ function BatchSendPage() {
           {stage === "compose" && (
             <ComposeStage
               walletName={walletName}
+              template={batchTemplate}
               drafts={drafts}
               resolved={resolvedRows}
               contacts={contacts.contacts}
@@ -288,6 +290,7 @@ function BatchSendPage() {
 
 interface ComposeProps {
   walletName: string;
+  template: "batch" | "payroll";
   drafts: DraftRow[];
   resolved: ResolvedRow[];
   contacts: Contact[];
@@ -301,6 +304,7 @@ interface ComposeProps {
 
 function ComposeStage({
   walletName,
+  template,
   drafts,
   resolved,
   contacts,
@@ -313,6 +317,12 @@ function ComposeStage({
 }: ComposeProps) {
   const walletDisplay = toDisplayName(walletName);
   const validCount = validRows(resolved);
+  const title = template === "payroll" ? "Run payroll" : "Pay many at once";
+  const eyebrow = template === "payroll" ? "Payroll" : "Batch send";
+  const helper =
+    template === "payroll"
+      ? "Each teammate gets their own request and receipt."
+      : "Each recipient gets their own request and receipt.";
   return (
     <div className="flex flex-col gap-5">
       {/* Compact left-aligned header - matches the rest of the
@@ -328,10 +338,10 @@ function ComposeStage({
           </span>
           <div className="flex flex-col gap-0.5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Batch send
+              {eyebrow}
             </p>
             <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight text-text-strong sm:text-3xl">
-              Pay many at once
+              {title}
             </h1>
           </div>
         </div>
@@ -342,8 +352,7 @@ function ComposeStage({
       </header>
 
       <p className="text-sm leading-relaxed text-text-soft">
-        Each row becomes its own request your friends can approve together -
-        ideal for payroll, splits, or event payouts.
+        {helper}
       </p>
 
       <ul className="flex flex-col gap-3">
