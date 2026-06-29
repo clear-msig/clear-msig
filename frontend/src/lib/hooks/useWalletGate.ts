@@ -25,8 +25,15 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchOnchainMemberships } from "@/lib/memberships/client";
 import {
   isProductSurfaceId,
+  productSetupHref,
   productWorkspaceHref,
+  type ProductSurfaceId,
 } from "@/lib/productSurfaces";
+import {
+  productWorkspaceHomeHref,
+  resolveWalletProductSurface,
+  walletProductSurface,
+} from "@/lib/productWorkspace";
 import {
   clearPendingProductSurface,
   productSurfaceFromPath,
@@ -62,6 +69,19 @@ export function useWalletGate() {
     const surface = params.get("surface");
     return isProductSurfaceId(surface) ? surface : null;
   }, [pathname]);
+  const explicitNextSurface = useMemo(
+    () => productSurfaceFromPath(explicitNext),
+    [explicitNext],
+  );
+  const shouldResolveExplicitProductNext = useMemo(
+    () =>
+      Boolean(
+        explicitNext &&
+          explicitNextSurface &&
+          isProductLandingNext(explicitNext, explicitNextSurface),
+      ),
+    [explicitNext, explicitNextSurface],
+  );
 
   // Only need the memberships count on /connect to pick the post-
   // connect destination. Same queryKey as the dashboard's fetch so
@@ -73,7 +93,7 @@ export function useWalletGate() {
       address.length > 0 &&
       pathname === "/connect" &&
       wallet.connected &&
-      explicitNext === null,
+      (explicitNext === null || shouldResolveExplicitProductNext),
     staleTime: 30_000,
   });
 
@@ -96,7 +116,7 @@ export function useWalletGate() {
 
     if (wallet.connected) {
       if (pathname === "/connect") {
-        if (explicitNext) {
+        if (explicitNext && !shouldResolveExplicitProductNext) {
           const nextSurface = productSurfaceFromPath(explicitNext) ?? explicitSurface;
           if (nextSurface) {
             saveSelectedProductSurface(nextSurface, address);
@@ -109,7 +129,8 @@ export function useWalletGate() {
         // to /welcome before discovering existing wallets.
         if (memberships.isLoading || memberships.isFetching) return;
         const hasWallets = (memberships.data?.length ?? 0) > 0;
-        const pendingSurface = explicitSurface ?? readPendingProductSurface();
+        const pendingSurface =
+          explicitSurface ?? explicitNextSurface ?? readPendingProductSurface();
         if (pendingSurface) {
           saveSelectedProductSurface(pendingSurface, address);
           clearPendingProductSurface();
@@ -121,7 +142,7 @@ export function useWalletGate() {
           const fallbackSurface =
             pendingSurface ?? readSelectedProductSurface(address);
           const fallback = fallbackSurface
-            ? productWorkspaceHref(fallbackSurface)
+            ? productDestinationForSurface(fallbackSurface, memberships.data ?? [])
             : "/app/wallet";
           router.replace(fallback);
         } else {
@@ -133,7 +154,7 @@ export function useWalletGate() {
           // Without these gates an attacker crafts /connect?next=//evil
           // and gets the user dropped on evil.com after sign-in.
           router.replace(
-            pendingSurface ? productWorkspaceHref(pendingSurface) : "/choose",
+            pendingSurface ? firstProductDestination(pendingSurface) : "/choose",
           );
         }
         return;
@@ -169,7 +190,9 @@ export function useWalletGate() {
     wallet.loggedInWithoutSolana,
     address,
     explicitNext,
+    explicitNextSurface,
     explicitSurface,
+    shouldResolveExplicitProductNext,
     pathname,
     router,
     memberships.isLoading,
@@ -208,4 +231,49 @@ function isSafeNext(next: string | null): boolean {
   const firstSegment = firstSlash === -1 ? next : next.slice(0, firstSlash);
   if (firstSegment.includes(":")) return false;
   return true;
+}
+
+function isProductLandingNext(
+  next: string | null,
+  surface: ProductSurfaceId | null,
+): boolean {
+  if (!next || !surface) return false;
+  try {
+    const url = new URL(next, "https://clearsig.local");
+    if (surface === "secure") {
+      return (
+        url.pathname === "/app/secure" &&
+        url.searchParams.get("surface") === surface
+      );
+    }
+    return (
+      url.pathname === "/app/wallet" &&
+      url.searchParams.get("surface") === surface
+    );
+  } catch {
+    return false;
+  }
+}
+
+function productDestinationForSurface(
+  surface: ProductSurfaceId,
+  memberships: Array<{ wallet_name?: string | null }>,
+): string {
+  const walletSurface = walletProductSurface(surface);
+  if (!walletSurface) return productWorkspaceHref(surface);
+  if (walletSurface === "secure") return productWorkspaceHref(surface);
+
+  const matches = memberships.filter(
+    (membership) =>
+      resolveWalletProductSurface(membership.wallet_name ?? "") === walletSurface,
+  );
+  if (matches.length === 1 && matches[0]?.wallet_name) {
+    return productWorkspaceHomeHref(matches[0].wallet_name, walletSurface);
+  }
+  if (matches.length === 0) return productSetupHref(surface);
+  return productWorkspaceHref(surface);
+}
+
+function firstProductDestination(surface: ProductSurfaceId): string {
+  return surface === "secure" ? productWorkspaceHref(surface) : productSetupHref(surface);
 }

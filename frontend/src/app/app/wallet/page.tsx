@@ -35,6 +35,7 @@ import {
   ChevronLeft,
   Eye,
   EyeOff,
+  Layers,
   KeyRound,
   Plus,
   ShieldCheck,
@@ -121,7 +122,6 @@ function WalletDashboardContent() {
   const search = useSearchParams();
   const address = wallet.publicKey?.toBase58() ?? "";
   const reduce = useReducedMotion();
-  const mobileWelcome = useMobileWalletWelcome();
   const requested = search.get("surface");
   const requestedAll = requested === "all";
   const requestedSurface = walletProductSurface(
@@ -130,8 +130,6 @@ function WalletDashboardContent() {
   const [storedSurface, setStoredSurface] =
     useState<WalletProductSurface | null>(null);
   const [activeSurface, setActiveSurface] =
-    useState<WalletProductSurface | null>(null);
-  const [pendingLaunchSurface, setPendingLaunchSurface] =
     useState<WalletProductSurface | null>(null);
 
   useEffect(() => {
@@ -143,7 +141,6 @@ function WalletDashboardContent() {
     if (!pendingSurface) return;
     saveSelectedProductSurface(pendingSurface, address);
     clearPendingProductSurface();
-    setPendingLaunchSurface(pendingSurface);
     setStoredSurface(pendingSurface);
     setActiveSurface(pendingSurface);
     if (typeof window !== "undefined" && !requestedSurface && !requestedAll) {
@@ -201,9 +198,7 @@ function WalletDashboardContent() {
   const showingCachedWallets =
     memberships.data === undefined && cachedWallets.length > 0;
   const selectedSurface = activeSurface;
-  const launchedIntoProduct = Boolean(requestedSurface ?? pendingLaunchSurface);
-  const displaySurface =
-    mobileWelcome && !launchedIntoProduct ? null : selectedSurface;
+  const displaySurface = selectedSurface;
   const visibleWallets = useMemo(() => {
     return filterWalletsByProductSurface(wallets, displaySurface);
   }, [wallets, displaySurface]);
@@ -319,6 +314,7 @@ function WalletDashboardContent() {
           pendingCount={filteredPendingCount}
           pendingLoading={action.loading}
           selectedSurface={displaySurface}
+          primaryWallet={visibleWallets[0] ?? null}
           reduce={!!reduce}
         />
       )}
@@ -371,21 +367,6 @@ function WalletDashboardContent() {
       )}
     </div>
   );
-}
-
-function useMobileWalletWelcome() {
-  const [mobile, setMobile] = useState(false);
-
-  useEffect(() => {
-    const query = window.matchMedia("(max-width: 767px)");
-    const update = () => setMobile(query.matches);
-
-    update();
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, []);
-
-  return mobile;
 }
 
 function WalletDashboardShell() {
@@ -496,6 +477,7 @@ function StatsRow({
   pendingCount,
   pendingLoading,
   selectedSurface,
+  primaryWallet,
   reduce,
 }: {
   visibleWallets: OnchainMembership[];
@@ -508,6 +490,7 @@ function StatsRow({
   pendingCount: number;
   pendingLoading: boolean;
   selectedSurface: WalletProductSurface | null;
+  primaryWallet: OnchainMembership | null;
   reduce: boolean;
 }) {
   const motionProps = reduce
@@ -602,6 +585,7 @@ function StatsRow({
         selectedSurface={selectedSurface}
         balanceLoading={balanceLoading}
         walletCountLoading={loadingWallets}
+        primaryWallet={primaryWallet}
         onOpenWalletSwitcher={() => setWalletSwitcherOpen(true)}
       />
       <MobileWalletSwitchModal
@@ -796,6 +780,7 @@ function BalanceHeroCard({
   selectedSurface,
   balanceLoading,
   walletCountLoading,
+  primaryWallet,
   onOpenWalletSwitcher,
 }: {
   amount: string;
@@ -806,6 +791,7 @@ function BalanceHeroCard({
   selectedSurface: WalletProductSurface | null;
   balanceLoading: boolean;
   walletCountLoading: boolean;
+  primaryWallet: OnchainMembership | null;
   onOpenWalletSwitcher?: () => void;
 }) {
   const label = selectedSurface
@@ -817,6 +803,20 @@ function BalanceHeroCard({
   const hiddenClass = hidden ? "blur-sm select-none" : "";
   const hasPortfolioTotal = aggregate.chains.length > 0;
   const headline = hasPortfolioTotal ? fiat.format(aggregate.totalUsd) : amount;
+  const primaryWalletName = primaryWallet?.wallet_name ?? null;
+  const primaryWalletSurface = primaryWalletName
+    ? resolveWalletProductSurface(primaryWalletName, selectedSurface)
+    : selectedSurface;
+  const primaryWorkspaceHref = primaryWalletName
+    ? productWorkspaceHomeHref(primaryWalletName, primaryWalletSurface)
+    : selectedSurface
+      ? productSetupHref(selectedSurface)
+      : "/choose";
+  const primaryActionLabel = primaryWalletName
+    ? productOpenLabel(selectedSurface)
+    : selectedSurface
+      ? `Create ${productSurfaceById(selectedSurface).shortName}`
+      : "Choose product";
   return (
     <section
       className={clsx(
@@ -987,11 +987,15 @@ function BalanceHeroCard({
               </button>
             ) : null}
             <Link
-              href={productSetupHref(selectedSurface)}
+              href={primaryWorkspaceHref}
               className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-accent px-3 text-[11px] font-semibold text-text-on-accent shadow-accent-rest transition-[background-color,transform,box-shadow] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-accent-hover hover:shadow-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
             >
-              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-              {surfaceCopy.cta}
+              {primaryWalletName ? (
+                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+              ) : (
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
+              {primaryActionLabel}
             </Link>
           </div>
           </div>
@@ -1243,7 +1247,6 @@ function productDashboardCopy(surface: WalletProductSurface | null): {
   title: string;
   body: string;
   footer: string;
-  cta: string;
 } {
   switch (surface) {
     case "personal":
@@ -1252,7 +1255,6 @@ function productDashboardCopy(surface: WalletProductSurface | null): {
         title: "Shared money, fewer steps.",
         body: "Send, receive, add trusted people, and keep protection simple.",
         footer: "Personal actions",
-        cta: "New personal",
       };
     case "pro":
       return {
@@ -1260,7 +1262,6 @@ function productDashboardCopy(surface: WalletProductSurface | null): {
         title: "Treasury control for teams.",
         body: "Review team wallets, approvals, protection, and audit-ready activity before money moves.",
         footer: "Pro treasury",
-        cta: "New treasury",
       };
     case "agent":
       return {
@@ -1268,7 +1269,6 @@ function productDashboardCopy(surface: WalletProductSurface | null): {
         title: "Trading agents with safety checks.",
         body: "Choose a trader, set a budget, approve the safety checks, and watch every decision.",
         footer: "Agent trading",
-        cta: "New agent vault",
       };
     case "secure":
       return {
@@ -1276,7 +1276,6 @@ function productDashboardCopy(surface: WalletProductSurface | null): {
         title: "Recovery without panic.",
         body: "Create a recovery vault, enroll trusted devices, and keep sweep actions isolated from spending.",
         footer: "Secure recovery",
-        cta: "New recovery",
       };
     default:
       return {
@@ -1284,8 +1283,22 @@ function productDashboardCopy(surface: WalletProductSurface | null): {
         title: "Product workspaces",
         body: "Choose a product to continue.",
         footer: "ClearSig - all products",
-        cta: "Choose product",
       };
+  }
+}
+
+function productOpenLabel(surface: WalletProductSurface | null): string {
+  switch (surface) {
+    case "pro":
+      return "Open treasury";
+    case "agent":
+      return "Open agent vault";
+    case "secure":
+      return "Open Secure";
+    case "personal":
+      return "Open wallet";
+    default:
+      return "Open wallet";
   }
 }
 
@@ -1486,6 +1499,31 @@ function FirstVisitCard({
 }: {
   selectedSurface: WalletProductSurface | null;
 }) {
+  if (!selectedSurface) {
+    return (
+      <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-8">
+        <div className="flex flex-col items-center gap-3 text-center sm:gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 sm:h-14 sm:w-14">
+            <Layers className="h-6 w-6 text-accent sm:h-7 sm:w-7" strokeWidth={1.75} />
+          </div>
+          <div>
+            <h2 className="font-display text-xl font-semibold text-text-strong sm:text-display-xs">
+              Choose your ClearSig
+            </h2>
+            <p className="mt-1 text-sm text-text-soft">
+              Pick one product first. We will remember it after that.
+            </p>
+          </div>
+          <Link href="/choose">
+            <Button size="lg">
+              Choose product
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
   const surface = selectedSurface ?? "personal";
   const product = productSurfaceById(surface);
   const Icon = PRODUCT_ICON[surface];
