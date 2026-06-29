@@ -23,6 +23,7 @@ import { listIntents } from "@/lib/chain/intents";
 import { IntentType } from "@/lib/msig";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
+import { resolveWalletProductSurface } from "@/lib/productWorkspace";
 import { ArrowRight, Check, Loader2, Send, UserPlus, Wallet } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
@@ -59,6 +60,7 @@ export default function SetupSpendingPage() {
   const toast = useToast();
   const reduce = useReducedMotion();
   const queryClient = useQueryClient();
+  const isPro = resolveWalletProductSurface(name) === "pro";
 
   // Guard against landing here for a wallet that's already set up.
   // Without this, a user reloading /setup on a wallet with an
@@ -286,8 +288,10 @@ export default function SetupSpendingPage() {
                       icon: Send,
                     },
                     {
-                      label: "Invite someone",
-                      hint: "Friend, teammate, or board member.",
+                      label: isPro ? "Add team member" : "Invite someone",
+                      hint: isPro
+                        ? "Finance lead, operator, or board approver."
+                        : "Friend, family, or trusted contact.",
                       href: `/app/wallet/${encodeURIComponent(name)}/members/add`,
                       icon: UserPlus,
                     },

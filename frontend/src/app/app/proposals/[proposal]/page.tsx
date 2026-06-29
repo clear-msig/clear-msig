@@ -65,6 +65,7 @@ import { useContacts } from "@/lib/hooks/useContacts";
 import { appConfig } from "@/lib/config";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { avatarInitials } from "@/lib/retail/avatar";
+import { resolveWalletProductSurface } from "@/lib/productWorkspace";
 
 export default function RequestDetailPage() {
   const params = useParams<{ proposal: string }>();
@@ -168,6 +169,7 @@ function Loaded({
   const queryClient = useQueryClient();
   const workflow = useProposalWorkflow(walletName, proposalPda);
   const walletDisplay = toDisplayName(walletName);
+  const isPro = resolveWalletProductSurface(walletName) === "pro";
 
   const approverCount = intent.approvers.length;
   // The number that actually matters: how many approvals does the
@@ -330,7 +332,7 @@ function Loaded({
         </div>
         {approverCount > approvalThreshold && (
           <p className="mt-1 text-xs text-text-soft">
-            {approverCount} people can approve · {approvalThreshold}{" "}
+            {approverCount} {isPro ? "approvers" : "people"} can approve · {approvalThreshold}{" "}
             approval{approvalThreshold === 1 ? "" : "s"} required
           </p>
         )}
@@ -459,7 +461,11 @@ function Loaded({
       {isActive && !isApprover && !isProposer && (
         <InfoCard
           title="You're watching this request"
-          body="Only the friends listed on this wallet can approve."
+          body={
+            isPro
+              ? "Only assigned approvers can approve this request."
+              : "Only the people listed on this wallet can approve."
+          }
         />
       )}
 

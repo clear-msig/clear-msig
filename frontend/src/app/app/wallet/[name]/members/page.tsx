@@ -28,6 +28,7 @@ import { BadgePill } from "@/components/retail/BadgePill";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { avatarInitials } from "@/lib/retail/avatar";
 import { isCreatorAddress, toDisplayName } from "@/lib/retail/walletNames";
+import { resolveWalletProductSurface } from "@/lib/productWorkspace";
 import { useRemoveMember } from "@/lib/hooks/useRemoveMember";
 import { useUpdateMemberRole } from "@/lib/hooks/useUpdateMemberRole";
 import { useToast } from "@/components/ui/Toast";
@@ -118,11 +119,21 @@ export default function MembersPage() {
       };
 
   const memberCount = members.length;
+  const productSurface = resolveWalletProductSurface(name);
+  const isPro = productSurface === "pro";
+  const teamLabel = isPro ? "Team" : "People";
+  const addLabel = isPro ? "Add team member" : "Add a friend";
   const summary = intentsQuery.isLoading
-    ? "Loading people…"
+    ? isPro
+      ? "Loading team…"
+      : "Loading people…"
     : memberCount === 1
-      ? "Just you for now."
-      : `${memberCount} ${memberCount === 1 ? "member" : "members"} · ${memberCount - 1} other${memberCount - 1 === 1 ? "" : "s"} can act with you.`;
+      ? isPro
+        ? "Only one team member."
+        : "Just you for now."
+      : isPro
+        ? `${memberCount} team members · ${memberCount - 1} can act with you.`
+        : `${memberCount} ${memberCount === 1 ? "member" : "members"} · ${memberCount - 1} other${memberCount - 1 === 1 ? "" : "s"} can act with you.`;
 
   return (
     <motion.div
@@ -135,7 +146,7 @@ export default function MembersPage() {
       <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <div className="flex flex-col gap-1">
           <h1 className="hidden font-display text-display-xs leading-tight text-text-strong md:block">
-            People
+            {teamLabel}
           </h1>
           <p className="text-xs text-text-soft sm:text-sm">{summary}</p>
         </div>
@@ -153,7 +164,7 @@ export default function MembersPage() {
           )}
         >
           <Plus size={13} aria-hidden="true" />
-          <span>Add a friend</span>
+          <span>{addLabel}</span>
         </Link>
         <Link
           href={`/app/wallet/${encodeURIComponent(name)}/allowances`}
@@ -163,7 +174,7 @@ export default function MembersPage() {
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
           )}
         >
-          Spending limits
+          Limits
         </Link>
       </div>
 
@@ -173,7 +184,7 @@ export default function MembersPage() {
           stack of identical containers. */}
       <section className="flex flex-col gap-3">
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-          People
+          {teamLabel}
         </h2>
         {intentsQuery.isLoading ? (
           <ul className="flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest">

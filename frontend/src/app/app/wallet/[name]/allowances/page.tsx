@@ -27,6 +27,7 @@ import {
 import { useContacts } from "@/lib/hooks/useContacts";
 import { shortAddress } from "@/lib/retail/contacts";
 import { toDisplayName } from "@/lib/retail/walletNames";
+import { resolveWalletProductSurface } from "@/lib/productWorkspace";
 import { BadgePill } from "@/components/retail/BadgePill";
 import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
@@ -50,6 +51,8 @@ export default function AllowancesPage() {
   const me = wallet.publicKey?.toBase58() ?? "";
   const contacts = useContacts();
   const toast = useToast();
+  const productSurface = resolveWalletProductSurface(name);
+  const isPro = productSurface === "pro";
 
   const walletQuery = useQuery({
     queryKey: ["wallet", name],
@@ -114,7 +117,9 @@ export default function AllowancesPage() {
     if (draft.period !== "none") {
       if (!isFinite(amt) || amt <= 0) {
         toast.error("Enter an amount", {
-          details: "Pick how much SOL they can spend before they need extra approval.",
+          details: isPro
+            ? "Pick how much SOL this team member can spend before extra approval."
+            : "Pick how much SOL they can spend before they need extra approval.",
         });
         return;
       }
@@ -129,9 +134,7 @@ export default function AllowancesPage() {
       ...d,
       [address]: { ...d[address], stored: saved },
     }));
-    toast.success(
-      `Limit saved for ${draft.period === "none" ? "this friend" : "this friend"}`,
-    );
+    toast.success(`Limit saved for ${isPro ? "this team member" : "this person"}`);
   };
 
   const handleClear = (address: string) => {
@@ -151,7 +154,7 @@ export default function AllowancesPage() {
             { label: "Wallets", href: "/app/wallet" },
             { label: toDisplayName(name), href: `/app/wallet/${encodeURIComponent(name)}` },
             {
-              label: "Members",
+              label: isPro ? "Team" : "Members",
               href: `/app/wallet/${encodeURIComponent(name)}/members`,
             },
             { label: "Spending limits" },
@@ -178,14 +181,12 @@ export default function AllowancesPage() {
           What each member can spend
         </h1>
         <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
-          Pick a per-period limit for each person (friend, teammate,
-          or board member). Requests inside the limit are easier to
-          approve; anything above it follows the full {toDisplayName(name)} approval
-          rule.
+          {isPro
+            ? `Set team spending limits. Requests inside the limit are easier to review; anything above it follows ${toDisplayName(name)}'s approval rule.`
+            : `Pick a per-period limit for each person. Requests inside the limit are easier to approve; anything above it follows ${toDisplayName(name)}'s approval rule.`}
         </p>
         <p className="mt-3 inline-flex items-center gap-1 rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] text-text-soft">
-          Watchers don&rsquo;t spend, so they&rsquo;re not listed.
-          Max 16 members per wallet (chain limit).
+          View-only members are not listed.
         </p>
       </motion.section>
 
@@ -306,16 +307,17 @@ export default function AllowancesPage() {
         })}
         {members.length === 0 && !walletQuery.isLoading && (
           <li className="rounded-card border border-border-soft bg-surface-raised p-5 text-center text-sm text-text-soft shadow-card-rest">
-            No friends in this wallet yet. Add a friend first, then come
-            back to set their limit.
+            {isPro
+              ? "No team members yet. Add a team member first, then set limits."
+              : "No people in this wallet yet. Add someone first, then set their limit."}
           </li>
         )}
       </ul>
 
       <p className="text-center text-xs text-text-soft">
-        Limits are saved on this device while we wait for on-chain
-        enforcement. They&rsquo;re a hint to you; every request still
-        follows {toDisplayName(name)}&rsquo;s approval rule today.
+        {isPro
+          ? "Limits guide treasury review today. Approval rules still protect every request."
+          : "Limits are saved on this device today. Every request still follows the wallet approval rule."}
       </p>
     </div>
   );

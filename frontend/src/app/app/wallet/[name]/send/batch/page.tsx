@@ -368,7 +368,7 @@ function ComposeStage({
   const eyebrow = template === "payroll" ? "Payroll" : "Batch send";
   const helper =
     template === "payroll"
-      ? "Each teammate gets their own request and receipt."
+      ? "Each team member gets their own request and receipt."
       : "Each recipient gets their own request and receipt.";
   return (
     <div className="flex flex-col gap-5">
@@ -852,7 +852,7 @@ function DoneStage({
               {heading}
             </p>
             <p className="mt-0.5 truncate text-xs text-text-soft">
-              From {walletDisplay} · awaiting approvals from your friends
+              From {walletDisplay} · awaiting treasury approvals
             </p>
           </div>
         </div>
@@ -867,7 +867,7 @@ function DoneStage({
         </p>
         <p className="mt-1.5 text-sm text-text-soft">
           {allSucceeded
-            ? "Every row landed. Friends can now approve the batch together."
+            ? "Every row landed. Approvers can review the batch."
             : `${progress.failed} row${progress.failed === 1 ? "" : "s"} didn't go through. Review the list below and retry just those.`}
         </p>
 
