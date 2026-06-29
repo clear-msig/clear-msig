@@ -15,7 +15,8 @@ const MAX_ENTRIES = 200;
 export type NotificationKind =
   | "pending_approval"
   | "wallet_request"
-  | "membership_change";
+  | "membership_change"
+  | "money_movement";
 
 export interface NotificationFeedEntry {
   id: string;
@@ -63,7 +64,8 @@ function isEntry(x: unknown): x is NotificationFeedEntry {
     typeof o.id === "string" &&
     (o.kind === "pending_approval" ||
       o.kind === "wallet_request" ||
-      o.kind === "membership_change") &&
+      o.kind === "membership_change" ||
+      o.kind === "money_movement") &&
     typeof o.walletName === "string" &&
     typeof o.title === "string" &&
     typeof o.body === "string" &&

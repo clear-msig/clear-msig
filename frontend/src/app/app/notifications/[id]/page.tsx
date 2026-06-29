@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import clsx from "clsx";
 import { motion, useReducedMotion } from "framer-motion";
-import { Bell, ExternalLink, ShieldCheck, UserPlus } from "lucide-react";
+import { Bell, ExternalLink, Landmark, ShieldCheck, UserPlus } from "lucide-react";
 import { useWallet } from "@/lib/wallet";
 import { useNotificationFeed } from "@/lib/hooks/useNotificationFeed";
 import { toDisplayName } from "@/lib/retail/walletNames";
@@ -89,7 +89,7 @@ export default function NotificationDetailPage() {
           <div className="mt-5 flex flex-wrap gap-2">
             <Link href={entry.href}>
               <Button variant="primary" size="sm">
-                Open request
+                {entry.kind === "money_movement" ? "Open wallet" : "Open request"}
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
               </Button>
             </Link>
@@ -108,6 +108,8 @@ const iconMeta = (kind: string) => {
       return { Icon: Bell, accent: "bg-accent/10 text-accent" };
     case "membership_change":
       return { Icon: UserPlus, accent: "bg-emerald-500/10 text-emerald-400" };
+    case "money_movement":
+      return { Icon: Landmark, accent: "bg-accent/10 text-accent" };
     default:
       return { Icon: Bell, accent: "bg-accent/10 text-accent" };
   }

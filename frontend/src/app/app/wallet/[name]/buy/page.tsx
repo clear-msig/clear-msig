@@ -35,6 +35,7 @@ import { CHAIN_CATALOG, chainByKind } from "@/lib/retail/chains";
 import type { ChainBindingResponse } from "@/lib/api/types";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { friendlyError } from "@/lib/api/errors";
+import { recordNotificationFeed } from "@/lib/security/notificationFeed";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
@@ -86,6 +87,7 @@ function BuyPage() {
     }
   }, [route?.name]);
   const walletDisplay = toDisplayName(walletName);
+  const userAddress = wallet.publicKey?.toBase58() ?? "";
 
   // Verify the wallet exists + the connected user is a member -
   // matches the gate every other workspace page applies.
@@ -111,6 +113,9 @@ function BuyPage() {
   const [selectedKind, setSelectedKind] = useState<number | null>(null);
   const [usdAmount, setUsdAmount] = useState("");
   const [stage, setStage] = useState<Stage>({ kind: "compose" });
+  const [recordedOutcomes, setRecordedOutcomes] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   // Auto-pick the first available bound chain.
   useEffect(() => {
@@ -166,6 +171,25 @@ function BuyPage() {
       setStage({ kind: "awaiting", intentId: polled.data!.intent_id });
     }
   }, [polled.data, stage.kind]);
+
+  useEffect(() => {
+    if (!userAddress || (stage.kind !== "completed" && stage.kind !== "failed")) {
+      return;
+    }
+    const key = `${stage.kind}:${stage.intentId}`;
+    if (recordedOutcomes.has(key)) return;
+    recordNotificationFeed(userAddress, {
+      kind: "money_movement",
+      walletName,
+      title: stage.kind === "completed" ? "Crypto bought" : "Buy did not finish",
+      body:
+        stage.kind === "completed"
+          ? `${walletDisplay} received the crypto from your bank checkout.`
+          : `${walletDisplay} did not receive crypto from that checkout.`,
+      href: `/app/wallet/${encodeURIComponent(walletName)}`,
+    });
+    setRecordedOutcomes((current) => new Set(current).add(key));
+  }, [recordedOutcomes, stage, userAddress, walletDisplay, walletName]);
 
   const selectedChain = selectedKind === null ? null : chainByKind(selectedKind);
   const selectedBinding = bindings.find((b) => b.chain_kind === selectedKind);

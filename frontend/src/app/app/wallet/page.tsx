@@ -776,7 +776,7 @@ function NextActionStrip({
 
 // â”€â”€â”€ Balance hero card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
-// Lead card on Home - total SOL balance across every wallet the
+// Lead card on Home - total value across every visible wallet the
 // member belongs to. Treated like a premium debit-card surface:
 //   â€¢ A subtle accent gradient washes the panel (top-left â†’ bottom-right)
 //   â€¢ A small visible BrandMark badge in the top-left anchors the
@@ -932,23 +932,7 @@ function BalanceHeroCard({
                 </span>
               ) : null}
             </p>
-            {hasPortfolioTotal ? (
-              <ul className={clsx("mt-3 flex flex-wrap gap-1.5 transition-[filter] duration-base md:mt-2", hiddenClass)}>
-                {aggregate.chains.map((chain) => (
-                  <li
-                    key={chain.kind}
-                    className="inline-flex items-baseline gap-1 rounded-full border border-border-soft bg-canvas/85 px-2.5 py-1 md:bg-canvas md:px-2 md:py-0.5"
-                  >
-                    <span className="font-numerals text-xs font-semibold text-text-strong tabular-nums">
-                      {chain.amount}
-                    </span>
-                    <span className="font-display text-[9px] font-semibold uppercase tracking-[0.14em] text-text-soft">
-                      {chain.ticker}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
+            {!hasPortfolioTotal ? (
               <p className={clsx("mt-1.5 text-xs text-text-soft transition-[filter] duration-base md:text-sm", hiddenClass)}>
                 <UsdHint
                   amount={BigInt(Math.round(totalLamports))}
@@ -958,7 +942,7 @@ function BalanceHeroCard({
                   className="font-numerals tabular-nums"
                 />
               </p>
-            )}
+            ) : null}
           </>
         )}
 
