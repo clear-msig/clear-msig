@@ -418,7 +418,7 @@ function BitcoinSendPage() {
           details:
             reason === "approval"
               ? "One more approval is needed before BTC sending is ready."
-              : "Almost done. Reopen this page in a moment if Bitcoin still asks you to turn it on.",
+              : "Almost done. ClearSig will keep checking; you do not need to turn it on again.",
         });
         return;
       }
@@ -668,6 +668,35 @@ function BitcoinSendPage() {
   useEffect(() => {
     if (btcIntentSupportsChange) setBtcSetupPendingApproval(null);
   }, [btcIntentSupportsChange]);
+
+  useEffect(() => {
+    if (!btcSetupPendingApproval || btcSetupPendingApproval.reason !== "sync") {
+      return;
+    }
+    let cancelled = false;
+    let inFlight = false;
+    const tick = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      await Promise.allSettled([
+        queryClient.refetchQueries({ queryKey: ["wallet-intents"] }),
+        queryClient.refetchQueries({ queryKey: ["wallet", name] }),
+      ]);
+      const readyNow = await hasBitcoinChangeIntent(connection, name);
+      inFlight = false;
+      if (!cancelled && readyNow) {
+        setBtcSetupPendingApproval(null);
+      }
+    };
+    void tick();
+    const id = window.setInterval(() => {
+      void tick();
+    }, 5_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [btcSetupPendingApproval, connection, name, queryClient]);
 
   useEffect(() => {
     if (!autoStartSetup || autoStartedSetup || !needsSetup) return;
@@ -1185,7 +1214,7 @@ function BitcoinSetupPendingCard({
   const body =
     reason === "approval"
       ? "Waiting for approval. After that, Bitcoin sends will work normally."
-      : "Almost done. If this still appears after a minute, reopen this page.";
+      : "Almost done. ClearSig is checking for the final confirmation.";
   return (
     <aside className="rounded-card border border-accent/35 bg-accent/[0.07] p-4 text-sm text-text-soft shadow-card-rest">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1404,8 +1433,8 @@ function assertPreparedBitcoinSetupIsCurrent(paramsDataHex: string) {
 
   throw new Error(
     preparedParams > 0
-      ? "Bitcoin sending is not ready yet. Open this wallet again, then tap Turn on Bitcoin sending."
-      : "Bitcoin sending is not ready yet. Turn it on before sending BTC.",
+      ? "Bitcoin sending needs a one-time update. Tap Turn on Bitcoin sending once, then wait for it to finish."
+      : "Bitcoin sending needs to be turned on before sending BTC.",
   );
 }
 
@@ -1571,23 +1600,28 @@ async function waitForBitcoinChangeIntent(
   walletName: string,
 ): Promise<boolean> {
   for (let i = 0; i < 12; i++) {
-    try {
-      const wallet = await fetchWalletByName(connection, walletName);
-      if (!wallet) continue;
-      const intents = await listIntents(
-        connection,
-        wallet.pda,
-        wallet.account.intentIndex,
-      );
-      if (
-        bitcoinSendReady(selectBitcoinSendIntent(intents.map((it) => it.account)))
-      ) {
-        return true;
-      }
-    } catch {
-      // keep waiting for RPC/account propagation
-    }
+    if (await hasBitcoinChangeIntent(connection, walletName)) return true;
     await new Promise((resolve) => setTimeout(resolve, 500 * (i + 1)));
   }
   return false;
+}
+
+async function hasBitcoinChangeIntent(
+  connection: Parameters<typeof fetchWalletByName>[0],
+  walletName: string,
+): Promise<boolean> {
+  try {
+    const wallet = await fetchWalletByName(connection, walletName);
+    if (!wallet) return false;
+    const intents = await listIntents(
+      connection,
+      wallet.pda,
+      wallet.account.intentIndex,
+    );
+    return bitcoinSendReady(
+      selectBitcoinSendIntent(intents.map((it) => it.account)),
+    );
+  } catch {
+    return false;
+  }
 }

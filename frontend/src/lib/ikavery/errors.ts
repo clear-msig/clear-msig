@@ -20,7 +20,7 @@ export function secureActionErrorCopy(
     return {
       title: "Passkey unavailable",
       details:
-        "Use Chrome, Safari, or Edge in a normal browser tab, then try again.",
+        "Use Chrome, Safari, or Edge in a normal browser tab, then try again. Nothing changed.",
     };
   }
 
@@ -39,6 +39,7 @@ export function secureActionErrorCopy(
 
   return {
     title: fallbackTitle,
-    details: "Nothing moved. Try again, or switch to a Solana wallet and retry.",
+    details:
+      "Nothing changed. Try again, or switch to a Solana wallet and retry.",
   };
 }

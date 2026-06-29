@@ -209,14 +209,9 @@ export function friendlyError(
     hay.includes("produced by a different key")
   ) {
     return {
-      title: "Ika signature didn't match the dWallet's pubkey",
+      title: "This network signature did not verify",
       body:
-        "The CLI tried both canonical and byte-reversed scalars and neither " +
-        "recovered to the pubkey on this wallet's Ethereum binding. That " +
-        "rules out the common LE-encoding bug we already auto-correct for; " +
-        "this is a deeper mismatch. Preimage drift, wrong key, or a sig " +
-        "produced over a different message. Copy the technical details and " +
-        "send to the team for byte-by-byte bisection.",
+        "Nothing moved. Try again once. If it fails again, copy Details and send it to the team.",
     };
   }
 
@@ -235,13 +230,9 @@ export function friendlyError(
     hay.includes("non-mandatory-script-verify-flag")
   ) {
     return {
-      title: "Bitcoin rejected this transaction's signature",
+      title: "Bitcoin rejected this signature",
       body:
-        "Bitcoin's mempool refused the witness sig. The CLI auto-corrects " +
-        "the most common cause (Ika emitting little-endian scalars) at " +
-        "broadcast time, so retrying the same proposal often succeeds. If " +
-        "the retry shows this same error, the sig didn't verify in either " +
-        "byte order. Copy the technical details and send to the team.",
+        "Nothing moved. Try again once. If it fails again, copy Details and send it to the team.",
     };
   }
 
@@ -251,14 +242,9 @@ export function friendlyError(
   // wallet's signature is over different bytes than we asked for.
   if (bag.walletErrorCode === "wallet_signed_wrong_bytes") {
     return {
-      title: "Email sign-in can't sign on Solana right now",
+      title: "Use a Solana wallet for this action",
       body:
-        "Dynamic's TSS embedded Solana wallet has a known UTF-8 bug that " +
-        "corrupts the message bytes before signing. To create wallets and " +
-        "send: sign out, then sign in with Solflare, Backpack, or " +
-        "Coinbase Wallet (same wallet picker, scroll past email). For " +
-        "hardware-tier security, plug in a Ledger from /security. Your " +
-        "embedded wallet still receives funds and shows balance fine.",
+        "Email sign-in cannot finish this Solana signature yet. Sign in with Solflare, Backpack, Phantom, or Coinbase Wallet, then try again. Nothing moved.",
     };
   }
 
@@ -426,7 +412,7 @@ export function friendlyError(
     return {
       title: "This request still needs approvals before it can run",
       body:
-        "Approve it first (and ask any other friends required by the rule " +
+        "Approve it first (and ask any other approvers required by the rule " +
         "to do the same). Once it's Approved, it can execute.",
     };
   }
@@ -477,8 +463,7 @@ export function friendlyError(
     return {
       title: "Approval threshold doesn't fit the wallet",
       body:
-        "The number of friends required to approve has to be at most " +
-        "the number of friends in the wallet. Adjust and try again.",
+        "The number of approvers required has to be at most the number of approvers in the wallet. Adjust and try again.",
     };
   }
 
@@ -727,7 +712,7 @@ const WALLET_ERRORS: Record<string, FriendlyError> = {
   },
   ProposalNotApproved: {
     title: "This request still needs approvals before it can run",
-    body: "Approve it first (and ask any other friends required by the rule to do the same). Once it's Approved, it can execute.",
+    body: "Approve it first, and ask any other required approvers to do the same. Once it's approved, it can run.",
   },
   ProposalNotFinalized: {
     title: "This request hasn't finished yet",

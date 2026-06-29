@@ -440,7 +440,7 @@ export function useWallet() {
           return connector.internalSignTransaction(transaction);
         }
         throw new Error(
-          "Embedded Solana transaction signing is unavailable. Reconnect your Google account, then try again. ClearSig will not open Dynamic's generic transaction modal for Secure actions.",
+          "This sign-in method cannot finish a Solana transaction here yet. Switch to Solflare, Backpack, Phantom, or Coinbase Wallet and try again. Nothing changed.",
         );
       }
 
