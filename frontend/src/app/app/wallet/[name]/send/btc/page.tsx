@@ -715,14 +715,14 @@ function BitcoinSendPage() {
         )}
         {!blockedByDisconnect && blockedByLedger && (
           <BlockedNote
-            title="Ledger not supported here"
-            body="The Bitcoin send flow needs the Dynamic embedded signer. Switch wallets and retry."
+            title="Use a software wallet for Bitcoin"
+            body="Switch wallets and try again. Ledger support for Bitcoin sends is coming after the beta path is stable."
           />
         )}
         {isLoading && !blockedByDisconnect && !blockedByLedger && (
           <div className="flex items-center justify-center gap-2 py-8 text-sm text-text-soft">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Reading wallet state…
+            Checking Bitcoin…
           </div>
         )}
 
@@ -1195,9 +1195,14 @@ function BitcoinSetupPendingCard({
           </p>
           <p className="mt-1">{body}</p>
           {proposal ? (
-            <p className="mt-2 font-mono text-[11px] text-text-soft">
-              {shortHash(proposal)}
-            </p>
+            <details className="mt-2">
+              <summary className="cursor-pointer text-[11px] text-text-soft hover:text-text-strong">
+                Details
+              </summary>
+              <p className="mt-1 font-mono text-[11px] text-text-soft">
+                {shortHash(proposal)}
+              </p>
+            </details>
           ) : null}
         </div>
         <Link
@@ -1399,7 +1404,7 @@ function assertPreparedBitcoinSetupIsCurrent(paramsDataHex: string) {
 
   throw new Error(
     preparedParams > 0
-      ? "Bitcoin sending is not ready yet. Turn it on once more after the latest ClearSig update is live."
+      ? "Bitcoin sending is not ready yet. Open this wallet again, then tap Turn on Bitcoin sending."
       : "Bitcoin sending is not ready yet. Turn it on before sending BTC.",
   );
 }

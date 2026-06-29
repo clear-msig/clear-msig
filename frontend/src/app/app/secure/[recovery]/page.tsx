@@ -366,7 +366,7 @@ function SecureRecoveryPage() {
               Icon={KeyRound}
               eyebrow="Action · sweep"
               title="Sweep funds"
-              body="Authorise a transfer of funds from the dWallet to a destination wallet, signed by your threshold."
+              body="Move funds from this recovery vault to a wallet you choose."
               cta="Open"
             />
             {/* Threshold bump. The page now drives the roster-change
@@ -377,9 +377,9 @@ function SecureRecoveryPage() {
                 <ActionCard
                   href={`/app/secure/${encodeURIComponent(recoveryStr)}/threshold`}
                   Icon={Lock}
-                  eyebrow="// 06 · roster"
+                  eyebrow="Action · protection"
                   title="Lock down"
-                  body={`Set a new quorum for the vault. Today it is ${vault.account.threshold} of ${vault.account.members.length}.`}
+                  body={`Require ${vault.account.threshold} of ${vault.account.members.length} approvals today. Adjust it when you want stronger protection.`}
                   cta="Open"
                 />
               )}
@@ -392,7 +392,7 @@ function SecureRecoveryPage() {
                   Recovery backup
                 </p>
                 <p className="mt-1 text-sm text-text-soft">
-                  Save the attestation bundle for this vault. You can import it on another device to restore sweep and recovery flows.
+                  Save a backup so this vault can be restored on another device.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -439,11 +439,11 @@ function SecureRecoveryPage() {
                   strokeWidth={2}
                   aria-hidden="true"
                 />
-                Testnet details
+                Details
               </summary>
               <p className="mt-2 pl-6 leading-relaxed">
-                This vault is on devnet. Use test funds only. Advanced
-                technical details remain available at{" "}
+                This vault is for testing. Use test funds only. More details
+                are available at{" "}
                 <a
                   href={IKAVERY_LIVE}
                   target="_blank"
@@ -575,7 +575,7 @@ function BalancePanel({
       {showReceive && (
         <div className="flex flex-col items-center gap-3 border-t border-border-soft p-5">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-            Send SOL here to fund the vault
+            Receive SOL
           </p>
           <div className="rounded-soft bg-white p-3 shadow-card-rest">
             <QRCodeSVG
@@ -611,8 +611,7 @@ function BalancePanel({
             )}
           </button>
           <p className="text-center text-[11px] text-text-soft">
-            Devnet only · funds sent here will only sweep with this vault&rsquo;s
-            roster
+            Test funds only.
           </p>
         </div>
       )}
