@@ -13,7 +13,7 @@ import {
   syncAgentProfile,
   type AgentStrategyProfile,
   type AgentTradingMode,
-} from "@/lib/agents";
+} from "@/lib/agents/client";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 const MODES: Array<{ value: AgentTradingMode; label: string; hint: string }> = [

@@ -32,7 +32,7 @@ import {
   type AgentMarketReadiness,
   type AgentProfile,
   type AgentTradeProposal,
-} from "@/lib/agents";
+} from "@/lib/agents/client";
 import {
   loadAgentVenueReadiness,
   type AgentVenueReadiness,

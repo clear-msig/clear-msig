@@ -87,7 +87,7 @@ import {
   type TradingLaunchStep,
   type TradingLaunchState,
   type TradingLaunchVenue,
-} from "@/lib/agents";
+} from "@/lib/agents/client";
 import {
   loadAgentVenueReadiness,
   reconcileAgentVenueRequest,

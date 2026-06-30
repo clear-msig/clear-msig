@@ -24,7 +24,7 @@ import {
   type AgentProfile,
   type AgentSolanaDelegationRecord,
   type TradingVenue,
-} from "@/lib/agents";
+} from "@/lib/agents/client";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 const VENUES: TradingVenue[] = ["mock_perps", "hyperliquid_testnet", "bulktrade_mock"];

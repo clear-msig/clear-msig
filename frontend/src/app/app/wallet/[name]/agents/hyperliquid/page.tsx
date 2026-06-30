@@ -23,7 +23,7 @@ import {
   updateAgentHyperliquidDelegationStatus,
   type AgentHyperliquidSetupSettings,
   type AgentHyperliquidSetupStep,
-} from "@/lib/agents";
+} from "@/lib/agents/client";
 import {
   loadAgentVenueReadiness,
   startAgentVenueReadinessPolling,

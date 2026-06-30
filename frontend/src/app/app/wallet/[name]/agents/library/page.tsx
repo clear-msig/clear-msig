@@ -53,7 +53,7 @@ import {
   type TradingVenue,
   type ClearSigTraderRisk,
   type ClearSigTraderTemplate,
-} from "@/lib/agents";
+} from "@/lib/agents/client";
 import { loadAgentMarketDataSnapshots } from "@/lib/agents/clientMarketData";
 import { toDisplayName } from "@/lib/retail/walletNames";
 

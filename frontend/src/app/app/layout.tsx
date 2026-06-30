@@ -14,21 +14,47 @@
 
 import { useEffect, useState } from "react";
 import clsx from "clsx";
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
-import { useActionNotifications } from "@/lib/hooks/useActionNotifications";
 import { AppLockOverlay } from "@/components/security/AppLockOverlay";
 import { PhishingWarningBanner } from "@/components/security/PhishingWarningBanner";
 import { HeaderBar } from "@/components/layout/HeaderBar";
-import { DashboardHeader } from "@/components/layout/DashboardHeader";
 import { PreAlphaBanner } from "@/components/layout/PreAlphaBanner";
-import { WorkspaceSidebar } from "@/components/layout/WorkspaceSidebar";
 import { CommandPaletteLoader } from "@/components/layout/CommandPaletteLoader";
-import { BottomNav } from "@/components/retail/BottomNav";
 import {
   SidebarProvider,
   useSidebar,
 } from "@/components/providers/SidebarProvider";
+
+const DashboardHeader = dynamic(
+  () =>
+    import("@/components/layout/DashboardHeader").then(
+      (mod) => mod.DashboardHeader,
+    ),
+  { ssr: false, loading: () => null },
+);
+
+const WorkspaceSidebar = dynamic(
+  () =>
+    import("@/components/layout/WorkspaceSidebar").then(
+      (mod) => mod.WorkspaceSidebar,
+    ),
+  { ssr: false, loading: () => null },
+);
+
+const BottomNav = dynamic(
+  () => import("@/components/retail/BottomNav").then((mod) => mod.BottomNav),
+  { ssr: false, loading: () => null },
+);
+
+const ActionNotificationsRuntime = dynamic(
+  () =>
+    import("@/components/layout/ActionNotificationsRuntime").then(
+      (mod) => mod.ActionNotificationsRuntime,
+    ),
+  { ssr: false, loading: () => null },
+);
 
 export default function WorkspaceLayout({
   children,
@@ -53,12 +79,6 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
   const expanded = sidebar?.expanded ?? true;
   const pathname = usePathname() ?? "";
   const isWalletHub = pathname === "/app/wallet";
-  // Multisig collab signal: when something lands in the user's
-  // pending-approvals list and the tab is hidden, fire a browser
-  // Notification. Hook is rendered here so it runs across every
-  // /app/* page and survives the route changes that destroy lower
-  // components.
-  useActionNotifications();
   return (
     <main
       className={clsx(
@@ -95,6 +115,7 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
 
       <MobileHeaderBackdrop />
       <HeaderBar />
+      <ActionNotificationsRuntime />
       <CommandPaletteLoader />
 
       {/* Sidebar - pinned to the viewport's left edge on md+. Owns

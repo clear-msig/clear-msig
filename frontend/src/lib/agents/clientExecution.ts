@@ -1,9 +1,7 @@
 "use client";
 
-import type {
-  AgentTradeProposal,
-  AgentServerExecutionReadiness,
-} from "@/lib/agents";
+import type { AgentTradeProposal } from "@/lib/agents/client";
+import type { AgentServerExecutionReadiness } from "@/lib/agents/serverExecutionAdapters";
 import type { AgentVenueReconciliationSummary } from "@/lib/agents/venueReconciliation";
 import type {
   HyperliquidTestnetAccountProbe,

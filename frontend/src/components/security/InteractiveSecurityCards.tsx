@@ -25,10 +25,21 @@ import {
   useIsLoggedIn,
   useRegisterPasskey,
 } from "@dynamic-labs/sdk-react-core";
+import DynamicProviderTree from "@/components/providers/DynamicProviderTree";
 import { useLedger } from "@/lib/wallet/LedgerProvider";
 import { useToast } from "@/components/ui/Toast";
 
 export default function InteractiveSecurityCards() {
+  const environmentId = process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID ?? "";
+  if (!environmentId) return null;
+  return (
+    <DynamicProviderTree environmentId={environmentId}>
+      <InteractiveSecurityCardsContent />
+    </DynamicProviderTree>
+  );
+}
+
+function InteractiveSecurityCardsContent() {
   return (
     <div className="mt-5 grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
       <PasskeyCard />
