@@ -87,7 +87,7 @@ import {
   type AgentVaultPolicy,
   type TradingVenue,
   saveAgent,
-} from "@/lib/agents";
+} from "@/lib/agents/client";
 import {
   loadAgentInboxSummary,
   type AgentInboxSummary,

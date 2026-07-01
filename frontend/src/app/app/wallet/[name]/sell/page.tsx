@@ -46,6 +46,7 @@ import { CHAIN_CATALOG, chainByKind } from "@/lib/retail/chains";
 import type { ChainBindingResponse } from "@/lib/api/types";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { friendlyError } from "@/lib/api/errors";
+import { recordNotificationFeed } from "@/lib/security/notificationFeed";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
@@ -103,6 +104,7 @@ function SellPage() {
     }
   }, [route?.name]);
   const walletDisplay = toDisplayName(walletName);
+  const userAddress = wallet.publicKey?.toBase58() ?? "";
 
   const memberships = useQuery({
     queryKey: ["my-organizations", wallet.publicKey?.toBase58() ?? ""],
@@ -136,6 +138,9 @@ function SellPage() {
   const [resolving, setResolving] = useState(false);
   const [stage, setStage] = useState<Stage>({ kind: "compose" });
   const [txHashInput, setTxHashInput] = useState("");
+  const [recordedOutcomes, setRecordedOutcomes] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   useEffect(() => {
     if (selectedKind === null && bindings.length > 0) {
@@ -185,6 +190,28 @@ function SellPage() {
       setStage({ kind: "payout", intentId: polled.data!.intent_id });
     }
   }, [polled.data, stage.kind]);
+
+  useEffect(() => {
+    if (!userAddress || (stage.kind !== "completed" && stage.kind !== "failed")) {
+      return;
+    }
+    const key = `${stage.kind}:${stage.intentId}`;
+    if (recordedOutcomes.has(key)) return;
+    recordNotificationFeed(userAddress, {
+      kind: "money_movement",
+      walletName,
+      title:
+        stage.kind === "completed"
+          ? "Bank withdrawal complete"
+          : "Withdrawal did not finish",
+      body:
+        stage.kind === "completed"
+          ? `${walletDisplay} sent crypto and the bank payout completed.`
+          : `${walletDisplay} did not complete that bank withdrawal.`,
+      href: `/app/wallet/${encodeURIComponent(walletName)}`,
+    });
+    setRecordedOutcomes((current) => new Set(current).add(key));
+  }, [recordedOutcomes, stage, userAddress, walletDisplay, walletName]);
 
   // Resolve account name on debounced bank input.
   useEffect(() => {

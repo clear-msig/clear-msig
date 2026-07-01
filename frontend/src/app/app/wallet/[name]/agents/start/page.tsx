@@ -87,7 +87,7 @@ import {
   type TradingLaunchStep,
   type TradingLaunchState,
   type TradingLaunchVenue,
-} from "@/lib/agents";
+} from "@/lib/agents/client";
 import {
   loadAgentVenueReadiness,
   reconcileAgentVenueRequest,
@@ -1156,14 +1156,14 @@ function LaunchRiskPanel({
       notices.push({
         id: "adapter_errors",
         tone: "danger",
-        title: "Protected executor has errors",
+        title: "Trading connection needs attention",
         detail: reconciliation.message,
       });
     } else if (reconciliation.status !== "healthy") {
       notices.push({
         id: "reconciliation",
         tone: "warning",
-        title: "Venue check needs review",
+        title: "Practice account needs review",
         detail: reconciliation.message,
       });
     }
@@ -1172,7 +1172,7 @@ function LaunchRiskPanel({
         id: "pending_requests",
         tone: "warning",
         title: "Practice requests are waiting",
-        detail: `${reconciliation.pendingRequests} request${reconciliation.pendingRequests === 1 ? "" : "s"} need setup or a protected connection before they can be trusted.`,
+        detail: `${reconciliation.pendingRequests} request${reconciliation.pendingRequests === 1 ? "" : "s"} need attention before trading continues.`,
       });
     }
   } else if (
@@ -1182,8 +1182,8 @@ function LaunchRiskPanel({
     notices.push({
       id: "adapter_errors_fallback",
       tone: "danger",
-      title: "Protected executor has errors",
-      detail: "At least one connected practice request failed in the protected executor.",
+      title: "Trading connection needs attention",
+      detail: "At least one practice request could not be completed.",
     });
   }
 
@@ -1192,7 +1192,7 @@ function LaunchRiskPanel({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-text-strong">
-            Pre-flight checks
+            Safety checks
           </h2>
         </div>
         <span
@@ -1241,7 +1241,7 @@ function LaunchRiskPanel({
           ))
         ) : (
           <div className="rounded-soft border border-accent/25 bg-accent/[0.05] px-3 py-2 text-xs leading-relaxed text-text-soft">
-            No blocker is visible for this practice path right now.
+            No blocker is visible right now.
           </div>
         )}
       </div>
@@ -1515,7 +1515,7 @@ function HyperliquidHelp({
     savedApiWallet.toLowerCase() !== executorApiWallet.toLowerCase();
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
-      <h2 className="text-sm font-semibold text-text-strong">Connected practice account</h2>
+      <h2 className="text-sm font-semibold text-text-strong">Practice account</h2>
       <div className="mt-4 grid gap-2 sm:grid-cols-4">
         <CheckStat
           label="Account"
@@ -1528,7 +1528,7 @@ function HyperliquidHelp({
           ready={account?.state === "funded"}
         />
         <CheckStat
-          label="API wallet"
+          label="Trading key"
           value={
             savedApiWallet
               ? apiWalletHealthy
@@ -1543,7 +1543,7 @@ function HyperliquidHelp({
           ready={apiWalletHealthy}
         />
         <CheckStat
-          label="Protected connection"
+          label="Connection"
           value={protectedConnection?.state === "ready" ? "Ready" : "Pending"}
           ready={protectedConnection?.state === "ready"}
         />
@@ -1551,15 +1551,15 @@ function HyperliquidHelp({
       {!apiWalletHealthy && savedApiWallet ? (
         <div className="mt-4 rounded-soft border border-warning/30 bg-warning/[0.08] p-3">
           <p className="text-xs font-semibold text-warning">
-            API wallet not verified
+            Trading key not ready
           </p>
           <p className="mt-1 text-xs leading-relaxed text-text-soft">
             {apiWalletMismatch
-              ? "The saved API wallet does not match the signer reported by the protected executor."
+              ? "The saved trading key does not match the connected practice account."
               : setupSettings.delegationStatus === "revoked"
-              ? "Approve and record a new API wallet."
+              ? "Approve and save a new trading key."
               : setupSettings.rotationReason ??
-                "Check the protected executor before trading."}
+                "Check the practice connection before trading."}
           </p>
         </div>
       ) : null}
@@ -1575,8 +1575,8 @@ function HyperliquidHelp({
           {[
             "Open Hyperliquid practice and sign in with a separate account.",
             "Add practice funds to that account.",
-            "Approve a separate Hyperliquid API wallet public address for agent trading.",
-            "Save the account address and approved API wallet address in ClearSig.",
+            "Approve a separate trading key for agent practice.",
+            "Save the account address and approved trading key in ClearSig.",
             "Check again.",
           ].map((instruction, index) => (
             <li key={instruction} className="flex items-start gap-3 text-xs leading-relaxed text-text-soft">
@@ -1607,7 +1607,7 @@ function HyperliquidHelp({
           href={`/app/wallet/${walletEncoded}/agents/hyperliquid`}
           className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
         >
-          Setup guide
+          Guide
           <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
         </Link>
       </div>
@@ -1670,7 +1670,7 @@ function TradingControlRoom({
       ? reconciliation?.message
       : venue === "hyperliquid_testnet" &&
           submittedVenueRequests > venuePositions.length
-        ? "ClearSig has submitted more connected practice trades than the account currently shows. Check the protected connection or exchange history."
+        ? "ClearSig has submitted more practice trades than the account currently shows. Check the practice connection or exchange history."
       : null;
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
@@ -1778,7 +1778,7 @@ function TradingControlRoom({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs font-semibold text-text-strong">
-                Hyperliquid account truth
+                Practice account
               </p>
             </div>
             <span
@@ -1805,12 +1805,12 @@ function TradingControlRoom({
               value={formatUsd(accountSnapshot?.withdrawableUsd)}
             />
             <ControlStat
-              label="Venue P/L"
+              label="Practice P/L"
               value={formatSignedUsd(accountSnapshot?.unrealizedPnlUsd ?? "0")}
               highlight={Number(accountSnapshot?.unrealizedPnlUsd ?? 0) !== 0}
             />
             <ControlStat
-              label="Venue positions"
+              label="Open positions"
               value={String(venuePositions.length)}
               highlight={venuePositions.length > 0}
             />
@@ -1828,7 +1828,7 @@ function TradingControlRoom({
                 highlight={reconciliation.pendingRequests === 0}
               />
               <ControlStat
-                label="Executor errors"
+                label="Errors"
                 value={String(reconciliation.adapterErrors)}
                 highlight={reconciliation.adapterErrors === 0}
               />
@@ -1858,7 +1858,7 @@ function TradingControlRoom({
           </div>
           <div className="mt-4 border-t border-border-soft pt-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs font-semibold text-text-strong">Venue activity</p>
+              <p className="text-xs font-semibold text-text-strong">Practice activity</p>
               <span className="text-[11px] text-text-soft">
                 {venueRequests.length} request{venueRequests.length === 1 ? "" : "s"}
               </span>

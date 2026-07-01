@@ -16,10 +16,29 @@
 //   • Sign out at the foot - destructive leaf, separate from groups.
 
 import { motion, useReducedMotion } from "framer-motion";
+import dynamic from "next/dynamic";
 import { IdentityCard } from "@/components/settings/IdentityCard";
 import { AppLockRow } from "@/components/settings/AppLockRow";
-import { SignInSecurityRow } from "@/components/settings/SignInSecurityRow";
 import { SignOutCard } from "@/components/settings/SignOutCard";
+
+const SignInSecurityRow = dynamic(
+  () =>
+    import("@/components/settings/SignInSecurityRow").then(
+      (mod) => mod.SignInSecurityRow,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <section className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+        <div className="h-10 w-10 shrink-0 rounded-full bg-accent/10" />
+        <div className="min-w-0 flex-1">
+          <div className="h-4 w-32 rounded-full bg-white/8" />
+          <div className="mt-2 h-3 w-56 max-w-full rounded-full bg-white/6" />
+        </div>
+      </section>
+    ),
+  },
+);
 
 export default function AccountPage() {
   const reduce = useReducedMotion();

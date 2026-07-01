@@ -69,33 +69,33 @@ const WALLET_ENROLL_STAGES: EnrollStageInfo[] = [
   },
   {
     id: "build",
-    label: "Building transactions",
-    detail: "Packing propose, then approve + execute.",
+    label: "Preparing",
+    detail: "Getting the device ready for approval.",
   },
   {
     id: "sign",
-    label: "Sign propose tx",
-    detail: "First wallet popup authorises the enrollment proposal.",
+    label: "Confirm in wallet",
+    detail: "First wallet prompt starts the device add.",
   },
   {
     id: "submit",
-    label: "Submitting propose",
-    detail: "Recording the proposal on Solana.",
+    label: "Saving",
+    detail: "Recording the request.",
   },
   {
     id: "confirm",
-    label: "Awaiting propose confirmation",
-    detail: "Solana commits the proposal.",
+    label: "Confirming",
+    detail: "Waiting for the request to settle.",
   },
   {
     id: "approve-sign",
-    label: "Sign approve + execute tx",
-    detail: "Second wallet popup approves and applies the change.",
+    label: "Confirm again",
+    detail: "Second wallet prompt adds the device.",
   },
   {
     id: "approve-confirm",
-    label: "Finalising enrollment",
-    detail: "Solana confirms the new device is on the roster.",
+    label: "Finishing",
+    detail: "The new device is being added.",
   },
 ];
 
@@ -107,38 +107,38 @@ const PASSKEY_ENROLL_STAGES: EnrollStageInfo[] = [
   },
   {
     id: "propose-passkey",
-    label: "Tap an existing passkey · propose",
-    detail: "Authorising the enrollment proposal with a roster passkey.",
+    label: "Tap an existing passkey",
+    detail: "Approve adding this device.",
   },
   {
     id: "sign",
-    label: "Sign propose tx",
-    detail: "Confirm in your wallet. Pays fees, doesn't authorise.",
+    label: "Confirm in wallet",
+    detail: "Your wallet confirms the request.",
   },
   {
     id: "submit",
-    label: "Submitting propose",
-    detail: "Recording the proposal on Solana.",
+    label: "Saving",
+    detail: "Recording the request.",
   },
   {
     id: "confirm",
-    label: "Awaiting propose confirmation",
-    detail: "Solana confirms the proposal is on chain.",
+    label: "Confirming",
+    detail: "Waiting for the request to settle.",
   },
   {
     id: "approve-passkey",
-    label: "Tap an existing passkey · approve",
-    detail: "Same passkey signs the approval challenge.",
+    label: "Tap passkey again",
+    detail: "Finish approving the new device.",
   },
   {
     id: "approve-sign",
-    label: "Sign approve tx",
-    detail: "Confirm in your wallet. Bundles approve + execute.",
+    label: "Confirm again",
+    detail: "Your wallet finishes the add.",
   },
   {
     id: "approve-confirm",
-    label: "Awaiting approve confirmation",
-    detail: "Roster updated; new device is in.",
+    label: "Finishing",
+    detail: "The new device is being added.",
   },
 ];
 
@@ -470,8 +470,8 @@ function IntroStage({
           Add a passkey
         </h1>
         <p className="mx-auto mt-2 max-w-md text-base text-text-soft">
-          A passkey is a device-bound signer - Touch ID, Face ID, or a
-          security key. Once enrolled it joins the roster of vault{" "}
+          Add Touch ID, Face ID, or a security key so this vault can be
+          recovered from another trusted device{" "}
           <span className="font-mono text-text-strong">{recoveryShort}</span>.
         </p>
       </PageEyebrow>
@@ -499,20 +499,17 @@ function IntroStage({
             {authMode === "wallet" ? (
               <>
                 <span className="font-medium text-text-strong">
-                  Two wallet popups.
+                  Two wallet confirms.
                 </span>{" "}
-                propose first, then approve + execute. Solana&rsquo;s 1232-byte
-                packet limit means we can&rsquo;t fit all three steps into one
-                tx.
+                One starts the add. One finishes it.
               </>
             ) : (
               <>
                 <span className="font-medium text-text-strong">
                   Two passkey taps.
                 </span>{" "}
-                an existing passkey authorises propose, then approve. The
-                connected wallet pays fees but doesn&rsquo;t need to be a
-                roster member.
+                an existing passkey approves the new device. Your connected
+                wallet only confirms the request.
               </>
             )}
           </span>
@@ -533,7 +530,7 @@ function IntroStage({
               active={authMode === "wallet"}
               onClick={() => setAuthMode("wallet")}
               label="Wallet"
-              detail="Two wallet popups."
+              detail="Two wallet confirms."
             />
             <AuthOption
               active={authMode === "passkey"}
@@ -566,8 +563,8 @@ function IntroStage({
               Passkeys aren&rsquo;t available here.
             </span>{" "}
             {webauthnState.reason === "insecure"
-              ? "WebAuthn requires HTTPS. Reload the page over https:// (or localhost) and try again."
-              : "Your browser doesn't expose passkey support. Try Chrome / Safari / Edge in a normal tab. Webview-embedded browsers (Twitter, Instagram, in-app) often disable WebAuthn."}
+              ? "Passkeys need a secure browser tab. Reload over https:// or localhost and try again."
+              : "Passkeys are not available in this browser. Try Chrome, Safari, or Edge in a normal tab."}
           </p>
         </aside>
       )}
@@ -591,9 +588,7 @@ function IntroStage({
           )}
         </Button>
         <p className="text-[11px] text-text-soft">
-          Your browser will prompt to mint a new passkey. If your Mac
-          doesn&rsquo;t have Touch&nbsp;ID, the prompt offers to use your
-          phone (QR code) instead.
+          Your browser will ask you to create a passkey.
         </p>
       </div>
     </motion.section>

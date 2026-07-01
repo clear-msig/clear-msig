@@ -17,18 +17,40 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import dynamic from "next/dynamic";
 import { ToastProvider } from "@/components/ui/Toast";
 import { validateConfig } from "@/lib/config";
 import { applyTheme, getStoredTheme, watchSystemTheme } from "@/lib/security/theme";
 import { LivePricesProvider } from "@/lib/retail/priceFeed";
-import DynamicProviderTree from "@/components/providers/DynamicProviderTree";
 
 type Props = {
   children: React.ReactNode;
 };
 
+const LazyDynamicProviderTree = dynamic(
+  () => import("@/components/providers/DynamicProviderTree"),
+  {
+    ssr: false,
+    loading: () => <WalletRuntimeLoading />,
+  },
+);
+
+function needsWalletRuntime(pathname: string | null): boolean {
+  if (!pathname) return false;
+  return (
+    pathname === "/connect" ||
+    pathname === "/spike/dynamic" ||
+    pathname === "/welcome" ||
+    pathname === "/send" ||
+    pathname.startsWith("/send/") ||
+    pathname === "/app" ||
+    pathname.startsWith("/app/")
+  );
+}
+
 export function AppProviders({ children }: Props) {
   const configGaps = validateConfig();
+  const pathname = usePathname();
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -68,7 +90,6 @@ export function AppProviders({ children }: Props) {
   // marketing dark chrome - a broken-theme look. applyTheme reads
   // the current pathname internally and short-circuits to "dark"
   // for the force-dark routes.
-  const pathname = usePathname();
   useEffect(() => {
     applyTheme(getStoredTheme());
   }, [pathname]);
@@ -91,16 +112,31 @@ export function AppProviders({ children }: Props) {
     }
   }
 
+  const content = (
+    <QueryClientProvider client={queryClient}>
+      <ToastProvider>{children}</ToastProvider>
+    </QueryClientProvider>
+  );
+
+  if (!needsWalletRuntime(pathname)) return content;
+
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Mounts the CoinGecko price subscription once for the whole
-          tree. Every `quotePerWhole()` consumer reads from the live
-          map populated by this hook. Renders nothing. */}
+      {/* Mount prices only on product surfaces. Public/marketing pages
+          no longer pay for wallet or price-feed runtime on first load. */}
       <LivePricesProvider />
-      <DynamicProviderTree environmentId={environmentId ?? ""}>
+      <LazyDynamicProviderTree environmentId={environmentId ?? ""}>
         <ToastProvider>{children}</ToastProvider>
-      </DynamicProviderTree>
+      </LazyDynamicProviderTree>
     </QueryClientProvider>
+  );
+}
+
+function WalletRuntimeLoading() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-canvas px-6">
+      <div className="h-10 w-10 animate-pulse rounded-full bg-accent shadow-accent-rest" />
+    </main>
   );
 }
 

@@ -14,7 +14,7 @@
 // (Dynamic auth, Ledger WebHID, post-connect bridge state) is unchanged
 // from the prior retail version.
 
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
@@ -41,6 +41,7 @@ import {
   productSurfaceById,
   type ProductSurface,
 } from "@/lib/productSurfaces";
+import { rememberProductSurfaceChoice } from "@/lib/productSession";
 
 export default function ConnectPageWrapper() {
   return (
@@ -62,6 +63,11 @@ function ConnectPage() {
   const selectedSurface =
     productSurfaceFromSearch(search.get("surface")) ??
     productSurfaceFromNext(search.get("next"));
+
+  useEffect(() => {
+    if (!selectedSurface) return;
+    rememberProductSurfaceChoice(selectedSurface.id);
+  }, [selectedSurface]);
 
   // Bridge state: Dynamic auth is done, wallet.connected is true, but
   // useWalletGate is still waiting for the memberships RPC to settle

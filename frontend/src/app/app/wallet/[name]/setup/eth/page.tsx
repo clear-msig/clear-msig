@@ -28,6 +28,7 @@ import { listIntents } from "@/lib/chain/intents";
 import { IntentType } from "@/lib/msig";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
+import { resolveWalletProductSurface } from "@/lib/productWorkspace";
 import {
   ArrowRight,
   Check,
@@ -75,6 +76,7 @@ export default function SetupEthPage() {
   const toast = useToast();
   const reduce = useReducedMotion();
   const queryClient = useQueryClient();
+  const isPro = resolveWalletProductSurface(name) === "pro";
 
   const ethMeta = chainByKind(EVM_CHAIN_KIND);
 
@@ -311,8 +313,10 @@ export default function SetupEthPage() {
                   icon: Send,
                 },
                 {
-                  label: "Invite someone",
-                  hint: "Friend, teammate, or board member.",
+                  label: isPro ? "Add team member" : "Invite someone",
+                  hint: isPro
+                    ? "Finance lead, operator, or board approver."
+                    : "Friend, family, or trusted contact.",
                   href: `/app/wallet/${encodeURIComponent(name)}/members/add`,
                   icon: UserPlus,
                 },

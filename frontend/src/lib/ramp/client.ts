@@ -92,7 +92,7 @@ async function request<T>(
   body?: unknown,
   opts: RequestOptions = {},
 ): Promise<T> {
-  const url = `${RAMP_API_URL.replace(/\/$/, "")}${path}`;
+  const url = `${rampRequestBase()}${path}`;
   const headers: Record<string, string> = {};
   if (body !== undefined) {
     headers["content-type"] = "application/json";
@@ -133,6 +133,12 @@ async function request<T>(
     throw new RampApiError("Unexpected ramp response shape");
   }
   return envelope.data;
+}
+
+export function rampRequestBase(): string {
+  return typeof window === "undefined"
+    ? RAMP_API_URL.replace(/\/$/, "")
+    : "/api/ramp";
 }
 
 // ── Public surface ──────────────────────────────────────────────────

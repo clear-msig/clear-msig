@@ -43,7 +43,7 @@ import {
   type AgentProposalStatus,
   type AgentSignalInboxItem,
   type AgentTradeProposal,
-} from "@/lib/agents";
+} from "@/lib/agents/client";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 export default function AgentConnectionPage() {

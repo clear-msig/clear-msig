@@ -29,7 +29,7 @@ import {
   type AgentSessionGrant,
   type AgentVaultPolicy,
   type TradingVenue,
-} from "@/lib/agents";
+} from "@/lib/agents/client";
 import { encryptStatus } from "@/lib/encrypt/client";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { toDisplayName } from "@/lib/retail/walletNames";

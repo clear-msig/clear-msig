@@ -40,6 +40,7 @@ import {
 } from "@/lib/retail/roles";
 import { sendOrganizationInvite } from "@/lib/organizations/client";
 import { recordInvite } from "@/lib/security/inviteLog";
+import { resolveWalletProductSurface } from "@/lib/productWorkspace";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
@@ -139,6 +140,10 @@ export default function AddFriendPage() {
   const trimmedName = friendName.trim();
   const trimmedAddress = friendAddress.trim();
   const trimmedEmail = friendEmail.trim();
+  const productSurface = resolveWalletProductSurface(name);
+  const isPro = productSurface === "pro";
+  const personFallback = isPro ? "team member" : "friend";
+  const pageTitle = isPro ? "Add team member" : "Add a friend";
   const nameValid = trimmedName.length >= 2;
   const addressValid = isValidSolanaAddress(trimmedAddress);
   const emailValid = trimmedEmail.length === 0 || isValidEmail(trimmedEmail);
@@ -406,10 +411,10 @@ export default function AddFriendPage() {
       >
         <div className="flex flex-col gap-1">
           <h1 className="hidden font-display text-display-xs leading-tight text-text-strong md:block">
-            Add a friend
+            {pageTitle}
           </h1>
           <p className="text-xs text-text-soft sm:text-sm">
-            Add someone to{" "}
+            Add {isPro ? "a person" : "someone"} to{" "}
             <span className="font-medium text-text-strong">
               {toDisplayName(name)}
             </span>
@@ -424,7 +429,7 @@ export default function AddFriendPage() {
           subtitle={`They can start ${role === "watcher" ? "watching" : "approving"} ${toDisplayName(name)} requests immediately.`}
           options={[
             {
-              label: "Add another person",
+              label: isPro ? "Add another team member" : "Add another person",
               hint: "Reset the form and invite the next one.",
               onClick: () => {
                 setFriendName("");
@@ -443,7 +448,7 @@ export default function AddFriendPage() {
               icon: Pencil,
             },
             {
-              label: "Back to members",
+              label: isPro ? "Back to team" : "Back to members",
               href: `/app/wallet/${encodeURIComponent(name)}/members`,
               icon: Users,
             },
@@ -461,8 +466,9 @@ export default function AddFriendPage() {
             Set up sending first
           </p>
           <p className="mt-2 text-sm text-text-strong">
-            Adding people changes <strong>{toDisplayName(name)}</strong>&rsquo;s
-            protection. Turn on sending first.
+            Adding {isPro ? "team members" : "people"} changes{" "}
+            <strong>{toDisplayName(name)}</strong>&rsquo;s protection. Turn on
+            sending first.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Link
@@ -542,8 +548,7 @@ export default function AddFriendPage() {
         )}
         {emailValid && trimmedEmail.length > 0 && (
           <p className="text-xs text-text-soft sm:ml-[4.5rem]">
-            We&rsquo;ll email {trimmedName || "them"} a join link so they
-            can sign in.
+            We&rsquo;ll email {trimmedName || "them"} a join link.
           </p>
         )}
 
@@ -632,11 +637,11 @@ export default function AddFriendPage() {
         {addFriend.isPending ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Adding {trimmedName || "friend"}…
+            Adding {trimmedName || personFallback}…
           </>
         ) : (
           <>
-            Add {trimmedName || "friend"}
+            Add {trimmedName || personFallback}
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </>
         )}

@@ -7,7 +7,7 @@ import { useMemo } from "react";
 import Link from "next/link";
 import clsx from "clsx";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft, Bell, BellOff, ShieldCheck, UserPlus } from "lucide-react";
+import { ArrowLeft, Bell, BellOff, Landmark, ShieldCheck, UserPlus } from "lucide-react";
 import { useWallet } from "@/lib/wallet";
 import { useNotificationFeed } from "@/lib/hooks/useNotificationFeed";
 import { toDisplayName } from "@/lib/retail/walletNames";
@@ -143,6 +143,8 @@ const iconMeta = (kind: string) => {
       return { Icon: Bell, accent: "bg-accent/10 text-accent" };
     case "membership_change":
       return { Icon: UserPlus, accent: "bg-emerald-500/10 text-emerald-400" };
+    case "money_movement":
+      return { Icon: Landmark, accent: "bg-accent/10 text-accent" };
     default:
       return { Icon: Bell, accent: "bg-accent/10 text-accent" };
   }

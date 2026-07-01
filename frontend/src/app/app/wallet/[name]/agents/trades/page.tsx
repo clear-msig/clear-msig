@@ -27,7 +27,7 @@ import {
   type AgentMarketDataSnapshot,
   type AgentProfile,
   type AgentTradeProposal,
-} from "@/lib/agents";
+} from "@/lib/agents/client";
 import {
   loadAgentVenueReadinessForAgents,
   startAgentVenueReadinessPolling,

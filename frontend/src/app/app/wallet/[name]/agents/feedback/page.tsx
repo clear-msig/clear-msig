@@ -12,7 +12,7 @@ import {
   saveAgentBetaFeedback,
   type AgentBetaFeedbackItem,
   type AgentBetaFeedbackKind,
-} from "@/lib/agents";
+} from "@/lib/agents/client";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 const FEEDBACK_KINDS: Array<{ value: AgentBetaFeedbackKind; label: string }> = [

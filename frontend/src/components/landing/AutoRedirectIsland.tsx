@@ -22,8 +22,19 @@
 // `useWalletGate()` call inside a lazy boundary.
 
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
+import DynamicProviderTree from "@/components/providers/DynamicProviderTree";
 
 export default function AutoRedirectIsland() {
+  const environmentId = process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID ?? "";
+  if (!environmentId) return null;
+  return (
+    <DynamicProviderTree environmentId={environmentId}>
+      <AutoRedirectGate />
+    </DynamicProviderTree>
+  );
+}
+
+function AutoRedirectGate() {
   useWalletGate();
   return null;
 }

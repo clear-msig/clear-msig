@@ -449,8 +449,7 @@ interface WalletDetailTabsProps {
   productSurface: ProductSurfaceId | null;
   actionRows: ActionNeededRow[];
   /// Tri-state to match the upstream useMemo: null while the
-  /// intents query is in flight, true/false once known. NextStepsStripe
-  /// already handles the null case for its loading skeleton.
+  /// intents query is in flight, true/false once known.
   hasIntents: boolean | null;
   reduce: boolean;
 }
@@ -615,12 +614,14 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
             />
           ) : null}
           {productSurface === "pro" ? <BudgetStripe name={name} /> : null}
-          <Actions
-            name={name}
-            productSurface={productSurface}
-            hasIntents={hasIntents}
-            reduce={reduce}
-          />
+          {productSurface !== "pro" || hasIntents === false ? (
+            <Actions
+              name={name}
+              productSurface={productSurface}
+              hasIntents={hasIntents}
+              reduce={reduce}
+            />
+          ) : null}
         </div>
       )}
     </>
@@ -1954,7 +1955,7 @@ function ProOperationsPanel({
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
             }
           >
-            {actionRows.length > 0 ? "Review queue" : "Batch pay"}
+            {actionRows.length > 0 ? "Approval queue" : "Batch payments"}
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         </div>
@@ -2020,7 +2021,7 @@ function ProOperationsPanel({
           <ActionRow
             href={`/app/wallet/${encoded}/members`}
             icon={Users}
-            title="People and roles"
+            title="Team and roles"
           />
           <ActionRow
             href={`/app/wallet/${encoded}/budget`}
@@ -2034,7 +2035,7 @@ function ProOperationsPanel({
           />
         </ActionGroup>
 
-        <ActionGroup label="Agent allocation">
+        <ActionGroup label="Automation">
           <ActionRow
             href={`/app/wallet/${encoded}/agents`}
             icon={Bot}
@@ -2053,7 +2054,7 @@ function ProOperationsPanel({
           <ActionRow
             href={`/app/wallet/${encoded}/receive`}
             icon={Download}
-            title="Fund treasury"
+            title="Receive funds"
           />
         </ActionGroup>
       </div>
@@ -2069,6 +2070,11 @@ function ProOperationsPanel({
           accountingTargets={runtime.accountingTargets}
         />
         <ActionGroup label="Admin">
+          <ActionRow
+            href={`/app/wallet/${encoded}/chains/add?autostart=1`}
+            icon={Network}
+            title="Add asset"
+          />
           <ActionRow
             href="/app/settings#notifications"
             icon={SettingsIcon}
@@ -2287,7 +2293,7 @@ function ProScheduleCard({
           onChange={(event) =>
             onDraftChange({ ...draft, name: event.target.value })
           }
-          placeholder="Vendor or teammate"
+          placeholder="Vendor or team member"
           className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none placeholder:text-text-soft focus:border-accent/50"
         />
         <input
@@ -2857,34 +2863,7 @@ function manageActionGroups(
   }
 
   if (surface === "pro") {
-    return [
-      {
-        label: "Protection",
-        description: "Fine-tune team approvals and send safety.",
-        rows: rulesActionRows(encoded, "pro"),
-      },
-      {
-        label: "Networks",
-        description: "Add another chain to this treasury.",
-        rows: networkActionRows(encoded),
-      },
-      {
-        label: "More limits",
-        description: "Treasury spending limits.",
-        rows: [
-          {
-            href: `/app/wallet/${encoded}/budget`,
-            icon: Banknote,
-            title: "Spending limits",
-            body: "Weekly caps, per-chain caps, and velocity.",
-          },
-        ],
-      },
-      {
-        label: "More money",
-        rows: moneyActionRows(encoded),
-      },
-    ];
+    return [];
   }
 
   if (surface === "agent") {
@@ -2956,7 +2935,7 @@ function networkActionRows(encoded: string): ManageActionGroup["rows"] {
       href: `/app/wallet/${encoded}/chains/add?autostart=1`,
       icon: Network,
       title: "Add chain",
-      body: "Add ETH, BTC, Zcash, or Hyperliquid support.",
+      body: "Add an asset once.",
     },
   ];
 }
@@ -3515,105 +3494,6 @@ function NotFound({ name }: { name: string }) {
     </div>
   );
 }
-
-// ─── Next Steps stripe ─────────────────────────────────────────────
-//
-// Surfaces the most useful single next move based on what the wallet
-// is missing. Picks one of three:
-//
-//   - No spending rule yet → enable sending
-//   - Rule but only the connected user → invite someone
-//   - Rule + members + zero activity → send the first request
-//
-// We render at most one nudge so the wallet hub stays calm. Once
-// activity exists OR the wallet is fully fleshed out, the stripe
-// goes away entirely. Loading state hides it (avoids flash of
-// "Set up sending" while data is in flight).
-
-interface NextStepsStripeProps {
-  name: string;
-  hasIntents: boolean | null;
-  memberCount: number | null;
-  activityCount: number;
-  loading: boolean;
-}
-
-function NextStepsStripe({
-  name,
-  hasIntents,
-  memberCount,
-  activityCount,
-  loading,
-}: NextStepsStripeProps) {
-  if (loading || hasIntents === null) return null;
-
-  const encoded = encodeURIComponent(name);
-  let nudge:
-    | {
-        title: string;
-        body: string;
-        cta: string;
-        href: string;
-      }
-    | null = null;
-
-  const display = toDisplayName(name);
-  if (!hasIntents) {
-    nudge = {
-      title: "Turn on sending",
-      body: `${display} can't send money yet. Turn it on once.`,
-      cta: "Enable sending",
-      href: `/app/wallet/${encoded}/setup`,
-    };
-  } else if ((memberCount ?? 0) <= 1) {
-    nudge = {
-      title: "Invite someone",
-      body: "You're the only person who can approve right now. Add a friend, teammate, or board member so requests get a second look.",
-      cta: "Add someone",
-      href: `/app/wallet/${encoded}/members/add`,
-    };
-  } else if (activityCount === 0) {
-    nudge = {
-      title: "Send your first request",
-      body: `${display} is set up and has people who can approve. Make the first send to put the rule into practice.`,
-      cta: "Send a request",
-      href: `/app/wallet/${encoded}/send`,
-    };
-  }
-
-  if (!nudge) return null;
-
-  return (
-    <section
-      aria-label="Next step"
-      className="rounded-card border border-accent/40 bg-accent/10 p-4 shadow-card-rest sm:p-5"
-    >
-      <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-        <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
-            Next step · {display}
-          </p>
-          <p className="mt-1 font-display text-base text-text-strong">
-            {nudge.title}
-          </p>
-          <p className="mt-1 text-sm text-text-soft">{nudge.body}</p>
-        </div>
-        <Link
-          href={nudge.href}
-          className={
-            "inline-flex shrink-0 items-center gap-1.5 self-stretch rounded-soft bg-accent px-4 py-2 text-sm font-medium text-text-on-accent shadow-accent-rest sm:self-auto " +
-            "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-          }
-        >
-          {nudge.cta}
-          <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        </Link>
-      </div>
-    </section>
-  );
-}
-
 
 // ─── Budget stripe ─────────────────────────────────────────────────
 //

@@ -1,7 +1,7 @@
 "use client";
 
 import { ShieldCheck, X } from "lucide-react";
-import type { AgentOwnerApprovalInput } from "@/lib/agents";
+import type { AgentOwnerApprovalInput } from "@/lib/agents/client";
 
 interface OwnerApprovalDialogProps {
   request: AgentOwnerApprovalInput | null;

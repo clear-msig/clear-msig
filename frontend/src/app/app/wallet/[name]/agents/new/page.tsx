@@ -13,7 +13,7 @@ import {
   syncAgentProfile,
   type AgentKind,
   type AgentProfile,
-} from "@/lib/agents";
+} from "@/lib/agents/client";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { useToast } from "@/components/ui/Toast";
 

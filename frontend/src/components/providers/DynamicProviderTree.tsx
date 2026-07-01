@@ -24,6 +24,7 @@ import { SolanaWalletConnectors } from "@dynamic-labs/solana";
 import { isSolanaWallet } from "@dynamic-labs/solana-core";
 import { useEffect } from "react";
 import { LedgerProvider } from "@/lib/wallet/LedgerProvider";
+import { DynamicWalletRuntimeProvider } from "@/lib/wallet/dynamic";
 
 interface Props {
   environmentId: string;
@@ -198,7 +199,9 @@ export default function DynamicProviderTree({ environmentId, children }: Props) 
   return (
     <DynamicContextProvider settings={settings}>
       <DynamicPostConnectModalGuard>
-        <LedgerProvider>{children}</LedgerProvider>
+        <LedgerProvider>
+          <DynamicWalletRuntimeProvider>{children}</DynamicWalletRuntimeProvider>
+        </LedgerProvider>
       </DynamicPostConnectModalGuard>
     </DynamicContextProvider>
   );

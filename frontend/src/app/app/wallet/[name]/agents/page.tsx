@@ -117,7 +117,7 @@ import {
   type AgentKillSwitchHandoff,
   type AgentTradeLifecycle,
   closeAgentExecutionRecord,
-} from "@/lib/agents";
+} from "@/lib/agents/client";
 import {
   loadAgentInboxSummary,
   type AgentInboxSummary,

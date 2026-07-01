@@ -61,58 +61,58 @@ const WALLET_RUN_STAGES: {
 }[] = [
   {
     id: "stage-sign",
-    label: "Sign stage tx",
-    detail: "First wallet popup writes the change to a staging account.",
+    label: "Confirm change",
+    detail: "Your wallet starts the protection change.",
   },
   {
     id: "stage-confirm",
-    label: "Awaiting stage confirmation",
-    detail: "Solana commits the staging payload.",
+    label: "Saving",
+    detail: "Recording the change request.",
   },
   {
     id: "sign",
-    label: "Sign propose tx",
-    detail: "Second wallet popup proposes the change.",
+    label: "Confirm again",
+    detail: "Your wallet reviews the new protection level.",
   },
   {
     id: "submit",
-    label: "Submitting propose tx",
-    detail: "Solana records the proposal.",
+    label: "Submitting",
+    detail: "Sending the protection request.",
   },
   {
     id: "confirm",
-    label: "Awaiting propose confirmation",
-    detail: "Solana commits the proposal.",
+    label: "Confirming",
+    detail: "Waiting for the request to settle.",
   },
   {
     id: "approve-sign",
-    label: "Sign approval tx",
-    detail: "Third wallet popup adds the proposer vote.",
+    label: "Approve",
+    detail: "Your wallet adds your approval.",
   },
   {
     id: "approve-submit",
-    label: "Submitting approval tx",
-    detail: "Solana records the proposer vote.",
+    label: "Saving approval",
+    detail: "Recording your approval.",
   },
   {
     id: "approve-confirm",
-    label: "Awaiting approval confirmation",
-    detail: "The proposer vote lands on chain.",
+    label: "Confirming approval",
+    detail: "Waiting for your approval to settle.",
   },
   {
     id: "collecting-approvals",
     label: "Collecting extra approvals",
-    detail: "Add distinct credentials until the quorum is met.",
+    detail: "Ask another trusted device or member to approve.",
   },
   {
     id: "execute-sign",
-    label: "Sign execute tx",
-    detail: "Final wallet popup applies the threshold change.",
+    label: "Finish change",
+    detail: "Your wallet applies the new protection level.",
   },
   {
     id: "execute-confirm",
     label: "Finalising",
-    detail: "Solana commits the new threshold.",
+    detail: "Saving the new protection level.",
   },
 ];
 
@@ -123,33 +123,33 @@ const PASSKEY_RUN_STAGES: {
 }[] = [
   {
     id: "stage-sign",
-    label: "Sign stage tx",
-    detail: "Wallet popup writes the change to a staging account.",
+    label: "Confirm change",
+    detail: "Your wallet starts the protection change.",
   },
   {
     id: "stage-confirm",
-    label: "Awaiting stage confirmation",
-    detail: "Solana commits the staging payload.",
+    label: "Saving",
+    detail: "Recording the change request.",
   },
   {
     id: "propose-passkey",
-    label: "Tap your passkey · propose",
-    detail: "Authorise the propose challenge.",
+    label: "Tap passkey",
+    detail: "Approve the protection change.",
   },
   {
     id: "sign",
-    label: "Sign propose tx",
-    detail: "Wallet popup confirms the propose tx.",
+    label: "Confirm in wallet",
+    detail: "Your wallet reviews the request.",
   },
   {
     id: "submit",
-    label: "Submitting propose tx",
-    detail: "Solana records the proposal.",
+    label: "Submitting",
+    detail: "Sending the protection request.",
   },
   {
     id: "confirm",
-    label: "Awaiting propose confirmation",
-    detail: "Solana commits the proposal.",
+    label: "Confirming",
+    detail: "Waiting for the request to settle.",
   },
   {
     id: "approve-passkey",
@@ -158,33 +158,33 @@ const PASSKEY_RUN_STAGES: {
   },
   {
     id: "approve-sign",
-    label: "Sign approval tx",
-    detail: "Wallet popup confirms the proposer vote.",
+    label: "Confirm approval",
+    detail: "Your wallet records the approval.",
   },
   {
     id: "approve-submit",
-    label: "Submitting approval tx",
-    detail: "Solana records the proposer vote.",
+    label: "Saving approval",
+    detail: "Recording the approval.",
   },
   {
     id: "approve-confirm",
-    label: "Awaiting approval confirmation",
-    detail: "The proposer vote lands on chain.",
+    label: "Confirming approval",
+    detail: "Waiting for the approval to settle.",
   },
   {
     id: "collecting-approvals",
     label: "Collecting extra approvals",
-    detail: "Add distinct credentials until the quorum is met.",
+    detail: "Ask another trusted device or member to approve.",
   },
   {
     id: "execute-sign",
-    label: "Sign execute tx",
-    detail: "Final wallet popup applies the threshold change.",
+    label: "Finish change",
+    detail: "Your wallet applies the new protection level.",
   },
   {
     id: "execute-confirm",
     label: "Finalising",
-    detail: "Solana commits the new threshold.",
+    detail: "Saving the new protection level.",
   },
 ];
 
@@ -472,7 +472,7 @@ function ThresholdPage() {
         <BlockedNote
           eyebrow="Sign in to continue"
           title="Connect a wallet first"
-          body="A roster member's signature is required to change the threshold."
+          body="A trusted member needs to approve this protection change."
           cta={{
             href: `/connect?next=/app/secure/${encodeURIComponent(recoveryStr)}/threshold`,
             label: "Sign in",
@@ -513,7 +513,7 @@ function ThresholdPage() {
           <BlockedNote
             eyebrow="Solo vault"
             title="Add a device first"
-            body="A 1-of-1 vault doesn't have a quorum to change. Enroll a passkey from the vault page, then come back."
+            body="Add a second trusted device before raising protection."
             cta={{
               href: `/app/secure/${encodeURIComponent(recoveryStr)}/enroll`,
               label: "Add a passkey",
@@ -528,7 +528,7 @@ function ThresholdPage() {
           <BlockedNote
             eyebrow="Need another credential"
             title={`Vault is ${currentThreshold} of ${memberCount}`}
-            body="This browser only has the connected wallet available, and the vault has no enrolled passkey to collect extra votes with. Higher-threshold bumps need at least one additional credential you can sign with here."
+            body="This change needs another trusted device or member available in this browser."
           />
         )}
 
@@ -539,8 +539,8 @@ function ThresholdPage() {
         blockedByNotMember && (
           <BlockedNote
             eyebrow="Not a member"
-            title="Switch to a roster wallet"
-            body="The connected wallet isn't on this vault's roster, and the vault has no enrolled passkey to authorise with instead. Switch wallets, or enroll a passkey from the vault page first."
+            title="Switch to a trusted wallet"
+            body="This wallet is not allowed to change protection for this vault."
           />
         )}
 
@@ -655,14 +655,13 @@ function IntroStage({
           Lock down vault {recoveryShort}
         </h1>
         <p className="mx-auto mt-2 max-w-md text-base text-text-soft">
-          Vault is currently {currentThreshold} of {memberCount}. Pick the
-          new quorum.
+          Choose how many trusted approvals are needed before funds can move.
         </p>
       </PageEyebrow>
 
       <section className="mx-auto w-full max-w-md flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft">
-          New threshold
+          New protection
         </p>
         <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
           {options.map((n) => (
@@ -696,8 +695,8 @@ function IntroStage({
           {currentThreshold === 1
             ? "Today any device can sweep solo. After the change, "
             : ""}
-          {newThreshold} of {memberCount} signatures are required for every
-          sweep, enrollment, and roster change.
+          {newThreshold} of {memberCount} approvals will be required for
+          recovery actions.
         </div>
       </section>
 
@@ -714,13 +713,13 @@ function IntroStage({
               active={authMode === "wallet"}
               onClick={() => setAuthMode("wallet")}
               label="Wallet"
-              detail="Wallet signs the txs it can; extra approvals still need distinct credentials."
+              detail="Use the connected wallet."
             />
             <AuthOption
               active={authMode === "passkey"}
               onClick={() => setAuthMode("passkey")}
               label="Existing passkey"
-              detail="Passkey signs the auth txs; extra approvals can keep going until quorum."
+              detail="Use a trusted passkey."
             />
           </div>
         </section>
@@ -745,8 +744,8 @@ function IntroStage({
               Passkeys aren&rsquo;t available here.
             </span>{" "}
             {webauthnState.reason === "insecure"
-              ? "WebAuthn requires HTTPS. Reload the page over https:// (or localhost) and try again."
-              : "Your browser doesn't expose passkey support. Try Chrome / Safari / Edge in a normal tab. Webview-embedded browsers (Twitter, Instagram, in-app) often disable WebAuthn."}
+              ? "Passkeys need a secure browser tab. Reload over https:// or localhost and try again."
+              : "Passkeys are not available in this browser. Try Chrome, Safari, or Edge in a normal tab."}
           </p>
         </aside>
       )}
@@ -771,8 +770,8 @@ function IntroStage({
         </Button>
         <p className="text-[11px] text-text-soft">
           {authMode === "passkey"
-            ? "Stage, propose, approve, collect any extra approvals, then execute. Passkey taps appear on the auth txs; additional member approvals can be added until the quorum is met."
-            : "Stage, propose, approve, collect any extra approvals, then execute. Solana's 1232-byte packet limit still forces the initial split. Reversible later via another roster change."}
+            ? "ClearSig will ask for the passkey and wallet confirmations it needs."
+            : "ClearSig will ask for each confirmation as the protection changes."}
         </p>
       </div>
     </motion.section>
@@ -848,8 +847,8 @@ function RunningStage({ subStage, authMode, reduce, collect }: RunningStageProps
               {collect.count} of {collect.threshold} approvals
             </p>
             <p className="max-w-sm text-sm text-text-soft">
-              The proposer&rsquo;s vote is in. Add the remaining quorum by
-              using a different credential for each approval.
+              One approval is in. Use a different trusted device or member
+              for each remaining approval.
             </p>
           </div>
           <div className="flex w-full max-w-md flex-col gap-2">
@@ -860,7 +859,7 @@ function RunningStage({ subStage, authMode, reduce, collect }: RunningStageProps
               title={
                 collect.walletEnabled
                   ? undefined
-                  : "The connected wallet already cast the proposer vote"
+                  : "The connected wallet already approved"
               }
               className={
                 "flex w-full min-h-tap items-center justify-center gap-2 rounded-card border border-border-soft bg-surface-raised px-4 py-3 text-sm font-medium text-text-strong shadow-card-rest " +
@@ -873,7 +872,7 @@ function RunningStage({ subStage, authMode, reduce, collect }: RunningStageProps
               {collect.busy ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               ) : null}
-              Approve as Wallet
+              Approve with wallet
               {!collect.walletEnabled && (
                 <span className="font-mono text-[10px] text-text-soft">
                   (already used)
@@ -895,7 +894,7 @@ function RunningStage({ subStage, authMode, reduce, collect }: RunningStageProps
               {collect.busy ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               ) : null}
-              Approve as Passkey
+              Approve with passkey
             </button>
           </div>
           {collect.error && (
@@ -916,7 +915,7 @@ function RunningStage({ subStage, authMode, reduce, collect }: RunningStageProps
               {active?.label ?? "Bumping…"}
             </p>
             <p className="max-w-sm text-sm text-text-soft">
-              {active?.detail ?? "Recording the roster change on Solana."}
+              {active?.detail ?? "Saving the protection change."}
             </p>
           </div>
           <ol className="flex items-center gap-1.5" aria-label="bump progress">
@@ -963,7 +962,7 @@ function DoneStage(props: DoneStageProps) {
       transition={{ duration: 0.3 }}
       className="flex flex-col gap-6"
     >
-      <PageEyebrow label="// 06 · roster" align="center">
+      <PageEyebrow label="Protection" align="center">
         <span className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
           <Check className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
         </span>
@@ -979,7 +978,7 @@ function DoneStage(props: DoneStageProps) {
           <span className="font-numerals tabular-nums text-text-strong">
             {props.memberCount}
           </span>
-          . Every action from here needs that many signatures.
+          . Recovery actions now need that many approvals.
         </p>
       </PageEyebrow>
 
