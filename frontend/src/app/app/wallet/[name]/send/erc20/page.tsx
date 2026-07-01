@@ -927,7 +927,7 @@ function SendingStage({ reduce }: { reduce: boolean }) {
       </div>
       <p className="mt-5 text-base text-text-strong">Sending token request…</p>
       <p className="mt-1 text-xs text-text-soft">
-        Signing on Solana, then handing off to Ika to broadcast on Sepolia.
+        Finishing the send on Sepolia.
       </p>
     </motion.section>
   );
@@ -962,7 +962,7 @@ function SentStage({
   return (
     <SendReceipt
       status="confirmed"
-      statusLabel="Broadcast on Sepolia via Ika"
+      statusLabel="Confirmed on Sepolia"
       amount={amount}
       ticker={symbol}
       recipientLabel={to}

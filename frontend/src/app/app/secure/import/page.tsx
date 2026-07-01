@@ -310,7 +310,7 @@ function SecureImportPage() {
       toast.error(
         "Imported key matches your connected wallet. That's a self-transfer.",
         {
-          details: "Use 'Build a vault' instead. It creates a fresh dWallet without moving funds.",
+          details: "Use 'Build a vault' instead. It creates a fresh vault without moving funds.",
         },
       );
       return;
@@ -479,7 +479,7 @@ function SecureImportPage() {
       {stage === "review" && (
         <ReviewStage
           fromAddress={derivedAddress ?? ""}
-          toLabel="brand-new dWallet (created in this same tx)"
+          toLabel="new protected vault"
           amountSol={amountSol}
           balanceLamports={balanceLamports}
           lamports={lamports}

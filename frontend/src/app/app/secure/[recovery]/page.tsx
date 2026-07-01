@@ -583,7 +583,7 @@ function BalancePanel({
               size={168}
               level="M"
               marginSize={0}
-              aria-label={`QR code for the dWallet address`}
+              aria-label="QR code for the vault address"
             />
           </div>
           <p className="break-all rounded-soft border border-border-soft bg-canvas px-3 py-2 text-center font-mono text-[11px] leading-relaxed text-text-strong">
