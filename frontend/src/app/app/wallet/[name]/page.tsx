@@ -109,10 +109,7 @@ import {
 import { useDisplayCurrency } from "@/lib/hooks/useDisplayCurrency";
 import { UsdHint } from "@/components/retail/UsdHint";
 import { InfoTip } from "@/components/retail/InfoTip";
-import {
-  CHAIN_CATALOG as CHAIN_CATALOG_REF,
-  chainDisplayRank,
-} from "@/lib/retail/chains";
+import { CHAIN_CATALOG as CHAIN_CATALOG_REF } from "@/lib/retail/chains";
 import { appConfig } from "@/lib/config";
 import {
   buildProAccountingCsv,
@@ -1393,12 +1390,11 @@ function HeroActionTile({
   );
 }
 
-// ─── Portfolio (total USD + per-chain breakdown) ───────────────────
+// ─── Portfolio total ───────────────────────────────────────────────
 //
 // Sums every bound chain's balance × demo USD price. SOL is always
-// present; ETH/BTC/Zcash join when bound. Renders in the Hero in
-// place of the SOL-only number, so single-chain wallets see no
-// regression and multi-chain wallets get the aggregate they expect.
+// present; ETH/BTC/Zcash join when bound. The hero deliberately shows
+// only one number; per-chain balances live in the Assets section.
 function PortfolioPanel({
   walletName,
   fallbackBalance,
@@ -1471,21 +1467,6 @@ function PortfolioPanel({
     );
   }
 
-  const breakdownChips = portfolio.breakdown
-    .filter((c) => c.raw !== null)
-    .sort((a, b) => chainDisplayRank(a.kind) - chainDisplayRank(b.kind))
-    .map((c) => {
-      const meta = chainByKindOnce(c.kind);
-      if (!meta) return null;
-      const amount = formatChainAmount(
-        c.raw!,
-        meta.smallestPerWhole,
-        meta.displayDecimals,
-      );
-      return { kind: c.kind, ticker: c.ticker, amount };
-    })
-    .filter((c): c is { kind: number; ticker: string; amount: string } => c !== null);
-
   return (
     <div className="flex flex-col items-start gap-1.5 sm:gap-2">
       <div className="flex items-center gap-1">
@@ -1511,41 +1492,10 @@ function PortfolioPanel({
           <p className={`font-numerals text-2xl font-semibold leading-none text-text-strong tabular-nums transition-[filter] duration-base sm:text-display-sm ${hiddenClass}`}>
             {fiat.format(portfolio.totalUsd)}
           </p>
-          {breakdownChips.length > 0 && (
-            <ul className={`mt-1 flex flex-wrap items-center gap-1.5 transition-[filter] duration-base ${hiddenClass}`}>
-              {breakdownChips.map((c) => (
-                <li
-                  key={c.kind}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-canvas px-2 py-0.5 font-numerals text-[11px] tabular-nums text-text-soft"
-                >
-                  <span className="text-text-strong">{c.amount}</span>
-                  <span className="text-[10px] uppercase tracking-[0.18em]">
-                    {c.ticker}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
         </>
       )}
     </div>
   );
-}
-
-// Lookup the catalog row for a chain_kind. CHAIN_CATALOG itself is
-// imported at the top of the file (alongside the other chain
-// imports) - keep it that way; mid-file imports are not valid ES
-// module syntax.
-function chainByKindOnce(
-  kind: number,
-): { ticker: string; smallestPerWhole: bigint; displayDecimals: number } | null {
-  const found = CHAIN_CATALOG_REF.find((c) => c.kind === kind);
-  if (!found) return null;
-  return {
-    ticker: found.ticker,
-    smallestPerWhole: found.smallestPerWhole,
-    displayDecimals: found.displayDecimals,
-  };
 }
 
 function formatChainAmount(
