@@ -24,7 +24,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { proposerDisplayName } from "@/lib/retail/proposerName";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ArrowRight, Banknote, Bell, Bot, ChevronDown, Coins, Download, Eye, EyeOff, Heart, Network, PauseCircle, ReceiptText, Repeat2, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
+import { Activity, ArrowRight, Banknote, Bell, Bot, ChevronDown, Coins, Download, Eye, EyeOff, FileCheck2, Heart, Network, PauseCircle, ReceiptText, Repeat2, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
 import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
@@ -1947,6 +1947,11 @@ function ProOperationsPanel({
             href={`/app/wallet/${encoded}/send?kind=vendor`}
             icon={Coins}
             title="Vendor payment"
+          />
+          <ActionRow
+            href={`/app/wallet/${encoded}/escrow`}
+            icon={FileCheck2}
+            title="Project escrow"
           />
         </ActionGroup>
 
