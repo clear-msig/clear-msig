@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { apiRequest } from "@/lib/api/client";
+import { sha256, toHex } from "@/lib/msig/hash";
 
 export type ProEscrowStatus = "active" | "disputed" | "returned" | "complete";
 export type ProEscrowMilestoneStatus = "planned" | "released";
@@ -29,6 +31,7 @@ export interface ProEscrowProject {
   status: ProEscrowStatus;
   funders: ProEscrowFunder[];
   milestones: ProEscrowMilestone[];
+  policy?: ProEscrowPolicy;
   createdAt: number;
   updatedAt?: number;
 }
@@ -38,8 +41,21 @@ export interface ProEscrowReturnRow {
   amount: string;
 }
 
+export interface ProEscrowPolicy {
+  version: 1;
+  mode: "milestone_escrow";
+  releaseRequires: "wallet_approval";
+  unwindRequires: "wallet_approval";
+  returnBasis: "recorded_funder_contribution";
+  assetMode: "per_asset";
+  enforcement: "approval_workflow" | "onchain_policy_pending";
+  commitment: string;
+}
+
 const ESCROW_STORAGE_PREFIX = "clear.pro.escrows.v1:";
 const BATCH_PREFILL_PREFIX = "clear.pro.batchPrefill.v1:";
+const PRO_SYNC_TIMEOUT_MS = 8_000;
+const enc = new TextEncoder();
 
 export function useProEscrows(walletName: string) {
   const [rows, setRows] = useState<ProEscrowProject[]>([]);
@@ -56,60 +72,136 @@ export function useProEscrows(walletName: string) {
         return;
       }
       const parsed = JSON.parse(raw);
-      setRows(Array.isArray(parsed) ? parsed.filter(isProEscrowProject) : []);
+      setRows(
+        Array.isArray(parsed)
+          ? parsed.filter(isProEscrowProject).map(bindProEscrowPolicy)
+          : [],
+      );
     } catch {
       setRows([]);
     }
+
+    let cancelled = false;
+    void listProEscrows(walletName)
+      .then((remoteRows) => {
+        if (cancelled) return;
+        setRows((current) => {
+          const remoteIds = new Set(remoteRows.map((row) => row.id));
+          for (const row of current) {
+            if (!remoteIds.has(row.id)) {
+              void upsertProEscrow(walletName, row);
+            }
+          }
+          const merged = mergeEscrows(current, remoteRows);
+          persistEscrows(walletName, merged);
+          return merged;
+        });
+      })
+      .catch(() => {
+        // Render persistence is progressive. Local escrow records still
+        // work before the backend routes are deployed.
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [walletName]);
 
   const actions = useMemo(
     () => ({
       add: (draft: Omit<ProEscrowProject, "id" | "createdAt" | "updatedAt">) => {
         const now = Date.now();
-        const row: ProEscrowProject = {
+        const row = bindProEscrowPolicy({
           ...draft,
           id: randomId(),
           createdAt: now,
           updatedAt: now,
-        };
+        });
         setRows((current) => {
           const next = [row, ...current].slice(0, 25);
           persistEscrows(walletName, next);
           return next;
         });
+        void upsertProEscrow(walletName, row);
+        void appendProEscrowAuditEvent({
+          walletName,
+          eventType: "escrow_created",
+          title: `Created escrow: ${row.title}`,
+          reference: row.id,
+          metadata: {
+            policyCommitment: row.policy?.commitment,
+            counterparty: row.counterparty,
+          },
+        });
         return row;
       },
       update: (id: string, patch: Partial<ProEscrowProject>) => {
         setRows((current) => {
-          const next = current.map((row) =>
-            row.id === id ? { ...row, ...patch, updatedAt: Date.now() } : row,
-          );
+          const existing = current.find((row) => row.id === id);
+          if (!existing) return current;
+          const updated = bindProEscrowPolicy({
+            ...existing,
+            ...patch,
+            updatedAt: Date.now(),
+          });
+          const next = current.map((row) => (row.id === id ? updated : row));
           persistEscrows(walletName, next);
+          void upsertProEscrow(walletName, updated);
+          void appendProEscrowAuditEvent({
+            walletName,
+            eventType: "escrow_updated",
+            title: `Updated escrow: ${updated.title}`,
+            reference: updated.id,
+            metadata: {
+              policyCommitment: updated.policy?.commitment,
+            },
+          });
           return next;
         });
       },
       remove: (id: string) => {
         setRows((current) => {
+          const removed = current.find((row) => row.id === id) ?? null;
           const next = current.filter((row) => row.id !== id);
           persistEscrows(walletName, next);
+          void deleteProEscrow(walletName, id);
+          void appendProEscrowAuditEvent({
+            walletName,
+            eventType: "escrow_removed",
+            title: removed ? `Removed escrow: ${removed.title}` : "Removed escrow",
+            reference: id,
+          });
           return next;
         });
       },
       markMilestoneReleased: (projectId: string, milestoneId: string) => {
         setRows((current) => {
-          const next = current.map((row) => {
-            if (row.id !== projectId) return row;
-            return {
-              ...row,
-              milestones: row.milestones.map((milestone) =>
-                milestone.id === milestoneId
-                  ? { ...milestone, status: "released" as const }
-                  : milestone,
-              ),
-              updatedAt: Date.now(),
-            };
-          });
+          const existing = current.find((row) => row.id === projectId);
+          if (!existing) return current;
+          const updated: ProEscrowProject = {
+            ...existing,
+            milestones: existing.milestones.map((milestone) =>
+              milestone.id === milestoneId
+                ? { ...milestone, status: "released" as const }
+                : milestone,
+            ),
+            updatedAt: Date.now(),
+          };
+          const next = current.map((row) =>
+            row.id === projectId ? updated : row,
+          );
           persistEscrows(walletName, next);
+          void upsertProEscrow(walletName, updated);
+          void appendProEscrowAuditEvent({
+            walletName,
+            eventType: "escrow_milestone_released",
+            title: `Marked milestone released: ${updated.title}`,
+            reference: projectId,
+            metadata: {
+              milestoneId,
+              policyCommitment: updated.policy?.commitment,
+            },
+          });
           return next;
         });
       },
@@ -145,6 +237,72 @@ export function buildProEscrowReturnRows(
       };
     })
     .filter((row) => row.recipient.trim() && Number(row.amount) > 0);
+}
+
+export function buildProEscrowPolicyCommitment(
+  project: Pick<
+    ProEscrowProject,
+    "title" | "counterparty" | "funders" | "milestones"
+  >,
+): string {
+  return stableHash({
+    kind: "clearsig.pro.escrow-policy",
+    version: 1,
+    title: normalizeText(project.title),
+    counterparty: normalizeText(project.counterparty),
+    releaseRequires: "wallet_approval",
+    unwindRequires: "wallet_approval",
+    returnBasis: "recorded_funder_contribution",
+    assetMode: "per_asset",
+    funders: project.funders.map((row) => ({
+      name: normalizeText(row.name),
+      address: normalizeText(row.address),
+      asset: normalizeAsset(row.asset),
+      amount: normalizeDecimalText(row.amount),
+    })),
+    milestones: project.milestones.map((row) => ({
+      title: normalizeText(row.title),
+      recipient: normalizeText(row.recipient),
+      asset: normalizeAsset(row.asset),
+      amount: normalizeDecimalText(row.amount),
+    })),
+  });
+}
+
+export function bindProEscrowPolicy(
+  project: ProEscrowProject,
+): ProEscrowProject {
+  const commitment = buildProEscrowPolicyCommitment(project);
+  return {
+    ...project,
+    policy: {
+      version: 1,
+      mode: "milestone_escrow",
+      releaseRequires: "wallet_approval",
+      unwindRequires: "wallet_approval",
+      returnBasis: "recorded_funder_contribution",
+      assetMode: "per_asset",
+      enforcement: project.policy?.enforcement ?? "approval_workflow",
+      commitment,
+    },
+  };
+}
+
+export async function recordProEscrowUnwindPrepared(input: {
+  walletName: string;
+  project: ProEscrowProject;
+  rows: ProEscrowReturnRow[];
+}): Promise<void> {
+  await appendProEscrowAuditEvent({
+    walletName: input.walletName,
+    eventType: "escrow_unwind_prepared",
+    title: `Prepared escrow return: ${input.project.title}`,
+    reference: input.project.id,
+    metadata: {
+      rows: input.rows.length,
+      policyCommitment: input.project.policy?.commitment,
+    },
+  });
 }
 
 export function saveProBatchPrefill(
@@ -220,6 +378,97 @@ function persistEscrows(walletName: string, next: ProEscrowProject[]): void {
   }
 }
 
+function mergeEscrows(
+  localRows: ProEscrowProject[],
+  remoteRows: ProEscrowProject[],
+): ProEscrowProject[] {
+  const byId = new Map<string, ProEscrowProject>();
+  for (const row of [...localRows, ...remoteRows].map(bindProEscrowPolicy)) {
+    const current = byId.get(row.id);
+    if (!current) {
+      byId.set(row.id, row);
+      continue;
+    }
+    const currentStamp = current.updatedAt ?? current.createdAt;
+    const rowStamp = row.updatedAt ?? row.createdAt;
+    if (rowStamp >= currentStamp) byId.set(row.id, row);
+  }
+  return [...byId.values()]
+    .sort(
+      (a, b) =>
+        (b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt) ||
+        a.title.localeCompare(b.title),
+    )
+    .slice(0, 25);
+}
+
+interface ProBackendEnvelope<T> {
+  ok: boolean;
+  data: T;
+}
+
+interface ProEscrowsData {
+  walletName: string;
+  escrows: ProEscrowProject[];
+}
+
+interface ProAuditEventInput {
+  walletName: string;
+  eventType: string;
+  title: string;
+  reference?: string;
+  metadata?: Record<string, unknown>;
+}
+
+async function listProEscrows(walletName: string): Promise<ProEscrowProject[]> {
+  if (!walletName.trim()) return [];
+  const response = await apiRequest<ProBackendEnvelope<ProEscrowsData>>(
+    `/v1/pro/wallets/${encodeURIComponent(walletName)}/escrows`,
+    "GET",
+    undefined,
+    { timeoutMs: PRO_SYNC_TIMEOUT_MS },
+  );
+  return response.data.escrows.filter(isProEscrowProject).map(bindProEscrowPolicy);
+}
+
+async function upsertProEscrow(
+  walletName: string,
+  row: ProEscrowProject,
+): Promise<void> {
+  if (!walletName.trim()) return;
+  await apiRequest(
+    `/v1/pro/wallets/${encodeURIComponent(walletName)}/escrows`,
+    "POST",
+    bindProEscrowPolicy(row),
+    { timeoutMs: PRO_SYNC_TIMEOUT_MS },
+  );
+}
+
+async function deleteProEscrow(walletName: string, id: string): Promise<void> {
+  if (!walletName.trim() || !id.trim()) return;
+  await apiRequest(
+    `/v1/pro/wallets/${encodeURIComponent(walletName)}/escrows/delete`,
+    "POST",
+    { id },
+    { timeoutMs: PRO_SYNC_TIMEOUT_MS },
+  );
+}
+
+async function appendProEscrowAuditEvent(
+  input: ProAuditEventInput,
+): Promise<void> {
+  if (!input.walletName.trim() || !input.title.trim()) return;
+  await apiRequest(
+    "/v1/pro/audit-events",
+    "POST",
+    {
+      ...input,
+      metadata: input.metadata ?? {},
+    },
+    { timeoutMs: PRO_SYNC_TIMEOUT_MS },
+  );
+}
+
 function isProEscrowProject(value: unknown): value is ProEscrowProject {
   if (!value || typeof value !== "object") return false;
   const row = value as Record<string, unknown>;
@@ -235,8 +484,25 @@ function isProEscrowProject(value: unknown): value is ProEscrowProject {
     row.funders.every(isFunder) &&
     Array.isArray(row.milestones) &&
     row.milestones.every(isMilestone) &&
+    (row.policy === undefined || isProEscrowPolicy(row.policy)) &&
     typeof row.createdAt === "number" &&
     (row.updatedAt === undefined || typeof row.updatedAt === "number")
+  );
+}
+
+function isProEscrowPolicy(value: unknown): value is ProEscrowPolicy {
+  if (!value || typeof value !== "object") return false;
+  const row = value as Record<string, unknown>;
+  return (
+    row.version === 1 &&
+    row.mode === "milestone_escrow" &&
+    row.releaseRequires === "wallet_approval" &&
+    row.unwindRequires === "wallet_approval" &&
+    row.returnBasis === "recorded_funder_contribution" &&
+    row.assetMode === "per_asset" &&
+    (row.enforcement === "approval_workflow" ||
+      row.enforcement === "onchain_policy_pending") &&
+    typeof row.commitment === "string"
   );
 }
 
@@ -289,6 +555,35 @@ function trimAmount(value: number): string {
   return formatted.includes(".")
     ? formatted.replace(/0+$/, "").replace(/\.$/, "")
     : formatted;
+}
+
+function stableHash(value: unknown): string {
+  return toHex(sha256(enc.encode(stableStringify(value))));
+}
+
+function stableStringify(value: unknown): string {
+  if (value == null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  }
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
+    .join(",")}}`;
+}
+
+function normalizeText(value: string): string {
+  return value.trim();
+}
+
+function normalizeAsset(value: string): string {
+  return value.trim().toUpperCase();
+}
+
+function normalizeDecimalText(value: string): string {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? String(parsed) : "";
 }
 
 function randomId(): string {

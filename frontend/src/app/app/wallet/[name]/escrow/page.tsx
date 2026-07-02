@@ -19,6 +19,7 @@ import {
   buildProEscrowReturnRows,
   escrowFundedAmount,
   escrowReleasedAmount,
+  recordProEscrowUnwindPrepared,
   saveProBatchPrefill,
   useProEscrows,
   type ProEscrowFunder,
@@ -307,6 +308,11 @@ function EscrowProjectCard({
       return;
     }
     const prefill = saveProBatchPrefill(walletName, returnRows);
+    void recordProEscrowUnwindPrepared({
+      walletName,
+      project,
+      rows: returnRows,
+    });
     router.push(`/app/wallet/${encoded}/send/batch?prefill=${prefill}`);
   };
   const addFunder = () => {
@@ -346,9 +352,14 @@ function EscrowProjectCard({
             {project.title}
           </h2>
         </div>
-        <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-xs font-semibold capitalize text-text-soft">
-          {project.status}
-        </span>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-xs font-semibold capitalize text-text-soft">
+            {project.status}
+          </span>
+          <span className="rounded-full border border-accent/35 bg-accent/10 px-2.5 py-1 text-[11px] font-semibold text-accent">
+            Approval protected
+          </span>
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-3 gap-2">
@@ -394,6 +405,11 @@ function EscrowProjectCard({
               </li>
             ))}
           </ul>
+          {project.policy?.commitment ? (
+            <p className="mt-3 break-all rounded-soft border border-border-soft bg-surface-raised px-3 py-2 font-mono text-[10px] leading-relaxed text-text-soft">
+              Policy {project.policy.commitment.slice(0, 18)}...
+            </p>
+          ) : null}
           <div className="mt-3 grid gap-2 border-t border-border-soft pt-3 sm:grid-cols-[1fr_1.3fr_0.7fr_auto]">
             <MiniInput
               label="Name"
