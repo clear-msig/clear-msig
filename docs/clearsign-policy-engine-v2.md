@@ -183,6 +183,43 @@ raw amounts/routes beyond what settlement requires.
 6. Migrate agent and swap intents to v2.
 7. Deprecate vague Custom signing on new product surfaces.
 
+## Devnet Implementation Notes
+
+The first program-side foundation lives in
+`programs/clear-wallet/src/utils/clearsign.rs`.
+
+It currently ships:
+
+- stable typed action codes for all v2 action families
+- short canonical headlines for signer-facing summaries
+- replay envelope validation for wallet name, action id, nonce, expiry, and
+  maximum action lifetime
+- domain-separated SHA-256 hashing for envelopes, policy commitments, send
+  payloads, batch send payloads, milestone release payloads, escrow return
+  payloads, and agent trade payloads
+- focused unit tests proving action-code stability, replay binding, payload
+  binding, and escrow-return binding
+
+Action codes are fixed as:
+
+| Code | Action |
+| ---: | --- |
+| 1 | `send` |
+| 2 | `batch_send` |
+| 3 | `add_member` |
+| 4 | `remove_member` |
+| 5 | `change_threshold` |
+| 6 | `set_protection` |
+| 7 | `release_milestone` |
+| 8 | `return_escrow_funds` |
+| 9 | `agent_trade_approval` |
+| 10 | `recovery_action` |
+| 11 | `swap_intent` |
+
+This is not yet connected to live program execution. The next protocol step is
+to add v2 typed proposal accounts/instructions that store the v2 envelope hash
+and verify the matching payload/policy commitment before approval or execution.
+
 ## Non-Negotiables
 
 - Human text must match canonical bytes.
