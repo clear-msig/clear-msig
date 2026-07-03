@@ -118,8 +118,6 @@ import {
   useProSchedules,
   type ProSchedule,
 } from "@/lib/pro/treasury";
-import { loadEmailPrefs } from "@/lib/security/emailNotifications";
-import { loadWebhookPrefs } from "@/lib/security/webhookNotifications";
 import {
   isProductSurfaceId,
   type ProductSurfaceId,
@@ -1802,6 +1800,13 @@ function ProOperationsPanel({
   attempts: TxAttempt[];
   reduce: boolean;
 }) {
+  type ProPanelKey =
+    | "payments"
+    | "recurring"
+    | "protection"
+    | "automation"
+    | "audit"
+    | "admin";
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
@@ -1809,7 +1814,7 @@ function ProOperationsPanel({
   const runtime = useMemo(() => getProTreasuryRuntime(), []);
   const schedules = useProSchedules(name);
   const budgetUsage = useWalletBudgetUsage(name);
-  const [alertsReady, setAlertsReady] = useState(false);
+  const [activePanel, setActivePanel] = useState<ProPanelKey | null>(null);
   const [scheduleDraft, setScheduleDraft] = useState({
     name: "",
     address: "",
@@ -1825,10 +1830,37 @@ function ProOperationsPanel({
   const lastReceipt = attempts[0] ?? null;
   const dueSchedules = schedules.rows.filter(isScheduleDue);
   const limitsReady = hasAnyProLimit(budgetUsage);
-
-  useEffect(() => {
-    setAlertsReady(loadEmailPrefs().enabled || loadWebhookPrefs().enabled);
-  }, []);
+  const commandTiles: Array<{
+    key: ProPanelKey;
+    label: string;
+    value: string;
+    icon: LucideIcon;
+  }> = [
+    {
+      key: "payments",
+      label: "Payments",
+      value: dueSchedules.length > 0 ? `${dueSchedules.length} due` : "Pay out",
+      icon: Banknote,
+    },
+    {
+      key: "protection",
+      label: "Protection",
+      value: limitsReady ? "Set" : "Set up",
+      icon: ShieldCheck,
+    },
+    {
+      key: "automation",
+      label: "Automation",
+      value: "Agents",
+      icon: Bot,
+    },
+    {
+      key: "admin",
+      label: "Admin",
+      value: activityRows.length + attempts.length > 0 ? "Audit ready" : "Settings",
+      icon: SettingsIcon,
+    },
+  ];
 
   const saveSchedule = () => {
     const payee = scheduleDraft.name.trim();
@@ -1880,7 +1912,7 @@ function ProOperationsPanel({
     <motion.section
       {...motionProps}
       transition={{ duration: 0.2 }}
-      className="flex flex-col gap-4"
+      className="flex flex-col gap-3"
       aria-label="Pro treasury operations"
     >
       <div className="rounded-card border border-accent/25 bg-surface-raised p-4 shadow-card-rest sm:p-5">
@@ -1890,43 +1922,57 @@ function ProOperationsPanel({
               Pro command center · {runtime.environmentLabel}
             </p>
             <h2 className="mt-1 font-display text-xl leading-tight text-text-strong">
-              Pay, protect, and prove.
+              Choose one action.
             </h2>
           </div>
-          <Link
-            href={
-              actionRows.length > 0
-                ? "#action-needed"
-                : `/app/wallet/${encoded}/send/batch`
-            }
-            className={
-              "inline-flex min-h-tap items-center justify-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-text-on-accent shadow-accent-rest " +
-              "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] " +
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-            }
-          >
-            {actionRows.length > 0 ? "Approval queue" : "Batch payments"}
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </Link>
+          {actionRows.length > 0 ? (
+            <Link
+              href="#action-needed"
+              className={
+                "inline-flex min-h-tap items-center justify-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-text-on-accent shadow-accent-rest " +
+                "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] " +
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+              }
+            >
+              Approval queue
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          ) : null}
         </div>
-        <div className="mt-4 grid gap-2 sm:grid-cols-3">
-          <ProMetricTile label="Approval inbox" value={String(actionRows.length)} />
-          <ProMetricTile label="Due payments" value={String(dueSchedules.length)} />
-          <ProMetricTile label="Receipts" value={String(attempts.length)} />
+        <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
+          {commandTiles.map(({ key, label, value, icon: Icon }) => {
+            const selected = activePanel === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setActivePanel(selected ? null : key)}
+                className={
+                  "flex min-h-[76px] items-center gap-3 rounded-card border px-3 py-3 text-left transition-[border-color,background-color,transform] duration-base ease-out-soft active:scale-[0.98] " +
+                  (selected
+                    ? "border-accent/55 bg-accent/10"
+                    : "border-border-soft bg-canvas/70 hover:border-accent/35")
+                }
+                aria-pressed={selected}
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-text-strong">
+                    {label}
+                  </span>
+                  <span className="mt-0.5 block truncate text-xs text-text-soft">
+                    {value}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <ProReadinessStrip
-        walletName={name}
-        actionCount={actionRows.length}
-        dueCount={dueSchedules.length}
-        hasSchedules={schedules.rows.length > 0}
-        limitsReady={limitsReady}
-        alertsReady={alertsReady}
-        auditReady={activityRows.length + attempts.length > 0}
-      />
-
-      <div className="grid gap-3 lg:grid-cols-[1.15fr_0.85fr]">
+      {activePanel === "payments" ? (
         <ActionGroup label="Payments">
           <ActionRow
             href={`/app/wallet/${encoded}/send`}
@@ -1953,8 +1999,15 @@ function ProOperationsPanel({
             icon={FileCheck2}
             title="Project escrow"
           />
+          <ActionButton
+            icon={Repeat2}
+            title="Recurring"
+            onClick={() => setActivePanel("recurring")}
+          />
         </ActionGroup>
+      ) : null}
 
+      {activePanel === "recurring" ? (
         <ProScheduleCard
           draft={scheduleDraft}
           rows={schedules.rows}
@@ -1964,9 +2017,9 @@ function ProOperationsPanel({
           onSave={saveSchedule}
           onRemove={schedules.remove}
         />
-      </div>
+      ) : null}
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      {activePanel === "protection" ? (
         <ActionGroup label="Protection">
           <ActionRow
             href={`/app/wallet/${encoded}/policy`}
@@ -1989,7 +2042,9 @@ function ProOperationsPanel({
             title="Risk checks"
           />
         </ActionGroup>
+      ) : null}
 
+      {activePanel === "automation" ? (
         <ActionGroup label="Automation">
           <ActionRow
             href={`/app/wallet/${encoded}/agents`}
@@ -2012,9 +2067,9 @@ function ProOperationsPanel({
             title="Receive funds"
           />
         </ActionGroup>
-      </div>
+      ) : null}
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      {activePanel === "audit" ? (
         <ProAuditCard
           activityCount={activityRows.length}
           lastReceipt={lastReceipt}
@@ -2024,7 +2079,15 @@ function ProOperationsPanel({
           csvColumns={runtime.batchCsvColumns}
           accountingTargets={runtime.accountingTargets}
         />
+      ) : null}
+
+      {activePanel === "admin" ? (
         <ActionGroup label="Admin">
+          <ActionButton
+            icon={ReceiptText}
+            title="Audit export"
+            onClick={() => setActivePanel("audit")}
+          />
           <ActionRow
             href={`/app/wallet/${encoded}/chains/add?autostart=1`}
             icon={Network}
@@ -2066,21 +2129,8 @@ function ProOperationsPanel({
             title="Recovery policy"
           />
         </ActionGroup>
-      </div>
+      ) : null}
     </motion.section>
-  );
-}
-
-function ProMetricTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-soft border border-border-soft bg-canvas/70 px-3 py-2.5">
-      <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-text-soft">
-        {label}
-      </p>
-      <p className="mt-1 font-numerals text-lg font-semibold tabular-nums text-text-strong">
-        {value}
-      </p>
-    </div>
   );
 }
 
@@ -2091,106 +2141,6 @@ function hasAnyProLimit(usage: ReturnType<typeof useWalletBudgetUsage>): boolean
     (weeklyCap !== null && weeklyCap !== undefined) ||
     !!velocity ||
     usage.perChain.some((row) => row.cap !== null)
-  );
-}
-
-function ProReadinessStrip({
-  walletName,
-  actionCount,
-  dueCount,
-  hasSchedules,
-  limitsReady,
-  alertsReady,
-  auditReady,
-}: {
-  walletName: string;
-  actionCount: number;
-  dueCount: number;
-  hasSchedules: boolean;
-  limitsReady: boolean;
-  alertsReady: boolean;
-  auditReady: boolean;
-}) {
-  const encoded = encodeURIComponent(walletName);
-  const items = [
-    {
-      label: "Approvals",
-      value: actionCount > 0 ? `${actionCount} waiting` : "Ready",
-      href: actionCount > 0 ? "#action-needed" : undefined,
-      active: actionCount === 0,
-    },
-    {
-      label: "Limits",
-      value: limitsReady ? "Set" : "Add",
-      href: `/app/wallet/${encoded}/budget`,
-      active: limitsReady,
-    },
-    {
-      label: "Recurring",
-      value: hasSchedules ? (dueCount > 0 ? `${dueCount} due` : "Ready") : "Add",
-      href: hasSchedules ? undefined : "#pro-recurring",
-      active: hasSchedules && dueCount === 0,
-    },
-    {
-      label: "Alerts",
-      value: alertsReady ? "On" : "Add",
-      href: "/app/settings#notifications",
-      active: alertsReady,
-    },
-    {
-      label: "Audit",
-      value: auditReady ? "Ready" : "Waiting",
-      href: `/app/wallet/${encoded}/activity`,
-      active: auditReady,
-    },
-  ];
-
-  return (
-    <section
-      aria-label="Pro readiness"
-      className="rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest"
-    >
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-        {items.map((item) => {
-          const body = (
-            <>
-              <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-text-soft">
-                {item.label}
-              </span>
-              <span
-                className={
-                  "mt-1 text-sm font-semibold " +
-                  (item.active ? "text-text-strong" : "text-accent")
-                }
-              >
-                {item.value}
-              </span>
-            </>
-          );
-
-          if (item.href) {
-            return (
-              <Link
-                key={item.label}
-                href={item.href}
-                className="flex min-h-14 flex-col justify-center rounded-soft border border-border-soft bg-canvas/70 px-3 py-2 transition hover:border-accent/40"
-              >
-                {body}
-              </Link>
-            );
-          }
-
-          return (
-            <div
-              key={item.label}
-              className="flex min-h-14 flex-col justify-center rounded-soft border border-border-soft bg-canvas/70 px-3 py-2"
-            >
-              {body}
-            </div>
-          );
-        })}
-      </div>
-    </section>
   );
 }
 
@@ -3000,6 +2950,52 @@ function ActionRow({
         <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
       </span>
     </Link>
+  );
+}
+
+function ActionButton({
+  icon: Icon,
+  title,
+  body,
+  onClick,
+}: {
+  icon: LucideIcon;
+  title: string;
+  body?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "group relative flex min-h-[64px] items-center gap-3 overflow-hidden rounded-card border border-border-soft bg-surface-raised px-4 py-3 text-left shadow-card-rest " +
+        "transition-[transform,border-color,box-shadow,background-color] duration-base ease-out-soft " +
+        "hover:-translate-y-0.5 hover:border-accent/35 hover:bg-canvas hover:shadow-card-raised " +
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+      }
+    >
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-5 bottom-0 h-px bg-gradient-to-r from-transparent via-accent/35 to-transparent opacity-0 transition-opacity duration-base group-hover:opacity-100"
+      />
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent transition-colors duration-base group-hover:bg-accent/15">
+        <Icon className="h-4 w-4" strokeWidth={1.85} aria-hidden="true" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-text-strong">
+          {title}
+        </p>
+        {body ? (
+          <p className="mt-1 line-clamp-2 text-xs leading-snug text-text-soft">
+            {body}
+          </p>
+        ) : null}
+      </div>
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-canvas/70 text-text-soft transition-[color,transform] duration-base group-hover:translate-x-0.5 group-hover:text-accent">
+        <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+      </span>
+    </button>
   );
 }
 
