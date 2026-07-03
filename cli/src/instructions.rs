@@ -186,6 +186,133 @@ pub fn execute(
     sdk_ix_from_ext(ext_ix)
 }
 
+#[allow(dead_code)]
+pub struct ProposeTypedArgs<'a> {
+    pub payer: Pubkey,
+    pub wallet: Pubkey,
+    pub intent: Pubkey,
+    pub proposal: Pubkey,
+    pub proposal_index: u64,
+    pub expiry: i64,
+    pub action_kind: u8,
+    pub policy_commitment: [u8; 32],
+    pub payload_hash: [u8; 32],
+    pub envelope_hash: [u8; 32],
+    pub proposer_pubkey: [u8; 32],
+    pub signature: [u8; 64],
+    pub action_id: &'a [u8],
+    pub nonce: &'a [u8],
+}
+
+/// Build propose_typed instruction (ClearSign v2 discriminator 8).
+#[allow(dead_code)]
+pub fn propose_typed(args: ProposeTypedArgs<'_>) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new(args.payer, true),
+        AccountMeta::new(args.wallet, false),
+        AccountMeta::new(args.intent, false),
+        AccountMeta::new(args.proposal, false),
+        AccountMeta::new_readonly(solana_sdk::system_program::id(), false),
+    ];
+
+    let mut data = vec![8u8];
+    wincode::serialize_into(&mut data, &args.proposal_index).unwrap();
+    wincode::serialize_into(&mut data, &args.expiry).unwrap();
+    wincode::serialize_into(&mut data, &args.action_kind).unwrap();
+    wincode::serialize_into(&mut data, &args.policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &args.payload_hash).unwrap();
+    wincode::serialize_into(&mut data, &args.envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &args.proposer_pubkey).unwrap();
+    wincode::serialize_into(&mut data, &args.signature).unwrap();
+    wincode::serialize_into(&mut data, &DynBytes::<u8>::from(args.action_id.to_vec())).unwrap();
+    wincode::serialize_into(&mut data, &DynBytes::<u8>::from(args.nonce.to_vec())).unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
+/// Build approve_typed instruction (ClearSign v2 discriminator 9).
+#[allow(dead_code)]
+pub fn approve_typed(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    approver_index: u8,
+    signature: [u8; 64],
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new_readonly(intent, false),
+        AccountMeta::new(proposal, false),
+    ];
+    let mut data = vec![9u8];
+    wincode::serialize_into(&mut data, &approver_index).unwrap();
+    wincode::serialize_into(&mut data, &signature).unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
+/// Build cancel_typed instruction (ClearSign v2 discriminator 10).
+#[allow(dead_code)]
+pub fn cancel_typed(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    canceller_index: u8,
+    signature: [u8; 64],
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+    ];
+    let mut data = vec![10u8];
+    wincode::serialize_into(&mut data, &canceller_index).unwrap();
+    wincode::serialize_into(&mut data, &signature).unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
+/// Build execute_typed instruction (ClearSign v2 discriminator 11).
+#[allow(dead_code)]
+pub fn execute_typed(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    action_kind: u8,
+    policy_commitment: [u8; 32],
+    payload_hash: [u8; 32],
+    envelope_hash: [u8; 32],
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+    ];
+    let mut data = vec![11u8];
+    wincode::serialize_into(&mut data, &action_kind).unwrap();
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &payload_hash).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
 /// Build cleanup_proposal instruction.
 pub fn cleanup(proposal: Pubkey, rent_refund: Pubkey) -> Instruction {
     let accounts = vec![
@@ -304,5 +431,64 @@ pub fn ika_transfer_ownership(
         program_id: dwallet_program,
         accounts,
         data,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn key(byte: u8) -> Pubkey {
+        Pubkey::new_from_array([byte; 32])
+    }
+
+    #[test]
+    fn typed_propose_uses_expected_accounts_and_discriminator() {
+        let ix = propose_typed(ProposeTypedArgs {
+            payer: key(1),
+            wallet: key(2),
+            intent: key(3),
+            proposal: key(4),
+            proposal_index: 7,
+            expiry: 1_900_000_000,
+            action_kind: 8,
+            policy_commitment: [5; 32],
+            payload_hash: [6; 32],
+            envelope_hash: [7; 32],
+            proposer_pubkey: [8; 32],
+            signature: [9; 64],
+            action_id: b"act",
+            nonce: b"nonce",
+        });
+
+        assert_eq!(ix.program_id, program_id());
+        assert_eq!(ix.data[0], 8);
+        assert_eq!(ix.accounts.len(), 5);
+        assert!(ix.accounts[0].is_signer);
+        assert!(ix.accounts[0].is_writable);
+        assert!(ix.accounts[1].is_writable);
+        assert!(ix.accounts[2].is_writable);
+        assert!(ix.accounts[3].is_writable);
+        assert!(!ix.accounts[4].is_writable);
+    }
+
+    #[test]
+    fn typed_approve_cancel_execute_use_expected_discriminators() {
+        let approve = approve_typed(key(1), key(2), key(3), 1, [4; 64]);
+        let cancel = cancel_typed(key(1), key(2), key(3), 1, [4; 64]);
+        let execute = execute_typed(key(1), key(2), key(3), 8, [4; 32], [5; 32], [6; 32]);
+
+        assert_eq!(approve.data[0], 9);
+        assert_eq!(cancel.data[0], 10);
+        assert_eq!(execute.data[0], 11);
+        assert_eq!(approve.data.len(), 66);
+        assert_eq!(cancel.data.len(), 66);
+        assert_eq!(execute.data.len(), 98);
+        assert!(!approve.accounts[0].is_writable);
+        assert!(!approve.accounts[1].is_writable);
+        assert!(approve.accounts[2].is_writable);
+        assert!(cancel.accounts[1].is_writable);
+        assert!(execute.accounts[1].is_writable);
+        assert!(execute.accounts[2].is_writable);
     }
 }
