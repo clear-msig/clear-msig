@@ -28,6 +28,17 @@ pub fn find_proposal_address(intent: &Address, index: u64, program_id: &Address)
     )
 }
 
+pub fn find_typed_proposal_address(
+    intent: &Address,
+    index: u64,
+    program_id: &Address,
+) -> (Address, u8) {
+    Address::find_program_address(
+        &[b"typed_proposal", intent.as_ref(), &index.to_le_bytes()],
+        program_id,
+    )
+}
+
 pub fn find_ika_config_address(
     wallet: &Address,
     chain_kind: u8,

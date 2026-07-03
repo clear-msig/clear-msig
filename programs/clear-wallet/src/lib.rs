@@ -139,4 +139,59 @@ pub mod clear_wallet {
             blake2b_hashes,
         })
     }
+
+    #[instruction(discriminator = 8)]
+    pub fn propose_typed(
+        ctx: Ctx<ProposeTyped>,
+        proposal_index: u64,
+        expiry: i64,
+        action_kind: u8,
+        policy_commitment: [u8; 32],
+        payload_hash: [u8; 32],
+        envelope_hash: [u8; 32],
+        proposer_pubkey: [u8; 32],
+        signature: [u8; 64],
+        action_id: &[u8],
+        nonce: &[u8],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.propose_typed(
+            proposal_index,
+            ProposeTypedArgs {
+                expiry,
+                action_kind,
+                action_id,
+                nonce,
+                policy_commitment,
+                payload_hash,
+                envelope_hash,
+                proposer_pubkey: &proposer_pubkey,
+                signature: &signature,
+            },
+            &ctx.bumps,
+        )
+    }
+
+    #[instruction(discriminator = 9)]
+    pub fn approve_typed(
+        ctx: Ctx<ApproveTyped>,
+        approver_index: u8,
+        signature: [u8; 64],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.approve_typed(ApproveTypedArgs {
+            approver_index,
+            signature: &signature,
+        })
+    }
+
+    #[instruction(discriminator = 10)]
+    pub fn cancel_typed(
+        ctx: Ctx<CancelTyped>,
+        canceller_index: u8,
+        signature: [u8; 64],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.cancel_typed(CancelTypedArgs {
+            canceller_index,
+            signature: &signature,
+        })
+    }
 }

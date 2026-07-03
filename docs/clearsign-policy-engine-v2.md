@@ -199,6 +199,9 @@ It currently ships:
   payloads, and agent trade payloads
 - focused unit tests proving action-code stability, replay binding, payload
   binding, and escrow-return binding
+- typed proposal account storage for v2 envelopes
+- v2 propose, approve, and cancel instructions that verify canonical envelope
+  hashes and role-specific vote hashes before changing approval state
 
 Action codes are fixed as:
 
@@ -216,9 +219,18 @@ Action codes are fixed as:
 | 10 | `recovery_action` |
 | 11 | `swap_intent` |
 
-This is not yet connected to live program execution. The next protocol step is
-to add v2 typed proposal accounts/instructions that store the v2 envelope hash
-and verify the matching payload/policy commitment before approval or execution.
+Typed proposal instruction discriminators are:
+
+| Code | Instruction |
+| ---: | --- |
+| 8 | `propose_typed` |
+| 9 | `approve_typed` |
+| 10 | `cancel_typed` |
+
+These instructions do not move funds yet. They create and govern typed v2
+proposal accounts beside the legacy proposal flow. The next protocol step is to
+wire typed execution so money-moving actions verify the stored envelope,
+payload hash, policy commitment, and approval state before execution.
 
 ## Non-Negotiables
 
