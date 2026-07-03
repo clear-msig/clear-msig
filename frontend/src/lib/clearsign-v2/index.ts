@@ -1,4 +1,11 @@
 export {
+  prepareClearSignAction,
+  type BackendClearSignSummary,
+  type ClearSignVoteHashes,
+  type ClearSignVotePrepareInput,
+} from "@/lib/clearsign-v2/client";
+
+export {
   clearSignActionKindCode,
   clearSignEnvelopeHash,
   clearSignPayloadHash,
