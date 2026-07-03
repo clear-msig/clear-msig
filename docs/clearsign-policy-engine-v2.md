@@ -142,10 +142,19 @@ Escrow rules:
 
 - Milestone release can only pay the configured recipient and amount.
 - Return-to-sender can only return remaining funds to recorded funders.
+- Funder attribution is scoped to funder, funding entity, asset, and chain.
+- Milestone recipients can be tagged to a separate delivery entity such as a
+  construction company, cooperative, vendor, or project SPV.
 - Return math is per asset.
 - Pro-rata share is based on recorded contribution.
 - Unwind requires the configured approval policy.
 - Escrow policy commitment is created with the project.
+
+For multi-company project stacks, ClearSig should not assume one recipient.
+The Fund, Construction, Cooperative, and other operating entities can be
+recorded inside one Pro escrow when they share a governance account. If legal
+or approval boundaries differ, they should be separate Pro escrows/accounts
+linked by the same project reference.
 
 Frontend/backend MVP may store records off-chain, but the v2 program upgrade
 should verify the policy commitment before approving execution.

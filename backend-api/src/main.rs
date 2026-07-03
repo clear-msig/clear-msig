@@ -606,6 +606,8 @@ struct ProScheduleDeleteRequest {
 struct ProEscrowFunder {
     id: String,
     name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    entity: Option<String>,
     address: String,
     asset: String,
     amount: String,
@@ -617,6 +619,8 @@ struct ProEscrowMilestone {
     id: String,
     title: String,
     recipient: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    recipient_entity: Option<String>,
     asset: String,
     amount: String,
     status: String,
@@ -1597,6 +1601,7 @@ fn normalize_escrow_funders(rows: Vec<ProEscrowFunder>) -> Result<Vec<ProEscrowF
             Ok(ProEscrowFunder {
                 id: row.id.trim().to_string(),
                 name: row.name.trim().to_string(),
+                entity: trim_optional(row.entity),
                 address: row.address.trim().to_string(),
                 asset: row.asset.trim().to_ascii_uppercase(),
                 amount: row.amount.trim().to_string(),
@@ -1614,6 +1619,7 @@ fn normalize_escrow_milestones(
                 id: row.id.trim().to_string(),
                 title: row.title.trim().to_string(),
                 recipient: row.recipient.trim().to_string(),
+                recipient_entity: trim_optional(row.recipient_entity),
                 asset: row.asset.trim().to_ascii_uppercase(),
                 amount: row.amount.trim().to_string(),
                 status: normalize_milestone_status(&row.status)?,

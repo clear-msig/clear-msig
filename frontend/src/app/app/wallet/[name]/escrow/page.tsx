@@ -32,10 +32,12 @@ interface EscrowDraft {
   title: string;
   counterparty: string;
   funderName: string;
+  funderEntity: string;
   funderAddress: string;
   fundedAmount: string;
   milestoneTitle: string;
   recipient: string;
+  recipientEntity: string;
   milestoneAmount: string;
 }
 
@@ -43,10 +45,12 @@ const emptyDraft: EscrowDraft = {
   title: "",
   counterparty: "",
   funderName: "",
+  funderEntity: "",
   funderAddress: "",
   fundedAmount: "",
   milestoneTitle: "",
   recipient: "",
+  recipientEntity: "",
   milestoneAmount: "",
 };
 
@@ -75,10 +79,12 @@ export default function ProEscrowPage() {
   const createProject = () => {
     const title = draft.title.trim();
     const counterparty = draft.counterparty.trim();
+    const funderEntity = draft.funderEntity.trim();
     const funderAddress = draft.funderAddress.trim();
     const fundedAmount = draft.fundedAmount.trim();
     const milestoneTitle = draft.milestoneTitle.trim();
     const recipient = draft.recipient.trim();
+    const recipientEntity = draft.recipientEntity.trim();
     const milestoneAmount = draft.milestoneAmount.trim();
 
     if (!title || !counterparty) {
@@ -106,6 +112,7 @@ export default function ProEscrowPage() {
         {
           id: randomId(),
           name: draft.funderName.trim() || counterparty,
+          entity: funderEntity || undefined,
           address: funderAddress,
           asset: "SOL",
           amount: fundedAmount,
@@ -116,6 +123,7 @@ export default function ProEscrowPage() {
           id: randomId(),
           title: milestoneTitle || "Milestone 1",
           recipient,
+          recipientEntity: recipientEntity || undefined,
           asset: "SOL",
           amount: milestoneAmount,
           status: "planned",
@@ -217,6 +225,14 @@ export default function ProEscrowPage() {
             }
           />
           <EscrowInput
+            label="Fund entity"
+            value={draft.funderEntity}
+            placeholder="Fund / investor SPV"
+            onChange={(funderEntity) =>
+              setDraft((current) => ({ ...current, funderEntity }))
+            }
+          />
+          <EscrowInput
             label="Funder address"
             value={draft.funderAddress}
             placeholder="Solana address"
@@ -248,6 +264,14 @@ export default function ProEscrowPage() {
             placeholder="Solana address"
             onChange={(recipient) =>
               setDraft((current) => ({ ...current, recipient }))
+            }
+          />
+          <EscrowInput
+            label="Recipient entity"
+            value={draft.recipientEntity}
+            placeholder="Construction / Cooperative"
+            onChange={(recipientEntity) =>
+              setDraft((current) => ({ ...current, recipientEntity }))
             }
           />
           <EscrowInput
@@ -298,6 +322,7 @@ function EscrowProjectCard({
   const returnRows = buildProEscrowReturnRows(project);
   const [funderDraft, setFunderDraft] = useState({
     name: "",
+    entity: "",
     address: "",
     amount: "",
   });
@@ -317,6 +342,7 @@ function EscrowProjectCard({
   };
   const addFunder = () => {
     const name = funderDraft.name.trim();
+    const entity = funderDraft.entity.trim();
     const address = funderDraft.address.trim();
     const amount = funderDraft.amount.trim();
     if (!address || !isPositiveAmount(amount)) {
@@ -326,6 +352,7 @@ function EscrowProjectCard({
     const nextFunder: ProEscrowFunder = {
       id: randomId(),
       name: name || "Funder",
+      entity: entity || undefined,
       address,
       amount,
       asset: "SOL",
@@ -334,7 +361,7 @@ function EscrowProjectCard({
       funders: [...project.funders, nextFunder],
       status: "active",
     });
-    setFunderDraft({ name: "", address: "", amount: "" });
+    setFunderDraft({ name: "", entity: "", address: "", amount: "" });
     toast.success("Funder added");
   };
 
@@ -398,7 +425,10 @@ function EscrowProjectCard({
           <ul className="mt-2 grid gap-1.5">
             {project.funders.map((funder) => (
               <li key={funder.id} className="flex justify-between gap-3">
-                <span className="truncate">{funder.name}</span>
+                <span className="truncate">
+                  {funder.name}
+                  {funder.entity ? ` · ${funder.entity}` : ""}
+                </span>
                 <span className="font-numerals tabular-nums">
                   {funder.amount} {funder.asset}
                 </span>
@@ -410,13 +440,21 @@ function EscrowProjectCard({
               Policy {project.policy.commitment.slice(0, 18)}...
             </p>
           ) : null}
-          <div className="mt-3 grid gap-2 border-t border-border-soft pt-3 sm:grid-cols-[1fr_1.3fr_0.7fr_auto]">
+          <div className="mt-3 grid gap-2 border-t border-border-soft pt-3 sm:grid-cols-[1fr_1fr_1.3fr_0.7fr_auto]">
             <MiniInput
               label="Name"
               value={funderDraft.name}
               placeholder="Funder"
               onChange={(name) =>
                 setFunderDraft((current) => ({ ...current, name }))
+              }
+            />
+            <MiniInput
+              label="Entity"
+              value={funderDraft.entity}
+              placeholder="Fund"
+              onChange={(entity) =>
+                setFunderDraft((current) => ({ ...current, entity }))
               }
             />
             <MiniInput
@@ -483,6 +521,11 @@ function MilestoneRow({
           <p className="mt-1 font-numerals text-sm tabular-nums text-text-soft">
             {milestone.amount} {milestone.asset}
           </p>
+          {milestone.recipientEntity ? (
+            <p className="mt-1 truncate text-xs text-text-soft">
+              {milestone.recipientEntity}
+            </p>
+          ) : null}
         </div>
         <Link
           href={`/app/wallet/${encoded}/send?${params.toString()}`}

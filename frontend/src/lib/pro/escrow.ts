@@ -10,6 +10,7 @@ export type ProEscrowMilestoneStatus = "planned" | "released";
 export interface ProEscrowFunder {
   id: string;
   name: string;
+  entity?: string;
   address: string;
   asset: string;
   amount: string;
@@ -19,6 +20,7 @@ export interface ProEscrowMilestone {
   id: string;
   title: string;
   recipient: string;
+  recipientEntity?: string;
   asset: string;
   amount: string;
   status: ProEscrowMilestoneStatus;
@@ -256,6 +258,7 @@ export function buildProEscrowPolicyCommitment(
     assetMode: "per_asset",
     funders: project.funders.map((row) => ({
       name: normalizeText(row.name),
+      entity: normalizeText(row.entity ?? ""),
       address: normalizeText(row.address),
       asset: normalizeAsset(row.asset),
       amount: normalizeDecimalText(row.amount),
@@ -263,6 +266,7 @@ export function buildProEscrowPolicyCommitment(
     milestones: project.milestones.map((row) => ({
       title: normalizeText(row.title),
       recipient: normalizeText(row.recipient),
+      recipientEntity: normalizeText(row.recipientEntity ?? ""),
       asset: normalizeAsset(row.asset),
       amount: normalizeDecimalText(row.amount),
     })),
@@ -512,6 +516,7 @@ function isFunder(value: unknown): value is ProEscrowFunder {
   return (
     typeof row.id === "string" &&
     typeof row.name === "string" &&
+    (row.entity === undefined || typeof row.entity === "string") &&
     typeof row.address === "string" &&
     typeof row.asset === "string" &&
     typeof row.amount === "string"
@@ -525,6 +530,8 @@ function isMilestone(value: unknown): value is ProEscrowMilestone {
     typeof row.id === "string" &&
     typeof row.title === "string" &&
     typeof row.recipient === "string" &&
+    (row.recipientEntity === undefined ||
+      typeof row.recipientEntity === "string") &&
     typeof row.asset === "string" &&
     typeof row.amount === "string" &&
     (row.status === "planned" || row.status === "released")

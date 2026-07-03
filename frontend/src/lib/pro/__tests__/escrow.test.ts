@@ -16,6 +16,7 @@ const baseProject: ProEscrowProject = {
     {
       id: "funder-1",
       name: "Alice",
+      entity: "Fund entity",
       address: "AliceSolAddress111111111111111111111111111",
       asset: "SOL",
       amount: "6",
@@ -23,6 +24,7 @@ const baseProject: ProEscrowProject = {
     {
       id: "funder-2",
       name: "Bob",
+      entity: "Community fund",
       address: "BobSolAddress11111111111111111111111111111",
       asset: "SOL",
       amount: "4",
@@ -33,6 +35,7 @@ const baseProject: ProEscrowProject = {
       id: "milestone-1",
       title: "Design approved",
       recipient: "BuilderSolAddress111111111111111111111111",
+      recipientEntity: "Construction cooperative",
       asset: "SOL",
       amount: "2.5",
       status: "released",
@@ -82,5 +85,31 @@ describe("Pro escrow", () => {
     });
 
     expect(changed).not.toBe(original);
+  });
+
+  it("binds funder and recipient entities into the policy commitment", () => {
+    const original = buildProEscrowPolicyCommitment(baseProject);
+    const changedFunderEntity = buildProEscrowPolicyCommitment({
+      ...baseProject,
+      funders: [
+        {
+          ...baseProject.funders[0],
+          entity: "Different fund SPV",
+        },
+        baseProject.funders[1],
+      ],
+    });
+    const changedRecipientEntity = buildProEscrowPolicyCommitment({
+      ...baseProject,
+      milestones: [
+        {
+          ...baseProject.milestones[0],
+          recipientEntity: "Different build cooperative",
+        },
+      ],
+    });
+
+    expect(changedFunderEntity).not.toBe(original);
+    expect(changedRecipientEntity).not.toBe(original);
   });
 });
