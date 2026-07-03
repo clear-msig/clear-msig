@@ -194,4 +194,20 @@ pub mod clear_wallet {
             signature: &signature,
         })
     }
+
+    #[instruction(discriminator = 11)]
+    pub fn execute_typed(
+        ctx: Ctx<ExecuteTyped>,
+        action_kind: u8,
+        policy_commitment: [u8; 32],
+        payload_hash: [u8; 32],
+        envelope_hash: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed(ExecuteTypedArgs {
+            action_kind,
+            policy_commitment,
+            payload_hash,
+            envelope_hash,
+        })
+    }
 }

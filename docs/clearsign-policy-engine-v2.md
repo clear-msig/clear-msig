@@ -202,6 +202,9 @@ It currently ships:
 - typed proposal account storage for v2 envelopes
 - v2 propose, approve, and cancel instructions that verify canonical envelope
   hashes and role-specific vote hashes before changing approval state
+- v2 execution gate that re-verifies typed action kind, policy commitment,
+  payload hash, envelope hash, approval status, expiry, and timelock before
+  marking a typed proposal executed
 
 Action codes are fixed as:
 
@@ -226,11 +229,12 @@ Typed proposal instruction discriminators are:
 | 8 | `propose_typed` |
 | 9 | `approve_typed` |
 | 10 | `cancel_typed` |
+| 11 | `execute_typed` |
 
-These instructions do not move funds yet. They create and govern typed v2
-proposal accounts beside the legacy proposal flow. The next protocol step is to
-wire typed execution so money-moving actions verify the stored envelope,
-payload hash, policy commitment, and approval state before execution.
+These instructions do not move funds yet. They create, govern, and execution-gate
+typed v2 proposal accounts beside the legacy proposal flow. The next protocol
+step is to connect specific money-moving executors, starting with Pro escrow
+milestone release and return-to-funder unwind, to this typed execution gate.
 
 ## Non-Negotiables
 

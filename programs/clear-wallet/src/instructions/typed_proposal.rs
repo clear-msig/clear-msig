@@ -94,6 +94,31 @@ pub struct CancelTypedArgs<'a> {
     pub signature: &'a [u8; 64],
 }
 
+#[derive(Accounts)]
+pub struct ExecuteTyped<'info> {
+    pub wallet: Account<ClearWallet<'info>>,
+    #[account(
+        mut,
+        has_one = wallet,
+        constraint = intent.is_approved() @ WalletError::IntentNotApproved,
+    )]
+    pub intent: Account<Intent<'info>>,
+    #[account(
+        mut,
+        has_one = wallet,
+        has_one = intent,
+        constraint = proposal.status == ProposalStatus::Approved @ WalletError::ProposalNotApproved
+    )]
+    pub proposal: Account<TypedProposal<'info>>,
+}
+
+pub struct ExecuteTypedArgs {
+    pub action_kind: u8,
+    pub policy_commitment: [u8; 32],
+    pub payload_hash: [u8; 32],
+    pub envelope_hash: [u8; 32],
+}
+
 impl<'info> ProposeTyped<'info> {
     pub fn propose_typed(
         &mut self,
@@ -261,6 +286,45 @@ impl<'info> CancelTyped<'info> {
         {
             self.proposal.status = ProposalStatus::Active;
         }
+        Ok(())
+    }
+}
+
+impl<'info> ExecuteTyped<'info> {
+    pub fn execute_typed(&mut self, args: ExecuteTypedArgs) -> Result<(), ProgramError> {
+        let clock = Clock::get()?;
+        require!(
+            self.proposal.expires_at.get() > clock.unix_timestamp.get(),
+            WalletError::Expired
+        );
+
+        let approved_at = self.proposal.approved_at.get();
+        let unlock_at = approved_at + self.intent.timelock_seconds.get() as i64;
+        require!(
+            clock.unix_timestamp.get() >= unlock_at,
+            WalletError::TimelockNotElapsed
+        );
+        require!(
+            self.proposal.action_kind == args.action_kind,
+            WalletError::InvalidClearSignEnvelope
+        );
+        require!(
+            self.proposal.policy_commitment == args.policy_commitment,
+            WalletError::InvalidClearSignEnvelope
+        );
+        require!(
+            self.proposal.payload_hash == args.payload_hash,
+            WalletError::InvalidClearSignEnvelope
+        );
+        require!(
+            self.proposal.envelope_hash == args.envelope_hash,
+            WalletError::InvalidClearSignEnvelope
+        );
+        ClearSignActionKind::from_code(args.action_kind)
+            .ok_or(WalletError::InvalidClearSignAction)?;
+
+        self.proposal.status = ProposalStatus::Executed;
+        self.intent.active_proposal_count = self.intent.active_proposal_count.saturating_sub(1);
         Ok(())
     }
 }
