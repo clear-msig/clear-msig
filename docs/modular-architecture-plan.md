@@ -22,8 +22,20 @@ crates:
 - `swap`: quotes, solver config, route validation, execution receipts.
 - `risk`: simulation, policy checks, address screening, risk labels.
 
-This pass starts that direction by moving Pro persistence and Pro routes out of
-`backend-api/src/main.rs` into `backend-api/src/pro.rs`.
+This work has started:
+
+- `backend-api/src/pro.rs`: Pro schedules, escrow, audit, B2B persistence.
+- `backend-api/src/wallet.rs`: health, wallet creation, chain setup,
+  membership discovery used by Personal, Pro, Agent, Secure, Swap, Ramp, and
+  future product surfaces.
+- `backend-api/src/intents.rs`: intent list, prepare, add, remove, update.
+- `backend-api/src/proposals.rs`: proposal create/list/show, approve, cancel,
+  execute, streaming execute, cleanup.
+- `backend-api/src/clearsign.rs`: pre-signed request validation and expiry
+  formatting, the first slice of the future ClearSign core.
+
+`backend-api/src/main.rs` should remain small: shared state, CLI runner,
+generic validation, CORS/tracing, and route mounting.
 
 ## Program Shape
 
