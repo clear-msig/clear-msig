@@ -740,6 +740,7 @@ async fn main() -> anyhow::Result<()> {
     // the only abuse control.
     let app = Router::new()
         .merge(wallet::router())
+        .nest("/v1/clearsign", clearsign::router())
         .nest("/v1/pro", pro::router())
         .merge(intents::router())
         .merge(proposals::router())
