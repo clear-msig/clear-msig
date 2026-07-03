@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ArrowRight,
@@ -15,6 +16,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/retail/Button";
 import { useToast } from "@/components/ui/Toast";
+import { backendApi } from "@/lib/api/endpoints";
+import { friendlyError } from "@/lib/api/errors";
+import { listIntents } from "@/lib/chain/intents";
+import { fetchWalletByName } from "@/lib/chain/wallets";
 import {
   buildProEscrowReleaseEnvelope,
   buildProEscrowReturnEnvelope,
@@ -32,7 +37,11 @@ import {
   prepareClearSignAction,
   type BackendClearSignSummary,
 } from "@/lib/clearsign-v2";
+import { IntentType } from "@/lib/msig";
+import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { toDisplayName } from "@/lib/retail/walletNames";
+import { useConnection, useWallet } from "@/lib/wallet";
+import type { TypedDryRunDescriptor } from "@/lib/api/types";
 
 interface EscrowDraft {
   title: string;
@@ -50,6 +59,7 @@ interface EscrowDraft {
 interface PreparedEscrowAction {
   title: string;
   summary: BackendClearSignSummary;
+  dry: TypedDryRunDescriptor;
   href: string;
   cta: string;
 }
@@ -324,6 +334,10 @@ function EscrowProjectCard({
   onRemove: () => void;
 }) {
   const toast = useToast();
+  const router = useRouter();
+  const wallet = useWallet();
+  const { connection } = useConnection();
+  const { signTypedDescriptor } = useSignWithWallet();
   const encoded = encodeURIComponent(walletName);
   const funded = escrowFundedAmount(project);
   const released = escrowReleasedAmount(project);
@@ -340,6 +354,69 @@ function EscrowProjectCard({
   });
   const [prepared, setPrepared] = useState<PreparedEscrowAction | null>(null);
   const [preparing, setPreparing] = useState<"release" | "return" | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const walletQuery = useQuery({
+    queryKey: ["wallet", walletName],
+    queryFn: () => fetchWalletByName(connection, walletName),
+    enabled: walletName.length > 0,
+    staleTime: 30_000,
+  });
+  const intentsQuery = useQuery({
+    queryKey: ["wallet-intents", walletQuery.data?.pda.toBase58() ?? null],
+    queryFn: async () => {
+      if (!walletQuery.data) return [];
+      return listIntents(
+        connection,
+        walletQuery.data.pda,
+        walletQuery.data.account.intentIndex,
+      );
+    },
+    enabled: !!walletQuery.data,
+    staleTime: 30_000,
+  });
+  const firstIntent = useMemo(() => {
+    if (!intentsQuery.data) return null;
+    return (
+      intentsQuery.data.find(
+        (row) =>
+          row.account !== null &&
+          row.account.intentType === IntentType.Custom &&
+          row.account.chainKind === 0 &&
+          row.account.approved,
+      ) ?? null
+    );
+  }, [intentsQuery.data]);
+
+  const prepareTypedAction = async (
+    envelope:
+      | ReturnType<typeof buildProEscrowReleaseEnvelope>
+      | ReturnType<typeof buildProEscrowReturnEnvelope>,
+  ) => {
+    const intent = firstIntent?.account;
+    if (!intent) {
+      throw new Error("Turn on protection before using escrow actions.");
+    }
+    const proposerPk = wallet.pickSigner(intent.proposers);
+    if (!proposerPk) {
+      throw new Error("This wallet cannot propose actions for this treasury.");
+    }
+    const summary = await prepareClearSignAction(envelope, {
+      fallback: false,
+    });
+    const dry = await backendApi.prepare.createTypedProposal(walletName, {
+      intent_index: intent.intentIndex,
+      action_kind: summary.actionKindCode,
+      policy_commitment: envelope.policyCommitment,
+      payload_hash: summary.payloadHash,
+      envelope_hash: summary.envelopeHash,
+      action_id: envelope.actionId,
+      nonce: envelope.nonce,
+      expiry: String(envelope.expiresAt),
+      actor_pubkey: proposerPk.toBase58(),
+    });
+    return { summary, dry };
+  };
 
   const prepareReturn = async () => {
     if (returnRows.length === 0) {
@@ -348,7 +425,7 @@ function EscrowProjectCard({
     }
     setPreparing("return");
     try {
-      const summary = await prepareClearSignAction(
+      const { summary, dry } = await prepareTypedAction(
         buildProEscrowReturnEnvelope({
           walletName,
           project,
@@ -364,11 +441,13 @@ function EscrowProjectCard({
       setPrepared({
         title: "Return funds",
         summary,
+        dry,
         href: `/app/wallet/${encoded}/send/batch?prefill=${prefill}`,
-        cta: "Continue",
+        cta: "Approve and continue",
       });
-    } catch {
-      toast.error("Could not prepare a clear signing review");
+    } catch (err) {
+      const fe = friendlyError(err, "generic");
+      toast.error(fe.title, { details: fe.body, durationMs: fe.durationMs });
     } finally {
       setPreparing(null);
     }
@@ -377,7 +456,7 @@ function EscrowProjectCard({
   const prepareRelease = async (milestone: ProEscrowMilestone) => {
     setPreparing("release");
     try {
-      const summary = await prepareClearSignAction(
+      const { summary, dry } = await prepareTypedAction(
         buildProEscrowReleaseEnvelope({
           walletName,
           project,
@@ -392,13 +471,53 @@ function EscrowProjectCard({
       setPrepared({
         title: "Release milestone",
         summary,
+        dry,
         href: `/app/wallet/${encoded}/send?${params.toString()}`,
-        cta: "Continue",
+        cta: "Approve and continue",
       });
-    } catch {
-      toast.error("Could not prepare a clear signing review");
+    } catch (err) {
+      const fe = friendlyError(err, "generic");
+      toast.error(fe.title, { details: fe.body, durationMs: fe.durationMs });
     } finally {
       setPreparing(null);
+    }
+  };
+
+  const approvePrepared = async () => {
+    if (!prepared || submitting) return;
+    const intent = firstIntent?.account;
+    if (!intent) {
+      toast.error("Turn on protection before using escrow actions.");
+      return;
+    }
+    const proposerPk = wallet.pickSigner(intent.proposers);
+    if (!proposerPk) {
+      toast.error("This wallet cannot propose actions for this treasury.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const signed = await signTypedDescriptor(prepared.dry, {
+        preferSigner: proposerPk,
+      });
+      await backendApi.submit.createTypedProposal(walletName, {
+        ...signed,
+        expiry: prepared.dry.expiry,
+        intent_index: prepared.dry.intent_index,
+        action_kind: prepared.dry.action_kind,
+        policy_commitment: prepared.dry.policy_commitment_hex,
+        payload_hash: prepared.dry.payload_hash_hex,
+        envelope_hash: prepared.dry.envelope_hash_hex,
+        action_id: prepared.dry.action_id,
+        nonce: prepared.dry.nonce,
+      });
+      toast.success("Escrow action approved");
+      router.push(prepared.href);
+    } catch (err) {
+      const fe = friendlyError(err, "generic");
+      toast.error(fe.title, { details: fe.body, durationMs: fe.durationMs });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -554,6 +673,8 @@ function EscrowProjectCard({
       {prepared ? (
         <ClearSignReview
           prepared={prepared}
+          submitting={submitting}
+          onApprove={approvePrepared}
           onDismiss={() => setPrepared(null)}
         />
       ) : null}
@@ -629,9 +750,13 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function ClearSignReview({
   prepared,
+  submitting,
+  onApprove,
   onDismiss,
 }: {
   prepared: PreparedEscrowAction;
+  submitting: boolean;
+  onApprove: () => void;
   onDismiss: () => void;
 }) {
   const visibleLines = prepared.summary.lines.slice(0, 5);
@@ -654,16 +779,19 @@ function ClearSignReview({
             ))}
           </ul>
           <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
-            <Link
-              href={prepared.href}
+            <button
+              type="button"
+              onClick={onApprove}
+              disabled={submitting}
               className="inline-flex min-h-11 items-center justify-center rounded-full bg-accent px-4 text-sm font-semibold text-text-on-accent transition hover:bg-accent-hover"
             >
-              {prepared.cta}
+              {submitting ? "Approving..." : prepared.cta}
               <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-            </Link>
+            </button>
             <button
               type="button"
               onClick={onDismiss}
+              disabled={submitting}
               className="min-h-11 rounded-full border border-border-soft bg-surface-raised px-4 text-sm font-semibold text-text-strong transition hover:border-accent/40 hover:text-accent"
             >
               Not now

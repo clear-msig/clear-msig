@@ -15,13 +15,14 @@ import { useCallback } from "react";
 import nacl from "tweetnacl";
 import { PublicKey } from "@solana/web3.js";
 import {
+  fromHex,
   toHex,
   rebuildAndVerifyMessage,
   MessageVerificationError,
 } from "@/lib/msig";
 import { messageFlavorForSigner } from "@/lib/hooks/signFlavor";
 import { LedgerError } from "@/lib/wallet/ledger";
-import type { DryRunDescriptor } from "@/lib/api/types";
+import type { DryRunDescriptor, TypedDryRunDescriptor } from "@/lib/api/types";
 import type { MessageFlavor } from "@/lib/msig/offchain";
 
 export interface SignOptions {
@@ -42,7 +43,7 @@ export interface SignedPayload {
   /// Byte layout that was signed. The backend forwards this to the CLI
   /// so pre-signed verification uses the same layout instead of
   /// guessing via fallback.
-  message_flavor?: "offchain_v1" | "plain_v2";
+  message_flavor?: "offchain_v1" | "plain_v2" | "clearsign_v2_vote_hash";
 }
 
 export class WalletSignError extends Error {
@@ -224,8 +225,26 @@ export function useSignWithWallet() {
   return {
     signBytes,
     signDescriptor,
+    signTypedDescriptor,
     canSign: Boolean(connected && publicKey && signMessage),
   };
+
+  async function signTypedDescriptor(
+    descriptor: TypedDryRunDescriptor,
+    options?: SignOptions,
+  ): Promise<SignedPayload> {
+    ensureDescriptorFresh(descriptor);
+    const bytes = fromHex(descriptor.message_hex);
+    if (bytes.length !== 32) {
+      throw new WalletSignError(
+        "message_mismatch",
+        "This signing request was not prepared correctly. Try again.",
+      );
+    }
+    const signed = await signBytes(bytes, options);
+    ensureDescriptorFresh(descriptor);
+    return { ...signed, message_flavor: "clearsign_v2_vote_hash" };
+  }
 
   async function signDescriptorWithFlavor(
     descriptor: DryRunDescriptor,
@@ -255,7 +274,7 @@ export function useSignWithWallet() {
   }
 }
 
-function ensureDescriptorFresh(descriptor: DryRunDescriptor) {
+function ensureDescriptorFresh(descriptor: { expiry: number }) {
   const secondsLeft = descriptor.expiry - Math.floor(Date.now() / 1000);
   if (secondsLeft <= 15) {
     throw new WalletSignError(
