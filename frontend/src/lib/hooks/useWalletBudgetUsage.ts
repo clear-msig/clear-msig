@@ -180,6 +180,7 @@ const SANITY_CEILING_USD = 1_000_000;
 function decodeProposalSpend(
   p: ProposalWithPda,
 ): { usd: number; ticker: PolicyChainTicker } | null {
+  if (p.account.typed) return null;
   const data = p.account.paramsData;
   // SolTransfer layout: 32-byte destination + 8-byte u64 lamports
   // (LE) + 32-byte nonce. Anything shorter than 40 bytes can't be

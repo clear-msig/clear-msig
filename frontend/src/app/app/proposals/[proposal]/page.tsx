@@ -43,8 +43,8 @@ import { fetchWalletByPda } from "@/lib/chain/wallets";
 import {
   parseIntent,
   ProposalStatus,
+  type AnyProposalAccount,
   type IntentAccount,
-  type ProposalAccount,
   type WalletAccount,
 } from "@/lib/msig";
 import { useProposalSubscription } from "@/lib/hooks/useProposalSubscription";
@@ -83,7 +83,7 @@ export default function RequestDetailPage() {
   // Live updates push the bitmap straight into the proposal cache.
   useProposalSubscription(proposalPda);
 
-  const proposalQuery = useQuery<ProposalAccount | null>({
+  const proposalQuery = useQuery<AnyProposalAccount | null>({
     queryKey: ["proposal", proposalPda],
     queryFn: async () => {
       try {
@@ -148,7 +148,7 @@ export default function RequestDetailPage() {
 // ─── Loaded view (the real content) ────────────────────────────────
 
 interface LoadedProps {
-  proposal: ProposalAccount;
+  proposal: AnyProposalAccount;
   intent: IntentAccount;
   walletName: string;
   proposalPda: string;
@@ -210,7 +210,9 @@ function Loaded({
     myAddress,
     contactByAddress,
   );
-  const intentLabel = friendlyIntentLabel(intent.template);
+  const intentLabel = proposal.typed
+    ? typedProposalLabel(proposal.actionKind)
+    : friendlyIntentLabel(intent.template);
   const statusLabel = friendlyStatus(proposal.status);
   const createdAgo = relativeTime(proposal.proposedAt);
 
@@ -254,7 +256,7 @@ function Loaded({
             }
           : {},
       );
-      toast.success("Sent");
+      toast.success(proposal.typed ? "Done" : "Sent");
       // Refresh wallet balances so the dashboard reflects the
       // post-execute state on next mount. Multiple keys for the
       // same vault balance - invalidate all of them.
@@ -372,6 +374,7 @@ function Loaded({
         approvalsCollected={approvalsCollected}
         approvalThreshold={approvalThreshold}
         createdAgo={createdAgo}
+        isTyped={proposal.typed === true}
       />
 
       <ApproversBreakdown
@@ -474,7 +477,9 @@ function Loaded({
           title={`This request is ${statusLabel.toLowerCase()}`}
           body={
             proposal.status === ProposalStatus.Executed
-              ? "The money has been sent."
+              ? proposal.typed
+                ? "The action is complete."
+                : "The money has been sent."
               : "No further action is needed."
           }
         />
@@ -490,8 +495,12 @@ function Loaded({
             title="Ready to send"
             body={
               isApprover
-                ? "Enough approvals collected. Tap below to finish the send."
-                : "Enough approvals collected. Anyone who can approve can finish the send."
+                ? proposal.typed
+                  ? "Enough approvals collected. Tap below to finish."
+                  : "Enough approvals collected. Tap below to finish the send."
+                : proposal.typed
+                  ? "Enough approvals collected. Anyone who can approve can finish it."
+                  : "Enough approvals collected. Anyone who can approve can finish the send."
             }
           />
           {isApprover && (
@@ -507,11 +516,11 @@ function Loaded({
                     className="h-4 w-4 animate-spin"
                     aria-hidden="true"
                   />
-                  Sending…
+                  {proposal.typed ? "Finishing…" : "Sending…"}
                 </>
               ) : (
                 <>
-                  Send now
+                  {proposal.typed ? "Finish" : "Send now"}
                   <ArrowLeft
                     className="h-4 w-4 rotate-180"
                     aria-hidden="true"
@@ -562,11 +571,13 @@ function RequestTimeline({
   approvalsCollected,
   approvalThreshold,
   createdAgo,
+  isTyped,
 }: {
   status: ProposalStatus;
   approvalsCollected: number;
   approvalThreshold: number;
   createdAgo: string;
+  isTyped?: boolean;
 }) {
   const approvalsDone = approvalsCollected >= approvalThreshold;
   const stopped = status === ProposalStatus.Cancelled;
@@ -584,9 +595,11 @@ function RequestTimeline({
       state: stopped ? ("stopped" as const) : approvalsDone ? ("done" as const) : ("current" as const),
     },
     {
-      label: "Send money",
+      label: isTyped ? "Finish" : "Send money",
       detail: sent
-        ? "Money sent"
+        ? isTyped
+          ? "Action complete"
+          : "Money sent"
         : stopped
           ? "Request declined"
           : ready
@@ -642,6 +655,23 @@ function RequestTimeline({
       </ol>
     </section>
   );
+}
+
+function typedProposalLabel(actionKind: number): string {
+  switch (actionKind) {
+    case 7:
+      return "Release milestone";
+    case 8:
+      return "Return escrow funds";
+    case 9:
+      return "Approve agent trade";
+    case 10:
+      return "Recovery action";
+    case 11:
+      return "Swap request";
+    default:
+      return "Protected action";
+  }
 }
 
 // Copy-link affordance. The proposal PDA is the slug, so the URL

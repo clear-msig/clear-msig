@@ -46,7 +46,7 @@ export interface BatchProgress {
 }
 
 export function useBatchApprove() {
-  const { signDescriptor } = useSignWithWallet();
+  const { signDescriptor, signTypedDescriptor } = useSignWithWallet();
   const wallet = useWallet();
   const { connection } = useConnection();
   const queryClient = useQueryClient();
@@ -66,25 +66,41 @@ export function useBatchApprove() {
           currentLabel: row.label ?? row.proposalPda.slice(0, 6),
         });
         try {
-          const signerPk = await resolveBatchApprovalSigner({
+          const { proposal, signerPk } = await resolveBatchApprovalSigner({
             connection,
             proposalAddress: row.proposalPda,
             pickSigner: wallet.pickSigner,
           });
           const actorPubkey = signerPk.toBase58();
-          const dry = await backendApi.prepare.approveProposal(
-            row.walletName,
-            row.proposalPda,
-            { actor_pubkey: actorPubkey },
-          );
-          const signed = await signDescriptor(dry, {
-            preferSigner: signerPk,
-          });
-          await backendApi.submit.approveProposal(
-            row.walletName,
-            row.proposalPda,
-            { ...signed, expiry: dry.expiry },
-          );
+          if (proposal.typed) {
+            const dry = await backendApi.prepare.approveTypedProposal(
+              row.walletName,
+              row.proposalPda,
+              { actor_pubkey: actorPubkey },
+            );
+            const signed = await signTypedDescriptor(dry, {
+              preferSigner: signerPk,
+            });
+            await backendApi.submit.approveTypedProposal(
+              row.walletName,
+              row.proposalPda,
+              { ...signed, expiry: dry.expiry },
+            );
+          } else {
+            const dry = await backendApi.prepare.approveProposal(
+              row.walletName,
+              row.proposalPda,
+              { actor_pubkey: actorPubkey },
+            );
+            const signed = await signDescriptor(dry, {
+              preferSigner: signerPk,
+            });
+            await backendApi.submit.approveProposal(
+              row.walletName,
+              row.proposalPda,
+              { ...signed, expiry: dry.expiry },
+            );
+          }
           touchedWallets.add(row.walletName);
         } catch (err) {
           const fe = friendlyError(err, "approve");
@@ -110,7 +126,7 @@ export function useBatchApprove() {
       queryClient.invalidateQueries({ queryKey: ["my-organizations"] });
       return { completed: rows.length, total: rows.length };
     },
-    [signDescriptor, queryClient, connection, wallet.pickSigner],
+    [signDescriptor, signTypedDescriptor, queryClient, connection, wallet.pickSigner],
   );
 
   const reset = useCallback(() => setProgress(null), []);
@@ -145,5 +161,5 @@ async function resolveBatchApprovalSigner({
   if (!signerPk) {
     throw new Error("None of your connected wallets can approve this request.");
   }
-  return signerPk;
+  return { proposal, intent, signerPk };
 }

@@ -21,8 +21,9 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import {
   findIntentAddress,
   findProposalAddress,
-  parseProposal,
-  type ProposalAccount,
+  findTypedProposalAddress,
+  parseAnyProposal,
+  type AnyProposalAccount,
   type WalletAccount,
 } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID, DEFAULT_COMMITMENT } from "@/lib/chain/client";
@@ -31,16 +32,16 @@ export interface ProposalWithPda {
   pda: PublicKey;
   intentIndex: number;
   proposalIndex: bigint;
-  account: ProposalAccount;
+  account: AnyProposalAccount;
 }
 
 export async function fetchProposal(
   connection: Connection,
   pda: PublicKey
-): Promise<ProposalAccount | null> {
+): Promise<AnyProposalAccount | null> {
   const info = await connection.getAccountInfo(pda, DEFAULT_COMMITMENT);
   if (!info) return null;
-  return parseProposal(new Uint8Array(info.data));
+  return parseAnyProposal(new Uint8Array(info.data));
 }
 
 /// List every proposal ever created for this wallet. The scan space is
@@ -65,6 +66,8 @@ export async function listProposalsForWallet(
     for (let p = 0n; p < proposalIndex; p++) {
       const [pda] = findProposalAddress(intentPda, p, CLEAR_WALLET_PROGRAM_ID);
       pdaRows.push({ pda, intentIndex: i, proposalIndex: p });
+      const [typedPda] = findTypedProposalAddress(intentPda, p, CLEAR_WALLET_PROGRAM_ID);
+      pdaRows.push({ pda: typedPda, intentIndex: i, proposalIndex: p });
     }
   }
 
@@ -82,7 +85,7 @@ export async function listProposalsForWallet(
         pda: pdaRows[i].pda,
         intentIndex: pdaRows[i].intentIndex,
         proposalIndex: pdaRows[i].proposalIndex,
-        account: parseProposal(new Uint8Array(info.data)),
+        account: parseAnyProposal(new Uint8Array(info.data)),
       });
     } catch {
       // Wrong discriminator . PDA collision with another account type.
