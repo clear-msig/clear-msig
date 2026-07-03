@@ -62,7 +62,7 @@ export type PreSignedPayload = {
   signature: string;
   /// Exact byte layout that was signed. Software wallets use plain_v2;
   /// Ledger uses offchain_v1 so the device can display the message.
-  message_flavor?: "offchain_v1" | "plain_v2";
+  message_flavor?: "offchain_v1" | "plain_v2" | "clearsign_v2_vote_hash";
   /// Hex-encoded `params_data` bytes the caller serialised for the CLI to
   /// submit verbatim. Required for intent add / update / proposal create.
   /// Optional for approve / cancel (the proposal already holds those bytes
@@ -88,6 +88,25 @@ export type DryRunDescriptor = {
   expiry: number;
   proposal_pubkey?: string;
   proposal_index?: number;
+};
+
+export type TypedDryRunDescriptor = {
+  action: string;
+  wallet_name: string;
+  wallet_pubkey: string;
+  intent_index: number;
+  intent_pubkey: string;
+  proposal_pubkey: string;
+  proposal_index: number;
+  action_kind: number;
+  policy_commitment_hex: string;
+  payload_hash_hex: string;
+  envelope_hash_hex: string;
+  action_id: string;
+  nonce: string;
+  message_hex: string;
+  message_flavor: "clearsign_v2_vote_hash";
+  expiry: number;
 };
 
 // ── /prepare/** request bodies ─────────────────────────────────────────
@@ -148,6 +167,18 @@ export type PrepareApproveCancelInput = {
   actor_pubkey?: string;
 };
 
+export type PrepareTypedProposalCreateInput = {
+  intent_index: number;
+  action_kind: number;
+  policy_commitment: string;
+  payload_hash: string;
+  envelope_hash: string;
+  action_id: string;
+  nonce: string;
+  expiry?: string;
+  actor_pubkey?: string;
+};
+
 // ── Signed submit bodies ───────────────────────────────────────────────
 //
 // Bootstrap ops that don't require a multisig signature keep their
@@ -197,6 +228,16 @@ export type SignedUpdateIntentInput = PreSignedPayload & {
 
 export type SignedCreateProposalInput = PreSignedPayload & {
   intent_index: number;
+};
+
+export type SignedTypedProposalCreateInput = PreSignedPayload & {
+  intent_index: number;
+  action_kind: number;
+  policy_commitment: string;
+  payload_hash: string;
+  envelope_hash: string;
+  action_id: string;
+  nonce: string;
 };
 
 export type SignedApproveCancelInput = PreSignedPayload;
