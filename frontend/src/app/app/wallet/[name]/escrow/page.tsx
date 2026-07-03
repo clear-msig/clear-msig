@@ -16,6 +16,8 @@ import {
 import { Button } from "@/components/retail/Button";
 import { useToast } from "@/components/ui/Toast";
 import {
+  buildProEscrowReleaseEnvelope,
+  buildProEscrowReturnEnvelope,
   buildProEscrowReturnRows,
   escrowFundedAmount,
   escrowReleasedAmount,
@@ -26,6 +28,10 @@ import {
   type ProEscrowMilestone,
   type ProEscrowProject,
 } from "@/lib/pro/escrow";
+import {
+  prepareClearSignAction,
+  type BackendClearSignSummary,
+} from "@/lib/clearsign-v2";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 interface EscrowDraft {
@@ -39,6 +45,13 @@ interface EscrowDraft {
   recipient: string;
   recipientEntity: string;
   milestoneAmount: string;
+}
+
+interface PreparedEscrowAction {
+  title: string;
+  summary: BackendClearSignSummary;
+  href: string;
+  cta: string;
 }
 
 const emptyDraft: EscrowDraft = {
@@ -310,7 +323,6 @@ function EscrowProjectCard({
   onRelease: (projectId: string, milestoneId: string) => void;
   onRemove: () => void;
 }) {
-  const router = useRouter();
   const toast = useToast();
   const encoded = encodeURIComponent(walletName);
   const funded = escrowFundedAmount(project);
@@ -326,20 +338,70 @@ function EscrowProjectCard({
     address: "",
     amount: "",
   });
+  const [prepared, setPrepared] = useState<PreparedEscrowAction | null>(null);
+  const [preparing, setPreparing] = useState<"release" | "return" | null>(null);
 
-  const prepareReturn = () => {
+  const prepareReturn = async () => {
     if (returnRows.length === 0) {
       toast.error("Nothing to return yet");
       return;
     }
-    const prefill = saveProBatchPrefill(walletName, returnRows);
-    void recordProEscrowUnwindPrepared({
-      walletName,
-      project,
-      rows: returnRows,
-    });
-    router.push(`/app/wallet/${encoded}/send/batch?prefill=${prefill}`);
+    setPreparing("return");
+    try {
+      const summary = await prepareClearSignAction(
+        buildProEscrowReturnEnvelope({
+          walletName,
+          project,
+          rows: returnRows,
+        }),
+      );
+      const prefill = saveProBatchPrefill(walletName, returnRows);
+      void recordProEscrowUnwindPrepared({
+        walletName,
+        project,
+        rows: returnRows,
+      });
+      setPrepared({
+        title: "Return funds",
+        summary,
+        href: `/app/wallet/${encoded}/send/batch?prefill=${prefill}`,
+        cta: "Continue",
+      });
+    } catch {
+      toast.error("Could not prepare a clear signing review");
+    } finally {
+      setPreparing(null);
+    }
   };
+
+  const prepareRelease = async (milestone: ProEscrowMilestone) => {
+    setPreparing("release");
+    try {
+      const summary = await prepareClearSignAction(
+        buildProEscrowReleaseEnvelope({
+          walletName,
+          project,
+          milestone,
+        }),
+      );
+      const params = new URLSearchParams({
+        recipient: milestone.recipient,
+        amount: milestone.amount,
+        note: `${project.title} - ${milestone.title}`,
+      });
+      setPrepared({
+        title: "Release milestone",
+        summary,
+        href: `/app/wallet/${encoded}/send?${params.toString()}`,
+        cta: "Continue",
+      });
+    } catch {
+      toast.error("Could not prepare a clear signing review");
+    } finally {
+      setPreparing(null);
+    }
+  };
+
   const addFunder = () => {
     const name = funderDraft.name.trim();
     const entity = funderDraft.entity.trim();
@@ -397,10 +459,11 @@ function EscrowProjectCard({
 
       {plannedMilestone ? (
         <MilestoneRow
-          walletName={walletName}
           project={project}
           milestone={plannedMilestone}
           onRelease={onRelease}
+          onPrepareRelease={prepareRelease}
+          preparing={preparing === "release"}
         />
       ) : (
         <div className="mt-4 rounded-soft border border-border-soft bg-canvas/70 p-3 text-sm text-text-soft">
@@ -413,10 +476,10 @@ function EscrowProjectCard({
           variant="secondary"
           fullWidth
           onClick={prepareReturn}
-          disabled={returnRows.length === 0}
+          disabled={returnRows.length === 0 || preparing === "return"}
         >
           <RotateCcw className="h-4 w-4" aria-hidden="true" />
-          Return funds
+          {preparing === "return" ? "Reviewing..." : "Return funds"}
         </Button>
         <details className="rounded-soft border border-border-soft bg-canvas/70 px-3 py-2 text-sm text-text-soft">
           <summary className="cursor-pointer font-medium text-text-strong">
@@ -487,27 +550,30 @@ function EscrowProjectCard({
           <Trash2 className="h-4 w-4" aria-hidden="true" />
         </Button>
       </div>
+
+      {prepared ? (
+        <ClearSignReview
+          prepared={prepared}
+          onDismiss={() => setPrepared(null)}
+        />
+      ) : null}
     </article>
   );
 }
 
 function MilestoneRow({
-  walletName,
   project,
   milestone,
   onRelease,
+  onPrepareRelease,
+  preparing,
 }: {
-  walletName: string;
   project: ProEscrowProject;
   milestone: ProEscrowMilestone;
   onRelease: (projectId: string, milestoneId: string) => void;
+  onPrepareRelease: (milestone: ProEscrowMilestone) => void;
+  preparing: boolean;
 }) {
-  const encoded = encodeURIComponent(walletName);
-  const params = new URLSearchParams({
-    recipient: milestone.recipient,
-    amount: milestone.amount,
-    note: `${project.title} - ${milestone.title}`,
-  });
   return (
     <section className="mt-4 rounded-soft border border-border-soft bg-canvas/70 p-3">
       <div className="flex items-start gap-3">
@@ -527,12 +593,14 @@ function MilestoneRow({
             </p>
           ) : null}
         </div>
-        <Link
-          href={`/app/wallet/${encoded}/send?${params.toString()}`}
+        <button
+          type="button"
+          onClick={() => onPrepareRelease(milestone)}
+          disabled={preparing}
           className="inline-flex min-h-10 items-center justify-center rounded-full bg-accent px-3 text-sm font-semibold text-text-on-accent transition hover:bg-accent-hover"
         >
-          Release
-        </Link>
+          {preparing ? "Reviewing..." : "Release"}
+        </button>
         <button
           type="button"
           onClick={() => onRelease(project.id, milestone.id)}
@@ -556,6 +624,54 @@ function Metric({ label, value }: { label: string; value: string }) {
         {value}
       </p>
     </div>
+  );
+}
+
+function ClearSignReview({
+  prepared,
+  onDismiss,
+}: {
+  prepared: PreparedEscrowAction;
+  onDismiss: () => void;
+}) {
+  const visibleLines = prepared.summary.lines.slice(0, 5);
+  return (
+    <section className="mt-4 rounded-soft border border-accent/35 bg-accent/10 p-3">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-text-on-accent">
+          <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-accent">
+            {prepared.title}
+          </p>
+          <h3 className="mt-1 text-base font-semibold leading-snug text-text-strong">
+            {prepared.summary.headline}
+          </h3>
+          <ul className="mt-2 grid gap-1 text-sm leading-relaxed text-text-soft">
+            {visibleLines.slice(1).map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+          <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+            <Link
+              href={prepared.href}
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-accent px-4 text-sm font-semibold text-text-on-accent transition hover:bg-accent-hover"
+            >
+              {prepared.cta}
+              <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+            </Link>
+            <button
+              type="button"
+              onClick={onDismiss}
+              className="min-h-11 rounded-full border border-border-soft bg-surface-raised px-4 text-sm font-semibold text-text-strong transition hover:border-accent/40 hover:text-accent"
+            >
+              Not now
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
