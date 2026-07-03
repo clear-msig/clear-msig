@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  clearSignActionKindCode,
+  clearSignEnvelopeHash,
   clearSignPayloadHash,
+  clearSignVoteMessageHash,
   summarizeClearSignAction,
   type ClearSignEnvelope,
   type EscrowReturnPayload,
@@ -39,6 +42,8 @@ describe("ClearSign v2 actions", () => {
     ]);
     expect(summary.signableText).toContain("Wallet Team");
     expect(summary.signableText).toContain("Payload ");
+    expect(summary.payloadHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(summary.envelopeHash).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("summarizes escrow return with each recipient visible", () => {
@@ -112,5 +117,66 @@ describe("ClearSign v2 actions", () => {
     };
 
     expect(clearSignPayloadHash(a)).not.toBe(clearSignPayloadHash(b));
+  });
+
+  it("uses the same fixed action codes as the Solana program", () => {
+    expect(clearSignActionKindCode("send")).toBe(1);
+    expect(clearSignActionKindCode("return_escrow_funds")).toBe(8);
+    expect(clearSignActionKindCode("swap_intent")).toBe(11);
+  });
+
+  it("binds envelope hash to replay fields", () => {
+    const envelope: ClearSignEnvelope<SendPayload> = {
+      ...base,
+      kind: "send",
+      payload: {
+        amount: "2.5",
+        asset: "SOL",
+        recipient: "Sarah",
+      },
+    };
+
+    expect(clearSignEnvelopeHash(envelope)).not.toBe(
+      clearSignEnvelopeHash({ ...envelope, nonce: "nonce-2" }),
+    );
+    expect(clearSignEnvelopeHash(envelope)).not.toBe(
+      clearSignEnvelopeHash({ ...envelope, walletId: "OtherWallet" }),
+    );
+  });
+
+  it("binds vote hashes to vote kind and proposal index", () => {
+    const envelope: ClearSignEnvelope<SendPayload> = {
+      ...base,
+      kind: "send",
+      payload: {
+        amount: "2.5",
+        asset: "SOL",
+        recipient: "Sarah",
+      },
+    };
+    const envelopeHash = clearSignEnvelopeHash(envelope);
+    const propose = clearSignVoteMessageHash({
+      voteKind: "propose",
+      walletId: base.walletId,
+      proposalIndex: 7,
+      envelopeHash,
+    });
+
+    expect(propose).not.toBe(
+      clearSignVoteMessageHash({
+        voteKind: "approve",
+        walletId: base.walletId,
+        proposalIndex: 7,
+        envelopeHash,
+      }),
+    );
+    expect(propose).not.toBe(
+      clearSignVoteMessageHash({
+        voteKind: "propose",
+        walletId: base.walletId,
+        proposalIndex: 8,
+        envelopeHash,
+      }),
+    );
   });
 });

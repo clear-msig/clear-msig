@@ -205,6 +205,10 @@ It currently ships:
 - v2 execution gate that re-verifies typed action kind, policy commitment,
   payload hash, envelope hash, approval status, expiry, and timelock before
   marking a typed proposal executed
+- frontend canonical hash helpers that mirror the program's byte layout for
+  payload hashes, envelope hashes, and role-specific vote hashes
+- Pro escrow release and return-to-funder helpers that produce typed v2
+  envelopes before those actions are routed into wallet signing
 
 Action codes are fixed as:
 

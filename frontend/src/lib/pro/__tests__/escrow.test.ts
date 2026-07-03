@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { clearSignEnvelopeHash, clearSignPayloadHash } from "@/lib/clearsign-v2";
 import {
   bindProEscrowPolicy,
+  buildProEscrowReleaseEnvelope,
   buildProEscrowPolicyCommitment,
+  buildProEscrowReturnEnvelope,
   buildProEscrowReturnRows,
   type ProEscrowProject,
 } from "@/lib/pro/escrow";
@@ -111,5 +114,50 @@ describe("Pro escrow", () => {
 
     expect(changedFunderEntity).not.toBe(original);
     expect(changedRecipientEntity).not.toBe(original);
+  });
+
+  it("builds a typed ClearSign envelope for milestone release", () => {
+    const envelope = buildProEscrowReleaseEnvelope({
+      walletName: "Team",
+      walletId: "TeamWallet111",
+      project: baseProject,
+      milestone: baseProject.milestones[0],
+      actionId: "release-1",
+      nonce: "nonce-1",
+      expiresAt: 1_782_988_800,
+    });
+
+    expect(envelope.kind).toBe("release_milestone");
+    expect(envelope.payload.escrowId).toBe("escrow-1");
+    expect(envelope.payload.milestoneId).toBe("milestone-1");
+    expect(envelope.policyCommitment).toBe(
+      bindProEscrowPolicy(baseProject).policy?.commitment,
+    );
+    expect(clearSignPayloadHash(envelope)).toMatch(/^[0-9a-f]{64}$/);
+    expect(clearSignEnvelopeHash(envelope)).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("builds a typed ClearSign envelope for pro-rata escrow return", () => {
+    const rows = buildProEscrowReturnRows(baseProject);
+    const envelope = buildProEscrowReturnEnvelope({
+      walletName: "Team",
+      walletId: "TeamWallet111",
+      project: baseProject,
+      rows,
+      actionId: "return-1",
+      nonce: "nonce-1",
+      expiresAt: 1_782_988_800,
+    });
+
+    expect(envelope.kind).toBe("return_escrow_funds");
+    expect(envelope.payload.escrowId).toBe("escrow-1");
+    expect(envelope.payload.returns).toHaveLength(2);
+    expect(envelope.payload.returns[0]).toMatchObject({
+      recipient: "AliceSolAddress111111111111111111111111111",
+      amount: "4.5",
+      asset: "SOL",
+    });
+    expect(clearSignPayloadHash(envelope)).toMatch(/^[0-9a-f]{64}$/);
+    expect(clearSignEnvelopeHash(envelope)).toMatch(/^[0-9a-f]{64}$/);
   });
 });

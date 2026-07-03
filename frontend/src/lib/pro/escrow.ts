@@ -2,6 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiRequest } from "@/lib/api/client";
+import type {
+  ClearSignEnvelope,
+  EscrowReturnPayload,
+  MilestonePayload,
+} from "@/lib/clearsign-v2";
 import { sha256, toHex } from "@/lib/msig/hash";
 
 export type ProEscrowStatus = "active" | "disputed" | "returned" | "complete";
@@ -41,6 +46,14 @@ export interface ProEscrowProject {
 export interface ProEscrowReturnRow {
   recipient: string;
   amount: string;
+}
+
+export interface ProEscrowClearSignOptions {
+  walletName: string;
+  walletId?: string;
+  actionId?: string;
+  nonce?: string;
+  expiresAt?: number;
 }
 
 export interface ProEscrowPolicy {
@@ -309,6 +322,62 @@ export async function recordProEscrowUnwindPrepared(input: {
   });
 }
 
+export function buildProEscrowReleaseEnvelope(input: {
+  walletName: string;
+  walletId?: string;
+  project: ProEscrowProject;
+  milestone: ProEscrowMilestone;
+  actionId?: string;
+  nonce?: string;
+  expiresAt?: number;
+}): ClearSignEnvelope<MilestonePayload> {
+  const project = bindProEscrowPolicy(input.project);
+  return {
+    ...clearSignMeta(input),
+    kind: "release_milestone",
+    policyCommitment: project.policy?.commitment ?? buildProEscrowPolicyCommitment(project),
+    payload: {
+      escrowId: project.id,
+      escrowTitle: project.title,
+      milestoneId: input.milestone.id,
+      milestoneTitle: input.milestone.title,
+      recipient: input.milestone.recipient,
+      amount: input.milestone.amount,
+      asset: input.milestone.asset,
+    },
+  };
+}
+
+export function buildProEscrowReturnEnvelope(input: {
+  walletName: string;
+  walletId?: string;
+  project: ProEscrowProject;
+  rows: ProEscrowReturnRow[];
+  actionId?: string;
+  nonce?: string;
+  expiresAt?: number;
+}): ClearSignEnvelope<EscrowReturnPayload> {
+  const project = bindProEscrowPolicy(input.project);
+  const asset =
+    project.funders.find((row) => row.asset.trim())?.asset ??
+    project.milestones.find((row) => row.asset.trim())?.asset ??
+    "SOL";
+  return {
+    ...clearSignMeta(input),
+    kind: "return_escrow_funds",
+    policyCommitment: project.policy?.commitment ?? buildProEscrowPolicyCommitment(project),
+    payload: {
+      escrowId: project.id,
+      escrowTitle: project.title,
+      returns: input.rows.map((row) => ({
+        recipient: row.recipient,
+        amount: row.amount,
+        asset,
+      })),
+    },
+  };
+}
+
 export function saveProBatchPrefill(
   walletName: string,
   rows: ProEscrowReturnRow[],
@@ -371,6 +440,18 @@ function escrowKey(walletName: string): string {
 
 function batchPrefillKey(walletName: string, id: string): string {
   return `${BATCH_PREFILL_PREFIX}${walletName}:${id}`;
+}
+
+function clearSignMeta(input: ProEscrowClearSignOptions) {
+  return {
+    version: 2 as const,
+    walletName: input.walletName.trim(),
+    walletId: input.walletId?.trim(),
+    actionId: input.actionId?.trim() || randomId(),
+    nonce: input.nonce?.trim() || randomId(),
+    expiresAt:
+      input.expiresAt ?? Math.floor(Date.now() / 1000) + 30 * 60,
+  };
 }
 
 function persistEscrows(walletName: string, next: ProEscrowProject[]): void {

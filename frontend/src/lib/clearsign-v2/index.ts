@@ -1,5 +1,9 @@
 export {
+  clearSignActionKindCode,
+  clearSignEnvelopeHash,
   clearSignPayloadHash,
+  clearSignVoteKindCode,
+  clearSignVoteMessageHash,
   summarizeClearSignAction,
   type AgentTradePayload,
   type BatchSendPayload,
@@ -7,6 +11,7 @@ export {
   type ClearSignEnvelope,
   type ClearSignPayload,
   type ClearSignSummary,
+  type ClearSignVoteKind,
   type EscrowReturnPayload,
   type MemberPayload,
   type MilestonePayload,
