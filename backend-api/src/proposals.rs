@@ -8,12 +8,26 @@ use serde_json::Value;
 
 use crate::clearsign::{format_expiry, push_pre_signed_flags, PreSigned};
 use crate::{
-    ensure_base58, ensure_non_empty, ensure_non_empty_vec, ensure_wallet_name, ApiError, AppState,
+    ensure_base58, ensure_hex_exact_len, ensure_non_empty, ensure_non_empty_vec,
+    ensure_wallet_name, ApiError, AppState,
 };
 
 #[derive(Deserialize)]
 struct SignedProposalCreateRequest {
     intent_index: u8,
+    #[serde(flatten)]
+    pre_signed: PreSigned,
+}
+
+#[derive(Deserialize)]
+struct SignedTypedProposalCreateRequest {
+    intent_index: u8,
+    action_kind: u8,
+    policy_commitment: String,
+    payload_hash: String,
+    envelope_hash: String,
+    action_id: String,
+    nonce: String,
     #[serde(flatten)]
     pre_signed: PreSigned,
 }
@@ -32,6 +46,19 @@ struct PrepareProposalCreateRequest {
     /// Connected wallet's pubkey. Forwarded to the CLI as
     /// `--signer-pubkey` so the proposer / approver validation runs
     /// against the user's identity, not the relayer's filesystem keypair.
+    actor_pubkey: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct PrepareTypedProposalCreateRequest {
+    intent_index: u8,
+    action_kind: u8,
+    policy_commitment: String,
+    payload_hash: String,
+    envelope_hash: String,
+    action_id: String,
+    nonce: String,
+    expiry: Option<String>,
     actor_pubkey: Option<String>,
 }
 
@@ -57,16 +84,32 @@ pub(crate) fn router() -> Router<AppState> {
             post(create_proposal).get(list_proposals),
         )
         .route(
+            "/wallets/{name}/proposals/typed",
+            post(create_typed_proposal),
+        )
+        .route(
             "/wallets/{name}/proposals/{proposal}/approve",
             post(approve_proposal),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-approve",
+            post(approve_typed_proposal),
         )
         .route(
             "/wallets/{name}/proposals/{proposal}/cancel",
             post(cancel_proposal),
         )
         .route(
+            "/wallets/{name}/proposals/{proposal}/typed-cancel",
+            post(cancel_typed_proposal),
+        )
+        .route(
             "/wallets/{name}/proposals/{proposal}/execute",
             post(execute_proposal),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-execute",
+            post(execute_typed_proposal),
         )
         .route(
             "/wallets/{name}/proposals/{proposal}/execute/stream",
@@ -79,12 +122,24 @@ pub(crate) fn router() -> Router<AppState> {
             post(prepare_proposal_create),
         )
         .route(
+            "/prepare/wallets/{name}/proposals/typed/create",
+            post(prepare_typed_proposal_create),
+        )
+        .route(
             "/prepare/wallets/{name}/proposals/{proposal}/approve",
             post(prepare_proposal_approve),
         )
         .route(
+            "/prepare/wallets/{name}/proposals/{proposal}/typed-approve",
+            post(prepare_typed_proposal_approve),
+        )
+        .route(
             "/prepare/wallets/{name}/proposals/{proposal}/cancel",
             post(prepare_proposal_cancel),
+        )
+        .route(
+            "/prepare/wallets/{name}/proposals/{proposal}/typed-cancel",
+            post(prepare_typed_proposal_cancel),
         )
 }
 
@@ -114,6 +169,53 @@ async fn create_proposal(
         name,
         "--intent-index".into(),
         body.intent_index.to_string(),
+        "--expiry".into(),
+        format_expiry(body.pre_signed.expiry)?,
+    ]);
+    Ok(Json(state.runner.run_json(args).await?))
+}
+
+async fn create_typed_proposal(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Json(body): Json<SignedTypedProposalCreateRequest>,
+) -> Result<Json<Value>, ApiError> {
+    ensure_wallet_name(&name, "name")?;
+    validate_typed_create_fields(
+        body.action_kind,
+        &body.policy_commitment,
+        &body.payload_hash,
+        &body.envelope_hash,
+        &body.action_id,
+        &body.nonce,
+    )?;
+    body.pre_signed.ensure_valid()?;
+    state
+        .rate_limiter
+        .check(&body.pre_signed.signer_pubkey)
+        .await?;
+
+    let mut args = Vec::with_capacity(26);
+    push_typed_pre_signed_flags(&mut args, &body.pre_signed);
+    args.extend([
+        "proposal".into(),
+        "typed-create".into(),
+        "--wallet".into(),
+        name,
+        "--intent-index".into(),
+        body.intent_index.to_string(),
+        "--action-kind".into(),
+        body.action_kind.to_string(),
+        "--policy-commitment".into(),
+        body.policy_commitment,
+        "--payload-hash".into(),
+        body.payload_hash,
+        "--envelope-hash".into(),
+        body.envelope_hash,
+        "--action-id".into(),
+        body.action_id,
+        "--nonce".into(),
+        body.nonce,
         "--expiry".into(),
         format_expiry(body.pre_signed.expiry)?,
     ]);
@@ -184,6 +286,14 @@ async fn approve_proposal(
     Ok(Json(state.runner.run_json(args).await?))
 }
 
+async fn approve_typed_proposal(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<SignedApproveCancelRequest>,
+) -> Result<Json<Value>, ApiError> {
+    typed_approve_or_cancel(state, name, proposal, body, true).await
+}
+
 async fn cancel_proposal(
     State(state): State<AppState>,
     Path((name, proposal)): Path<(String, String)>,
@@ -210,6 +320,14 @@ async fn cancel_proposal(
         format_expiry(body.pre_signed.expiry)?,
     ]);
     Ok(Json(state.runner.run_json(args).await?))
+}
+
+async fn cancel_typed_proposal(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<SignedApproveCancelRequest>,
+) -> Result<Json<Value>, ApiError> {
+    typed_approve_or_cancel(state, name, proposal, body, false).await
 }
 
 async fn prepare_proposal_create(
@@ -242,6 +360,50 @@ async fn prepare_proposal_create(
     Ok(Json(state.runner.run_json(args).await?))
 }
 
+async fn prepare_typed_proposal_create(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Json(body): Json<PrepareTypedProposalCreateRequest>,
+) -> Result<Json<Value>, ApiError> {
+    ensure_wallet_name(&name, "name")?;
+    validate_typed_create_fields(
+        body.action_kind,
+        &body.policy_commitment,
+        &body.payload_hash,
+        &body.envelope_hash,
+        &body.action_id,
+        &body.nonce,
+    )?;
+    let mut args = vec!["--dry-run".into()];
+    push_actor_pubkey(&mut args, &body.actor_pubkey)?;
+    args.extend([
+        "proposal".into(),
+        "typed-create".into(),
+        "--wallet".into(),
+        name,
+        "--intent-index".into(),
+        body.intent_index.to_string(),
+        "--action-kind".into(),
+        body.action_kind.to_string(),
+        "--policy-commitment".into(),
+        body.policy_commitment,
+        "--payload-hash".into(),
+        body.payload_hash,
+        "--envelope-hash".into(),
+        body.envelope_hash,
+        "--action-id".into(),
+        body.action_id,
+        "--nonce".into(),
+        body.nonce,
+    ]);
+    if let Some(e) = body.expiry {
+        ensure_non_empty(&e, "expiry")?;
+        args.push("--expiry".into());
+        args.push(e);
+    }
+    Ok(Json(state.runner.run_json(args).await?))
+}
+
 async fn prepare_proposal_approve(
     State(state): State<AppState>,
     Path((name, proposal)): Path<(String, String)>,
@@ -250,12 +412,28 @@ async fn prepare_proposal_approve(
     prepare_approve_or_cancel(state, name, proposal, body, true).await
 }
 
+async fn prepare_typed_proposal_approve(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<PrepareApproveCancelRequest>,
+) -> Result<Json<Value>, ApiError> {
+    prepare_typed_approve_or_cancel(state, name, proposal, body, true).await
+}
+
 async fn prepare_proposal_cancel(
     State(state): State<AppState>,
     Path((name, proposal)): Path<(String, String)>,
     Json(body): Json<PrepareApproveCancelRequest>,
 ) -> Result<Json<Value>, ApiError> {
     prepare_approve_or_cancel(state, name, proposal, body, false).await
+}
+
+async fn prepare_typed_proposal_cancel(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<PrepareApproveCancelRequest>,
+) -> Result<Json<Value>, ApiError> {
+    prepare_typed_approve_or_cancel(state, name, proposal, body, false).await
 }
 
 async fn prepare_approve_or_cancel(
@@ -289,6 +467,32 @@ async fn prepare_approve_or_cancel(
     Ok(Json(state.runner.run_json(args).await?))
 }
 
+async fn prepare_typed_approve_or_cancel(
+    state: AppState,
+    name: String,
+    proposal: String,
+    body: PrepareApproveCancelRequest,
+    is_approve: bool,
+) -> Result<Json<Value>, ApiError> {
+    ensure_wallet_name(&name, "name")?;
+    ensure_base58(&proposal, "proposal", 32, 88)?;
+    let mut args = vec!["--dry-run".into()];
+    push_actor_pubkey(&mut args, &body.actor_pubkey)?;
+    args.extend([
+        "proposal".into(),
+        if is_approve {
+            "typed-approve".into()
+        } else {
+            "typed-cancel".into()
+        },
+        "--wallet".into(),
+        name,
+        "--proposal".into(),
+        proposal,
+    ]);
+    Ok(Json(state.runner.run_json(args).await?))
+}
+
 async fn execute_proposal(
     State(state): State<AppState>,
     Path((name, proposal)): Path<(String, String)>,
@@ -299,6 +503,27 @@ async fn execute_proposal(
 
     let args = build_execute_args(&state, name, proposal, body)?;
     Ok(Json(state.runner.run_json(args).await?))
+}
+
+async fn execute_typed_proposal(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+) -> Result<Json<Value>, ApiError> {
+    ensure_wallet_name(&name, "name")?;
+    ensure_base58(&proposal, "proposal", 32, 88)?;
+    Ok(Json(
+        state
+            .runner
+            .run_json(vec![
+                "proposal".into(),
+                "typed-execute".into(),
+                "--wallet".into(),
+                name,
+                "--proposal".into(),
+                proposal,
+            ])
+            .await?,
+    ))
 }
 
 async fn stream_execute_proposal(
@@ -488,6 +713,76 @@ fn build_execute_args(
     }
 
     Ok(args)
+}
+
+async fn typed_approve_or_cancel(
+    state: AppState,
+    name: String,
+    proposal: String,
+    body: SignedApproveCancelRequest,
+    is_approve: bool,
+) -> Result<Json<Value>, ApiError> {
+    ensure_wallet_name(&name, "name")?;
+    ensure_base58(&proposal, "proposal", 32, 88)?;
+    body.pre_signed.ensure_valid()?;
+    state
+        .rate_limiter
+        .check(&body.pre_signed.signer_pubkey)
+        .await?;
+
+    let mut args = Vec::with_capacity(10);
+    push_typed_pre_signed_flags(&mut args, &body.pre_signed);
+    args.extend([
+        "proposal".into(),
+        if is_approve {
+            "typed-approve".into()
+        } else {
+            "typed-cancel".into()
+        },
+        "--wallet".into(),
+        name,
+        "--proposal".into(),
+        proposal,
+    ]);
+    Ok(Json(state.runner.run_json(args).await?))
+}
+
+fn validate_typed_create_fields(
+    action_kind: u8,
+    policy_commitment: &str,
+    payload_hash: &str,
+    envelope_hash: &str,
+    action_id: &str,
+    nonce: &str,
+) -> Result<(), ApiError> {
+    if !(1..=11).contains(&action_kind) {
+        return Err(ApiError::BadRequest(
+            "action_kind must be between 1 and 11".into(),
+        ));
+    }
+    ensure_hex_exact_len(policy_commitment, "policy_commitment", 32)?;
+    ensure_hex_exact_len(payload_hash, "payload_hash", 32)?;
+    ensure_hex_exact_len(envelope_hash, "envelope_hash", 32)?;
+    ensure_typed_text(action_id, "action_id")?;
+    ensure_typed_text(nonce, "nonce")?;
+    Ok(())
+}
+
+fn ensure_typed_text(value: &str, field: &str) -> Result<(), ApiError> {
+    ensure_non_empty(value, field)?;
+    if value.as_bytes().len() > 128 {
+        return Err(ApiError::BadRequest(format!(
+            "{field} must be 128 bytes or fewer"
+        )));
+    }
+    Ok(())
+}
+
+fn push_typed_pre_signed_flags(args: &mut Vec<String>, ps: &PreSigned) {
+    args.push("--signer-pubkey".into());
+    args.push(ps.signer_pubkey.clone());
+    args.push("--signature".into());
+    args.push(ps.signature.clone());
 }
 
 fn push_actor_pubkey(args: &mut Vec<String>, actor: &Option<String>) -> Result<(), ApiError> {

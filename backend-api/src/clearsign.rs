@@ -46,10 +46,10 @@ impl PreSigned {
         ensure_hex_exact_len(&self.signature, "signature", 64)?;
         if let Some(flavor) = &self.message_flavor {
             match flavor.as_str() {
-                "offchain_v1" | "plain_v2" => {}
+                "offchain_v1" | "plain_v2" | "clearsign_v2_vote_hash" => {}
                 other => {
                     return Err(ApiError::BadRequest(format!(
-                        "message_flavor must be offchain_v1 or plain_v2, got {other}"
+                        "message_flavor must be offchain_v1, plain_v2, or clearsign_v2_vote_hash, got {other}"
                     )));
                 }
             }

@@ -64,6 +64,28 @@ pub struct ProposalAccount {
     pub params_data: Vec<u8>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct TypedProposalAccount {
+    pub wallet: String,
+    pub intent: String,
+    pub proposal_index: u64,
+    pub proposer: String,
+    pub status: String,
+    pub action_kind: u8,
+    pub proposed_at: i64,
+    pub approved_at: i64,
+    pub expires_at: i64,
+    pub bump: u8,
+    pub approval_bitmap: u16,
+    pub cancellation_bitmap: u16,
+    pub rent_refund: String,
+    pub policy_commitment: [u8; 32],
+    pub payload_hash: [u8; 32],
+    pub envelope_hash: [u8; 32],
+    pub action_id: Vec<u8>,
+    pub nonce: Vec<u8>,
+}
+
 fn read_u8(data: &[u8], offset: &mut usize) -> Result<u8> {
     let val = *data
         .get(*offset)
@@ -114,6 +136,15 @@ fn read_address(data: &[u8], offset: &mut usize) -> Result<String> {
         .ok_or(anyhow!("unexpected end of data"))?;
     *offset += 32;
     Ok(bs58::encode(bytes).into_string())
+}
+
+fn read_fixed_32(data: &[u8], offset: &mut usize) -> Result<[u8; 32]> {
+    let bytes: [u8; 32] = data
+        .get(*offset..*offset + 32)
+        .ok_or(anyhow!("unexpected end of data reading 32-byte field"))?
+        .try_into()?;
+    *offset += 32;
+    Ok(bytes)
 }
 
 fn read_vec_addresses(data: &[u8], offset: &mut usize) -> Result<Vec<String>> {
@@ -645,6 +676,63 @@ pub fn parse_proposal(data: &[u8]) -> Result<ProposalAccount> {
         cancellation_bitmap,
         rent_refund,
         params_data,
+    })
+}
+
+pub fn parse_typed_proposal(data: &[u8]) -> Result<TypedProposalAccount> {
+    if data.is_empty() || data[0] != 6 {
+        return Err(anyhow!(
+            "not a TypedProposal account (discriminator={})",
+            data.first().unwrap_or(&0)
+        ));
+    }
+    let mut offset = 1;
+    let wallet = read_address(data, &mut offset)?;
+    let intent = read_address(data, &mut offset)?;
+    let proposal_index = read_u64_le(data, &mut offset)?;
+    let proposer = read_address(data, &mut offset)?;
+    let status_byte = read_u8(data, &mut offset)?;
+    let status = match status_byte {
+        0 => "Active",
+        1 => "Approved",
+        2 => "Executed",
+        3 => "Cancelled",
+        _ => "Unknown",
+    }
+    .to_string();
+    let action_kind = read_u8(data, &mut offset)?;
+    let proposed_at = read_i64_le(data, &mut offset)?;
+    let approved_at = read_i64_le(data, &mut offset)?;
+    let expires_at = read_i64_le(data, &mut offset)?;
+    let bump = read_u8(data, &mut offset)?;
+    let approval_bitmap = read_u16_le(data, &mut offset)?;
+    let cancellation_bitmap = read_u16_le(data, &mut offset)?;
+    let rent_refund = read_address(data, &mut offset)?;
+    let policy_commitment = read_fixed_32(data, &mut offset)?;
+    let payload_hash = read_fixed_32(data, &mut offset)?;
+    let envelope_hash = read_fixed_32(data, &mut offset)?;
+    let action_id = read_vec_u8(data, &mut offset)?;
+    let nonce = read_vec_u8(data, &mut offset)?;
+
+    Ok(TypedProposalAccount {
+        wallet,
+        intent,
+        proposal_index,
+        proposer,
+        status,
+        action_kind,
+        proposed_at,
+        approved_at,
+        expires_at,
+        bump,
+        approval_bitmap,
+        cancellation_bitmap,
+        rent_refund,
+        policy_commitment,
+        payload_hash,
+        envelope_hash,
+        action_id,
+        nonce,
     })
 }
 
