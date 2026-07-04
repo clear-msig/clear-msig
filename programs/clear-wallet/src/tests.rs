@@ -391,7 +391,7 @@ fn build_execute_typed_escrow_return_ix(
     wincode::serialize_into(&mut data, &policy_commitment).unwrap();
     wincode::serialize_into(&mut data, &envelope_hash).unwrap();
     wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
-    wincode::serialize_into(&mut data, &DynBytes::<u8>::from(amount_lamports_le)).unwrap();
+    data.extend_from_slice(&amount_lamports_le);
 
     let mut accounts = vec![
         AccountMeta::new_readonly(wallet, false),

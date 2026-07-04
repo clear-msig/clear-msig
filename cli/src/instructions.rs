@@ -375,11 +375,7 @@ pub fn execute_typed_escrow_return(
     wincode::serialize_into(&mut data, &policy_commitment).unwrap();
     wincode::serialize_into(&mut data, &envelope_hash).unwrap();
     wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
-    wincode::serialize_into(
-        &mut data,
-        &DynBytes::<u8>::from(amount_lamports_le.to_vec()),
-    )
-    .unwrap();
+    data.extend_from_slice(amount_lamports_le);
 
     Instruction {
         program_id: program_id(),
