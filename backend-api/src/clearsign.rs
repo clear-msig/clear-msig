@@ -4,10 +4,18 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 mod expiry;
+mod kinds;
+mod payload;
 mod presigned;
 
 pub(crate) use expiry::format_expiry;
 pub(crate) use presigned::{push_pre_signed_flags, PreSigned};
+
+use kinds::{ClearSignActionKind, ClearSignVoteKind};
+use payload::{
+    format_money, json_string, leverage_to_x100, normalize_decimal, normalize_text, payload_text,
+    payload_u32, recipient_amount, Money, RecipientAmount,
+};
 
 use crate::{current_unix_timestamp, ensure_hex_exact_len, ApiError, AppState};
 
@@ -72,88 +80,6 @@ struct ClearSignVoteHashes {
     propose: String,
     approve: String,
     cancel: String,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum ClearSignActionKind {
-    Send,
-    BatchSend,
-    AddMember,
-    RemoveMember,
-    ChangeThreshold,
-    SetProtection,
-    ReleaseMilestone,
-    ReturnEscrowFunds,
-    AgentTradeApproval,
-    RecoveryAction,
-    SwapIntent,
-}
-
-impl ClearSignActionKind {
-    fn parse(value: &str) -> Result<Self, ApiError> {
-        match value.trim() {
-            "send" => Ok(Self::Send),
-            "batch_send" => Ok(Self::BatchSend),
-            "add_member" => Ok(Self::AddMember),
-            "remove_member" => Ok(Self::RemoveMember),
-            "change_threshold" => Ok(Self::ChangeThreshold),
-            "set_protection" => Ok(Self::SetProtection),
-            "release_milestone" => Ok(Self::ReleaseMilestone),
-            "return_escrow_funds" => Ok(Self::ReturnEscrowFunds),
-            "agent_trade_approval" => Ok(Self::AgentTradeApproval),
-            "recovery_action" => Ok(Self::RecoveryAction),
-            "swap_intent" => Ok(Self::SwapIntent),
-            other => Err(ApiError::BadRequest(format!(
-                "unsupported clearsign action kind: {other}"
-            ))),
-        }
-    }
-
-    fn code(self) -> u8 {
-        match self {
-            Self::Send => 1,
-            Self::BatchSend => 2,
-            Self::AddMember => 3,
-            Self::RemoveMember => 4,
-            Self::ChangeThreshold => 5,
-            Self::SetProtection => 6,
-            Self::ReleaseMilestone => 7,
-            Self::ReturnEscrowFunds => 8,
-            Self::AgentTradeApproval => 9,
-            Self::RecoveryAction => 10,
-            Self::SwapIntent => 11,
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-enum ClearSignVoteKind {
-    Propose,
-    Approve,
-    Cancel,
-}
-
-impl ClearSignVoteKind {
-    fn code(self) -> u8 {
-        match self {
-            Self::Propose => 1,
-            Self::Approve => 2,
-            Self::Cancel => 3,
-        }
-    }
-}
-
-#[derive(Debug)]
-struct Money {
-    amount: String,
-    asset: String,
-    raw_amount: u128,
-}
-
-#[derive(Debug)]
-struct RecipientAmount {
-    recipient: String,
-    money: Money,
 }
 
 async fn prepare_clearsign_v2(
@@ -590,64 +516,6 @@ fn action_lines(envelope: &NormalizedEnvelope) -> Result<Vec<String>, ApiError> 
     }
 }
 
-fn recipient_amount(value: &Value) -> Result<RecipientAmount, ApiError> {
-    Ok(RecipientAmount {
-        recipient: payload_text(value, "recipient")?,
-        money: Money::new(
-            payload_text(value, "amount")?,
-            payload_text(value, "asset")?,
-        )?,
-    })
-}
-
-impl Money {
-    fn new(amount: String, asset: String) -> Result<Self, ApiError> {
-        let asset = normalize_text(&asset).to_uppercase();
-        if asset.is_empty() {
-            return Err(ApiError::BadRequest("asset must not be empty".into()));
-        }
-        let amount = normalize_decimal(&amount)?;
-        let raw_amount = decimal_to_raw(&amount, asset_decimals(&asset))?;
-        Ok(Self {
-            amount,
-            asset,
-            raw_amount,
-        })
-    }
-}
-
-fn payload_text(payload: &Value, field: &str) -> Result<String, ApiError> {
-    let value = payload
-        .get(field)
-        .and_then(Value::as_str)
-        .map(normalize_text)
-        .ok_or_else(|| ApiError::BadRequest(format!("payload.{field} must be a string")))?;
-    if value.is_empty() {
-        return Err(ApiError::BadRequest(format!(
-            "payload.{field} must not be empty"
-        )));
-    }
-    Ok(value)
-}
-
-fn payload_u32(payload: &Value, field: &str) -> Result<u32, ApiError> {
-    let value = payload.get(field).ok_or_else(|| {
-        ApiError::BadRequest(format!("payload.{field} must be a positive integer"))
-    })?;
-    let parsed = if let Some(n) = value.as_u64() {
-        n
-    } else if let Some(s) = value.as_str() {
-        normalize_text(s).parse::<u64>().map_err(|_| {
-            ApiError::BadRequest(format!("payload.{field} must be a positive integer"))
-        })?
-    } else {
-        return Err(ApiError::BadRequest(format!(
-            "payload.{field} must be a positive integer"
-        )));
-    };
-    u32::try_from(parsed).map_err(|_| ApiError::BadRequest(format!("payload.{field} is too large")))
-}
-
 fn payload_hasher(kind: ClearSignActionKind) -> Sha256 {
     let mut hasher = Sha256::new();
     update_bytes(&mut hasher, CLEARSIGN_V2_PAYLOAD_DOMAIN);
@@ -681,105 +549,6 @@ fn finish_hash(hasher: Sha256) -> [u8; 32] {
     out
 }
 
-fn decimal_to_raw(value: &str, decimals: usize) -> Result<u128, ApiError> {
-    let (whole, frac) = value
-        .split_once('.')
-        .map_or((value, ""), |(whole, frac)| (whole, frac));
-    if whole.is_empty() || !whole.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(ApiError::BadRequest(
-            "amount must be a decimal number".into(),
-        ));
-    }
-    if frac.len() > decimals || !frac.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(ApiError::BadRequest(format!(
-            "amount supports at most {decimals} decimal places"
-        )));
-    }
-    let whole_raw = whole
-        .parse::<u128>()
-        .map_err(|_| ApiError::BadRequest("amount is too large".into()))?
-        .checked_mul(10u128.pow(decimals as u32))
-        .ok_or_else(|| ApiError::BadRequest("amount is too large".into()))?;
-    let frac_padded = format!("{frac:0<decimals$}");
-    let frac_raw = if frac_padded.is_empty() {
-        0
-    } else {
-        frac_padded
-            .parse::<u128>()
-            .map_err(|_| ApiError::BadRequest("amount is too large".into()))?
-    };
-    whole_raw
-        .checked_add(frac_raw)
-        .ok_or_else(|| ApiError::BadRequest("amount is too large".into()))
-}
-
-fn asset_decimals(asset: &str) -> usize {
-    match asset {
-        "BTC" => 8,
-        "ETH" | "HYPE" => 18,
-        "USDC" | "USDT" | "USD" => 6,
-        _ => 9,
-    }
-}
-
-fn leverage_to_x100(value: &str) -> Result<u32, ApiError> {
-    let raw = normalize_text(value)
-        .trim_end_matches('x')
-        .trim_end_matches('X')
-        .to_string();
-    let normalized = normalize_decimal(&raw)?;
-    let (whole, frac) = normalized
-        .split_once('.')
-        .map_or((normalized.as_str(), ""), |(whole, frac)| (whole, frac));
-    if frac.len() > 2 {
-        return Err(ApiError::BadRequest(
-            "maxLeverage supports at most two decimal places".into(),
-        ));
-    }
-    let whole = whole
-        .parse::<u32>()
-        .map_err(|_| ApiError::BadRequest("maxLeverage is too large".into()))?;
-    let frac = format!("{frac:0<2}")
-        .parse::<u32>()
-        .map_err(|_| ApiError::BadRequest("maxLeverage is too large".into()))?;
-    whole
-        .checked_mul(100)
-        .and_then(|v| v.checked_add(frac))
-        .ok_or_else(|| ApiError::BadRequest("maxLeverage is too large".into()))
-}
-
-fn normalize_text(value: &str) -> String {
-    value.trim().to_string()
-}
-
-fn normalize_decimal(value: &str) -> Result<String, ApiError> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() || trimmed.starts_with('-') || trimmed.starts_with('+') {
-        return Err(ApiError::BadRequest(
-            "amount must be a positive decimal".into(),
-        ));
-    }
-    let (whole, frac) = trimmed
-        .split_once('.')
-        .map_or((trimmed, ""), |(whole, frac)| (whole, frac));
-    if whole.is_empty()
-        || !whole.bytes().all(|b| b.is_ascii_digit())
-        || !frac.bytes().all(|b| b.is_ascii_digit())
-    {
-        return Err(ApiError::BadRequest(
-            "amount must be a decimal number".into(),
-        ));
-    }
-    let whole = whole.trim_start_matches('0');
-    let whole = if whole.is_empty() { "0" } else { whole };
-    let frac = frac.trim_end_matches('0');
-    if frac.is_empty() {
-        Ok(whole.to_string())
-    } else {
-        Ok(format!("{whole}.{frac}"))
-    }
-}
-
 fn decode_hex_32(value: &str, field: &str) -> Result<[u8; 32], ApiError> {
     ensure_hex_exact_len(value, field, 32)?;
     let hex = value.trim().strip_prefix("0x").unwrap_or(value.trim());
@@ -795,15 +564,6 @@ fn decode_hex_32(value: &str, field: &str) -> Result<[u8; 32], ApiError> {
 
 fn to_hex(bytes: &[u8; 32]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
-}
-
-fn format_money(money: &Money) -> String {
-    format!("{} {}", money.amount, money.asset)
-}
-
-fn json_string(value: &str) -> Result<String, ApiError> {
-    serde_json::to_string(value)
-        .map_err(|e| ApiError::Internal(format!("failed to encode clearsign payload: {e}")))
 }
 
 #[cfg(test)]
