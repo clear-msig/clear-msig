@@ -1,5 +1,6 @@
 import { formatTimestamp } from "@/lib/msig/datetime";
 import { fromHex, sha256, toHex } from "@/lib/msig/hash";
+import bs58 from "bs58";
 
 export type ClearSignActionKind =
   | "send"
@@ -45,6 +46,7 @@ export interface MoneyAmount {
 
 export interface RecipientAmount extends MoneyAmount {
   recipient: string;
+  recipientEncoding?: "text" | "solana_pubkey";
 }
 
 export interface SendPayload extends RecipientAmount {
@@ -155,7 +157,7 @@ export function clearSignEnvelopeHash(
   out.pushU8(clearSignActionKindCode(envelope.kind));
   out.pushI64(BigInt(normalizeNumber(envelope.expiresAt)));
   out.pushBytes(normalizeText(envelope.walletName));
-  out.pushBytes(normalizeOptional(envelope.walletId));
+  out.pushBytes(canonicalAddressOrText(normalizeOptional(envelope.walletId)));
   out.pushRaw(sha256(enc.encode(normalizeText(envelope.actionId))));
   out.pushRaw(sha256(enc.encode(normalizeText(envelope.nonce))));
   out.pushRaw(fromHex(normalizeHash(envelope.policyCommitment)));
@@ -173,7 +175,7 @@ export function clearSignVoteMessageHash(input: {
   out.pushBytes(CLEARSIGN_V2_VOTE_DOMAIN);
   out.pushU8(CLEARSIGN_V2_VERSION);
   out.pushU8(clearSignVoteKindCode(input.voteKind));
-  out.pushBytes(normalizeText(input.walletId));
+  out.pushBytes(canonicalAddressOrText(normalizeText(input.walletId)));
   out.pushU64(BigInt(input.proposalIndex));
   out.pushRaw(fromHex(normalizeHash(input.envelopeHash)));
   return toHex(sha256(out.bytes()));
@@ -428,6 +430,7 @@ function canonicalPayloadBytes(
 function normalizeRecipientAmount(row: RecipientAmount): RecipientAmount {
   return {
     recipient: normalizeText(row.recipient),
+    recipientEncoding: row.recipientEncoding ?? "text",
     ...normalizeMoney(row),
   };
 }
@@ -517,7 +520,7 @@ class ByteWriter {
   }
 
   pushRecipientAmount(row: RecipientAmount) {
-    this.pushBytes(row.recipient);
+    this.pushBytes(canonicalRecipientBytes(row));
     this.pushAmount(row);
   }
 
@@ -557,6 +560,28 @@ class ByteWriter {
       next >>= 8n;
     }
   }
+}
+
+function canonicalRecipientBytes(row: RecipientAmount): Uint8Array | string {
+  if (row.recipientEncoding !== "solana_pubkey") {
+    return row.recipient;
+  }
+  const decoded = bs58.decode(row.recipient);
+  if (decoded.length !== 32) {
+    throw new Error("ClearSign recipient must be a Solana address.");
+  }
+  return decoded;
+}
+
+function canonicalAddressOrText(value: string): Uint8Array | string {
+  if (!value) return value;
+  try {
+    const decoded = bs58.decode(value);
+    if (decoded.length === 32) return decoded;
+  } catch {
+    // Human test labels and non-Solana identifiers remain text.
+  }
+  return value;
 }
 
 function shortHash(value: string): string {

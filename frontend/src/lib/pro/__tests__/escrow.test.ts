@@ -20,7 +20,7 @@ const baseProject: ProEscrowProject = {
       id: "funder-1",
       name: "Alice",
       entity: "Fund entity",
-      address: "AliceSolAddress111111111111111111111111111",
+      address: "2ZeWpoE8G2GMLDmeYvsWmBkWmD25kHZch9uNibb6yGFu",
       asset: "SOL",
       amount: "6",
     },
@@ -28,7 +28,7 @@ const baseProject: ProEscrowProject = {
       id: "funder-2",
       name: "Bob",
       entity: "Community fund",
-      address: "BobSolAddress11111111111111111111111111111",
+      address: "CZHSqsCMFrRxunPFqMgSdq7HUdwJrweXGd1pajuHZGMW",
       asset: "SOL",
       amount: "4",
     },
@@ -37,7 +37,7 @@ const baseProject: ProEscrowProject = {
     {
       id: "milestone-1",
       title: "Design approved",
-      recipient: "BuilderSolAddress111111111111111111111111",
+      recipient: "BgkCbSQTwnKsR9fTv9w71LodMStcAihib8SgJ5SZHU8u",
       recipientEntity: "Construction cooperative",
       asset: "SOL",
       amount: "2.5",
@@ -50,11 +50,11 @@ describe("Pro escrow", () => {
   it("returns remaining SOL pro rata to original funders", () => {
     expect(buildProEscrowReturnRows(baseProject)).toEqual([
       {
-        recipient: "AliceSolAddress111111111111111111111111111",
+        recipient: "2ZeWpoE8G2GMLDmeYvsWmBkWmD25kHZch9uNibb6yGFu",
         amount: "4.5",
       },
       {
-        recipient: "BobSolAddress11111111111111111111111111111",
+        recipient: "CZHSqsCMFrRxunPFqMgSdq7HUdwJrweXGd1pajuHZGMW",
         amount: "3",
       },
     ]);
@@ -153,7 +153,7 @@ describe("Pro escrow", () => {
     expect(envelope.payload.escrowId).toBe("escrow-1");
     expect(envelope.payload.returns).toHaveLength(2);
     expect(envelope.payload.returns[0]).toMatchObject({
-      recipient: "AliceSolAddress111111111111111111111111111",
+      recipient: "2ZeWpoE8G2GMLDmeYvsWmBkWmD25kHZch9uNibb6yGFu",
       amount: "4.5",
       asset: "SOL",
     });

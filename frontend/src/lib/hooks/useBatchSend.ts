@@ -1,37 +1,29 @@
 "use client";
 
-// Batch send - one input, N proposals.
+// Batch send - one input, one typed proposal.
 //
 // The shared-wallet equivalent of payroll: a proposer enters a list
-// of {recipient, amount} rows, then signs N times in sequence (Solana
-// wallets can't sign multiple messages in one popup yet) so each
-// recipient lands as its own SolTransfer proposal. Approvers can then
-// clear the whole batch with the existing `useBatchApprove` hook -
-// the proposals share a `batchId` (saved per-proposal under the
-// `clear-msig:batches` namespace) so the dashboard can group them.
-//
-// Why N proposals instead of one wide intent: the on-chain SolTransfer
-// template fires a single CPI per execution. A program-level batch
-// intent type is on the roadmap (one signature per actor for the
-// whole bundle); this hook is the v1 that ships against today's
-// program without contract changes.
+// of {recipient, amount} rows, then signs one ClearSign v2 action.
+// The Solana program verifies the exact recipient list + lamports
+// before moving funds, so the UI and program now share one truth.
 
 import { useCallback, useRef, useState } from "react";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useQueryClient } from "@tanstack/react-query";
-import type { Connection, PublicKey } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
-import { toHex } from "@/lib/msig";
-import {
-  useSignWithWallet,
-  type SignedPayload,
-  type SignOptions,
-} from "@/lib/hooks/useSignWithWallet";
-import type { DryRunDescriptor } from "@/lib/api/types";
+import { ProposalStatus, sha256, toHex } from "@/lib/msig";
+import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { fetchIntent } from "@/lib/chain/intents";
+import { fetchProposal } from "@/lib/chain/proposals";
 import { fetchWalletByName } from "@/lib/chain/wallets";
+import {
+  prepareClearSignAction,
+  type BatchSendPayload,
+  type ClearSignEnvelope,
+} from "@/lib/clearsign-v2";
 
 export interface BatchSendRow {
   /// Recipient label (contact name or shortened address) for status UI.
@@ -73,7 +65,7 @@ interface BatchSendArgs {
 const BATCH_LOG_KEY = "clear-msig:batches:v1";
 
 export function useBatchSend() {
-  const { signDescriptor } = useSignWithWallet();
+  const { signTypedDescriptor } = useSignWithWallet();
   const { pickSigner } = useWallet();
   const { connection } = useConnection();
   const queryClient = useQueryClient();
@@ -87,6 +79,9 @@ export function useBatchSend() {
     async ({ walletName, intentIndex, rows }: BatchSendArgs) => {
       if (rows.length === 0) {
         return { batchId: null, succeeded: 0, failed: 0, proposalPdas: [] };
+      }
+      if (rows.length > 16) {
+        throw new Error("Batch sends support up to 16 recipients at once.");
       }
 
       const walletData = await fetchWalletByName(connection, walletName);
@@ -117,70 +112,151 @@ export function useBatchSend() {
         currentLabel: rows[0]?.label,
       });
 
-      for (let i = 0; i < rows.length; i++) {
+      try {
         if (cancelRef.current) {
-          // Bail - caller hit cancel between rows. Remaining rows
-          // get marked as failures so the summary tells the user
-          // exactly what didn't go.
-          for (let j = i; j < rows.length; j++) {
-            failures.push({ row: rows[j], message: "Cancelled" });
-            failed += 1;
-          }
-          break;
+          throw new Error("Cancelled");
         }
-        const row = rows[i];
         setProgress({
           total: rows.length,
           succeeded,
           failed,
           failures: [...failures],
-          currentLabel: row.label,
+          currentLabel: "Preparing batch",
           done: false,
         });
 
-        // Each proposal slot on chain is keyed by the wallet's
-        // current `proposal_index`. The CLI's `prepare` reads that
-        // index from the wallet account every call, so we have to
-        // make sure the previous submit has been observed by the RPC
-        // before the next prepare runs - otherwise both rows compute
-        // the same PDA and the second submit fails with "account
-        // already in use." Retry the prepare → sign → submit cycle a
-        // few times on transient errors before giving up on the row.
-        const result = await runRowWithRetry({
+        const actionId = randomActionLabel("sol-batch");
+        const nonce = randomActionLabel("nonce");
+        const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
+        const policyCommitment = policyCommitmentHex([
+          `wallet:${walletData.pda.toBase58()}`,
+          `intent:${intentIndex}`,
+          `threshold:${intentRow.account.approvalThreshold}`,
+          `proposers:${intentRow.account.proposers.join(",")}`,
+          `approvers:${intentRow.account.approvers.join(",")}`,
+          `rows:${rows.length}`,
+        ]);
+        const envelope: ClearSignEnvelope<BatchSendPayload> = {
+          version: 2,
+          kind: "batch_send",
           walletName,
-          intentIndex,
-          row,
-          signDescriptor,
-          proposerPk,
-          approverPk,
-          intentApprovers: intentRow.account.approvers,
-          connection,
+          walletId: walletData.pda.toBase58(),
+          actionId,
+          nonce,
+          expiresAt,
+          policyCommitment,
+          payload: {
+            recipients: rows.map((row) => ({
+              recipient: row.destination,
+              recipientEncoding: "solana_pubkey",
+              amount: lamportsToSol(row.lamports),
+              asset: "SOL",
+            })),
+          },
+        };
+        const summary = await prepareClearSignAction(envelope, {
+          fallback: false,
+        });
+        const dry = await backendApi.prepare.createTypedProposal(walletName, {
+          intent_index: intentIndex,
+          action_kind: summary.actionKindCode,
+          policy_commitment: envelope.policyCommitment,
+          payload_hash: summary.payloadHash,
+          envelope_hash: summary.envelopeHash,
+          action_id: envelope.actionId,
+          nonce: envelope.nonce,
+          expiry: String(envelope.expiresAt),
+          actor_pubkey: proposerPk.toBase58(),
         });
 
-        if (result.kind === "ok") {
-          if (result.proposalPda) proposalPdas.push(result.proposalPda);
-          succeeded += 1;
-        } else {
-          failures.push({ row, message: result.message });
-          failed += 1;
+        if (cancelRef.current) {
+          throw new Error("Cancelled");
         }
-
         setProgress({
           total: rows.length,
           succeeded,
           failed,
           failures: [...failures],
-          currentLabel: i + 1 < rows.length ? rows[i + 1].label : undefined,
+          currentLabel: "Signing batch",
           done: false,
         });
+        const signed = await signTypedDescriptor(dry, {
+          preferSigner: proposerPk,
+        });
+        const submitted = await backendApi.submit.createTypedProposal(walletName, {
+          ...signed,
+          expiry: dry.expiry,
+          intent_index: dry.intent_index,
+          action_kind: dry.action_kind,
+          policy_commitment: dry.policy_commitment_hex,
+          payload_hash: dry.payload_hash_hex,
+          envelope_hash: dry.envelope_hash_hex,
+          action_id: dry.action_id,
+          nonce: dry.nonce,
+        });
+        const proposalPda =
+          typeof submitted?.proposal === "string" ? submitted.proposal : undefined;
+        if (proposalPda) proposalPdas.push(proposalPda);
 
-        // Pause briefly between rows so the next prepare reads the
-        // post-submit chain state. 600ms is empirically enough for
-        // devnet `confirmed` reads to catch up; tune up if we still
-        // see PDA collisions.
-        if (i + 1 < rows.length) {
-          await sleep(600);
+        if (proposalPda) {
+          try {
+            const decision = await approveIfNeeded(connection, proposalPda, {
+              approvers: intentRow.account.approvers,
+              approverPubkey: proposerPk.toBase58(),
+              approvalThreshold: intentRow.account.approvalThreshold,
+            });
+            if (decision.needsApproveSignature) {
+              if (!approverPk) {
+                throw new Error(
+                  "The batch is waiting for another approver.",
+                );
+              }
+              const approveDry = await backendApi.prepare.approveTypedProposal(
+                walletName,
+                proposalPda,
+                { actor_pubkey: approverPk.toBase58() },
+              );
+              const approveSigned = await signTypedDescriptor(approveDry, {
+                preferSigner: approverPk,
+              });
+              await backendApi.submit.approveTypedProposal(walletName, proposalPda, {
+                ...approveSigned,
+                expiry: approveDry.expiry,
+              });
+            }
+
+            const status =
+              decision.status === ProposalStatus.Approved
+                ? ProposalStatus.Approved
+                : (await refetchProposalStatus(connection, proposalPda));
+            if (status === ProposalStatus.Approved) {
+              setProgress({
+                total: rows.length,
+                succeeded,
+                failed,
+                failures: [...failures],
+                currentLabel: "Sending batch",
+                done: false,
+              });
+              await backendApi.executeTypedSolBatchSend(walletName, proposalPda, {
+                payments: rows.map((row) => ({
+                  recipient: row.destination,
+                  amountLamports: lamportsToSafeNumber(row.lamports),
+                })),
+              });
+            }
+          } catch (innerErr) {
+            console.warn(
+              "[batch-send] typed batch proposal created but execution is waiting",
+              innerErr,
+            );
+          }
         }
+        succeeded = rows.length;
+      } catch (err) {
+        const fe = friendlyError(err, "send");
+        failures.push(...rows.map((row) => ({ row, message: fe.title })));
+        failed = rows.length;
       }
 
       // Stamp the batch locally so /app/wallet can group these
@@ -210,7 +286,7 @@ export function useBatchSend() {
 
       return { batchId, succeeded, failed, proposalPdas };
     },
-    [signDescriptor, queryClient, connection, pickSigner],
+    [signTypedDescriptor, queryClient, connection, pickSigner],
   );
 
   const cancel = useCallback(() => {
@@ -230,153 +306,71 @@ function generateNonceHex(): string {
   return "0x" + toHex(bytes);
 }
 
-const RETRYABLE_HINTS = [
-  "already in use",
-  "alreadyinitialized",
-  "blockhash not found",
-  "node is behind",
-  "tx simulation failed",
-  "expired",
-];
-
-interface RowAttemptResult {
-  kind: "ok" | "fail";
-  message: string;
-  proposalPda?: string;
-}
-
-interface RowAttemptArgs {
-  walletName: string;
-  intentIndex: number;
-  row: BatchSendRow;
-  signDescriptor: (
-    descriptor: DryRunDescriptor,
-    options?: SignOptions,
-  ) => Promise<SignedPayload>;
-  proposerPk: PublicKey;
-  approverPk: PublicKey | null;
-  intentApprovers: readonly string[];
-  connection: Connection;
-}
-
-/// Run prepare → sign → submit for one row. Retries on transient
-/// chain errors (PDA collision from RPC lag, blockhash not found,
-/// "node behind" - see `RETRYABLE_HINTS`) by waiting a beat and
-/// rebuilding the message from a fresh prepare. Wallet rejections
-/// fail fast - never re-prompt the user without their click.
-async function runRowWithRetry(
-  {
-    walletName,
-    intentIndex,
-    row,
-    signDescriptor,
-    proposerPk,
-    approverPk,
-    intentApprovers,
-    connection,
-  }: RowAttemptArgs,
-): Promise<RowAttemptResult> {
-  const maxAttempts = 3;
-  let lastMessage = "Send failed";
-  const proposerPubkey = proposerPk.toBase58();
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const nonceHex = generateNonceHex();
-      const dry = await backendApi.prepare.createProposal(walletName, {
-        intent_index: intentIndex,
-        params: [
-          `destination=${row.destination}`,
-          `amount=${row.lamports}`,
-          `nonce_value=${nonceHex}`,
-        ],
-        actor_pubkey: proposerPubkey,
-      });
-      const signed = await signDescriptor(dry, { preferSigner: proposerPk });
-      const submission = await backendApi.submit.createProposal(walletName, {
-        ...signed,
-        params_data_hex: dry.params_data_hex,
-        expiry: dry.expiry,
-        intent_index: intentIndex,
-      });
-      const proposalPda =
-        typeof submission?.proposal === "string" ? submission.proposal : undefined;
-
-      // Propose may auto-approve on chain (program flips proposer
-      // bit when proposer ∈ approvers + threshold met). Skip the
-      // approve popup in that case - every saved popup × N rows is
-      // a meaningful UX win for a 50-row payroll. Best-effort: if
-      // the user rejects mid-batch we still consider the row a
-      // success (proposal's on chain, can be approved later).
-      if (proposalPda) {
-        try {
-          const decision = await approveIfNeeded(connection, proposalPda, {
-            approvers: intentApprovers,
-            approverPubkey: proposerPubkey,
-          });
-          if (decision.needsApproveSignature) {
-            if (!approverPk) {
-              throw new Error(
-                "The proposal landed, but none of your connected wallets can approve it.",
-              );
-            }
-            const approveDry = await backendApi.prepare.approveProposal(
-              walletName,
-              proposalPda,
-              { actor_pubkey: approverPk.toBase58() },
-            );
-            const approveSigned = await signDescriptor(approveDry, {
-              preferSigner: approverPk,
-            });
-            await backendApi.submit.approveProposal(walletName, proposalPda, {
-              ...approveSigned,
-              expiry: approveDry.expiry,
-            });
-          }
-          await backendApi.executeProposal(walletName, proposalPda, {});
-        } catch (innerErr) {
-          // Per-row partial success - the proposal's on chain even if
-          // approve/execute didn't land. Surface in console for
-          // debugging without poisoning the rest of the batch.
-          console.warn(
-            `[batch-send] row ${row.label}: propose ok but approve/execute failed`,
-            innerErr,
-          );
-        }
-      }
-
-      return { kind: "ok", message: "ok", proposalPda };
-    } catch (err) {
-      const fe = friendlyError(err, "send");
-      lastMessage = fe.title;
-      const raw = (err instanceof Error ? err.message : String(err)).toLowerCase();
-      const userRejected =
-        raw.includes("user rejected") ||
-        raw.includes("user declined") ||
-        raw.includes("cancelled the signature") ||
-        fe.title.toLowerCase().includes("cancelled");
-      if (userRejected) return { kind: "fail", message: lastMessage };
-      const retryable = RETRYABLE_HINTS.some((h) => raw.includes(h));
-      if (!retryable || attempt === maxAttempts) {
-        return { kind: "fail", message: lastMessage };
-      }
-      // Back off a bit before retrying so the chain catches up.
-      await sleep(800 * attempt);
-    }
-  }
-  return { kind: "fail", message: lastMessage };
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 function generateBatchId(): string {
   // 16 hex chars is plenty of entropy to avoid collisions in the
   // local batch log without bloating the storage footprint.
   const bytes = new Uint8Array(8);
   crypto.getRandomValues(bytes);
   return "b_" + toHex(bytes);
+}
+
+async function refetchProposalStatus(
+  connection: Connection,
+  proposalPda: string,
+): Promise<ProposalStatus | null> {
+  try {
+    const account = await fetchProposal(connection, new PublicKey(proposalPda));
+    return account?.status ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function randomActionLabel(prefix: string): string {
+  return `${prefix}:${generateNonceHex()}`;
+}
+
+function lamportsToSol(value: string): string {
+  const lamports = BigInt(value);
+  const whole = lamports / 1_000_000_000n;
+  const frac = lamports % 1_000_000_000n;
+  if (frac === 0n) return whole.toString();
+  return `${whole}.${frac.toString().padStart(9, "0").replace(/0+$/, "")}`;
+}
+
+function lamportsToSafeNumber(value: string): number {
+  const parsed = BigInt(value);
+  if (parsed > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error("Amount is too large for this browser.");
+  }
+  return Number(parsed);
+}
+
+function policyCommitmentHex(parts: string[]): string {
+  const writer = new TinyByteWriter();
+  writer.pushBytes("clearsig:policy-engine:v2:policy");
+  writer.pushU32(parts.length);
+  parts.forEach((part) => writer.pushBytes(part));
+  return toHex(sha256(writer.bytes()));
+}
+
+class TinyByteWriter {
+  private chunks: number[] = [];
+
+  pushBytes(value: string | Uint8Array) {
+    const bytes =
+      typeof value === "string" ? new TextEncoder().encode(value) : value;
+    this.pushU32(bytes.length);
+    bytes.forEach((byte) => this.chunks.push(byte));
+  }
+
+  pushU32(value: number) {
+    for (let i = 0; i < 4; i++) this.chunks.push((value >> (8 * i)) & 0xff);
+  }
+
+  bytes(): Uint8Array {
+    return new Uint8Array(this.chunks);
+  }
 }
 
 interface BatchRecord {

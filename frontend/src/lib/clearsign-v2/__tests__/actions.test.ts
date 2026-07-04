@@ -119,6 +119,32 @@ describe("ClearSign v2 actions", () => {
     expect(clearSignPayloadHash(a)).not.toBe(clearSignPayloadHash(b));
   });
 
+  it("can hash executable Solana recipients as pubkey bytes", () => {
+    const recipient = "2ZeWpoE8G2GMLDmeYvsWmBkWmD25kHZch9uNibb6yGFu";
+    const executable: ClearSignEnvelope<SendPayload> = {
+      ...base,
+      kind: "send",
+      payload: {
+        amount: "2.5",
+        asset: "SOL",
+        recipient,
+        recipientEncoding: "solana_pubkey",
+      },
+    };
+    const displayOnly: ClearSignEnvelope<SendPayload> = {
+      ...executable,
+      payload: {
+        ...executable.payload,
+        recipientEncoding: "text",
+      },
+    };
+
+    expect(clearSignPayloadHash(executable)).toMatch(/^[0-9a-f]{64}$/);
+    expect(clearSignPayloadHash(executable)).not.toBe(
+      clearSignPayloadHash(displayOnly),
+    );
+  });
+
   it("uses the same fixed action codes as the Solana program", () => {
     expect(clearSignActionKindCode("send")).toBe(1);
     expect(clearSignActionKindCode("return_escrow_funds")).toBe(8);

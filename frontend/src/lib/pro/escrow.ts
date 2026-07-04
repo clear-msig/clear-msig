@@ -407,6 +407,7 @@ export function buildProEscrowReleaseEnvelope(input: {
       milestoneId: input.milestone.id,
       milestoneTitle: input.milestone.title,
       recipient: input.milestone.recipient,
+      recipientEncoding: "solana_pubkey",
       amount: input.milestone.amount,
       asset: input.milestone.asset,
     },
@@ -436,6 +437,7 @@ export function buildProEscrowReturnEnvelope(input: {
       escrowTitle: project.title,
       returns: input.rows.map((row) => ({
         recipient: row.recipient,
+        recipientEncoding: "solana_pubkey",
         amount: row.amount,
         asset,
       })),

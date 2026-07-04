@@ -14,7 +14,14 @@ pub(super) struct Money {
 #[derive(Debug)]
 pub(super) struct RecipientAmount {
     pub(super) recipient: String,
+    pub(super) recipient_encoding: RecipientEncoding,
     pub(super) money: Money,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum RecipientEncoding {
+    Text,
+    SolanaPubkey,
 }
 
 impl Money {
@@ -34,18 +41,43 @@ impl Money {
 }
 
 pub(super) fn recipient_amount(value: &Value) -> Result<RecipientAmount, ApiError> {
-    Ok(RecipientAmount {
+    let row = RecipientAmount {
         recipient: payload_text(value, "recipient")?,
+        recipient_encoding: recipient_encoding(value)?,
         money: Money::new(
             payload_text(value, "amount")?,
             payload_text(value, "asset")?,
         )?,
-    })
+    };
+    validate_recipient_amount(&row)?;
+    Ok(row)
 }
 
 pub(super) fn update_recipient_amount(hasher: &mut Sha256, row: &RecipientAmount) {
-    update_bytes(hasher, row.recipient.as_bytes());
+    match row.recipient_encoding {
+        RecipientEncoding::Text => update_bytes(hasher, row.recipient.as_bytes()),
+        RecipientEncoding::SolanaPubkey => {
+            let decoded = bs58::decode(&row.recipient)
+                .into_vec()
+                .expect("recipient_amount validates Solana pubkeys");
+            update_bytes(hasher, &decoded);
+        }
+    }
     update_amount(hasher, &row.money);
+}
+
+pub(super) fn validate_recipient_amount(row: &RecipientAmount) -> Result<(), ApiError> {
+    if row.recipient_encoding == RecipientEncoding::SolanaPubkey {
+        let decoded = bs58::decode(&row.recipient)
+            .into_vec()
+            .map_err(|_| ApiError::BadRequest("recipient must be a Solana address".into()))?;
+        if decoded.len() != 32 {
+            return Err(ApiError::BadRequest(
+                "recipient must be a Solana address".into(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn payload_text(payload: &Value, field: &str) -> Result<String, ApiError> {
@@ -78,6 +110,24 @@ pub(super) fn payload_u32(payload: &Value, field: &str) -> Result<u32, ApiError>
         )));
     };
     u32::try_from(parsed).map_err(|_| ApiError::BadRequest(format!("payload.{field} is too large")))
+}
+
+fn recipient_encoding(payload: &Value) -> Result<RecipientEncoding, ApiError> {
+    let Some(value) = payload.get("recipientEncoding") else {
+        return Ok(RecipientEncoding::Text);
+    };
+    let Some(raw) = value.as_str() else {
+        return Err(ApiError::BadRequest(
+            "payload.recipientEncoding must be a string".into(),
+        ));
+    };
+    match normalize_text(raw).as_str() {
+        "" | "text" => Ok(RecipientEncoding::Text),
+        "solana_pubkey" => Ok(RecipientEncoding::SolanaPubkey),
+        _ => Err(ApiError::BadRequest(
+            "payload.recipientEncoding must be text or solana_pubkey".into(),
+        )),
+    }
 }
 
 pub(super) fn leverage_to_x100(value: &str) -> Result<u32, ApiError> {

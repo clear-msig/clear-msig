@@ -260,6 +260,39 @@ export const backendApi = {
       ),
     ),
 
+  executeTypedSolSend: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      recipient: string;
+      amountLamports: number;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-sol-send`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
+  executeTypedSolBatchSend: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      payments: Array<{ recipient: string; amountLamports: number }>;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-sol-batch-send`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
   cleanupProposal: (proposalAddress: string) =>
     apiRequest<Record<string, unknown>, Record<string, never>>(
       `/proposals/${encodeURIComponent(proposalAddress)}/cleanup`,

@@ -34,8 +34,8 @@ import { friendlyError } from "@/lib/api/errors";
 import {
   IntentType,
   ProposalStatus,
+  sha256,
   toHex,
-  findProposalAddress,
   findVaultAddress,
 } from "@/lib/msig";
 import { toDisplayName } from "@/lib/retail/walletNames";
@@ -82,6 +82,11 @@ import { chainByKind } from "@/lib/retail/chains";
 import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
 import { resolvePolicyEnforcement } from "@/lib/policies/enforce";
 import { SEND_NOTE_MAX_LENGTH, SEND_NOTE_PLACEHOLDER } from "@/lib/sendFields";
+import {
+  prepareClearSignAction,
+  type ClearSignEnvelope,
+  type SendPayload,
+} from "@/lib/clearsign-v2";
 
 type Stage = "compose" | "sending" | "sent";
 const STAGE_TRANSITION = {
@@ -151,6 +156,44 @@ function generateNonceHex(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   return "0x" + toHex(bytes);
+}
+
+function randomActionLabel(prefix: string): string {
+  return `${prefix}:${generateNonceHex()}`;
+}
+
+function policyCommitmentHex(parts: string[]): string {
+  const writer = new TinyByteWriter();
+  writer.pushBytes("clearsig:policy-engine:v2:policy");
+  writer.pushU32(parts.length);
+  parts.forEach((part) => writer.pushBytes(part));
+  return toHex(sha256(writer.bytes()));
+}
+
+function lamportsToSafeNumber(value: bigint): number {
+  if (value > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error("Amount is too large for this browser.");
+  }
+  return Number(value);
+}
+
+class TinyByteWriter {
+  private chunks: number[] = [];
+
+  pushBytes(value: string | Uint8Array) {
+    const bytes =
+      typeof value === "string" ? new TextEncoder().encode(value) : value;
+    this.pushU32(bytes.length);
+    bytes.forEach((byte) => this.chunks.push(byte));
+  }
+
+  pushU32(value: number) {
+    for (let i = 0; i < 4; i++) this.chunks.push((value >> (8 * i)) & 0xff);
+  }
+
+  bytes(): Uint8Array {
+    return new Uint8Array(this.chunks);
+  }
 }
 
 // Build the SignPayloadPreview detail rows for /send. Stays a pure
@@ -268,7 +311,7 @@ function SendPage() {
   const reduce = useReducedMotion();
   const wallet = useWallet();
   const { connection } = useConnection();
-  const { signDescriptor } = useSignWithWallet();
+  const { signTypedDescriptor } = useSignWithWallet();
   const toast = useToast();
   const queryClient = useQueryClient();
   const contacts = useContacts();
@@ -565,68 +608,85 @@ function SendPage() {
         throw new PolicyViolationError(policy.violations);
       }
 
-      const nonceHex = generateNonceHex();
       // SOL → lamports. Solana's smallest unit, 1 SOL = 1e9 lamports.
-      const lamports = Math.round(
-        numericAmount * 1_000_000_000,
-      ).toString();
+      const lamports = Math.round(numericAmount * 1_000_000_000);
+      const lamportsBigint = BigInt(lamports);
+      const walletPda = walletQuery.data?.pda;
+      if (!walletPda) {
+        throw new Error("Wallet is still loading. Try again.");
+      }
 
-      // 1. Prepare the proposal: backend builds the unsigned
-      //    transaction and returns the bytes the user has to sign.
-      // The CLI's `encode_params` looks each value up by name from the
-      // intent's param list, so we send `key=value` pairs (not bare
-      // positional values). Names match the SolTransfer template:
-      // `examples/intents/solana_transfer.json`.
+      // 1. Prepare a typed ClearSign v2 proposal. This binds the
+      // exact recipient account + lamports to the message the user
+      // signs, and the Solana program recomputes those bytes before
+      // moving funds from the vault.
       setPhase("preparing");
-      const dry = await backendApi.prepare.createProposal(walletName, {
+      const actionId = randomActionLabel("sol-send");
+      const nonce = randomActionLabel("nonce");
+      const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
+      const policyCommitment = policyCommitmentHex([
+        `wallet:${walletPda.toBase58()}`,
+        `intent:${firstIntent.account.intentIndex}`,
+        `threshold:${firstIntent.account.approvalThreshold ?? ""}`,
+        `proposers:${firstIntent.account.proposers.join(",")}`,
+        `approvers:${firstIntent.account.approvers.join(",")}`,
+      ]);
+      const envelope: ClearSignEnvelope<SendPayload> = {
+        version: 2,
+        kind: "send",
+        walletName,
+        walletId: walletPda.toBase58(),
+        actionId,
+        nonce,
+        expiresAt,
+        policyCommitment,
+        payload: {
+          recipient: destination,
+          recipientEncoding: "solana_pubkey",
+          amount,
+          asset: "SOL",
+          note: note.trim() || undefined,
+        },
+      };
+      const summary = await prepareClearSignAction(envelope, {
+        fallback: false,
+      });
+      const dry = await backendApi.prepare.createTypedProposal(walletName, {
         intent_index: firstIntent.account.intentIndex,
-        params: [
-          `destination=${destination}`,
-          `amount=${lamports}`,
-          `nonce_value=${nonceHex}`,
-        ],
-        // Tells the CLI which identity to validate against during
-        // dry-run; without this it uses its filesystem keypair which
-        // isn't in any user's proposers list.
+        action_kind: summary.actionKindCode,
+        policy_commitment: envelope.policyCommitment,
+        payload_hash: summary.payloadHash,
+        envelope_hash: summary.envelopeHash,
+        action_id: envelope.actionId,
+        nonce: envelope.nonce,
+        expiry: String(envelope.expiresAt),
         actor_pubkey: proposerPk.toBase58(),
       });
 
       // 2. Sign with the user's wallet.
       setPhase("signing");
-      const signed = await signDescriptor(dry, { preferSigner: proposerPk });
+      const signed = await signTypedDescriptor(dry, {
+        preferSigner: proposerPk,
+      });
 
-      // 3. Submit propose: lands the proposal on chain in Active
-      //    state with empty bitmap. Propose does not auto-flip the
-      //    proposer's approval bit, so without the steps below the
-      //    money never moves.
-      //
-      // Resilience: if the submit throws AFTER the wallet signed
-      // (network blip, RPC stub, backend timeout), the on-chain
-      // proposal might still be there. We compute the expected PDA
-      // from the descriptor + index and poll Solana directly before
-      // surfacing an error. The retry layer in lib/api/retry.ts
-      // handles transient hints for us; this handles the case where
-      // it gave up but the chain saw the tx.
+      // 3. Submit typed proposal. The program auto-approves when
+      // the proposer is also an approver, so common 1-of-1 sends
+      // continue to be one wallet popup.
       setPhase("submitting");
-      let submitted: Record<string, unknown> | undefined;
-      try {
-        submitted = (await backendApi.submit.createProposal(walletName, {
+      const submitted = (await backendApi.submit.createTypedProposal(
+        walletName,
+        {
           ...signed,
-          params_data_hex: dry.params_data_hex,
           expiry: dry.expiry,
-          intent_index: firstIntent.account.intentIndex,
-        })) as Record<string, unknown>;
-      } catch (err) {
-        const recovered = await findProposalIfLanded(
-          dry,
-          connection,
-        );
-        if (recovered) {
-          submitted = { proposal: recovered };
-        } else {
-          throw err;
-        }
-      }
+          intent_index: dry.intent_index,
+          action_kind: dry.action_kind,
+          policy_commitment: dry.policy_commitment_hex,
+          payload_hash: dry.payload_hash_hex,
+          envelope_hash: dry.envelope_hash_hex,
+          action_id: dry.action_id,
+          nonce: dry.nonce,
+        },
+      )) as Record<string, unknown>;
 
       const proposal = (submitted as Record<string, unknown>)?.proposal;
       if (typeof proposal !== "string" || proposal.length === 0) {
@@ -661,15 +721,15 @@ function SendPage() {
         }
         setPhase("approving");
         try {
-          const approveDry = await backendApi.prepare.approveProposal(
+          const approveDry = await backendApi.prepare.approveTypedProposal(
             walletName,
             proposal,
             { actor_pubkey: approver },
           );
-          const approveSigned = await signDescriptor(approveDry, {
+          const approveSigned = await signTypedDescriptor(approveDry, {
             preferSigner: approverPk,
           });
-          await backendApi.submit.approveProposal(walletName, proposal, {
+          await backendApi.submit.approveTypedProposal(walletName, proposal, {
             ...approveSigned,
             expiry: approveDry.expiry,
           });
@@ -722,15 +782,15 @@ function SendPage() {
             }
 
             setPhase("approving");
-            const extraDry = await backendApi.prepare.approveProposal(
+            const extraDry = await backendApi.prepare.approveTypedProposal(
               walletName,
               proposal,
               { actor_pubkey: extraSigner.toBase58() },
             );
-            const extraSigned = await signDescriptor(extraDry, {
+            const extraSigned = await signTypedDescriptor(extraDry, {
               preferSigner: extraSigner,
             });
-            await backendApi.submit.approveProposal(walletName, proposal, {
+            await backendApi.submit.approveTypedProposal(walletName, proposal, {
               ...extraSigned,
               expiry: extraDry.expiry,
             });
@@ -759,7 +819,10 @@ function SendPage() {
         setPhase("executing");
         let executed: unknown;
         try {
-          executed = await backendApi.executeProposal(walletName, proposal, {});
+          executed = await backendApi.executeTypedSolSend(walletName, proposal, {
+            recipient: destination,
+            amountLamports: lamportsToSafeNumber(lamportsBigint),
+          });
         } catch (err) {
           // If an RPC race means the backend still sees Active while
           // our read briefly saw Approved, keep the request on chain
@@ -1705,43 +1768,6 @@ function SendingStage({
       <p className="mt-1 text-xs text-text-soft">{hint}</p>
     </motion.section>
   );
-}
-
-/// After a submit throws, see if the proposal is on chain anyway.
-/// The descriptor binds the signed payload to a fixed (intent_pubkey,
-/// proposal_index), so we can compute the expected PDA and ask the
-/// RPC directly. Returns the proposal pubkey when the account exists,
-/// null otherwise. Polls a few times because RPCs lag.
-async function findProposalIfLanded(
-  descriptor: { intent_pubkey: string; proposal_index?: number },
-  connection: import("@solana/web3.js").Connection,
-): Promise<string | null> {
-  if (descriptor.proposal_index === undefined || descriptor.proposal_index === null) {
-    return null;
-  }
-  let intentPk: PublicKey;
-  try {
-    intentPk = new PublicKey(descriptor.intent_pubkey);
-  } catch {
-    return null;
-  }
-  const [pda] = findProposalAddress(
-    intentPk,
-    BigInt(descriptor.proposal_index),
-    CLEAR_WALLET_PROGRAM_ID,
-  );
-  // Poll for ~3 seconds - RPC propagation lag is usually under a
-  // second, but devnet's public RPC has been observed at 2s+.
-  for (let i = 0; i < 4; i++) {
-    try {
-      const info = await connection.getAccountInfo(pda, "confirmed");
-      if (info) return pda.toBase58();
-    } catch {
-      // ignore - try again
-    }
-    await new Promise((r) => setTimeout(r, 800));
-  }
-  return null;
 }
 
 async function waitForProposalStatus(

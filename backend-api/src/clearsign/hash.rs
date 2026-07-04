@@ -155,7 +155,7 @@ pub(super) fn hash_envelope(envelope: &NormalizedEnvelope, payload_hash: [u8; 32
     hasher.update([envelope.kind.code()]);
     hasher.update(envelope.expires_at.to_le_bytes());
     update_bytes(&mut hasher, envelope.wallet_name.as_bytes());
-    update_bytes(&mut hasher, envelope.wallet_id.as_bytes());
+    update_bytes(&mut hasher, &canonical_address_or_text(&envelope.wallet_id));
     hasher.update(Sha256::digest(envelope.action_id.as_bytes()));
     hasher.update(Sha256::digest(envelope.nonce.as_bytes()));
     hasher.update(envelope.policy_commitment);
@@ -173,7 +173,7 @@ pub(super) fn hash_vote_message(
     update_bytes(&mut hasher, CLEARSIGN_V2_VOTE_DOMAIN);
     hasher.update([CLEARSIGN_V2_VERSION]);
     hasher.update([vote_kind.code()]);
-    update_bytes(&mut hasher, wallet_id.as_bytes());
+    update_bytes(&mut hasher, &canonical_address_or_text(wallet_id));
     hasher.update(proposal_index.to_le_bytes());
     hasher.update(envelope_hash);
     finish_hash(hasher)
@@ -209,4 +209,12 @@ fn finish_hash(hasher: Sha256) -> [u8; 32] {
     let mut out = [0u8; 32];
     out.copy_from_slice(&result);
     out
+}
+
+fn canonical_address_or_text(value: &str) -> Vec<u8> {
+    bs58::decode(value)
+        .into_vec()
+        .ok()
+        .filter(|bytes| bytes.len() == 32)
+        .unwrap_or_else(|| value.as_bytes().to_vec())
 }
