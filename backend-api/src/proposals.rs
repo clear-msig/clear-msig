@@ -3,79 +3,22 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use serde::Deserialize;
 use serde_json::Value;
 
-use crate::clearsign::{format_expiry, push_pre_signed_flags, PreSigned};
+use crate::clearsign::{format_expiry, push_pre_signed_flags};
 use crate::{
-    ensure_base58, ensure_hex_exact_len, ensure_non_empty, ensure_non_empty_vec,
-    ensure_wallet_name, ApiError, AppState,
+    ensure_base58, ensure_non_empty, ensure_non_empty_vec, ensure_wallet_name, ApiError, AppState,
 };
 
-#[derive(Deserialize)]
-struct SignedProposalCreateRequest {
-    intent_index: u8,
-    #[serde(flatten)]
-    pre_signed: PreSigned,
-}
+mod types;
+mod validation;
 
-#[derive(Deserialize)]
-struct SignedTypedProposalCreateRequest {
-    intent_index: u8,
-    action_kind: u8,
-    policy_commitment: String,
-    payload_hash: String,
-    envelope_hash: String,
-    action_id: String,
-    nonce: String,
-    #[serde(flatten)]
-    pre_signed: PreSigned,
-}
-
-#[derive(Deserialize)]
-struct SignedApproveCancelRequest {
-    #[serde(flatten)]
-    pre_signed: PreSigned,
-}
-
-#[derive(Deserialize)]
-struct PrepareProposalCreateRequest {
-    intent_index: u8,
-    params: Vec<String>,
-    expiry: Option<String>,
-    /// Connected wallet's pubkey. Forwarded to the CLI as
-    /// `--signer-pubkey` so the proposer / approver validation runs
-    /// against the user's identity, not the relayer's filesystem keypair.
-    actor_pubkey: Option<String>,
-}
-
-#[derive(Deserialize)]
-struct PrepareTypedProposalCreateRequest {
-    intent_index: u8,
-    action_kind: u8,
-    policy_commitment: String,
-    payload_hash: String,
-    envelope_hash: String,
-    action_id: String,
-    nonce: String,
-    expiry: Option<String>,
-    actor_pubkey: Option<String>,
-}
-
-#[derive(Deserialize)]
-struct PrepareApproveCancelRequest {
-    expiry: Option<String>,
-    /// See `PrepareProposalCreateRequest::actor_pubkey`.
-    actor_pubkey: Option<String>,
-}
-
-#[derive(Deserialize)]
-struct ExecuteProposalRequest {
-    dwallet_program: Option<String>,
-    grpc_url: Option<String>,
-    rpc_url: Option<String>,
-    broadcast: Option<bool>,
-}
+use types::{
+    ExecuteProposalRequest, PrepareApproveCancelRequest, PrepareProposalCreateRequest,
+    PrepareTypedProposalCreateRequest, SignedApproveCancelRequest, SignedProposalCreateRequest,
+    SignedTypedProposalCreateRequest,
+};
+use validation::{push_actor_pubkey, push_typed_pre_signed_flags, validate_typed_create_fields};
 
 pub(crate) fn router() -> Router<AppState> {
     Router::new()
@@ -745,56 +688,4 @@ async fn typed_approve_or_cancel(
         proposal,
     ]);
     Ok(Json(state.runner.run_json(args).await?))
-}
-
-fn validate_typed_create_fields(
-    action_kind: u8,
-    policy_commitment: &str,
-    payload_hash: &str,
-    envelope_hash: &str,
-    action_id: &str,
-    nonce: &str,
-) -> Result<(), ApiError> {
-    if !(1..=11).contains(&action_kind) {
-        return Err(ApiError::BadRequest(
-            "action_kind must be between 1 and 11".into(),
-        ));
-    }
-    ensure_hex_exact_len(policy_commitment, "policy_commitment", 32)?;
-    ensure_hex_exact_len(payload_hash, "payload_hash", 32)?;
-    ensure_hex_exact_len(envelope_hash, "envelope_hash", 32)?;
-    ensure_typed_text(action_id, "action_id")?;
-    ensure_typed_text(nonce, "nonce")?;
-    Ok(())
-}
-
-fn ensure_typed_text(value: &str, field: &str) -> Result<(), ApiError> {
-    ensure_non_empty(value, field)?;
-    if value.as_bytes().len() > 128 {
-        return Err(ApiError::BadRequest(format!(
-            "{field} must be 128 bytes or fewer"
-        )));
-    }
-    Ok(())
-}
-
-fn push_typed_pre_signed_flags(args: &mut Vec<String>, ps: &PreSigned) {
-    args.push("--signer-pubkey".into());
-    args.push(ps.signer_pubkey.clone());
-    args.push("--signature".into());
-    args.push(ps.signature.clone());
-}
-
-fn push_actor_pubkey(args: &mut Vec<String>, actor: &Option<String>) -> Result<(), ApiError> {
-    let Some(pk) = actor.as_deref() else {
-        return Ok(());
-    };
-    let trimmed = pk.trim();
-    if trimmed.is_empty() {
-        return Ok(());
-    }
-    ensure_base58(trimmed, "actor_pubkey", 32, 44)?;
-    args.push("--signer-pubkey".to_string());
-    args.push(trimmed.to_string());
-    Ok(())
 }
