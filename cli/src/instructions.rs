@@ -187,7 +187,7 @@ pub fn execute(
 }
 
 #[allow(dead_code)]
-pub struct ProposeTypedArgs<'a> {
+pub struct ProposeTypedArgs {
     pub payer: Pubkey,
     pub wallet: Pubkey,
     pub intent: Pubkey,
@@ -200,13 +200,13 @@ pub struct ProposeTypedArgs<'a> {
     pub envelope_hash: [u8; 32],
     pub proposer_pubkey: [u8; 32],
     pub signature: [u8; 64],
-    pub action_id: &'a [u8],
-    pub nonce: &'a [u8],
+    pub action_id: [u8; 32],
+    pub nonce: [u8; 32],
 }
 
 /// Build propose_typed instruction (ClearSign v2 discriminator 8).
 #[allow(dead_code)]
-pub fn propose_typed(args: ProposeTypedArgs<'_>) -> Instruction {
+pub fn propose_typed(args: ProposeTypedArgs) -> Instruction {
     let accounts = vec![
         AccountMeta::new(args.payer, true),
         AccountMeta::new(args.wallet, false),
@@ -224,8 +224,8 @@ pub fn propose_typed(args: ProposeTypedArgs<'_>) -> Instruction {
     wincode::serialize_into(&mut data, &args.envelope_hash).unwrap();
     wincode::serialize_into(&mut data, &args.proposer_pubkey).unwrap();
     wincode::serialize_into(&mut data, &args.signature).unwrap();
-    wincode::serialize_into(&mut data, &DynBytes::<u8>::from(args.action_id.to_vec())).unwrap();
-    wincode::serialize_into(&mut data, &DynBytes::<u8>::from(args.nonce.to_vec())).unwrap();
+    wincode::serialize_into(&mut data, &args.action_id).unwrap();
+    wincode::serialize_into(&mut data, &args.nonce).unwrap();
 
     Instruction {
         program_id: program_id(),
@@ -324,8 +324,8 @@ pub fn execute_typed_escrow_release(
     policy_commitment: [u8; 32],
     envelope_hash: [u8; 32],
     amount_lamports: u64,
-    escrow_id: &[u8],
-    milestone_id: &[u8],
+    escrow_id_hash: [u8; 32],
+    milestone_id_hash: [u8; 32],
 ) -> Instruction {
     let accounts = vec![
         AccountMeta::new_readonly(wallet, false),
@@ -339,8 +339,8 @@ pub fn execute_typed_escrow_release(
     wincode::serialize_into(&mut data, &policy_commitment).unwrap();
     wincode::serialize_into(&mut data, &envelope_hash).unwrap();
     wincode::serialize_into(&mut data, &amount_lamports).unwrap();
-    wincode::serialize_into(&mut data, &DynBytes::<u8>::from(escrow_id.to_vec())).unwrap();
-    wincode::serialize_into(&mut data, &DynBytes::<u8>::from(milestone_id.to_vec())).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &milestone_id_hash).unwrap();
 
     Instruction {
         program_id: program_id(),
@@ -358,8 +358,8 @@ pub fn execute_typed_escrow_return(
     proposal: Pubkey,
     policy_commitment: [u8; 32],
     envelope_hash: [u8; 32],
+    escrow_id_hash: [u8; 32],
     amount_lamports_le: &[u8],
-    escrow_id: &[u8],
     funders: Vec<AccountMeta>,
 ) -> Instruction {
     let mut accounts = vec![
@@ -374,12 +374,12 @@ pub fn execute_typed_escrow_return(
     let mut data = vec![13u8];
     wincode::serialize_into(&mut data, &policy_commitment).unwrap();
     wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
     wincode::serialize_into(
         &mut data,
         &DynBytes::<u8>::from(amount_lamports_le.to_vec()),
     )
     .unwrap();
-    wincode::serialize_into(&mut data, &DynBytes::<u8>::from(escrow_id.to_vec())).unwrap();
 
     Instruction {
         program_id: program_id(),
@@ -532,8 +532,8 @@ mod tests {
             envelope_hash: [7; 32],
             proposer_pubkey: [8; 32],
             signature: [9; 64],
-            action_id: b"act",
-            nonce: b"nonce",
+            action_id: [10; 32],
+            nonce: [11; 32],
         });
 
         assert_eq!(ix.program_id, program_id());
@@ -578,8 +578,8 @@ mod tests {
             [6; 32],
             [7; 32],
             1_000_000,
-            b"escrow-1",
-            b"milestone-1",
+            [8; 32],
+            [9; 32],
         );
         let mut amount_bytes = Vec::new();
         amount_bytes.extend_from_slice(&1_000_000u64.to_le_bytes());
@@ -591,8 +591,8 @@ mod tests {
             key(4),
             [6; 32],
             [7; 32],
+            [10; 32],
             &amount_bytes,
-            b"escrow-1",
             vec![
                 AccountMeta::new(key(8), false),
                 AccountMeta::new(key(9), false),

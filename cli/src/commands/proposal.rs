@@ -347,6 +347,8 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             );
             let signature = config.signer.sign_message(&vote_hash)?;
             let payer_pubkey = solana_sdk::signer::Signer::pubkey(&config.payer);
+            let action_id_hash = crate::message::sha256_hash(action_id.as_bytes());
+            let nonce_hash = crate::message::sha256_hash(nonce.as_bytes());
             let ix = crate::instructions::propose_typed(crate::instructions::ProposeTypedArgs {
                 payer: payer_pubkey,
                 wallet: wallet_pubkey,
@@ -360,8 +362,8 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 envelope_hash,
                 proposer_pubkey: config.signer.pubkey(),
                 signature,
-                action_id: action_id.as_bytes(),
-                nonce: nonce.as_bytes(),
+                action_id: action_id_hash,
+                nonce: nonce_hash,
             });
             let sig = rpc::send_instruction(&client, config, ix)?;
             print_json(&serde_json::json!({

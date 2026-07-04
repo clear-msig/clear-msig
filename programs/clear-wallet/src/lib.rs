@@ -151,16 +151,16 @@ pub mod clear_wallet {
         envelope_hash: [u8; 32],
         proposer_pubkey: [u8; 32],
         signature: [u8; 64],
-        action_id: &[u8],
-        nonce: &[u8],
+        action_id: [u8; 32],
+        nonce: [u8; 32],
     ) -> Result<(), ProgramError> {
         ctx.accounts.propose_typed(
             proposal_index,
             ProposeTypedArgs {
                 expiry,
                 action_kind,
-                action_id,
-                nonce,
+                action_id: &action_id,
+                nonce: &nonce,
                 policy_commitment,
                 payload_hash,
                 envelope_hash,
@@ -217,15 +217,15 @@ pub mod clear_wallet {
         policy_commitment: [u8; 32],
         envelope_hash: [u8; 32],
         amount_lamports: u64,
-        escrow_id: &[u8],
-        milestone_id: &[u8],
+        escrow_id_hash: [u8; 32],
+        milestone_id_hash: [u8; 32],
     ) -> Result<(), ProgramError> {
         ctx.accounts.execute_typed_escrow_release(
             ExecuteTypedEscrowReleaseArgs {
                 policy_commitment,
                 envelope_hash,
-                escrow_id,
-                milestone_id,
+                escrow_id_hash,
+                milestone_id_hash,
                 amount_lamports,
             },
             &ctx.bumps,
@@ -237,14 +237,14 @@ pub mod clear_wallet {
         ctx: CtxWithRemaining<ExecuteTypedEscrowReturn>,
         policy_commitment: [u8; 32],
         envelope_hash: [u8; 32],
+        escrow_id_hash: [u8; 32],
         amount_lamports_le: &[u8],
-        escrow_id: &[u8],
     ) -> Result<(), ProgramError> {
         ctx.accounts.execute_typed_escrow_return(
             ExecuteTypedEscrowReturnArgs {
                 policy_commitment,
                 envelope_hash,
-                escrow_id,
+                escrow_id_hash,
                 amount_lamports_le,
             },
             &ctx.bumps,

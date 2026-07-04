@@ -45,11 +45,11 @@ pub struct ExecuteTypedEscrowRelease<'info> {
     pub system_program: &'info Program<System>,
 }
 
-pub struct ExecuteTypedEscrowReleaseArgs<'a> {
+pub struct ExecuteTypedEscrowReleaseArgs {
     pub policy_commitment: [u8; 32],
     pub envelope_hash: [u8; 32],
-    pub escrow_id: &'a [u8],
-    pub milestone_id: &'a [u8],
+    pub escrow_id_hash: [u8; 32],
+    pub milestone_id_hash: [u8; 32],
     pub amount_lamports: u64,
 }
 
@@ -82,14 +82,14 @@ pub struct ExecuteTypedEscrowReturn<'info> {
 pub struct ExecuteTypedEscrowReturnArgs<'a> {
     pub policy_commitment: [u8; 32],
     pub envelope_hash: [u8; 32],
-    pub escrow_id: &'a [u8],
+    pub escrow_id_hash: [u8; 32],
     pub amount_lamports_le: &'a [u8],
 }
 
 impl<'info> ExecuteTypedEscrowRelease<'info> {
     pub fn execute_typed_escrow_release(
         &mut self,
-        args: ExecuteTypedEscrowReleaseArgs<'_>,
+        args: ExecuteTypedEscrowReleaseArgs,
         bumps: &ExecuteTypedEscrowReleaseBumps,
     ) -> Result<(), ProgramError> {
         let amount = ClearSignAmount {
@@ -97,8 +97,8 @@ impl<'info> ExecuteTypedEscrowRelease<'info> {
             raw_amount: args.amount_lamports as u128,
         };
         let payload_hash = hash_release_milestone_payload(
-            args.escrow_id,
-            args.milestone_id,
+            &args.escrow_id_hash,
+            &args.milestone_id_hash,
             self.recipient.address().as_ref(),
             &amount,
         );
@@ -157,7 +157,7 @@ impl<'info> ExecuteTypedEscrowReturn<'info> {
         );
 
         let payload_hash = hash_return_escrow_sol_payload_iter(
-            args.escrow_id,
+            &args.escrow_id_hash,
             (0..return_count).map(|index| {
                 let funder = unsafe { funders[index].assume_init_ref() };
                 (

@@ -156,8 +156,8 @@ export function clearSignEnvelopeHash(
   out.pushI64(BigInt(normalizeNumber(envelope.expiresAt)));
   out.pushBytes(normalizeText(envelope.walletName));
   out.pushBytes(normalizeOptional(envelope.walletId));
-  out.pushBytes(normalizeText(envelope.actionId));
-  out.pushBytes(normalizeText(envelope.nonce));
+  out.pushRaw(sha256(enc.encode(normalizeText(envelope.actionId))));
+  out.pushRaw(sha256(enc.encode(normalizeText(envelope.nonce))));
   out.pushRaw(fromHex(normalizeHash(envelope.policyCommitment)));
   out.pushRaw(payloadHash);
   return toHex(sha256(out.bytes()));

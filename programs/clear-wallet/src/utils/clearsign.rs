@@ -67,6 +67,7 @@ pub enum ClearSignV2Error {
     MissingWalletName,
     MissingActionId,
     MissingNonce,
+    InvalidReplayCommitment,
     Expired,
     ExpiryTooFar,
 }
@@ -106,6 +107,9 @@ impl<'a> ClearSignEnvelope<'a> {
         }
         if self.nonce.is_empty() {
             return Err(ClearSignV2Error::MissingNonce);
+        }
+        if self.action_id.len() != 32 || self.nonce.len() != 32 {
+            return Err(ClearSignV2Error::InvalidReplayCommitment);
         }
         if self.expires_at <= now {
             return Err(ClearSignV2Error::Expired);
@@ -288,6 +292,12 @@ mod tests {
         ClearSignAmount { asset, raw_amount }
     }
 
+    fn id32(label: &[u8]) -> [u8; 32] {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(label);
+        finish_hash(hasher)
+    }
+
     fn test_envelope<'a>(
         action_id: &'a [u8],
         nonce: &'a [u8],
@@ -330,7 +340,8 @@ mod tests {
     fn replay_fields_are_required_and_bounded() {
         let payload = hash_send_payload(b"Sarah", &amount(b"SOL", 2_500_000_000));
         assert_eq!(
-            test_envelope(b"action-1", b"nonce-1", payload).validate_replay_fields(1_799_999_000),
+            test_envelope(&id32(b"action-1"), &id32(b"nonce-1"), payload)
+                .validate_replay_fields(1_799_999_000),
             Ok(())
         );
         assert_eq!(
@@ -338,15 +349,16 @@ mod tests {
             Err(ClearSignV2Error::MissingActionId)
         );
         assert_eq!(
-            test_envelope(b"action-1", b"", payload).validate_replay_fields(1_799_999_000),
+            test_envelope(&id32(b"action-1"), b"", payload).validate_replay_fields(1_799_999_000),
             Err(ClearSignV2Error::MissingNonce)
         );
         assert_eq!(
-            test_envelope(b"action-1", b"nonce-1", payload).validate_replay_fields(1_800_000_000),
+            test_envelope(&id32(b"action-1"), &id32(b"nonce-1"), payload)
+                .validate_replay_fields(1_800_000_000),
             Err(ClearSignV2Error::Expired)
         );
         assert_eq!(
-            test_envelope(b"action-1", b"nonce-1", payload).validate_replay_fields(1),
+            test_envelope(&id32(b"action-1"), &id32(b"nonce-1"), payload).validate_replay_fields(1),
             Err(ClearSignV2Error::ExpiryTooFar)
         );
     }
@@ -355,21 +367,37 @@ mod tests {
     fn envelope_hash_binds_replay_and_payload() {
         let send_payload = hash_send_payload(b"Sarah", &amount(b"SOL", 2_500_000_000));
         let changed_payload = hash_send_payload(b"Sarah", &amount(b"SOL", 2_400_000_000));
-        let base = hash_envelope(&test_envelope(b"action-1", b"nonce-1", send_payload));
+        let base = hash_envelope(&test_envelope(
+            &id32(b"action-1"),
+            &id32(b"nonce-1"),
+            send_payload,
+        ));
         assert_ne!(
             base,
-            hash_envelope(&test_envelope(b"action-1", b"nonce-2", send_payload))
+            hash_envelope(&test_envelope(
+                &id32(b"action-1"),
+                &id32(b"nonce-2"),
+                send_payload
+            ))
         );
         assert_ne!(
             base,
-            hash_envelope(&test_envelope(b"action-1", b"nonce-1", changed_payload))
+            hash_envelope(&test_envelope(
+                &id32(b"action-1"),
+                &id32(b"nonce-1"),
+                changed_payload
+            ))
         );
     }
 
     #[test]
     fn vote_hash_cannot_cross_action_boundaries() {
         let payload = hash_send_payload(b"Sarah", &amount(b"SOL", 2_500_000_000));
-        let envelope_hash = hash_envelope(&test_envelope(b"action-1", b"nonce-1", payload));
+        let envelope_hash = hash_envelope(&test_envelope(
+            &id32(b"action-1"),
+            &id32(b"nonce-1"),
+            payload,
+        ));
         let propose = hash_vote_message(ClearSignVoteKind::Propose, b"wallet", 7, envelope_hash);
         assert_ne!(
             propose,
@@ -453,8 +481,8 @@ mod tests {
             kind: ClearSignActionKind::ReleaseMilestone,
             wallet_name: b"Team",
             wallet_id: b"wallet-pda",
-            action_id: b"escrow-action",
-            nonce: b"nonce-1",
+            action_id: &id32(b"escrow-action"),
+            nonce: &id32(b"nonce-1"),
             expires_at: 1_800_000_000,
             policy_commitment: hash_policy_commitment(&[b"escrow:escrow-1"]),
             payload_hash: release,

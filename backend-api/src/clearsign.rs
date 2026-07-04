@@ -494,8 +494,8 @@ fn hash_envelope(envelope: &NormalizedEnvelope, payload_hash: [u8; 32]) -> [u8; 
     hasher.update(envelope.expires_at.to_le_bytes());
     update_bytes(&mut hasher, envelope.wallet_name.as_bytes());
     update_bytes(&mut hasher, envelope.wallet_id.as_bytes());
-    update_bytes(&mut hasher, envelope.action_id.as_bytes());
-    update_bytes(&mut hasher, envelope.nonce.as_bytes());
+    hasher.update(Sha256::digest(envelope.action_id.as_bytes()));
+    hasher.update(Sha256::digest(envelope.nonce.as_bytes()));
     hasher.update(envelope.policy_commitment);
     hasher.update(payload_hash);
     finish_hash(hasher)
