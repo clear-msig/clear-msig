@@ -6,6 +6,8 @@ DEPLOY_KEYPAIR="$ROOT_DIR/target/deploy/clear_wallet-keypair.json"
 PAYER_KEYPAIR="${PAYER_KEYPAIR:-$ROOT_DIR/backend-api/keys/payer.json}"
 UPGRADE_AUTHORITY="${UPGRADE_AUTHORITY:-$PAYER_KEYPAIR}"
 PROGRAM_SO="${PROGRAM_SO:-$ROOT_DIR/target/deploy/clear_wallet.so}"
+DEFAULT_PROGRAM_ID="Abf68HjgGyaCqGtu2W9Tg7Kkz5iJoBvAb8e86M6xTkNJ"
+PROGRAM_ID="${PROGRAM_ID:-}"
 DEVNET_URL="https://api.devnet.solana.com"
 
 if [[ ! -f "$PROGRAM_SO" ]]; then
@@ -14,10 +16,16 @@ if [[ ! -f "$PROGRAM_SO" ]]; then
   exit 1
 fi
 
-if [[ ! -f "$DEPLOY_KEYPAIR" ]]; then
+if [[ -f "$DEPLOY_KEYPAIR" ]]; then
+  PROGRAM_ID="$(solana address -k "$DEPLOY_KEYPAIR")"
+  PROGRAM_ID_ARG="$DEPLOY_KEYPAIR"
+else
+  PROGRAM_ID="${PROGRAM_ID:-$DEFAULT_PROGRAM_ID}"
+  PROGRAM_ID_ARG="$PROGRAM_ID"
   echo "Missing $DEPLOY_KEYPAIR"
-  echo "This keypair fixes the deployed program ID. Restore it before deploying."
-  exit 1
+  echo "Using existing program ID for upgrade: $PROGRAM_ID"
+  echo "Initial deploys need the program keypair; upgrades only need the current upgrade authority."
+  echo
 fi
 
 if [[ ! -f "$PAYER_KEYPAIR" ]]; then
@@ -34,7 +42,6 @@ fi
 
 cd "$ROOT_DIR"
 
-PROGRAM_ID="$(solana address -k "$DEPLOY_KEYPAIR")"
 echo "clear-wallet Program ID: $PROGRAM_ID"
 echo "Program binary: $PROGRAM_SO"
 echo "Program SHA256: $(shasum -a 256 "$PROGRAM_SO" | awk '{print $1}')"
@@ -47,7 +54,7 @@ echo
 echo "Deploying upgrade to devnet..."
 solana program deploy "$PROGRAM_SO" \
   --url "$DEVNET_URL" \
-  --program-id "$DEPLOY_KEYPAIR" \
+  --program-id "$PROGRAM_ID_ARG" \
   --keypair "$PAYER_KEYPAIR" \
   --upgrade-authority "$UPGRADE_AUTHORITY" \
   --use-rpc
