@@ -48,6 +48,38 @@ export interface ProEscrowReturnRow {
   amount: string;
 }
 
+export interface ProEscrowReturnPreviewRow extends ProEscrowReturnRow {
+  funderId: string;
+  funderName: string;
+  funderEntity?: string;
+  asset: string;
+  rawAmount: string;
+}
+
+export interface ProEscrowReturnPreview {
+  walletName: string;
+  escrowId: string;
+  escrowTitle: string;
+  policy: ProEscrowPolicy;
+  totalReturn: string;
+  rawTotalReturn: string;
+  returns: ProEscrowReturnPreviewRow[];
+}
+
+export interface ProEscrowReleasePreview {
+  walletName: string;
+  escrowId: string;
+  escrowTitle: string;
+  milestoneId: string;
+  milestoneTitle: string;
+  recipient: string;
+  recipientEntity?: string;
+  asset: string;
+  amount: string;
+  rawAmount: string;
+  policy: ProEscrowPolicy;
+}
+
 export interface ProEscrowClearSignOptions {
   walletName: string;
   walletId?: string;
@@ -252,6 +284,39 @@ export function buildProEscrowReturnRows(
       };
     })
     .filter((row) => row.recipient.trim() && Number(row.amount) > 0);
+}
+
+export async function previewProEscrowReturn(
+  walletName: string,
+  project: ProEscrowProject,
+): Promise<ProEscrowReturnPreview> {
+  if (!walletName.trim() || !project.id.trim()) {
+    throw new Error("Escrow is not ready.");
+  }
+  const response = await apiRequest<ProBackendEnvelope<ProEscrowReturnPreview>>(
+    `/v1/pro/wallets/${encodeURIComponent(walletName)}/escrows/return-preview`,
+    "POST",
+    { id: project.id },
+    { timeoutMs: PRO_SYNC_TIMEOUT_MS },
+  );
+  return response.data;
+}
+
+export async function previewProEscrowRelease(
+  walletName: string,
+  project: ProEscrowProject,
+  milestone: ProEscrowMilestone,
+): Promise<ProEscrowReleasePreview> {
+  if (!walletName.trim() || !project.id.trim() || !milestone.id.trim()) {
+    throw new Error("Milestone is not ready.");
+  }
+  const response = await apiRequest<ProBackendEnvelope<ProEscrowReleasePreview>>(
+    `/v1/pro/wallets/${encodeURIComponent(walletName)}/escrows/release-preview`,
+    "POST",
+    { id: project.id, milestoneId: milestone.id },
+    { timeoutMs: PRO_SYNC_TIMEOUT_MS },
+  );
+  return response.data;
 }
 
 export function buildProEscrowPolicyCommitment(

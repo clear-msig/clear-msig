@@ -26,6 +26,8 @@ import {
   buildProEscrowReturnRows,
   escrowFundedAmount,
   escrowReleasedAmount,
+  previewProEscrowRelease,
+  previewProEscrowReturn,
   recordProEscrowUnwindPrepared,
   saveProBatchPrefill,
   useProEscrows,
@@ -425,18 +427,31 @@ function EscrowProjectCard({
     }
     setPreparing("return");
     try {
+      let rows = returnRows;
+      let signingProject = project;
+      try {
+        const preview = await previewProEscrowReturn(walletName, project);
+        rows = preview.returns.map((row) => ({
+          recipient: row.recipient,
+          amount: row.amount,
+        }));
+        signingProject = { ...project, policy: preview.policy };
+      } catch {
+        // Render may not be redeployed yet. Keep the existing local preview
+        // path alive, but prefer backend-owned math whenever it is available.
+      }
       const { summary, dry } = await prepareTypedAction(
         buildProEscrowReturnEnvelope({
           walletName,
-          project,
-          rows: returnRows,
+          project: signingProject,
+          rows,
         }),
       );
-      const prefill = saveProBatchPrefill(walletName, returnRows);
+      const prefill = saveProBatchPrefill(walletName, rows);
       void recordProEscrowUnwindPrepared({
         walletName,
-        project,
-        rows: returnRows,
+        project: signingProject,
+        rows,
       });
       setPrepared({
         title: "Return funds",
@@ -456,17 +471,37 @@ function EscrowProjectCard({
   const prepareRelease = async (milestone: ProEscrowMilestone) => {
     setPreparing("release");
     try {
-      const { summary, dry } = await prepareTypedAction(
-        buildProEscrowReleaseEnvelope({
+      let signingProject = project;
+      let signingMilestone = milestone;
+      try {
+        const preview = await previewProEscrowRelease(
           walletName,
           project,
           milestone,
+        );
+        signingProject = { ...project, policy: preview.policy };
+        signingMilestone = {
+          ...milestone,
+          amount: preview.amount,
+          asset: preview.asset,
+          recipient: preview.recipient,
+          recipientEntity: preview.recipientEntity,
+        };
+      } catch {
+        // See prepareReturn: backend preview is preferred, local flow remains
+        // available for local/dev deployments that have not caught up.
+      }
+      const { summary, dry } = await prepareTypedAction(
+        buildProEscrowReleaseEnvelope({
+          walletName,
+          project: signingProject,
+          milestone: signingMilestone,
         }),
       );
       const params = new URLSearchParams({
-        recipient: milestone.recipient,
-        amount: milestone.amount,
-        note: `${project.title} - ${milestone.title}`,
+        recipient: signingMilestone.recipient,
+        amount: signingMilestone.amount,
+        note: `${signingProject.title} - ${signingMilestone.title}`,
       });
       setPrepared({
         title: "Release milestone",

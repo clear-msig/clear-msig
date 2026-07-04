@@ -161,6 +161,61 @@ struct ProEscrowDeleteRequest {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct ProEscrowReturnPreviewRequest {
+    id: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProEscrowReleasePreviewRequest {
+    id: String,
+    milestone_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProEscrowReturnRow {
+    funder_id: String,
+    funder_name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    funder_entity: Option<String>,
+    recipient: String,
+    asset: String,
+    amount: String,
+    raw_amount: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProEscrowReturnPreview {
+    wallet_name: String,
+    escrow_id: String,
+    escrow_title: String,
+    policy: ProEscrowPolicy,
+    total_return: String,
+    raw_total_return: String,
+    returns: Vec<ProEscrowReturnRow>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProEscrowReleasePreview {
+    wallet_name: String,
+    escrow_id: String,
+    escrow_title: String,
+    milestone_id: String,
+    milestone_title: String,
+    recipient: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    recipient_entity: Option<String>,
+    asset: String,
+    amount: String,
+    raw_amount: String,
+    policy: ProEscrowPolicy,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ProAuditEvent {
     id: String,
     wallet_name: String,
@@ -329,6 +384,40 @@ impl ProStore {
         Ok(removed)
     }
 
+    async fn preview_escrow_return(
+        &self,
+        wallet_name: String,
+        id: String,
+    ) -> Result<ProEscrowReturnPreview, ApiError> {
+        ensure_non_empty(&id, "id")?;
+        let _guard = self.lock.lock().await;
+        let doc = self.read_locked().await?;
+        let escrow = doc
+            .escrows
+            .into_iter()
+            .find(|row| row.wallet_name == wallet_name && row.id == id)
+            .ok_or_else(|| ApiError::BadRequest("escrow not found".to_string()))?;
+        build_return_preview(&escrow)
+    }
+
+    async fn preview_escrow_release(
+        &self,
+        wallet_name: String,
+        id: String,
+        milestone_id: String,
+    ) -> Result<ProEscrowReleasePreview, ApiError> {
+        ensure_non_empty(&id, "id")?;
+        ensure_non_empty(&milestone_id, "milestoneId")?;
+        let _guard = self.lock.lock().await;
+        let doc = self.read_locked().await?;
+        let escrow = doc
+            .escrows
+            .into_iter()
+            .find(|row| row.wallet_name == wallet_name && row.id == id)
+            .ok_or_else(|| ApiError::BadRequest("escrow not found".to_string()))?;
+        build_release_preview(&escrow, &milestone_id)
+    }
+
     async fn append_audit_event(
         &self,
         input: ProAuditEventInput,
@@ -405,6 +494,14 @@ pub(crate) fn router() -> Router<AppState> {
             get(list_escrows).post(upsert_escrow),
         )
         .route("/wallets/{name}/escrows/delete", post(delete_escrow))
+        .route(
+            "/wallets/{name}/escrows/return-preview",
+            post(preview_escrow_return),
+        )
+        .route(
+            "/wallets/{name}/escrows/release-preview",
+            post(preview_escrow_release),
+        )
         .route("/wallets/{name}/audit-events", get(list_audit_events))
         .route("/audit-events", post(append_audit_event))
 }
@@ -488,6 +585,38 @@ async fn delete_escrow(
     Ok(Json(ProPersistResponse {
         ok: true,
         data: serde_json::json!({ "removed": removed }),
+    }))
+}
+
+async fn preview_escrow_return(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Json(input): Json<ProEscrowReturnPreviewRequest>,
+) -> Result<Json<ProPersistResponse<ProEscrowReturnPreview>>, ApiError> {
+    ensure_non_empty(&name, "walletName")?;
+    let preview = state
+        .pro_store
+        .preview_escrow_return(name, input.id)
+        .await?;
+    Ok(Json(ProPersistResponse {
+        ok: true,
+        data: preview,
+    }))
+}
+
+async fn preview_escrow_release(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Json(input): Json<ProEscrowReleasePreviewRequest>,
+) -> Result<Json<ProPersistResponse<ProEscrowReleasePreview>>, ApiError> {
+    ensure_non_empty(&name, "walletName")?;
+    let preview = state
+        .pro_store
+        .preview_escrow_release(name, input.id, input.milestone_id)
+        .await?;
+    Ok(Json(ProPersistResponse {
+        ok: true,
+        data: preview,
     }))
 }
 
@@ -727,6 +856,218 @@ fn normalize_escrow_policy(policy: ProEscrowPolicy) -> Result<ProEscrowPolicy, A
     })
 }
 
+fn build_return_preview(escrow: &ProEscrowRecord) -> Result<ProEscrowReturnPreview, ApiError> {
+    let policy = escrow
+        .policy
+        .clone()
+        .map(normalize_escrow_policy)
+        .transpose()?
+        .unwrap_or_else(|| default_escrow_policy(escrow));
+    let funders = escrow
+        .funders
+        .iter()
+        .filter(|row| row.asset.eq_ignore_ascii_case("SOL"))
+        .collect::<Vec<_>>();
+    if funders.is_empty() {
+        return Err(ApiError::BadRequest(
+            "escrow has no SOL funders to return".to_string(),
+        ));
+    }
+    let funded = funders.iter().try_fold(0u64, |acc, row| {
+        acc.checked_add(parse_sol_lamports(&row.amount, "funder.amount")?)
+            .ok_or_else(|| ApiError::BadRequest("escrow amount is too large".to_string()))
+    })?;
+    let released = escrow
+        .milestones
+        .iter()
+        .filter(|row| row.asset.eq_ignore_ascii_case("SOL") && row.status == "released")
+        .try_fold(0u64, |acc, row| {
+            acc.checked_add(parse_sol_lamports(&row.amount, "milestone.amount")?)
+                .ok_or_else(|| ApiError::BadRequest("escrow amount is too large".to_string()))
+        })?;
+    let remaining = funded.saturating_sub(released);
+    if funded == 0 || remaining == 0 {
+        return Err(ApiError::BadRequest(
+            "escrow has no remaining SOL to return".to_string(),
+        ));
+    }
+
+    let mut rows = Vec::with_capacity(funders.len());
+    let mut assigned = 0u64;
+    for (index, funder) in funders.iter().enumerate() {
+        let contribution = parse_sol_lamports(&funder.amount, "funder.amount")?;
+        let mut raw_amount = ((remaining as u128) * (contribution as u128) / (funded as u128))
+            .try_into()
+            .map_err(|_| ApiError::BadRequest("escrow amount is too large".to_string()))?;
+        if index + 1 == funders.len() {
+            raw_amount = remaining.saturating_sub(assigned);
+        }
+        assigned = assigned.saturating_add(raw_amount);
+        if raw_amount == 0 {
+            continue;
+        }
+        rows.push(ProEscrowReturnRow {
+            funder_id: funder.id.clone(),
+            funder_name: funder.name.clone(),
+            funder_entity: funder.entity.clone(),
+            recipient: funder.address.clone(),
+            asset: "SOL".to_string(),
+            amount: format_sol_lamports(raw_amount),
+            raw_amount: raw_amount.to_string(),
+        });
+    }
+    if rows.is_empty() {
+        return Err(ApiError::BadRequest(
+            "escrow return amount is too small".to_string(),
+        ));
+    }
+
+    Ok(ProEscrowReturnPreview {
+        wallet_name: escrow.wallet_name.clone(),
+        escrow_id: escrow.id.clone(),
+        escrow_title: escrow.title.clone(),
+        policy,
+        total_return: format_sol_lamports(remaining),
+        raw_total_return: remaining.to_string(),
+        returns: rows,
+    })
+}
+
+fn build_release_preview(
+    escrow: &ProEscrowRecord,
+    milestone_id: &str,
+) -> Result<ProEscrowReleasePreview, ApiError> {
+    let milestone = escrow
+        .milestones
+        .iter()
+        .find(|row| row.id == milestone_id)
+        .ok_or_else(|| ApiError::BadRequest("milestone not found".to_string()))?;
+    if !milestone.asset.eq_ignore_ascii_case("SOL") {
+        return Err(ApiError::BadRequest(
+            "only SOL escrow release is available on devnet".to_string(),
+        ));
+    }
+    if milestone.status != "planned" {
+        return Err(ApiError::BadRequest(
+            "milestone is already released".to_string(),
+        ));
+    }
+    let raw_amount = parse_sol_lamports(&milestone.amount, "milestone.amount")?;
+    let policy = escrow
+        .policy
+        .clone()
+        .map(normalize_escrow_policy)
+        .transpose()?
+        .unwrap_or_else(|| default_escrow_policy(escrow));
+    Ok(ProEscrowReleasePreview {
+        wallet_name: escrow.wallet_name.clone(),
+        escrow_id: escrow.id.clone(),
+        escrow_title: escrow.title.clone(),
+        milestone_id: milestone.id.clone(),
+        milestone_title: milestone.title.clone(),
+        recipient: milestone.recipient.clone(),
+        recipient_entity: milestone.recipient_entity.clone(),
+        asset: "SOL".to_string(),
+        amount: format_sol_lamports(raw_amount),
+        raw_amount: raw_amount.to_string(),
+        policy,
+    })
+}
+
+fn default_escrow_policy(escrow: &ProEscrowRecord) -> ProEscrowPolicy {
+    ProEscrowPolicy {
+        version: 1,
+        mode: "milestone_escrow".to_string(),
+        release_requires: "wallet_approval".to_string(),
+        unwind_requires: "wallet_approval".to_string(),
+        return_basis: "recorded_funder_contribution".to_string(),
+        asset_mode: "per_asset".to_string(),
+        enforcement: "onchain_policy_pending".to_string(),
+        commitment: fallback_policy_commitment(escrow),
+    }
+}
+
+fn fallback_policy_commitment(escrow: &ProEscrowRecord) -> String {
+    let mut parts = vec![
+        escrow.id.as_str(),
+        escrow.title.as_str(),
+        escrow.counterparty.as_str(),
+    ];
+    for funder in &escrow.funders {
+        parts.extend([
+            funder.id.as_str(),
+            funder.name.as_str(),
+            funder.entity.as_deref().unwrap_or(""),
+            funder.address.as_str(),
+            funder.asset.as_str(),
+            funder.amount.as_str(),
+        ]);
+    }
+    for milestone in &escrow.milestones {
+        parts.extend([
+            milestone.id.as_str(),
+            milestone.title.as_str(),
+            milestone.recipient.as_str(),
+            milestone.recipient_entity.as_deref().unwrap_or(""),
+            milestone.asset.as_str(),
+            milestone.amount.as_str(),
+        ]);
+    }
+    let encoded = parts.join("|");
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in encoded.as_bytes() {
+        hash ^= *byte as u64;
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    format!("{hash:016x}{hash:016x}{hash:016x}{hash:016x}")
+}
+
+fn parse_sol_lamports(value: &str, field: &str) -> Result<u64, ApiError> {
+    let trimmed = value.trim();
+    let (whole, frac) = trimmed
+        .split_once('.')
+        .map_or((trimmed, ""), |(whole, frac)| (whole, frac));
+    if whole.is_empty()
+        || !whole.bytes().all(|b| b.is_ascii_digit())
+        || !frac.bytes().all(|b| b.is_ascii_digit())
+        || frac.len() > 9
+    {
+        return Err(ApiError::BadRequest(format!(
+            "{field} must be a SOL decimal with at most 9 decimals"
+        )));
+    }
+    let whole_lamports = whole
+        .parse::<u64>()
+        .map_err(|_| ApiError::BadRequest(format!("{field} is too large")))?
+        .checked_mul(1_000_000_000)
+        .ok_or_else(|| ApiError::BadRequest(format!("{field} is too large")))?;
+    let frac_lamports = if frac.is_empty() {
+        0
+    } else {
+        format!("{frac:0<9}")
+            .parse::<u64>()
+            .map_err(|_| ApiError::BadRequest(format!("{field} is too large")))?
+    };
+    let out = whole_lamports
+        .checked_add(frac_lamports)
+        .ok_or_else(|| ApiError::BadRequest(format!("{field} is too large")))?;
+    if out == 0 {
+        return Err(ApiError::BadRequest(format!("{field} must be positive")));
+    }
+    Ok(out)
+}
+
+fn format_sol_lamports(lamports: u64) -> String {
+    let whole = lamports / 1_000_000_000;
+    let frac = lamports % 1_000_000_000;
+    if frac == 0 {
+        whole.to_string()
+    } else {
+        let frac = format!("{frac:09}");
+        format!("{whole}.{}", frac.trim_end_matches('0'))
+    }
+}
+
 fn trim_optional(value: Option<String>) -> Option<String> {
     value
         .map(|s| s.trim().to_string())
@@ -739,4 +1080,77 @@ fn current_unix_timestamp_ms() -> Result<i64, ApiError> {
         .map_err(|e| ApiError::Internal(format!("system clock before unix epoch: {e}")))?;
     i64::try_from(duration.as_millis())
         .map_err(|_| ApiError::Internal("system clock timestamp out of range".into()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn escrow() -> ProEscrowRecord {
+        ProEscrowRecord {
+            id: "escrow-1".to_string(),
+            wallet_name: "Team".to_string(),
+            title: "Land redevelopment".to_string(),
+            counterparty: "Construction cooperative".to_string(),
+            status: "active".to_string(),
+            funders: vec![
+                ProEscrowFunder {
+                    id: "alice".to_string(),
+                    name: "Alice".to_string(),
+                    entity: Some("Fund".to_string()),
+                    address: "AliceSol".to_string(),
+                    asset: "SOL".to_string(),
+                    amount: "6".to_string(),
+                },
+                ProEscrowFunder {
+                    id: "bob".to_string(),
+                    name: "Bob".to_string(),
+                    entity: Some("Community".to_string()),
+                    address: "BobSol".to_string(),
+                    asset: "SOL".to_string(),
+                    amount: "4".to_string(),
+                },
+            ],
+            milestones: vec![ProEscrowMilestone {
+                id: "milestone-1".to_string(),
+                title: "Design approved".to_string(),
+                recipient: "BuilderSol".to_string(),
+                recipient_entity: Some("Builder".to_string()),
+                asset: "SOL".to_string(),
+                amount: "2.5".to_string(),
+                status: "released".to_string(),
+            }],
+            policy: None,
+            created_at: 1,
+            updated_at: 1,
+        }
+    }
+
+    #[test]
+    fn return_preview_uses_exact_lamport_pro_rata() {
+        let preview = build_return_preview(&escrow()).unwrap();
+        assert_eq!(preview.total_return, "7.5");
+        assert_eq!(preview.raw_total_return, "7500000000");
+        assert_eq!(preview.returns[0].recipient, "AliceSol");
+        assert_eq!(preview.returns[0].amount, "4.5");
+        assert_eq!(preview.returns[0].raw_amount, "4500000000");
+        assert_eq!(preview.returns[1].recipient, "BobSol");
+        assert_eq!(preview.returns[1].amount, "3");
+        assert_eq!(preview.returns[1].raw_amount, "3000000000");
+    }
+
+    #[test]
+    fn release_preview_rejects_released_milestone() {
+        let err = build_release_preview(&escrow(), "milestone-1").unwrap_err();
+        assert!(
+            matches!(err, ApiError::BadRequest(message) if message.contains("already released"))
+        );
+    }
+
+    #[test]
+    fn sol_lamport_format_round_trips_cleanly() {
+        assert_eq!(parse_sol_lamports("0.000000001", "amount").unwrap(), 1);
+        assert_eq!(format_sol_lamports(1), "0.000000001");
+        assert_eq!(format_sol_lamports(1_230_000_000), "1.23");
+    }
 }
