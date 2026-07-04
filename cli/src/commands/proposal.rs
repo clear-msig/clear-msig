@@ -4,8 +4,10 @@ use crate::output::{print_json, print_typed_dry_run};
 use crate::signing::sign_message_with_flavor;
 use crate::{accounts, message, params, resolve, rpc};
 use clap::Subcommand;
-use clear_wallet::utils::clearsign::{hash_vote_message, ClearSignVoteKind};
+use clear_wallet::utils::clearsign::{hash_vote_message, ClearSignActionKind, ClearSignVoteKind};
 use ika_dwallet_types::{NetworkSignedAttestation, VersionedDWalletDataAttestation};
+use solana_client::rpc_client::RpcClient;
+use solana_sdk::instruction::AccountMeta;
 use solana_sdk::pubkey::Pubkey;
 
 #[derive(Subcommand)]
@@ -65,6 +67,34 @@ pub enum ProposalAction {
         wallet: String,
         #[arg(long)]
         proposal: String,
+    },
+    /// Execute an approved typed escrow milestone release.
+    TypedEscrowRelease {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        recipient: String,
+        #[arg(long)]
+        amount_lamports: u64,
+        #[arg(long)]
+        escrow_id: String,
+        #[arg(long)]
+        milestone_id: String,
+    },
+    /// Execute an approved typed escrow unwind / return.
+    ///
+    /// Pass one `--return recipient:lamports` per funder.
+    TypedEscrowReturn {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        escrow_id: String,
+        #[arg(long = "return")]
+        returns: Vec<String>,
     },
     /// Approve an existing proposal
     Approve {
@@ -429,6 +459,117 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 "proposal": proposal_pubkey.to_string(),
                 "path": "typed",
                 "status": "executed",
+            }));
+        }
+
+        ProposalAction::TypedEscrowRelease {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            recipient,
+            amount_lamports,
+            escrow_id,
+            milestone_id,
+        } => {
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::ReleaseMilestone,
+                "typed escrow release",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let recipient_pubkey: Pubkey = recipient
+                .parse()
+                .with_context(|| "invalid recipient address")?;
+            let ix = crate::instructions::execute_typed_escrow_release(
+                wallet_pubkey,
+                vault_pubkey(wallet_pubkey),
+                intent_pubkey,
+                proposal_pubkey,
+                recipient_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                amount_lamports,
+                crate::message::sha256_hash(escrow_id.as_bytes()),
+                crate::message::sha256_hash(milestone_id.as_bytes()),
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_escrow_release",
+                "status": "executed",
+                "recipient": recipient_pubkey.to_string(),
+                "amount_lamports": amount_lamports,
+            }));
+        }
+
+        ProposalAction::TypedEscrowReturn {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            escrow_id,
+            returns,
+        } => {
+            if returns.is_empty() {
+                return Err(anyhow!(
+                    "at least one --return recipient:lamports is required"
+                ));
+            }
+            if returns.len() > 16 {
+                return Err(anyhow!(
+                    "typed escrow return supports at most 16 recipients"
+                ));
+            }
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::ReturnEscrowFunds,
+                "typed escrow return",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let parsed_returns = returns
+                .iter()
+                .map(|row| parse_return_row(row))
+                .collect::<Result<Vec<_>>>()?;
+            let mut amount_bytes = Vec::with_capacity(parsed_returns.len() * 8);
+            let mut funder_accounts = Vec::with_capacity(parsed_returns.len());
+            for (recipient, lamports) in &parsed_returns {
+                amount_bytes.extend_from_slice(&lamports.to_le_bytes());
+                funder_accounts.push(AccountMeta::new(*recipient, false));
+            }
+            let ix = crate::instructions::execute_typed_escrow_return(
+                wallet_pubkey,
+                vault_pubkey(wallet_pubkey),
+                intent_pubkey,
+                proposal_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                crate::message::sha256_hash(escrow_id.as_bytes()),
+                &amount_bytes,
+                funder_accounts,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_escrow_return",
+                "status": "executed",
+                "returns": parsed_returns
+                    .iter()
+                    .map(|(recipient, lamports)| serde_json::json!({
+                        "recipient": recipient.to_string(),
+                        "amount_lamports": lamports,
+                    }))
+                    .collect::<Vec<_>>(),
             }));
         }
 
@@ -1245,6 +1386,71 @@ fn ensure_typed_text(value: &str, field: &str) -> Result<()> {
         return Err(anyhow!("{field} must be 128 bytes or fewer"));
     }
     Ok(())
+}
+
+fn resolve_approved_typed_proposal(
+    _config: &RuntimeConfig,
+    client: &RpcClient,
+    wallet_name: &str,
+    proposal_addr_str: &str,
+) -> Result<(Pubkey, Pubkey, accounts::TypedProposalAccount)> {
+    let (wallet_pubkey, _) = rpc::resolve_wallet_by_name(client, wallet_name)?;
+    let proposal_pubkey: Pubkey = proposal_addr_str
+        .parse()
+        .with_context(|| "invalid proposal address")?;
+    let proposal_data = rpc::fetch_account(client, &proposal_pubkey)?;
+    let proposal_account = accounts::parse_typed_proposal(&proposal_data)?;
+    if proposal_account.wallet != wallet_pubkey.to_string() {
+        return Err(anyhow!(
+            "typed proposal does not belong to wallet {wallet_name}"
+        ));
+    }
+    if proposal_account.status != "Approved" {
+        return Err(anyhow!(
+            "typed proposal status is '{}', must be 'Approved' to execute",
+            proposal_account.status
+        ));
+    }
+    Ok((wallet_pubkey, proposal_pubkey, proposal_account))
+}
+
+fn ensure_typed_action(
+    proposal: &accounts::TypedProposalAccount,
+    expected: ClearSignActionKind,
+    label: &str,
+) -> Result<()> {
+    if proposal.action_kind != expected.code() {
+        return Err(anyhow!(
+            "{label} requires action kind {}, got {}",
+            expected.code(),
+            proposal.action_kind
+        ));
+    }
+    Ok(())
+}
+
+fn parse_return_row(row: &str) -> Result<(Pubkey, u64)> {
+    let (recipient, amount) = row
+        .split_once(':')
+        .ok_or_else(|| anyhow!("return row must be recipient:lamports"))?;
+    let recipient = recipient
+        .parse::<Pubkey>()
+        .with_context(|| "invalid return recipient address")?;
+    let amount = amount
+        .parse::<u64>()
+        .with_context(|| "invalid return lamports amount")?;
+    if amount == 0 {
+        return Err(anyhow!("return lamports amount must be greater than zero"));
+    }
+    Ok((recipient, amount))
+}
+
+fn vault_pubkey(wallet_pubkey: Pubkey) -> Pubkey {
+    let (vault, _) = clear_wallet_client::pda::find_vault_address(
+        &solana_address::Address::new_from_array(wallet_pubkey.to_bytes()),
+        &solana_address::Address::new_from_array(crate::instructions::program_id().to_bytes()),
+    );
+    Pubkey::new_from_array(vault.to_bytes())
 }
 
 fn typed_approve_or_cancel(

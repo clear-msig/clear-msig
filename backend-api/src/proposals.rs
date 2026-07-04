@@ -14,9 +14,9 @@ mod types;
 mod validation;
 
 use types::{
-    ExecuteProposalRequest, PrepareApproveCancelRequest, PrepareProposalCreateRequest,
-    PrepareTypedProposalCreateRequest, SignedApproveCancelRequest, SignedProposalCreateRequest,
-    SignedTypedProposalCreateRequest,
+    ExecuteProposalRequest, ExecuteTypedEscrowReleaseRequest, ExecuteTypedEscrowReturnRequest,
+    PrepareApproveCancelRequest, PrepareProposalCreateRequest, PrepareTypedProposalCreateRequest,
+    SignedApproveCancelRequest, SignedProposalCreateRequest, SignedTypedProposalCreateRequest,
 };
 use validation::{push_actor_pubkey, push_typed_pre_signed_flags, validate_typed_create_fields};
 
@@ -53,6 +53,14 @@ pub(crate) fn router() -> Router<AppState> {
         .route(
             "/wallets/{name}/proposals/{proposal}/typed-execute",
             post(execute_typed_proposal),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-escrow-release",
+            post(execute_typed_escrow_release),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-escrow-return",
+            post(execute_typed_escrow_return),
         )
         .route(
             "/wallets/{name}/proposals/{proposal}/execute/stream",
@@ -467,6 +475,85 @@ async fn execute_typed_proposal(
             ])
             .await?,
     ))
+}
+
+async fn execute_typed_escrow_release(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedEscrowReleaseRequest>,
+) -> Result<Json<Value>, ApiError> {
+    ensure_wallet_name(&name, "name")?;
+    ensure_base58(&proposal, "proposal", 32, 88)?;
+    ensure_base58(&body.recipient, "recipient", 32, 44)?;
+    ensure_non_empty(&body.escrow_id, "escrowId")?;
+    ensure_non_empty(&body.milestone_id, "milestoneId")?;
+    if body.amount_lamports == 0 {
+        return Err(ApiError::BadRequest(
+            "amountLamports must be greater than zero".into(),
+        ));
+    }
+    Ok(Json(
+        state
+            .runner
+            .run_json(vec![
+                "proposal".into(),
+                "typed-escrow-release".into(),
+                "--wallet".into(),
+                name,
+                "--proposal".into(),
+                proposal,
+                "--recipient".into(),
+                body.recipient,
+                "--amount-lamports".into(),
+                body.amount_lamports.to_string(),
+                "--escrow-id".into(),
+                body.escrow_id,
+                "--milestone-id".into(),
+                body.milestone_id,
+            ])
+            .await?,
+    ))
+}
+
+async fn execute_typed_escrow_return(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedEscrowReturnRequest>,
+) -> Result<Json<Value>, ApiError> {
+    ensure_wallet_name(&name, "name")?;
+    ensure_base58(&proposal, "proposal", 32, 88)?;
+    ensure_non_empty(&body.escrow_id, "escrowId")?;
+    if body.returns.is_empty() {
+        return Err(ApiError::BadRequest(
+            "returns must include at least one recipient".into(),
+        ));
+    }
+    if body.returns.len() > 16 {
+        return Err(ApiError::BadRequest(
+            "returns supports at most 16 recipients".into(),
+        ));
+    }
+    let mut args = vec![
+        "proposal".into(),
+        "typed-escrow-return".into(),
+        "--wallet".into(),
+        name,
+        "--proposal".into(),
+        proposal,
+        "--escrow-id".into(),
+        body.escrow_id,
+    ];
+    for row in body.returns {
+        ensure_base58(&row.recipient, "returns.recipient", 32, 44)?;
+        if row.amount_lamports == 0 {
+            return Err(ApiError::BadRequest(
+                "returns.amountLamports must be greater than zero".into(),
+            ));
+        }
+        args.push("--return".into());
+        args.push(format!("{}:{}", row.recipient, row.amount_lamports));
+    }
+    Ok(Json(state.runner.run_json(args).await?))
 }
 
 async fn stream_execute_proposal(

@@ -66,3 +66,26 @@ pub(super) struct ExecuteProposalRequest {
     pub(super) rpc_url: Option<String>,
     pub(super) broadcast: Option<bool>,
 }
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedEscrowReleaseRequest {
+    pub(super) recipient: String,
+    pub(super) amount_lamports: u64,
+    pub(super) escrow_id: String,
+    pub(super) milestone_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedEscrowReturnRequest {
+    pub(super) escrow_id: String,
+    pub(super) returns: Vec<ExecuteTypedEscrowReturnRow>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedEscrowReturnRow {
+    pub(super) recipient: String,
+    pub(super) amount_lamports: u64,
+}
