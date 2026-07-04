@@ -14,14 +14,21 @@ use std::{
 
 use crate::{ApiError, AppState};
 
+mod audit;
 mod escrow;
+mod schedule;
 
+use audit::{validate_pro_audit_event, ProAuditEvent, ProAuditEventInput, ProAuditEventsResponse};
 use escrow::{
     build_release_preview, build_return_preview, normalize_escrow_funders,
     normalize_escrow_milestones, normalize_escrow_policy, normalize_escrow_status,
     validate_pro_escrow, ProEscrowDeleteRequest, ProEscrowInput, ProEscrowRecord,
     ProEscrowReleasePreview, ProEscrowReleasePreviewRequest, ProEscrowReturnPreview,
     ProEscrowReturnPreviewRequest, ProEscrowsResponse,
+};
+use schedule::{
+    normalize_cadence, validate_pro_schedule, ProScheduleDeleteRequest, ProScheduleInput,
+    ProScheduleRecord, ProSchedulesResponse,
 };
 
 #[derive(Clone)]
@@ -36,89 +43,6 @@ struct ProStoreDocument {
     #[serde(default)]
     escrows: Vec<ProEscrowRecord>,
     audit_events: Vec<ProAuditEvent>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ProScheduleRecord {
-    id: String,
-    wallet_name: String,
-    name: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    address: Option<String>,
-    category: String,
-    amount: String,
-    asset: String,
-    cadence: String,
-    next_run: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    note: Option<String>,
-    created_at: i64,
-    updated_at: i64,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ProScheduleInput {
-    id: String,
-    name: String,
-    #[serde(default)]
-    address: Option<String>,
-    category: String,
-    amount: String,
-    asset: String,
-    cadence: String,
-    next_run: String,
-    #[serde(default)]
-    note: Option<String>,
-    created_at: Option<i64>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ProSchedulesResponse {
-    wallet_name: String,
-    schedules: Vec<ProScheduleRecord>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ProScheduleDeleteRequest {
-    id: String,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ProAuditEvent {
-    id: String,
-    wallet_name: String,
-    event_type: String,
-    title: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    reference: Option<String>,
-    #[serde(default)]
-    metadata: Value,
-    created_at: i64,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ProAuditEventInput {
-    id: Option<String>,
-    wallet_name: String,
-    event_type: String,
-    title: String,
-    #[serde(default)]
-    reference: Option<String>,
-    #[serde(default)]
-    metadata: Value,
-    created_at: Option<i64>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-struct ProAuditEventsResponse {
-    wallet_name: String,
-    events: Vec<ProAuditEvent>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -533,47 +457,11 @@ pub(crate) fn default_store_path() -> PathBuf {
     PathBuf::from("backend-api-pro-store.json")
 }
 
-fn validate_pro_schedule(input: &ProScheduleInput) -> Result<(), ApiError> {
-    ensure_non_empty(&input.id, "id")?;
-    ensure_non_empty(&input.name, "name")?;
-    ensure_non_empty(&input.category, "category")?;
-    ensure_non_empty(&input.amount, "amount")?;
-    ensure_non_empty(&input.asset, "asset")?;
-    ensure_non_empty(&input.next_run, "nextRun")?;
-    match input.category.trim().to_ascii_lowercase().as_str() {
-        "vendor" | "payroll" => {}
-        _ => {
-            return Err(ApiError::BadRequest(
-                "category must be vendor or payroll".to_string(),
-            ))
-        }
-    }
-    normalize_cadence(&input.cadence)?;
-    Ok(())
-}
-
-fn validate_pro_audit_event(input: &ProAuditEventInput) -> Result<(), ApiError> {
-    ensure_non_empty(&input.wallet_name, "walletName")?;
-    ensure_non_empty(&input.event_type, "eventType")?;
-    ensure_non_empty(&input.title, "title")?;
-    Ok(())
-}
-
 fn ensure_non_empty(value: &str, field: &str) -> Result<(), ApiError> {
     if value.trim().is_empty() {
         return Err(ApiError::BadRequest(format!("{field} must not be empty")));
     }
     Ok(())
-}
-
-fn normalize_cadence(value: &str) -> Result<String, ApiError> {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "weekly" => Ok("Weekly".to_string()),
-        "monthly" => Ok("Monthly".to_string()),
-        _ => Err(ApiError::BadRequest(
-            "cadence must be Weekly or Monthly".to_string(),
-        )),
-    }
 }
 
 fn trim_optional(value: Option<String>) -> Option<String> {
