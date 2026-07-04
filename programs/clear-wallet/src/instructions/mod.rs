@@ -12,6 +12,8 @@ pub use cancel::*;
 
 pub mod typed_proposal;
 pub use typed_proposal::*;
+pub mod typed_escrow;
+pub use typed_escrow::*;
 
 // execute kept for meta-intents (AddIntent, RemoveIntent, UpdateIntent)
 // which modify on-chain state. Custom intents go through ika_sign.

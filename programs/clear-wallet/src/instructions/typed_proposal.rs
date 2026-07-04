@@ -292,41 +292,62 @@ impl<'info> CancelTyped<'info> {
 
 impl<'info> ExecuteTyped<'info> {
     pub fn execute_typed(&mut self, args: ExecuteTypedArgs) -> Result<(), ProgramError> {
-        let clock = Clock::get()?;
-        require!(
-            self.proposal.expires_at.get() > clock.unix_timestamp.get(),
-            WalletError::Expired
-        );
-
-        let approved_at = self.proposal.approved_at.get();
-        let unlock_at = approved_at + self.intent.timelock_seconds.get() as i64;
-        require!(
-            clock.unix_timestamp.get() >= unlock_at,
-            WalletError::TimelockNotElapsed
-        );
-        require!(
-            self.proposal.action_kind == args.action_kind,
-            WalletError::InvalidClearSignEnvelope
-        );
-        require!(
-            self.proposal.policy_commitment == args.policy_commitment,
-            WalletError::InvalidClearSignEnvelope
-        );
-        require!(
-            self.proposal.payload_hash == args.payload_hash,
-            WalletError::InvalidClearSignEnvelope
-        );
-        require!(
-            self.proposal.envelope_hash == args.envelope_hash,
-            WalletError::InvalidClearSignEnvelope
-        );
-        ClearSignActionKind::from_code(args.action_kind)
-            .ok_or(WalletError::InvalidClearSignAction)?;
-
-        self.proposal.status = ProposalStatus::Executed;
-        self.intent.active_proposal_count = self.intent.active_proposal_count.saturating_sub(1);
+        verify_typed_execution_ready(
+            &self.intent,
+            &self.proposal,
+            args.action_kind,
+            args.policy_commitment,
+            args.payload_hash,
+            args.envelope_hash,
+        )?;
+        mark_typed_executed(&mut self.intent, &mut self.proposal);
         Ok(())
     }
+}
+
+pub(crate) fn verify_typed_execution_ready(
+    intent: &Intent<'_>,
+    proposal: &TypedProposal<'_>,
+    action_kind: u8,
+    policy_commitment: [u8; 32],
+    payload_hash: [u8; 32],
+    envelope_hash: [u8; 32],
+) -> Result<(), ProgramError> {
+    let clock = Clock::get()?;
+    require!(
+        proposal.expires_at.get() > clock.unix_timestamp.get(),
+        WalletError::Expired
+    );
+
+    let approved_at = proposal.approved_at.get();
+    let unlock_at = approved_at + intent.timelock_seconds.get() as i64;
+    require!(
+        clock.unix_timestamp.get() >= unlock_at,
+        WalletError::TimelockNotElapsed
+    );
+    require!(
+        proposal.action_kind == action_kind,
+        WalletError::InvalidClearSignEnvelope
+    );
+    require!(
+        proposal.policy_commitment == policy_commitment,
+        WalletError::InvalidClearSignEnvelope
+    );
+    require!(
+        proposal.payload_hash == payload_hash,
+        WalletError::InvalidClearSignEnvelope
+    );
+    require!(
+        proposal.envelope_hash == envelope_hash,
+        WalletError::InvalidClearSignEnvelope
+    );
+    ClearSignActionKind::from_code(action_kind).ok_or(WalletError::InvalidClearSignAction)?;
+    Ok(())
+}
+
+pub(crate) fn mark_typed_executed(intent: &mut Intent<'_>, proposal: &mut TypedProposal<'_>) {
+    proposal.status = ProposalStatus::Executed;
+    intent.active_proposal_count = intent.active_proposal_count.saturating_sub(1);
 }
 
 fn verify_typed_signature(

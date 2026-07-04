@@ -209,6 +209,26 @@ pub fn hash_return_escrow_funds_payload(
     finish_hash(hasher)
 }
 
+pub fn hash_return_escrow_sol_payload_iter<'a, I>(escrow_id: &[u8], returns: I) -> [u8; 32]
+where
+    I: ExactSizeIterator<Item = (&'a [u8], u64)>,
+{
+    let mut hasher = payload_hasher(ClearSignActionKind::ReturnEscrowFunds);
+    update_bytes(&mut hasher, escrow_id);
+    update_u32(&mut hasher, returns.len() as u32);
+    for (recipient, lamports) in returns {
+        update_recipient_amount(
+            &mut hasher,
+            recipient,
+            &ClearSignAmount {
+                asset: b"SOL",
+                raw_amount: lamports as u128,
+            },
+        );
+    }
+    finish_hash(hasher)
+}
+
 pub fn hash_agent_trade_payload(
     market: &[u8],
     side: &[u8],
@@ -400,6 +420,17 @@ mod tests {
             hash_return_escrow_funds_payload(b"escrow-1", &returns),
             hash_return_escrow_funds_payload(b"escrow-2", &returns)
         );
+        assert_eq!(
+            hash_return_escrow_funds_payload(b"escrow-1", &returns),
+            hash_return_escrow_sol_payload_iter(
+                b"escrow-1",
+                [
+                    (b"Alice".as_slice(), 4_500_000_000),
+                    (b"Bob".as_slice(), 3_000_000_000),
+                ]
+                .into_iter(),
+            )
+        );
     }
 
     #[test]
@@ -434,6 +465,9 @@ mod tests {
             ..release_envelope
         };
 
-        assert_ne!(hash_envelope(&release_envelope), hash_envelope(&return_envelope));
+        assert_ne!(
+            hash_envelope(&release_envelope),
+            hash_envelope(&return_envelope)
+        );
     }
 }

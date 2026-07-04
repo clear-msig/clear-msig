@@ -234,11 +234,13 @@ Typed proposal instruction discriminators are:
 | 9 | `approve_typed` |
 | 10 | `cancel_typed` |
 | 11 | `execute_typed` |
+| 12 | `execute_typed_escrow_release` |
+| 13 | `execute_typed_escrow_return` |
 
-These instructions do not move funds yet. They create, govern, and execution-gate
-typed v2 proposal accounts beside the legacy proposal flow. The next protocol
-step is to connect specific money-moving executors, starting with Pro escrow
-milestone release and return-to-funder unwind, to this typed execution gate.
+`execute_typed` remains the generic status gate. The escrow-specific
+executors additionally move SOL from the wallet vault after recomputing the
+approved typed payload hash from the recipient account(s), amount(s), escrow id,
+and milestone id.
 
 ## Security Review Snapshot: 2026-07-04
 
@@ -246,6 +248,7 @@ Reviewed surfaces:
 
 - program ClearSign v2 hashing and replay envelope
 - typed proposal propose/approve/cancel/execute instructions
+- typed SOL escrow release and return-to-funder executors
 - CLI typed proposal builders and account parser
 - backend typed proposal prepare/submit routes
 - frontend typed proposal parser, PDA derivation, proposal listing, detail
@@ -268,6 +271,8 @@ Current enforced guarantees:
 - Execute rechecks action kind, policy commitment, payload hash, envelope hash,
   approval status, expiry, and timelock before marking the typed proposal
   executed.
+- Typed SOL escrow release and return-to-funder executors recompute the payload
+  hash from the actual destination account(s) and amount(s) before moving funds.
 - Escrow release and escrow return payload hashes are domain-separated and
   tested so they cannot be swapped under the same signer approval.
 - Frontend typed proposal account parsing and typed PDA derivation are covered
@@ -275,21 +280,18 @@ Current enforced guarantees:
 
 Current explicit limitation:
 
-- Typed v2 proposal execution is a policy/status gate only. It marks the typed
-  action executed but does not yet move funds itself. Pro escrow release and
-  return flows currently create the typed v2 approval record first, then hand
-  off to the existing send/batch-send executor for actual movement. The next
-  program upgrade should add typed money-moving executors for milestone release
-  and return-to-funder unwind so the same typed action that signers approve is
-  also the action that moves funds.
+- Typed SOL escrow release and return-to-funder unwind now have program
+  executors. SPL-token escrow, BTC/EVM/Ika escrow, and encrypted private escrow
+  still need their own typed executors before they should be treated as
+  cryptographically enforced.
 
 Required before mainnet:
 
-- Add program executors for typed escrow release and typed escrow unwind.
+- Add SPL-token and cross-chain typed escrow executors.
 - Add migration/compatibility tests for legacy proposals and typed proposals
   coexisting in the same wallet proposal index space.
-- Add devnet end-to-end tests for typed proposal create -> approve -> execute
-  using deployed program bytes.
+- Add devnet end-to-end tests for typed proposal create -> approve -> typed SOL
+  escrow execute using deployed program bytes.
 - Add a typed proposal cleanup path or rent reclamation policy.
 - Re-run external review on the final deployed program ID / upgrade authority
   setup.

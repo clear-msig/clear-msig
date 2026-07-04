@@ -177,16 +177,16 @@ or could let the same signature be replayed against another proposal/wallet.
 - The program rejects expired typed proposals and caps action lifetime.
 - Execute rechecks action kind, policy commitment, payload hash, envelope hash,
   status, expiry, and timelock before marking a typed proposal executed.
+- Typed SOL escrow release and return-to-funder executors recompute the payload
+  hash from the actual destination account(s), amount(s), escrow id, and
+  milestone id before moving lamports from the wallet vault.
 - Frontend typed proposal parsing and PDA derivation now have regression tests,
   so v2 proposal inbox/detail UI does not silently drift from program layout.
 
-**What this does NOT mitigate yet.** Typed proposal execution is currently an
-approval/status gate. It does not itself move escrow funds. Pro escrow release
-and return flows first create the typed v2 approval record, then hand off to the
-existing send/batch-send executor for actual movement. The next Solana program
-upgrade must add typed money-moving executors for milestone release and
-return-to-funder unwind so the same canonical typed action both gets approved
-and moves funds.
+**What this does NOT mitigate yet.** Typed SOL escrow release and
+return-to-funder unwind are covered by program executors. SPL-token escrow,
+BTC/EVM/Ika escrow, and encrypted private escrow still need asset-specific
+typed executors before they should be treated as cryptographically enforced.
 
 ## Posture summary
 

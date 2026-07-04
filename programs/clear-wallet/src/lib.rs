@@ -210,4 +210,45 @@ pub mod clear_wallet {
             envelope_hash,
         })
     }
+
+    #[instruction(discriminator = 12)]
+    pub fn execute_typed_escrow_release(
+        ctx: Ctx<ExecuteTypedEscrowRelease>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        amount_lamports: u64,
+        escrow_id: &[u8],
+        milestone_id: &[u8],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed_escrow_release(
+            ExecuteTypedEscrowReleaseArgs {
+                policy_commitment,
+                envelope_hash,
+                escrow_id,
+                milestone_id,
+                amount_lamports,
+            },
+            &ctx.bumps,
+        )
+    }
+
+    #[instruction(discriminator = 13)]
+    pub fn execute_typed_escrow_return(
+        ctx: CtxWithRemaining<ExecuteTypedEscrowReturn>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        amount_lamports_le: &[u8],
+        escrow_id: &[u8],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed_escrow_return(
+            ExecuteTypedEscrowReturnArgs {
+                policy_commitment,
+                envelope_hash,
+                escrow_id,
+                amount_lamports_le,
+            },
+            &ctx.bumps,
+            ctx.remaining_accounts_passthrough(),
+        )
+    }
 }
