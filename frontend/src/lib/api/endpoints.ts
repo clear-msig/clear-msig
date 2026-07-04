@@ -224,6 +224,42 @@ export const backendApi = {
       ),
     ),
 
+  executeTypedEscrowRelease: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      recipient: string;
+      amountLamports: number;
+      escrowId: string;
+      milestoneId: string;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-escrow-release`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
+  executeTypedEscrowReturn: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      escrowId: string;
+      returns: Array<{ recipient: string; amountLamports: number }>;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-escrow-return`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
   cleanupProposal: (proposalAddress: string) =>
     apiRequest<Record<string, unknown>, Record<string, never>>(
       `/proposals/${encodeURIComponent(proposalAddress)}/cleanup`,

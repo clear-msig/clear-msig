@@ -29,7 +29,6 @@ import {
   previewProEscrowRelease,
   previewProEscrowReturn,
   recordProEscrowUnwindPrepared,
-  saveProBatchPrefill,
   useProEscrows,
   type ProEscrowFunder,
   type ProEscrowMilestone,
@@ -62,8 +61,20 @@ interface PreparedEscrowAction {
   title: string;
   summary: BackendClearSignSummary;
   dry: TypedDryRunDescriptor;
-  href: string;
   cta: string;
+  execute:
+    | {
+        kind: "release";
+        recipient: string;
+        amountLamports: number;
+        escrowId: string;
+        milestoneId: string;
+      }
+    | {
+        kind: "return";
+        escrowId: string;
+        returns: Array<{ recipient: string; amountLamports: number }>;
+      };
 }
 
 const emptyDraft: EscrowDraft = {
@@ -336,11 +347,9 @@ function EscrowProjectCard({
   onRemove: () => void;
 }) {
   const toast = useToast();
-  const router = useRouter();
   const wallet = useWallet();
   const { connection } = useConnection();
   const { signTypedDescriptor } = useSignWithWallet();
-  const encoded = encodeURIComponent(walletName);
   const funded = escrowFundedAmount(project);
   const released = escrowReleasedAmount(project);
   const remaining = Math.max(0, funded - released);
@@ -428,12 +437,20 @@ function EscrowProjectCard({
     setPreparing("return");
     try {
       let rows = returnRows;
+      let executeReturns = returnRows.map((row) => ({
+        recipient: row.recipient,
+        amountLamports: solToLamportsNumber(row.amount),
+      }));
       let signingProject = project;
       try {
         const preview = await previewProEscrowReturn(walletName, project);
         rows = preview.returns.map((row) => ({
           recipient: row.recipient,
           amount: row.amount,
+        }));
+        executeReturns = preview.returns.map((row) => ({
+          recipient: row.recipient,
+          amountLamports: rawLamportsToNumber(row.rawAmount),
         }));
         signingProject = { ...project, policy: preview.policy };
       } catch {
@@ -447,7 +464,6 @@ function EscrowProjectCard({
           rows,
         }),
       );
-      const prefill = saveProBatchPrefill(walletName, rows);
       void recordProEscrowUnwindPrepared({
         walletName,
         project: signingProject,
@@ -457,8 +473,12 @@ function EscrowProjectCard({
         title: "Return funds",
         summary,
         dry,
-        href: `/app/wallet/${encoded}/send/batch?prefill=${prefill}`,
-        cta: "Approve and continue",
+        cta: "Approve return",
+        execute: {
+          kind: "return",
+          escrowId: signingProject.id,
+          returns: executeReturns,
+        },
       });
     } catch (err) {
       const fe = friendlyError(err, "generic");
@@ -473,6 +493,7 @@ function EscrowProjectCard({
     try {
       let signingProject = project;
       let signingMilestone = milestone;
+      let amountLamports = solToLamportsNumber(milestone.amount);
       try {
         const preview = await previewProEscrowRelease(
           walletName,
@@ -487,6 +508,7 @@ function EscrowProjectCard({
           recipient: preview.recipient,
           recipientEntity: preview.recipientEntity,
         };
+        amountLamports = rawLamportsToNumber(preview.rawAmount);
       } catch {
         // See prepareReturn: backend preview is preferred, local flow remains
         // available for local/dev deployments that have not caught up.
@@ -498,17 +520,18 @@ function EscrowProjectCard({
           milestone: signingMilestone,
         }),
       );
-      const params = new URLSearchParams({
-        recipient: signingMilestone.recipient,
-        amount: signingMilestone.amount,
-        note: `${signingProject.title} - ${signingMilestone.title}`,
-      });
       setPrepared({
         title: "Release milestone",
         summary,
         dry,
-        href: `/app/wallet/${encoded}/send?${params.toString()}`,
-        cta: "Approve and continue",
+        cta: "Approve release",
+        execute: {
+          kind: "release",
+          recipient: signingMilestone.recipient,
+          amountLamports,
+          escrowId: signingProject.id,
+          milestoneId: signingMilestone.id,
+        },
       });
     } catch (err) {
       const fe = friendlyError(err, "generic");
@@ -535,7 +558,7 @@ function EscrowProjectCard({
       const signed = await signTypedDescriptor(prepared.dry, {
         preferSigner: proposerPk,
       });
-      await backendApi.submit.createTypedProposal(walletName, {
+      const created = await backendApi.submit.createTypedProposal(walletName, {
         ...signed,
         expiry: prepared.dry.expiry,
         intent_index: prepared.dry.intent_index,
@@ -546,8 +569,41 @@ function EscrowProjectCard({
         action_id: prepared.dry.action_id,
         nonce: prepared.dry.nonce,
       });
-      toast.success("Escrow action approved");
-      router.push(prepared.href);
+      const proposalAddress = getStringField(created, "proposal");
+      if (!proposalAddress) {
+        throw new Error("Approval was created, but no proposal address returned.");
+      }
+      try {
+        if (prepared.execute.kind === "release") {
+          await backendApi.executeTypedEscrowRelease(
+            walletName,
+            proposalAddress,
+            {
+              recipient: prepared.execute.recipient,
+              amountLamports: prepared.execute.amountLamports,
+              escrowId: prepared.execute.escrowId,
+              milestoneId: prepared.execute.milestoneId,
+            },
+          );
+          onRelease(prepared.execute.escrowId, prepared.execute.milestoneId);
+          toast.success("Milestone released");
+        } else {
+          await backendApi.executeTypedEscrowReturn(walletName, proposalAddress, {
+            escrowId: prepared.execute.escrowId,
+            returns: prepared.execute.returns,
+          });
+          onUpdate(prepared.execute.escrowId, { status: "returned" });
+          toast.success("Funds returned");
+        }
+        setPrepared(null);
+      } catch (executeError) {
+        if (needsMoreApprovals(executeError)) {
+          toast.success("Approval requested");
+          setPrepared(null);
+          return;
+        }
+        throw executeError;
+      }
     } catch (err) {
       const fe = friendlyError(err, "generic");
       toast.error(fe.title, { details: fe.body, durationMs: fe.durationMs });
@@ -715,6 +771,47 @@ function EscrowProjectCard({
       ) : null}
     </article>
   );
+}
+
+function getStringField(value: unknown, key: string): string | null {
+  if (!value || typeof value !== "object") return null;
+  const maybe = (value as Record<string, unknown>)[key];
+  return typeof maybe === "string" && maybe.trim() ? maybe.trim() : null;
+}
+
+function needsMoreApprovals(error: unknown): boolean {
+  const text =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : JSON.stringify(error);
+  return /must be 'Approved'|ProposalNotApproved|not approved|needs approval/i.test(
+    text,
+  );
+}
+
+function rawLamportsToNumber(value: string): number {
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new Error("Escrow amount is too large for this browser.");
+  }
+  return parsed;
+}
+
+function solToLamportsNumber(value: string): number {
+  const normalized = value.trim();
+  if (!/^\d+(\.\d{1,9})?$/.test(normalized)) {
+    throw new Error("Enter a SOL amount with up to 9 decimals.");
+  }
+  const [whole, frac = ""] = normalized.split(".");
+  const lamports =
+    BigInt(whole) * 1_000_000_000n +
+    BigInt((frac + "000000000").slice(0, 9));
+  if (lamports <= 0n || lamports > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error("Escrow amount is too large for this browser.");
+  }
+  return Number(lamports);
 }
 
 function MilestoneRow({
