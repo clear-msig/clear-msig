@@ -395,14 +395,14 @@ function canonicalPayloadBytes(
     }
     case "release_milestone": {
       const row = normalizePayload(kind, payload) as MilestonePayload;
-      out.pushBytes(row.escrowId || row.escrowTitle);
-      out.pushBytes(row.milestoneId || row.milestoneTitle);
+      out.pushBytes(textCommitment(row.escrowId || row.escrowTitle));
+      out.pushBytes(textCommitment(row.milestoneId || row.milestoneTitle));
       out.pushRecipientAmount(row);
       break;
     }
     case "return_escrow_funds": {
       const row = normalizePayload(kind, payload) as EscrowReturnPayload;
-      out.pushBytes(row.escrowId || row.escrowTitle);
+      out.pushBytes(textCommitment(row.escrowId || row.escrowTitle));
       out.pushU32(row.returns.length);
       row.returns.forEach((item) => out.pushRecipientAmount(item));
       break;
@@ -457,6 +457,10 @@ function normalizeHash(value: string): string {
 
 function normalizeNumber(value: number): number {
   return Number.isFinite(value) ? Number(value) : 0;
+}
+
+function textCommitment(value: string): Uint8Array {
+  return sha256(enc.encode(normalizeText(value)));
 }
 
 function normalizeDecimal(value: string): string {

@@ -38,24 +38,27 @@ pub(super) fn hash_payload(
             let row = recipient_amount(payload)?;
             update_bytes(
                 &mut hasher,
-                payload_text(payload, "escrowId")
-                    .or_else(|_| payload_text(payload, "escrowTitle"))?
-                    .as_bytes(),
+                &text_commitment(
+                    &payload_text(payload, "escrowId")
+                        .or_else(|_| payload_text(payload, "escrowTitle"))?,
+                ),
             );
             update_bytes(
                 &mut hasher,
-                payload_text(payload, "milestoneId")
-                    .or_else(|_| payload_text(payload, "milestoneTitle"))?
-                    .as_bytes(),
+                &text_commitment(
+                    &payload_text(payload, "milestoneId")
+                        .or_else(|_| payload_text(payload, "milestoneTitle"))?,
+                ),
             );
             update_recipient_amount(&mut hasher, &row);
         }
         ClearSignActionKind::ReturnEscrowFunds => {
             update_bytes(
                 &mut hasher,
-                payload_text(payload, "escrowId")
-                    .or_else(|_| payload_text(payload, "escrowTitle"))?
-                    .as_bytes(),
+                &text_commitment(
+                    &payload_text(payload, "escrowId")
+                        .or_else(|_| payload_text(payload, "escrowTitle"))?,
+                ),
             );
             let rows = payload
                 .get("returns")
@@ -181,6 +184,10 @@ fn payload_hasher(kind: ClearSignActionKind) -> Sha256 {
     update_bytes(&mut hasher, CLEARSIGN_V2_PAYLOAD_DOMAIN);
     hasher.update([kind.code()]);
     hasher
+}
+
+pub(super) fn text_commitment(value: &str) -> [u8; 32] {
+    Sha256::digest(value.trim().as_bytes()).into()
 }
 
 pub(super) fn update_amount(hasher: &mut Sha256, money: &Money) {
