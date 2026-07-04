@@ -164,5 +164,7 @@ jobs:
           name: clear_wallet-so
           path: target/deploy
 
-      - name: Run typed escrow SVM tests
-        run: cargo test -p clear-wallet test_execute_typed_escrow -- --nocapture
+      - name: Run typed execution SVM tests
+        run: |
+          cargo test -p clear-wallet test_execute_typed_escrow -- --nocapture
+          cargo test -p clear-wallet test_execute_typed_sol -- --nocapture
