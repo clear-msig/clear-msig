@@ -1,5 +1,7 @@
 use serde_json::Value;
+use sha2::Sha256;
 
+use super::hash::{update_amount, update_bytes};
 use crate::ApiError;
 
 #[derive(Debug)]
@@ -39,6 +41,11 @@ pub(super) fn recipient_amount(value: &Value) -> Result<RecipientAmount, ApiErro
             payload_text(value, "asset")?,
         )?,
     })
+}
+
+pub(super) fn update_recipient_amount(hasher: &mut Sha256, row: &RecipientAmount) {
+    update_bytes(hasher, row.recipient.as_bytes());
+    update_amount(hasher, &row.money);
 }
 
 pub(super) fn payload_text(payload: &Value, field: &str) -> Result<String, ApiError> {
