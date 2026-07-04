@@ -4,9 +4,10 @@ use alloc::vec::Vec;
 use {
     crate::clear_wallet::cpi::*,
     crate::utils::clearsign::{
-        hash_envelope, hash_policy_commitment, hash_release_milestone_payload,
-        hash_return_escrow_sol_payload_iter, hash_vote_message, ClearSignActionKind,
-        ClearSignAmount, ClearSignEnvelope, ClearSignVoteKind,
+        hash_batch_send_sol_payload_iter, hash_envelope, hash_policy_commitment,
+        hash_release_milestone_payload, hash_return_escrow_sol_payload_iter, hash_send_payload,
+        hash_vote_message, ClearSignActionKind, ClearSignAmount, ClearSignEnvelope,
+        ClearSignVoteKind,
     },
     alloc::vec,
     clear_wallet_client::{
@@ -391,6 +392,66 @@ fn build_execute_typed_escrow_return_ix(
     wincode::serialize_into(&mut data, &policy_commitment).unwrap();
     wincode::serialize_into(&mut data, &envelope_hash).unwrap();
     wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    data.extend_from_slice(&amount_lamports_le);
+
+    let mut accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(vault, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new_readonly(quasar_svm::system_program::ID, false),
+    ];
+    accounts.extend(remaining_accounts);
+
+    Instruction {
+        program_id: crate::ID,
+        accounts,
+        data,
+    }
+}
+
+fn build_execute_typed_sol_send_ix(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    recipient: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_lamports: u64,
+) -> Instruction {
+    let (vault, _) = find_vault_address(&wallet, &crate::ID);
+    let mut data = vec![14u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &amount_lamports).unwrap();
+
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new(vault, false),
+            AccountMeta::new(intent, false),
+            AccountMeta::new(proposal, false),
+            AccountMeta::new(recipient, false),
+            AccountMeta::new_readonly(quasar_svm::system_program::ID, false),
+        ],
+        data,
+    }
+}
+
+fn build_execute_typed_sol_batch_send_ix(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_lamports_le: Vec<u8>,
+    remaining_accounts: Vec<AccountMeta>,
+) -> Instruction {
+    let (vault, _) = find_vault_address(&wallet, &crate::ID);
+    let mut data = vec![15u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
     data.extend_from_slice(&amount_lamports_le);
 
     let mut accounts = vec![
@@ -794,6 +855,246 @@ fn test_execute_typed_escrow_return_moves_sol_to_funders() {
     );
     assert_eq!(
         svm.get_account(&funder_b).map(|a| a.lamports).unwrap_or(0),
+        amount_b
+    );
+    assert_eq!(
+        svm.get_account(&vault).map(|a| a.lamports).unwrap_or(0),
+        vault_pre - total
+    );
+    assert_eq!(
+        svm.get_account(&proposal).unwrap().data[105],
+        2,
+        "typed proposal should be Executed(2)"
+    );
+}
+
+#[test]
+fn test_execute_typed_sol_send_moves_sol() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let wallet_name = "typed-sol-send";
+    let recipient = Pubkey::new_unique();
+    let amount_lamports = 1_750_000u64;
+    let action_id = sha256_hash(b"sol-send-action-1");
+    let nonce = sha256_hash(b"sol-send-nonce-1");
+    let expiry = typed_test_expiry();
+
+    let (instruction, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&proposer)],
+        1,
+    );
+    assert!(svm.process_instruction(&instruction, &accounts).is_ok());
+
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let proposal_index = 0u64;
+    let proposal = get_typed_proposal_address(intent, proposal_index);
+    let policy_commitment = hash_policy_commitment(&[b"send:sol"]);
+    let payload_hash = hash_send_payload(
+        recipient.as_ref(),
+        &ClearSignAmount {
+            asset: b"SOL",
+            raw_amount: amount_lamports as u128,
+        },
+    );
+    let envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::Send,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: action_id.as_ref(),
+        nonce: nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment,
+        payload_hash,
+    });
+
+    let propose = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent,
+        proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::Send.code(),
+        policy_commitment,
+        payload_hash,
+        envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_typed_vote(
+            &proposer,
+            ClearSignVoteKind::Propose,
+            wallet,
+            proposal_index,
+            envelope_hash,
+        ),
+        action_id,
+        nonce,
+    });
+    let result =
+        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
+    assert!(
+        result.is_ok(),
+        "typed SOL send propose failed: {:?}",
+        result.raw_result
+    );
+
+    let vault = fund_vault(&mut svm, payer, wallet, amount_lamports + 1_000_000);
+    let vault_pre = svm.get_account(&vault).map(|a| a.lamports).unwrap_or(0);
+    let execute = build_execute_typed_sol_send_ix(
+        wallet,
+        intent,
+        proposal,
+        recipient,
+        policy_commitment,
+        envelope_hash,
+        amount_lamports,
+    );
+    let result = svm.process_instruction(&execute, &[empty_account(recipient)]);
+    assert!(
+        result.is_ok(),
+        "typed SOL send execute failed: {:?}",
+        result.raw_result
+    );
+
+    assert_eq!(
+        svm.get_account(&recipient).map(|a| a.lamports).unwrap_or(0),
+        amount_lamports
+    );
+    assert_eq!(
+        svm.get_account(&vault).map(|a| a.lamports).unwrap_or(0),
+        vault_pre - amount_lamports
+    );
+    assert_eq!(
+        svm.get_account(&proposal).unwrap().data[105],
+        2,
+        "typed proposal should be Executed(2)"
+    );
+}
+
+#[test]
+fn test_execute_typed_sol_batch_send_moves_sol_to_recipients() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let wallet_name = "typed-sol-batch";
+    let recipient_a = Pubkey::new_unique();
+    let recipient_b = Pubkey::new_unique();
+    let amount_a = 2_000_000u64;
+    let amount_b = 3_250_000u64;
+    let action_id = sha256_hash(b"sol-batch-action-1");
+    let nonce = sha256_hash(b"sol-batch-nonce-1");
+    let expiry = typed_test_expiry();
+
+    let (instruction, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&proposer)],
+        1,
+    );
+    assert!(svm.process_instruction(&instruction, &accounts).is_ok());
+
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let proposal_index = 0u64;
+    let proposal = get_typed_proposal_address(intent, proposal_index);
+    let policy_commitment = hash_policy_commitment(&[b"batch:sol"]);
+    let payload_hash = hash_batch_send_sol_payload_iter(
+        [
+            (recipient_a.as_ref(), amount_a),
+            (recipient_b.as_ref(), amount_b),
+        ]
+        .into_iter(),
+    );
+    let envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::BatchSend,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: action_id.as_ref(),
+        nonce: nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment,
+        payload_hash,
+    });
+
+    let propose = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent,
+        proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::BatchSend.code(),
+        policy_commitment,
+        payload_hash,
+        envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_typed_vote(
+            &proposer,
+            ClearSignVoteKind::Propose,
+            wallet,
+            proposal_index,
+            envelope_hash,
+        ),
+        action_id,
+        nonce,
+    });
+    let result =
+        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
+    assert!(
+        result.is_ok(),
+        "typed SOL batch propose failed: {:?}",
+        result.raw_result
+    );
+
+    let total = amount_a + amount_b;
+    let vault = fund_vault(&mut svm, payer, wallet, total + 1_000_000);
+    let vault_pre = svm.get_account(&vault).map(|a| a.lamports).unwrap_or(0);
+    let mut amount_bytes = Vec::new();
+    amount_bytes.extend_from_slice(&amount_a.to_le_bytes());
+    amount_bytes.extend_from_slice(&amount_b.to_le_bytes());
+    let execute = build_execute_typed_sol_batch_send_ix(
+        wallet,
+        intent,
+        proposal,
+        policy_commitment,
+        envelope_hash,
+        amount_bytes,
+        vec![
+            AccountMeta::new(recipient_a, false),
+            AccountMeta::new(recipient_b, false),
+        ],
+    );
+    let result = svm.process_instruction(
+        &execute,
+        &[empty_account(recipient_a), empty_account(recipient_b)],
+    );
+    assert!(
+        result.is_ok(),
+        "typed SOL batch execute failed: {:?}",
+        result.raw_result
+    );
+
+    assert_eq!(
+        svm.get_account(&recipient_a)
+            .map(|a| a.lamports)
+            .unwrap_or(0),
+        amount_a
+    );
+    assert_eq!(
+        svm.get_account(&recipient_b)
+            .map(|a| a.lamports)
+            .unwrap_or(0),
         amount_b
     );
     assert_eq!(

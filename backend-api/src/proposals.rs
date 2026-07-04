@@ -15,8 +15,9 @@ mod validation;
 
 use types::{
     ExecuteProposalRequest, ExecuteTypedEscrowReleaseRequest, ExecuteTypedEscrowReturnRequest,
-    PrepareApproveCancelRequest, PrepareProposalCreateRequest, PrepareTypedProposalCreateRequest,
-    SignedApproveCancelRequest, SignedProposalCreateRequest, SignedTypedProposalCreateRequest,
+    ExecuteTypedSolBatchSendRequest, ExecuteTypedSolSendRequest, PrepareApproveCancelRequest,
+    PrepareProposalCreateRequest, PrepareTypedProposalCreateRequest, SignedApproveCancelRequest,
+    SignedProposalCreateRequest, SignedTypedProposalCreateRequest,
 };
 use validation::{push_actor_pubkey, push_typed_pre_signed_flags, validate_typed_create_fields};
 
@@ -61,6 +62,14 @@ pub(crate) fn router() -> Router<AppState> {
         .route(
             "/wallets/{name}/proposals/{proposal}/typed-escrow-return",
             post(execute_typed_escrow_return),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-sol-send",
+            post(execute_typed_sol_send),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-sol-batch-send",
+            post(execute_typed_sol_batch_send),
         )
         .route(
             "/wallets/{name}/proposals/{proposal}/execute/stream",
@@ -551,6 +560,76 @@ async fn execute_typed_escrow_return(
             ));
         }
         args.push("--return".into());
+        args.push(format!("{}:{}", row.recipient, row.amount_lamports));
+    }
+    Ok(Json(state.runner.run_json(args).await?))
+}
+
+async fn execute_typed_sol_send(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedSolSendRequest>,
+) -> Result<Json<Value>, ApiError> {
+    ensure_wallet_name(&name, "name")?;
+    ensure_base58(&proposal, "proposal", 32, 88)?;
+    ensure_base58(&body.recipient, "recipient", 32, 44)?;
+    if body.amount_lamports == 0 {
+        return Err(ApiError::BadRequest(
+            "amountLamports must be greater than zero".into(),
+        ));
+    }
+    Ok(Json(
+        state
+            .runner
+            .run_json(vec![
+                "proposal".into(),
+                "typed-sol-send".into(),
+                "--wallet".into(),
+                name,
+                "--proposal".into(),
+                proposal,
+                "--recipient".into(),
+                body.recipient,
+                "--amount-lamports".into(),
+                body.amount_lamports.to_string(),
+            ])
+            .await?,
+    ))
+}
+
+async fn execute_typed_sol_batch_send(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedSolBatchSendRequest>,
+) -> Result<Json<Value>, ApiError> {
+    ensure_wallet_name(&name, "name")?;
+    ensure_base58(&proposal, "proposal", 32, 88)?;
+    if body.payments.is_empty() {
+        return Err(ApiError::BadRequest(
+            "payments must include at least one recipient".into(),
+        ));
+    }
+    if body.payments.len() > 16 {
+        return Err(ApiError::BadRequest(
+            "payments supports at most 16 recipients".into(),
+        ));
+    }
+    let mut args = vec![
+        "proposal".into(),
+        "typed-sol-batch-send".into(),
+        "--wallet".into(),
+        name,
+        "--proposal".into(),
+        proposal,
+    ];
+    for row in body.payments {
+        ensure_base58(&row.recipient, "payments.recipient", 32, 44)?;
+        if row.amount_lamports == 0 {
+            return Err(ApiError::BadRequest(
+                "payments.amountLamports must be greater than zero".into(),
+            ));
+        }
+        args.push("--payment".into());
         args.push(format!("{}:{}", row.recipient, row.amount_lamports));
     }
     Ok(Json(state.runner.run_json(args).await?))

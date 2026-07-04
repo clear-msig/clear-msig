@@ -251,4 +251,39 @@ pub mod clear_wallet {
             ctx.remaining_accounts_passthrough(),
         )
     }
+
+    #[instruction(discriminator = 14)]
+    pub fn execute_typed_sol_send(
+        ctx: Ctx<ExecuteTypedSolSend>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        amount_lamports: u64,
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed_sol_send(
+            ExecuteTypedSolSendArgs {
+                policy_commitment,
+                envelope_hash,
+                amount_lamports,
+            },
+            &ctx.bumps,
+        )
+    }
+
+    #[instruction(discriminator = 15)]
+    pub fn execute_typed_sol_batch_send(
+        ctx: CtxWithRemaining<ExecuteTypedSolBatchSend>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        amount_lamports_le: &[u8],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed_sol_batch_send(
+            ExecuteTypedSolBatchSendArgs {
+                policy_commitment,
+                envelope_hash,
+                amount_lamports_le,
+            },
+            &ctx.bumps,
+            ctx.remaining_accounts_passthrough(),
+        )
+    }
 }

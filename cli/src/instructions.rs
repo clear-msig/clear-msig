@@ -384,6 +384,71 @@ pub fn execute_typed_escrow_return(
     }
 }
 
+/// Build execute_typed_sol_send instruction (ClearSign v2 discriminator 14).
+#[allow(dead_code)]
+pub fn execute_typed_sol_send(
+    wallet: Pubkey,
+    vault: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    recipient: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_lamports: u64,
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(vault, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new(recipient, false),
+        AccountMeta::new_readonly(solana_sdk::system_program::id(), false),
+    ];
+    let mut data = vec![14u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &amount_lamports).unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
+/// Build execute_typed_sol_batch_send instruction (ClearSign v2 discriminator 15).
+#[allow(dead_code)]
+pub fn execute_typed_sol_batch_send(
+    wallet: Pubkey,
+    vault: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_lamports_le: &[u8],
+    recipients: Vec<AccountMeta>,
+) -> Instruction {
+    let mut accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(vault, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new_readonly(solana_sdk::system_program::id(), false),
+    ];
+    accounts.extend(recipients);
+
+    let mut data = vec![15u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    data.extend_from_slice(amount_lamports_le);
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
 /// Build cleanup_proposal instruction.
 pub fn cleanup(proposal: Pubkey, rent_refund: Pubkey) -> Instruction {
     let accounts = vec![
@@ -609,5 +674,43 @@ mod tests {
         assert!(!unwind.accounts[4].is_writable);
         assert!(unwind.accounts[5].is_writable);
         assert!(unwind.accounts[6].is_writable);
+    }
+
+    #[test]
+    fn typed_sol_send_executors_use_expected_accounts_and_discriminators() {
+        let send = execute_typed_sol_send(
+            key(1),
+            key(2),
+            key(3),
+            key(4),
+            key(5),
+            [6; 32],
+            [7; 32],
+            1_000_000,
+        );
+        let batch = execute_typed_sol_batch_send(
+            key(1),
+            key(2),
+            key(3),
+            key(4),
+            [6; 32],
+            [7; 32],
+            &1_000_000u64.to_le_bytes(),
+            vec![AccountMeta::new(key(8), false)],
+        );
+
+        assert_eq!(send.data[0], 14);
+        assert_eq!(batch.data[0], 15);
+        assert_eq!(send.accounts.len(), 6);
+        assert_eq!(batch.accounts.len(), 6);
+        assert!(!send.accounts[0].is_writable);
+        assert!(send.accounts[1].is_writable);
+        assert!(send.accounts[2].is_writable);
+        assert!(send.accounts[3].is_writable);
+        assert!(send.accounts[4].is_writable);
+        assert!(!send.accounts[5].is_writable);
+        assert!(batch.accounts[1].is_writable);
+        assert!(!batch.accounts[4].is_writable);
+        assert!(batch.accounts[5].is_writable);
     }
 }

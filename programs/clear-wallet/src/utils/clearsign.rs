@@ -187,6 +187,25 @@ pub fn hash_batch_send_payload(recipients: &[ClearSignRecipientAmount<'_>]) -> [
     finish_hash(hasher)
 }
 
+pub fn hash_batch_send_sol_payload_iter<'a, I>(recipients: I) -> [u8; 32]
+where
+    I: ExactSizeIterator<Item = (&'a [u8], u64)>,
+{
+    let mut hasher = payload_hasher(ClearSignActionKind::BatchSend);
+    update_u32(&mut hasher, recipients.len() as u32);
+    for (recipient, lamports) in recipients {
+        update_recipient_amount(
+            &mut hasher,
+            recipient,
+            &ClearSignAmount {
+                asset: b"SOL",
+                raw_amount: lamports as u128,
+            },
+        );
+    }
+    finish_hash(hasher)
+}
+
 pub fn hash_release_milestone_payload(
     escrow_id: &[u8],
     milestone_id: &[u8],

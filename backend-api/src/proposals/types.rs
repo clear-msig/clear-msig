@@ -89,3 +89,23 @@ pub(super) struct ExecuteTypedEscrowReturnRow {
     pub(super) recipient: String,
     pub(super) amount_lamports: u64,
 }
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedSolSendRequest {
+    pub(super) recipient: String,
+    pub(super) amount_lamports: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedSolBatchSendRequest {
+    pub(super) payments: Vec<ExecuteTypedSolBatchSendRow>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedSolBatchSendRow {
+    pub(super) recipient: String,
+    pub(super) amount_lamports: u64,
+}

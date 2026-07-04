@@ -96,6 +96,28 @@ pub enum ProposalAction {
         #[arg(long = "return")]
         returns: Vec<String>,
     },
+    /// Execute an approved typed SOL send.
+    TypedSolSend {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        recipient: String,
+        #[arg(long)]
+        amount_lamports: u64,
+    },
+    /// Execute an approved typed SOL batch send.
+    ///
+    /// Pass one `--payment recipient:lamports` per recipient.
+    TypedSolBatchSend {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long = "payment")]
+        payments: Vec<String>,
+    },
     /// Approve an existing proposal
     Approve {
         #[arg(long)]
@@ -564,6 +586,114 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 "path": "typed_escrow_return",
                 "status": "executed",
                 "returns": parsed_returns
+                    .iter()
+                    .map(|(recipient, lamports)| serde_json::json!({
+                        "recipient": recipient.to_string(),
+                        "amount_lamports": lamports,
+                    }))
+                    .collect::<Vec<_>>(),
+            }));
+        }
+
+        ProposalAction::TypedSolSend {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            recipient,
+            amount_lamports,
+        } => {
+            if amount_lamports == 0 {
+                return Err(anyhow!("amount-lamports must be greater than zero"));
+            }
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::Send,
+                "typed SOL send",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let recipient_pubkey: Pubkey = recipient
+                .parse()
+                .with_context(|| "invalid recipient address")?;
+            let ix = crate::instructions::execute_typed_sol_send(
+                wallet_pubkey,
+                vault_pubkey(wallet_pubkey),
+                intent_pubkey,
+                proposal_pubkey,
+                recipient_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                amount_lamports,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_sol_send",
+                "status": "executed",
+                "recipient": recipient_pubkey.to_string(),
+                "amount_lamports": amount_lamports,
+            }));
+        }
+
+        ProposalAction::TypedSolBatchSend {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            payments,
+        } => {
+            if payments.is_empty() {
+                return Err(anyhow!(
+                    "at least one --payment recipient:lamports is required"
+                ));
+            }
+            if payments.len() > 16 {
+                return Err(anyhow!(
+                    "typed SOL batch send supports at most 16 recipients"
+                ));
+            }
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::BatchSend,
+                "typed SOL batch send",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let parsed_payments = payments
+                .iter()
+                .map(|row| parse_recipient_lamports_row(row, "payment"))
+                .collect::<Result<Vec<_>>>()?;
+            let mut amount_bytes = Vec::with_capacity(parsed_payments.len() * 8);
+            let mut recipient_accounts = Vec::with_capacity(parsed_payments.len());
+            for (recipient, lamports) in &parsed_payments {
+                amount_bytes.extend_from_slice(&lamports.to_le_bytes());
+                recipient_accounts.push(AccountMeta::new(*recipient, false));
+            }
+            let ix = crate::instructions::execute_typed_sol_batch_send(
+                wallet_pubkey,
+                vault_pubkey(wallet_pubkey),
+                intent_pubkey,
+                proposal_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                &amount_bytes,
+                recipient_accounts,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_sol_batch_send",
+                "status": "executed",
+                "payments": parsed_payments
                     .iter()
                     .map(|(recipient, lamports)| serde_json::json!({
                         "recipient": recipient.to_string(),
@@ -1430,17 +1560,21 @@ fn ensure_typed_action(
 }
 
 fn parse_return_row(row: &str) -> Result<(Pubkey, u64)> {
+    parse_recipient_lamports_row(row, "return")
+}
+
+fn parse_recipient_lamports_row(row: &str, label: &str) -> Result<(Pubkey, u64)> {
     let (recipient, amount) = row
         .split_once(':')
-        .ok_or_else(|| anyhow!("return row must be recipient:lamports"))?;
+        .ok_or_else(|| anyhow!("{label} row must be recipient:lamports"))?;
     let recipient = recipient
         .parse::<Pubkey>()
-        .with_context(|| "invalid return recipient address")?;
+        .with_context(|| format!("invalid {label} recipient address"))?;
     let amount = amount
         .parse::<u64>()
-        .with_context(|| "invalid return lamports amount")?;
+        .with_context(|| format!("invalid {label} lamports amount"))?;
     if amount == 0 {
-        return Err(anyhow!("return lamports amount must be greater than zero"));
+        return Err(anyhow!("{label} lamports amount must be greater than zero"));
     }
     Ok((recipient, amount))
 }
