@@ -159,6 +159,35 @@ The product is in pre-alpha. Some load-bearing mitigations (FHE-encrypted polici
 
 **What this does NOT mitigate.** Upstream-blocked. When Dynamic and `@solana/spl-token` ship updated transitives, re-run `npm audit` and bump.
 
+### O. ClearSign v2 typed proposals
+
+**Vector.** The product now creates typed v2 approval records for escrow and
+future protected actions. A bad implementation could let a signer approve one
+human-readable action while the program records or executes a different action,
+or could let the same signature be replayed against another proposal/wallet.
+
+**Mitigation today.**
+- The program domain-separates action payload hashes, envelope hashes, and vote
+  hashes in `programs/clear-wallet/src/utils/clearsign.rs`.
+- Typed proposal signatures bind vote kind, wallet PDA, proposal index, and
+  envelope hash. Propose, approve, and cancel votes are not interchangeable.
+- The program recomputes the envelope hash from action kind, wallet name,
+  wallet PDA, action id, nonce, expiry, policy commitment, and payload hash
+  before storing a typed proposal.
+- The program rejects expired typed proposals and caps action lifetime.
+- Execute rechecks action kind, policy commitment, payload hash, envelope hash,
+  status, expiry, and timelock before marking a typed proposal executed.
+- Frontend typed proposal parsing and PDA derivation now have regression tests,
+  so v2 proposal inbox/detail UI does not silently drift from program layout.
+
+**What this does NOT mitigate yet.** Typed proposal execution is currently an
+approval/status gate. It does not itself move escrow funds. Pro escrow release
+and return flows first create the typed v2 approval record, then hand off to the
+existing send/batch-send executor for actual movement. The next Solana program
+upgrade must add typed money-moving executors for milestone release and
+return-to-funder unwind so the same canonical typed action both gets approved
+and moves funds.
+
 ## Posture summary
 
 What's solid today:
@@ -175,6 +204,7 @@ What's solid today:
 - One-click passkey enrollment for embedded-wallet users on /security
 - SMTP body sanitization + tight invite limits
 - Replay protection via signed nonce in messages
+- ClearSign v2 typed proposal hashes/signatures for escrow approval records
 - TSS-MPC keys via Dynamic (single-host compromise resistant)
 - Pre-alpha caveat on every "encrypted" / "private" chip
 - 0 critical npm vulns; high-severity remainders are transitive + non-reachable

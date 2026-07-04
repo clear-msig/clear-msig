@@ -240,6 +240,60 @@ typed v2 proposal accounts beside the legacy proposal flow. The next protocol
 step is to connect specific money-moving executors, starting with Pro escrow
 milestone release and return-to-funder unwind, to this typed execution gate.
 
+## Security Review Snapshot: 2026-07-04
+
+Reviewed surfaces:
+
+- program ClearSign v2 hashing and replay envelope
+- typed proposal propose/approve/cancel/execute instructions
+- CLI typed proposal builders and account parser
+- backend typed proposal prepare/submit routes
+- frontend typed proposal parser, PDA derivation, proposal listing, detail
+  approval flow, and batch approval flow
+- Pro escrow release and return-to-funder typed action creation
+
+Current enforced guarantees:
+
+- Action kind codes are stable and tested.
+- Typed proposal PDAs use a separate `typed_proposal` namespace and cannot
+  collide with legacy proposal PDAs for the same intent/index.
+- Propose signatures bind vote kind, wallet PDA, proposal index, and envelope
+  hash.
+- Approve/cancel signatures bind their own vote kind, wallet PDA, proposal
+  index, and the stored envelope hash.
+- The program rejects expired typed proposals and proposals whose expiry is too
+  far in the future.
+- The program recomputes the envelope hash from action kind, wallet name,
+  wallet PDA, action id, nonce, expiry, policy commitment, and payload hash.
+- Execute rechecks action kind, policy commitment, payload hash, envelope hash,
+  approval status, expiry, and timelock before marking the typed proposal
+  executed.
+- Escrow release and escrow return payload hashes are domain-separated and
+  tested so they cannot be swapped under the same signer approval.
+- Frontend typed proposal account parsing and typed PDA derivation are covered
+  by regression tests.
+
+Current explicit limitation:
+
+- Typed v2 proposal execution is a policy/status gate only. It marks the typed
+  action executed but does not yet move funds itself. Pro escrow release and
+  return flows currently create the typed v2 approval record first, then hand
+  off to the existing send/batch-send executor for actual movement. The next
+  program upgrade should add typed money-moving executors for milestone release
+  and return-to-funder unwind so the same typed action that signers approve is
+  also the action that moves funds.
+
+Required before mainnet:
+
+- Add program executors for typed escrow release and typed escrow unwind.
+- Add migration/compatibility tests for legacy proposals and typed proposals
+  coexisting in the same wallet proposal index space.
+- Add devnet end-to-end tests for typed proposal create -> approve -> execute
+  using deployed program bytes.
+- Add a typed proposal cleanup path or rent reclamation policy.
+- Re-run external review on the final deployed program ID / upgrade authority
+  setup.
+
 ## Non-Negotiables
 
 - Human text must match canonical bytes.

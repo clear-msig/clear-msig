@@ -401,4 +401,39 @@ mod tests {
             hash_return_escrow_funds_payload(b"escrow-2", &returns)
         );
     }
+
+    #[test]
+    fn escrow_release_and_return_hashes_are_not_interchangeable() {
+        let release = hash_release_milestone_payload(
+            b"escrow-1",
+            b"milestone-1",
+            b"Builder",
+            &amount(b"SOL", 2_000_000_000),
+        );
+        let returns = [ClearSignRecipientAmount {
+            recipient: b"Builder",
+            amount: amount(b"SOL", 2_000_000_000),
+        }];
+        let unwind = hash_return_escrow_funds_payload(b"escrow-1", &returns);
+
+        assert_ne!(release, unwind);
+
+        let release_envelope = ClearSignEnvelope {
+            kind: ClearSignActionKind::ReleaseMilestone,
+            wallet_name: b"Team",
+            wallet_id: b"wallet-pda",
+            action_id: b"escrow-action",
+            nonce: b"nonce-1",
+            expires_at: 1_800_000_000,
+            policy_commitment: hash_policy_commitment(&[b"escrow:escrow-1"]),
+            payload_hash: release,
+        };
+        let return_envelope = ClearSignEnvelope {
+            kind: ClearSignActionKind::ReturnEscrowFunds,
+            payload_hash: unwind,
+            ..release_envelope
+        };
+
+        assert_ne!(hash_envelope(&release_envelope), hash_envelope(&return_envelope));
+    }
 }
