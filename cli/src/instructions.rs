@@ -437,6 +437,55 @@ pub fn execute_typed_spl_escrow_return(
     }
 }
 
+/// Build execute_typed_cross_chain_escrow_release instruction (ClearSign v2 discriminator 19).
+#[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
+pub fn execute_typed_cross_chain_escrow_release(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    ika_config: Pubkey,
+    dwallet: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    chain_kind: u8,
+    amount_raw_le: [u8; 16],
+    escrow_id_hash: [u8; 32],
+    milestone_id_hash: [u8; 32],
+    recipient_hash: [u8; 32],
+    asset_id_hash: [u8; 32],
+    route_hash: [u8; 32],
+    tx_template_hash: [u8; 32],
+    settlement_artifact_hash: [u8; 32],
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new_readonly(ika_config, false),
+        AccountMeta::new_readonly(dwallet, false),
+    ];
+
+    let mut data = vec![19u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &chain_kind).unwrap();
+    wincode::serialize_into(&mut data, &amount_raw_le).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &milestone_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &recipient_hash).unwrap();
+    wincode::serialize_into(&mut data, &asset_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &route_hash).unwrap();
+    wincode::serialize_into(&mut data, &tx_template_hash).unwrap();
+    wincode::serialize_into(&mut data, &settlement_artifact_hash).unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
 /// Build execute_typed_escrow_return instruction (ClearSign v2 discriminator 13).
 #[allow(dead_code)]
 pub fn execute_typed_escrow_return(
@@ -839,6 +888,37 @@ mod tests {
         assert!(!unwind.accounts[8].is_writable);
         assert!(unwind.accounts[9].is_writable);
         assert!(!unwind.accounts[10].is_writable);
+    }
+
+    #[test]
+    fn typed_cross_chain_escrow_executor_uses_expected_accounts_and_discriminator() {
+        let ix = execute_typed_cross_chain_escrow_release(
+            key(1),
+            key(2),
+            key(3),
+            key(4),
+            key(5),
+            [6; 32],
+            [7; 32],
+            2,
+            100_000_000u128.to_le_bytes(),
+            [8; 32],
+            [9; 32],
+            [10; 32],
+            [11; 32],
+            [12; 32],
+            [13; 32],
+            [14; 32],
+        );
+
+        assert_eq!(ix.data[0], 19);
+        assert_eq!(ix.data.len(), 306);
+        assert_eq!(ix.accounts.len(), 5);
+        assert!(!ix.accounts[0].is_writable);
+        assert!(ix.accounts[1].is_writable);
+        assert!(ix.accounts[2].is_writable);
+        assert!(!ix.accounts[3].is_writable);
+        assert!(!ix.accounts[4].is_writable);
     }
 
     #[test]

@@ -245,6 +245,7 @@ Typed proposal instruction discriminators are:
 | 16 | `cleanup_typed_proposal` |
 | 17 | `execute_typed_spl_escrow_release` |
 | 18 | `execute_typed_spl_escrow_return` |
+| 19 | `execute_typed_cross_chain_escrow_release` |
 
 `execute_typed` remains the generic status gate. The SOL escrow-specific
 executors additionally move SOL from the wallet vault after recomputing the
@@ -254,7 +255,12 @@ vault-owned token account after binding the approval to the mint, token
 accounts, recipient owner, amount, escrow id, and milestone id. The SPL escrow
 return executor transfers SPL tokens back to funder token accounts after
 binding the approval to the mint, source token account, each destination token
-account, each funder owner, each amount, and escrow id.
+account, each funder owner, each amount, and escrow id. The cross-chain escrow
+release executor does not move destination-chain value directly; it finalizes an
+already verified external settlement artifact after binding the approval to the
+destination chain, IkaConfig/dWallet binding, escrow id, milestone id,
+recipient hash, asset id hash, amount, route hash, tx-template hash, and
+settlement artifact hash.
 
 ## Security Review Snapshot: 2026-07-04
 
@@ -290,6 +296,10 @@ Current enforced guarantees:
 - Typed SPL-token escrow release recomputes the payload hash from the actual
   mint, source token account, destination token account, recipient owner,
   amount, escrow id, and milestone id before moving tokens.
+- Typed cross-chain escrow release recomputes the payload hash from the actual
+  IkaConfig/dWallet binding, destination chain, tx-template hash, route hash,
+  settlement artifact hash, recipient hash, asset id hash, amount, escrow id,
+  and milestone id before marking the proposal executed.
 - Escrow release and escrow return payload hashes are domain-separated and
   tested so they cannot be swapped under the same signer approval.
 - Frontend typed proposal account parsing and typed PDA derivation are covered
@@ -308,23 +318,20 @@ Current enforced guarantees:
 
 Current explicit limitation:
 
-- Typed SOL escrow release/return and SPL-token milestone release/return now
-  have program executors. BTC/EVM/Ika escrow and encrypted private escrow still
-  need their own typed executors before they should be treated as
-  cryptographically enforced.
+- Typed SOL escrow release/return, SPL-token milestone release/return, and
+  cross-chain BTC/EVM/Ika escrow release now have program executors. Cross-chain
+  refund/return finalizers and encrypted private escrow still need their own
+  typed executors before they should be treated as cryptographically enforced.
 
 ## Next Typed Executor Order
 
-1. **Cross-chain BTC/EVM/Ika escrow**
-   - Treat the typed executor as an authorization/artifact gate, not a direct
-     Solana value movement.
-   - Bind the approved typed payload to the destination chain, dWallet/Ika
-     config, escrow id, recipient, amount, route/tx template, and settlement
-     artifact hash.
-   - Require the CLI/backend to return verified chain artifacts before marking
-     external execution complete.
-   - Add replay/idempotency tests so the same artifact cannot finalize a
-     different proposal, escrow, chain, or amount.
+1. **Cross-chain BTC/EVM/Ika refund/return finalizers**
+   - Mirror the release artifact gate for escrow unwind/refund paths.
+   - Bind the approved typed payload to destination chain, dWallet/Ika config,
+     escrow id, funder/refund recipient commitments, amount(s), route/tx
+     template, and settlement artifact hash.
+   - Add replay/idempotency tests so one artifact cannot finalize a different
+     proposal, escrow, chain, recipient, or amount.
 2. **Encrypted/private escrow**
    - Wait for program-side Encrypt/FHE enforcement. Until then, private escrow
      can produce typed commitments but must not claim confidential on-chain
@@ -349,7 +356,7 @@ Before the next external review, collect:
 
 Required before mainnet:
 
-- Add cross-chain typed escrow executors.
+- Add cross-chain refund/return typed escrow finalizers.
 - Add migration/compatibility tests for legacy proposals and typed proposals
   coexisting in the same wallet proposal index space for every product route
   that lists or cleans proposals.
