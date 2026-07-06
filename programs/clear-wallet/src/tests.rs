@@ -7,6 +7,7 @@ use {
     crate::utils::clearsign::{
         hash_batch_send_sol_payload_iter, hash_cross_chain_escrow_release_payload,
         hash_cross_chain_escrow_return_payload, hash_envelope, hash_policy_commitment,
+        hash_private_escrow_release_payload, hash_private_escrow_return_payload,
         hash_release_milestone_payload, hash_release_token_milestone_payload,
         hash_return_escrow_sol_payload_iter, hash_return_token_escrow_payload_iter,
         hash_send_payload, hash_vote_message, ClearSignActionKind, ClearSignAmount,
@@ -565,6 +566,82 @@ fn build_execute_typed_cross_chain_escrow_return_ix(
             AccountMeta::new(proposal, false),
             AccountMeta::new_readonly(ika_config, false),
             AccountMeta::new_readonly(dwallet, false),
+        ],
+        data,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_execute_typed_private_escrow_release_ix(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_raw_le: [u8; 16],
+    escrow_id_hash: [u8; 32],
+    milestone_id_hash: [u8; 32],
+    recipient_hash: [u8; 32],
+    asset_id_hash: [u8; 32],
+    policy_ciphertexts_hash: [u8; 32],
+    private_evaluation_hash: [u8; 32],
+    settlement_artifact_hash: [u8; 32],
+) -> Instruction {
+    let mut data = vec![21u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &amount_raw_le).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &milestone_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &recipient_hash).unwrap();
+    wincode::serialize_into(&mut data, &asset_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &policy_ciphertexts_hash).unwrap();
+    wincode::serialize_into(&mut data, &private_evaluation_hash).unwrap();
+    wincode::serialize_into(&mut data, &settlement_artifact_hash).unwrap();
+
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new(intent, false),
+            AccountMeta::new(proposal, false),
+        ],
+        data,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_execute_typed_private_escrow_return_ix(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_raw_le: [u8; 16],
+    escrow_id_hash: [u8; 32],
+    refund_recipient_hash: [u8; 32],
+    asset_id_hash: [u8; 32],
+    policy_ciphertexts_hash: [u8; 32],
+    private_evaluation_hash: [u8; 32],
+    settlement_artifact_hash: [u8; 32],
+) -> Instruction {
+    let mut data = vec![22u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &amount_raw_le).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &refund_recipient_hash).unwrap();
+    wincode::serialize_into(&mut data, &asset_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &policy_ciphertexts_hash).unwrap();
+    wincode::serialize_into(&mut data, &private_evaluation_hash).unwrap();
+    wincode::serialize_into(&mut data, &settlement_artifact_hash).unwrap();
+
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new(intent, false),
+            AccountMeta::new(proposal, false),
         ],
         data,
     }
@@ -1613,6 +1690,277 @@ fn test_execute_typed_cross_chain_escrow_release_finalizes_verified_artifact() {
         svm.get_account(&return_proposal).unwrap().data[105],
         2,
         "typed return proposal should be Executed(2)"
+    );
+}
+
+#[test]
+fn test_execute_typed_private_escrow_finalizes_ciphertext_bound_artifacts() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let approver = new_keypair();
+    let wallet_name = "typed-private-escrow";
+    let amount_raw = 42_000_000u128;
+    let escrow_id_hash = sha256_hash(b"private-escrow-1");
+    let milestone_id_hash = sha256_hash(b"private-milestone-1");
+    let recipient_hash = sha256_hash(b"private-recipient-commitment");
+    let refund_recipient_hash = sha256_hash(b"private-refund-commitment");
+    let asset_id_hash = sha256_hash(b"PRIVATE:USDC");
+    let private_evaluation_hash = sha256_hash(b"encrypt-evaluation:allowed");
+    let wrong_private_evaluation_hash = sha256_hash(b"encrypt-evaluation:wrong");
+    let settlement_artifact_hash = sha256_hash(b"private-settlement-artifact");
+    let refund_artifact_hash = sha256_hash(b"private-refund-artifact");
+    let policy_ciphertexts = {
+        let mut out = Vec::new();
+        out.extend_from_slice(&2u16.to_le_bytes());
+        for id in [
+            b"enc_policy_limit".as_slice(),
+            b"enc_policy_recipient".as_slice(),
+        ] {
+            out.extend_from_slice(&(id.len() as u16).to_le_bytes());
+            out.extend_from_slice(id);
+        }
+        out
+    };
+    let policy_ciphertexts_hash = sha256_hash(&policy_ciphertexts);
+    let expiry = typed_test_expiry();
+
+    let (instruction, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&approver)],
+        1,
+    );
+    assert!(svm.process_instruction(&instruction, &accounts).is_ok());
+
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let mut builder = IntentBuilder::new();
+    builder
+        .set_governance(1, 1, 0)
+        .add_proposer(solana_address::Address::new_from_array(
+            pubkey_of(&proposer).to_bytes(),
+        ))
+        .add_approver(solana_address::Address::new_from_array(
+            pubkey_of(&proposer).to_bytes(),
+        ))
+        .set_template("Release private escrow milestone")
+        .set_policy_ciphertexts(&policy_ciphertexts);
+    let built_intent = builder.build();
+    let intent_index = 3u8;
+    let intent_body = built_intent.serialize_body(&wallet, 0, intent_index, 3);
+    let (private_intent, _) = find_intent_address(&wallet, intent_index, &crate::ID);
+
+    propose_approve_execute(ProposeApproveExecuteArgs {
+        svm: &mut svm,
+        payer,
+        wallet,
+        wallet_name,
+        intent: add_intent,
+        proposal_index: 0,
+        proposer: &proposer,
+        approver: &approver,
+        params_data: intent_body,
+        msg_fn: &add_intent_msg,
+        execute_remaining: vec![
+            AccountMeta::new(payer, true),
+            AccountMeta::new(private_intent, false),
+        ],
+        execute_extra_accounts: vec![funded_account(payer), empty_account(private_intent)],
+    });
+
+    let amount = ClearSignAmount {
+        asset: &asset_id_hash,
+        raw_amount: amount_raw,
+    };
+    let release_proposal_index = 1u64;
+    let release_proposal = get_typed_proposal_address(private_intent, release_proposal_index);
+    let release_policy_commitment = hash_policy_commitment(&[b"escrow:release:private"]);
+    let release_payload_hash = hash_private_escrow_release_payload(
+        &escrow_id_hash,
+        &milestone_id_hash,
+        &recipient_hash,
+        &amount,
+        &policy_ciphertexts_hash,
+        &private_evaluation_hash,
+        &settlement_artifact_hash,
+    );
+    let release_action_id = sha256_hash(b"private-release-action-1");
+    let release_nonce = sha256_hash(b"private-release-nonce-1");
+    let release_envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::ReleaseMilestone,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: release_action_id.as_ref(),
+        nonce: release_nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment: release_policy_commitment,
+        payload_hash: release_payload_hash,
+    });
+    let propose_release = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent: private_intent,
+        proposal_index: release_proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::ReleaseMilestone.code(),
+        policy_commitment: release_policy_commitment,
+        payload_hash: release_payload_hash,
+        envelope_hash: release_envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_typed_vote(
+            &proposer,
+            ClearSignVoteKind::Propose,
+            wallet,
+            release_proposal_index,
+            release_envelope_hash,
+        ),
+        action_id: release_action_id,
+        nonce: release_nonce,
+    });
+    let result = svm.process_instruction(
+        &propose_release,
+        &[funded_account(payer), empty_account(release_proposal)],
+    );
+    assert!(
+        result.is_ok(),
+        "typed private escrow release propose failed: {:?}",
+        result.raw_result
+    );
+
+    let wrong_release = build_execute_typed_private_escrow_release_ix(
+        wallet,
+        private_intent,
+        release_proposal,
+        release_policy_commitment,
+        release_envelope_hash,
+        amount_raw.to_le_bytes(),
+        escrow_id_hash,
+        milestone_id_hash,
+        recipient_hash,
+        asset_id_hash,
+        policy_ciphertexts_hash,
+        wrong_private_evaluation_hash,
+        settlement_artifact_hash,
+    );
+    assert!(svm.process_instruction(&wrong_release, &[]).is_err());
+
+    let execute_release = build_execute_typed_private_escrow_release_ix(
+        wallet,
+        private_intent,
+        release_proposal,
+        release_policy_commitment,
+        release_envelope_hash,
+        amount_raw.to_le_bytes(),
+        escrow_id_hash,
+        milestone_id_hash,
+        recipient_hash,
+        asset_id_hash,
+        policy_ciphertexts_hash,
+        private_evaluation_hash,
+        settlement_artifact_hash,
+    );
+    let result = svm.process_instruction(&execute_release, &[]);
+    if result.is_err() {
+        result.print_logs();
+    }
+    assert!(
+        result.is_ok(),
+        "typed private escrow release execute failed: {:?}",
+        result.raw_result
+    );
+    assert_eq!(
+        svm.get_account(&release_proposal).unwrap().data[105],
+        2,
+        "typed private release proposal should be Executed(2)"
+    );
+
+    let return_proposal_index = 2u64;
+    let return_proposal = get_typed_proposal_address(private_intent, return_proposal_index);
+    let return_policy_commitment = hash_policy_commitment(&[b"escrow:return:private"]);
+    let return_payload_hash = hash_private_escrow_return_payload(
+        &escrow_id_hash,
+        &refund_recipient_hash,
+        &amount,
+        &policy_ciphertexts_hash,
+        &private_evaluation_hash,
+        &refund_artifact_hash,
+    );
+    let return_action_id = sha256_hash(b"private-return-action-1");
+    let return_nonce = sha256_hash(b"private-return-nonce-1");
+    let return_envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::ReturnEscrowFunds,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: return_action_id.as_ref(),
+        nonce: return_nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment: return_policy_commitment,
+        payload_hash: return_payload_hash,
+    });
+    let propose_return = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent: private_intent,
+        proposal_index: return_proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::ReturnEscrowFunds.code(),
+        policy_commitment: return_policy_commitment,
+        payload_hash: return_payload_hash,
+        envelope_hash: return_envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_typed_vote(
+            &proposer,
+            ClearSignVoteKind::Propose,
+            wallet,
+            return_proposal_index,
+            return_envelope_hash,
+        ),
+        action_id: return_action_id,
+        nonce: return_nonce,
+    });
+    let result = svm.process_instruction(
+        &propose_return,
+        &[funded_account(payer), empty_account(return_proposal)],
+    );
+    assert!(
+        result.is_ok(),
+        "typed private escrow return propose failed: {:?}",
+        result.raw_result
+    );
+
+    let execute_return = build_execute_typed_private_escrow_return_ix(
+        wallet,
+        private_intent,
+        return_proposal,
+        return_policy_commitment,
+        return_envelope_hash,
+        amount_raw.to_le_bytes(),
+        escrow_id_hash,
+        refund_recipient_hash,
+        asset_id_hash,
+        policy_ciphertexts_hash,
+        private_evaluation_hash,
+        refund_artifact_hash,
+    );
+    let result = svm.process_instruction(&execute_return, &[]);
+    if result.is_err() {
+        result.print_logs();
+    }
+    assert!(
+        result.is_ok(),
+        "typed private escrow return execute failed: {:?}",
+        result.raw_result
+    );
+    assert_eq!(
+        svm.get_account(&return_proposal).unwrap().data[105],
+        2,
+        "typed private return proposal should be Executed(2)"
     );
 }
 

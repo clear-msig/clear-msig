@@ -247,6 +247,8 @@ Typed proposal instruction discriminators are:
 | 18 | `execute_typed_spl_escrow_return` |
 | 19 | `execute_typed_cross_chain_escrow_release` |
 | 20 | `execute_typed_cross_chain_escrow_return` |
+| 21 | `execute_typed_private_escrow_release` |
+| 22 | `execute_typed_private_escrow_return` |
 
 `execute_typed` remains the generic status gate. The SOL escrow-specific
 executors additionally move SOL from the wallet vault after recomputing the
@@ -264,7 +266,11 @@ recipient hash, asset id hash, amount, route hash, tx-template hash, and
 settlement artifact hash. The cross-chain return executor uses the same
 artifact gate under `ReturnEscrowFunds`, binding escrow id, destination chain,
 IkaConfig/dWallet binding, refund-recipient commitment, asset id hash, amount,
-route hash, tx-template hash, and settlement artifact hash.
+route hash, tx-template hash, and settlement artifact hash. The private escrow
+executors are ciphertext-bound artifact finalizers: they require non-empty
+Encrypt ciphertext references on the governing intent and bind execution to the
+stored ciphertext-reference hash, private evaluation hash, settlement artifact
+hash, recipient/refund commitment, asset id hash, amount, and escrow id.
 
 ## Security Review Snapshot: 2026-07-04
 
@@ -308,6 +314,12 @@ Current enforced guarantees:
   IkaConfig/dWallet binding, destination chain, tx-template hash, route hash,
   settlement artifact hash, refund-recipient hash, asset id hash, amount, and
   escrow id before marking the proposal executed.
+- Typed private escrow release/return recomputes the payload hash from the
+  actual intent ciphertext-reference hash, private evaluation hash, settlement
+  artifact hash, recipient/refund commitment, asset id hash, amount, and escrow
+  id before marking the proposal executed. The program requires non-empty
+  ciphertext references and does not claim to decrypt or evaluate private
+  policy values.
 - Escrow release and escrow return payload hashes are domain-separated and
   tested so they cannot be swapped under the same signer approval.
 - Frontend typed proposal account parsing and typed PDA derivation are covered
@@ -326,21 +338,22 @@ Current enforced guarantees:
 
 Current explicit limitation:
 
-- Typed SOL escrow release/return, SPL-token milestone release/return, and
-  cross-chain BTC/EVM/Ika escrow release/return now have program executors.
-  Encrypted private escrow still needs its own typed executor before it should
-  be treated as cryptographically enforced.
+- Typed SOL escrow release/return, SPL-token milestone release/return,
+  cross-chain BTC/EVM/Ika escrow release/return, and ciphertext-bound private
+  escrow release/return now have program executors. Full Encrypt/FHE policy
+  evaluation still needs program-side confidential enforcement before private
+  policy values should be treated as fully enforced on-chain.
 
 ## Next Typed Executor Order
 
-1. **Encrypted/private escrow**
-   - Wait for program-side Encrypt/FHE enforcement. Until then, private escrow
-     can produce typed commitments but must not claim confidential on-chain
-     policy enforcement.
-   - The executor should verify ciphertext/commitment references and only reveal
-     settlement-minimum public fields.
-   - Add tests proving plaintext fallback and encrypted paths cannot diverge in
-     signer-facing text, payload hash, or policy commitment.
+1. **Production Encrypt/FHE enforcement**
+   - Replace ciphertext-bound artifact finalization with program-side Encrypt
+     handlers once the runtime is available.
+   - Keep the same public commitment shape so signer-facing text, payload hash,
+     and policy commitment do not diverge between plaintext fallback and
+     encrypted evaluation paths.
+   - Add tests proving encrypted evaluator failures cannot be bypassed by
+     reusing stale ciphertext, policy, or settlement artifact commitments.
 
 ## External Review Handoff Checklist
 
@@ -357,7 +370,7 @@ Before the next external review, collect:
 
 Required before mainnet:
 
-- Add encrypted/private escrow typed executor.
+- Add production Encrypt/FHE enforcement for private escrow policies.
 - Add migration/compatibility tests for legacy proposals and typed proposals
   coexisting in the same wallet proposal index space for every product route
   that lists or cleans proposals.

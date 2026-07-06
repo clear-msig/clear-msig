@@ -18,6 +18,8 @@ pub mod typed_token_escrow;
 pub use typed_token_escrow::*;
 pub mod typed_cross_chain_escrow;
 pub use typed_cross_chain_escrow::*;
+pub mod typed_private_escrow;
+pub use typed_private_escrow::*;
 pub mod typed_send;
 pub use typed_send::*;
 

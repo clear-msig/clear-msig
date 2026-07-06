@@ -347,6 +347,42 @@ pub fn hash_cross_chain_escrow_return_payload(
     finish_hash(hasher)
 }
 
+pub fn hash_private_escrow_release_payload(
+    escrow_id: &[u8],
+    milestone_id: &[u8],
+    recipient: &[u8],
+    amount: &ClearSignAmount<'_>,
+    policy_ciphertexts_hash: &[u8],
+    private_evaluation_hash: &[u8],
+    settlement_artifact_hash: &[u8],
+) -> [u8; 32] {
+    let mut hasher = payload_hasher(ClearSignActionKind::ReleaseMilestone);
+    update_bytes(&mut hasher, escrow_id);
+    update_bytes(&mut hasher, milestone_id);
+    update_recipient_amount(&mut hasher, recipient, amount);
+    update_bytes(&mut hasher, policy_ciphertexts_hash);
+    update_bytes(&mut hasher, private_evaluation_hash);
+    update_bytes(&mut hasher, settlement_artifact_hash);
+    finish_hash(hasher)
+}
+
+pub fn hash_private_escrow_return_payload(
+    escrow_id: &[u8],
+    refund_recipient: &[u8],
+    amount: &ClearSignAmount<'_>,
+    policy_ciphertexts_hash: &[u8],
+    private_evaluation_hash: &[u8],
+    settlement_artifact_hash: &[u8],
+) -> [u8; 32] {
+    let mut hasher = payload_hasher(ClearSignActionKind::ReturnEscrowFunds);
+    update_bytes(&mut hasher, escrow_id);
+    update_recipient_amount(&mut hasher, refund_recipient, amount);
+    update_bytes(&mut hasher, policy_ciphertexts_hash);
+    update_bytes(&mut hasher, private_evaluation_hash);
+    update_bytes(&mut hasher, settlement_artifact_hash);
+    finish_hash(hasher)
+}
+
 pub fn hash_agent_trade_payload(
     market: &[u8],
     side: &[u8],

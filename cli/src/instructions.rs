@@ -533,6 +533,90 @@ pub fn execute_typed_cross_chain_escrow_return(
     }
 }
 
+/// Build execute_typed_private_escrow_release instruction (ClearSign v2 discriminator 21).
+#[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
+pub fn execute_typed_private_escrow_release(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_raw_le: [u8; 16],
+    escrow_id_hash: [u8; 32],
+    milestone_id_hash: [u8; 32],
+    recipient_hash: [u8; 32],
+    asset_id_hash: [u8; 32],
+    policy_ciphertexts_hash: [u8; 32],
+    private_evaluation_hash: [u8; 32],
+    settlement_artifact_hash: [u8; 32],
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+    ];
+
+    let mut data = vec![21u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &amount_raw_le).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &milestone_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &recipient_hash).unwrap();
+    wincode::serialize_into(&mut data, &asset_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &policy_ciphertexts_hash).unwrap();
+    wincode::serialize_into(&mut data, &private_evaluation_hash).unwrap();
+    wincode::serialize_into(&mut data, &settlement_artifact_hash).unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
+/// Build execute_typed_private_escrow_return instruction (ClearSign v2 discriminator 22).
+#[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
+pub fn execute_typed_private_escrow_return(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_raw_le: [u8; 16],
+    escrow_id_hash: [u8; 32],
+    refund_recipient_hash: [u8; 32],
+    asset_id_hash: [u8; 32],
+    policy_ciphertexts_hash: [u8; 32],
+    private_evaluation_hash: [u8; 32],
+    settlement_artifact_hash: [u8; 32],
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+    ];
+
+    let mut data = vec![22u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &amount_raw_le).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &refund_recipient_hash).unwrap();
+    wincode::serialize_into(&mut data, &asset_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &policy_ciphertexts_hash).unwrap();
+    wincode::serialize_into(&mut data, &private_evaluation_hash).unwrap();
+    wincode::serialize_into(&mut data, &settlement_artifact_hash).unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
 /// Build execute_typed_escrow_return instruction (ClearSign v2 discriminator 13).
 #[allow(dead_code)]
 pub fn execute_typed_escrow_return(
@@ -991,6 +1075,52 @@ mod tests {
         assert!(refund.accounts[2].is_writable);
         assert!(!refund.accounts[3].is_writable);
         assert!(!refund.accounts[4].is_writable);
+    }
+
+    #[test]
+    fn typed_private_escrow_executor_uses_expected_accounts_and_discriminator() {
+        let release = execute_typed_private_escrow_release(
+            key(1),
+            key(2),
+            key(3),
+            [4; 32],
+            [5; 32],
+            100_000_000u128.to_le_bytes(),
+            [6; 32],
+            [7; 32],
+            [8; 32],
+            [9; 32],
+            [10; 32],
+            [11; 32],
+            [12; 32],
+        );
+        let refund = execute_typed_private_escrow_return(
+            key(1),
+            key(2),
+            key(3),
+            [4; 32],
+            [5; 32],
+            100_000_000u128.to_le_bytes(),
+            [6; 32],
+            [8; 32],
+            [9; 32],
+            [10; 32],
+            [11; 32],
+            [12; 32],
+        );
+
+        assert_eq!(release.data[0], 21);
+        assert_eq!(release.data.len(), 305);
+        assert_eq!(release.accounts.len(), 3);
+        assert!(!release.accounts[0].is_writable);
+        assert!(release.accounts[1].is_writable);
+        assert!(release.accounts[2].is_writable);
+        assert_eq!(refund.data[0], 22);
+        assert_eq!(refund.data.len(), 273);
+        assert_eq!(refund.accounts.len(), 3);
+        assert!(!refund.accounts[0].is_writable);
+        assert!(refund.accounts[1].is_writable);
+        assert!(refund.accounts[2].is_writable);
     }
 
     #[test]

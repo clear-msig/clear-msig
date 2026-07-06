@@ -218,6 +218,62 @@ pub mod clear_wallet {
         )
     }
 
+    #[instruction(discriminator = 21)]
+    pub fn execute_typed_private_escrow_release(
+        ctx: Ctx<ExecuteTypedPrivateEscrowRelease>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        amount_raw_le: [u8; 16],
+        escrow_id_hash: [u8; 32],
+        milestone_id_hash: [u8; 32],
+        recipient_hash: [u8; 32],
+        asset_id_hash: [u8; 32],
+        policy_ciphertexts_hash: [u8; 32],
+        private_evaluation_hash: [u8; 32],
+        settlement_artifact_hash: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_typed_private_escrow_release(ExecuteTypedPrivateEscrowReleaseArgs {
+                policy_commitment,
+                envelope_hash,
+                amount_raw_le,
+                escrow_id_hash,
+                milestone_id_hash,
+                recipient_hash,
+                asset_id_hash,
+                policy_ciphertexts_hash,
+                private_evaluation_hash,
+                settlement_artifact_hash,
+            })
+    }
+
+    #[instruction(discriminator = 22)]
+    pub fn execute_typed_private_escrow_return(
+        ctx: Ctx<ExecuteTypedPrivateEscrowReturn>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        amount_raw_le: [u8; 16],
+        escrow_id_hash: [u8; 32],
+        refund_recipient_hash: [u8; 32],
+        asset_id_hash: [u8; 32],
+        policy_ciphertexts_hash: [u8; 32],
+        private_evaluation_hash: [u8; 32],
+        settlement_artifact_hash: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_typed_private_escrow_return(ExecuteTypedPrivateEscrowReturnArgs {
+                policy_commitment,
+                envelope_hash,
+                amount_raw_le,
+                escrow_id_hash,
+                refund_recipient_hash,
+                asset_id_hash,
+                policy_ciphertexts_hash,
+                private_evaluation_hash,
+                settlement_artifact_hash,
+            })
+    }
+
     #[instruction(discriminator = 6)]
     pub fn bind_dwallet(
         ctx: Ctx<BindDwallet>,
