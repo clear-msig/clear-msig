@@ -329,7 +329,9 @@ Current enforced guarantees:
   namespaces.
 - Typed proposal cleanup closes finalized typed proposal accounts through the
   same CLI/backend cleanup command used for legacy proposals.
-- A deployed-devnet typed SOL flow check is available with:
+- A deployed-devnet typed SOL flow check covers typed SOL send, SOL escrow
+  milestone release, SOL escrow return-to-funders, proposal status verification,
+  and typed proposal rent cleanup:
 
   ```bash
   PAYER_KEYPAIR=/path/to/funded-devnet-keypair.json \
@@ -374,8 +376,8 @@ Required before mainnet:
 - Add migration/compatibility tests for legacy proposals and typed proposals
   coexisting in the same wallet proposal index space for every product route
   that lists or cleans proposals.
-- Add deployed-devnet end-to-end tests for typed SOL escrow release/return
-  using deployed program bytes.
+- Keep the deployed-devnet typed SOL send/release/return end-to-end check
+  passing against the final deployed program bytes.
 - Re-run external review on the final deployed program ID / upgrade authority
   setup.
 
