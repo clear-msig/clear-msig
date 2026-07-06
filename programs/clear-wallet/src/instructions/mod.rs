@@ -14,6 +14,8 @@ pub mod typed_proposal;
 pub use typed_proposal::*;
 pub mod typed_escrow;
 pub use typed_escrow::*;
+pub mod typed_token_escrow;
+pub use typed_token_escrow::*;
 pub mod typed_send;
 pub use typed_send::*;
 

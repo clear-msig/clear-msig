@@ -83,7 +83,7 @@ pub(super) async fn lookup_memberships(
                 .map(ToString::to_string)
         })
         .or_else(|| std::env::var("CLEAR_MSIG_PROGRAM_ID").ok())
-        .unwrap_or_else(|| "Abf68HjgGyaCqGtu2W9Tg7Kkz5iJoBvAb8e86M6xTkNJ".to_string());
+        .unwrap_or_else(|| "53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v".to_string());
 
     let wallet_accounts =
         fetch_program_accounts_by_disc(&rpc_url, &program_id, /* ClearWallet */ 1).await?;

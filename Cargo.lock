@@ -1731,6 +1731,7 @@ dependencies = [
 name = "e2e-clear-msig-ika"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "bcs",
  "bs58",
  "clear-wallet",

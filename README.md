@@ -6,7 +6,7 @@
 |---|---|
 | Live demo | **[clearsig.xyz](https://clearsig.xyz)** |
 | GitHub | [clear-msig/clear-msig](https://github.com/clear-msig/clear-msig) |
-| Program ID (devnet) | [`Abf68HjgGyaCqGtu2W9Tg7Kkz5iJoBvAb8e86M6xTkNJ`](https://explorer.solana.com/address/Abf68HjgGyaCqGtu2W9Tg7Kkz5iJoBvAb8e86M6xTkNJ?cluster=devnet) |
+| Program ID (devnet) | [`53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v`](https://explorer.solana.com/address/53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v?cluster=devnet) |
 | Backend (Render) | [clear-msig-backend.onrender.com](https://clear-msig-backend.onrender.com/health) |
 
 > **Pre-alpha — do not use with real funds.** Devnet only. Ika is currently a single mock signer, not production distributed MPC.

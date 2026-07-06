@@ -219,6 +219,25 @@ pub fn hash_release_milestone_payload(
     finish_hash(hasher)
 }
 
+pub fn hash_release_token_milestone_payload(
+    escrow_id: &[u8],
+    milestone_id: &[u8],
+    mint: &[u8],
+    source_token: &[u8],
+    destination_token: &[u8],
+    recipient_owner: &[u8],
+    amount: &ClearSignAmount<'_>,
+) -> [u8; 32] {
+    let mut hasher = payload_hasher(ClearSignActionKind::ReleaseMilestone);
+    update_bytes(&mut hasher, escrow_id);
+    update_bytes(&mut hasher, milestone_id);
+    update_bytes(&mut hasher, mint);
+    update_bytes(&mut hasher, source_token);
+    update_bytes(&mut hasher, destination_token);
+    update_recipient_amount(&mut hasher, recipient_owner, amount);
+    finish_hash(hasher)
+}
+
 pub fn hash_return_escrow_funds_payload(
     escrow_id: &[u8],
     returns: &[ClearSignRecipientAmount<'_>],

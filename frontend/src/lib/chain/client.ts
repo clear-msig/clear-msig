@@ -19,7 +19,7 @@ import { createSolanaConnection } from "@/lib/solana/cluster";
 /// programs/clear-wallet/src/lib.rs.
 export const CLEAR_WALLET_PROGRAM_ID = new PublicKey(
   process.env.NEXT_PUBLIC_CLEAR_WALLET_PROGRAM_ID ??
-    "Abf68HjgGyaCqGtu2W9Tg7Kkz5iJoBvAb8e86M6xTkNJ"
+    "53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v"
 );
 
 /// Default commitment for all read paths. `confirmed` is the sweet spot

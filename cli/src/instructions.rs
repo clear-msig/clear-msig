@@ -17,6 +17,13 @@ pub fn program_id() -> Pubkey {
     Pubkey::new_from_array(addr.to_bytes())
 }
 
+fn spl_token_program_id() -> Pubkey {
+    Pubkey::new_from_array([
+        6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28, 180, 133,
+        237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169,
+    ])
+}
+
 /// Convert a `solana_sdk::Pubkey` to a `solana_address::Address` (used by the
 /// vendored quasar client which lives on a different solana crate version).
 fn pk_to_addr(p: Pubkey) -> solana_address::Address {
@@ -349,6 +356,48 @@ pub fn execute_typed_escrow_release(
     }
 }
 
+/// Build execute_typed_spl_escrow_release instruction (ClearSign v2 discriminator 17).
+#[allow(dead_code)]
+pub fn execute_typed_spl_escrow_release(
+    wallet: Pubkey,
+    vault: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    mint: Pubkey,
+    source_token: Pubkey,
+    destination_token: Pubkey,
+    recipient_owner: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_tokens: u64,
+    escrow_id_hash: [u8; 32],
+    milestone_id_hash: [u8; 32],
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new_readonly(vault, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new_readonly(mint, false),
+        AccountMeta::new(source_token, false),
+        AccountMeta::new(destination_token, false),
+        AccountMeta::new_readonly(recipient_owner, false),
+        AccountMeta::new_readonly(spl_token_program_id(), false),
+    ];
+    let mut data = vec![17u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &amount_tokens).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &milestone_id_hash).unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
 /// Build execute_typed_escrow_return instruction (ClearSign v2 discriminator 13).
 #[allow(dead_code)]
 pub fn execute_typed_escrow_return(
@@ -459,6 +508,19 @@ pub fn cleanup(proposal: Pubkey, rent_refund: Pubkey) -> Instruction {
         program_id: program_id(),
         accounts,
         data: vec![5u8],
+    }
+}
+
+/// Build cleanup_typed_proposal instruction.
+pub fn cleanup_typed(proposal: Pubkey, rent_refund: Pubkey) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new(proposal, false),
+        AccountMeta::new(rent_refund, false),
+    ];
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data: vec![16u8],
     }
 }
 
@@ -677,6 +739,38 @@ mod tests {
     }
 
     #[test]
+    fn typed_spl_escrow_executor_uses_expected_accounts_and_discriminator() {
+        let release = execute_typed_spl_escrow_release(
+            key(1),
+            key(2),
+            key(3),
+            key(4),
+            key(5),
+            key(6),
+            key(7),
+            key(8),
+            [9; 32],
+            [10; 32],
+            1_000_000,
+            [11; 32],
+            [12; 32],
+        );
+
+        assert_eq!(release.data[0], 17);
+        assert_eq!(release.accounts.len(), 9);
+        assert!(!release.accounts[0].is_writable);
+        assert!(!release.accounts[1].is_writable);
+        assert!(release.accounts[2].is_writable);
+        assert!(release.accounts[3].is_writable);
+        assert!(!release.accounts[4].is_writable);
+        assert!(release.accounts[5].is_writable);
+        assert!(release.accounts[6].is_writable);
+        assert!(!release.accounts[7].is_writable);
+        assert!(!release.accounts[8].is_writable);
+        assert_eq!(release.accounts[8].pubkey, spl_token_program_id());
+    }
+
+    #[test]
     fn typed_sol_send_executors_use_expected_accounts_and_discriminators() {
         let send = execute_typed_sol_send(
             key(1),
@@ -712,5 +806,20 @@ mod tests {
         assert!(batch.accounts[1].is_writable);
         assert!(!batch.accounts[4].is_writable);
         assert!(batch.accounts[5].is_writable);
+    }
+
+    #[test]
+    fn cleanup_instructions_use_expected_discriminators() {
+        let legacy = cleanup(key(1), key(2));
+        let typed = cleanup_typed(key(1), key(2));
+
+        assert_eq!(legacy.data, vec![5]);
+        assert_eq!(typed.data, vec![16]);
+        assert_eq!(legacy.accounts.len(), 2);
+        assert_eq!(typed.accounts.len(), 2);
+        assert!(legacy.accounts[0].is_writable);
+        assert!(legacy.accounts[1].is_writable);
+        assert!(typed.accounts[0].is_writable);
+        assert!(typed.accounts[1].is_writable);
     }
 }

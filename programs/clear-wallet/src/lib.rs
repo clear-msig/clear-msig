@@ -17,7 +17,7 @@ pub mod utils;
 #[cfg(test)]
 mod tests;
 
-declare_id!("Abf68HjgGyaCqGtu2W9Tg7Kkz5iJoBvAb8e86M6xTkNJ");
+declare_id!("53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v");
 
 #[program]
 pub mod clear_wallet {
@@ -108,6 +108,32 @@ pub mod clear_wallet {
     #[instruction(discriminator = 5)]
     pub fn cleanup_proposal(ctx: Ctx<CleanupProposal>) -> Result<(), ProgramError> {
         ctx.accounts.cleanup()
+    }
+
+    #[instruction(discriminator = 16)]
+    pub fn cleanup_typed_proposal(ctx: Ctx<CleanupTypedProposal>) -> Result<(), ProgramError> {
+        ctx.accounts.cleanup()
+    }
+
+    #[instruction(discriminator = 17)]
+    pub fn execute_typed_spl_escrow_release(
+        ctx: Ctx<ExecuteTypedSplEscrowRelease>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        amount_tokens: u64,
+        escrow_id_hash: [u8; 32],
+        milestone_id_hash: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed_spl_escrow_release(
+            ExecuteTypedSplEscrowReleaseArgs {
+                policy_commitment,
+                envelope_hash,
+                escrow_id_hash,
+                milestone_id_hash,
+                amount_tokens,
+            },
+            &ctx.bumps,
+        )
     }
 
     #[instruction(discriminator = 6)]

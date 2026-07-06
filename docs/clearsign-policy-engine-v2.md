@@ -205,10 +205,16 @@ It currently ships:
 - v2 execution gate that re-verifies typed action kind, policy commitment,
   payload hash, envelope hash, approval status, expiry, and timelock before
   marking a typed proposal executed
+- SPL-token escrow milestone release execution that re-verifies the typed
+  payload hash against the mint, source token account, destination token
+  account, recipient owner, amount, escrow id, and milestone id before moving
+  tokens from a vault-owned SPL token account
 - frontend canonical hash helpers that mirror the program's byte layout for
   payload hashes, envelope hashes, and role-specific vote hashes
 - Pro escrow release and return-to-funder helpers that produce typed v2
   envelopes before those actions are routed into wallet signing
+- typed proposal cleanup/rent reclamation through the shared proposal cleanup
+  path
 
 Action codes are fixed as:
 
@@ -236,11 +242,15 @@ Typed proposal instruction discriminators are:
 | 11 | `execute_typed` |
 | 12 | `execute_typed_escrow_release` |
 | 13 | `execute_typed_escrow_return` |
+| 16 | `cleanup_typed_proposal` |
+| 17 | `execute_typed_spl_escrow_release` |
 
-`execute_typed` remains the generic status gate. The escrow-specific
+`execute_typed` remains the generic status gate. The SOL escrow-specific
 executors additionally move SOL from the wallet vault after recomputing the
 approved typed payload hash from the recipient account(s), amount(s), escrow id,
-and milestone id.
+and milestone id. The SPL escrow release executor transfers SPL tokens from a
+vault-owned token account after binding the approval to the mint, token
+accounts, recipient owner, amount, escrow id, and milestone id.
 
 ## Security Review Snapshot: 2026-07-04
 
@@ -273,26 +283,82 @@ Current enforced guarantees:
   executed.
 - Typed SOL escrow release and return-to-funder executors recompute the payload
   hash from the actual destination account(s) and amount(s) before moving funds.
+- Typed SPL-token escrow release recomputes the payload hash from the actual
+  mint, source token account, destination token account, recipient owner,
+  amount, escrow id, and milestone id before moving tokens.
 - Escrow release and escrow return payload hashes are domain-separated and
   tested so they cannot be swapped under the same signer approval.
 - Frontend typed proposal account parsing and typed PDA derivation are covered
   by regression tests.
+- Legacy and typed proposals now have regression coverage proving they share
+  the same monotonic wallet proposal index while staying in separate PDA
+  namespaces.
+- Typed proposal cleanup closes finalized typed proposal accounts through the
+  same CLI/backend cleanup command used for legacy proposals.
+- A deployed-devnet typed SOL flow check is available with:
+
+  ```bash
+  PAYER_KEYPAIR=/path/to/funded-devnet-keypair.json \
+    cargo run -p e2e-clear-msig-ika --bin e2e-typed-sol-devnet
+  ```
 
 Current explicit limitation:
 
-- Typed SOL escrow release and return-to-funder unwind now have program
-  executors. SPL-token escrow, BTC/EVM/Ika escrow, and encrypted private escrow
-  still need their own typed executors before they should be treated as
-  cryptographically enforced.
+- Typed SOL escrow release/return and SPL-token milestone release now have
+  program executors. SPL-token return/unwind, BTC/EVM/Ika escrow, and encrypted
+  private escrow still need their own typed executors before they should be
+  treated as cryptographically enforced.
+
+## Next Typed Executor Order
+
+1. **SPL-token escrow return/unwind**
+   - Verify the escrow token vault is the expected associated token account or
+     a recorded token account owned by the wallet vault authority.
+   - Recompute the typed payload hash from mint, token account, funder return
+     account(s), amount(s), escrow id, and funder ids.
+   - CPI into the SPL Token program with the wallet vault PDA as authority.
+   - Add SVM tests for wrong mint, wrong token vault, wrong recipient token
+     account, wrong amount, and happy-path return.
+2. **Cross-chain BTC/EVM/Ika escrow**
+   - Treat the typed executor as an authorization/artifact gate, not a direct
+     Solana value movement.
+   - Bind the approved typed payload to the destination chain, dWallet/Ika
+     config, escrow id, recipient, amount, route/tx template, and settlement
+     artifact hash.
+   - Require the CLI/backend to return verified chain artifacts before marking
+     external execution complete.
+   - Add replay/idempotency tests so the same artifact cannot finalize a
+     different proposal, escrow, chain, or amount.
+3. **Encrypted/private escrow**
+   - Wait for program-side Encrypt/FHE enforcement. Until then, private escrow
+     can produce typed commitments but must not claim confidential on-chain
+     policy enforcement.
+   - The executor should verify ciphertext/commitment references and only reveal
+     settlement-minimum public fields.
+   - Add tests proving plaintext fallback and encrypted paths cannot diverge in
+     signer-facing text, payload hash, or policy commitment.
+
+## External Review Handoff Checklist
+
+Before the next external review, collect:
+
+- final devnet program id, program-data address, and upgrade authority
+- deployed program slot and binary size
+- SBF artifact hash from CI and deploy command logs
+- test output for typed SVM execution, typed cleanup, compatibility tests, CLI
+  discriminator tests, and the deployed-devnet typed SOL e2e binary
+- list of intentionally unsupported typed executors and the user-facing labels
+  that keep them out of production claims
+- upgrade authority custody plan, rotation plan, and emergency freeze policy
 
 Required before mainnet:
 
-- Add SPL-token and cross-chain typed escrow executors.
+- Add SPL-token return/unwind and cross-chain typed escrow executors.
 - Add migration/compatibility tests for legacy proposals and typed proposals
-  coexisting in the same wallet proposal index space.
-- Add devnet end-to-end tests for typed proposal create -> approve -> typed SOL
-  escrow execute using deployed program bytes.
-- Add a typed proposal cleanup path or rent reclamation policy.
+  coexisting in the same wallet proposal index space for every product route
+  that lists or cleans proposals.
+- Add deployed-devnet end-to-end tests for typed SOL escrow release/return
+  using deployed program bytes.
 - Re-run external review on the final deployed program ID / upgrade authority
   setup.
 

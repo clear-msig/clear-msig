@@ -83,6 +83,27 @@ pub enum ProposalAction {
         #[arg(long)]
         milestone_id: String,
     },
+    /// Execute an approved typed SPL-token escrow milestone release.
+    TypedSplEscrowRelease {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        mint: String,
+        #[arg(long)]
+        source_token: String,
+        #[arg(long)]
+        destination_token: String,
+        #[arg(long)]
+        recipient_owner: String,
+        #[arg(long)]
+        amount_tokens: u64,
+        #[arg(long)]
+        escrow_id: String,
+        #[arg(long)]
+        milestone_id: String,
+    },
     /// Execute an approved typed escrow unwind / return.
     ///
     /// Pass one `--return recipient:lamports` per funder.
@@ -530,6 +551,71 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             }));
         }
 
+        ProposalAction::TypedSplEscrowRelease {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            mint,
+            source_token,
+            destination_token,
+            recipient_owner,
+            amount_tokens,
+            escrow_id,
+            milestone_id,
+        } => {
+            if amount_tokens == 0 {
+                return Err(anyhow!("amount-tokens must be greater than zero"));
+            }
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::ReleaseMilestone,
+                "typed SPL escrow release",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let mint_pubkey: Pubkey = mint.parse().with_context(|| "invalid mint address")?;
+            let source_token_pubkey: Pubkey = source_token
+                .parse()
+                .with_context(|| "invalid source token account address")?;
+            let destination_token_pubkey: Pubkey = destination_token
+                .parse()
+                .with_context(|| "invalid destination token account address")?;
+            let recipient_owner_pubkey: Pubkey = recipient_owner
+                .parse()
+                .with_context(|| "invalid recipient owner address")?;
+            let ix = crate::instructions::execute_typed_spl_escrow_release(
+                wallet_pubkey,
+                vault_pubkey(wallet_pubkey),
+                intent_pubkey,
+                proposal_pubkey,
+                mint_pubkey,
+                source_token_pubkey,
+                destination_token_pubkey,
+                recipient_owner_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                amount_tokens,
+                crate::message::sha256_hash(escrow_id.as_bytes()),
+                crate::message::sha256_hash(milestone_id.as_bytes()),
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_spl_escrow_release",
+                "status": "executed",
+                "mint": mint_pubkey.to_string(),
+                "source_token": source_token_pubkey.to_string(),
+                "destination_token": destination_token_pubkey.to_string(),
+                "recipient_owner": recipient_owner_pubkey.to_string(),
+                "amount_tokens": amount_tokens,
+            }));
+        }
+
         ProposalAction::TypedEscrowReturn {
             wallet: wallet_name,
             proposal: proposal_addr_str,
@@ -912,16 +998,45 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
 
             let client = rpc::client(config);
             let data = rpc::fetch_account(&client, &proposal_pubkey)?;
-            let proposal = accounts::parse_proposal(&data)?;
-            let rent_refund: Pubkey = proposal
-                .rent_refund
-                .parse()
-                .with_context(|| "invalid rent_refund address in proposal")?;
-
-            let ix = crate::instructions::cleanup(proposal_pubkey, rent_refund);
+            let (proposal_kind, rent_refund, ix) = match data.first().copied() {
+                Some(3) => {
+                    let proposal = accounts::parse_proposal(&data)?;
+                    let rent_refund: Pubkey = proposal
+                        .rent_refund
+                        .parse()
+                        .with_context(|| "invalid rent_refund address in proposal")?;
+                    (
+                        "legacy",
+                        rent_refund,
+                        crate::instructions::cleanup(proposal_pubkey, rent_refund),
+                    )
+                }
+                Some(6) => {
+                    let proposal = accounts::parse_typed_proposal(&data)?;
+                    let rent_refund: Pubkey = proposal
+                        .rent_refund
+                        .parse()
+                        .with_context(|| "invalid rent_refund address in typed proposal")?;
+                    (
+                        "typed",
+                        rent_refund,
+                        crate::instructions::cleanup_typed(proposal_pubkey, rent_refund),
+                    )
+                }
+                Some(discriminator) => {
+                    return Err(anyhow!(
+                        "account {} is not a proposal account (discriminator={})",
+                        proposal_pubkey,
+                        discriminator
+                    ));
+                }
+                None => return Err(anyhow!("proposal account data is empty")),
+            };
             let sig = rpc::send_instruction(&client, config, ix)?;
 
             print_json(&serde_json::json!({
+                "kind": proposal_kind,
+                "rent_refund": rent_refund.to_string(),
                 "txid": sig.to_string(),
                 "status": "cleaned up",
             }));
