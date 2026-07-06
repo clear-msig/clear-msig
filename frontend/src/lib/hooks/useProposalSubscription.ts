@@ -15,8 +15,8 @@ import { useConnection } from "@/lib/wallet";
 import { PublicKey } from "@solana/web3.js";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  parseProposal,
-  type ProposalAccount,
+  parseAnyProposal,
+  type AnyProposalAccount,
 } from "@/lib/msig";
 import { DEFAULT_COMMITMENT } from "@/lib/chain/client";
 
@@ -44,7 +44,7 @@ export function useProposalSubscription(proposalPda: string | null | undefined):
       (account) => {
         if (unsubscribed) return;
         try {
-          const parsed: ProposalAccount = parseProposal(new Uint8Array(account.data));
+          const parsed: AnyProposalAccount = parseAnyProposal(new Uint8Array(account.data));
           queryClient.setQueryData(["proposal", proposalPda], parsed);
         } catch (err) {
           // Wrong disc, removed, or still a zero-byte account slot .

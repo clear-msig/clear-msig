@@ -471,9 +471,9 @@ function SweepPage() {
       return;
     }
     if (!dwalletPubkey) {
-      toast.error("dWallet attestation missing", {
+      toast.error("Vault backup needed", {
         details:
-          "This browser doesn't have the saved attestation yet. Import a backup or sign in on the browser that created the vault.",
+          "Import the vault backup or use the browser that created this vault.",
       });
       return;
     }
@@ -889,8 +889,7 @@ function ComposeStage(props: ComposeStageProps) {
           Sweep funds out
         </h1>
         <p className="mx-auto mt-2 max-w-md text-base text-text-soft">
-          Move {props.assetSymbol} from the vault&rsquo;s dWallet to a
-          destination address. Vault {props.recoveryShort}.
+          Move {props.assetSymbol} from this vault to a destination address.
         </p>
       </PageEyebrow>
 
@@ -935,7 +934,7 @@ function ComposeStage(props: ComposeStageProps) {
           {!props.holdingsLoading &&
             (props.holdings == null || props.holdings.length === 0) && (
               <p className="text-[10px] text-text-soft">
-                No SPL tokens detected on the dWallet. Only SOL.
+                No tokens detected yet. Only SOL.
               </p>
             )}
         </div>
@@ -1048,7 +1047,7 @@ function ComposeStage(props: ComposeStageProps) {
             From
           </p>
           <p className="mt-1 break-all font-mono text-[11px] text-text-strong">
-            {props.dwalletPubkey ?? "dWallet attestation missing"}
+            {props.dwalletPubkey ?? "Vault backup needed"}
           </p>
         </div>
       </section>

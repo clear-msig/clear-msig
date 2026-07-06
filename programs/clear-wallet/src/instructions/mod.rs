@@ -10,6 +10,19 @@ pub use approve::*;
 pub mod cancel;
 pub use cancel::*;
 
+pub mod typed_proposal;
+pub use typed_proposal::*;
+pub mod typed_escrow;
+pub use typed_escrow::*;
+pub mod typed_token_escrow;
+pub use typed_token_escrow::*;
+pub mod typed_cross_chain_escrow;
+pub use typed_cross_chain_escrow::*;
+pub mod typed_private_escrow;
+pub use typed_private_escrow::*;
+pub mod typed_send;
+pub use typed_send::*;
+
 // execute kept for meta-intents (AddIntent, RemoveIntent, UpdateIntent)
 // which modify on-chain state. Custom intents go through ika_sign.
 pub mod execute;

@@ -17,7 +17,7 @@ pub mod utils;
 #[cfg(test)]
 mod tests;
 
-declare_id!("Abf68HjgGyaCqGtu2W9Tg7Kkz5iJoBvAb8e86M6xTkNJ");
+declare_id!("53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v");
 
 #[program]
 pub mod clear_wallet {
@@ -110,6 +110,170 @@ pub mod clear_wallet {
         ctx.accounts.cleanup()
     }
 
+    #[instruction(discriminator = 16)]
+    pub fn cleanup_typed_proposal(ctx: Ctx<CleanupTypedProposal>) -> Result<(), ProgramError> {
+        ctx.accounts.cleanup()
+    }
+
+    #[instruction(discriminator = 17)]
+    pub fn execute_typed_spl_escrow_release(
+        ctx: Ctx<ExecuteTypedSplEscrowRelease>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        amount_tokens: u64,
+        escrow_id_hash: [u8; 32],
+        milestone_id_hash: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed_spl_escrow_release(
+            ExecuteTypedSplEscrowReleaseArgs {
+                policy_commitment,
+                envelope_hash,
+                escrow_id_hash,
+                milestone_id_hash,
+                amount_tokens,
+            },
+            &ctx.bumps,
+        )
+    }
+
+    #[instruction(discriminator = 18)]
+    pub fn execute_typed_spl_escrow_return(
+        ctx: CtxWithRemaining<ExecuteTypedSplEscrowReturn>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        escrow_id_hash: [u8; 32],
+        amount_tokens_le: &[u8],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed_spl_escrow_return(
+            ExecuteTypedSplEscrowReturnArgs {
+                policy_commitment,
+                envelope_hash,
+                escrow_id_hash,
+                amount_tokens_le,
+            },
+            &ctx.bumps,
+            ctx.remaining_accounts_passthrough(),
+        )
+    }
+
+    #[instruction(discriminator = 19)]
+    pub fn execute_typed_cross_chain_escrow_release(
+        ctx: Ctx<ExecuteTypedCrossChainEscrowRelease>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        chain_kind: u8,
+        amount_raw_le: [u8; 16],
+        escrow_id_hash: [u8; 32],
+        milestone_id_hash: [u8; 32],
+        recipient_hash: [u8; 32],
+        asset_id_hash: [u8; 32],
+        route_hash: [u8; 32],
+        tx_template_hash: [u8; 32],
+        settlement_artifact_hash: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed_cross_chain_escrow_release(
+            ExecuteTypedCrossChainEscrowReleaseArgs {
+                policy_commitment,
+                envelope_hash,
+                chain_kind,
+                amount_raw_le,
+                escrow_id_hash,
+                milestone_id_hash,
+                recipient_hash,
+                asset_id_hash,
+                route_hash,
+                tx_template_hash,
+                settlement_artifact_hash,
+            },
+        )
+    }
+
+    #[instruction(discriminator = 20)]
+    pub fn execute_typed_cross_chain_escrow_return(
+        ctx: Ctx<ExecuteTypedCrossChainEscrowReturn>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        chain_kind: u8,
+        amount_raw_le: [u8; 16],
+        escrow_id_hash: [u8; 32],
+        refund_recipient_hash: [u8; 32],
+        asset_id_hash: [u8; 32],
+        route_hash: [u8; 32],
+        tx_template_hash: [u8; 32],
+        settlement_artifact_hash: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed_cross_chain_escrow_return(
+            ExecuteTypedCrossChainEscrowReturnArgs {
+                policy_commitment,
+                envelope_hash,
+                chain_kind,
+                amount_raw_le,
+                escrow_id_hash,
+                refund_recipient_hash,
+                asset_id_hash,
+                route_hash,
+                tx_template_hash,
+                settlement_artifact_hash,
+            },
+        )
+    }
+
+    #[instruction(discriminator = 21)]
+    pub fn execute_typed_private_escrow_release(
+        ctx: Ctx<ExecuteTypedPrivateEscrowRelease>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        amount_raw_le: [u8; 16],
+        escrow_id_hash: [u8; 32],
+        milestone_id_hash: [u8; 32],
+        recipient_hash: [u8; 32],
+        asset_id_hash: [u8; 32],
+        policy_ciphertexts_hash: [u8; 32],
+        private_evaluation_hash: [u8; 32],
+        settlement_artifact_hash: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_typed_private_escrow_release(ExecuteTypedPrivateEscrowReleaseArgs {
+                policy_commitment,
+                envelope_hash,
+                amount_raw_le,
+                escrow_id_hash,
+                milestone_id_hash,
+                recipient_hash,
+                asset_id_hash,
+                policy_ciphertexts_hash,
+                private_evaluation_hash,
+                settlement_artifact_hash,
+            })
+    }
+
+    #[instruction(discriminator = 22)]
+    pub fn execute_typed_private_escrow_return(
+        ctx: Ctx<ExecuteTypedPrivateEscrowReturn>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        amount_raw_le: [u8; 16],
+        escrow_id_hash: [u8; 32],
+        refund_recipient_hash: [u8; 32],
+        asset_id_hash: [u8; 32],
+        policy_ciphertexts_hash: [u8; 32],
+        private_evaluation_hash: [u8; 32],
+        settlement_artifact_hash: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_typed_private_escrow_return(ExecuteTypedPrivateEscrowReturnArgs {
+                policy_commitment,
+                envelope_hash,
+                amount_raw_le,
+                escrow_id_hash,
+                refund_recipient_hash,
+                asset_id_hash,
+                policy_ciphertexts_hash,
+                private_evaluation_hash,
+                settlement_artifact_hash,
+            })
+    }
+
     #[instruction(discriminator = 6)]
     pub fn bind_dwallet(
         ctx: Ctx<BindDwallet>,
@@ -138,5 +302,152 @@ pub mod clear_wallet {
             cpi_authority_bump,
             blake2b_hashes,
         })
+    }
+
+    #[instruction(discriminator = 8)]
+    pub fn propose_typed(
+        ctx: Ctx<ProposeTyped>,
+        proposal_index: u64,
+        expiry: i64,
+        action_kind: u8,
+        policy_commitment: [u8; 32],
+        payload_hash: [u8; 32],
+        envelope_hash: [u8; 32],
+        proposer_pubkey: [u8; 32],
+        signature: [u8; 64],
+        action_id: [u8; 32],
+        nonce: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.propose_typed(
+            proposal_index,
+            ProposeTypedArgs {
+                expiry,
+                action_kind,
+                action_id: &action_id,
+                nonce: &nonce,
+                policy_commitment,
+                payload_hash,
+                envelope_hash,
+                proposer_pubkey: &proposer_pubkey,
+                signature: &signature,
+            },
+            &ctx.bumps,
+        )
+    }
+
+    #[instruction(discriminator = 9)]
+    pub fn approve_typed(
+        ctx: Ctx<ApproveTyped>,
+        approver_index: u8,
+        signature: [u8; 64],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.approve_typed(ApproveTypedArgs {
+            approver_index,
+            signature: &signature,
+        })
+    }
+
+    #[instruction(discriminator = 10)]
+    pub fn cancel_typed(
+        ctx: Ctx<CancelTyped>,
+        canceller_index: u8,
+        signature: [u8; 64],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.cancel_typed(CancelTypedArgs {
+            canceller_index,
+            signature: &signature,
+        })
+    }
+
+    #[instruction(discriminator = 11)]
+    pub fn execute_typed(
+        ctx: Ctx<ExecuteTyped>,
+        action_kind: u8,
+        policy_commitment: [u8; 32],
+        payload_hash: [u8; 32],
+        envelope_hash: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed(ExecuteTypedArgs {
+            action_kind,
+            policy_commitment,
+            payload_hash,
+            envelope_hash,
+        })
+    }
+
+    #[instruction(discriminator = 12)]
+    pub fn execute_typed_escrow_release(
+        ctx: Ctx<ExecuteTypedEscrowRelease>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        amount_lamports: u64,
+        escrow_id_hash: [u8; 32],
+        milestone_id_hash: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed_escrow_release(
+            ExecuteTypedEscrowReleaseArgs {
+                policy_commitment,
+                envelope_hash,
+                escrow_id_hash,
+                milestone_id_hash,
+                amount_lamports,
+            },
+            &ctx.bumps,
+        )
+    }
+
+    #[instruction(discriminator = 13)]
+    pub fn execute_typed_escrow_return(
+        ctx: CtxWithRemaining<ExecuteTypedEscrowReturn>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        escrow_id_hash: [u8; 32],
+        amount_lamports_le: &[u8],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed_escrow_return(
+            ExecuteTypedEscrowReturnArgs {
+                policy_commitment,
+                envelope_hash,
+                escrow_id_hash,
+                amount_lamports_le,
+            },
+            &ctx.bumps,
+            ctx.remaining_accounts_passthrough(),
+        )
+    }
+
+    #[instruction(discriminator = 14)]
+    pub fn execute_typed_sol_send(
+        ctx: Ctx<ExecuteTypedSolSend>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        amount_lamports: u64,
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed_sol_send(
+            ExecuteTypedSolSendArgs {
+                policy_commitment,
+                envelope_hash,
+                amount_lamports,
+            },
+            &ctx.bumps,
+        )
+    }
+
+    #[instruction(discriminator = 15)]
+    pub fn execute_typed_sol_batch_send(
+        ctx: CtxWithRemaining<ExecuteTypedSolBatchSend>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        amount_lamports_le: &[u8],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed_sol_batch_send(
+            ExecuteTypedSolBatchSendArgs {
+                policy_commitment,
+                envelope_hash,
+                amount_lamports_le,
+            },
+            &ctx.bumps,
+            ctx.remaining_accounts_passthrough(),
+        )
     }
 }

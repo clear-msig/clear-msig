@@ -765,7 +765,10 @@ function BitcoinSendPage() {
             balanceLoading={btcSnapshotQuery.isLoading}
             balanceError={btcSnapshotQuery.error}
             network={btcNetwork}
-            onSetup={() => setupIntent.mutate()}
+            onSetup={() => {
+              if (setupIntent.isPending || setupIntent.isSuccess) return;
+              setupIntent.mutate();
+            }}
             busy={setupIntent.isPending}
             reduce={!!reduce}
           />

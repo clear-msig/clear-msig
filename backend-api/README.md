@@ -77,6 +77,9 @@ This sets backend-owned runtime defaults for Solana devnet + Ika pre-alpha so th
 - `GET /v1/pro/wallets/{name}/schedules`
 - `POST /v1/pro/wallets/{name}/schedules`
 - `POST /v1/pro/wallets/{name}/schedules/delete`
+- `GET /v1/pro/wallets/{name}/escrows`
+- `POST /v1/pro/wallets/{name}/escrows`
+- `POST /v1/pro/wallets/{name}/escrows/delete`
 - `GET /v1/pro/wallets/{name}/audit-events`
 - `POST /v1/pro/audit-events`
 

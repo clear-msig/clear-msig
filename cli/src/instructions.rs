@@ -17,6 +17,13 @@ pub fn program_id() -> Pubkey {
     Pubkey::new_from_array(addr.to_bytes())
 }
 
+fn spl_token_program_id() -> Pubkey {
+    Pubkey::new_from_array([
+        6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28, 180, 133,
+        237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169,
+    ])
+}
+
 /// Convert a `solana_sdk::Pubkey` to a `solana_address::Address` (used by the
 /// vendored quasar client which lives on a different solana crate version).
 fn pk_to_addr(p: Pubkey) -> solana_address::Address {
@@ -186,6 +193,530 @@ pub fn execute(
     sdk_ix_from_ext(ext_ix)
 }
 
+#[allow(dead_code)]
+pub struct ProposeTypedArgs {
+    pub payer: Pubkey,
+    pub wallet: Pubkey,
+    pub intent: Pubkey,
+    pub proposal: Pubkey,
+    pub proposal_index: u64,
+    pub expiry: i64,
+    pub action_kind: u8,
+    pub policy_commitment: [u8; 32],
+    pub payload_hash: [u8; 32],
+    pub envelope_hash: [u8; 32],
+    pub proposer_pubkey: [u8; 32],
+    pub signature: [u8; 64],
+    pub action_id: [u8; 32],
+    pub nonce: [u8; 32],
+}
+
+/// Build propose_typed instruction (ClearSign v2 discriminator 8).
+#[allow(dead_code)]
+pub fn propose_typed(args: ProposeTypedArgs) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new(args.payer, true),
+        AccountMeta::new(args.wallet, false),
+        AccountMeta::new(args.intent, false),
+        AccountMeta::new(args.proposal, false),
+        AccountMeta::new_readonly(solana_sdk::system_program::id(), false),
+    ];
+
+    let mut data = vec![8u8];
+    wincode::serialize_into(&mut data, &args.proposal_index).unwrap();
+    wincode::serialize_into(&mut data, &args.expiry).unwrap();
+    wincode::serialize_into(&mut data, &args.action_kind).unwrap();
+    wincode::serialize_into(&mut data, &args.policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &args.payload_hash).unwrap();
+    wincode::serialize_into(&mut data, &args.envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &args.proposer_pubkey).unwrap();
+    wincode::serialize_into(&mut data, &args.signature).unwrap();
+    wincode::serialize_into(&mut data, &args.action_id).unwrap();
+    wincode::serialize_into(&mut data, &args.nonce).unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
+/// Build approve_typed instruction (ClearSign v2 discriminator 9).
+#[allow(dead_code)]
+pub fn approve_typed(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    approver_index: u8,
+    signature: [u8; 64],
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new_readonly(intent, false),
+        AccountMeta::new(proposal, false),
+    ];
+    let mut data = vec![9u8];
+    wincode::serialize_into(&mut data, &approver_index).unwrap();
+    wincode::serialize_into(&mut data, &signature).unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
+/// Build cancel_typed instruction (ClearSign v2 discriminator 10).
+#[allow(dead_code)]
+pub fn cancel_typed(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    canceller_index: u8,
+    signature: [u8; 64],
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+    ];
+    let mut data = vec![10u8];
+    wincode::serialize_into(&mut data, &canceller_index).unwrap();
+    wincode::serialize_into(&mut data, &signature).unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
+/// Build execute_typed instruction (ClearSign v2 discriminator 11).
+#[allow(dead_code)]
+pub fn execute_typed(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    action_kind: u8,
+    policy_commitment: [u8; 32],
+    payload_hash: [u8; 32],
+    envelope_hash: [u8; 32],
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+    ];
+    let mut data = vec![11u8];
+    wincode::serialize_into(&mut data, &action_kind).unwrap();
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &payload_hash).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
+/// Build execute_typed_escrow_release instruction (ClearSign v2 discriminator 12).
+#[allow(dead_code)]
+pub fn execute_typed_escrow_release(
+    wallet: Pubkey,
+    vault: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    recipient: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_lamports: u64,
+    escrow_id_hash: [u8; 32],
+    milestone_id_hash: [u8; 32],
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(vault, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new(recipient, false),
+        AccountMeta::new_readonly(solana_sdk::system_program::id(), false),
+    ];
+    let mut data = vec![12u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &amount_lamports).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &milestone_id_hash).unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
+/// Build execute_typed_spl_escrow_release instruction (ClearSign v2 discriminator 17).
+#[allow(dead_code)]
+pub fn execute_typed_spl_escrow_release(
+    wallet: Pubkey,
+    vault: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    mint: Pubkey,
+    source_token: Pubkey,
+    destination_token: Pubkey,
+    recipient_owner: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_tokens: u64,
+    escrow_id_hash: [u8; 32],
+    milestone_id_hash: [u8; 32],
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new_readonly(vault, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new_readonly(mint, false),
+        AccountMeta::new(source_token, false),
+        AccountMeta::new(destination_token, false),
+        AccountMeta::new_readonly(recipient_owner, false),
+        AccountMeta::new_readonly(spl_token_program_id(), false),
+    ];
+    let mut data = vec![17u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &amount_tokens).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &milestone_id_hash).unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
+/// Build execute_typed_spl_escrow_return instruction (ClearSign v2 discriminator 18).
+#[allow(dead_code)]
+pub fn execute_typed_spl_escrow_return(
+    wallet: Pubkey,
+    vault: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    mint: Pubkey,
+    source_token: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    escrow_id_hash: [u8; 32],
+    amount_tokens_le: &[u8],
+    returns: Vec<AccountMeta>,
+) -> Instruction {
+    let mut accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new_readonly(vault, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new_readonly(mint, false),
+        AccountMeta::new(source_token, false),
+        AccountMeta::new_readonly(spl_token_program_id(), false),
+    ];
+    accounts.extend(returns);
+
+    let mut data = vec![18u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    data.extend_from_slice(amount_tokens_le);
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
+/// Build execute_typed_cross_chain_escrow_release instruction (ClearSign v2 discriminator 19).
+#[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
+pub fn execute_typed_cross_chain_escrow_release(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    ika_config: Pubkey,
+    dwallet: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    chain_kind: u8,
+    amount_raw_le: [u8; 16],
+    escrow_id_hash: [u8; 32],
+    milestone_id_hash: [u8; 32],
+    recipient_hash: [u8; 32],
+    asset_id_hash: [u8; 32],
+    route_hash: [u8; 32],
+    tx_template_hash: [u8; 32],
+    settlement_artifact_hash: [u8; 32],
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new_readonly(ika_config, false),
+        AccountMeta::new_readonly(dwallet, false),
+    ];
+
+    let mut data = vec![19u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &chain_kind).unwrap();
+    wincode::serialize_into(&mut data, &amount_raw_le).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &milestone_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &recipient_hash).unwrap();
+    wincode::serialize_into(&mut data, &asset_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &route_hash).unwrap();
+    wincode::serialize_into(&mut data, &tx_template_hash).unwrap();
+    wincode::serialize_into(&mut data, &settlement_artifact_hash).unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
+/// Build execute_typed_cross_chain_escrow_return instruction (ClearSign v2 discriminator 20).
+#[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
+pub fn execute_typed_cross_chain_escrow_return(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    ika_config: Pubkey,
+    dwallet: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    chain_kind: u8,
+    amount_raw_le: [u8; 16],
+    escrow_id_hash: [u8; 32],
+    refund_recipient_hash: [u8; 32],
+    asset_id_hash: [u8; 32],
+    route_hash: [u8; 32],
+    tx_template_hash: [u8; 32],
+    settlement_artifact_hash: [u8; 32],
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new_readonly(ika_config, false),
+        AccountMeta::new_readonly(dwallet, false),
+    ];
+
+    let mut data = vec![20u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &chain_kind).unwrap();
+    wincode::serialize_into(&mut data, &amount_raw_le).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &refund_recipient_hash).unwrap();
+    wincode::serialize_into(&mut data, &asset_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &route_hash).unwrap();
+    wincode::serialize_into(&mut data, &tx_template_hash).unwrap();
+    wincode::serialize_into(&mut data, &settlement_artifact_hash).unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
+/// Build execute_typed_private_escrow_release instruction (ClearSign v2 discriminator 21).
+#[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
+pub fn execute_typed_private_escrow_release(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_raw_le: [u8; 16],
+    escrow_id_hash: [u8; 32],
+    milestone_id_hash: [u8; 32],
+    recipient_hash: [u8; 32],
+    asset_id_hash: [u8; 32],
+    policy_ciphertexts_hash: [u8; 32],
+    private_evaluation_hash: [u8; 32],
+    settlement_artifact_hash: [u8; 32],
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+    ];
+
+    let mut data = vec![21u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &amount_raw_le).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &milestone_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &recipient_hash).unwrap();
+    wincode::serialize_into(&mut data, &asset_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &policy_ciphertexts_hash).unwrap();
+    wincode::serialize_into(&mut data, &private_evaluation_hash).unwrap();
+    wincode::serialize_into(&mut data, &settlement_artifact_hash).unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
+/// Build execute_typed_private_escrow_return instruction (ClearSign v2 discriminator 22).
+#[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
+pub fn execute_typed_private_escrow_return(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_raw_le: [u8; 16],
+    escrow_id_hash: [u8; 32],
+    refund_recipient_hash: [u8; 32],
+    asset_id_hash: [u8; 32],
+    policy_ciphertexts_hash: [u8; 32],
+    private_evaluation_hash: [u8; 32],
+    settlement_artifact_hash: [u8; 32],
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+    ];
+
+    let mut data = vec![22u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &amount_raw_le).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &refund_recipient_hash).unwrap();
+    wincode::serialize_into(&mut data, &asset_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &policy_ciphertexts_hash).unwrap();
+    wincode::serialize_into(&mut data, &private_evaluation_hash).unwrap();
+    wincode::serialize_into(&mut data, &settlement_artifact_hash).unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
+/// Build execute_typed_escrow_return instruction (ClearSign v2 discriminator 13).
+#[allow(dead_code)]
+pub fn execute_typed_escrow_return(
+    wallet: Pubkey,
+    vault: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    escrow_id_hash: [u8; 32],
+    amount_lamports_le: &[u8],
+    funders: Vec<AccountMeta>,
+) -> Instruction {
+    let mut accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(vault, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new_readonly(solana_sdk::system_program::id(), false),
+    ];
+    accounts.extend(funders);
+
+    let mut data = vec![13u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    data.extend_from_slice(amount_lamports_le);
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
+/// Build execute_typed_sol_send instruction (ClearSign v2 discriminator 14).
+#[allow(dead_code)]
+pub fn execute_typed_sol_send(
+    wallet: Pubkey,
+    vault: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    recipient: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_lamports: u64,
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(vault, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new(recipient, false),
+        AccountMeta::new_readonly(solana_sdk::system_program::id(), false),
+    ];
+    let mut data = vec![14u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &amount_lamports).unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
+/// Build execute_typed_sol_batch_send instruction (ClearSign v2 discriminator 15).
+#[allow(dead_code)]
+pub fn execute_typed_sol_batch_send(
+    wallet: Pubkey,
+    vault: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_lamports_le: &[u8],
+    recipients: Vec<AccountMeta>,
+) -> Instruction {
+    let mut accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(vault, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new_readonly(solana_sdk::system_program::id(), false),
+    ];
+    accounts.extend(recipients);
+
+    let mut data = vec![15u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    data.extend_from_slice(amount_lamports_le);
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
 /// Build cleanup_proposal instruction.
 pub fn cleanup(proposal: Pubkey, rent_refund: Pubkey) -> Instruction {
     let accounts = vec![
@@ -196,6 +727,19 @@ pub fn cleanup(proposal: Pubkey, rent_refund: Pubkey) -> Instruction {
         program_id: program_id(),
         accounts,
         data: vec![5u8],
+    }
+}
+
+/// Build cleanup_typed_proposal instruction.
+pub fn cleanup_typed(proposal: Pubkey, rent_refund: Pubkey) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new(proposal, false),
+        AccountMeta::new(rent_refund, false),
+    ];
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data: vec![16u8],
     }
 }
 
@@ -304,5 +848,331 @@ pub fn ika_transfer_ownership(
         program_id: dwallet_program,
         accounts,
         data,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn key(byte: u8) -> Pubkey {
+        Pubkey::new_from_array([byte; 32])
+    }
+
+    #[test]
+    fn typed_propose_uses_expected_accounts_and_discriminator() {
+        let ix = propose_typed(ProposeTypedArgs {
+            payer: key(1),
+            wallet: key(2),
+            intent: key(3),
+            proposal: key(4),
+            proposal_index: 7,
+            expiry: 1_900_000_000,
+            action_kind: 8,
+            policy_commitment: [5; 32],
+            payload_hash: [6; 32],
+            envelope_hash: [7; 32],
+            proposer_pubkey: [8; 32],
+            signature: [9; 64],
+            action_id: [10; 32],
+            nonce: [11; 32],
+        });
+
+        assert_eq!(ix.program_id, program_id());
+        assert_eq!(ix.data[0], 8);
+        assert_eq!(ix.accounts.len(), 5);
+        assert!(ix.accounts[0].is_signer);
+        assert!(ix.accounts[0].is_writable);
+        assert!(ix.accounts[1].is_writable);
+        assert!(ix.accounts[2].is_writable);
+        assert!(ix.accounts[3].is_writable);
+        assert!(!ix.accounts[4].is_writable);
+    }
+
+    #[test]
+    fn typed_approve_cancel_execute_use_expected_discriminators() {
+        let approve = approve_typed(key(1), key(2), key(3), 1, [4; 64]);
+        let cancel = cancel_typed(key(1), key(2), key(3), 1, [4; 64]);
+        let execute = execute_typed(key(1), key(2), key(3), 8, [4; 32], [5; 32], [6; 32]);
+
+        assert_eq!(approve.data[0], 9);
+        assert_eq!(cancel.data[0], 10);
+        assert_eq!(execute.data[0], 11);
+        assert_eq!(approve.data.len(), 66);
+        assert_eq!(cancel.data.len(), 66);
+        assert_eq!(execute.data.len(), 98);
+        assert!(!approve.accounts[0].is_writable);
+        assert!(!approve.accounts[1].is_writable);
+        assert!(approve.accounts[2].is_writable);
+        assert!(cancel.accounts[1].is_writable);
+        assert!(execute.accounts[1].is_writable);
+        assert!(execute.accounts[2].is_writable);
+    }
+
+    #[test]
+    fn typed_escrow_executors_use_expected_accounts_and_discriminators() {
+        let release = execute_typed_escrow_release(
+            key(1),
+            key(2),
+            key(3),
+            key(4),
+            key(5),
+            [6; 32],
+            [7; 32],
+            1_000_000,
+            [8; 32],
+            [9; 32],
+        );
+        let mut amount_bytes = Vec::new();
+        amount_bytes.extend_from_slice(&1_000_000u64.to_le_bytes());
+        amount_bytes.extend_from_slice(&2_000_000u64.to_le_bytes());
+        let unwind = execute_typed_escrow_return(
+            key(1),
+            key(2),
+            key(3),
+            key(4),
+            [6; 32],
+            [7; 32],
+            [10; 32],
+            &amount_bytes,
+            vec![
+                AccountMeta::new(key(8), false),
+                AccountMeta::new(key(9), false),
+            ],
+        );
+
+        assert_eq!(release.data[0], 12);
+        assert_eq!(unwind.data[0], 13);
+        assert_eq!(release.accounts.len(), 6);
+        assert_eq!(unwind.accounts.len(), 7);
+        assert!(!release.accounts[0].is_writable);
+        assert!(release.accounts[1].is_writable);
+        assert!(release.accounts[2].is_writable);
+        assert!(release.accounts[3].is_writable);
+        assert!(release.accounts[4].is_writable);
+        assert!(!release.accounts[5].is_writable);
+        assert!(unwind.accounts[1].is_writable);
+        assert!(!unwind.accounts[4].is_writable);
+        assert!(unwind.accounts[5].is_writable);
+        assert!(unwind.accounts[6].is_writable);
+    }
+
+    #[test]
+    fn typed_spl_escrow_executor_uses_expected_accounts_and_discriminator() {
+        let release = execute_typed_spl_escrow_release(
+            key(1),
+            key(2),
+            key(3),
+            key(4),
+            key(5),
+            key(6),
+            key(7),
+            key(8),
+            [9; 32],
+            [10; 32],
+            1_000_000,
+            [11; 32],
+            [12; 32],
+        );
+        let unwind = execute_typed_spl_escrow_return(
+            key(1),
+            key(2),
+            key(3),
+            key(4),
+            key(5),
+            key(6),
+            [9; 32],
+            [10; 32],
+            [11; 32],
+            &1_000_000u64.to_le_bytes(),
+            vec![
+                AccountMeta::new(key(7), false),
+                AccountMeta::new_readonly(key(8), false),
+                AccountMeta::new(key(9), false),
+                AccountMeta::new_readonly(key(10), false),
+            ],
+        );
+
+        assert_eq!(release.data[0], 17);
+        assert_eq!(release.accounts.len(), 9);
+        assert!(!release.accounts[0].is_writable);
+        assert!(!release.accounts[1].is_writable);
+        assert!(release.accounts[2].is_writable);
+        assert!(release.accounts[3].is_writable);
+        assert!(!release.accounts[4].is_writable);
+        assert!(release.accounts[5].is_writable);
+        assert!(release.accounts[6].is_writable);
+        assert!(!release.accounts[7].is_writable);
+        assert!(!release.accounts[8].is_writable);
+        assert_eq!(release.accounts[8].pubkey, spl_token_program_id());
+        assert_eq!(unwind.data[0], 18);
+        assert_eq!(unwind.accounts.len(), 11);
+        assert!(!unwind.accounts[0].is_writable);
+        assert!(!unwind.accounts[1].is_writable);
+        assert!(unwind.accounts[2].is_writable);
+        assert!(unwind.accounts[3].is_writable);
+        assert!(!unwind.accounts[4].is_writable);
+        assert!(unwind.accounts[5].is_writable);
+        assert!(!unwind.accounts[6].is_writable);
+        assert_eq!(unwind.accounts[6].pubkey, spl_token_program_id());
+        assert!(unwind.accounts[7].is_writable);
+        assert!(!unwind.accounts[8].is_writable);
+        assert!(unwind.accounts[9].is_writable);
+        assert!(!unwind.accounts[10].is_writable);
+    }
+
+    #[test]
+    fn typed_cross_chain_escrow_executor_uses_expected_accounts_and_discriminator() {
+        let release = execute_typed_cross_chain_escrow_release(
+            key(1),
+            key(2),
+            key(3),
+            key(4),
+            key(5),
+            [6; 32],
+            [7; 32],
+            2,
+            100_000_000u128.to_le_bytes(),
+            [8; 32],
+            [9; 32],
+            [10; 32],
+            [11; 32],
+            [12; 32],
+            [13; 32],
+            [14; 32],
+        );
+        let refund = execute_typed_cross_chain_escrow_return(
+            key(1),
+            key(2),
+            key(3),
+            key(4),
+            key(5),
+            [6; 32],
+            [7; 32],
+            2,
+            100_000_000u128.to_le_bytes(),
+            [8; 32],
+            [10; 32],
+            [11; 32],
+            [12; 32],
+            [13; 32],
+            [14; 32],
+        );
+
+        assert_eq!(release.data[0], 19);
+        assert_eq!(release.data.len(), 306);
+        assert_eq!(release.accounts.len(), 5);
+        assert!(!release.accounts[0].is_writable);
+        assert!(release.accounts[1].is_writable);
+        assert!(release.accounts[2].is_writable);
+        assert!(!release.accounts[3].is_writable);
+        assert!(!release.accounts[4].is_writable);
+        assert_eq!(refund.data[0], 20);
+        assert_eq!(refund.data.len(), 274);
+        assert_eq!(refund.accounts.len(), 5);
+        assert!(!refund.accounts[0].is_writable);
+        assert!(refund.accounts[1].is_writable);
+        assert!(refund.accounts[2].is_writable);
+        assert!(!refund.accounts[3].is_writable);
+        assert!(!refund.accounts[4].is_writable);
+    }
+
+    #[test]
+    fn typed_private_escrow_executor_uses_expected_accounts_and_discriminator() {
+        let release = execute_typed_private_escrow_release(
+            key(1),
+            key(2),
+            key(3),
+            [4; 32],
+            [5; 32],
+            100_000_000u128.to_le_bytes(),
+            [6; 32],
+            [7; 32],
+            [8; 32],
+            [9; 32],
+            [10; 32],
+            [11; 32],
+            [12; 32],
+        );
+        let refund = execute_typed_private_escrow_return(
+            key(1),
+            key(2),
+            key(3),
+            [4; 32],
+            [5; 32],
+            100_000_000u128.to_le_bytes(),
+            [6; 32],
+            [8; 32],
+            [9; 32],
+            [10; 32],
+            [11; 32],
+            [12; 32],
+        );
+
+        assert_eq!(release.data[0], 21);
+        assert_eq!(release.data.len(), 305);
+        assert_eq!(release.accounts.len(), 3);
+        assert!(!release.accounts[0].is_writable);
+        assert!(release.accounts[1].is_writable);
+        assert!(release.accounts[2].is_writable);
+        assert_eq!(refund.data[0], 22);
+        assert_eq!(refund.data.len(), 273);
+        assert_eq!(refund.accounts.len(), 3);
+        assert!(!refund.accounts[0].is_writable);
+        assert!(refund.accounts[1].is_writable);
+        assert!(refund.accounts[2].is_writable);
+    }
+
+    #[test]
+    fn typed_sol_send_executors_use_expected_accounts_and_discriminators() {
+        let send = execute_typed_sol_send(
+            key(1),
+            key(2),
+            key(3),
+            key(4),
+            key(5),
+            [6; 32],
+            [7; 32],
+            1_000_000,
+        );
+        let batch = execute_typed_sol_batch_send(
+            key(1),
+            key(2),
+            key(3),
+            key(4),
+            [6; 32],
+            [7; 32],
+            &1_000_000u64.to_le_bytes(),
+            vec![AccountMeta::new(key(8), false)],
+        );
+
+        assert_eq!(send.data[0], 14);
+        assert_eq!(batch.data[0], 15);
+        assert_eq!(send.accounts.len(), 6);
+        assert_eq!(batch.accounts.len(), 6);
+        assert!(!send.accounts[0].is_writable);
+        assert!(send.accounts[1].is_writable);
+        assert!(send.accounts[2].is_writable);
+        assert!(send.accounts[3].is_writable);
+        assert!(send.accounts[4].is_writable);
+        assert!(!send.accounts[5].is_writable);
+        assert!(batch.accounts[1].is_writable);
+        assert!(!batch.accounts[4].is_writable);
+        assert!(batch.accounts[5].is_writable);
+    }
+
+    #[test]
+    fn cleanup_instructions_use_expected_discriminators() {
+        let legacy = cleanup(key(1), key(2));
+        let typed = cleanup_typed(key(1), key(2));
+
+        assert_eq!(legacy.data, vec![5]);
+        assert_eq!(typed.data, vec![16]);
+        assert_eq!(legacy.accounts.len(), 2);
+        assert_eq!(typed.accounts.len(), 2);
+        assert!(legacy.accounts[0].is_writable);
+        assert!(legacy.accounts[1].is_writable);
+        assert!(typed.accounts[0].is_writable);
+        assert!(typed.accounts[1].is_writable);
     }
 }

@@ -24,14 +24,14 @@ import {
   listProposalsForWallet,
   type ProposalWithPda,
 } from "@/lib/chain/proposals";
-import { type ProposalAccount } from "@/lib/msig";
+import { type AnyProposalAccount } from "@/lib/msig";
 import { useProposalSubscription } from "@/lib/hooks/useProposalSubscription";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 
 export function useProposalWorkflow(walletName: string, selectedProposal: string) {
   const { connection } = useConnection();
   const wallet = useWallet();
-  const { signDescriptor } = useSignWithWallet();
+  const { signDescriptor, signTypedDescriptor } = useSignWithWallet();
 
   // Push live bitmap updates straight into the ["proposal", addr] cache.
   useProposalSubscription(selectedProposal);
@@ -47,7 +47,7 @@ export function useProposalWorkflow(walletName: string, selectedProposal: string
     staleTime: 10_000,
   });
 
-  const detailQuery = useQuery<ProposalAccount | null>({
+  const detailQuery = useQuery<AnyProposalAccount | null>({
     queryKey: ["proposal", selectedProposal],
     queryFn: async () => {
       let pubkey: PublicKey;
@@ -68,23 +68,36 @@ export function useProposalWorkflow(walletName: string, selectedProposal: string
   // backend default it.
   const approveMutation = useMutation({
     mutationFn: async () => {
-      const { signerPk } = await resolveProposalSigner({
+      const { proposal, signerPk } = await resolveProposalSigner({
         connection,
         proposalAddress: selectedProposal,
         pickSigner: wallet.pickSigner,
         action: "approve",
       });
       const actorPubkey = signerPk.toBase58();
-      const dry = await backendApi.prepare.approveProposal(
-        walletName,
-        selectedProposal,
-        { actor_pubkey: actorPubkey },
-      );
-      const signed = await signDescriptor(dry, { preferSigner: signerPk });
-      return backendApi.submit.approveProposal(walletName, selectedProposal, {
-        ...signed,
-        expiry: dry.expiry,
-      });
+      if (proposal.typed) {
+        const dry = await backendApi.prepare.approveTypedProposal(
+          walletName,
+          selectedProposal,
+          { actor_pubkey: actorPubkey },
+        );
+        const signed = await signTypedDescriptor(dry, { preferSigner: signerPk });
+        return backendApi.submit.approveTypedProposal(walletName, selectedProposal, {
+          ...signed,
+          expiry: dry.expiry,
+        });
+      } else {
+        const dry = await backendApi.prepare.approveProposal(
+          walletName,
+          selectedProposal,
+          { actor_pubkey: actorPubkey },
+        );
+        const signed = await signDescriptor(dry, { preferSigner: signerPk });
+        return backendApi.submit.approveProposal(walletName, selectedProposal, {
+          ...signed,
+          expiry: dry.expiry,
+        });
+      }
     },
     onSuccess: async () => {
       await detailQuery.refetch();
@@ -94,23 +107,36 @@ export function useProposalWorkflow(walletName: string, selectedProposal: string
 
   const cancelMutation = useMutation({
     mutationFn: async () => {
-      const { signerPk } = await resolveProposalSigner({
+      const { proposal, signerPk } = await resolveProposalSigner({
         connection,
         proposalAddress: selectedProposal,
         pickSigner: wallet.pickSigner,
         action: "decline",
       });
       const actorPubkey = signerPk.toBase58();
-      const dry = await backendApi.prepare.cancelProposal(
-        walletName,
-        selectedProposal,
-        { actor_pubkey: actorPubkey },
-      );
-      const signed = await signDescriptor(dry, { preferSigner: signerPk });
-      return backendApi.submit.cancelProposal(walletName, selectedProposal, {
-        ...signed,
-        expiry: dry.expiry,
-      });
+      if (proposal.typed) {
+        const dry = await backendApi.prepare.cancelTypedProposal(
+          walletName,
+          selectedProposal,
+          { actor_pubkey: actorPubkey },
+        );
+        const signed = await signTypedDescriptor(dry, { preferSigner: signerPk });
+        return backendApi.submit.cancelTypedProposal(walletName, selectedProposal, {
+          ...signed,
+          expiry: dry.expiry,
+        });
+      } else {
+        const dry = await backendApi.prepare.cancelProposal(
+          walletName,
+          selectedProposal,
+          { actor_pubkey: actorPubkey },
+        );
+        const signed = await signDescriptor(dry, { preferSigner: signerPk });
+        return backendApi.submit.cancelProposal(walletName, selectedProposal, {
+          ...signed,
+          expiry: dry.expiry,
+        });
+      }
     },
     onSuccess: async () => {
       await detailQuery.refetch();
@@ -119,8 +145,13 @@ export function useProposalWorkflow(walletName: string, selectedProposal: string
   });
 
   const executeMutation = useMutation({
-    mutationFn: (input: ExecuteProposalInput) =>
-      backendApi.executeProposal(walletName, selectedProposal, input),
+    mutationFn: async (input: ExecuteProposalInput) => {
+      const proposal = await fetchProposal(connection, new PublicKey(selectedProposal));
+      if (proposal?.typed) {
+        return backendApi.executeTypedProposal(walletName, selectedProposal);
+      }
+      return backendApi.executeProposal(walletName, selectedProposal, input);
+    },
     onSuccess: async () => {
       await detailQuery.refetch();
       await listQuery.refetch();

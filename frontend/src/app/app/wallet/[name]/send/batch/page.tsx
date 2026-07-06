@@ -47,6 +47,7 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { getProTreasuryRuntime } from "@/lib/pro/treasury";
+import { consumeProBatchPrefill } from "@/lib/pro/escrow";
 import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
 
 // Hard cap on rows per batch - high enough for real payroll, low
@@ -96,6 +97,7 @@ function BatchSendPage() {
   const budgetUsage = useWalletBudgetUsage(walletName);
   const walletDisplay = toDisplayName(walletName);
   const batchTemplate = params.get("template") === "payroll" ? "payroll" : "batch";
+  const prefillId = params.get("prefill")?.trim() ?? "";
 
   const walletQuery = useQuery({
     queryKey: ["wallet", walletName],
@@ -136,6 +138,19 @@ function BatchSendPage() {
   const [stage, setStage] = useState<Stage>("compose");
   const [drafts, setDrafts] = useState<DraftRow[]>(() => [emptyRow()]);
   const [csvText, setCsvText] = useState("");
+
+  useEffect(() => {
+    if (!walletName || !prefillId) return;
+    const rows = consumeProBatchPrefill(walletName, prefillId);
+    if (rows.length === 0) return;
+    setDrafts(
+      rows.slice(0, MAX_ROWS).map((row) => ({
+        id: emptyRow().id,
+        recipient: row.recipient,
+        amount: row.amount,
+      })),
+    );
+  }, [walletName, prefillId]);
 
   const resolvedRows = useMemo(
     () => drafts.map((d) => resolveRow(d, contacts.contacts)),

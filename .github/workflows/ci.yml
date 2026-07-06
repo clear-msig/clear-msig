@@ -137,3 +137,34 @@ jobs:
           path: target/deploy/clear_wallet.so
           if-no-files-found: error
           retention-days: 30
+
+  svm-program-tests:
+    name: clear-wallet SVM execution tests
+    runs-on: ubuntu-latest
+    needs: sbf-build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler libssl-dev pkg-config libudev-dev
+
+      - name: Cache cargo registry + target
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: svm
+
+      - name: Download clear_wallet.so artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: clear_wallet-so
+          path: target/deploy
+
+      - name: Run typed execution SVM tests
+        run: |
+          cargo test -p clear-wallet test_execute_typed_escrow -- --nocapture
+          cargo test -p clear-wallet test_execute_typed_sol -- --nocapture

@@ -1068,6 +1068,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "thiserror 2.0.18",
  "tokio",
  "tokio-stream",
@@ -1730,6 +1731,7 @@ dependencies = [
 name = "e2e-clear-msig-ika"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "bcs",
  "bs58",
  "clear-wallet",

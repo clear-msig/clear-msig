@@ -193,6 +193,7 @@ function isAllowedProPath(pathname: string, base: string): boolean {
     "policy",
     "policies",
     "budget",
+    "escrow",
     "send",
     "send/batch",
     "send/btc",

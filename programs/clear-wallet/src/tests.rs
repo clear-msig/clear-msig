@@ -3,12 +3,23 @@ extern crate std;
 use alloc::vec::Vec;
 use {
     crate::clear_wallet::cpi::*,
+    crate::state::ika_config::{IKA_CONFIG_DISCRIMINATOR, IKA_CONFIG_LEN},
+    crate::utils::clearsign::{
+        hash_batch_send_sol_payload_iter, hash_cross_chain_escrow_release_payload,
+        hash_cross_chain_escrow_return_payload, hash_envelope, hash_policy_commitment,
+        hash_private_escrow_release_payload, hash_private_escrow_return_payload,
+        hash_release_milestone_payload, hash_release_token_milestone_payload,
+        hash_return_escrow_sol_payload_iter, hash_return_token_escrow_payload_iter,
+        hash_send_payload, hash_vote_message, ClearSignActionKind, ClearSignAmount,
+        ClearSignEnvelope, ClearSignVoteKind,
+    },
     alloc::vec,
     clear_wallet_client::{
+        intent_builder::IntentBuilder,
         intents,
         pda::{
-            compute_name_hash, find_intent_address, find_proposal_address, find_vault_address,
-            find_wallet_address,
+            compute_name_hash, find_intent_address, find_proposal_address,
+            find_typed_proposal_address, find_vault_address, find_wallet_address,
         },
     },
     ed25519_dalek::Signer as DalekSigner,
@@ -46,6 +57,31 @@ fn empty_account(address: Pubkey) -> Account {
         lamports: 0,
         data: vec![],
         owner: quasar_svm::system_program::ID,
+        executable: false,
+    }
+}
+
+fn keyed_ika_config_account(
+    address: Pubkey,
+    wallet: Pubkey,
+    dwallet: Pubkey,
+    chain_kind: u8,
+    signature_scheme: u16,
+    bump: u8,
+) -> Account {
+    let mut data = vec![0u8; IKA_CONFIG_LEN];
+    data[0] = IKA_CONFIG_DISCRIMINATOR;
+    data[1..33].copy_from_slice(wallet.as_ref());
+    data[33..65].copy_from_slice(dwallet.as_ref());
+    data[65..97].copy_from_slice(&[7u8; 32]);
+    data[97] = chain_kind;
+    data[98..100].copy_from_slice(&signature_scheme.to_le_bytes());
+    data[100] = bump;
+    Account {
+        address,
+        lamports: 1_000_000,
+        data,
+        owner: crate::ID,
         executable: false,
     }
 }
@@ -121,6 +157,10 @@ fn message_suffix(wallet_name: &str, proposal_index: u64) -> String {
 }
 
 const DEFAULT_EXPIRY: i64 = 1_000_000_000;
+
+fn typed_test_expiry() -> i64 {
+    600
+}
 
 type MessageFn = dyn Fn(&str, i64, &str, u64, &[u8]) -> Vec<u8>;
 
@@ -291,8 +331,470 @@ fn build_execute_ix(
     (instruction, vault)
 }
 
+struct TypedProposalArgs {
+    payer: Pubkey,
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal_index: u64,
+    expiry: i64,
+    action_kind: u8,
+    policy_commitment: [u8; 32],
+    payload_hash: [u8; 32],
+    envelope_hash: [u8; 32],
+    proposer_pubkey: [u8; 32],
+    signature: [u8; 64],
+    action_id: [u8; 32],
+    nonce: [u8; 32],
+}
+
+fn build_propose_typed_ix(args: TypedProposalArgs) -> Instruction {
+    let (proposal, _) = find_typed_proposal_address(&args.intent, args.proposal_index, &crate::ID);
+    let mut data = vec![8u8];
+    wincode::serialize_into(&mut data, &args.proposal_index).unwrap();
+    wincode::serialize_into(&mut data, &args.expiry).unwrap();
+    wincode::serialize_into(&mut data, &args.action_kind).unwrap();
+    wincode::serialize_into(&mut data, &args.policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &args.payload_hash).unwrap();
+    wincode::serialize_into(&mut data, &args.envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &args.proposer_pubkey).unwrap();
+    wincode::serialize_into(&mut data, &args.signature).unwrap();
+    wincode::serialize_into(&mut data, &args.action_id).unwrap();
+    wincode::serialize_into(&mut data, &args.nonce).unwrap();
+
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(args.payer, true),
+            AccountMeta::new(args.wallet, false),
+            AccountMeta::new(args.intent, false),
+            AccountMeta::new(proposal, false),
+            AccountMeta::new_readonly(quasar_svm::system_program::ID, false),
+        ],
+        data,
+    }
+}
+
+fn build_execute_typed_escrow_release_ix(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    recipient: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_lamports: u64,
+    escrow_id_hash: [u8; 32],
+    milestone_id_hash: [u8; 32],
+) -> Instruction {
+    let (vault, _) = find_vault_address(&wallet, &crate::ID);
+    let mut data = vec![12u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &amount_lamports).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &milestone_id_hash).unwrap();
+
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new(vault, false),
+            AccountMeta::new(intent, false),
+            AccountMeta::new(proposal, false),
+            AccountMeta::new(recipient, false),
+            AccountMeta::new_readonly(quasar_svm::system_program::ID, false),
+        ],
+        data,
+    }
+}
+
+fn build_execute_typed_spl_escrow_release_ix(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    mint: Pubkey,
+    source_token: Pubkey,
+    destination_token: Pubkey,
+    recipient_owner: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_tokens: u64,
+    escrow_id_hash: [u8; 32],
+    milestone_id_hash: [u8; 32],
+) -> Instruction {
+    let (vault, _) = find_vault_address(&wallet, &crate::ID);
+    let mut data = vec![17u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &amount_tokens).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &milestone_id_hash).unwrap();
+
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new_readonly(vault, false),
+            AccountMeta::new(intent, false),
+            AccountMeta::new(proposal, false),
+            AccountMeta::new_readonly(mint, false),
+            AccountMeta::new(source_token, false),
+            AccountMeta::new(destination_token, false),
+            AccountMeta::new_readonly(recipient_owner, false),
+            AccountMeta::new_readonly(quasar_svm::SPL_TOKEN_PROGRAM_ID, false),
+        ],
+        data,
+    }
+}
+
+fn build_execute_typed_spl_escrow_return_ix(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    mint: Pubkey,
+    source_token: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    escrow_id_hash: [u8; 32],
+    amount_tokens_le: Vec<u8>,
+    remaining_accounts: Vec<AccountMeta>,
+) -> Instruction {
+    let (vault, _) = find_vault_address(&wallet, &crate::ID);
+    let mut data = vec![18u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    data.extend_from_slice(&amount_tokens_le);
+
+    let mut accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new_readonly(vault, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new_readonly(mint, false),
+        AccountMeta::new(source_token, false),
+        AccountMeta::new_readonly(quasar_svm::SPL_TOKEN_PROGRAM_ID, false),
+    ];
+    accounts.extend(remaining_accounts);
+
+    Instruction {
+        program_id: crate::ID,
+        accounts,
+        data,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_execute_typed_cross_chain_escrow_release_ix(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    ika_config: Pubkey,
+    dwallet: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    chain_kind: u8,
+    amount_raw_le: [u8; 16],
+    escrow_id_hash: [u8; 32],
+    milestone_id_hash: [u8; 32],
+    recipient_hash: [u8; 32],
+    asset_id_hash: [u8; 32],
+    route_hash: [u8; 32],
+    tx_template_hash: [u8; 32],
+    settlement_artifact_hash: [u8; 32],
+) -> Instruction {
+    let mut data = vec![19u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &chain_kind).unwrap();
+    wincode::serialize_into(&mut data, &amount_raw_le).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &milestone_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &recipient_hash).unwrap();
+    wincode::serialize_into(&mut data, &asset_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &route_hash).unwrap();
+    wincode::serialize_into(&mut data, &tx_template_hash).unwrap();
+    wincode::serialize_into(&mut data, &settlement_artifact_hash).unwrap();
+
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new(intent, false),
+            AccountMeta::new(proposal, false),
+            AccountMeta::new_readonly(ika_config, false),
+            AccountMeta::new_readonly(dwallet, false),
+        ],
+        data,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_execute_typed_cross_chain_escrow_return_ix(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    ika_config: Pubkey,
+    dwallet: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    chain_kind: u8,
+    amount_raw_le: [u8; 16],
+    escrow_id_hash: [u8; 32],
+    refund_recipient_hash: [u8; 32],
+    asset_id_hash: [u8; 32],
+    route_hash: [u8; 32],
+    tx_template_hash: [u8; 32],
+    settlement_artifact_hash: [u8; 32],
+) -> Instruction {
+    let mut data = vec![20u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &chain_kind).unwrap();
+    wincode::serialize_into(&mut data, &amount_raw_le).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &refund_recipient_hash).unwrap();
+    wincode::serialize_into(&mut data, &asset_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &route_hash).unwrap();
+    wincode::serialize_into(&mut data, &tx_template_hash).unwrap();
+    wincode::serialize_into(&mut data, &settlement_artifact_hash).unwrap();
+
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new(intent, false),
+            AccountMeta::new(proposal, false),
+            AccountMeta::new_readonly(ika_config, false),
+            AccountMeta::new_readonly(dwallet, false),
+        ],
+        data,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_execute_typed_private_escrow_release_ix(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_raw_le: [u8; 16],
+    escrow_id_hash: [u8; 32],
+    milestone_id_hash: [u8; 32],
+    recipient_hash: [u8; 32],
+    asset_id_hash: [u8; 32],
+    policy_ciphertexts_hash: [u8; 32],
+    private_evaluation_hash: [u8; 32],
+    settlement_artifact_hash: [u8; 32],
+) -> Instruction {
+    let mut data = vec![21u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &amount_raw_le).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &milestone_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &recipient_hash).unwrap();
+    wincode::serialize_into(&mut data, &asset_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &policy_ciphertexts_hash).unwrap();
+    wincode::serialize_into(&mut data, &private_evaluation_hash).unwrap();
+    wincode::serialize_into(&mut data, &settlement_artifact_hash).unwrap();
+
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new(intent, false),
+            AccountMeta::new(proposal, false),
+        ],
+        data,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_execute_typed_private_escrow_return_ix(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_raw_le: [u8; 16],
+    escrow_id_hash: [u8; 32],
+    refund_recipient_hash: [u8; 32],
+    asset_id_hash: [u8; 32],
+    policy_ciphertexts_hash: [u8; 32],
+    private_evaluation_hash: [u8; 32],
+    settlement_artifact_hash: [u8; 32],
+) -> Instruction {
+    let mut data = vec![22u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &amount_raw_le).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &refund_recipient_hash).unwrap();
+    wincode::serialize_into(&mut data, &asset_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &policy_ciphertexts_hash).unwrap();
+    wincode::serialize_into(&mut data, &private_evaluation_hash).unwrap();
+    wincode::serialize_into(&mut data, &settlement_artifact_hash).unwrap();
+
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new(intent, false),
+            AccountMeta::new(proposal, false),
+        ],
+        data,
+    }
+}
+
+fn build_execute_typed_escrow_return_ix(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    escrow_id_hash: [u8; 32],
+    amount_lamports_le: Vec<u8>,
+    remaining_accounts: Vec<AccountMeta>,
+) -> Instruction {
+    let (vault, _) = find_vault_address(&wallet, &crate::ID);
+    let mut data = vec![13u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    data.extend_from_slice(&amount_lamports_le);
+
+    let mut accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(vault, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new_readonly(quasar_svm::system_program::ID, false),
+    ];
+    accounts.extend(remaining_accounts);
+
+    Instruction {
+        program_id: crate::ID,
+        accounts,
+        data,
+    }
+}
+
+fn build_execute_typed_sol_send_ix(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    recipient: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_lamports: u64,
+) -> Instruction {
+    let (vault, _) = find_vault_address(&wallet, &crate::ID);
+    let mut data = vec![14u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &amount_lamports).unwrap();
+
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new(vault, false),
+            AccountMeta::new(intent, false),
+            AccountMeta::new(proposal, false),
+            AccountMeta::new(recipient, false),
+            AccountMeta::new_readonly(quasar_svm::system_program::ID, false),
+        ],
+        data,
+    }
+}
+
+fn build_execute_typed_sol_batch_send_ix(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_lamports_le: Vec<u8>,
+    remaining_accounts: Vec<AccountMeta>,
+) -> Instruction {
+    let (vault, _) = find_vault_address(&wallet, &crate::ID);
+    let mut data = vec![15u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    data.extend_from_slice(&amount_lamports_le);
+
+    let mut accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(vault, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new_readonly(quasar_svm::system_program::ID, false),
+    ];
+    accounts.extend(remaining_accounts);
+
+    Instruction {
+        program_id: crate::ID,
+        accounts,
+        data,
+    }
+}
+
 fn get_proposal_address(intent: Pubkey, index: u64) -> Pubkey {
     find_proposal_address(&intent, index, &crate::ID).0
+}
+
+fn get_typed_proposal_address(intent: Pubkey, index: u64) -> Pubkey {
+    find_typed_proposal_address(&intent, index, &crate::ID).0
+}
+
+fn build_cleanup_typed_ix(proposal: Pubkey, rent_refund: Pubkey) -> Instruction {
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(proposal, false),
+            AccountMeta::new(rent_refund, false),
+        ],
+        data: vec![16u8],
+    }
+}
+
+fn fund_vault(svm: &mut QuasarSvm, payer: Pubkey, wallet: Pubkey, amount: u64) -> Pubkey {
+    let (vault, _) = find_vault_address(&wallet, &crate::ID);
+    let fund_vault_ix = solana_instruction::Instruction {
+        program_id: quasar_svm::system_program::ID,
+        accounts: vec![
+            AccountMeta::new(payer, true),
+            AccountMeta::new(vault, false),
+        ],
+        data: {
+            let mut d = vec![2, 0, 0, 0]; // System Transfer discriminator
+            d.extend_from_slice(&amount.to_le_bytes());
+            d
+        },
+    };
+    let result = svm.process_instruction(
+        &fund_vault_ix,
+        &[funded_account(payer), empty_account(vault)],
+    );
+    assert!(result.is_ok(), "fund vault failed: {:?}", result.raw_result);
+    vault
+}
+
+fn sign_typed_vote(
+    key: &ed25519_dalek::SigningKey,
+    vote_kind: ClearSignVoteKind,
+    wallet: Pubkey,
+    proposal_index: u64,
+    envelope_hash: [u8; 32],
+) -> [u8; 64] {
+    key.sign(&hash_vote_message(
+        vote_kind,
+        wallet.as_ref(),
+        proposal_index,
+        envelope_hash,
+    ))
+    .to_bytes()
 }
 
 /// Full propose → approve → execute flow.
@@ -398,6 +900,1636 @@ fn test_create_wallet() {
         assert_eq!(result.account(&intent_address).unwrap().data[0], 2);
     }
     println!("  CREATE CU: {}", result.compute_units_consumed);
+}
+
+#[test]
+fn test_execute_typed_escrow_release_moves_sol() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let wallet_name = "typed-release";
+    let amount_lamports = 2_000_000u64;
+    let escrow_id_hash = sha256_hash(b"escrow-release-1");
+    let milestone_id_hash = sha256_hash(b"milestone-1");
+    let action_id = sha256_hash(b"release-action-1");
+    let nonce = sha256_hash(b"release-nonce-1");
+    let expiry = typed_test_expiry();
+
+    let (instruction, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&proposer)],
+        1,
+    );
+    assert!(svm.process_instruction(&instruction, &accounts).is_ok());
+
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let proposal_index = 0u64;
+    let proposal = get_typed_proposal_address(intent, proposal_index);
+    let recipient = Pubkey::new_unique();
+    let policy_commitment = hash_policy_commitment(&[b"escrow:release"]);
+    let payload_hash = hash_release_milestone_payload(
+        &escrow_id_hash,
+        &milestone_id_hash,
+        recipient.as_ref(),
+        &ClearSignAmount {
+            asset: b"SOL",
+            raw_amount: amount_lamports as u128,
+        },
+    );
+    let envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::ReleaseMilestone,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: action_id.as_ref(),
+        nonce: nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment,
+        payload_hash,
+    });
+
+    let propose = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent,
+        proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::ReleaseMilestone.code(),
+        policy_commitment,
+        payload_hash,
+        envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_typed_vote(
+            &proposer,
+            ClearSignVoteKind::Propose,
+            wallet,
+            proposal_index,
+            envelope_hash,
+        ),
+        action_id,
+        nonce,
+    });
+    let result =
+        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
+    if result.is_err() {
+        result.print_logs();
+    }
+    assert!(
+        result.is_ok(),
+        "typed escrow release propose failed: {:?}",
+        result.raw_result
+    );
+
+    let vault = fund_vault(&mut svm, payer, wallet, amount_lamports + 1_000_000);
+    let vault_pre = svm.get_account(&vault).map(|a| a.lamports).unwrap_or(0);
+    let execute = build_execute_typed_escrow_release_ix(
+        wallet,
+        intent,
+        proposal,
+        recipient,
+        policy_commitment,
+        envelope_hash,
+        amount_lamports,
+        escrow_id_hash,
+        milestone_id_hash,
+    );
+    let result = svm.process_instruction(&execute, &[empty_account(recipient)]);
+    assert!(
+        result.is_ok(),
+        "typed escrow release execute failed: {:?}",
+        result.raw_result
+    );
+
+    assert_eq!(
+        svm.get_account(&recipient).map(|a| a.lamports).unwrap_or(0),
+        amount_lamports
+    );
+    assert_eq!(
+        svm.get_account(&vault).map(|a| a.lamports).unwrap_or(0),
+        vault_pre - amount_lamports
+    );
+    assert_eq!(
+        svm.get_account(&proposal).unwrap().data[105],
+        2,
+        "typed proposal should be Executed(2)"
+    );
+}
+
+#[test]
+fn test_execute_typed_spl_escrow_release_moves_tokens() {
+    use quasar_svm::token::{
+        create_keyed_mint_account, create_keyed_token_account, Mint, TokenAccount,
+    };
+    use spl_token::solana_program::program_pack::Pack;
+    use spl_token::state::AccountState;
+
+    let mut svm = setup_with_tokens();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let wallet_name = "typed-spl-release";
+    let amount_tokens = 250_000u64;
+    let initial_supply = 1_000_000u64;
+    let escrow_id_hash = sha256_hash(b"spl-escrow-release-1");
+    let milestone_id_hash = sha256_hash(b"spl-milestone-1");
+    let action_id = sha256_hash(b"spl-release-action-1");
+    let nonce = sha256_hash(b"spl-release-nonce-1");
+    let expiry = typed_test_expiry();
+
+    let (instruction, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&proposer)],
+        1,
+    );
+    assert!(svm.process_instruction(&instruction, &accounts).is_ok());
+
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let (vault, _) = find_vault_address(&wallet, &crate::ID);
+    let proposal_index = 0u64;
+    let proposal = get_typed_proposal_address(intent, proposal_index);
+    let mint = Pubkey::new_unique();
+    let recipient_owner = Pubkey::new_unique();
+    let source_token = Pubkey::new_unique();
+    let destination_token = Pubkey::new_unique();
+
+    svm.set_account(create_keyed_mint_account(
+        &mint,
+        &Mint {
+            decimals: 6,
+            supply: initial_supply,
+            is_initialized: true,
+            ..Default::default()
+        },
+    ));
+    svm.set_account(create_keyed_token_account(
+        &source_token,
+        &TokenAccount {
+            mint,
+            owner: vault,
+            amount: initial_supply,
+            state: AccountState::Initialized,
+            ..Default::default()
+        },
+    ));
+    svm.set_account(create_keyed_token_account(
+        &destination_token,
+        &TokenAccount {
+            mint,
+            owner: recipient_owner,
+            amount: 0,
+            state: AccountState::Initialized,
+            ..Default::default()
+        },
+    ));
+
+    let policy_commitment = hash_policy_commitment(&[b"escrow:release:spl"]);
+    let amount = ClearSignAmount {
+        asset: mint.as_ref(),
+        raw_amount: amount_tokens as u128,
+    };
+    let payload_hash = hash_release_token_milestone_payload(
+        &escrow_id_hash,
+        &milestone_id_hash,
+        mint.as_ref(),
+        source_token.as_ref(),
+        destination_token.as_ref(),
+        recipient_owner.as_ref(),
+        &amount,
+    );
+    let envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::ReleaseMilestone,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: action_id.as_ref(),
+        nonce: nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment,
+        payload_hash,
+    });
+
+    let propose = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent,
+        proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::ReleaseMilestone.code(),
+        policy_commitment,
+        payload_hash,
+        envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_typed_vote(
+            &proposer,
+            ClearSignVoteKind::Propose,
+            wallet,
+            proposal_index,
+            envelope_hash,
+        ),
+        action_id,
+        nonce,
+    });
+    let result =
+        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
+    assert!(
+        result.is_ok(),
+        "typed SPL escrow release propose failed: {:?}",
+        result.raw_result
+    );
+
+    let execute = build_execute_typed_spl_escrow_release_ix(
+        wallet,
+        intent,
+        proposal,
+        mint,
+        source_token,
+        destination_token,
+        recipient_owner,
+        policy_commitment,
+        envelope_hash,
+        amount_tokens,
+        escrow_id_hash,
+        milestone_id_hash,
+    );
+    let result = svm.process_instruction(&execute, &[empty_account(recipient_owner)]);
+    if result.is_err() {
+        result.print_logs();
+    }
+    assert!(
+        result.is_ok(),
+        "typed SPL escrow release execute failed: {:?}",
+        result.raw_result
+    );
+
+    let source_account = svm.get_account(&source_token).unwrap();
+    let source_state: TokenAccount = TokenAccount::unpack(&source_account.data).unwrap();
+    assert_eq!(source_state.amount, initial_supply - amount_tokens);
+
+    let destination_account = svm.get_account(&destination_token).unwrap();
+    let destination_state: TokenAccount = TokenAccount::unpack(&destination_account.data).unwrap();
+    assert_eq!(destination_state.amount, amount_tokens);
+    assert_eq!(destination_state.owner, recipient_owner);
+    assert_eq!(destination_state.mint, mint);
+    assert_eq!(
+        svm.get_account(&proposal).unwrap().data[105],
+        2,
+        "typed proposal should be Executed(2)"
+    );
+}
+
+#[test]
+fn test_execute_typed_spl_escrow_return_moves_tokens_to_funders() {
+    use quasar_svm::token::{
+        create_keyed_mint_account, create_keyed_token_account, Mint, TokenAccount,
+    };
+    use spl_token::solana_program::program_pack::Pack;
+    use spl_token::state::AccountState;
+
+    let mut svm = setup_with_tokens();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let wallet_name = "typed-spl-return";
+    let initial_supply = 1_000_000u64;
+    let amount_a = 125_000u64;
+    let amount_b = 275_000u64;
+    let escrow_id_hash = sha256_hash(b"spl-escrow-return-1");
+    let action_id = sha256_hash(b"spl-return-action-1");
+    let nonce = sha256_hash(b"spl-return-nonce-1");
+    let expiry = typed_test_expiry();
+
+    let (instruction, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&proposer)],
+        1,
+    );
+    assert!(svm.process_instruction(&instruction, &accounts).is_ok());
+
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let (vault, _) = find_vault_address(&wallet, &crate::ID);
+    let proposal_index = 0u64;
+    let proposal = get_typed_proposal_address(intent, proposal_index);
+    let mint = Pubkey::new_unique();
+    let funder_a = Pubkey::new_unique();
+    let funder_b = Pubkey::new_unique();
+    let source_token = Pubkey::new_unique();
+    let destination_a = Pubkey::new_unique();
+    let destination_b = Pubkey::new_unique();
+
+    svm.set_account(create_keyed_mint_account(
+        &mint,
+        &Mint {
+            decimals: 6,
+            supply: initial_supply,
+            is_initialized: true,
+            ..Default::default()
+        },
+    ));
+    svm.set_account(create_keyed_token_account(
+        &source_token,
+        &TokenAccount {
+            mint,
+            owner: vault,
+            amount: initial_supply,
+            state: AccountState::Initialized,
+            ..Default::default()
+        },
+    ));
+    svm.set_account(create_keyed_token_account(
+        &destination_a,
+        &TokenAccount {
+            mint,
+            owner: funder_a,
+            amount: 0,
+            state: AccountState::Initialized,
+            ..Default::default()
+        },
+    ));
+    svm.set_account(create_keyed_token_account(
+        &destination_b,
+        &TokenAccount {
+            mint,
+            owner: funder_b,
+            amount: 0,
+            state: AccountState::Initialized,
+            ..Default::default()
+        },
+    ));
+
+    let policy_commitment = hash_policy_commitment(&[b"escrow:return:spl"]);
+    let payload_hash = hash_return_token_escrow_payload_iter(
+        &escrow_id_hash,
+        mint.as_ref(),
+        source_token.as_ref(),
+        [
+            (destination_a.as_ref(), funder_a.as_ref(), amount_a),
+            (destination_b.as_ref(), funder_b.as_ref(), amount_b),
+        ]
+        .into_iter(),
+    );
+    let envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::ReturnEscrowFunds,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: action_id.as_ref(),
+        nonce: nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment,
+        payload_hash,
+    });
+
+    let propose = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent,
+        proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::ReturnEscrowFunds.code(),
+        policy_commitment,
+        payload_hash,
+        envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_typed_vote(
+            &proposer,
+            ClearSignVoteKind::Propose,
+            wallet,
+            proposal_index,
+            envelope_hash,
+        ),
+        action_id,
+        nonce,
+    });
+    let result =
+        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
+    assert!(
+        result.is_ok(),
+        "typed SPL escrow return propose failed: {:?}",
+        result.raw_result
+    );
+
+    let mut amount_bytes = Vec::new();
+    amount_bytes.extend_from_slice(&amount_a.to_le_bytes());
+    amount_bytes.extend_from_slice(&amount_b.to_le_bytes());
+    let execute = build_execute_typed_spl_escrow_return_ix(
+        wallet,
+        intent,
+        proposal,
+        mint,
+        source_token,
+        policy_commitment,
+        envelope_hash,
+        escrow_id_hash,
+        amount_bytes,
+        vec![
+            AccountMeta::new(destination_a, false),
+            AccountMeta::new_readonly(funder_a, false),
+            AccountMeta::new(destination_b, false),
+            AccountMeta::new_readonly(funder_b, false),
+        ],
+    );
+    let result = svm.process_instruction(
+        &execute,
+        &[empty_account(funder_a), empty_account(funder_b)],
+    );
+    if result.is_err() {
+        result.print_logs();
+    }
+    assert!(
+        result.is_ok(),
+        "typed SPL escrow return execute failed: {:?}",
+        result.raw_result
+    );
+
+    let source_account = svm.get_account(&source_token).unwrap();
+    let source_state: TokenAccount = TokenAccount::unpack(&source_account.data).unwrap();
+    assert_eq!(source_state.amount, initial_supply - amount_a - amount_b);
+
+    let destination_a_account = svm.get_account(&destination_a).unwrap();
+    let destination_a_state: TokenAccount =
+        TokenAccount::unpack(&destination_a_account.data).unwrap();
+    assert_eq!(destination_a_state.amount, amount_a);
+    assert_eq!(destination_a_state.owner, funder_a);
+
+    let destination_b_account = svm.get_account(&destination_b).unwrap();
+    let destination_b_state: TokenAccount =
+        TokenAccount::unpack(&destination_b_account.data).unwrap();
+    assert_eq!(destination_b_state.amount, amount_b);
+    assert_eq!(destination_b_state.owner, funder_b);
+    assert_eq!(
+        svm.get_account(&proposal).unwrap().data[105],
+        2,
+        "typed proposal should be Executed(2)"
+    );
+}
+
+#[test]
+fn test_execute_typed_cross_chain_escrow_release_finalizes_verified_artifact() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let approver = new_keypair();
+    let wallet_name = "typed-cross-chain-release";
+    let chain_kind = 2u8;
+    let amount_raw = 100_000_000u128;
+    let escrow_id_hash = sha256_hash(b"btc-escrow-release-1");
+    let milestone_id_hash = sha256_hash(b"btc-milestone-1");
+    let recipient_hash = sha256_hash(b"tb1qrecipientaddress");
+    let asset_id_hash = sha256_hash(b"BTC:testnet");
+    let route_hash = sha256_hash(b"ika:btc:p2wpkh:testnet");
+    let settlement_artifact_hash = sha256_hash(b"btc-txid:approved-artifact");
+    let wrong_artifact_hash = sha256_hash(b"btc-txid:wrong-artifact");
+    let tx_template = b"btc-p2wpkh-template-v1";
+    let tx_template_hash = sha256_hash(tx_template);
+    let action_id = sha256_hash(b"cross-chain-release-action-1");
+    let nonce = sha256_hash(b"cross-chain-release-nonce-1");
+    let expiry = typed_test_expiry();
+
+    let (instruction, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&approver)],
+        1,
+    );
+    assert!(svm.process_instruction(&instruction, &accounts).is_ok());
+
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let mut builder = IntentBuilder::new();
+    builder
+        .set_chain_kind(chain_kind)
+        .set_governance(1, 1, 0)
+        .add_proposer(solana_address::Address::new_from_array(
+            pubkey_of(&proposer).to_bytes(),
+        ))
+        .add_approver(solana_address::Address::new_from_array(
+            pubkey_of(&proposer).to_bytes(),
+        ))
+        .set_template("Release BTC escrow milestone")
+        .set_tx_template(tx_template);
+    let built_intent = builder.build();
+    let intent_index = 3u8;
+    let intent_body = built_intent.serialize_body(&wallet, 0, intent_index, 3);
+    let (remote_intent, _) = find_intent_address(&wallet, intent_index, &crate::ID);
+
+    propose_approve_execute(ProposeApproveExecuteArgs {
+        svm: &mut svm,
+        payer,
+        wallet,
+        wallet_name,
+        intent: add_intent,
+        proposal_index: 0,
+        proposer: &proposer,
+        approver: &approver,
+        params_data: intent_body,
+        msg_fn: &add_intent_msg,
+        execute_remaining: vec![
+            AccountMeta::new(payer, true),
+            AccountMeta::new(remote_intent, false),
+        ],
+        execute_extra_accounts: vec![funded_account(payer), empty_account(remote_intent)],
+    });
+
+    let (ika_config, ika_config_bump) =
+        Pubkey::find_program_address(&[b"ika_config", wallet.as_ref(), &[chain_kind]], &crate::ID);
+    let dwallet = Pubkey::new_unique();
+    svm.set_account(keyed_ika_config_account(
+        ika_config,
+        wallet,
+        dwallet,
+        chain_kind,
+        1,
+        ika_config_bump,
+    ));
+
+    let proposal_index = 1u64;
+    let typed_proposal = get_typed_proposal_address(remote_intent, proposal_index);
+    let policy_commitment = hash_policy_commitment(&[b"escrow:release:cross-chain"]);
+    let amount = ClearSignAmount {
+        asset: &asset_id_hash,
+        raw_amount: amount_raw,
+    };
+    let payload_hash = hash_cross_chain_escrow_release_payload(
+        &escrow_id_hash,
+        &milestone_id_hash,
+        chain_kind,
+        ika_config.as_ref(),
+        dwallet.as_ref(),
+        &recipient_hash,
+        &amount,
+        &route_hash,
+        &tx_template_hash,
+        &settlement_artifact_hash,
+    );
+    let envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::ReleaseMilestone,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: action_id.as_ref(),
+        nonce: nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment,
+        payload_hash,
+    });
+
+    let propose = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent: remote_intent,
+        proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::ReleaseMilestone.code(),
+        policy_commitment,
+        payload_hash,
+        envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_typed_vote(
+            &proposer,
+            ClearSignVoteKind::Propose,
+            wallet,
+            proposal_index,
+            envelope_hash,
+        ),
+        action_id,
+        nonce,
+    });
+    let result = svm.process_instruction(
+        &propose,
+        &[funded_account(payer), empty_account(typed_proposal)],
+    );
+    assert!(
+        result.is_ok(),
+        "typed cross-chain escrow release propose failed: {:?}",
+        result.raw_result
+    );
+
+    let wrong_execute = build_execute_typed_cross_chain_escrow_release_ix(
+        wallet,
+        remote_intent,
+        typed_proposal,
+        ika_config,
+        dwallet,
+        policy_commitment,
+        envelope_hash,
+        chain_kind,
+        amount_raw.to_le_bytes(),
+        escrow_id_hash,
+        milestone_id_hash,
+        recipient_hash,
+        asset_id_hash,
+        route_hash,
+        tx_template_hash,
+        wrong_artifact_hash,
+    );
+    assert!(svm
+        .process_instruction(&wrong_execute, &[empty_account(dwallet)])
+        .is_err());
+
+    let execute = build_execute_typed_cross_chain_escrow_release_ix(
+        wallet,
+        remote_intent,
+        typed_proposal,
+        ika_config,
+        dwallet,
+        policy_commitment,
+        envelope_hash,
+        chain_kind,
+        amount_raw.to_le_bytes(),
+        escrow_id_hash,
+        milestone_id_hash,
+        recipient_hash,
+        asset_id_hash,
+        route_hash,
+        tx_template_hash,
+        settlement_artifact_hash,
+    );
+    let result = svm.process_instruction(&execute, &[empty_account(dwallet)]);
+    if result.is_err() {
+        result.print_logs();
+    }
+    assert!(
+        result.is_ok(),
+        "typed cross-chain escrow release execute failed: {:?}",
+        result.raw_result
+    );
+    assert_eq!(
+        svm.get_account(&typed_proposal).unwrap().data[105],
+        2,
+        "typed proposal should be Executed(2)"
+    );
+
+    let return_proposal_index = 2u64;
+    let return_proposal = get_typed_proposal_address(remote_intent, return_proposal_index);
+    let refund_recipient_hash = sha256_hash(b"tb1qrefundrecipient");
+    let return_artifact_hash = sha256_hash(b"btc-refund-txid:approved-artifact");
+    let wrong_return_artifact_hash = sha256_hash(b"btc-refund-txid:wrong-artifact");
+    let return_action_id = sha256_hash(b"cross-chain-return-action-1");
+    let return_nonce = sha256_hash(b"cross-chain-return-nonce-1");
+    let return_policy_commitment = hash_policy_commitment(&[b"escrow:return:cross-chain"]);
+    let return_payload_hash = hash_cross_chain_escrow_return_payload(
+        &escrow_id_hash,
+        chain_kind,
+        ika_config.as_ref(),
+        dwallet.as_ref(),
+        &refund_recipient_hash,
+        &amount,
+        &route_hash,
+        &tx_template_hash,
+        &return_artifact_hash,
+    );
+    let return_envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::ReturnEscrowFunds,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: return_action_id.as_ref(),
+        nonce: return_nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment: return_policy_commitment,
+        payload_hash: return_payload_hash,
+    });
+    let propose_return = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent: remote_intent,
+        proposal_index: return_proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::ReturnEscrowFunds.code(),
+        policy_commitment: return_policy_commitment,
+        payload_hash: return_payload_hash,
+        envelope_hash: return_envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_typed_vote(
+            &proposer,
+            ClearSignVoteKind::Propose,
+            wallet,
+            return_proposal_index,
+            return_envelope_hash,
+        ),
+        action_id: return_action_id,
+        nonce: return_nonce,
+    });
+    let result = svm.process_instruction(
+        &propose_return,
+        &[funded_account(payer), empty_account(return_proposal)],
+    );
+    assert!(
+        result.is_ok(),
+        "typed cross-chain escrow return propose failed: {:?}",
+        result.raw_result
+    );
+
+    let wrong_return = build_execute_typed_cross_chain_escrow_return_ix(
+        wallet,
+        remote_intent,
+        return_proposal,
+        ika_config,
+        dwallet,
+        return_policy_commitment,
+        return_envelope_hash,
+        chain_kind,
+        amount_raw.to_le_bytes(),
+        escrow_id_hash,
+        refund_recipient_hash,
+        asset_id_hash,
+        route_hash,
+        tx_template_hash,
+        wrong_return_artifact_hash,
+    );
+    assert!(svm
+        .process_instruction(&wrong_return, &[empty_account(dwallet)])
+        .is_err());
+
+    let execute_return = build_execute_typed_cross_chain_escrow_return_ix(
+        wallet,
+        remote_intent,
+        return_proposal,
+        ika_config,
+        dwallet,
+        return_policy_commitment,
+        return_envelope_hash,
+        chain_kind,
+        amount_raw.to_le_bytes(),
+        escrow_id_hash,
+        refund_recipient_hash,
+        asset_id_hash,
+        route_hash,
+        tx_template_hash,
+        return_artifact_hash,
+    );
+    let result = svm.process_instruction(&execute_return, &[empty_account(dwallet)]);
+    if result.is_err() {
+        result.print_logs();
+    }
+    assert!(
+        result.is_ok(),
+        "typed cross-chain escrow return execute failed: {:?}",
+        result.raw_result
+    );
+    assert_eq!(
+        svm.get_account(&return_proposal).unwrap().data[105],
+        2,
+        "typed return proposal should be Executed(2)"
+    );
+}
+
+#[test]
+fn test_execute_typed_private_escrow_finalizes_ciphertext_bound_artifacts() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let approver = new_keypair();
+    let wallet_name = "typed-private-escrow";
+    let amount_raw = 42_000_000u128;
+    let escrow_id_hash = sha256_hash(b"private-escrow-1");
+    let milestone_id_hash = sha256_hash(b"private-milestone-1");
+    let recipient_hash = sha256_hash(b"private-recipient-commitment");
+    let refund_recipient_hash = sha256_hash(b"private-refund-commitment");
+    let asset_id_hash = sha256_hash(b"PRIVATE:USDC");
+    let private_evaluation_hash = sha256_hash(b"encrypt-evaluation:allowed");
+    let wrong_private_evaluation_hash = sha256_hash(b"encrypt-evaluation:wrong");
+    let settlement_artifact_hash = sha256_hash(b"private-settlement-artifact");
+    let refund_artifact_hash = sha256_hash(b"private-refund-artifact");
+    let policy_ciphertexts = {
+        let mut out = Vec::new();
+        out.extend_from_slice(&2u16.to_le_bytes());
+        for id in [
+            b"enc_policy_limit".as_slice(),
+            b"enc_policy_recipient".as_slice(),
+        ] {
+            out.extend_from_slice(&(id.len() as u16).to_le_bytes());
+            out.extend_from_slice(id);
+        }
+        out
+    };
+    let policy_ciphertexts_hash = sha256_hash(&policy_ciphertexts);
+    let expiry = typed_test_expiry();
+
+    let (instruction, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&approver)],
+        1,
+    );
+    assert!(svm.process_instruction(&instruction, &accounts).is_ok());
+
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let mut builder = IntentBuilder::new();
+    builder
+        .set_governance(1, 1, 0)
+        .add_proposer(solana_address::Address::new_from_array(
+            pubkey_of(&proposer).to_bytes(),
+        ))
+        .add_approver(solana_address::Address::new_from_array(
+            pubkey_of(&proposer).to_bytes(),
+        ))
+        .set_template("Release private escrow milestone")
+        .set_policy_ciphertexts(&policy_ciphertexts);
+    let built_intent = builder.build();
+    let intent_index = 3u8;
+    let intent_body = built_intent.serialize_body(&wallet, 0, intent_index, 3);
+    let (private_intent, _) = find_intent_address(&wallet, intent_index, &crate::ID);
+
+    propose_approve_execute(ProposeApproveExecuteArgs {
+        svm: &mut svm,
+        payer,
+        wallet,
+        wallet_name,
+        intent: add_intent,
+        proposal_index: 0,
+        proposer: &proposer,
+        approver: &approver,
+        params_data: intent_body,
+        msg_fn: &add_intent_msg,
+        execute_remaining: vec![
+            AccountMeta::new(payer, true),
+            AccountMeta::new(private_intent, false),
+        ],
+        execute_extra_accounts: vec![funded_account(payer), empty_account(private_intent)],
+    });
+
+    let amount = ClearSignAmount {
+        asset: &asset_id_hash,
+        raw_amount: amount_raw,
+    };
+    let release_proposal_index = 1u64;
+    let release_proposal = get_typed_proposal_address(private_intent, release_proposal_index);
+    let release_policy_commitment = hash_policy_commitment(&[b"escrow:release:private"]);
+    let release_payload_hash = hash_private_escrow_release_payload(
+        &escrow_id_hash,
+        &milestone_id_hash,
+        &recipient_hash,
+        &amount,
+        &policy_ciphertexts_hash,
+        &private_evaluation_hash,
+        &settlement_artifact_hash,
+    );
+    let release_action_id = sha256_hash(b"private-release-action-1");
+    let release_nonce = sha256_hash(b"private-release-nonce-1");
+    let release_envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::ReleaseMilestone,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: release_action_id.as_ref(),
+        nonce: release_nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment: release_policy_commitment,
+        payload_hash: release_payload_hash,
+    });
+    let propose_release = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent: private_intent,
+        proposal_index: release_proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::ReleaseMilestone.code(),
+        policy_commitment: release_policy_commitment,
+        payload_hash: release_payload_hash,
+        envelope_hash: release_envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_typed_vote(
+            &proposer,
+            ClearSignVoteKind::Propose,
+            wallet,
+            release_proposal_index,
+            release_envelope_hash,
+        ),
+        action_id: release_action_id,
+        nonce: release_nonce,
+    });
+    let result = svm.process_instruction(
+        &propose_release,
+        &[funded_account(payer), empty_account(release_proposal)],
+    );
+    assert!(
+        result.is_ok(),
+        "typed private escrow release propose failed: {:?}",
+        result.raw_result
+    );
+
+    let wrong_release = build_execute_typed_private_escrow_release_ix(
+        wallet,
+        private_intent,
+        release_proposal,
+        release_policy_commitment,
+        release_envelope_hash,
+        amount_raw.to_le_bytes(),
+        escrow_id_hash,
+        milestone_id_hash,
+        recipient_hash,
+        asset_id_hash,
+        policy_ciphertexts_hash,
+        wrong_private_evaluation_hash,
+        settlement_artifact_hash,
+    );
+    assert!(svm.process_instruction(&wrong_release, &[]).is_err());
+
+    let execute_release = build_execute_typed_private_escrow_release_ix(
+        wallet,
+        private_intent,
+        release_proposal,
+        release_policy_commitment,
+        release_envelope_hash,
+        amount_raw.to_le_bytes(),
+        escrow_id_hash,
+        milestone_id_hash,
+        recipient_hash,
+        asset_id_hash,
+        policy_ciphertexts_hash,
+        private_evaluation_hash,
+        settlement_artifact_hash,
+    );
+    let result = svm.process_instruction(&execute_release, &[]);
+    if result.is_err() {
+        result.print_logs();
+    }
+    assert!(
+        result.is_ok(),
+        "typed private escrow release execute failed: {:?}",
+        result.raw_result
+    );
+    assert_eq!(
+        svm.get_account(&release_proposal).unwrap().data[105],
+        2,
+        "typed private release proposal should be Executed(2)"
+    );
+
+    let return_proposal_index = 2u64;
+    let return_proposal = get_typed_proposal_address(private_intent, return_proposal_index);
+    let return_policy_commitment = hash_policy_commitment(&[b"escrow:return:private"]);
+    let return_payload_hash = hash_private_escrow_return_payload(
+        &escrow_id_hash,
+        &refund_recipient_hash,
+        &amount,
+        &policy_ciphertexts_hash,
+        &private_evaluation_hash,
+        &refund_artifact_hash,
+    );
+    let return_action_id = sha256_hash(b"private-return-action-1");
+    let return_nonce = sha256_hash(b"private-return-nonce-1");
+    let return_envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::ReturnEscrowFunds,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: return_action_id.as_ref(),
+        nonce: return_nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment: return_policy_commitment,
+        payload_hash: return_payload_hash,
+    });
+    let propose_return = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent: private_intent,
+        proposal_index: return_proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::ReturnEscrowFunds.code(),
+        policy_commitment: return_policy_commitment,
+        payload_hash: return_payload_hash,
+        envelope_hash: return_envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_typed_vote(
+            &proposer,
+            ClearSignVoteKind::Propose,
+            wallet,
+            return_proposal_index,
+            return_envelope_hash,
+        ),
+        action_id: return_action_id,
+        nonce: return_nonce,
+    });
+    let result = svm.process_instruction(
+        &propose_return,
+        &[funded_account(payer), empty_account(return_proposal)],
+    );
+    assert!(
+        result.is_ok(),
+        "typed private escrow return propose failed: {:?}",
+        result.raw_result
+    );
+
+    let execute_return = build_execute_typed_private_escrow_return_ix(
+        wallet,
+        private_intent,
+        return_proposal,
+        return_policy_commitment,
+        return_envelope_hash,
+        amount_raw.to_le_bytes(),
+        escrow_id_hash,
+        refund_recipient_hash,
+        asset_id_hash,
+        policy_ciphertexts_hash,
+        private_evaluation_hash,
+        refund_artifact_hash,
+    );
+    let result = svm.process_instruction(&execute_return, &[]);
+    if result.is_err() {
+        result.print_logs();
+    }
+    assert!(
+        result.is_ok(),
+        "typed private escrow return execute failed: {:?}",
+        result.raw_result
+    );
+    assert_eq!(
+        svm.get_account(&return_proposal).unwrap().data[105],
+        2,
+        "typed private return proposal should be Executed(2)"
+    );
+}
+
+#[test]
+fn test_execute_typed_escrow_return_moves_sol_to_funders() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let wallet_name = "typed-return";
+    let escrow_id_hash = sha256_hash(b"escrow-return-1");
+    let action_id = sha256_hash(b"return-action-1");
+    let nonce = sha256_hash(b"return-nonce-1");
+    let funder_a = Pubkey::new_unique();
+    let funder_b = Pubkey::new_unique();
+    let amount_a = 3_000_000u64;
+    let amount_b = 5_000_000u64;
+    let expiry = typed_test_expiry();
+
+    let (instruction, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&proposer)],
+        1,
+    );
+    assert!(svm.process_instruction(&instruction, &accounts).is_ok());
+
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let proposal_index = 0u64;
+    let proposal = get_typed_proposal_address(intent, proposal_index);
+    let policy_commitment = hash_policy_commitment(&[b"escrow:return"]);
+    let payload_hash = hash_return_escrow_sol_payload_iter(
+        &escrow_id_hash,
+        [(funder_a.as_ref(), amount_a), (funder_b.as_ref(), amount_b)].into_iter(),
+    );
+    let envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::ReturnEscrowFunds,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: action_id.as_ref(),
+        nonce: nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment,
+        payload_hash,
+    });
+
+    let propose = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent,
+        proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::ReturnEscrowFunds.code(),
+        policy_commitment,
+        payload_hash,
+        envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_typed_vote(
+            &proposer,
+            ClearSignVoteKind::Propose,
+            wallet,
+            proposal_index,
+            envelope_hash,
+        ),
+        action_id,
+        nonce,
+    });
+    let result =
+        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
+    if result.is_err() {
+        result.print_logs();
+    }
+    assert!(
+        result.is_ok(),
+        "typed escrow return propose failed: {:?}",
+        result.raw_result
+    );
+
+    let total = amount_a + amount_b;
+    let vault = fund_vault(&mut svm, payer, wallet, total + 1_000_000);
+    let vault_pre = svm.get_account(&vault).map(|a| a.lamports).unwrap_or(0);
+    let mut amount_bytes = Vec::new();
+    amount_bytes.extend_from_slice(&amount_a.to_le_bytes());
+    amount_bytes.extend_from_slice(&amount_b.to_le_bytes());
+    let execute = build_execute_typed_escrow_return_ix(
+        wallet,
+        intent,
+        proposal,
+        policy_commitment,
+        envelope_hash,
+        escrow_id_hash,
+        amount_bytes,
+        vec![
+            AccountMeta::new(funder_a, false),
+            AccountMeta::new(funder_b, false),
+        ],
+    );
+    let result = svm.process_instruction(
+        &execute,
+        &[empty_account(funder_a), empty_account(funder_b)],
+    );
+    assert!(
+        result.is_ok(),
+        "typed escrow return execute failed: {:?}",
+        result.raw_result
+    );
+
+    assert_eq!(
+        svm.get_account(&funder_a).map(|a| a.lamports).unwrap_or(0),
+        amount_a
+    );
+    assert_eq!(
+        svm.get_account(&funder_b).map(|a| a.lamports).unwrap_or(0),
+        amount_b
+    );
+    assert_eq!(
+        svm.get_account(&vault).map(|a| a.lamports).unwrap_or(0),
+        vault_pre - total
+    );
+    assert_eq!(
+        svm.get_account(&proposal).unwrap().data[105],
+        2,
+        "typed proposal should be Executed(2)"
+    );
+}
+
+#[test]
+fn test_execute_typed_sol_send_moves_sol() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let wallet_name = "typed-sol-send";
+    let recipient = Pubkey::new_unique();
+    let amount_lamports = 1_750_000u64;
+    let action_id = sha256_hash(b"sol-send-action-1");
+    let nonce = sha256_hash(b"sol-send-nonce-1");
+    let expiry = typed_test_expiry();
+
+    let (instruction, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&proposer)],
+        1,
+    );
+    assert!(svm.process_instruction(&instruction, &accounts).is_ok());
+
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let proposal_index = 0u64;
+    let proposal = get_typed_proposal_address(intent, proposal_index);
+    let policy_commitment = hash_policy_commitment(&[b"send:sol"]);
+    let payload_hash = hash_send_payload(
+        recipient.as_ref(),
+        &ClearSignAmount {
+            asset: b"SOL",
+            raw_amount: amount_lamports as u128,
+        },
+    );
+    let envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::Send,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: action_id.as_ref(),
+        nonce: nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment,
+        payload_hash,
+    });
+
+    let propose = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent,
+        proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::Send.code(),
+        policy_commitment,
+        payload_hash,
+        envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_typed_vote(
+            &proposer,
+            ClearSignVoteKind::Propose,
+            wallet,
+            proposal_index,
+            envelope_hash,
+        ),
+        action_id,
+        nonce,
+    });
+    let result =
+        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
+    assert!(
+        result.is_ok(),
+        "typed SOL send propose failed: {:?}",
+        result.raw_result
+    );
+
+    let vault = fund_vault(&mut svm, payer, wallet, amount_lamports + 1_000_000);
+    let vault_pre = svm.get_account(&vault).map(|a| a.lamports).unwrap_or(0);
+    let execute = build_execute_typed_sol_send_ix(
+        wallet,
+        intent,
+        proposal,
+        recipient,
+        policy_commitment,
+        envelope_hash,
+        amount_lamports,
+    );
+    let result = svm.process_instruction(&execute, &[empty_account(recipient)]);
+    assert!(
+        result.is_ok(),
+        "typed SOL send execute failed: {:?}",
+        result.raw_result
+    );
+
+    assert_eq!(
+        svm.get_account(&recipient).map(|a| a.lamports).unwrap_or(0),
+        amount_lamports
+    );
+    assert_eq!(
+        svm.get_account(&vault).map(|a| a.lamports).unwrap_or(0),
+        vault_pre - amount_lamports
+    );
+    assert_eq!(
+        svm.get_account(&proposal).unwrap().data[105],
+        2,
+        "typed proposal should be Executed(2)"
+    );
+}
+
+#[test]
+fn test_execute_typed_sol_batch_send_moves_sol_to_recipients() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let wallet_name = "typed-sol-batch";
+    let recipient_a = Pubkey::new_unique();
+    let recipient_b = Pubkey::new_unique();
+    let amount_a = 2_000_000u64;
+    let amount_b = 3_250_000u64;
+    let action_id = sha256_hash(b"sol-batch-action-1");
+    let nonce = sha256_hash(b"sol-batch-nonce-1");
+    let expiry = typed_test_expiry();
+
+    let (instruction, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&proposer)],
+        1,
+    );
+    assert!(svm.process_instruction(&instruction, &accounts).is_ok());
+
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let proposal_index = 0u64;
+    let proposal = get_typed_proposal_address(intent, proposal_index);
+    let policy_commitment = hash_policy_commitment(&[b"batch:sol"]);
+    let payload_hash = hash_batch_send_sol_payload_iter(
+        [
+            (recipient_a.as_ref(), amount_a),
+            (recipient_b.as_ref(), amount_b),
+        ]
+        .into_iter(),
+    );
+    let envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::BatchSend,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: action_id.as_ref(),
+        nonce: nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment,
+        payload_hash,
+    });
+
+    let propose = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent,
+        proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::BatchSend.code(),
+        policy_commitment,
+        payload_hash,
+        envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_typed_vote(
+            &proposer,
+            ClearSignVoteKind::Propose,
+            wallet,
+            proposal_index,
+            envelope_hash,
+        ),
+        action_id,
+        nonce,
+    });
+    let result =
+        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
+    assert!(
+        result.is_ok(),
+        "typed SOL batch propose failed: {:?}",
+        result.raw_result
+    );
+
+    let total = amount_a + amount_b;
+    let vault = fund_vault(&mut svm, payer, wallet, total + 1_000_000);
+    let vault_pre = svm.get_account(&vault).map(|a| a.lamports).unwrap_or(0);
+    let mut amount_bytes = Vec::new();
+    amount_bytes.extend_from_slice(&amount_a.to_le_bytes());
+    amount_bytes.extend_from_slice(&amount_b.to_le_bytes());
+    let execute = build_execute_typed_sol_batch_send_ix(
+        wallet,
+        intent,
+        proposal,
+        policy_commitment,
+        envelope_hash,
+        amount_bytes,
+        vec![
+            AccountMeta::new(recipient_a, false),
+            AccountMeta::new(recipient_b, false),
+        ],
+    );
+    let result = svm.process_instruction(
+        &execute,
+        &[empty_account(recipient_a), empty_account(recipient_b)],
+    );
+    assert!(
+        result.is_ok(),
+        "typed SOL batch execute failed: {:?}",
+        result.raw_result
+    );
+
+    assert_eq!(
+        svm.get_account(&recipient_a)
+            .map(|a| a.lamports)
+            .unwrap_or(0),
+        amount_a
+    );
+    assert_eq!(
+        svm.get_account(&recipient_b)
+            .map(|a| a.lamports)
+            .unwrap_or(0),
+        amount_b
+    );
+    assert_eq!(
+        svm.get_account(&vault).map(|a| a.lamports).unwrap_or(0),
+        vault_pre - total
+    );
+    assert_eq!(
+        svm.get_account(&proposal).unwrap().data[105],
+        2,
+        "typed proposal should be Executed(2)"
+    );
+}
+
+#[test]
+fn test_cleanup_nonfinalized_typed_proposal_fails() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let wallet_name = "typed-cleanup-fail";
+    let recipient = Pubkey::new_unique();
+    let amount_lamports = 500_000u64;
+    let action_id = sha256_hash(b"typed-cleanup-action");
+    let nonce = sha256_hash(b"typed-cleanup-nonce");
+    let expiry = typed_test_expiry();
+
+    let (instruction, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[Pubkey::new_unique()],
+        1,
+    );
+    assert!(svm.process_instruction(&instruction, &accounts).is_ok());
+
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let proposal_index = 0u64;
+    let proposal = get_typed_proposal_address(intent, proposal_index);
+    let policy_commitment = hash_policy_commitment(&[b"send:sol"]);
+    let payload_hash = hash_send_payload(
+        recipient.as_ref(),
+        &ClearSignAmount {
+            asset: b"SOL",
+            raw_amount: amount_lamports as u128,
+        },
+    );
+    let envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::Send,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: action_id.as_ref(),
+        nonce: nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment,
+        payload_hash,
+    });
+
+    let propose = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent,
+        proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::Send.code(),
+        policy_commitment,
+        payload_hash,
+        envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_typed_vote(
+            &proposer,
+            ClearSignVoteKind::Propose,
+            wallet,
+            proposal_index,
+            envelope_hash,
+        ),
+        action_id,
+        nonce,
+    });
+    let result =
+        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
+    assert!(
+        result.is_ok(),
+        "typed proposal create failed: {:?}",
+        result.raw_result
+    );
+
+    let cleanup = build_cleanup_typed_ix(proposal, payer);
+    let result = svm.process_instruction(&cleanup, &[]);
+    assert!(
+        result.is_err(),
+        "non-finalized typed proposal cleanup should fail"
+    );
+}
+
+#[test]
+fn test_legacy_and_typed_proposals_share_wallet_index_without_pda_collision() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let wallet_name = "mixed-proposal-index";
+
+    let (instruction, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&proposer)],
+        1,
+    );
+    assert!(svm.process_instruction(&instruction, &accounts).is_ok());
+
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (intent, _) = find_intent_address(&wallet, 1, &crate::ID);
+
+    let legacy_index = 0u64;
+    let legacy_proposal = get_proposal_address(intent, legacy_index);
+    let legacy_params = vec![0u8];
+    let legacy_msg = remove_intent_msg(
+        "propose",
+        DEFAULT_EXPIRY,
+        wallet_name,
+        legacy_index,
+        legacy_params[0],
+    );
+    let legacy = build_propose_ix(ProposeArgs {
+        payer,
+        wallet,
+        intent,
+        proposal_index: legacy_index,
+        expiry: DEFAULT_EXPIRY,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_message(&proposer, &legacy_msg),
+        params_data: legacy_params,
+    });
+    let result = svm.process_instruction(
+        &legacy,
+        &[funded_account(payer), empty_account(legacy_proposal)],
+    );
+    assert!(
+        result.is_ok(),
+        "legacy proposal create failed: {:?}",
+        result.raw_result
+    );
+
+    let typed_index = 1u64;
+    let typed_proposal = get_typed_proposal_address(intent, typed_index);
+    let action_id = sha256_hash(b"mixed-action");
+    let nonce = sha256_hash(b"mixed-nonce");
+    let policy_commitment = hash_policy_commitment(&[b"mixed"]);
+    let payload_hash = sha256_hash(b"mixed-payload");
+    let expiry = typed_test_expiry();
+    let envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::SetProtection,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: action_id.as_ref(),
+        nonce: nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment,
+        payload_hash,
+    });
+    let typed = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent,
+        proposal_index: typed_index,
+        expiry,
+        action_kind: ClearSignActionKind::SetProtection.code(),
+        policy_commitment,
+        payload_hash,
+        envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_typed_vote(
+            &proposer,
+            ClearSignVoteKind::Propose,
+            wallet,
+            typed_index,
+            envelope_hash,
+        ),
+        action_id,
+        nonce,
+    });
+    let result = svm.process_instruction(
+        &typed,
+        &[funded_account(payer), empty_account(typed_proposal)],
+    );
+    assert!(
+        result.is_ok(),
+        "typed proposal create failed: {:?}",
+        result.raw_result
+    );
+
+    assert_ne!(
+        legacy_proposal, typed_proposal,
+        "legacy and typed proposal PDAs must use separate namespaces"
+    );
+    assert_eq!(svm.get_account(&legacy_proposal).unwrap().data[0], 3);
+    assert_eq!(svm.get_account(&typed_proposal).unwrap().data[0], 6);
+    let wallet_data = svm.get_account(&wallet).unwrap().data;
+    let proposal_index = u64::from_le_bytes(wallet_data[2..10].try_into().unwrap());
+    assert_eq!(
+        proposal_index, 2,
+        "legacy and typed creates must share one monotonic wallet proposal index"
+    );
 }
 
 #[test]

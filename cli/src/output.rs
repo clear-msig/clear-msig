@@ -44,6 +44,31 @@ pub fn print_dry_run(descriptor: &DryRunDescriptor<'_>) {
     print_json(descriptor);
 }
 
+#[derive(Serialize)]
+pub struct TypedDryRunDescriptor<'a> {
+    pub action: &'a str,
+    pub wallet_name: &'a str,
+    pub wallet_pubkey: String,
+    pub intent_index: u8,
+    pub intent_pubkey: String,
+    pub proposal_pubkey: String,
+    pub proposal_index: u64,
+    pub action_kind: u8,
+    pub policy_commitment_hex: String,
+    pub payload_hash_hex: String,
+    pub envelope_hash_hex: String,
+    pub action_id: String,
+    pub nonce: String,
+    /// Exact 32-byte ClearSign v2 vote hash to sign.
+    pub message_hex: String,
+    pub message_flavor: &'a str,
+    pub expiry: i64,
+}
+
+pub fn print_typed_dry_run(descriptor: &TypedDryRunDescriptor<'_>) {
+    print_json(descriptor);
+}
+
 /// Helper to hex-encode a byte slice.
 pub fn hex_of(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";

@@ -35,6 +35,7 @@ export const DISC_INTENT = 2;
 export const DISC_PROPOSAL = 3;
 export const DISC_IKA_CONFIG = 4;
 export const DISC_DWALLET_OWNERSHIP = 5;
+export const DISC_TYPED_PROPOSAL = 6;
 
 // ── WalletAccount ────────────────────────────────────────────────────
 
@@ -242,6 +243,7 @@ export const ProposalStatus = {
 export type ProposalStatus = (typeof ProposalStatus)[keyof typeof ProposalStatus];
 
 export interface ProposalAccount {
+  typed?: false;
   wallet: string;
   intent: string;
   proposalIndex: bigint;
@@ -256,6 +258,31 @@ export interface ProposalAccount {
   rentRefund: string;
   paramsData: Uint8Array;
 }
+
+export interface TypedProposalAccount {
+  typed: true;
+  wallet: string;
+  intent: string;
+  proposalIndex: bigint;
+  proposer: string;
+  status: ProposalStatus;
+  statusLabel: "Active" | "Approved" | "Executed" | "Cancelled" | "Unknown";
+  actionKind: number;
+  proposedAt: bigint;
+  approvedAt: bigint;
+  expiresAt: bigint;
+  bump: number;
+  approvalBitmap: number;
+  cancellationBitmap: number;
+  rentRefund: string;
+  policyCommitment: string;
+  payloadHash: string;
+  envelopeHash: string;
+  actionId: string;
+  nonce: string;
+}
+
+export type AnyProposalAccount = ProposalAccount | TypedProposalAccount;
 
 export function parseProposal(data: Uint8Array): ProposalAccount {
   const r = new Reader(data, "Proposal", DISC_PROPOSAL);
@@ -275,6 +302,7 @@ export function parseProposal(data: Uint8Array): ProposalAccount {
     ["Active", "Approved", "Executed", "Cancelled"] as const
   )[statusByte] ?? "Unknown";
   return {
+    typed: false,
     wallet,
     intent,
     proposalIndex,
@@ -289,6 +317,58 @@ export function parseProposal(data: Uint8Array): ProposalAccount {
     rentRefund,
     paramsData,
   };
+}
+
+export function parseTypedProposal(data: Uint8Array): TypedProposalAccount {
+  const r = new Reader(data, "TypedProposal", DISC_TYPED_PROPOSAL);
+  const wallet = r.address();
+  const intent = r.address();
+  const proposalIndex = r.u64();
+  const proposer = r.address();
+  const statusByte = r.u8();
+  const actionKind = r.u8();
+  const proposedAt = r.i64();
+  const approvedAt = r.i64();
+  const expiresAt = r.i64();
+  const bump = r.u8();
+  const approvalBitmap = r.u16();
+  const cancellationBitmap = r.u16();
+  const rentRefund = r.address();
+  const policyCommitment = hex(r.fixed(32));
+  const payloadHash = hex(r.fixed(32));
+  const envelopeHash = hex(r.fixed(32));
+  const actionId = r.utf8(Number(r.u32()));
+  const nonce = r.utf8(Number(r.u32()));
+  const statusLabel = (
+    ["Active", "Approved", "Executed", "Cancelled"] as const
+  )[statusByte] ?? "Unknown";
+  return {
+    typed: true,
+    wallet,
+    intent,
+    proposalIndex,
+    proposer,
+    status: statusByte as ProposalStatus,
+    statusLabel,
+    actionKind,
+    proposedAt,
+    approvedAt,
+    expiresAt,
+    bump,
+    approvalBitmap,
+    cancellationBitmap,
+    rentRefund,
+    policyCommitment,
+    payloadHash,
+    envelopeHash,
+    actionId,
+    nonce,
+  };
+}
+
+export function parseAnyProposal(data: Uint8Array): AnyProposalAccount {
+  if (data[0] === DISC_TYPED_PROPOSAL) return parseTypedProposal(data);
+  return parseProposal(data);
 }
 
 // ── IkaConfigAccount (manual repr, not Quasar) ───────────────────────
@@ -428,6 +508,12 @@ class Reader {
     this.off += n;
     return out;
   }
+  fixed(n: number): Uint8Array {
+    this.ensureAvailable(n);
+    const out = this.data.slice(this.off, this.off + n);
+    this.off += n;
+    return out;
+  }
   position(): number {
     return this.off;
   }
@@ -524,6 +610,15 @@ class Reader {
       );
     }
   }
+}
+
+function hex(bytes: Uint8Array): string {
+  const alphabet = "0123456789abcdef";
+  let out = "";
+  for (const byte of bytes) {
+    out += alphabet[(byte >> 4) & 0xf] + alphabet[byte & 0xf];
+  }
+  return out;
 }
 
 // Re-export the enum values actually used by account consumers so

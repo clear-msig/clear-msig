@@ -15,6 +15,7 @@ const SEED_CLEAR_WALLET = new TextEncoder().encode("clear_wallet");
 const SEED_VAULT = new TextEncoder().encode("vault");
 const SEED_INTENT = new TextEncoder().encode("intent");
 const SEED_PROPOSAL = new TextEncoder().encode("proposal");
+const SEED_TYPED_PROPOSAL = new TextEncoder().encode("typed_proposal");
 const SEED_IKA_CONFIG = new TextEncoder().encode("ika_config");
 const SEED_DWALLET_OWNERSHIP = new TextEncoder().encode("dwallet_owner");
 const SEED_CPI_AUTHORITY = new TextEncoder().encode("__ika_cpi_authority");
@@ -78,6 +79,25 @@ export function findProposalAddress(
   dv.setBigUint64(0, index, /* littleEndian */ true);
   return PublicKey.findProgramAddressSync(
     [SEED_PROPOSAL, intent.toBytes(), idxBytes],
+    programId
+  );
+}
+
+/// `["typed_proposal", intent, index_le_bytes]`. Same index space as
+/// legacy proposals, but stored in the v2 typed account family.
+export function findTypedProposalAddress(
+  intent: PublicKey,
+  index: bigint,
+  programId: PublicKey
+): [PublicKey, number] {
+  if (index < 0n || index > 0xffffffffffffffffn) {
+    throw new Error(`findTypedProposalAddress: index must fit in u64 (got ${index})`);
+  }
+  const idxBytes = new Uint8Array(8);
+  const dv = new DataView(idxBytes.buffer);
+  dv.setBigUint64(0, index, /* littleEndian */ true);
+  return PublicKey.findProgramAddressSync(
+    [SEED_TYPED_PROPOSAL, intent.toBytes(), idxBytes],
     programId
   );
 }

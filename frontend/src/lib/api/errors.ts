@@ -167,6 +167,23 @@ export function friendlyError(
     };
   }
 
+  // ── Pre-signed message drift / stale prepared request ─────────
+  // Usually appears when the wallet signs an old prepare response
+  // after the proposal/intent index has advanced, or when frontend
+  // and backend deploys disagree about the signed byte layout.
+  if (
+    hay.includes("pre-signed signature does not verify") ||
+    hay.includes("signature did not verify against plain_v2") ||
+    hay.includes("signature did not verify against offchain_v1")
+  ) {
+    return {
+      title: "That signing request is no longer fresh",
+      body:
+        "Nothing moved. Start a fresh attempt and approve the newest wallet popup.",
+      durationMs: 10_000,
+    };
+  }
+
   // ── Ika dWallet sig-recovery failure ──────────────────────────
   // The CLI rejects a broadcast when the Ika-network signature
   // doesn't recover to the dWallet pubkey stored on the IkaConfig.

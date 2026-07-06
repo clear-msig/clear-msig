@@ -606,7 +606,10 @@ mod tests {
             .unwrap();
         assert_eq!(built.chain_kind, 2); // BitcoinP2wpkh
         assert_eq!(built.tx_template_len, 16);
-        assert_eq!(built.params.len(), 6);
+        // BTC devnet sends use the change-output model:
+        // prev_txid, prev_vout, prev_amount, sender_pkh, recipient_pkh,
+        // send_amount, change_pkh, fee_sats.
+        assert_eq!(built.params.len(), 8);
     }
 
     #[test]

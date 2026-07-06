@@ -1,10 +1,13 @@
 use crate::config::RuntimeConfig;
 use crate::error::*;
-use crate::output::print_json;
+use crate::output::{print_json, print_typed_dry_run};
 use crate::signing::sign_message_with_flavor;
 use crate::{accounts, message, params, resolve, rpc};
 use clap::Subcommand;
+use clear_wallet::utils::clearsign::{hash_vote_message, ClearSignActionKind, ClearSignVoteKind};
 use ika_dwallet_types::{NetworkSignedAttestation, VersionedDWalletDataAttestation};
+use solana_client::rpc_client::RpcClient;
+use solana_sdk::instruction::AccountMeta;
 use solana_sdk::pubkey::Pubkey;
 
 #[derive(Subcommand)]
@@ -22,6 +25,220 @@ pub enum ProposalAction {
         /// Message expiry (YYYY-MM-DD HH:MM:SS). Defaults to now + configured expiry_seconds.
         #[arg(long)]
         expiry: Option<String>,
+    },
+    /// Create a ClearSign v2 typed proposal
+    TypedCreate {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        intent_index: u8,
+        #[arg(long)]
+        action_kind: u8,
+        #[arg(long)]
+        policy_commitment: String,
+        #[arg(long)]
+        payload_hash: String,
+        #[arg(long)]
+        envelope_hash: String,
+        #[arg(long)]
+        action_id: String,
+        #[arg(long)]
+        nonce: String,
+        #[arg(long)]
+        expiry: Option<String>,
+    },
+    /// Approve a ClearSign v2 typed proposal
+    TypedApprove {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+    },
+    /// Cancel a ClearSign v2 typed proposal
+    TypedCancel {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+    },
+    /// Mark an approved ClearSign v2 typed proposal executed
+    TypedExecute {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+    },
+    /// Execute an approved typed escrow milestone release.
+    TypedEscrowRelease {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        recipient: String,
+        #[arg(long)]
+        amount_lamports: u64,
+        #[arg(long)]
+        escrow_id: String,
+        #[arg(long)]
+        milestone_id: String,
+    },
+    /// Execute an approved typed SPL-token escrow milestone release.
+    TypedSplEscrowRelease {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        mint: String,
+        #[arg(long)]
+        source_token: String,
+        #[arg(long)]
+        destination_token: String,
+        #[arg(long)]
+        recipient_owner: String,
+        #[arg(long)]
+        amount_tokens: u64,
+        #[arg(long)]
+        escrow_id: String,
+        #[arg(long)]
+        milestone_id: String,
+    },
+    /// Execute an approved typed SPL-token escrow unwind / return.
+    ///
+    /// Pass one `--return destination_token:funder_owner:tokens` per funder.
+    TypedSplEscrowReturn {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        mint: String,
+        #[arg(long)]
+        source_token: String,
+        #[arg(long)]
+        escrow_id: String,
+        #[arg(long = "return")]
+        returns: Vec<String>,
+    },
+    /// Finalize an approved typed cross-chain escrow milestone release.
+    TypedCrossChainEscrowRelease {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        chain_kind: u8,
+        #[arg(long)]
+        amount_raw: u128,
+        #[arg(long)]
+        escrow_id: String,
+        #[arg(long)]
+        milestone_id: String,
+        #[arg(long)]
+        recipient_hash: String,
+        #[arg(long)]
+        asset_id_hash: String,
+        #[arg(long)]
+        route_hash: String,
+        #[arg(long)]
+        settlement_artifact_hash: String,
+    },
+    /// Finalize an approved typed cross-chain escrow unwind / return.
+    TypedCrossChainEscrowReturn {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        chain_kind: u8,
+        #[arg(long)]
+        amount_raw: u128,
+        #[arg(long)]
+        escrow_id: String,
+        #[arg(long)]
+        refund_recipient_hash: String,
+        #[arg(long)]
+        asset_id_hash: String,
+        #[arg(long)]
+        route_hash: String,
+        #[arg(long)]
+        settlement_artifact_hash: String,
+    },
+    /// Finalize an approved typed encrypted/private escrow milestone release.
+    TypedPrivateEscrowRelease {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        amount_raw: u128,
+        #[arg(long)]
+        escrow_id: String,
+        #[arg(long)]
+        milestone_id: String,
+        #[arg(long)]
+        recipient_hash: String,
+        #[arg(long)]
+        asset_id_hash: String,
+        #[arg(long)]
+        private_evaluation_hash: String,
+        #[arg(long)]
+        settlement_artifact_hash: String,
+    },
+    /// Finalize an approved typed encrypted/private escrow unwind / return.
+    TypedPrivateEscrowReturn {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        amount_raw: u128,
+        #[arg(long)]
+        escrow_id: String,
+        #[arg(long)]
+        refund_recipient_hash: String,
+        #[arg(long)]
+        asset_id_hash: String,
+        #[arg(long)]
+        private_evaluation_hash: String,
+        #[arg(long)]
+        settlement_artifact_hash: String,
+    },
+    /// Execute an approved typed escrow unwind / return.
+    ///
+    /// Pass one `--return recipient:lamports` per funder.
+    TypedEscrowReturn {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        escrow_id: String,
+        #[arg(long = "return")]
+        returns: Vec<String>,
+    },
+    /// Execute an approved typed SOL send.
+    TypedSolSend {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        recipient: String,
+        #[arg(long)]
+        amount_lamports: u64,
+    },
+    /// Execute an approved typed SOL batch send.
+    ///
+    /// Pass one `--payment recipient:lamports` per recipient.
+    TypedSolBatchSend {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long = "payment")]
+        payments: Vec<String>,
     },
     /// Approve an existing proposal
     Approve {
@@ -216,6 +433,865 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 "txid": sig.to_string(),
                 "proposal": Pubkey::new_from_array(proposal_addr.to_bytes()).to_string(),
                 "proposal_index": proposal_index,
+            }));
+        }
+
+        ProposalAction::TypedCreate {
+            wallet: wallet_name,
+            intent_index,
+            action_kind,
+            policy_commitment,
+            payload_hash,
+            envelope_hash,
+            action_id,
+            nonce,
+            expiry,
+        } => {
+            let expiry_ts = message::resolve_expiry(&expiry, config)?;
+            let program_id = crate::instructions::program_id();
+            let pid = solana_address::Address::new_from_array(program_id.to_bytes());
+            let client = rpc::client(config);
+            let (wallet_pubkey, wallet_account) =
+                rpc::resolve_wallet_by_name(&client, &wallet_name)?;
+            let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
+
+            let (intent_addr, _) =
+                clear_wallet_client::pda::find_intent_address(&wallet_addr, intent_index, &pid);
+            let intent_pubkey = Pubkey::new_from_array(intent_addr.to_bytes());
+            let intent_data = rpc::fetch_account(&client, &intent_pubkey)?;
+            let intent_account = accounts::parse_intent(&intent_data)?;
+            if !intent_account.approved {
+                return Err(anyhow!("intent {} is not approved", intent_index));
+            }
+
+            let signer_pubkey_b58 = bs58::encode(config.signer.pubkey()).into_string();
+            if !intent_account.proposers.contains(&signer_pubkey_b58) {
+                return Err(anyhow!(
+                    "signer {} is not a proposer on intent {}",
+                    signer_pubkey_b58,
+                    intent_index
+                ));
+            }
+
+            let policy_commitment = decode_hex_32(&policy_commitment, "policy_commitment")?;
+            let payload_hash = decode_hex_32(&payload_hash, "payload_hash")?;
+            let envelope_hash = decode_hex_32(&envelope_hash, "envelope_hash")?;
+            ensure_typed_text(&action_id, "action_id")?;
+            ensure_typed_text(&nonce, "nonce")?;
+
+            let proposal_index = wallet_account.proposal_index;
+            let (proposal_addr, _) = clear_wallet_client::pda::find_typed_proposal_address(
+                &intent_addr,
+                proposal_index,
+                &pid,
+            );
+            let proposal_pubkey = Pubkey::new_from_array(proposal_addr.to_bytes());
+            let vote_hash = hash_vote_message(
+                ClearSignVoteKind::Propose,
+                wallet_pubkey.as_ref(),
+                proposal_index,
+                envelope_hash,
+            );
+
+            if config.dry_run {
+                print_typed_dry_run(&crate::output::TypedDryRunDescriptor {
+                    action: "proposal_typed_create",
+                    wallet_name: &wallet_account.name,
+                    wallet_pubkey: wallet_pubkey.to_string(),
+                    intent_index,
+                    intent_pubkey: intent_pubkey.to_string(),
+                    proposal_pubkey: proposal_pubkey.to_string(),
+                    proposal_index,
+                    action_kind,
+                    policy_commitment_hex: crate::output::hex_of(&policy_commitment),
+                    payload_hash_hex: crate::output::hex_of(&payload_hash),
+                    envelope_hash_hex: crate::output::hex_of(&envelope_hash),
+                    action_id: action_id.clone(),
+                    nonce: nonce.clone(),
+                    message_hex: crate::output::hex_of(&vote_hash),
+                    message_flavor: "clearsign_v2_vote_hash",
+                    expiry: expiry_ts,
+                });
+                return Ok(());
+            }
+
+            eprintln!(
+                "Signing ClearSign v2 proposal vote hash:\n{}",
+                crate::output::hex_of(&vote_hash)
+            );
+            let signature = config.signer.sign_message(&vote_hash)?;
+            let payer_pubkey = solana_sdk::signer::Signer::pubkey(&config.payer);
+            let action_id_hash = crate::message::sha256_hash(action_id.as_bytes());
+            let nonce_hash = crate::message::sha256_hash(nonce.as_bytes());
+            let ix = crate::instructions::propose_typed(crate::instructions::ProposeTypedArgs {
+                payer: payer_pubkey,
+                wallet: wallet_pubkey,
+                intent: intent_pubkey,
+                proposal: proposal_pubkey,
+                proposal_index,
+                expiry: expiry_ts,
+                action_kind,
+                policy_commitment,
+                payload_hash,
+                envelope_hash,
+                proposer_pubkey: config.signer.pubkey(),
+                signature,
+                action_id: action_id_hash,
+                nonce: nonce_hash,
+            });
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "proposal_index": proposal_index,
+                "typed": true,
+            }));
+        }
+
+        ProposalAction::TypedApprove {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+        } => {
+            typed_approve_or_cancel(config, &wallet_name, &proposal_addr_str, true)?;
+        }
+
+        ProposalAction::TypedCancel {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+        } => {
+            typed_approve_or_cancel(config, &wallet_name, &proposal_addr_str, false)?;
+        }
+
+        ProposalAction::TypedExecute {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+        } => {
+            let client = rpc::client(config);
+            let (wallet_pubkey, _) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
+            let proposal_pubkey: Pubkey = proposal_addr_str
+                .parse()
+                .with_context(|| "invalid proposal address")?;
+            let proposal_data = rpc::fetch_account(&client, &proposal_pubkey)?;
+            let proposal_account = accounts::parse_typed_proposal(&proposal_data)?;
+            if proposal_account.wallet != wallet_pubkey.to_string() {
+                return Err(anyhow!(
+                    "typed proposal does not belong to wallet {wallet_name}"
+                ));
+            }
+            if proposal_account.status != "Approved" {
+                return Err(anyhow!(
+                    "typed proposal status is '{}', must be 'Approved' to execute",
+                    proposal_account.status
+                ));
+            }
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let ix = crate::instructions::execute_typed(
+                wallet_pubkey,
+                intent_pubkey,
+                proposal_pubkey,
+                proposal_account.action_kind,
+                proposal_account.policy_commitment,
+                proposal_account.payload_hash,
+                proposal_account.envelope_hash,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed",
+                "status": "executed",
+            }));
+        }
+
+        ProposalAction::TypedEscrowRelease {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            recipient,
+            amount_lamports,
+            escrow_id,
+            milestone_id,
+        } => {
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::ReleaseMilestone,
+                "typed escrow release",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let recipient_pubkey: Pubkey = recipient
+                .parse()
+                .with_context(|| "invalid recipient address")?;
+            let ix = crate::instructions::execute_typed_escrow_release(
+                wallet_pubkey,
+                vault_pubkey(wallet_pubkey),
+                intent_pubkey,
+                proposal_pubkey,
+                recipient_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                amount_lamports,
+                crate::message::sha256_hash(escrow_id.as_bytes()),
+                crate::message::sha256_hash(milestone_id.as_bytes()),
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_escrow_release",
+                "status": "executed",
+                "recipient": recipient_pubkey.to_string(),
+                "amount_lamports": amount_lamports,
+            }));
+        }
+
+        ProposalAction::TypedSplEscrowRelease {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            mint,
+            source_token,
+            destination_token,
+            recipient_owner,
+            amount_tokens,
+            escrow_id,
+            milestone_id,
+        } => {
+            if amount_tokens == 0 {
+                return Err(anyhow!("amount-tokens must be greater than zero"));
+            }
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::ReleaseMilestone,
+                "typed SPL escrow release",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let mint_pubkey: Pubkey = mint.parse().with_context(|| "invalid mint address")?;
+            let source_token_pubkey: Pubkey = source_token
+                .parse()
+                .with_context(|| "invalid source token account address")?;
+            let destination_token_pubkey: Pubkey = destination_token
+                .parse()
+                .with_context(|| "invalid destination token account address")?;
+            let recipient_owner_pubkey: Pubkey = recipient_owner
+                .parse()
+                .with_context(|| "invalid recipient owner address")?;
+            let ix = crate::instructions::execute_typed_spl_escrow_release(
+                wallet_pubkey,
+                vault_pubkey(wallet_pubkey),
+                intent_pubkey,
+                proposal_pubkey,
+                mint_pubkey,
+                source_token_pubkey,
+                destination_token_pubkey,
+                recipient_owner_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                amount_tokens,
+                crate::message::sha256_hash(escrow_id.as_bytes()),
+                crate::message::sha256_hash(milestone_id.as_bytes()),
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_spl_escrow_release",
+                "status": "executed",
+                "mint": mint_pubkey.to_string(),
+                "source_token": source_token_pubkey.to_string(),
+                "destination_token": destination_token_pubkey.to_string(),
+                "recipient_owner": recipient_owner_pubkey.to_string(),
+                "amount_tokens": amount_tokens,
+            }));
+        }
+
+        ProposalAction::TypedSplEscrowReturn {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            mint,
+            source_token,
+            escrow_id,
+            returns,
+        } => {
+            if returns.is_empty() {
+                return Err(anyhow!(
+                    "at least one --return destination_token:funder_owner:tokens is required"
+                ));
+            }
+            if returns.len() > 16 {
+                return Err(anyhow!(
+                    "typed SPL escrow return supports at most 16 recipients"
+                ));
+            }
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::ReturnEscrowFunds,
+                "typed SPL escrow return",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let mint_pubkey: Pubkey = mint.parse().with_context(|| "invalid mint address")?;
+            let source_token_pubkey: Pubkey = source_token
+                .parse()
+                .with_context(|| "invalid source token account address")?;
+            let parsed_returns = returns
+                .iter()
+                .map(|row| parse_token_return_row(row))
+                .collect::<Result<Vec<_>>>()?;
+            let mut amount_bytes = Vec::with_capacity(parsed_returns.len() * 8);
+            let mut return_accounts = Vec::with_capacity(parsed_returns.len() * 2);
+            for (destination_token, funder_owner, amount_tokens) in &parsed_returns {
+                amount_bytes.extend_from_slice(&amount_tokens.to_le_bytes());
+                return_accounts.push(AccountMeta::new(*destination_token, false));
+                return_accounts.push(AccountMeta::new_readonly(*funder_owner, false));
+            }
+            let ix = crate::instructions::execute_typed_spl_escrow_return(
+                wallet_pubkey,
+                vault_pubkey(wallet_pubkey),
+                intent_pubkey,
+                proposal_pubkey,
+                mint_pubkey,
+                source_token_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                crate::message::sha256_hash(escrow_id.as_bytes()),
+                &amount_bytes,
+                return_accounts,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_spl_escrow_return",
+                "status": "executed",
+                "mint": mint_pubkey.to_string(),
+                "source_token": source_token_pubkey.to_string(),
+                "returns": parsed_returns
+                    .iter()
+                    .map(|(destination_token, funder_owner, amount_tokens)| serde_json::json!({
+                        "destination_token": destination_token.to_string(),
+                        "funder_owner": funder_owner.to_string(),
+                        "amount_tokens": amount_tokens,
+                    }))
+                    .collect::<Vec<_>>(),
+            }));
+        }
+
+        ProposalAction::TypedCrossChainEscrowRelease {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            chain_kind,
+            amount_raw,
+            escrow_id,
+            milestone_id,
+            recipient_hash,
+            asset_id_hash,
+            route_hash,
+            settlement_artifact_hash,
+        } => {
+            if amount_raw == 0 {
+                return Err(anyhow!("amount-raw must be greater than zero"));
+            }
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::ReleaseMilestone,
+                "typed cross-chain escrow release",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let intent_data = rpc::fetch_account(&client, &intent_pubkey)
+                .with_context(|| "failed to fetch typed proposal intent")?;
+            let intent_account = accounts::parse_intent(&intent_data)?;
+            if intent_account.chain_kind != chain_kind {
+                return Err(anyhow!(
+                    "typed cross-chain escrow release chain_kind mismatch: intent has {}, command got {}",
+                    intent_account.chain_kind,
+                    chain_kind
+                ));
+            }
+
+            let program_id = crate::instructions::program_id();
+            let (ika_config_pubkey, _) =
+                crate::ika::ika_config_pda(&program_id, &wallet_pubkey, chain_kind);
+            let ika_config_data =
+                rpc::fetch_account(&client, &ika_config_pubkey).with_context(|| {
+                    format!(
+                        "wallet has no IkaConfig for chain_kind={chain_kind}; bind the chain first"
+                    )
+                })?;
+            let ika_config = accounts::parse_ika_config(&ika_config_data)?;
+            let dwallet_pubkey: Pubkey = ika_config
+                .dwallet
+                .parse()
+                .with_context(|| "invalid dwallet address in IkaConfig")?;
+
+            let recipient_hash = decode_hex_32(&recipient_hash, "recipient_hash")?;
+            let asset_id_hash = decode_hex_32(&asset_id_hash, "asset_id_hash")?;
+            let route_hash = decode_hex_32(&route_hash, "route_hash")?;
+            let settlement_artifact_hash =
+                decode_hex_32(&settlement_artifact_hash, "settlement_artifact_hash")?;
+            let tx_template_hash = intent_tx_template_hash(&intent_account)?;
+            let ix = crate::instructions::execute_typed_cross_chain_escrow_release(
+                wallet_pubkey,
+                intent_pubkey,
+                proposal_pubkey,
+                ika_config_pubkey,
+                dwallet_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                chain_kind,
+                amount_raw.to_le_bytes(),
+                crate::message::sha256_hash(escrow_id.as_bytes()),
+                crate::message::sha256_hash(milestone_id.as_bytes()),
+                recipient_hash,
+                asset_id_hash,
+                route_hash,
+                tx_template_hash,
+                settlement_artifact_hash,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_cross_chain_escrow_release",
+                "status": "executed",
+                "chain_kind": chain_kind,
+                "ika_config": ika_config_pubkey.to_string(),
+                "dwallet": dwallet_pubkey.to_string(),
+                "amount_raw": amount_raw.to_string(),
+                "escrow_id": escrow_id,
+                "milestone_id": milestone_id,
+                "recipient_hash": crate::output::hex_of(&recipient_hash),
+                "asset_id_hash": crate::output::hex_of(&asset_id_hash),
+                "route_hash": crate::output::hex_of(&route_hash),
+                "tx_template_hash": crate::output::hex_of(&tx_template_hash),
+                "settlement_artifact_hash": crate::output::hex_of(&settlement_artifact_hash),
+            }));
+        }
+
+        ProposalAction::TypedCrossChainEscrowReturn {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            chain_kind,
+            amount_raw,
+            escrow_id,
+            refund_recipient_hash,
+            asset_id_hash,
+            route_hash,
+            settlement_artifact_hash,
+        } => {
+            if amount_raw == 0 {
+                return Err(anyhow!("amount-raw must be greater than zero"));
+            }
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::ReturnEscrowFunds,
+                "typed cross-chain escrow return",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let intent_data = rpc::fetch_account(&client, &intent_pubkey)
+                .with_context(|| "failed to fetch typed proposal intent")?;
+            let intent_account = accounts::parse_intent(&intent_data)?;
+            if intent_account.chain_kind != chain_kind {
+                return Err(anyhow!(
+                    "typed cross-chain escrow return chain_kind mismatch: intent has {}, command got {}",
+                    intent_account.chain_kind,
+                    chain_kind
+                ));
+            }
+
+            let program_id = crate::instructions::program_id();
+            let (ika_config_pubkey, _) =
+                crate::ika::ika_config_pda(&program_id, &wallet_pubkey, chain_kind);
+            let ika_config_data =
+                rpc::fetch_account(&client, &ika_config_pubkey).with_context(|| {
+                    format!(
+                        "wallet has no IkaConfig for chain_kind={chain_kind}; bind the chain first"
+                    )
+                })?;
+            let ika_config = accounts::parse_ika_config(&ika_config_data)?;
+            let dwallet_pubkey: Pubkey = ika_config
+                .dwallet
+                .parse()
+                .with_context(|| "invalid dwallet address in IkaConfig")?;
+
+            let refund_recipient_hash =
+                decode_hex_32(&refund_recipient_hash, "refund_recipient_hash")?;
+            let asset_id_hash = decode_hex_32(&asset_id_hash, "asset_id_hash")?;
+            let route_hash = decode_hex_32(&route_hash, "route_hash")?;
+            let settlement_artifact_hash =
+                decode_hex_32(&settlement_artifact_hash, "settlement_artifact_hash")?;
+            let tx_template_hash = intent_tx_template_hash(&intent_account)?;
+            let ix = crate::instructions::execute_typed_cross_chain_escrow_return(
+                wallet_pubkey,
+                intent_pubkey,
+                proposal_pubkey,
+                ika_config_pubkey,
+                dwallet_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                chain_kind,
+                amount_raw.to_le_bytes(),
+                crate::message::sha256_hash(escrow_id.as_bytes()),
+                refund_recipient_hash,
+                asset_id_hash,
+                route_hash,
+                tx_template_hash,
+                settlement_artifact_hash,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_cross_chain_escrow_return",
+                "status": "executed",
+                "chain_kind": chain_kind,
+                "ika_config": ika_config_pubkey.to_string(),
+                "dwallet": dwallet_pubkey.to_string(),
+                "amount_raw": amount_raw.to_string(),
+                "escrow_id": escrow_id,
+                "refund_recipient_hash": crate::output::hex_of(&refund_recipient_hash),
+                "asset_id_hash": crate::output::hex_of(&asset_id_hash),
+                "route_hash": crate::output::hex_of(&route_hash),
+                "tx_template_hash": crate::output::hex_of(&tx_template_hash),
+                "settlement_artifact_hash": crate::output::hex_of(&settlement_artifact_hash),
+            }));
+        }
+
+        ProposalAction::TypedPrivateEscrowRelease {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            amount_raw,
+            escrow_id,
+            milestone_id,
+            recipient_hash,
+            asset_id_hash,
+            private_evaluation_hash,
+            settlement_artifact_hash,
+        } => {
+            if amount_raw == 0 {
+                return Err(anyhow!("amount-raw must be greater than zero"));
+            }
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::ReleaseMilestone,
+                "typed private escrow release",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let intent_data = rpc::fetch_account(&client, &intent_pubkey)
+                .with_context(|| "failed to fetch typed proposal intent")?;
+            let intent_account = accounts::parse_intent(&intent_data)?;
+
+            let recipient_hash = decode_hex_32(&recipient_hash, "recipient_hash")?;
+            let asset_id_hash = decode_hex_32(&asset_id_hash, "asset_id_hash")?;
+            let private_evaluation_hash =
+                decode_hex_32(&private_evaluation_hash, "private_evaluation_hash")?;
+            let settlement_artifact_hash =
+                decode_hex_32(&settlement_artifact_hash, "settlement_artifact_hash")?;
+            let policy_ciphertexts_hash = intent_policy_ciphertexts_hash(&intent_account)?;
+            let ix = crate::instructions::execute_typed_private_escrow_release(
+                wallet_pubkey,
+                intent_pubkey,
+                proposal_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                amount_raw.to_le_bytes(),
+                crate::message::sha256_hash(escrow_id.as_bytes()),
+                crate::message::sha256_hash(milestone_id.as_bytes()),
+                recipient_hash,
+                asset_id_hash,
+                policy_ciphertexts_hash,
+                private_evaluation_hash,
+                settlement_artifact_hash,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_private_escrow_release",
+                "status": "executed",
+                "amount_raw": amount_raw.to_string(),
+                "escrow_id": escrow_id,
+                "milestone_id": milestone_id,
+                "recipient_hash": crate::output::hex_of(&recipient_hash),
+                "asset_id_hash": crate::output::hex_of(&asset_id_hash),
+                "policy_ciphertexts_hash": crate::output::hex_of(&policy_ciphertexts_hash),
+                "private_evaluation_hash": crate::output::hex_of(&private_evaluation_hash),
+                "settlement_artifact_hash": crate::output::hex_of(&settlement_artifact_hash),
+            }));
+        }
+
+        ProposalAction::TypedPrivateEscrowReturn {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            amount_raw,
+            escrow_id,
+            refund_recipient_hash,
+            asset_id_hash,
+            private_evaluation_hash,
+            settlement_artifact_hash,
+        } => {
+            if amount_raw == 0 {
+                return Err(anyhow!("amount-raw must be greater than zero"));
+            }
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::ReturnEscrowFunds,
+                "typed private escrow return",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let intent_data = rpc::fetch_account(&client, &intent_pubkey)
+                .with_context(|| "failed to fetch typed proposal intent")?;
+            let intent_account = accounts::parse_intent(&intent_data)?;
+
+            let refund_recipient_hash =
+                decode_hex_32(&refund_recipient_hash, "refund_recipient_hash")?;
+            let asset_id_hash = decode_hex_32(&asset_id_hash, "asset_id_hash")?;
+            let private_evaluation_hash =
+                decode_hex_32(&private_evaluation_hash, "private_evaluation_hash")?;
+            let settlement_artifact_hash =
+                decode_hex_32(&settlement_artifact_hash, "settlement_artifact_hash")?;
+            let policy_ciphertexts_hash = intent_policy_ciphertexts_hash(&intent_account)?;
+            let ix = crate::instructions::execute_typed_private_escrow_return(
+                wallet_pubkey,
+                intent_pubkey,
+                proposal_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                amount_raw.to_le_bytes(),
+                crate::message::sha256_hash(escrow_id.as_bytes()),
+                refund_recipient_hash,
+                asset_id_hash,
+                policy_ciphertexts_hash,
+                private_evaluation_hash,
+                settlement_artifact_hash,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_private_escrow_return",
+                "status": "executed",
+                "amount_raw": amount_raw.to_string(),
+                "escrow_id": escrow_id,
+                "refund_recipient_hash": crate::output::hex_of(&refund_recipient_hash),
+                "asset_id_hash": crate::output::hex_of(&asset_id_hash),
+                "policy_ciphertexts_hash": crate::output::hex_of(&policy_ciphertexts_hash),
+                "private_evaluation_hash": crate::output::hex_of(&private_evaluation_hash),
+                "settlement_artifact_hash": crate::output::hex_of(&settlement_artifact_hash),
+            }));
+        }
+
+        ProposalAction::TypedEscrowReturn {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            escrow_id,
+            returns,
+        } => {
+            if returns.is_empty() {
+                return Err(anyhow!(
+                    "at least one --return recipient:lamports is required"
+                ));
+            }
+            if returns.len() > 16 {
+                return Err(anyhow!(
+                    "typed escrow return supports at most 16 recipients"
+                ));
+            }
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::ReturnEscrowFunds,
+                "typed escrow return",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let parsed_returns = returns
+                .iter()
+                .map(|row| parse_return_row(row))
+                .collect::<Result<Vec<_>>>()?;
+            let mut amount_bytes = Vec::with_capacity(parsed_returns.len() * 8);
+            let mut funder_accounts = Vec::with_capacity(parsed_returns.len());
+            for (recipient, lamports) in &parsed_returns {
+                amount_bytes.extend_from_slice(&lamports.to_le_bytes());
+                funder_accounts.push(AccountMeta::new(*recipient, false));
+            }
+            let ix = crate::instructions::execute_typed_escrow_return(
+                wallet_pubkey,
+                vault_pubkey(wallet_pubkey),
+                intent_pubkey,
+                proposal_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                crate::message::sha256_hash(escrow_id.as_bytes()),
+                &amount_bytes,
+                funder_accounts,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_escrow_return",
+                "status": "executed",
+                "returns": parsed_returns
+                    .iter()
+                    .map(|(recipient, lamports)| serde_json::json!({
+                        "recipient": recipient.to_string(),
+                        "amount_lamports": lamports,
+                    }))
+                    .collect::<Vec<_>>(),
+            }));
+        }
+
+        ProposalAction::TypedSolSend {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            recipient,
+            amount_lamports,
+        } => {
+            if amount_lamports == 0 {
+                return Err(anyhow!("amount-lamports must be greater than zero"));
+            }
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::Send,
+                "typed SOL send",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let recipient_pubkey: Pubkey = recipient
+                .parse()
+                .with_context(|| "invalid recipient address")?;
+            let ix = crate::instructions::execute_typed_sol_send(
+                wallet_pubkey,
+                vault_pubkey(wallet_pubkey),
+                intent_pubkey,
+                proposal_pubkey,
+                recipient_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                amount_lamports,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_sol_send",
+                "status": "executed",
+                "recipient": recipient_pubkey.to_string(),
+                "amount_lamports": amount_lamports,
+            }));
+        }
+
+        ProposalAction::TypedSolBatchSend {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            payments,
+        } => {
+            if payments.is_empty() {
+                return Err(anyhow!(
+                    "at least one --payment recipient:lamports is required"
+                ));
+            }
+            if payments.len() > 16 {
+                return Err(anyhow!(
+                    "typed SOL batch send supports at most 16 recipients"
+                ));
+            }
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::BatchSend,
+                "typed SOL batch send",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let parsed_payments = payments
+                .iter()
+                .map(|row| parse_recipient_lamports_row(row, "payment"))
+                .collect::<Result<Vec<_>>>()?;
+            let mut amount_bytes = Vec::with_capacity(parsed_payments.len() * 8);
+            let mut recipient_accounts = Vec::with_capacity(parsed_payments.len());
+            for (recipient, lamports) in &parsed_payments {
+                amount_bytes.extend_from_slice(&lamports.to_le_bytes());
+                recipient_accounts.push(AccountMeta::new(*recipient, false));
+            }
+            let ix = crate::instructions::execute_typed_sol_batch_send(
+                wallet_pubkey,
+                vault_pubkey(wallet_pubkey),
+                intent_pubkey,
+                proposal_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                &amount_bytes,
+                recipient_accounts,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_sol_batch_send",
+                "status": "executed",
+                "payments": parsed_payments
+                    .iter()
+                    .map(|(recipient, lamports)| serde_json::json!({
+                        "recipient": recipient.to_string(),
+                        "amount_lamports": lamports,
+                    }))
+                    .collect::<Vec<_>>(),
             }));
         }
 
@@ -428,16 +1504,45 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
 
             let client = rpc::client(config);
             let data = rpc::fetch_account(&client, &proposal_pubkey)?;
-            let proposal = accounts::parse_proposal(&data)?;
-            let rent_refund: Pubkey = proposal
-                .rent_refund
-                .parse()
-                .with_context(|| "invalid rent_refund address in proposal")?;
-
-            let ix = crate::instructions::cleanup(proposal_pubkey, rent_refund);
+            let (proposal_kind, rent_refund, ix) = match data.first().copied() {
+                Some(3) => {
+                    let proposal = accounts::parse_proposal(&data)?;
+                    let rent_refund: Pubkey = proposal
+                        .rent_refund
+                        .parse()
+                        .with_context(|| "invalid rent_refund address in proposal")?;
+                    (
+                        "legacy",
+                        rent_refund,
+                        crate::instructions::cleanup(proposal_pubkey, rent_refund),
+                    )
+                }
+                Some(6) => {
+                    let proposal = accounts::parse_typed_proposal(&data)?;
+                    let rent_refund: Pubkey = proposal
+                        .rent_refund
+                        .parse()
+                        .with_context(|| "invalid rent_refund address in typed proposal")?;
+                    (
+                        "typed",
+                        rent_refund,
+                        crate::instructions::cleanup_typed(proposal_pubkey, rent_refund),
+                    )
+                }
+                Some(discriminator) => {
+                    return Err(anyhow!(
+                        "account {} is not a proposal account (discriminator={})",
+                        proposal_pubkey,
+                        discriminator
+                    ));
+                }
+                None => return Err(anyhow!("proposal account data is empty")),
+            };
             let sig = rpc::send_instruction(&client, config, ix)?;
 
             print_json(&serde_json::json!({
+                "kind": proposal_kind,
+                "rent_refund": rent_refund.to_string(),
                 "txid": sig.to_string(),
                 "status": "cleaned up",
             }));
@@ -1012,6 +2117,275 @@ fn parse_hex_local(s: &str) -> Result<Vec<u8>> {
             u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).map_err(|e| anyhow!("invalid hex: {e}"))
         })
         .collect()
+}
+
+fn decode_hex_32(value: &str, field: &str) -> Result<[u8; 32]> {
+    let bytes = parse_hex_local(value).with_context(|| format!("invalid {field} hex"))?;
+    if bytes.len() != 32 {
+        return Err(anyhow!("{field} must be 32 bytes, got {}", bytes.len()));
+    }
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&bytes);
+    Ok(out)
+}
+
+fn ensure_typed_text(value: &str, field: &str) -> Result<()> {
+    if value.trim().is_empty() {
+        return Err(anyhow!("{field} must not be empty"));
+    }
+    if value.as_bytes().len() > 128 {
+        return Err(anyhow!("{field} must be 128 bytes or fewer"));
+    }
+    Ok(())
+}
+
+fn resolve_approved_typed_proposal(
+    _config: &RuntimeConfig,
+    client: &RpcClient,
+    wallet_name: &str,
+    proposal_addr_str: &str,
+) -> Result<(Pubkey, Pubkey, accounts::TypedProposalAccount)> {
+    let (wallet_pubkey, _) = rpc::resolve_wallet_by_name(client, wallet_name)?;
+    let proposal_pubkey: Pubkey = proposal_addr_str
+        .parse()
+        .with_context(|| "invalid proposal address")?;
+    let proposal_data = rpc::fetch_account(client, &proposal_pubkey)?;
+    let proposal_account = accounts::parse_typed_proposal(&proposal_data)?;
+    if proposal_account.wallet != wallet_pubkey.to_string() {
+        return Err(anyhow!(
+            "typed proposal does not belong to wallet {wallet_name}"
+        ));
+    }
+    if proposal_account.status != "Approved" {
+        return Err(anyhow!(
+            "typed proposal status is '{}', must be 'Approved' to execute",
+            proposal_account.status
+        ));
+    }
+    Ok((wallet_pubkey, proposal_pubkey, proposal_account))
+}
+
+fn ensure_typed_action(
+    proposal: &accounts::TypedProposalAccount,
+    expected: ClearSignActionKind,
+    label: &str,
+) -> Result<()> {
+    if proposal.action_kind != expected.code() {
+        return Err(anyhow!(
+            "{label} requires action kind {}, got {}",
+            expected.code(),
+            proposal.action_kind
+        ));
+    }
+    Ok(())
+}
+
+fn parse_return_row(row: &str) -> Result<(Pubkey, u64)> {
+    parse_recipient_lamports_row(row, "return")
+}
+
+fn parse_token_return_row(row: &str) -> Result<(Pubkey, Pubkey, u64)> {
+    let mut parts = row.split(':');
+    let destination_token = parts
+        .next()
+        .ok_or_else(|| anyhow!("token return row must be destination_token:funder_owner:tokens"))?
+        .parse::<Pubkey>()
+        .with_context(|| "invalid token return destination token account address")?;
+    let funder_owner = parts
+        .next()
+        .ok_or_else(|| anyhow!("token return row must be destination_token:funder_owner:tokens"))?
+        .parse::<Pubkey>()
+        .with_context(|| "invalid token return funder owner address")?;
+    let amount_tokens = parts
+        .next()
+        .ok_or_else(|| anyhow!("token return row must be destination_token:funder_owner:tokens"))?
+        .parse::<u64>()
+        .with_context(|| "invalid token return token amount")?;
+    if parts.next().is_some() {
+        return Err(anyhow!(
+            "token return row must be destination_token:funder_owner:tokens"
+        ));
+    }
+    if amount_tokens == 0 {
+        return Err(anyhow!(
+            "token return token amount must be greater than zero"
+        ));
+    }
+    Ok((destination_token, funder_owner, amount_tokens))
+}
+
+fn intent_tx_template_hash(intent: &accounts::IntentAccount) -> Result<[u8; 32]> {
+    let start = intent.tx_template_offset as usize;
+    let end = start
+        .checked_add(intent.tx_template_len as usize)
+        .ok_or_else(|| anyhow!("intent tx_template range overflow"))?;
+    let bytes = intent
+        .byte_pool
+        .get(start..end)
+        .ok_or_else(|| anyhow!("intent tx_template range is outside byte pool"))?;
+    Ok(crate::message::sha256_hash(bytes))
+}
+
+fn intent_policy_ciphertexts_hash(intent: &accounts::IntentAccount) -> Result<[u8; 32]> {
+    if intent.policy_ciphertexts.is_empty() {
+        return Err(anyhow!(
+            "typed private escrow requires intent policy ciphertext identifiers"
+        ));
+    }
+    Ok(crate::message::sha256_hash(&intent.policy_ciphertexts))
+}
+
+fn parse_recipient_lamports_row(row: &str, label: &str) -> Result<(Pubkey, u64)> {
+    let (recipient, amount) = row
+        .split_once(':')
+        .ok_or_else(|| anyhow!("{label} row must be recipient:lamports"))?;
+    let recipient = recipient
+        .parse::<Pubkey>()
+        .with_context(|| format!("invalid {label} recipient address"))?;
+    let amount = amount
+        .parse::<u64>()
+        .with_context(|| format!("invalid {label} lamports amount"))?;
+    if amount == 0 {
+        return Err(anyhow!("{label} lamports amount must be greater than zero"));
+    }
+    Ok((recipient, amount))
+}
+
+fn vault_pubkey(wallet_pubkey: Pubkey) -> Pubkey {
+    let (vault, _) = clear_wallet_client::pda::find_vault_address(
+        &solana_address::Address::new_from_array(wallet_pubkey.to_bytes()),
+        &solana_address::Address::new_from_array(crate::instructions::program_id().to_bytes()),
+    );
+    Pubkey::new_from_array(vault.to_bytes())
+}
+
+fn typed_approve_or_cancel(
+    config: &RuntimeConfig,
+    wallet_name: &str,
+    proposal_addr_str: &str,
+    is_approve: bool,
+) -> Result<()> {
+    let client = rpc::client(config);
+    let (wallet_pubkey, wallet_account) = rpc::resolve_wallet_by_name(&client, wallet_name)?;
+    let proposal_pubkey: Pubkey = proposal_addr_str
+        .parse()
+        .with_context(|| "invalid proposal address")?;
+    let proposal_data = rpc::fetch_account(&client, &proposal_pubkey)?;
+    let proposal_account = accounts::parse_typed_proposal(&proposal_data)?;
+    if proposal_account.wallet != wallet_pubkey.to_string() {
+        return Err(anyhow!(
+            "typed proposal does not belong to wallet {wallet_name}"
+        ));
+    }
+
+    let intent_pubkey: Pubkey = proposal_account
+        .intent
+        .parse()
+        .with_context(|| "invalid intent address in typed proposal")?;
+    let intent_data = rpc::fetch_account(&client, &intent_pubkey)?;
+    let intent_account = accounts::parse_intent(&intent_data)?;
+    let signer_pubkey_b58 = bs58::encode(config.signer.pubkey()).into_string();
+    let approver_index = intent_account
+        .approvers
+        .iter()
+        .position(|a| a == &signer_pubkey_b58)
+        .ok_or(anyhow!(
+            "signer {} is not an approver on this intent",
+            signer_pubkey_b58
+        ))? as u8;
+
+    let action = if is_approve { "approve" } else { "cancel" };
+    let member_bit = 1u16
+        .checked_shl(approver_index as u32)
+        .ok_or_else(|| anyhow!("invalid approver index {approver_index}"))?;
+    if is_approve && (proposal_account.approval_bitmap & member_bit) != 0 {
+        print_json(&serde_json::json!({
+            "txid": null,
+            "action": "typed_approve",
+            "approver_index": approver_index,
+            "status": proposal_account.status,
+            "already_recorded": true,
+        }));
+        return Ok(());
+    }
+    if !is_approve && (proposal_account.cancellation_bitmap & member_bit) != 0 {
+        print_json(&serde_json::json!({
+            "txid": null,
+            "action": "typed_cancel",
+            "approver_index": approver_index,
+            "status": proposal_account.status,
+            "already_recorded": true,
+        }));
+        return Ok(());
+    }
+
+    let vote_kind = if is_approve {
+        ClearSignVoteKind::Approve
+    } else {
+        ClearSignVoteKind::Cancel
+    };
+    let vote_hash = hash_vote_message(
+        vote_kind,
+        wallet_pubkey.as_ref(),
+        proposal_account.proposal_index,
+        proposal_account.envelope_hash,
+    );
+
+    if config.dry_run {
+        print_typed_dry_run(&crate::output::TypedDryRunDescriptor {
+            action: if is_approve {
+                "proposal_typed_approve"
+            } else {
+                "proposal_typed_cancel"
+            },
+            wallet_name: &wallet_account.name,
+            wallet_pubkey: wallet_pubkey.to_string(),
+            intent_index: intent_account.intent_index,
+            intent_pubkey: intent_pubkey.to_string(),
+            proposal_pubkey: proposal_pubkey.to_string(),
+            proposal_index: proposal_account.proposal_index,
+            action_kind: proposal_account.action_kind,
+            policy_commitment_hex: crate::output::hex_of(&proposal_account.policy_commitment),
+            payload_hash_hex: crate::output::hex_of(&proposal_account.payload_hash),
+            envelope_hash_hex: crate::output::hex_of(&proposal_account.envelope_hash),
+            action_id: String::from_utf8_lossy(&proposal_account.action_id).to_string(),
+            nonce: String::from_utf8_lossy(&proposal_account.nonce).to_string(),
+            message_hex: crate::output::hex_of(&vote_hash),
+            message_flavor: "clearsign_v2_vote_hash",
+            expiry: proposal_account.expires_at,
+        });
+        return Ok(());
+    }
+
+    eprintln!(
+        "Signing ClearSign v2 {action} vote hash:\n{}",
+        crate::output::hex_of(&vote_hash)
+    );
+    let signature = config.signer.sign_message(&vote_hash)?;
+    let ix = if is_approve {
+        crate::instructions::approve_typed(
+            wallet_pubkey,
+            intent_pubkey,
+            proposal_pubkey,
+            approver_index,
+            signature,
+        )
+    } else {
+        crate::instructions::cancel_typed(
+            wallet_pubkey,
+            intent_pubkey,
+            proposal_pubkey,
+            approver_index,
+            signature,
+        )
+    };
+    let sig = rpc::send_instruction(&client, config, ix)?;
+    print_json(&serde_json::json!({
+        "txid": sig.to_string(),
+        "action": if is_approve { "typed_approve" } else { "typed_cancel" },
+        "approver_index": approver_index,
+    }));
+    Ok(())
 }
 
 /// Shared logic for approve and cancel.

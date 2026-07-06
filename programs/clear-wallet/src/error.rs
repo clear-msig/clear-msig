@@ -48,4 +48,8 @@ pub enum WalletError {
     AccountAddressMismatch,
     /// A parameter value violates its intent constraint.
     ParamConstraintViolation,
+    /// ClearSign v2 action kind is not recognized.
+    InvalidClearSignAction,
+    /// ClearSign v2 envelope hash does not match the provided canonical fields.
+    InvalidClearSignEnvelope,
 }

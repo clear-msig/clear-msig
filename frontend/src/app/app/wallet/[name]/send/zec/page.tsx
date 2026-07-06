@@ -705,7 +705,7 @@ function SendingStage() {
       </div>
       <p className="mt-5 text-base text-text-strong">Talking to Zcash…</p>
       <p className="mt-1 text-xs text-text-soft">
-        Signing on Solana, then handing off to Ika to broadcast on Zcash.
+        Finishing the send on Zcash.
       </p>
     </motion.section>
   );
@@ -738,7 +738,7 @@ function SentStage({
   return (
     <SendReceipt
       status="confirmed"
-      statusLabel="Broadcast on Zcash via Ika"
+      statusLabel="Confirmed on Zcash"
       amount={amount}
       ticker="ZEC"
       recipientLabel={to}

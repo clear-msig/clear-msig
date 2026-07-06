@@ -1073,7 +1073,7 @@ function SendingStage({
       </div>
       <p className="mt-5 text-base text-text-strong">Talking to {label}…</p>
       <p className="mt-1 text-xs text-text-soft">
-        Signing on Solana, then handing off to Ika to broadcast on {label}.
+        Finishing the send on {label}.
       </p>
     </motion.section>
   );
@@ -1109,7 +1109,7 @@ function SentStage({
   return (
     <SendReceipt
       status="confirmed"
-      statusLabel={`Broadcast on ${networkLabel} via Ika`}
+      statusLabel={`Confirmed on ${networkLabel}`}
       amount={amount}
       ticker={ticker}
       recipientLabel={to}
