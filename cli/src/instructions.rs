@@ -398,6 +398,45 @@ pub fn execute_typed_spl_escrow_release(
     }
 }
 
+/// Build execute_typed_spl_escrow_return instruction (ClearSign v2 discriminator 18).
+#[allow(dead_code)]
+pub fn execute_typed_spl_escrow_return(
+    wallet: Pubkey,
+    vault: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    mint: Pubkey,
+    source_token: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    escrow_id_hash: [u8; 32],
+    amount_tokens_le: &[u8],
+    returns: Vec<AccountMeta>,
+) -> Instruction {
+    let mut accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new_readonly(vault, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new_readonly(mint, false),
+        AccountMeta::new(source_token, false),
+        AccountMeta::new_readonly(spl_token_program_id(), false),
+    ];
+    accounts.extend(returns);
+
+    let mut data = vec![18u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    data.extend_from_slice(amount_tokens_le);
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
 /// Build execute_typed_escrow_return instruction (ClearSign v2 discriminator 13).
 #[allow(dead_code)]
 pub fn execute_typed_escrow_return(
@@ -755,6 +794,24 @@ mod tests {
             [11; 32],
             [12; 32],
         );
+        let unwind = execute_typed_spl_escrow_return(
+            key(1),
+            key(2),
+            key(3),
+            key(4),
+            key(5),
+            key(6),
+            [9; 32],
+            [10; 32],
+            [11; 32],
+            &1_000_000u64.to_le_bytes(),
+            vec![
+                AccountMeta::new(key(7), false),
+                AccountMeta::new_readonly(key(8), false),
+                AccountMeta::new(key(9), false),
+                AccountMeta::new_readonly(key(10), false),
+            ],
+        );
 
         assert_eq!(release.data[0], 17);
         assert_eq!(release.accounts.len(), 9);
@@ -768,6 +825,20 @@ mod tests {
         assert!(!release.accounts[7].is_writable);
         assert!(!release.accounts[8].is_writable);
         assert_eq!(release.accounts[8].pubkey, spl_token_program_id());
+        assert_eq!(unwind.data[0], 18);
+        assert_eq!(unwind.accounts.len(), 11);
+        assert!(!unwind.accounts[0].is_writable);
+        assert!(!unwind.accounts[1].is_writable);
+        assert!(unwind.accounts[2].is_writable);
+        assert!(unwind.accounts[3].is_writable);
+        assert!(!unwind.accounts[4].is_writable);
+        assert!(unwind.accounts[5].is_writable);
+        assert!(!unwind.accounts[6].is_writable);
+        assert_eq!(unwind.accounts[6].pubkey, spl_token_program_id());
+        assert!(unwind.accounts[7].is_writable);
+        assert!(!unwind.accounts[8].is_writable);
+        assert!(unwind.accounts[9].is_writable);
+        assert!(!unwind.accounts[10].is_writable);
     }
 
     #[test]

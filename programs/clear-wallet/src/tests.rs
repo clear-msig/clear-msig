@@ -6,8 +6,9 @@ use {
     crate::utils::clearsign::{
         hash_batch_send_sol_payload_iter, hash_envelope, hash_policy_commitment,
         hash_release_milestone_payload, hash_release_token_milestone_payload,
-        hash_return_escrow_sol_payload_iter, hash_send_payload, hash_vote_message,
-        ClearSignActionKind, ClearSignAmount, ClearSignEnvelope, ClearSignVoteKind,
+        hash_return_escrow_sol_payload_iter, hash_return_token_escrow_payload_iter,
+        hash_send_payload, hash_vote_message, ClearSignActionKind, ClearSignAmount,
+        ClearSignEnvelope, ClearSignVoteKind,
     },
     alloc::vec,
     clear_wallet_client::{
@@ -412,6 +413,43 @@ fn build_execute_typed_spl_escrow_release_ix(
             AccountMeta::new_readonly(recipient_owner, false),
             AccountMeta::new_readonly(quasar_svm::SPL_TOKEN_PROGRAM_ID, false),
         ],
+        data,
+    }
+}
+
+fn build_execute_typed_spl_escrow_return_ix(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    mint: Pubkey,
+    source_token: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    escrow_id_hash: [u8; 32],
+    amount_tokens_le: Vec<u8>,
+    remaining_accounts: Vec<AccountMeta>,
+) -> Instruction {
+    let (vault, _) = find_vault_address(&wallet, &crate::ID);
+    let mut data = vec![18u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    data.extend_from_slice(&amount_tokens_le);
+
+    let mut accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new_readonly(vault, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new_readonly(mint, false),
+        AccountMeta::new(source_token, false),
+        AccountMeta::new_readonly(quasar_svm::SPL_TOKEN_PROGRAM_ID, false),
+    ];
+    accounts.extend(remaining_accounts);
+
+    Instruction {
+        program_id: crate::ID,
+        accounts,
         data,
     }
 }
@@ -950,6 +988,197 @@ fn test_execute_typed_spl_escrow_release_moves_tokens() {
     assert_eq!(destination_state.amount, amount_tokens);
     assert_eq!(destination_state.owner, recipient_owner);
     assert_eq!(destination_state.mint, mint);
+    assert_eq!(
+        svm.get_account(&proposal).unwrap().data[105],
+        2,
+        "typed proposal should be Executed(2)"
+    );
+}
+
+#[test]
+fn test_execute_typed_spl_escrow_return_moves_tokens_to_funders() {
+    use quasar_svm::token::{
+        create_keyed_mint_account, create_keyed_token_account, Mint, TokenAccount,
+    };
+    use spl_token::solana_program::program_pack::Pack;
+    use spl_token::state::AccountState;
+
+    let mut svm = setup_with_tokens();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let wallet_name = "typed-spl-return";
+    let initial_supply = 1_000_000u64;
+    let amount_a = 125_000u64;
+    let amount_b = 275_000u64;
+    let escrow_id_hash = sha256_hash(b"spl-escrow-return-1");
+    let action_id = sha256_hash(b"spl-return-action-1");
+    let nonce = sha256_hash(b"spl-return-nonce-1");
+    let expiry = typed_test_expiry();
+
+    let (instruction, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&proposer)],
+        1,
+    );
+    assert!(svm.process_instruction(&instruction, &accounts).is_ok());
+
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let (vault, _) = find_vault_address(&wallet, &crate::ID);
+    let proposal_index = 0u64;
+    let proposal = get_typed_proposal_address(intent, proposal_index);
+    let mint = Pubkey::new_unique();
+    let funder_a = Pubkey::new_unique();
+    let funder_b = Pubkey::new_unique();
+    let source_token = Pubkey::new_unique();
+    let destination_a = Pubkey::new_unique();
+    let destination_b = Pubkey::new_unique();
+
+    svm.set_account(create_keyed_mint_account(
+        &mint,
+        &Mint {
+            decimals: 6,
+            supply: initial_supply,
+            is_initialized: true,
+            ..Default::default()
+        },
+    ));
+    svm.set_account(create_keyed_token_account(
+        &source_token,
+        &TokenAccount {
+            mint,
+            owner: vault,
+            amount: initial_supply,
+            state: AccountState::Initialized,
+            ..Default::default()
+        },
+    ));
+    svm.set_account(create_keyed_token_account(
+        &destination_a,
+        &TokenAccount {
+            mint,
+            owner: funder_a,
+            amount: 0,
+            state: AccountState::Initialized,
+            ..Default::default()
+        },
+    ));
+    svm.set_account(create_keyed_token_account(
+        &destination_b,
+        &TokenAccount {
+            mint,
+            owner: funder_b,
+            amount: 0,
+            state: AccountState::Initialized,
+            ..Default::default()
+        },
+    ));
+
+    let policy_commitment = hash_policy_commitment(&[b"escrow:return:spl"]);
+    let payload_hash = hash_return_token_escrow_payload_iter(
+        &escrow_id_hash,
+        mint.as_ref(),
+        source_token.as_ref(),
+        [
+            (destination_a.as_ref(), funder_a.as_ref(), amount_a),
+            (destination_b.as_ref(), funder_b.as_ref(), amount_b),
+        ]
+        .into_iter(),
+    );
+    let envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::ReturnEscrowFunds,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: action_id.as_ref(),
+        nonce: nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment,
+        payload_hash,
+    });
+
+    let propose = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent,
+        proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::ReturnEscrowFunds.code(),
+        policy_commitment,
+        payload_hash,
+        envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_typed_vote(
+            &proposer,
+            ClearSignVoteKind::Propose,
+            wallet,
+            proposal_index,
+            envelope_hash,
+        ),
+        action_id,
+        nonce,
+    });
+    let result =
+        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
+    assert!(
+        result.is_ok(),
+        "typed SPL escrow return propose failed: {:?}",
+        result.raw_result
+    );
+
+    let mut amount_bytes = Vec::new();
+    amount_bytes.extend_from_slice(&amount_a.to_le_bytes());
+    amount_bytes.extend_from_slice(&amount_b.to_le_bytes());
+    let execute = build_execute_typed_spl_escrow_return_ix(
+        wallet,
+        intent,
+        proposal,
+        mint,
+        source_token,
+        policy_commitment,
+        envelope_hash,
+        escrow_id_hash,
+        amount_bytes,
+        vec![
+            AccountMeta::new(destination_a, false),
+            AccountMeta::new_readonly(funder_a, false),
+            AccountMeta::new(destination_b, false),
+            AccountMeta::new_readonly(funder_b, false),
+        ],
+    );
+    let result = svm.process_instruction(
+        &execute,
+        &[empty_account(funder_a), empty_account(funder_b)],
+    );
+    if result.is_err() {
+        result.print_logs();
+    }
+    assert!(
+        result.is_ok(),
+        "typed SPL escrow return execute failed: {:?}",
+        result.raw_result
+    );
+
+    let source_account = svm.get_account(&source_token).unwrap();
+    let source_state: TokenAccount = TokenAccount::unpack(&source_account.data).unwrap();
+    assert_eq!(source_state.amount, initial_supply - amount_a - amount_b);
+
+    let destination_a_account = svm.get_account(&destination_a).unwrap();
+    let destination_a_state: TokenAccount =
+        TokenAccount::unpack(&destination_a_account.data).unwrap();
+    assert_eq!(destination_a_state.amount, amount_a);
+    assert_eq!(destination_a_state.owner, funder_a);
+
+    let destination_b_account = svm.get_account(&destination_b).unwrap();
+    let destination_b_state: TokenAccount =
+        TokenAccount::unpack(&destination_b_account.data).unwrap();
+    assert_eq!(destination_b_state.amount, amount_b);
+    assert_eq!(destination_b_state.owner, funder_b);
     assert_eq!(
         svm.get_account(&proposal).unwrap().data[105],
         2,

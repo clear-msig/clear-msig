@@ -23,8 +23,8 @@ use solana_sdk::{
 };
 
 const DEFAULT_RPC_URL: &str = "https://api.devnet.solana.com";
-const SEND_LAMPORTS: u64 = 100_000;
-const VAULT_FUND_LAMPORTS: u64 = 500_000;
+const SEND_LAMPORTS: u64 = 1_000_000;
+const VAULT_FUND_LAMPORTS: u64 = 3_000_000;
 
 fn main() -> anyhow::Result<()> {
     let rpc_url = env::var("RPC_URL").unwrap_or_else(|_| DEFAULT_RPC_URL.to_string());

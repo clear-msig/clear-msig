@@ -244,13 +244,17 @@ Typed proposal instruction discriminators are:
 | 13 | `execute_typed_escrow_return` |
 | 16 | `cleanup_typed_proposal` |
 | 17 | `execute_typed_spl_escrow_release` |
+| 18 | `execute_typed_spl_escrow_return` |
 
 `execute_typed` remains the generic status gate. The SOL escrow-specific
 executors additionally move SOL from the wallet vault after recomputing the
 approved typed payload hash from the recipient account(s), amount(s), escrow id,
 and milestone id. The SPL escrow release executor transfers SPL tokens from a
 vault-owned token account after binding the approval to the mint, token
-accounts, recipient owner, amount, escrow id, and milestone id.
+accounts, recipient owner, amount, escrow id, and milestone id. The SPL escrow
+return executor transfers SPL tokens back to funder token accounts after
+binding the approval to the mint, source token account, each destination token
+account, each funder owner, each amount, and escrow id.
 
 ## Security Review Snapshot: 2026-07-04
 
@@ -304,22 +308,14 @@ Current enforced guarantees:
 
 Current explicit limitation:
 
-- Typed SOL escrow release/return and SPL-token milestone release now have
-  program executors. SPL-token return/unwind, BTC/EVM/Ika escrow, and encrypted
-  private escrow still need their own typed executors before they should be
-  treated as cryptographically enforced.
+- Typed SOL escrow release/return and SPL-token milestone release/return now
+  have program executors. BTC/EVM/Ika escrow and encrypted private escrow still
+  need their own typed executors before they should be treated as
+  cryptographically enforced.
 
 ## Next Typed Executor Order
 
-1. **SPL-token escrow return/unwind**
-   - Verify the escrow token vault is the expected associated token account or
-     a recorded token account owned by the wallet vault authority.
-   - Recompute the typed payload hash from mint, token account, funder return
-     account(s), amount(s), escrow id, and funder ids.
-   - CPI into the SPL Token program with the wallet vault PDA as authority.
-   - Add SVM tests for wrong mint, wrong token vault, wrong recipient token
-     account, wrong amount, and happy-path return.
-2. **Cross-chain BTC/EVM/Ika escrow**
+1. **Cross-chain BTC/EVM/Ika escrow**
    - Treat the typed executor as an authorization/artifact gate, not a direct
      Solana value movement.
    - Bind the approved typed payload to the destination chain, dWallet/Ika
@@ -329,7 +325,7 @@ Current explicit limitation:
      external execution complete.
    - Add replay/idempotency tests so the same artifact cannot finalize a
      different proposal, escrow, chain, or amount.
-3. **Encrypted/private escrow**
+2. **Encrypted/private escrow**
    - Wait for program-side Encrypt/FHE enforcement. Until then, private escrow
      can produce typed commitments but must not claim confidential on-chain
      policy enforcement.
@@ -353,7 +349,7 @@ Before the next external review, collect:
 
 Required before mainnet:
 
-- Add SPL-token return/unwind and cross-chain typed escrow executors.
+- Add cross-chain typed escrow executors.
 - Add migration/compatibility tests for legacy proposals and typed proposals
   coexisting in the same wallet proposal index space for every product route
   that lists or cleans proposals.

@@ -104,6 +104,23 @@ pub enum ProposalAction {
         #[arg(long)]
         milestone_id: String,
     },
+    /// Execute an approved typed SPL-token escrow unwind / return.
+    ///
+    /// Pass one `--return destination_token:funder_owner:tokens` per funder.
+    TypedSplEscrowReturn {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        mint: String,
+        #[arg(long)]
+        source_token: String,
+        #[arg(long)]
+        escrow_id: String,
+        #[arg(long = "return")]
+        returns: Vec<String>,
+    },
     /// Execute an approved typed escrow unwind / return.
     ///
     /// Pass one `--return recipient:lamports` per funder.
@@ -613,6 +630,83 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 "destination_token": destination_token_pubkey.to_string(),
                 "recipient_owner": recipient_owner_pubkey.to_string(),
                 "amount_tokens": amount_tokens,
+            }));
+        }
+
+        ProposalAction::TypedSplEscrowReturn {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            mint,
+            source_token,
+            escrow_id,
+            returns,
+        } => {
+            if returns.is_empty() {
+                return Err(anyhow!(
+                    "at least one --return destination_token:funder_owner:tokens is required"
+                ));
+            }
+            if returns.len() > 16 {
+                return Err(anyhow!(
+                    "typed SPL escrow return supports at most 16 recipients"
+                ));
+            }
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::ReturnEscrowFunds,
+                "typed SPL escrow return",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let mint_pubkey: Pubkey = mint.parse().with_context(|| "invalid mint address")?;
+            let source_token_pubkey: Pubkey = source_token
+                .parse()
+                .with_context(|| "invalid source token account address")?;
+            let parsed_returns = returns
+                .iter()
+                .map(|row| parse_token_return_row(row))
+                .collect::<Result<Vec<_>>>()?;
+            let mut amount_bytes = Vec::with_capacity(parsed_returns.len() * 8);
+            let mut return_accounts = Vec::with_capacity(parsed_returns.len() * 2);
+            for (destination_token, funder_owner, amount_tokens) in &parsed_returns {
+                amount_bytes.extend_from_slice(&amount_tokens.to_le_bytes());
+                return_accounts.push(AccountMeta::new(*destination_token, false));
+                return_accounts.push(AccountMeta::new_readonly(*funder_owner, false));
+            }
+            let ix = crate::instructions::execute_typed_spl_escrow_return(
+                wallet_pubkey,
+                vault_pubkey(wallet_pubkey),
+                intent_pubkey,
+                proposal_pubkey,
+                mint_pubkey,
+                source_token_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                crate::message::sha256_hash(escrow_id.as_bytes()),
+                &amount_bytes,
+                return_accounts,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_spl_escrow_return",
+                "status": "executed",
+                "mint": mint_pubkey.to_string(),
+                "source_token": source_token_pubkey.to_string(),
+                "returns": parsed_returns
+                    .iter()
+                    .map(|(destination_token, funder_owner, amount_tokens)| serde_json::json!({
+                        "destination_token": destination_token.to_string(),
+                        "funder_owner": funder_owner.to_string(),
+                        "amount_tokens": amount_tokens,
+                    }))
+                    .collect::<Vec<_>>(),
             }));
         }
 
@@ -1676,6 +1770,36 @@ fn ensure_typed_action(
 
 fn parse_return_row(row: &str) -> Result<(Pubkey, u64)> {
     parse_recipient_lamports_row(row, "return")
+}
+
+fn parse_token_return_row(row: &str) -> Result<(Pubkey, Pubkey, u64)> {
+    let mut parts = row.split(':');
+    let destination_token = parts
+        .next()
+        .ok_or_else(|| anyhow!("token return row must be destination_token:funder_owner:tokens"))?
+        .parse::<Pubkey>()
+        .with_context(|| "invalid token return destination token account address")?;
+    let funder_owner = parts
+        .next()
+        .ok_or_else(|| anyhow!("token return row must be destination_token:funder_owner:tokens"))?
+        .parse::<Pubkey>()
+        .with_context(|| "invalid token return funder owner address")?;
+    let amount_tokens = parts
+        .next()
+        .ok_or_else(|| anyhow!("token return row must be destination_token:funder_owner:tokens"))?
+        .parse::<u64>()
+        .with_context(|| "invalid token return token amount")?;
+    if parts.next().is_some() {
+        return Err(anyhow!(
+            "token return row must be destination_token:funder_owner:tokens"
+        ));
+    }
+    if amount_tokens == 0 {
+        return Err(anyhow!(
+            "token return token amount must be greater than zero"
+        ));
+    }
+    Ok((destination_token, funder_owner, amount_tokens))
 }
 
 fn parse_recipient_lamports_row(row: &str, label: &str) -> Result<(Pubkey, u64)> {

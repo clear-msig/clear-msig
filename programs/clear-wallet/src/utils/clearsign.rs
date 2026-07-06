@@ -271,6 +271,34 @@ where
     finish_hash(hasher)
 }
 
+pub fn hash_return_token_escrow_payload_iter<'a, I>(
+    escrow_id: &[u8],
+    mint: &[u8],
+    source_token: &[u8],
+    returns: I,
+) -> [u8; 32]
+where
+    I: ExactSizeIterator<Item = (&'a [u8], &'a [u8], u64)>,
+{
+    let mut hasher = payload_hasher(ClearSignActionKind::ReturnEscrowFunds);
+    update_bytes(&mut hasher, escrow_id);
+    update_bytes(&mut hasher, mint);
+    update_bytes(&mut hasher, source_token);
+    update_u32(&mut hasher, returns.len() as u32);
+    for (destination_token, funder_owner, amount_tokens) in returns {
+        update_bytes(&mut hasher, destination_token);
+        update_recipient_amount(
+            &mut hasher,
+            funder_owner,
+            &ClearSignAmount {
+                asset: mint,
+                raw_amount: amount_tokens as u128,
+            },
+        );
+    }
+    finish_hash(hasher)
+}
+
 pub fn hash_agent_trade_payload(
     market: &[u8],
     side: &[u8],

@@ -136,6 +136,26 @@ pub mod clear_wallet {
         )
     }
 
+    #[instruction(discriminator = 18)]
+    pub fn execute_typed_spl_escrow_return(
+        ctx: CtxWithRemaining<ExecuteTypedSplEscrowReturn>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        escrow_id_hash: [u8; 32],
+        amount_tokens_le: &[u8],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed_spl_escrow_return(
+            ExecuteTypedSplEscrowReturnArgs {
+                policy_commitment,
+                envelope_hash,
+                escrow_id_hash,
+                amount_tokens_le,
+            },
+            &ctx.bumps,
+            ctx.remaining_accounts_passthrough(),
+        )
+    }
+
     #[instruction(discriminator = 6)]
     pub fn bind_dwallet(
         ctx: Ctx<BindDwallet>,
