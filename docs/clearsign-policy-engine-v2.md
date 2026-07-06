@@ -246,6 +246,7 @@ Typed proposal instruction discriminators are:
 | 17 | `execute_typed_spl_escrow_release` |
 | 18 | `execute_typed_spl_escrow_return` |
 | 19 | `execute_typed_cross_chain_escrow_release` |
+| 20 | `execute_typed_cross_chain_escrow_return` |
 
 `execute_typed` remains the generic status gate. The SOL escrow-specific
 executors additionally move SOL from the wallet vault after recomputing the
@@ -260,7 +261,10 @@ release executor does not move destination-chain value directly; it finalizes an
 already verified external settlement artifact after binding the approval to the
 destination chain, IkaConfig/dWallet binding, escrow id, milestone id,
 recipient hash, asset id hash, amount, route hash, tx-template hash, and
-settlement artifact hash.
+settlement artifact hash. The cross-chain return executor uses the same
+artifact gate under `ReturnEscrowFunds`, binding escrow id, destination chain,
+IkaConfig/dWallet binding, refund-recipient commitment, asset id hash, amount,
+route hash, tx-template hash, and settlement artifact hash.
 
 ## Security Review Snapshot: 2026-07-04
 
@@ -300,6 +304,10 @@ Current enforced guarantees:
   IkaConfig/dWallet binding, destination chain, tx-template hash, route hash,
   settlement artifact hash, recipient hash, asset id hash, amount, escrow id,
   and milestone id before marking the proposal executed.
+- Typed cross-chain escrow return recomputes the payload hash from the actual
+  IkaConfig/dWallet binding, destination chain, tx-template hash, route hash,
+  settlement artifact hash, refund-recipient hash, asset id hash, amount, and
+  escrow id before marking the proposal executed.
 - Escrow release and escrow return payload hashes are domain-separated and
   tested so they cannot be swapped under the same signer approval.
 - Frontend typed proposal account parsing and typed PDA derivation are covered
@@ -319,20 +327,13 @@ Current enforced guarantees:
 Current explicit limitation:
 
 - Typed SOL escrow release/return, SPL-token milestone release/return, and
-  cross-chain BTC/EVM/Ika escrow release now have program executors. Cross-chain
-  refund/return finalizers and encrypted private escrow still need their own
-  typed executors before they should be treated as cryptographically enforced.
+  cross-chain BTC/EVM/Ika escrow release/return now have program executors.
+  Encrypted private escrow still needs its own typed executor before it should
+  be treated as cryptographically enforced.
 
 ## Next Typed Executor Order
 
-1. **Cross-chain BTC/EVM/Ika refund/return finalizers**
-   - Mirror the release artifact gate for escrow unwind/refund paths.
-   - Bind the approved typed payload to destination chain, dWallet/Ika config,
-     escrow id, funder/refund recipient commitments, amount(s), route/tx
-     template, and settlement artifact hash.
-   - Add replay/idempotency tests so one artifact cannot finalize a different
-     proposal, escrow, chain, recipient, or amount.
-2. **Encrypted/private escrow**
+1. **Encrypted/private escrow**
    - Wait for program-side Encrypt/FHE enforcement. Until then, private escrow
      can produce typed commitments but must not claim confidential on-chain
      policy enforcement.
@@ -356,7 +357,7 @@ Before the next external review, collect:
 
 Required before mainnet:
 
-- Add cross-chain refund/return typed escrow finalizers.
+- Add encrypted/private escrow typed executor.
 - Add migration/compatibility tests for legacy proposals and typed proposals
   coexisting in the same wallet proposal index space for every product route
   that lists or cleans proposals.

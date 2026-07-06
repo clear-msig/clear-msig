@@ -188,6 +188,36 @@ pub mod clear_wallet {
         )
     }
 
+    #[instruction(discriminator = 20)]
+    pub fn execute_typed_cross_chain_escrow_return(
+        ctx: Ctx<ExecuteTypedCrossChainEscrowReturn>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        chain_kind: u8,
+        amount_raw_le: [u8; 16],
+        escrow_id_hash: [u8; 32],
+        refund_recipient_hash: [u8; 32],
+        asset_id_hash: [u8; 32],
+        route_hash: [u8; 32],
+        tx_template_hash: [u8; 32],
+        settlement_artifact_hash: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed_cross_chain_escrow_return(
+            ExecuteTypedCrossChainEscrowReturnArgs {
+                policy_commitment,
+                envelope_hash,
+                chain_kind,
+                amount_raw_le,
+                escrow_id_hash,
+                refund_recipient_hash,
+                asset_id_hash,
+                route_hash,
+                tx_template_hash,
+                settlement_artifact_hash,
+            },
+        )
+    }
+
     #[instruction(discriminator = 6)]
     pub fn bind_dwallet(
         ctx: Ctx<BindDwallet>,

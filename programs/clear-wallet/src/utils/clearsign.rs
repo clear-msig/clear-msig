@@ -324,6 +324,29 @@ pub fn hash_cross_chain_escrow_release_payload(
     finish_hash(hasher)
 }
 
+pub fn hash_cross_chain_escrow_return_payload(
+    escrow_id: &[u8],
+    chain_kind: u8,
+    ika_config: &[u8],
+    dwallet: &[u8],
+    refund_recipient: &[u8],
+    amount: &ClearSignAmount<'_>,
+    route_hash: &[u8],
+    tx_template_hash: &[u8],
+    settlement_artifact_hash: &[u8],
+) -> [u8; 32] {
+    let mut hasher = payload_hasher(ClearSignActionKind::ReturnEscrowFunds);
+    update_bytes(&mut hasher, escrow_id);
+    hasher.update([chain_kind]);
+    update_bytes(&mut hasher, ika_config);
+    update_bytes(&mut hasher, dwallet);
+    update_recipient_amount(&mut hasher, refund_recipient, amount);
+    update_bytes(&mut hasher, route_hash);
+    update_bytes(&mut hasher, tx_template_hash);
+    update_bytes(&mut hasher, settlement_artifact_hash);
+    finish_hash(hasher)
+}
+
 pub fn hash_agent_trade_payload(
     market: &[u8],
     side: &[u8],

@@ -144,6 +144,27 @@ pub enum ProposalAction {
         #[arg(long)]
         settlement_artifact_hash: String,
     },
+    /// Finalize an approved typed cross-chain escrow unwind / return.
+    TypedCrossChainEscrowReturn {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        chain_kind: u8,
+        #[arg(long)]
+        amount_raw: u128,
+        #[arg(long)]
+        escrow_id: String,
+        #[arg(long)]
+        refund_recipient_hash: String,
+        #[arg(long)]
+        asset_id_hash: String,
+        #[arg(long)]
+        route_hash: String,
+        #[arg(long)]
+        settlement_artifact_hash: String,
+    },
     /// Execute an approved typed escrow unwind / return.
     ///
     /// Pass one `--return recipient:lamports` per funder.
@@ -823,6 +844,101 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 "escrow_id": escrow_id,
                 "milestone_id": milestone_id,
                 "recipient_hash": crate::output::hex_of(&recipient_hash),
+                "asset_id_hash": crate::output::hex_of(&asset_id_hash),
+                "route_hash": crate::output::hex_of(&route_hash),
+                "tx_template_hash": crate::output::hex_of(&tx_template_hash),
+                "settlement_artifact_hash": crate::output::hex_of(&settlement_artifact_hash),
+            }));
+        }
+
+        ProposalAction::TypedCrossChainEscrowReturn {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            chain_kind,
+            amount_raw,
+            escrow_id,
+            refund_recipient_hash,
+            asset_id_hash,
+            route_hash,
+            settlement_artifact_hash,
+        } => {
+            if amount_raw == 0 {
+                return Err(anyhow!("amount-raw must be greater than zero"));
+            }
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::ReturnEscrowFunds,
+                "typed cross-chain escrow return",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let intent_data = rpc::fetch_account(&client, &intent_pubkey)
+                .with_context(|| "failed to fetch typed proposal intent")?;
+            let intent_account = accounts::parse_intent(&intent_data)?;
+            if intent_account.chain_kind != chain_kind {
+                return Err(anyhow!(
+                    "typed cross-chain escrow return chain_kind mismatch: intent has {}, command got {}",
+                    intent_account.chain_kind,
+                    chain_kind
+                ));
+            }
+
+            let program_id = crate::instructions::program_id();
+            let (ika_config_pubkey, _) =
+                crate::ika::ika_config_pda(&program_id, &wallet_pubkey, chain_kind);
+            let ika_config_data =
+                rpc::fetch_account(&client, &ika_config_pubkey).with_context(|| {
+                    format!(
+                        "wallet has no IkaConfig for chain_kind={chain_kind}; bind the chain first"
+                    )
+                })?;
+            let ika_config = accounts::parse_ika_config(&ika_config_data)?;
+            let dwallet_pubkey: Pubkey = ika_config
+                .dwallet
+                .parse()
+                .with_context(|| "invalid dwallet address in IkaConfig")?;
+
+            let refund_recipient_hash =
+                decode_hex_32(&refund_recipient_hash, "refund_recipient_hash")?;
+            let asset_id_hash = decode_hex_32(&asset_id_hash, "asset_id_hash")?;
+            let route_hash = decode_hex_32(&route_hash, "route_hash")?;
+            let settlement_artifact_hash =
+                decode_hex_32(&settlement_artifact_hash, "settlement_artifact_hash")?;
+            let tx_template_hash = intent_tx_template_hash(&intent_account)?;
+            let ix = crate::instructions::execute_typed_cross_chain_escrow_return(
+                wallet_pubkey,
+                intent_pubkey,
+                proposal_pubkey,
+                ika_config_pubkey,
+                dwallet_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                chain_kind,
+                amount_raw.to_le_bytes(),
+                crate::message::sha256_hash(escrow_id.as_bytes()),
+                refund_recipient_hash,
+                asset_id_hash,
+                route_hash,
+                tx_template_hash,
+                settlement_artifact_hash,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_cross_chain_escrow_return",
+                "status": "executed",
+                "chain_kind": chain_kind,
+                "ika_config": ika_config_pubkey.to_string(),
+                "dwallet": dwallet_pubkey.to_string(),
+                "amount_raw": amount_raw.to_string(),
+                "escrow_id": escrow_id,
+                "refund_recipient_hash": crate::output::hex_of(&refund_recipient_hash),
                 "asset_id_hash": crate::output::hex_of(&asset_id_hash),
                 "route_hash": crate::output::hex_of(&route_hash),
                 "tx_template_hash": crate::output::hex_of(&tx_template_hash),

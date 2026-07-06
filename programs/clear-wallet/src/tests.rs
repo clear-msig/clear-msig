@@ -5,11 +5,12 @@ use {
     crate::clear_wallet::cpi::*,
     crate::state::ika_config::{IKA_CONFIG_DISCRIMINATOR, IKA_CONFIG_LEN},
     crate::utils::clearsign::{
-        hash_batch_send_sol_payload_iter, hash_cross_chain_escrow_release_payload, hash_envelope,
-        hash_policy_commitment, hash_release_milestone_payload,
-        hash_release_token_milestone_payload, hash_return_escrow_sol_payload_iter,
-        hash_return_token_escrow_payload_iter, hash_send_payload, hash_vote_message,
-        ClearSignActionKind, ClearSignAmount, ClearSignEnvelope, ClearSignVoteKind,
+        hash_batch_send_sol_payload_iter, hash_cross_chain_escrow_release_payload,
+        hash_cross_chain_escrow_return_payload, hash_envelope, hash_policy_commitment,
+        hash_release_milestone_payload, hash_release_token_milestone_payload,
+        hash_return_escrow_sol_payload_iter, hash_return_token_escrow_payload_iter,
+        hash_send_payload, hash_vote_message, ClearSignActionKind, ClearSignAmount,
+        ClearSignEnvelope, ClearSignVoteKind,
     },
     alloc::vec,
     clear_wallet_client::{
@@ -508,6 +509,49 @@ fn build_execute_typed_cross_chain_escrow_release_ix(
     wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
     wincode::serialize_into(&mut data, &milestone_id_hash).unwrap();
     wincode::serialize_into(&mut data, &recipient_hash).unwrap();
+    wincode::serialize_into(&mut data, &asset_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &route_hash).unwrap();
+    wincode::serialize_into(&mut data, &tx_template_hash).unwrap();
+    wincode::serialize_into(&mut data, &settlement_artifact_hash).unwrap();
+
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new(intent, false),
+            AccountMeta::new(proposal, false),
+            AccountMeta::new_readonly(ika_config, false),
+            AccountMeta::new_readonly(dwallet, false),
+        ],
+        data,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_execute_typed_cross_chain_escrow_return_ix(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    ika_config: Pubkey,
+    dwallet: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    chain_kind: u8,
+    amount_raw_le: [u8; 16],
+    escrow_id_hash: [u8; 32],
+    refund_recipient_hash: [u8; 32],
+    asset_id_hash: [u8; 32],
+    route_hash: [u8; 32],
+    tx_template_hash: [u8; 32],
+    settlement_artifact_hash: [u8; 32],
+) -> Instruction {
+    let mut data = vec![20u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &chain_kind).unwrap();
+    wincode::serialize_into(&mut data, &amount_raw_le).unwrap();
+    wincode::serialize_into(&mut data, &escrow_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &refund_recipient_hash).unwrap();
     wincode::serialize_into(&mut data, &asset_id_hash).unwrap();
     wincode::serialize_into(&mut data, &route_hash).unwrap();
     wincode::serialize_into(&mut data, &tx_template_hash).unwrap();
@@ -1456,6 +1500,119 @@ fn test_execute_typed_cross_chain_escrow_release_finalizes_verified_artifact() {
         svm.get_account(&typed_proposal).unwrap().data[105],
         2,
         "typed proposal should be Executed(2)"
+    );
+
+    let return_proposal_index = 2u64;
+    let return_proposal = get_typed_proposal_address(remote_intent, return_proposal_index);
+    let refund_recipient_hash = sha256_hash(b"tb1qrefundrecipient");
+    let return_artifact_hash = sha256_hash(b"btc-refund-txid:approved-artifact");
+    let wrong_return_artifact_hash = sha256_hash(b"btc-refund-txid:wrong-artifact");
+    let return_action_id = sha256_hash(b"cross-chain-return-action-1");
+    let return_nonce = sha256_hash(b"cross-chain-return-nonce-1");
+    let return_policy_commitment = hash_policy_commitment(&[b"escrow:return:cross-chain"]);
+    let return_payload_hash = hash_cross_chain_escrow_return_payload(
+        &escrow_id_hash,
+        chain_kind,
+        ika_config.as_ref(),
+        dwallet.as_ref(),
+        &refund_recipient_hash,
+        &amount,
+        &route_hash,
+        &tx_template_hash,
+        &return_artifact_hash,
+    );
+    let return_envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::ReturnEscrowFunds,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: return_action_id.as_ref(),
+        nonce: return_nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment: return_policy_commitment,
+        payload_hash: return_payload_hash,
+    });
+    let propose_return = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent: remote_intent,
+        proposal_index: return_proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::ReturnEscrowFunds.code(),
+        policy_commitment: return_policy_commitment,
+        payload_hash: return_payload_hash,
+        envelope_hash: return_envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_typed_vote(
+            &proposer,
+            ClearSignVoteKind::Propose,
+            wallet,
+            return_proposal_index,
+            return_envelope_hash,
+        ),
+        action_id: return_action_id,
+        nonce: return_nonce,
+    });
+    let result = svm.process_instruction(
+        &propose_return,
+        &[funded_account(payer), empty_account(return_proposal)],
+    );
+    assert!(
+        result.is_ok(),
+        "typed cross-chain escrow return propose failed: {:?}",
+        result.raw_result
+    );
+
+    let wrong_return = build_execute_typed_cross_chain_escrow_return_ix(
+        wallet,
+        remote_intent,
+        return_proposal,
+        ika_config,
+        dwallet,
+        return_policy_commitment,
+        return_envelope_hash,
+        chain_kind,
+        amount_raw.to_le_bytes(),
+        escrow_id_hash,
+        refund_recipient_hash,
+        asset_id_hash,
+        route_hash,
+        tx_template_hash,
+        wrong_return_artifact_hash,
+    );
+    assert!(svm
+        .process_instruction(&wrong_return, &[empty_account(dwallet)])
+        .is_err());
+
+    let execute_return = build_execute_typed_cross_chain_escrow_return_ix(
+        wallet,
+        remote_intent,
+        return_proposal,
+        ika_config,
+        dwallet,
+        return_policy_commitment,
+        return_envelope_hash,
+        chain_kind,
+        amount_raw.to_le_bytes(),
+        escrow_id_hash,
+        refund_recipient_hash,
+        asset_id_hash,
+        route_hash,
+        tx_template_hash,
+        return_artifact_hash,
+    );
+    let result = svm.process_instruction(&execute_return, &[empty_account(dwallet)]);
+    if result.is_err() {
+        result.print_logs();
+    }
+    assert!(
+        result.is_ok(),
+        "typed cross-chain escrow return execute failed: {:?}",
+        result.raw_result
+    );
+    assert_eq!(
+        svm.get_account(&return_proposal).unwrap().data[105],
+        2,
+        "typed return proposal should be Executed(2)"
     );
 }
 
