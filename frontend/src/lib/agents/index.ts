@@ -21,6 +21,7 @@ export * from "@/lib/agents/compliance";
 export * from "@/lib/agents/tradePerformance";
 export * from "@/lib/agents/automaticTradeManagement";
 export * from "@/lib/agents/betaDemoSetup";
+export * from "@/lib/agents/paperDemoRun";
 export * from "@/lib/agents/betaFeedback";
 export * from "@/lib/agents/hyperliquidSetup";
 export * from "@/lib/agents/intake";

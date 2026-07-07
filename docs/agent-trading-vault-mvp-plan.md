@@ -611,6 +611,10 @@ before adding more venues or autonomous capital:
      scorecards, and audit events connected and testable.
    - Operator/user: choose the demo vault and strategy story, then verify the
      complete flow as a trader would see it.
+   - Current implementation: `runAgentPaperTradingDemo` seeds the beta demo,
+     closes the first paper trade with deterministic PnL, and returns a
+     checklist covering setup, paper execution, PnL, scorecard, leaderboard,
+     audit trail, and demo history evidence.
 3. **Market-data adapter boundary**
    - Codex/build: add provider-neutral price, candle, funding-rate, and open
      interest interfaces without giving data providers execution authority.
