@@ -13,7 +13,7 @@ pub(crate) use expiry::{format_expiry, normalize_expiry_arg};
 pub(crate) use presigned::{push_pre_signed_flags, PreSigned};
 
 use display::action_lines;
-use hash::{hash_envelope, hash_payload, hash_vote_message};
+use hash::{hash_clear_text, hash_envelope, hash_payload, hash_vote_message};
 use kinds::{ClearSignActionKind, ClearSignVoteKind};
 use payload::normalize_text;
 
@@ -87,8 +87,23 @@ async fn prepare_clearsign_v2(
 ) -> Result<Json<ClearSignPrepareResponse>, ApiError> {
     let envelope = req.envelope.normalized()?;
     let payload_hash = hash_payload(envelope.kind, &envelope.payload)?;
-    let envelope_hash = hash_envelope(&envelope, payload_hash);
     let lines = action_lines(&envelope)?;
+    let payload_hex = to_hex(&payload_hash);
+    let context = [
+        format!("Wallet {}", envelope.wallet_name),
+        format!("Action {}", envelope.action_id),
+        format!("Nonce {}", envelope.nonce),
+        format!("Expires {}", format_expiry(envelope.expires_at)?),
+        format!("Payload {}", payload_hex),
+    ];
+    let signable_text = lines
+        .iter()
+        .chain(context.iter())
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    let clear_text_hash = hash_clear_text(&signable_text);
+    let envelope_hash = hash_envelope(&envelope, payload_hash, clear_text_hash);
     let vote_hashes = req
         .vote
         .map(|vote| {
@@ -120,21 +135,7 @@ async fn prepare_clearsign_v2(
             })
         })
         .transpose()?;
-    let payload_hex = to_hex(&payload_hash);
     let envelope_hex = to_hex(&envelope_hash);
-    let context = [
-        format!("Wallet {}", envelope.wallet_name),
-        format!("Action {}", envelope.action_id),
-        format!("Nonce {}", envelope.nonce),
-        format!("Expires {}", envelope.expires_at),
-        format!("Payload {}", payload_hex),
-    ];
-    let signable_text = lines
-        .iter()
-        .chain(context.iter())
-        .cloned()
-        .collect::<Vec<_>>()
-        .join("\n");
 
     Ok(Json(ClearSignPrepareResponse {
         version: CLEARSIGN_V2_VERSION,
@@ -266,9 +267,11 @@ mod tests {
         let a_payload_hash = hash_payload(a.kind, &a.payload).unwrap();
         let b_payload_hash = hash_payload(b.kind, &b.payload).unwrap();
 
+        let clear_text_hash = hash_clear_text("Send 2.5 SOL to Sarah");
+
         assert_ne!(
-            to_hex(&hash_envelope(&a, a_payload_hash)),
-            to_hex(&hash_envelope(&b, b_payload_hash))
+            to_hex(&hash_envelope(&a, a_payload_hash, clear_text_hash)),
+            to_hex(&hash_envelope(&b, b_payload_hash, clear_text_hash))
         );
     }
 
@@ -276,7 +279,11 @@ mod tests {
     fn vote_hashes_are_distinct_by_vote_kind() {
         let envelope = send_envelope("2.5", "nonce-1").normalized().unwrap();
         let payload_hash = hash_payload(envelope.kind, &envelope.payload).unwrap();
-        let envelope_hash = hash_envelope(&envelope, payload_hash);
+        let envelope_hash = hash_envelope(
+            &envelope,
+            payload_hash,
+            hash_clear_text("Send 2.5 SOL to Sarah"),
+        );
 
         let propose = hash_vote_message(ClearSignVoteKind::Propose, "Team#abc", 7, envelope_hash);
         let approve = hash_vote_message(ClearSignVoteKind::Approve, "Team#abc", 7, envelope_hash);

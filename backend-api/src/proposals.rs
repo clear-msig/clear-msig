@@ -155,6 +155,11 @@ async fn create_typed_proposal(
         &body.nonce,
     )?;
     body.pre_signed.ensure_valid()?;
+    if body.pre_signed.signed_message_hex.is_none() {
+        return Err(ApiError::BadRequest(
+            "signed_message_hex is required for typed proposal create".into(),
+        ));
+    }
     state
         .rate_limiter
         .check(&body.pre_signed.signer_pubkey)
@@ -231,6 +236,11 @@ async fn approve_proposal(
     ensure_wallet_name(&name, "name")?;
     ensure_base58(&proposal, "proposal", 32, 88)?;
     body.pre_signed.ensure_valid()?;
+    if body.pre_signed.signed_message_hex.is_none() {
+        return Err(ApiError::BadRequest(
+            "signed_message_hex is required for typed proposal vote".into(),
+        ));
+    }
     state
         .rate_limiter
         .check(&body.pre_signed.signer_pubkey)
@@ -338,6 +348,7 @@ async fn prepare_typed_proposal_create(
         &body.action_id,
         &body.nonce,
     )?;
+    ensure_non_empty(&body.signable_text, "signable_text")?;
     let mut args = vec!["--dry-run".into()];
     push_actor_pubkey(&mut args, &body.actor_pubkey)?;
     args.extend([
@@ -359,6 +370,8 @@ async fn prepare_typed_proposal_create(
         body.action_id,
         "--nonce".into(),
         body.nonce,
+        "--signable-text".into(),
+        body.signable_text,
     ]);
     if let Some(e) = body.expiry {
         args.push("--expiry".into());

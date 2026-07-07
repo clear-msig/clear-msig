@@ -1,17 +1,17 @@
 extern crate std;
 
-use alloc::vec::Vec;
+use alloc::{string::ToString, vec::Vec};
 use {
     crate::clear_wallet::cpi::*,
     crate::state::ika_config::{IKA_CONFIG_DISCRIMINATOR, IKA_CONFIG_LEN},
     crate::utils::clearsign::{
-        hash_batch_send_sol_payload_iter, hash_cross_chain_escrow_release_payload,
+        hash_batch_send_sol_payload_iter, hash_clear_text, hash_cross_chain_escrow_release_payload,
         hash_cross_chain_escrow_return_payload, hash_envelope, hash_policy_commitment,
         hash_private_escrow_release_payload, hash_private_escrow_return_payload,
         hash_release_milestone_payload, hash_release_token_milestone_payload,
         hash_return_escrow_sol_payload_iter, hash_return_token_escrow_payload_iter,
-        hash_send_payload, hash_vote_message, ClearSignActionKind, ClearSignAmount,
-        ClearSignEnvelope, ClearSignVoteKind,
+        hash_send_payload, ClearSignActionKind, ClearSignAmount, ClearSignEnvelope,
+        ClearSignVoteKind,
     },
     alloc::vec,
     clear_wallet_client::{
@@ -343,6 +343,7 @@ struct TypedProposalArgs {
     envelope_hash: [u8; 32],
     proposer_pubkey: [u8; 32],
     signature: [u8; 64],
+    clear_text: Vec<u8>,
     action_id: [u8; 32],
     nonce: [u8; 32],
 }
@@ -360,6 +361,7 @@ fn build_propose_typed_ix(args: TypedProposalArgs) -> Instruction {
     wincode::serialize_into(&mut data, &args.signature).unwrap();
     wincode::serialize_into(&mut data, &args.action_id).unwrap();
     wincode::serialize_into(&mut data, &args.nonce).unwrap();
+    wincode::serialize_into(&mut data, &TailBytes(args.clear_text)).unwrap();
 
     Instruction {
         program_id: crate::ID,
@@ -784,17 +786,50 @@ fn fund_vault(svm: &mut QuasarSvm, payer: Pubkey, wallet: Pubkey, amount: u64) -
 fn sign_typed_vote(
     key: &ed25519_dalek::SigningKey,
     vote_kind: ClearSignVoteKind,
-    wallet: Pubkey,
+    wallet_name: &str,
     proposal_index: u64,
     envelope_hash: [u8; 32],
 ) -> [u8; 64] {
-    key.sign(&hash_vote_message(
+    key.sign(&typed_vote_message(
         vote_kind,
-        wallet.as_ref(),
+        wallet_name,
         proposal_index,
         envelope_hash,
     ))
     .to_bytes()
+}
+
+const TEST_CLEAR_TEXT: &[u8] =
+    b"Send 1 SOL from test wallet to test recipient\nRequires wallet approval";
+
+fn typed_vote_message(
+    vote_kind: ClearSignVoteKind,
+    wallet_name: &str,
+    proposal_index: u64,
+    envelope_hash: [u8; 32],
+) -> Vec<u8> {
+    let mut out = Vec::new();
+    out.extend_from_slice(b"ClearSign v2 ");
+    out.extend_from_slice(vote_kind.label());
+    out.extend_from_slice(b"\nWallet ");
+    out.extend_from_slice(wallet_name.as_bytes());
+    out.extend_from_slice(b"\nProposal ");
+    out.extend_from_slice(proposal_index.to_string().as_bytes());
+    out.extend_from_slice(b"\nEnvelope ");
+    out.extend_from_slice(hex_string(&envelope_hash).as_bytes());
+    out.extend_from_slice(b"\n\n");
+    out.extend_from_slice(TEST_CLEAR_TEXT);
+    out
+}
+
+fn hex_string(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        out.push(HEX[(byte >> 4) as usize] as char);
+        out.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    out
 }
 
 /// Full propose → approve → execute flow.
@@ -952,6 +987,7 @@ fn test_execute_typed_escrow_release_moves_sol() {
         expires_at: expiry,
         policy_commitment,
         payload_hash,
+        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
     });
 
     let propose = build_propose_typed_ix(TypedProposalArgs {
@@ -968,18 +1004,16 @@ fn test_execute_typed_escrow_release_moves_sol() {
         signature: sign_typed_vote(
             &proposer,
             ClearSignVoteKind::Propose,
-            wallet,
+            wallet_name,
             proposal_index,
             envelope_hash,
         ),
+        clear_text: TEST_CLEAR_TEXT.to_vec(),
         action_id,
         nonce,
     });
     let result =
         svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
-    if result.is_err() {
-        result.print_logs();
-    }
     assert!(
         result.is_ok(),
         "typed escrow release propose failed: {:?}",
@@ -1117,6 +1151,7 @@ fn test_execute_typed_spl_escrow_release_moves_tokens() {
         expires_at: expiry,
         policy_commitment,
         payload_hash,
+        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
     });
 
     let propose = build_propose_typed_ix(TypedProposalArgs {
@@ -1133,15 +1168,19 @@ fn test_execute_typed_spl_escrow_release_moves_tokens() {
         signature: sign_typed_vote(
             &proposer,
             ClearSignVoteKind::Propose,
-            wallet,
+            wallet_name,
             proposal_index,
             envelope_hash,
         ),
+        clear_text: TEST_CLEAR_TEXT.to_vec(),
         action_id,
         nonce,
     });
     let result =
         svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
+    if result.is_err() {
+        result.print_logs();
+    }
     assert!(
         result.is_ok(),
         "typed SPL escrow release propose failed: {:?}",
@@ -1293,6 +1332,7 @@ fn test_execute_typed_spl_escrow_return_moves_tokens_to_funders() {
         expires_at: expiry,
         policy_commitment,
         payload_hash,
+        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
     });
 
     let propose = build_propose_typed_ix(TypedProposalArgs {
@@ -1309,10 +1349,11 @@ fn test_execute_typed_spl_escrow_return_moves_tokens_to_funders() {
         signature: sign_typed_vote(
             &proposer,
             ClearSignVoteKind::Propose,
-            wallet,
+            wallet_name,
             proposal_index,
             envelope_hash,
         ),
+        clear_text: TEST_CLEAR_TEXT.to_vec(),
         action_id,
         nonce,
     });
@@ -1491,6 +1532,7 @@ fn test_execute_typed_cross_chain_escrow_release_finalizes_verified_artifact() {
         expires_at: expiry,
         policy_commitment,
         payload_hash,
+        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
     });
 
     let propose = build_propose_typed_ix(TypedProposalArgs {
@@ -1507,10 +1549,11 @@ fn test_execute_typed_cross_chain_escrow_release_finalizes_verified_artifact() {
         signature: sign_typed_vote(
             &proposer,
             ClearSignVoteKind::Propose,
-            wallet,
+            wallet_name,
             proposal_index,
             envelope_hash,
         ),
+        clear_text: TEST_CLEAR_TEXT.to_vec(),
         action_id,
         nonce,
     });
@@ -1607,6 +1650,7 @@ fn test_execute_typed_cross_chain_escrow_release_finalizes_verified_artifact() {
         expires_at: expiry,
         policy_commitment: return_policy_commitment,
         payload_hash: return_payload_hash,
+        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
     });
     let propose_return = build_propose_typed_ix(TypedProposalArgs {
         payer,
@@ -1622,10 +1666,11 @@ fn test_execute_typed_cross_chain_escrow_release_finalizes_verified_artifact() {
         signature: sign_typed_vote(
             &proposer,
             ClearSignVoteKind::Propose,
-            wallet,
+            wallet_name,
             return_proposal_index,
             return_envelope_hash,
         ),
+        clear_text: TEST_CLEAR_TEXT.to_vec(),
         action_id: return_action_id,
         nonce: return_nonce,
     });
@@ -1801,6 +1846,7 @@ fn test_execute_typed_private_escrow_finalizes_ciphertext_bound_artifacts() {
         expires_at: expiry,
         policy_commitment: release_policy_commitment,
         payload_hash: release_payload_hash,
+        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
     });
     let propose_release = build_propose_typed_ix(TypedProposalArgs {
         payer,
@@ -1816,10 +1862,11 @@ fn test_execute_typed_private_escrow_finalizes_ciphertext_bound_artifacts() {
         signature: sign_typed_vote(
             &proposer,
             ClearSignVoteKind::Propose,
-            wallet,
+            wallet_name,
             release_proposal_index,
             release_envelope_hash,
         ),
+        clear_text: TEST_CLEAR_TEXT.to_vec(),
         action_id: release_action_id,
         nonce: release_nonce,
     });
@@ -1902,6 +1949,7 @@ fn test_execute_typed_private_escrow_finalizes_ciphertext_bound_artifacts() {
         expires_at: expiry,
         policy_commitment: return_policy_commitment,
         payload_hash: return_payload_hash,
+        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
     });
     let propose_return = build_propose_typed_ix(TypedProposalArgs {
         payer,
@@ -1917,10 +1965,11 @@ fn test_execute_typed_private_escrow_finalizes_ciphertext_bound_artifacts() {
         signature: sign_typed_vote(
             &proposer,
             ClearSignVoteKind::Propose,
-            wallet,
+            wallet_name,
             return_proposal_index,
             return_envelope_hash,
         ),
+        clear_text: TEST_CLEAR_TEXT.to_vec(),
         action_id: return_action_id,
         nonce: return_nonce,
     });
@@ -2010,6 +2059,7 @@ fn test_execute_typed_escrow_return_moves_sol_to_funders() {
         expires_at: expiry,
         policy_commitment,
         payload_hash,
+        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
     });
 
     let propose = build_propose_typed_ix(TypedProposalArgs {
@@ -2026,10 +2076,11 @@ fn test_execute_typed_escrow_return_moves_sol_to_funders() {
         signature: sign_typed_vote(
             &proposer,
             ClearSignVoteKind::Propose,
-            wallet,
+            wallet_name,
             proposal_index,
             envelope_hash,
         ),
+        clear_text: TEST_CLEAR_TEXT.to_vec(),
         action_id,
         nonce,
     });
@@ -2138,6 +2189,7 @@ fn test_execute_typed_sol_send_moves_sol() {
         expires_at: expiry,
         policy_commitment,
         payload_hash,
+        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
     });
 
     let propose = build_propose_typed_ix(TypedProposalArgs {
@@ -2154,10 +2206,11 @@ fn test_execute_typed_sol_send_moves_sol() {
         signature: sign_typed_vote(
             &proposer,
             ClearSignVoteKind::Propose,
-            wallet,
+            wallet_name,
             proposal_index,
             envelope_hash,
         ),
+        clear_text: TEST_CLEAR_TEXT.to_vec(),
         action_id,
         nonce,
     });
@@ -2250,6 +2303,7 @@ fn test_execute_typed_sol_batch_send_moves_sol_to_recipients() {
         expires_at: expiry,
         policy_commitment,
         payload_hash,
+        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
     });
 
     let propose = build_propose_typed_ix(TypedProposalArgs {
@@ -2266,10 +2320,11 @@ fn test_execute_typed_sol_batch_send_moves_sol_to_recipients() {
         signature: sign_typed_vote(
             &proposer,
             ClearSignVoteKind::Propose,
-            wallet,
+            wallet_name,
             proposal_index,
             envelope_hash,
         ),
+        clear_text: TEST_CLEAR_TEXT.to_vec(),
         action_id,
         nonce,
     });
@@ -2378,6 +2433,7 @@ fn test_cleanup_nonfinalized_typed_proposal_fails() {
         expires_at: expiry,
         policy_commitment,
         payload_hash,
+        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
     });
 
     let propose = build_propose_typed_ix(TypedProposalArgs {
@@ -2394,10 +2450,11 @@ fn test_cleanup_nonfinalized_typed_proposal_fails() {
         signature: sign_typed_vote(
             &proposer,
             ClearSignVoteKind::Propose,
-            wallet,
+            wallet_name,
             proposal_index,
             envelope_hash,
         ),
+        clear_text: TEST_CLEAR_TEXT.to_vec(),
         action_id,
         nonce,
     });
@@ -2486,6 +2543,7 @@ fn test_legacy_and_typed_proposals_share_wallet_index_without_pda_collision() {
         expires_at: expiry,
         policy_commitment,
         payload_hash,
+        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
     });
     let typed = build_propose_typed_ix(TypedProposalArgs {
         payer,
@@ -2501,10 +2559,11 @@ fn test_legacy_and_typed_proposals_share_wallet_index_without_pda_collision() {
         signature: sign_typed_vote(
             &proposer,
             ClearSignVoteKind::Propose,
-            wallet,
+            wallet_name,
             typed_index,
             envelope_hash,
         ),
+        clear_text: TEST_CLEAR_TEXT.to_vec(),
         action_id,
         nonce,
     });

@@ -84,6 +84,7 @@ pub struct TypedProposalAccount {
     pub envelope_hash: [u8; 32],
     pub action_id: Vec<u8>,
     pub nonce: Vec<u8>,
+    pub clear_text: Vec<u8>,
 }
 
 fn read_u8(data: &[u8], offset: &mut usize) -> Result<u8> {
@@ -713,6 +714,7 @@ pub fn parse_typed_proposal(data: &[u8]) -> Result<TypedProposalAccount> {
     let envelope_hash = read_fixed_32(data, &mut offset)?;
     let action_id = read_vec_u8(data, &mut offset)?;
     let nonce = read_vec_u8(data, &mut offset)?;
+    let clear_text = read_vec_u8(data, &mut offset)?;
 
     Ok(TypedProposalAccount {
         wallet,
@@ -733,6 +735,7 @@ pub fn parse_typed_proposal(data: &[u8]) -> Result<TypedProposalAccount> {
         envelope_hash,
         action_id,
         nonce,
+        clear_text,
     })
 }
 

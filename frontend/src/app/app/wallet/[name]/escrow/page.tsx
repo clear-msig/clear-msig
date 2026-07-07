@@ -424,6 +424,7 @@ function EscrowProjectCard({
       envelope_hash: summary.envelopeHash,
       action_id: envelope.actionId,
       nonce: envelope.nonce,
+      signable_text: summary.signableText,
       expiry: formatUnixSigningExpiry(envelope.expiresAt),
       actor_pubkey: proposerPk.toBase58(),
     });

@@ -664,6 +664,7 @@ function SendPage() {
         envelope_hash: summary.envelopeHash,
         action_id: envelope.actionId,
         nonce: envelope.nonce,
+        signable_text: summary.signableText,
         expiry: formatUnixSigningExpiry(envelope.expiresAt),
         actor_pubkey: proposerPk.toBase58(),
       });
@@ -1453,7 +1454,7 @@ function ComposeStage({
             pendingUsd,
             budgetUsage,
           })}
-          technicalNote="Your wallet may show a technical digest for typed SOL sends. Verify this ClearSign preview before approving; the program binds the recipient, amount, wallet, policy, and expiry to that digest."
+          technicalNote="Your wallet will sign readable ClearSign text for this request. Verify the amount, recipient, wallet, and expiry before approving."
           collapsibleDetails
         />
       </div>

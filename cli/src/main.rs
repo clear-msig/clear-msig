@@ -64,9 +64,14 @@ struct Cli {
     params_data: Option<String>,
 
     /// Pre-signed mode: exact message byte layout the browser signed.
-    /// Supported values: offchain_v1, plain_v2.
+    /// Supported values: offchain_v1, plain_v2, clearsign_v2_text.
     #[arg(long, global = true)]
     message_flavor: Option<String>,
+
+    /// Pre-signed typed mode: hex-encoded readable ClearSign vote message
+    /// bytes that the browser wallet signed.
+    #[arg(long, global = true)]
+    signed_message: Option<String>,
 
     /// Dry-run: print a JSON descriptor of the message the CLI would
     /// sign, along with `params_data` and the derived proposal/intent
@@ -114,6 +119,7 @@ fn main() {
         signature: cli.signature,
         params_data: cli.params_data,
         message_flavor: cli.message_flavor,
+        signed_message: cli.signed_message,
         dry_run: cli.dry_run,
     };
 

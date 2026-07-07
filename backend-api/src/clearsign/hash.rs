@@ -148,7 +148,15 @@ pub(super) fn hash_payload(
     Ok(finish_hash(hasher))
 }
 
-pub(super) fn hash_envelope(envelope: &NormalizedEnvelope, payload_hash: [u8; 32]) -> [u8; 32] {
+pub(super) fn hash_clear_text(clear_text: &str) -> [u8; 32] {
+    Sha256::digest(clear_text.as_bytes()).into()
+}
+
+pub(super) fn hash_envelope(
+    envelope: &NormalizedEnvelope,
+    payload_hash: [u8; 32],
+    clear_text_hash: [u8; 32],
+) -> [u8; 32] {
     let mut hasher = Sha256::new();
     update_bytes(&mut hasher, CLEARSIGN_V2_DOMAIN);
     hasher.update([CLEARSIGN_V2_VERSION]);
@@ -160,6 +168,7 @@ pub(super) fn hash_envelope(envelope: &NormalizedEnvelope, payload_hash: [u8; 32
     hasher.update(Sha256::digest(envelope.nonce.as_bytes()));
     hasher.update(envelope.policy_commitment);
     hasher.update(payload_hash);
+    hasher.update(clear_text_hash);
     finish_hash(hasher)
 }
 

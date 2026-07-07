@@ -67,6 +67,9 @@ pub enum ClearSignV2Error {
     MissingWalletName,
     MissingActionId,
     MissingNonce,
+    MissingClearText,
+    MessageTooLong,
+    InvalidVoteMessage,
     InvalidReplayCommitment,
     Expired,
     ExpiryTooFar,
@@ -84,6 +87,14 @@ impl ClearSignVoteKind {
     pub fn code(self) -> u8 {
         self as u8
     }
+
+    pub fn label(self) -> &'static [u8] {
+        match self {
+            Self::Propose => b"propose",
+            Self::Approve => b"approve",
+            Self::Cancel => b"cancel",
+        }
+    }
 }
 
 pub struct ClearSignEnvelope<'a> {
@@ -95,6 +106,7 @@ pub struct ClearSignEnvelope<'a> {
     pub expires_at: i64,
     pub policy_commitment: [u8; 32],
     pub payload_hash: [u8; 32],
+    pub clear_text_hash: [u8; 32],
 }
 
 impl<'a> ClearSignEnvelope<'a> {
@@ -143,7 +155,84 @@ pub fn hash_envelope(envelope: &ClearSignEnvelope<'_>) -> [u8; 32] {
     update_bytes(&mut hasher, envelope.nonce);
     hasher.update(envelope.policy_commitment);
     hasher.update(envelope.payload_hash);
+    hasher.update(envelope.clear_text_hash);
     finish_hash(hasher)
+}
+
+pub fn hash_clear_text(clear_text: &[u8]) -> Result<[u8; 32], ClearSignV2Error> {
+    if clear_text.is_empty() {
+        return Err(ClearSignV2Error::MissingClearText);
+    }
+    if clear_text.len() > MAX_CLEARSIGN_TEXT_BYTES {
+        return Err(ClearSignV2Error::MessageTooLong);
+    }
+    let mut hasher = Sha256::new();
+    hasher.update(clear_text);
+    Ok(finish_hash(hasher))
+}
+
+pub const MAX_CLEARSIGN_TEXT_BYTES: usize = 2048;
+
+pub fn extract_clear_text_from_vote_message<'a>(
+    vote_kind: ClearSignVoteKind,
+    wallet_name: &[u8],
+    proposal_index: u64,
+    envelope_hash: [u8; 32],
+    vote_message: &'a [u8],
+) -> Result<&'a [u8], ClearSignV2Error> {
+    if vote_message.len() > MAX_CLEARSIGN_TEXT_BYTES + 160 {
+        return Err(ClearSignV2Error::MessageTooLong);
+    }
+    let mut cursor = vote_message;
+    cursor = strip_prefix(cursor, b"ClearSign v2 ")?;
+    cursor = strip_prefix(cursor, vote_kind.label())?;
+    cursor = strip_prefix(cursor, b"\nWallet ")?;
+    cursor = strip_prefix(cursor, wallet_name)?;
+    cursor = strip_prefix(cursor, b"\nProposal ")?;
+    let decimal_len = decimal_u64_len(proposal_index);
+    let mut decimal = [0u8; 20];
+    write_decimal_u64(proposal_index, &mut decimal);
+    cursor = strip_prefix(cursor, &decimal[..decimal_len])?;
+    cursor = strip_prefix(cursor, b"\nEnvelope ")?;
+    let mut hex = [0u8; 64];
+    write_hex_32(&envelope_hash, &mut hex);
+    cursor = strip_prefix(cursor, &hex)?;
+    cursor = strip_prefix(cursor, b"\n\n")?;
+    if cursor.is_empty() {
+        return Err(ClearSignV2Error::MissingClearText);
+    }
+    if cursor.len() > MAX_CLEARSIGN_TEXT_BYTES {
+        return Err(ClearSignV2Error::MessageTooLong);
+    }
+    Ok(cursor)
+}
+
+pub fn write_vote_message(
+    out: &mut [u8],
+    vote_kind: ClearSignVoteKind,
+    wallet_name: &[u8],
+    proposal_index: u64,
+    envelope_hash: [u8; 32],
+    clear_text: &[u8],
+) -> Result<usize, ClearSignV2Error> {
+    hash_clear_text(clear_text)?;
+    let mut len = 0usize;
+    push_bytes(out, &mut len, b"ClearSign v2 ")?;
+    push_bytes(out, &mut len, vote_kind.label())?;
+    push_bytes(out, &mut len, b"\nWallet ")?;
+    push_bytes(out, &mut len, wallet_name)?;
+    push_bytes(out, &mut len, b"\nProposal ")?;
+    let decimal_len = decimal_u64_len(proposal_index);
+    let mut decimal = [0u8; 20];
+    write_decimal_u64(proposal_index, &mut decimal);
+    push_bytes(out, &mut len, &decimal[..decimal_len])?;
+    push_bytes(out, &mut len, b"\nEnvelope ")?;
+    let mut hex = [0u8; 64];
+    write_hex_32(&envelope_hash, &mut hex);
+    push_bytes(out, &mut len, &hex)?;
+    push_bytes(out, &mut len, b"\n\n")?;
+    push_bytes(out, &mut len, clear_text)?;
+    Ok(len)
 }
 
 pub fn hash_policy_commitment(parts: &[&[u8]]) -> [u8; 32] {
@@ -434,6 +523,49 @@ fn finish_hash(hasher: Sha256) -> [u8; 32] {
     out
 }
 
+fn strip_prefix<'a>(input: &'a [u8], prefix: &[u8]) -> Result<&'a [u8], ClearSignV2Error> {
+    input
+        .strip_prefix(prefix)
+        .ok_or(ClearSignV2Error::InvalidVoteMessage)
+}
+
+fn push_bytes(out: &mut [u8], len: &mut usize, value: &[u8]) -> Result<(), ClearSignV2Error> {
+    let end = len
+        .checked_add(value.len())
+        .ok_or(ClearSignV2Error::MessageTooLong)?;
+    if end > out.len() {
+        return Err(ClearSignV2Error::MessageTooLong);
+    }
+    out[*len..end].copy_from_slice(value);
+    *len = end;
+    Ok(())
+}
+
+fn decimal_u64_len(mut value: u64) -> usize {
+    let mut len = 1;
+    while value >= 10 {
+        value /= 10;
+        len += 1;
+    }
+    len
+}
+
+fn write_decimal_u64(mut value: u64, out: &mut [u8; 20]) {
+    let len = decimal_u64_len(value);
+    for idx in (0..len).rev() {
+        out[idx] = b'0' + (value % 10) as u8;
+        value /= 10;
+    }
+}
+
+fn write_hex_32(bytes: &[u8; 32], out: &mut [u8; 64]) {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    for (idx, byte) in bytes.iter().enumerate() {
+        out[idx * 2] = HEX[(byte >> 4) as usize];
+        out[idx * 2 + 1] = HEX[(byte & 0x0f) as usize];
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -462,6 +594,7 @@ mod tests {
             expires_at: 1_800_000_000,
             policy_commitment: hash_policy_commitment(&[b"threshold:2", b"members:alice,bob"]),
             payload_hash,
+            clear_text_hash: hash_clear_text(b"Send 2.5 SOL to Sarah").unwrap(),
         }
     }
 
@@ -636,6 +769,7 @@ mod tests {
             expires_at: 1_800_000_000,
             policy_commitment: hash_policy_commitment(&[b"escrow:escrow-1"]),
             payload_hash: release,
+            clear_text_hash: hash_clear_text(b"Release escrow milestone").unwrap(),
         };
         let return_envelope = ClearSignEnvelope {
             kind: ClearSignActionKind::ReturnEscrowFunds,

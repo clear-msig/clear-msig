@@ -1,10 +1,14 @@
+use std::borrow::Cow;
+
 use crate::config::RuntimeConfig;
 use crate::error::*;
 use crate::output::{print_json, print_typed_dry_run};
 use crate::signing::sign_message_with_flavor;
 use crate::{accounts, message, params, resolve, rpc};
 use clap::Subcommand;
-use clear_wallet::utils::clearsign::{hash_vote_message, ClearSignActionKind, ClearSignVoteKind};
+use clear_wallet::utils::clearsign::{
+    extract_clear_text_from_vote_message, ClearSignActionKind, ClearSignVoteKind,
+};
 use ika_dwallet_types::{NetworkSignedAttestation, VersionedDWalletDataAttestation};
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::instruction::AccountMeta;
@@ -44,6 +48,12 @@ pub enum ProposalAction {
         action_id: String,
         #[arg(long)]
         nonce: String,
+        /// Human-readable ClearSign v2 action text produced by /clearsign/v2/prepare.
+        ///
+        /// Required for dry-run and local signing. Browser pre-signed submits
+        /// pass the exact signed readable vote bytes via global --signed-message.
+        #[arg(long)]
+        signable_text: Option<String>,
         #[arg(long)]
         expiry: Option<String>,
     },
@@ -445,6 +455,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             envelope_hash,
             action_id,
             nonce,
+            signable_text,
             expiry,
         } => {
             let expiry_ts = message::resolve_expiry(&expiry, config)?;
@@ -486,14 +497,20 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 &pid,
             );
             let proposal_pubkey = Pubkey::new_from_array(proposal_addr.to_bytes());
-            let vote_hash = hash_vote_message(
-                ClearSignVoteKind::Propose,
-                wallet_pubkey.as_ref(),
-                proposal_index,
-                envelope_hash,
-            );
+            let vote_message = signable_text.as_deref().map(|text| {
+                typed_vote_message(
+                    ClearSignVoteKind::Propose,
+                    &wallet_account.name,
+                    proposal_index,
+                    envelope_hash,
+                    text.as_bytes(),
+                )
+            });
 
             if config.dry_run {
+                let vote_message = vote_message.as_ref().ok_or_else(|| {
+                    anyhow!("--signable-text is required for typed-create dry-run")
+                })?;
                 print_typed_dry_run(&crate::output::TypedDryRunDescriptor {
                     action: "proposal_typed_create",
                     wallet_name: &wallet_account.name,
@@ -508,18 +525,66 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                     envelope_hash_hex: crate::output::hex_of(&envelope_hash),
                     action_id: action_id.clone(),
                     nonce: nonce.clone(),
-                    message_hex: crate::output::hex_of(&vote_hash),
-                    message_flavor: "clearsign_v2_vote_hash",
+                    message_hex: crate::output::hex_of(vote_message),
+                    message_flavor: "clearsign_v2_text",
                     expiry: expiry_ts,
                 });
                 return Ok(());
             }
 
             eprintln!(
-                "Signing ClearSign v2 proposal vote hash:\n{}",
-                crate::output::hex_of(&vote_hash)
+                "Signing ClearSign v2 proposal message:\n{}",
+                String::from_utf8_lossy(vote_message.as_deref().unwrap_or_else(|| {
+                    config
+                        .signed_message_override
+                        .as_deref()
+                        .unwrap_or_default()
+                }))
             );
-            let signature = config.signer.sign_message(&vote_hash)?;
+            let signed_message = config
+                .signed_message_override
+                .as_deref()
+                .or(vote_message.as_deref())
+                .ok_or_else(|| {
+                    anyhow!(
+                        "--signable-text or global --signed-message is required for typed-create"
+                    )
+                })?;
+            let clear_text: Cow<'_, [u8]> = if let Some(text) = signable_text.as_deref() {
+                if config.signed_message_override.is_some() {
+                    let signed_clear_text = extract_clear_text_from_vote_message(
+                        ClearSignVoteKind::Propose,
+                        wallet_account.name.as_bytes(),
+                        proposal_index,
+                        envelope_hash,
+                        signed_message,
+                    )
+                    .map_err(|_| {
+                        anyhow!("--signed-message is not a valid ClearSign v2 propose message")
+                    })?;
+                    if signed_clear_text != text.as_bytes() {
+                        return Err(anyhow!(
+                            "--signed-message clear text does not match --signable-text"
+                        ));
+                    }
+                }
+                Cow::Borrowed(text.as_bytes())
+            } else {
+                Cow::Owned(
+                    extract_clear_text_from_vote_message(
+                        ClearSignVoteKind::Propose,
+                        wallet_account.name.as_bytes(),
+                        proposal_index,
+                        envelope_hash,
+                        signed_message,
+                    )
+                    .map_err(|_| {
+                        anyhow!("--signed-message is not a valid ClearSign v2 propose message")
+                    })?
+                    .to_vec(),
+                )
+            };
+            let signature = config.signer.sign_message(signed_message)?;
             let payer_pubkey = solana_sdk::signer::Signer::pubkey(&config.payer);
             let action_id_hash = crate::message::sha256_hash(action_id.as_bytes());
             let nonce_hash = crate::message::sha256_hash(nonce.as_bytes());
@@ -538,6 +603,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 signature,
                 action_id: action_id_hash,
                 nonce: nonce_hash,
+                clear_text: clear_text.as_ref(),
             });
             let sig = rpc::send_instruction(&client, config, ix)?;
             print_json(&serde_json::json!({
@@ -2139,6 +2205,31 @@ fn ensure_typed_text(value: &str, field: &str) -> Result<()> {
     Ok(())
 }
 
+fn typed_vote_message(
+    vote_kind: ClearSignVoteKind,
+    wallet_name: &str,
+    proposal_index: u64,
+    envelope_hash: [u8; 32],
+    clear_text: &[u8],
+) -> Vec<u8> {
+    let mut out = Vec::with_capacity(128 + clear_text.len());
+    out.extend_from_slice(b"ClearSign v2 ");
+    out.extend_from_slice(match vote_kind {
+        ClearSignVoteKind::Propose => b"propose",
+        ClearSignVoteKind::Approve => b"approve",
+        ClearSignVoteKind::Cancel => b"cancel",
+    });
+    out.extend_from_slice(b"\nWallet ");
+    out.extend_from_slice(wallet_name.as_bytes());
+    out.extend_from_slice(b"\nProposal ");
+    out.extend_from_slice(proposal_index.to_string().as_bytes());
+    out.extend_from_slice(b"\nEnvelope ");
+    out.extend_from_slice(crate::output::hex_of(&envelope_hash).as_bytes());
+    out.extend_from_slice(b"\n\n");
+    out.extend_from_slice(clear_text);
+    out
+}
+
 fn resolve_approved_typed_proposal(
     _config: &RuntimeConfig,
     client: &RpcClient,
@@ -2324,11 +2415,12 @@ fn typed_approve_or_cancel(
     } else {
         ClearSignVoteKind::Cancel
     };
-    let vote_hash = hash_vote_message(
+    let vote_message = typed_vote_message(
         vote_kind,
-        wallet_pubkey.as_ref(),
+        &wallet_account.name,
         proposal_account.proposal_index,
         proposal_account.envelope_hash,
+        &proposal_account.clear_text,
     );
 
     if config.dry_run {
@@ -2350,18 +2442,22 @@ fn typed_approve_or_cancel(
             envelope_hash_hex: crate::output::hex_of(&proposal_account.envelope_hash),
             action_id: String::from_utf8_lossy(&proposal_account.action_id).to_string(),
             nonce: String::from_utf8_lossy(&proposal_account.nonce).to_string(),
-            message_hex: crate::output::hex_of(&vote_hash),
-            message_flavor: "clearsign_v2_vote_hash",
+            message_hex: crate::output::hex_of(&vote_message),
+            message_flavor: "clearsign_v2_text",
             expiry: proposal_account.expires_at,
         });
         return Ok(());
     }
 
     eprintln!(
-        "Signing ClearSign v2 {action} vote hash:\n{}",
-        crate::output::hex_of(&vote_hash)
+        "Signing ClearSign v2 {action} message:\n{}",
+        String::from_utf8_lossy(&vote_message)
     );
-    let signature = config.signer.sign_message(&vote_hash)?;
+    let signed_message = config
+        .signed_message_override
+        .as_deref()
+        .unwrap_or(&vote_message);
+    let signature = config.signer.sign_message(signed_message)?;
     let ix = if is_approve {
         crate::instructions::approve_typed(
             wallet_pubkey,

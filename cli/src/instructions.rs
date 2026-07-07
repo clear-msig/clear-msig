@@ -194,7 +194,7 @@ pub fn execute(
 }
 
 #[allow(dead_code)]
-pub struct ProposeTypedArgs {
+pub struct ProposeTypedArgs<'a> {
     pub payer: Pubkey,
     pub wallet: Pubkey,
     pub intent: Pubkey,
@@ -209,6 +209,7 @@ pub struct ProposeTypedArgs {
     pub signature: [u8; 64],
     pub action_id: [u8; 32],
     pub nonce: [u8; 32],
+    pub clear_text: &'a [u8],
 }
 
 /// Build propose_typed instruction (ClearSign v2 discriminator 8).
@@ -233,6 +234,7 @@ pub fn propose_typed(args: ProposeTypedArgs) -> Instruction {
     wincode::serialize_into(&mut data, &args.signature).unwrap();
     wincode::serialize_into(&mut data, &args.action_id).unwrap();
     wincode::serialize_into(&mut data, &args.nonce).unwrap();
+    wincode::serialize_into(&mut data, &TailBytes(args.clear_text.to_vec())).unwrap();
 
     Instruction {
         program_id: program_id(),
@@ -876,6 +878,7 @@ mod tests {
             signature: [9; 64],
             action_id: [10; 32],
             nonce: [11; 32],
+            clear_text: b"Readable action",
         });
 
         assert_eq!(ix.program_id, program_id());
