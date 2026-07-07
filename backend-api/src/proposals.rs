@@ -5,7 +5,7 @@ use axum::{
 };
 use serde_json::Value;
 
-use crate::clearsign::{format_expiry, push_pre_signed_flags};
+use crate::clearsign::{format_expiry, normalize_expiry_arg, push_pre_signed_flags};
 use crate::{
     ensure_base58, ensure_non_empty, ensure_non_empty_vec, ensure_wallet_name, ApiError, AppState,
 };
@@ -318,9 +318,8 @@ async fn prepare_proposal_create(
         args.push(p);
     }
     if let Some(e) = body.expiry {
-        ensure_non_empty(&e, "expiry")?;
         args.push("--expiry".into());
-        args.push(e);
+        args.push(normalize_expiry_arg(&e)?);
     }
     Ok(Json(state.runner.run_json(args).await?))
 }
@@ -362,9 +361,8 @@ async fn prepare_typed_proposal_create(
         body.nonce,
     ]);
     if let Some(e) = body.expiry {
-        ensure_non_empty(&e, "expiry")?;
         args.push("--expiry".into());
-        args.push(e);
+        args.push(normalize_expiry_arg(&e)?);
     }
     Ok(Json(state.runner.run_json(args).await?))
 }
@@ -425,9 +423,8 @@ async fn prepare_approve_or_cancel(
         proposal,
     ]);
     if let Some(e) = body.expiry {
-        ensure_non_empty(&e, "expiry")?;
         args.push("--expiry".into());
-        args.push(e);
+        args.push(normalize_expiry_arg(&e)?);
     }
     Ok(Json(state.runner.run_json(args).await?))
 }

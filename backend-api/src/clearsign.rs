@@ -9,7 +9,7 @@ mod kinds;
 mod payload;
 mod presigned;
 
-pub(crate) use expiry::format_expiry;
+pub(crate) use expiry::{format_expiry, normalize_expiry_arg};
 pub(crate) use presigned::{push_pre_signed_flags, PreSigned};
 
 use display::action_lines;

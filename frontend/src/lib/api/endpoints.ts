@@ -122,7 +122,7 @@ export const backendApi = {
       apiRequest<TypedDryRunDescriptor, PrepareApproveCancelInput>(
         `/prepare/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-approve`,
         "POST",
-        input,
+        withFreshExpiry(input),
       ),
     cancelProposal: (walletName: string, proposalAddress: string, input: PrepareApproveCancelInput) =>
       apiRequest<DryRunDescriptor, PrepareApproveCancelInput>(
@@ -134,7 +134,7 @@ export const backendApi = {
       apiRequest<TypedDryRunDescriptor, PrepareApproveCancelInput>(
         `/prepare/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-cancel`,
         "POST",
-        input,
+        withFreshExpiry(input),
       )
   },
 

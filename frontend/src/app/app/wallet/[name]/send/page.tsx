@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
+import { formatUnixSigningExpiry } from "@/lib/api/expiry";
 import {
   IntentType,
   ProposalStatus,
@@ -659,7 +660,7 @@ function SendPage() {
         envelope_hash: summary.envelopeHash,
         action_id: envelope.actionId,
         nonce: envelope.nonce,
-        expiry: String(envelope.expiresAt),
+        expiry: formatUnixSigningExpiry(envelope.expiresAt),
         actor_pubkey: proposerPk.toBase58(),
       });
 
