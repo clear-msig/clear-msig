@@ -79,6 +79,7 @@ import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import { SendAmountField } from "@/components/retail/SendAmountField";
 import { ChainBadge } from "@/components/retail/ChainBadge";
+import { FormField, TextInput } from "@/components/retail/FormField";
 import { chainByKind } from "@/lib/retail/chains";
 import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
 import { resolvePolicyEnforcement } from "@/lib/policies/enforce";
@@ -1598,22 +1599,13 @@ function PastedAddressNotice({
             </button>
           ) : (
             <div className="flex items-center gap-2">
-              <input
+              <TextInput
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Name (e.g. Sarah)"
                 autoFocus
                 maxLength={40}
-                className={
-                  // Hairline border using the theme-aware glass
-                  // tokens, matching the To / Note fields above.
-                  // No accent halo - the enclosing warning-tinted
-                  // card already provides plenty of context.
-                  "flex-1 rounded-soft border border-glass-soft bg-surface-raised px-3 py-2 text-xs text-text-strong min-h-tap " +
-                  "outline-none placeholder:text-text-soft/60 " +
-                  "transition-colors duration-base ease-out-soft " +
-                  "focus:border-glass-strong"
-                }
+                className="flex-1 text-xs"
               />
               <button
                 type="button"
@@ -1667,40 +1659,16 @@ function Field({
   maxLength,
 }: FieldProps) {
   return (
-    // Near-invisible hairline border. Uses the theme-aware glass
-    // tokens (4% white-on-dark / 4% dark-on-light at rest, 8% on
-    // focus) so the input reads as part of the parent card rather
-    // than a stamped form element. The focus state deepens
-    // slightly - no halo, no accent tint - so it stays subtle but
-    // keyboard-discoverable.
-    <label
-      className={
-        "flex items-center gap-3 rounded-soft border border-glass-soft px-3.5 py-2.5 " +
-        "transition-colors duration-base ease-out-soft " +
-        "focus-within:border-glass-strong"
-      }
-    >
-      <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.2em] text-text-soft">
-        {label}
-        {optional && (
-          <span className="font-normal normal-case tracking-normal text-text-soft/60">
-            (opt)
-          </span>
-        )}
-      </span>
-      <input
+    <FormField label={optional ? `${label} (optional)` : label}>
+      <TextInput
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         autoFocus={autoFocus}
         maxLength={maxLength}
         spellCheck={false}
-        className={
-          "min-w-0 flex-1 bg-transparent text-base text-text-strong outline-none " +
-          "placeholder:text-text-soft/60"
-        }
       />
-    </label>
+    </FormField>
   );
 }
 

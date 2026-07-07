@@ -32,6 +32,7 @@ import {
 import { UsdHint } from "@/components/retail/UsdHint";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import { SendAmountField } from "@/components/retail/SendAmountField";
+import { FormField, TextInput } from "@/components/retail/FormField";
 import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
 import { resolvePolicyEnforcement } from "@/lib/policies/enforce";
@@ -638,16 +639,16 @@ function ZcashCompose({
             }
           />
           <Field label="To" hint={recipient.trim() && !recipientValid ? recipientDecoded.ok ? undefined : recipientDecoded.reason : undefined}>
-            <input
+            <TextInput
               type="text"
               value={recipient}
               onChange={(e) => setRecipient(e.target.value)}
               placeholder="t1… or tm…"
-              className="w-full rounded-card border border-border-soft bg-canvas px-4 py-3 font-mono text-sm text-text-strong outline-none"
+              className="font-mono"
             />
           </Field>
           <Field label={SEND_NOTE_LABEL}>
-            <input
+            <TextInput
               type="text"
               value={note}
               onChange={(e) =>
@@ -655,7 +656,6 @@ function ZcashCompose({
               }
               placeholder={SEND_NOTE_PLACEHOLDER}
               maxLength={SEND_NOTE_MAX_LENGTH}
-              className="w-full rounded-card border border-border-soft bg-canvas px-4 py-3 text-sm text-text-strong outline-none"
             />
           </Field>
         </div>
@@ -682,13 +682,9 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="flex flex-col gap-2 text-sm font-medium text-text-strong">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-        {label}
-      </span>
+    <FormField label={label} error={hint} as="div">
       {children}
-      {hint ? <span className="text-xs text-warning">{hint}</span> : null}
-    </label>
+    </FormField>
   );
 }
 

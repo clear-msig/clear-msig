@@ -48,15 +48,18 @@ export function FormField({
   error,
   children,
   className,
+  as = "label",
 }: {
   label: ReactNode;
   hint?: ReactNode;
   error?: ReactNode;
   children: ReactNode;
   className?: string;
+  as?: "label" | "div";
 }) {
+  const Shell = as;
   return (
-    <label className={cn("flex min-w-0 flex-col gap-1.5", className)}>
+    <Shell className={cn("flex min-w-0 flex-col gap-1.5", className)}>
       <span className="text-xs font-medium text-text-soft">{label}</span>
       {children}
       {error ? (
@@ -64,7 +67,7 @@ export function FormField({
       ) : hint ? (
         <span className="text-xs leading-relaxed text-text-soft">{hint}</span>
       ) : null}
-    </label>
+    </Shell>
   );
 }
 

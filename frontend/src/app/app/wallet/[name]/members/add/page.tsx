@@ -44,6 +44,7 @@ import { resolveWalletProductSurface } from "@/lib/productWorkspace";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { Button } from "@/components/retail/Button";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
+import { FormField, TextInput } from "@/components/retail/FormField";
 import { SignPayloadPreview } from "@/components/retail/SignPayloadPreview";
 import { NextStepCard } from "@/components/retail/NextStepCard";
 import { useToast } from "@/components/ui/Toast";
@@ -682,16 +683,11 @@ function FieldRow({
   inputType = "text",
 }: FieldRowProps) {
   return (
-    <label className="flex flex-col gap-1 sm:flex-row sm:items-start sm:gap-3">
-      <span className="shrink-0 text-xs font-medium uppercase tracking-wide text-text-soft sm:w-16 sm:pt-2">
-        {label}
-        {optional && (
-          <span className="ml-1 normal-case tracking-normal text-text-soft/60">
-            (opt)
-          </span>
-        )}
-      </span>
-      <input
+    <FormField
+      label={optional ? `${label} (optional)` : label}
+      className="sm:grid sm:grid-cols-[4rem_minmax(0,1fr)] sm:items-center sm:gap-3"
+    >
+      <TextInput
         type={inputType}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -699,14 +695,9 @@ function FieldRow({
         autoFocus={autoFocus}
         maxLength={maxLength}
         spellCheck={false}
-        className={
-          "min-w-0 flex-1 bg-transparent py-1.5 outline-none placeholder:text-text-soft/60 " +
-          (mono
-            ? "font-mono text-sm text-text-strong placeholder:font-sans"
-            : "text-base text-text-strong")
-        }
+        className={mono ? "font-mono placeholder:font-sans" : "text-base"}
       />
-    </label>
+    </FormField>
   );
 }
 

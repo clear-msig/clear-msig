@@ -75,6 +75,7 @@ import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import { SendAmountField } from "@/components/retail/SendAmountField";
+import { FormField, TextInput } from "@/components/retail/FormField";
 import {
   SendReceipt,
   type ReceiptDetail,
@@ -929,16 +930,12 @@ function ComposeStage({
             }
           >
             <div className="flex items-stretch gap-2">
-              <input
+              <TextInput
                 type="text"
                 value={recipient}
                 onChange={(e) => setRecipient(e.target.value)}
                 placeholder="0x… or vitalik.eth"
-                className={
-                  "flex-1 rounded-card border border-border-soft bg-canvas px-4 py-3 font-mono text-sm text-text-strong outline-none " +
-                  "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-                  "focus:border-accent focus:shadow-accent-rest"
-                }
+                className="flex-1 font-mono"
               />
               <QrScanButton
                 ariaLabel="Scan recipient QR"
@@ -976,7 +973,7 @@ function ComposeStage({
           />
 
           <Field label={SEND_NOTE_LABEL}>
-            <input
+            <TextInput
               type="text"
               value={note}
               onChange={(e) =>
@@ -984,11 +981,6 @@ function ComposeStage({
               }
               placeholder={SEND_NOTE_PLACEHOLDER}
               maxLength={SEND_NOTE_MAX_LENGTH}
-              className={
-                "w-full rounded-card border border-border-soft bg-canvas px-4 py-3 text-sm text-text-strong outline-none " +
-                "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-                "focus:border-accent focus:shadow-accent-rest"
-              }
             />
           </Field>
         </section>
@@ -1038,15 +1030,9 @@ interface FieldProps {
 
 function Field({ label, hint, children }: FieldProps) {
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-        {label}
-      </span>
+    <FormField label={label} error={hint} as="div">
       {children}
-      {hint && (
-        <span className="text-[11px] text-warning">{hint}</span>
-      )}
-    </label>
+    </FormField>
   );
 }
 

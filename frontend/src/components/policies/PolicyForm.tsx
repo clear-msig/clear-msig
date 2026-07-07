@@ -29,6 +29,11 @@ import {
 import { BadgePill } from "@/components/retail/BadgePill";
 import { BrandSelect } from "@/components/retail/BrandSelect";
 import { Button } from "@/components/retail/Button";
+import {
+  FIELD_CLASS,
+  FormField,
+  TEXTAREA_CLASS,
+} from "@/components/retail/FormField";
 import { useToast } from "@/components/ui/Toast";
 import { encryptStatus } from "@/lib/encrypt/client";
 import {
@@ -330,7 +335,7 @@ export function PolicyForm({ mode, initial, initialExtraApproversText = "" }: Fo
               onChange={(e) => setExtraApproversText(e.target.value)}
               placeholder={"Solana base58 or 0x EVM addresses\nseparated by commas or newlines"}
               className={
-                inputClass + " font-mono text-xs leading-relaxed"
+                textareaClass + " font-mono text-xs"
               }
             />
             <p className="mt-1 text-[10px] text-text-soft">
@@ -534,7 +539,7 @@ function RecipientEditor({
                 .filter((s) => s.length > 0),
             })
           }
-          className={inputClass + " font-mono text-xs leading-relaxed"}
+          className={textareaClass + " font-mono text-xs"}
         />
         <span className="mt-1 inline-flex items-center gap-1 text-[10px] text-text-soft">
           <Lock className="h-3 w-3" aria-hidden="true" />
@@ -822,14 +827,11 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="flex flex-col gap-1 text-xs text-text-soft">
-      <span className="font-semibold uppercase tracking-[0.24em]">{label}</span>
+    <FormField label={label} as="div">
       {children}
-    </label>
+    </FormField>
   );
 }
 
-const inputClass =
-  "rounded-soft border border-border-soft bg-canvas px-3 py-2 text-sm text-text-strong outline-none " +
-  "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-  "focus:border-accent focus:shadow-accent-rest";
+const inputClass = FIELD_CLASS;
+const textareaClass = TEXTAREA_CLASS;

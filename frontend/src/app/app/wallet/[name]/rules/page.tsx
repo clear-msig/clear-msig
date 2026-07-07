@@ -33,6 +33,7 @@ import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { IntentType, type IntentAccount } from "@/lib/msig";
 import { Button } from "@/components/retail/Button";
+import { FormField, TextInput } from "@/components/retail/FormField";
 import { friendlyIntentLabel } from "@/lib/retail/labels";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import {
@@ -500,21 +501,16 @@ function TimelockEditModal({
 
         {showingCustom && (
           <div className="mt-4 flex flex-col gap-2">
-            <label className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              Seconds
-            </label>
-            <input
-              type="number"
-              min={0}
-              value={customText}
-              onChange={(e) => setCustomText(e.target.value)}
-              disabled={update.isPending}
-              autoFocus
-              className={
-                "rounded-soft border border-border-soft bg-canvas px-3 py-2 text-sm text-text-strong outline-none " +
-                "transition-[border-color,box-shadow] duration-base ease-out-soft focus:border-accent focus:shadow-accent-rest"
-              }
-            />
+            <FormField label="Seconds">
+              <TextInput
+                type="number"
+                min={0}
+                value={customText}
+                onChange={(e) => setCustomText(e.target.value)}
+                disabled={update.isPending}
+                autoFocus
+              />
+            </FormField>
             {!presetMatch && !customMode ? null : (
               <button
                 type="button"
