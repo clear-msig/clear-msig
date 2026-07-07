@@ -3,6 +3,7 @@ import {
   agentMarketDataFreshnessError,
   estimateAgentOpenTradePerformance,
   normalizeAgentMarket,
+  normalizeAgentMarketCandleInterval,
   normalizeAgentMarketDataSnapshot,
   type AgentExecutionRecord,
   type AgentMarketDataSnapshot,
@@ -15,6 +16,12 @@ describe("agent market data", () => {
     expect(normalizeAgentMarket(" btc-perp ")).toBe("BTC-PERP");
     expect(normalizeAgentMarket("../btc")).toBeNull();
     expect(normalizeAgentMarket("")).toBeNull();
+  });
+
+  it("normalizes supported candle intervals", () => {
+    expect(normalizeAgentMarketCandleInterval("1m")).toBe("1m");
+    expect(normalizeAgentMarketCandleInterval("1h")).toBe("1h");
+    expect(normalizeAgentMarketCandleInterval("2h")).toBeNull();
   });
 
   it("validates a structured provider snapshot", () => {

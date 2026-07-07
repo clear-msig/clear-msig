@@ -623,9 +623,9 @@ before adding more venues or autonomous capital:
    - Current implementation: `/api/agent-market-data/[provider]` exposes a
      rate-limited, read-only provider boundary. The deterministic mock adapter
      supplies BTC, ETH, and SOL perpetual mark price, funding, open interest,
-     and 24h volume. The Hyperliquid provider reads live public perpetual mark
-     price, funding, open interest, and 24h notional volume without credentials
-     or execution authority.
+     candles, and 24h volume. The Hyperliquid provider reads live public
+     perpetual mark price, candles, funding, open interest, and 24h notional
+     volume without credentials or execution authority.
 4. **One testnet execution venue**
    - Codex/build: connect one backend adapter and require verified exchange
      order artifacts before recording execution.

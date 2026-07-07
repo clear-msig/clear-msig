@@ -1,5 +1,8 @@
 import {
   normalizeAgentMarket,
+  normalizeAgentMarketCandleInterval,
+  type AgentMarketCandle,
+  type AgentMarketCandleInterval,
   type AgentMarketDataProviderId,
   type AgentMarketDataSnapshot,
   type AgentMarketUniverseItem,
@@ -50,6 +53,14 @@ const MOCK_MARKETS: Record<
 
 const HYPERLIQUID_INFO_URL = "https://api.hyperliquid.xyz/info";
 const MARKET_DATA_TIMEOUT_MS = 12_000;
+const CANDLE_INTERVAL_MS: Record<AgentMarketCandleInterval, number> = {
+  "1m": 60_000,
+  "5m": 5 * 60_000,
+  "15m": 15 * 60_000,
+  "1h": 60 * 60_000,
+  "4h": 4 * 60 * 60_000,
+  "1d": 24 * 60 * 60_000,
+};
 
 export function serverAgentMarketDataReadiness(
   provider: AgentMarketDataProviderId,
@@ -132,6 +143,53 @@ export async function fetchAgentMarketUniverse({
       ...values,
     }))
     .slice(0, limit);
+}
+
+export async function fetchAgentMarketCandles({
+  provider,
+  market: marketInput,
+  interval: intervalInput = "1h",
+  now = Date.now(),
+  fetchImpl = fetch,
+  limit = 24,
+}: {
+  provider: AgentMarketDataProviderId;
+  market: string;
+  interval?: string;
+  now?: number;
+  fetchImpl?: typeof fetch;
+  limit?: number;
+}): Promise<AgentMarketCandle[]> {
+  const market = normalizeAgentMarket(marketInput);
+  if (!market) {
+    throw new Error("Market is missing or invalid.");
+  }
+  const interval = normalizeAgentMarketCandleInterval(intervalInput);
+  if (!interval) {
+    throw new Error("Market candle interval is unsupported.");
+  }
+  const rawLimit = Math.floor(limit);
+  const boundedLimit = Number.isFinite(rawLimit)
+    ? Math.max(1, Math.min(250, rawLimit))
+    : 24;
+
+  if (provider === "hyperliquid") {
+    return fetchHyperliquidMarketCandles({
+      market,
+      interval,
+      now,
+      fetchImpl,
+      limit: boundedLimit,
+    });
+  }
+
+  return mockMarketCandles({
+    provider,
+    market,
+    interval,
+    now,
+    limit: boundedLimit,
+  });
 }
 
 export async function fetchAgentMarketIntelligence({
@@ -240,6 +298,52 @@ async function fetchHyperliquidMarketUniverse({
     .slice(0, Math.max(1, Math.min(250, limit)));
 }
 
+async function fetchHyperliquidMarketCandles({
+  market,
+  interval,
+  now,
+  fetchImpl,
+  limit,
+}: {
+  market: string;
+  interval: AgentMarketCandleInterval;
+  now: number;
+  fetchImpl: typeof fetch;
+  limit: number;
+}): Promise<AgentMarketCandle[]> {
+  const coin = hyperliquidCoinFromMarket(market);
+  const intervalMs = CANDLE_INTERVAL_MS[interval];
+  const endTime = alignTime(now, intervalMs);
+  const startTime = endTime - intervalMs * limit;
+  const payload = await fetchHyperliquidCandleSnapshot({
+    coin,
+    interval,
+    startTime,
+    endTime,
+    fetchImpl,
+  });
+  if (!Array.isArray(payload)) {
+    throw new Error("Hyperliquid returned malformed candle data.");
+  }
+  const candles = payload
+    .map((item) =>
+      normalizeHyperliquidCandle({
+        provider: "hyperliquid",
+        source: "live",
+        market: `${coin}-PERP`,
+        interval,
+        value: item,
+      }),
+    )
+    .filter((item): item is AgentMarketCandle => item != null)
+    .sort((a, b) => a.openTime - b.openTime)
+    .slice(-limit);
+  if (candles.length === 0) {
+    throw new Error(`Hyperliquid candle data is not available for ${market}.`);
+  }
+  return candles;
+}
+
 async function fetchHyperliquidMetaAndAssetContexts(
   fetchImpl: typeof fetch,
 ): Promise<unknown> {
@@ -255,6 +359,38 @@ async function fetchHyperliquidMetaAndAssetContexts(
   });
   if (!response.ok) {
     throw new Error(`Hyperliquid market data returned HTTP ${response.status}.`);
+  }
+  return response.json();
+}
+
+async function fetchHyperliquidCandleSnapshot({
+  coin,
+  interval,
+  startTime,
+  endTime,
+  fetchImpl,
+}: {
+  coin: string;
+  interval: AgentMarketCandleInterval;
+  startTime: number;
+  endTime: number;
+  fetchImpl: typeof fetch;
+}): Promise<unknown> {
+  const response = await fetchImpl(HYPERLIQUID_INFO_URL, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      type: "candleSnapshot",
+      req: { coin, interval, startTime, endTime },
+    }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(MARKET_DATA_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(`Hyperliquid candle data returned HTTP ${response.status}.`);
   }
   return response.json();
 }
@@ -314,8 +450,120 @@ function normalizeHyperliquidUniverseAsset(
   };
 }
 
+function normalizeHyperliquidCandle({
+  provider,
+  source,
+  market,
+  interval,
+  value,
+}: {
+  provider: AgentMarketDataProviderId;
+  source: AgentMarketCandle["source"];
+  market: string;
+  interval: AgentMarketCandleInterval;
+  value: unknown;
+}): AgentMarketCandle | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const openTime = numberValue(record.t);
+  const closeTime = numberValue(record.T);
+  const openPriceUsd = positiveDecimal(record.o);
+  const highPriceUsd = positiveDecimal(record.h);
+  const lowPriceUsd = positiveDecimal(record.l);
+  const closePriceUsd = positiveDecimal(record.c);
+  const volumeBase = positiveDecimal(record.v);
+  if (
+    !Number.isFinite(openTime) ||
+    !Number.isFinite(closeTime) ||
+    !openPriceUsd ||
+    !highPriceUsd ||
+    !lowPriceUsd ||
+    !closePriceUsd
+  ) {
+    return null;
+  }
+  return {
+    provider,
+    source,
+    market,
+    interval,
+    openTime,
+    closeTime,
+    openPriceUsd,
+    highPriceUsd,
+    lowPriceUsd,
+    closePriceUsd,
+    volumeBase,
+    volumeUsd:
+      volumeBase == null
+        ? null
+        : formatDecimal(Number(volumeBase) * Number(closePriceUsd)),
+  };
+}
+
+function mockMarketCandles({
+  provider,
+  market,
+  interval,
+  now,
+  limit,
+}: {
+  provider: AgentMarketDataProviderId;
+  market: string;
+  interval: AgentMarketCandleInterval;
+  now: number;
+  limit: number;
+}): AgentMarketCandle[] {
+  const values = MOCK_MARKETS[market];
+  if (!values) {
+    throw new Error(`Mock candle data is not available for ${market}.`);
+  }
+  const intervalMs = CANDLE_INTERVAL_MS[interval];
+  const endTime = alignTime(now, intervalMs);
+  const basePrice = Number(values.markPriceUsd);
+  const dailyVolume = Number(values.volume24hUsd ?? 0);
+  return Array.from({ length: limit }, (_, index) => {
+    const openTime = endTime - intervalMs * (limit - index);
+    const closeTime = openTime + intervalMs - 1;
+    const drift = (index - limit + 1) * 0.0015;
+    const open = basePrice * (1 + drift);
+    const close = basePrice * (1 + drift + 0.0008);
+    const high = Math.max(open, close) * 1.0012;
+    const low = Math.min(open, close) * 0.9988;
+    const volumeUsd =
+      dailyVolume > 0
+        ? dailyVolume * (intervalMs / CANDLE_INTERVAL_MS["1d"])
+        : null;
+    return {
+      provider,
+      source: "mock" as const,
+      market,
+      interval,
+      openTime,
+      closeTime,
+      openPriceUsd: formatDecimal(open),
+      highPriceUsd: formatDecimal(high),
+      lowPriceUsd: formatDecimal(low),
+      closePriceUsd: formatDecimal(close),
+      volumeBase:
+        volumeUsd == null ? null : formatDecimal(volumeUsd / close),
+      volumeUsd: volumeUsd == null ? null : formatDecimal(volumeUsd),
+    };
+  });
+}
+
 function hyperliquidCoinFromMarket(market: string): string {
   return market.endsWith("-PERP") ? market.slice(0, -5) : market;
+}
+
+function alignTime(value: number, intervalMs: number): number {
+  return Math.floor(value / intervalMs) * intervalMs;
+}
+
+function numberValue(value: unknown): number {
+  if (typeof value === "number") return value;
+  if (typeof value === "string") return Number(value);
+  return Number.NaN;
 }
 
 function positiveDecimal(value: unknown): string | null {
