@@ -15,6 +15,7 @@ import {
   TrendingUp,
   WalletCards,
 } from "lucide-react";
+import { NativeSelect } from "@/components/retail/FormField";
 import { useToast } from "@/components/ui/Toast";
 import {
   agentLeaderboard,
@@ -638,10 +639,11 @@ function LibraryFilters({
           </button>
         ))}
       </div>
-      <select
+      <NativeSelect
         value={market}
         onChange={(event) => onMarketChange(event.target.value)}
-        className="min-h-10 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25"
+        className="min-h-8 py-1.5 text-xs font-medium"
+        aria-label="Market filter"
       >
         <option value="all">All markets</option>
         {markets.map((item) => (
@@ -649,7 +651,7 @@ function LibraryFilters({
             {item}
           </option>
         ))}
-      </select>
+      </NativeSelect>
       <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
         {trackedCount}/{totalCount} tracked
       </span>

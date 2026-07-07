@@ -12,6 +12,11 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
+import {
+  FormField,
+  NativeSelect,
+  TextInput,
+} from "@/components/retail/FormField";
 import { useToast } from "@/components/ui/Toast";
 import {
   bindAgentVaultPolicyHash,
@@ -204,12 +209,10 @@ export default function SolanaDelegationPage() {
       <section className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
           <div className="grid gap-3">
-            <label className="grid gap-1.5">
-              <span className="text-xs font-semibold text-text-strong">Agent</span>
-              <select
+            <FormField label="Agent">
+              <NativeSelect
                 value={agentId}
                 onChange={(event) => setAgentId(event.target.value)}
-                className={INPUT_CLASS}
               >
                 {agents.length === 0 ? <option value="">No agents yet</option> : null}
                 {agents.map((agent) => (
@@ -217,67 +220,54 @@ export default function SolanaDelegationPage() {
                     {agent.name}
                   </option>
                 ))}
-              </select>
-            </label>
-            <label className="grid gap-1.5">
-              <span className="text-xs font-semibold text-text-strong">
-                Agent signer public key
-              </span>
-              <input
+              </NativeSelect>
+            </FormField>
+            <FormField label="Agent signer public key">
+              <TextInput
                 value={signerDraft}
                 onChange={(event) => setSignerDraft(event.target.value)}
                 placeholder="Solana public key"
-                className={`${INPUT_CLASS} font-mono`}
+                className="font-mono"
                 spellCheck={false}
               />
-            </label>
+            </FormField>
             <div className="grid gap-3 sm:grid-cols-3">
-              <label className="grid gap-1.5">
-                <span className="text-xs font-semibold text-text-strong">Max size</span>
-                <input
+              <FormField label="Max size">
+                <TextInput
                   value={notionalDraft}
                   onChange={(event) => setNotionalDraft(event.target.value)}
                   inputMode="decimal"
-                  className={INPUT_CLASS}
                 />
-              </label>
-              <label className="grid gap-1.5">
-                <span className="text-xs font-semibold text-text-strong">Max leverage</span>
-                <input
+              </FormField>
+              <FormField label="Max leverage">
+                <TextInput
                   value={leverageDraft}
                   onChange={(event) => setLeverageDraft(event.target.value)}
                   inputMode="numeric"
-                  className={INPUT_CLASS}
                 />
-              </label>
-              <label className="grid gap-1.5">
-                <span className="text-xs font-semibold text-text-strong">Hours</span>
-                <input
+              </FormField>
+              <FormField label="Hours">
+                <TextInput
                   value={hoursDraft}
                   onChange={(event) => setHoursDraft(event.target.value)}
                   inputMode="numeric"
-                  className={INPUT_CLASS}
                 />
-              </label>
+              </FormField>
             </div>
-            <label className="grid gap-1.5">
-              <span className="text-xs font-semibold text-text-strong">Open trades</span>
-              <input
+            <FormField label="Open trades">
+              <TextInput
                 value={openDraft}
                 onChange={(event) => setOpenDraft(event.target.value)}
                 inputMode="numeric"
-                className={INPUT_CLASS}
               />
-            </label>
-            <label className="grid gap-1.5">
-              <span className="text-xs font-semibold text-text-strong">Markets</span>
-              <input
+            </FormField>
+            <FormField label="Markets">
+              <TextInput
                 value={marketsDraft}
                 onChange={(event) => setMarketsDraft(event.target.value)}
                 placeholder="BTC-PERP, ETH-PERP"
-                className={INPUT_CLASS}
               />
-            </label>
+            </FormField>
             <div className="grid gap-2">
               <span className="text-xs font-semibold text-text-strong">Allowed venues</span>
               <div className="flex flex-wrap gap-2">
@@ -504,9 +494,6 @@ function venueLabel(venue: TradingVenue): string {
       return "Bulk sandbox";
   }
 }
-
-const INPUT_CLASS =
-  "min-h-10 w-full rounded-soft border border-border-soft bg-canvas px-3 py-2 text-sm text-text-strong outline-none transition-colors placeholder:text-text-muted focus:border-accent focus:ring-2 focus:ring-accent/25";
 
 const CONTROL_CLASS =
   "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60";

@@ -1,9 +1,10 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
-import clsx from "clsx";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Lock, Save, ShieldCheck } from "lucide-react";
+import { Button } from "@/components/retail/Button";
+import { FormField, TextInput } from "@/components/retail/FormField";
 import { useToast } from "@/components/ui/Toast";
 import {
   decryptAgentVaultPolicy,
@@ -196,17 +197,13 @@ export default function AgentPolicyPage() {
             </div>
           </fieldset>
 
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-text-soft">
-              Markets
-            </span>
-            <input
+          <FormField label="Markets">
+            <TextInput
               value={markets}
               onChange={(event) => setMarkets(event.target.value)}
               placeholder="BTC-PERP, ETH-PERP, SOL-PERP"
-              className={INPUT_CLASS}
             />
-          </label>
+          </FormField>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <NumberField
@@ -269,14 +266,13 @@ export default function AgentPolicyPage() {
               <Lock className="h-3 w-3" aria-hidden="true" />
               {encrypt.live ? "Privacy on" : "Privacy ready"}
             </span>
-            <button
+            <Button
               type="submit"
               disabled={pending}
-              className={BUTTON_CLASS}
             >
               <Save size={13} aria-hidden="true" />
               {pending ? "Saving" : "Save safety rules"}
-            </button>
+            </Button>
           </div>
         </form>
       </section>
@@ -316,15 +312,13 @@ function NumberField({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-text-soft">{label}</span>
-      <input
+    <FormField label={label}>
+      <TextInput
         value={value}
         onChange={(event) => onChange(event.target.value)}
         inputMode="decimal"
-        className={INPUT_CLASS}
       />
-    </label>
+    </FormField>
   );
 }
 
@@ -349,18 +343,3 @@ function normalizePositiveText(value: string, fallback: string): string {
 function normalizePositiveNumber(value: number, fallback: number): number {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
-
-const INPUT_CLASS = clsx(
-  "w-full rounded-soft border border-border-soft bg-canvas px-3 py-2 text-sm text-text-strong",
-  "placeholder:text-text-muted",
-  "transition-[border-color,box-shadow] duration-base ease-out-soft",
-  "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25",
-);
-
-const BUTTON_CLASS = clsx(
-  "inline-flex min-h-tap items-center justify-center gap-1.5 rounded-soft bg-accent px-4 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest",
-  "transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
-  "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
-  "disabled:cursor-not-allowed disabled:opacity-60",
-);
