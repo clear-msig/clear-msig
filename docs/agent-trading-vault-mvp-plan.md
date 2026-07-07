@@ -634,6 +634,8 @@ before adding more venues or autonomous capital:
    - Current implementation: ClearSig can submit a policy-approved,
      idempotent intent to an isolated Hyperliquid testnet executor and accepts
      success only when the executor returns a matching verified order artifact.
+     Submitted artifacts are stored with a deterministic hash for later audit
+     and reconciliation checks.
      `examples/hyperliquid-testnet-executor` repeats hard notional, leverage,
      freshness, account, market-order, and slippage checks before using the
      pinned official Hyperliquid Python SDK. The API-wallet private key stays

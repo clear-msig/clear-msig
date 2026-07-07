@@ -24,6 +24,7 @@ export interface AgentServerExecutionRecord {
   readinessState: AgentServerExecutionReadiness["state"];
   message: string;
   artifact?: HyperliquidTestnetOrderArtifact;
+  artifactHash?: string;
   createdAt: number;
   updatedAt: number;
   version: 1;
@@ -75,6 +76,7 @@ export async function recordAgentServerExecutionRequest({
     readinessState: readiness.state,
     message: message ?? readiness.message,
     artifact,
+    artifactHash: artifact ? hashAgentServerExecutionArtifact(artifact) : undefined,
     createdAt: now,
     updatedAt: now,
     version: 1,
@@ -111,6 +113,12 @@ export function agentServerExecutionStorageMode(): "redis" | "memory" {
   return readUpstashEnv() ? "redis" : "memory";
 }
 
+export function hashAgentServerExecutionArtifact(
+  artifact: HyperliquidTestnetOrderArtifact,
+): string {
+  return createHash("sha256").update(stableJson(artifact)).digest("hex");
+}
+
 function statusForReadiness(
   readiness: AgentServerExecutionReadiness,
 ): AgentServerExecutionRequestStatus {
@@ -129,6 +137,16 @@ function executionRedisKey(key: string): string {
 
 function hashStorageKey(value: string): string {
   return createHash("sha256").update(value).digest("hex").slice(0, 40);
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (!value || typeof value !== "object") return JSON.stringify(value);
+  return `{${Object.entries(value as Record<string, unknown>)
+    .filter(([, item]) => item !== undefined)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
+    .join(",")}}`;
 }
 
 function newExecutionRequestId(): string {

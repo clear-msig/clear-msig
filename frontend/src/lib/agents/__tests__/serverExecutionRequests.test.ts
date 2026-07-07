@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  hashAgentServerExecutionArtifact,
   listAgentServerExecutionRequests,
   recordAgentServerExecutionRequest,
 } from "@/lib/agents/serverExecutionRequests";
@@ -134,6 +135,32 @@ describe("server execution request ledger", () => {
 
     expect(first.record.status).toBe("submitted");
     expect(first.record.artifact?.orderId).toBe("123");
+    expect(first.record.artifactHash).toBe(
+      hashAgentServerExecutionArtifact(first.record.artifact!),
+    );
     expect(duplicate.duplicate).toBe(true);
+    expect(duplicate.record.artifactHash).toBe(first.record.artifactHash);
+  });
+
+  it("hashes submitted artifacts with stable key ordering", () => {
+    const first = hashAgentServerExecutionArtifact({
+      exchange: "hyperliquid_testnet",
+      orderId: "123",
+      status: "filled",
+      market: "BTC-PERP",
+      side: "long",
+      submittedAt: 1_780_000_000_000,
+    });
+    const second = hashAgentServerExecutionArtifact({
+      submittedAt: 1_780_000_000_000,
+      side: "long",
+      market: "BTC-PERP",
+      status: "filled",
+      orderId: "123",
+      exchange: "hyperliquid_testnet",
+    });
+
+    expect(first).toMatch(/^[a-f0-9]{64}$/);
+    expect(second).toBe(first);
   });
 });
