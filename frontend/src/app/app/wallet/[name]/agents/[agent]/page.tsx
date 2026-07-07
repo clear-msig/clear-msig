@@ -682,7 +682,7 @@ export default function AgentDetailPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Agent Trading Â· {display}
+              Agent Trading · {display}
             </p>
             <h1 className="mt-1 truncate font-display text-lg leading-tight text-text-strong md:text-display-xs">
               {agent.name}
@@ -1170,7 +1170,7 @@ function ReadinessPanel({
                 Ready to trade
               </h2>
               <Badge tone={readinessBadgeTone(readiness.status)}>
-                {readiness.score}% Â· {readiness.headline}
+                {readiness.score}% · {readiness.headline}
               </Badge>
             </div>
           </div>
@@ -1603,7 +1603,7 @@ function StoppedIdeasPanel({
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-semibold text-text-strong">
-                  {proposal.market} Â· {proposal.side}
+                  {proposal.market} · {proposal.side}
                 </p>
                 <Badge tone="danger">Stopped</Badge>
               </div>
@@ -1760,7 +1760,7 @@ function SessionRow({
             </Badge>
           </div>
           <p className="mt-1 text-xs text-text-soft">
-            {session.allowedMarkets?.join(", ") || "Allowed markets"} Â· ${session.maxNotionalUsd ?? "limit"} Â·{" "}
+            {session.allowedMarkets?.join(", ") || "Allowed markets"} · ${session.maxNotionalUsd ?? "limit"} ·{" "}
             {session.maxLeverage ?? "limit"}x
           </p>
           <p className="mt-2 text-[11px] text-text-soft">
@@ -1815,14 +1815,14 @@ function ProposalRow({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold text-text-strong">
-              {proposal.market} Â· {proposal.side}
+              {proposal.market} · {proposal.side}
             </p>
             <Badge tone={proposal.status === "blocked" ? "danger" : proposal.status === "executed" ? "success" : "default"}>
               {proposalStatusLabel(proposal.status)}
             </Badge>
           </div>
           <p className="mt-1 text-xs text-text-soft">
-            {venueLabel(proposal.venue)} Â· ${proposal.notionalUsd} Â· {proposal.leverage}x Â· Confidence{" "}
+            {venueLabel(proposal.venue)} · ${proposal.notionalUsd} · {proposal.leverage}x · Confidence{" "}
             {proposal.confidence}%
           </p>
           {proposal.policyViolations?.[0] ? (
@@ -1902,12 +1902,12 @@ function ExecutionRow({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold text-text-strong">
-              {execution.market} Â· {execution.side}
+              {execution.market} · {execution.side}
             </p>
             <Badge tone={open ? "success" : "default"}>{open ? "Open" : "Closed"}</Badge>
           </div>
           <p className="mt-1 text-xs text-text-soft">
-            {venueLabel(execution.venue)} Â· ${execution.notionalUsd} Â· {execution.leverage}x
+            {venueLabel(execution.venue)} · ${execution.notionalUsd} · {execution.leverage}x
           </p>
           {open ? (
             <div className="mt-3 grid gap-2 sm:grid-cols-3">

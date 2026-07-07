@@ -60,7 +60,7 @@ export default function AgentApprovalsPage() {
         </Link>
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-            Owner Approvals Â· {display}
+            Owner Approvals · {display}
           </p>
           <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
             Approvals
@@ -151,7 +151,7 @@ function ApprovalRow({
             <Badge>{actionLabel(approval.action)}</Badge>
           </div>
           <p className="mt-1 text-xs text-text-soft">
-            {agent?.name ?? approval.agentId ?? "Vault"} Â· {new Date(approval.createdAt).toLocaleString()}
+            {agent?.name ?? approval.agentId ?? "Vault"} · {new Date(approval.createdAt).toLocaleString()}
           </p>
         </div>
         <span className="inline-flex items-center gap-1 rounded-full border border-border-soft bg-canvas px-2 py-1 text-[11px] font-medium text-text-soft">

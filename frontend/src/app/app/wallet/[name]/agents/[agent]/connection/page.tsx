@@ -572,7 +572,7 @@ export default function AgentConnectionPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Connect Trader Â· {display}
+              Connect Trader · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
               Connect {agent.name}
@@ -802,7 +802,7 @@ function InboxSignalRow({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold text-text-strong">
-              {item.payload.market} Â· {item.payload.side}
+              {item.payload.market} · {item.payload.side}
             </p>
             <span className="rounded-full border border-border-soft px-1.5 py-0.5 text-[10px] font-medium text-text-soft">
               {item.payload.venue}
@@ -810,7 +810,7 @@ function InboxSignalRow({
             <RiskBadge preview={preview} />
           </div>
           <p className="mt-1 text-xs text-text-soft">
-            ${item.payload.notionalUsd} Â· {item.payload.leverage}x Â· Arrived{" "}
+            ${item.payload.notionalUsd} · {item.payload.leverage}x · Arrived{" "}
             {new Date(item.receivedAt).toLocaleString()}
           </p>
           {item.payload.thesis ? (

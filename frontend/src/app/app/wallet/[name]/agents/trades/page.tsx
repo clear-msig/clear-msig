@@ -241,7 +241,7 @@ export default function AgentTradesPage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Trade Performance Â· {display}
+              Trade Performance · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
               Trades
@@ -374,7 +374,7 @@ function TradeRow({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold text-text-strong">
-              {execution.market} Â· {execution.side}
+              {execution.market} · {execution.side}
             </p>
             <Badge tone={open ? "success" : "default"}>{open ? "Open" : "Closed"}</Badge>
             <Badge>{venueLabel(execution.venue)}</Badge>
@@ -386,7 +386,7 @@ function TradeRow({
             ) : null}
           </div>
           <p className="mt-1 text-xs text-text-soft">
-            {agent?.name ?? "Unknown agent"} Â· {formatUsd(execution.notionalUsd)} Â· {execution.leverage}x
+            {agent?.name ?? "Unknown agent"} · {formatUsd(execution.notionalUsd)} · {execution.leverage}x
           </p>
         </div>
         <div className="grid min-w-[16rem] gap-2 sm:grid-cols-4">

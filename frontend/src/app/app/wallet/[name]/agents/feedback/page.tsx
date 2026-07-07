@@ -88,7 +88,7 @@ export default function AgentFeedbackPage() {
         </Link>
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-            Beta Feedback Â· {display}
+            Beta Feedback · {display}
           </p>
           <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
             Feedback

@@ -149,7 +149,7 @@ export default function AgentStrategyPage() {
         </Link>
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-            Trading style Â· {display}
+            Trading style · {display}
           </p>
           <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
             {agentName}

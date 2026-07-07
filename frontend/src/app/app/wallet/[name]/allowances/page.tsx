@@ -33,6 +33,7 @@ import { Breadcrumb } from "@/components/retail/Breadcrumb";
 import { StickyTopBar } from "@/components/retail/StickyTopBar";
 import { BackToWallets } from "@/components/retail/BackToWallets";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
+import { NativeSelect, TextInput } from "@/components/retail/FormField";
 import { useToast } from "@/components/ui/Toast";
 
 export default function AllowancesPage() {
@@ -227,7 +228,7 @@ export default function AllowancesPage() {
                   Asking for the period up front matches the actual
                   decision order ("how often" → "how much"). */}
               <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                <select
+                <NativeSelect
                   value={draft.period}
                   onChange={(e) =>
                     setDrafts((d) => ({
@@ -238,20 +239,16 @@ export default function AllowancesPage() {
                       },
                     }))
                   }
-                  className={
-                    "rounded-soft border border-border-soft bg-canvas px-3 py-2.5 text-sm text-text-strong min-h-tap outline-none " +
-                    "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-                    "focus:border-accent focus:shadow-accent-rest sm:w-44"
-                  }
+                  className="sm:w-44"
                 >
                   {PERIOD_OPTIONS.map((p) => (
                     <option key={p.value} value={p.value}>
                       {p.label}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
                 <div className="flex flex-1 items-baseline gap-2">
-                  <input
+                  <TextInput
                     type="text"
                     inputMode="decimal"
                     value={draft.amountSol}
@@ -269,12 +266,7 @@ export default function AllowancesPage() {
                     }
                     disabled={draft.period === "none"}
                     maxLength={20}
-                    className={
-                      "flex-1 rounded-soft border border-border-soft bg-canvas px-3 py-2.5 text-base text-text-strong min-h-tap outline-none " +
-                      "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-                      "focus:border-accent focus:shadow-accent-rest " +
-                      "disabled:cursor-not-allowed disabled:opacity-50"
-                    }
+                    className="flex-1 text-base"
                   />
                   <span className="text-sm text-text-soft">SOL</span>
                 </div>

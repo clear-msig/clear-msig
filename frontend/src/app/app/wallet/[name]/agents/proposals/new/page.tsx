@@ -30,6 +30,8 @@ import {
 } from "@/lib/agents/client";
 import { encryptStatus } from "@/lib/encrypt/client";
 import { toDisplayName } from "@/lib/retail/walletNames";
+import { Button } from "@/components/retail/Button";
+import { FormField, NativeSelect, TextArea, TextInput } from "@/components/retail/FormField";
 
 const VENUES: Array<{ value: TradingVenue; label: string }> = [
   { value: "mock_perps", label: "Built-in practice" },
@@ -252,7 +254,7 @@ export default function NewAgentProposalPage() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <header className="flex flex-col gap-2">
         <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-          Decision Journal Â· {display}
+          Decision Journal · {display}
         </p>
         <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
           Try a trade idea
@@ -280,12 +282,10 @@ export default function NewAgentProposalPage() {
         </div>
 
         <form onSubmit={submit} className="flex flex-col gap-4">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-text-soft">Trader</span>
-            <select
+          <FormField label="Trader">
+            <NativeSelect
               value={agentId}
               onChange={(event) => setAgentId(event.target.value)}
-              className={INPUT_CLASS}
             >
               {agents.length === 0 ? (
                 <option value="">No traders added</option>
@@ -295,8 +295,8 @@ export default function NewAgentProposalPage() {
                   {agent.name}
                 </option>
               ))}
-            </select>
-          </label>
+            </NativeSelect>
+          </FormField>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <SelectField
@@ -360,16 +360,14 @@ export default function NewAgentProposalPage() {
             />
           </div>
 
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-text-soft">Why this trade?</span>
-            <textarea
+          <FormField label="Why this trade?">
+            <TextArea
               value={thesis}
               onChange={(event) => setThesis(event.target.value)}
               rows={4}
               placeholder="Why this idea should be considered."
-              className={clsx(INPUT_CLASS, "resize-none leading-relaxed")}
             />
-          </label>
+          </FormField>
 
           <fieldset className="grid gap-3 rounded-card bg-canvas p-3 sm:grid-cols-2">
             <legend className="px-1 text-xs font-semibold text-text-strong">
@@ -409,18 +407,19 @@ export default function NewAgentProposalPage() {
               {encrypt.live ? "Privacy on" : "Privacy ready"}
             </span>
             <div className="flex flex-wrap gap-2">
-              <button
+              <Button
                 type="button"
                 disabled={pending}
                 onClick={previewProposal}
-                className={SECONDARY_BUTTON_CLASS}
+                variant="secondary"
+                size="md"
               >
                 Check safety
-              </button>
-              <button type="submit" disabled={pending} className={BUTTON_CLASS}>
+              </Button>
+              <Button type="submit" disabled={pending} size="md">
                 <Send size={13} aria-hidden="true" />
                 {pending ? "Saving" : "Save idea"}
-              </button>
+              </Button>
             </div>
           </div>
         </form>
@@ -481,15 +480,13 @@ function TextField({
   placeholder?: string;
 }) {
   return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-text-soft">{label}</span>
-      <input
+    <FormField label={label}>
+      <TextInput
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className={INPUT_CLASS}
       />
-    </label>
+    </FormField>
   );
 }
 
@@ -505,16 +502,14 @@ function TextAreaField({
   placeholder?: string;
 }) {
   return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-text-soft">{label}</span>
-      <textarea
+    <FormField label={label}>
+      <TextArea
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         rows={3}
-        className={clsx(INPUT_CLASS, "resize-none leading-relaxed")}
       />
-    </label>
+    </FormField>
   );
 }
 
@@ -530,20 +525,18 @@ function SelectField({
   options: Array<{ value: string; label: string }>;
 }) {
   return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-text-soft">{label}</span>
-      <select
+    <FormField label={label}>
+      <NativeSelect
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className={INPUT_CLASS}
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
           </option>
         ))}
-      </select>
-    </label>
+      </NativeSelect>
+    </FormField>
   );
 }
 
@@ -562,25 +555,3 @@ function clamp(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
   return Math.min(max, Math.max(min, value));
 }
-
-const INPUT_CLASS = clsx(
-  "w-full rounded-soft border border-border-soft bg-canvas px-3 py-2 text-sm text-text-strong",
-  "placeholder:text-text-muted",
-  "transition-[border-color,box-shadow] duration-base ease-out-soft",
-  "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25",
-);
-
-const BUTTON_CLASS = clsx(
-  "inline-flex min-h-tap items-center justify-center gap-1.5 rounded-soft bg-accent px-4 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest",
-  "transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
-  "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
-  "disabled:cursor-not-allowed disabled:opacity-60",
-);
-
-const SECONDARY_BUTTON_CLASS = clsx(
-  "inline-flex min-h-tap items-center justify-center rounded-soft border border-border-soft bg-canvas px-4 py-2 text-xs font-medium text-text-strong",
-  "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
-  "disabled:cursor-not-allowed disabled:opacity-60",
-);

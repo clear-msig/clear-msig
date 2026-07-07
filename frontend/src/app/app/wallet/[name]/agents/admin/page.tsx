@@ -242,7 +242,7 @@ export default function AgentAdminPage() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Beta Admin Â· {display}
+              Beta Admin · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
               Operator dashboard
@@ -321,7 +321,7 @@ export default function AgentAdminPage() {
               <StatusRow
                 key={agent.id}
                 title={agent.name}
-                detail={`${agent.status} Â· ${openTrades} open trade${openTrades === 1 ? "" : "s"} Â· ${blocked} blocked idea${blocked === 1 ? "" : "s"}`}
+                detail={`${agent.status} · ${openTrades} open trade${openTrades === 1 ? "" : "s"} · ${blocked} blocked idea${blocked === 1 ? "" : "s"}`}
                 tone={agent.status === "active" ? "warning" : "danger"}
               />
             );
