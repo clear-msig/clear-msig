@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { createHmac } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import {
   buildScenarioSignal,
@@ -8,6 +9,7 @@ import {
 } from "./scenarios.mjs";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
+const SIGNATURE_SCHEME = "hmac_sha256_v1";
 
 export function parseArgs(argv) {
   const options = {
@@ -18,6 +20,7 @@ export function parseArgs(argv) {
     market: "BTC-PERP",
     side: "long",
     dryRun: false,
+    signed: true,
     help: false,
   };
 
@@ -25,6 +28,10 @@ export function parseArgs(argv) {
     const argument = argv[index];
     if (argument === "--dry-run") {
       options.dryRun = true;
+      continue;
+    }
+    if (argument === "--unsigned") {
+      options.signed = false;
       continue;
     }
     if (argument === "--help" || argument === "-h") {
@@ -66,16 +73,23 @@ export async function submitSignal({
   endpoint,
   signalKey,
   signal,
+  signed = true,
   fetchImpl = fetch,
   timeoutMs = DEFAULT_TIMEOUT_MS,
 }) {
+  const signature = signed ? signSignal({ signal, signalKey }) : null;
   const response = await fetchImpl(endpoint, {
     method: "POST",
     headers: {
       "content-type": "application/json",
       "x-clearsig-signal-key": signalKey,
+      ...(signature ? { "x-clearsig-signal-signature": signature } : {}),
     },
-    body: JSON.stringify({ signal }),
+    body: JSON.stringify(
+      signature
+        ? { signal, signature, signatureScheme: SIGNATURE_SCHEME }
+        : { signal },
+    ),
     signal: AbortSignal.timeout(timeoutMs),
   });
   const body = await readJson(response);
@@ -118,6 +132,7 @@ export async function run(options, io = console) {
     endpoint: options.endpoint,
     signalKey: options.signalKey,
     signal,
+    signed: options.signed,
   });
   io.log(formatResponse("First submission", first));
 
@@ -129,6 +144,7 @@ export async function run(options, io = console) {
     endpoint: options.endpoint,
     signalKey: options.signalKey,
     signal,
+    signed: options.signed,
   });
   io.log(formatResponse("Retry submission", second));
   if (first.duplicate !== false || second.duplicate !== true || first.id !== second.id) {
@@ -154,6 +170,7 @@ Options:
   --market <market>    Market for the signal (default: BTC-PERP)
   --side <side>        long | short (default: long)
   --dry-run            Print a fresh payload without sending it
+  --unsigned           Submit with signal key only, for compatibility testing
   --help, -h           Show this help
 `;
 }
@@ -205,6 +222,28 @@ function validateHttpUrl(value, label) {
     throw new Error(`${label} must use HTTP or HTTPS.`);
   }
   return parsed;
+}
+
+export function signSignal({ signal, signalKey }) {
+  if (!signalKey) throw new Error("Signal key is required for signed submissions.");
+  return createHmac("sha256", signalKey)
+    .update(canonicalSignal(signal))
+    .digest("hex");
+}
+
+export function canonicalSignal(signal) {
+  return JSON.stringify(stableValue(signal));
+}
+
+function stableValue(value) {
+  if (Array.isArray(value)) return value.map(stableValue);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => [key, stableValue(item)]),
+  );
 }
 
 export async function fetchMarketDataSnapshot(url, market, fetchImpl = fetch) {

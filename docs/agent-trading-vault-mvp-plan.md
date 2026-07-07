@@ -600,6 +600,8 @@ before adding more venues or autonomous capital:
      Signal key, and run the documented scenarios.
    - Current implementation:
      `examples/agent-signal-runner`.
+   - Current implementation: the runner submits `hmac_sha256_v1` signed
+     decisions by default and keeps an explicit unsigned compatibility mode.
    - Current implementation: `examples/creator-agent-sdk` explains the
      non-hosted model and provides a dependency-free decision helper for
      evidence-rich trade decisions, freshness/idempotency fields, and

@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildScenarioSignal } from "./scenarios.mjs";
-import { fetchMarketDataSnapshot, parseArgs, submitSignal } from "./run.mjs";
+import {
+  canonicalSignal,
+  fetchMarketDataSnapshot,
+  parseArgs,
+  signSignal,
+  submitSignal,
+} from "./run.mjs";
 
 test("builds a valid bounded signal with fresh retry metadata", () => {
   const signal = buildScenarioSignal("valid", {
@@ -45,12 +51,29 @@ test("parses environment configuration without printing or persisting secrets", 
   }
 });
 
-test("submits only the signal key and structured signal payload", async () => {
+test("signs demo signals with the submit-only signal key", () => {
+  const signal = buildScenarioSignal("valid", {
+    now: 1_780_000_000_000,
+    idSuffix: "fixed",
+  });
+
+  assert.equal(
+    canonicalSignal({ b: 2, a: { d: undefined, c: 1 } }),
+    '{"a":{"c":1},"b":2}',
+  );
+  assert.match(
+    signSignal({ signal, signalKey: "cs_sig_test" }),
+    /^[a-f0-9]{64}$/,
+  );
+});
+
+test("submits signed signal payloads by default", async () => {
   let request;
+  const signal = buildScenarioSignal("valid");
   const response = await submitSignal({
     endpoint: "http://localhost:3000/api/agent-signals/vault/agent",
     signalKey: "cs_sig_test",
-    signal: buildScenarioSignal("valid"),
+    signal,
     fetchImpl: async (endpoint, init) => {
       request = { endpoint, init };
       return new Response(
@@ -70,9 +93,44 @@ test("submits only the signal key and structured signal payload", async () => {
 
   assert.equal(request.endpoint, "http://localhost:3000/api/agent-signals/vault/agent");
   assert.equal(request.init.headers["x-clearsig-signal-key"], "cs_sig_test");
+  assert.match(
+    request.init.headers["x-clearsig-signal-signature"],
+    /^[a-f0-9]{64}$/,
+  );
   assert.equal("x-clearsig-management-key" in request.init.headers, false);
-  assert.equal(JSON.parse(request.init.body).signal.venue, "mock_perps");
+  const body = JSON.parse(request.init.body);
+  assert.equal(body.signal.venue, "mock_perps");
+  assert.equal(body.signature, request.init.headers["x-clearsig-signal-signature"]);
+  assert.equal(body.signatureScheme, "hmac_sha256_v1");
   assert.equal(response.id, "inbox-1");
+});
+
+test("can submit unsigned payloads for compatibility testing", async () => {
+  let request;
+  await submitSignal({
+    endpoint: "http://localhost:3000/api/agent-signals/vault/agent",
+    signalKey: "cs_sig_test",
+    signal: buildScenarioSignal("valid"),
+    signed: false,
+    fetchImpl: async (endpoint, init) => {
+      request = { endpoint, init };
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          id: "inbox-1",
+          duplicate: false,
+          status: "queued_for_clearsig_risk_check",
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      );
+    },
+  });
+
+  assert.equal("x-clearsig-signal-signature" in request.init.headers, false);
+  assert.equal(JSON.parse(request.init.body).signature, undefined);
 });
 
 test("reads a provider snapshot without sending agent credentials", async () => {
