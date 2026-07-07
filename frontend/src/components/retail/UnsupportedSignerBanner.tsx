@@ -51,12 +51,10 @@ export function UnsupportedSignerBanner({
         <div className="min-w-0 flex-1">
           <p className="font-medium">{title ?? defaultTitle}</p>
           <p className={"mt-1 text-text-soft " + (compact ? "text-[11px]" : "text-xs")}>
-            A legacy embedded signer path can corrupt the message
-            bytes before signing. Clear routes Google, email, and
-            phone sign-ins through the compatible embedded Solana
-            wallet path. If you still land here, your current account
-            is on the legacy signer path and needs to be replaced or
-            the app needs to be redeployed from the newer build. For
+            This Dynamic embedded account is on a legacy Solana signer
+            path that can corrupt ClearSign bytes before signing. Use
+            Solflare, Backpack, Phantom, Coinbase Wallet, or recreate
+            the embedded wallet on Dynamic&rsquo;s newer Solana path. For
             hardware-tier security,{" "}
             <Link
               href="/security"
@@ -64,8 +62,7 @@ export function UnsupportedSignerBanner({
             >
               connect a Ledger
             </Link>
-            . Your connected wallet still receives funds and shows
-            balance fine.
+            . Nothing moves until a compatible signer approves.
           </p>
           {!compact && (
             <a

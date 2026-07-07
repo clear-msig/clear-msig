@@ -35,6 +35,7 @@ import { useLedger } from "@/lib/wallet/LedgerProvider";
 import { WalletRuntimeProvider, type WalletValue } from "@/lib/wallet/context";
 import {
   isCompatibleEmbeddedWallet,
+  isLegacyWaasSolanaWallet,
   selectSolanaWallet,
   walletConnectorId,
 } from "@/lib/wallet/selection";
@@ -52,6 +53,19 @@ type InjectedSolanaProvider = {
 type InjectedProviderCandidate = {
   source: "backpack" | "phantom" | "solana" | "solflare";
   provider: InjectedSolanaProvider | undefined;
+};
+
+type SolanaMessageSignature =
+  | Uint8Array
+  | { signature?: Uint8Array };
+
+type SolanaSignerLike = {
+  signMessage: (b: Uint8Array) => Promise<SolanaMessageSignature>;
+};
+
+type BytePreservingSolanaWallet = {
+  signUint8ArrayMessage?: (encodedMessage: Uint8Array) => Promise<Uint8Array>;
+  getSigner?: () => Promise<SolanaSignerLike | undefined>;
 };
 
 function getInjectedProviderCandidates(
@@ -186,8 +200,9 @@ function useDynamicWalletValue(): WalletValue {
   // `wallet_signed_wrong_bytes` with a targeted recovery message.
   const signerIssue = useMemo<"waas" | null>(() => {
     if (ledger.session) return null; // Ledger always wins.
+    if (solanaWallet && isLegacyWaasSolanaWallet(solanaWallet)) return "waas";
     return null;
-  }, [ledger.session]);
+  }, [ledger.session, solanaWallet]);
 
   const walletConnectorKey = useMemo(() => walletConnectorId(solanaWallet), [solanaWallet]);
   const isPhantomWallet = /phantom/.test(walletConnectorKey);
@@ -284,6 +299,11 @@ function useDynamicWalletValue(): WalletValue {
         if (!solanaWallet) {
           throw new Error("Connect a wallet before signing");
         }
+        if (signerIssue === "waas") {
+          throw new Error(
+            "This email/social embedded signer cannot safely finish Solana ClearSign yet. Connect a Solana wallet or recreate this account on the newer embedded Solana wallet path.",
+          );
+        }
         // Phantom mobile in-app browser: bypass the Dynamic SDK and
         // call window.solana.signMessage(bytes, "utf8") directly so
         // Phantom renders the body as text instead of raw hex. Going
@@ -334,15 +354,18 @@ function useDynamicWalletValue(): WalletValue {
             return sig;
           }
         }
-        const signer = await (
-          solanaWallet as unknown as {
-            getSigner: () => Promise<{
-              signMessage: (
-                b: Uint8Array,
-              ) => Promise<Uint8Array | { signature?: Uint8Array }>;
-            }>;
-          }
-        ).getSigner();
+        const bytePreservingWallet =
+          solanaWallet as unknown as BytePreservingSolanaWallet;
+        if (typeof bytePreservingWallet.signUint8ArrayMessage === "function") {
+          return bytePreservingWallet.signUint8ArrayMessage(bytes);
+        }
+
+        const signer = await bytePreservingWallet.getSigner?.();
+        if (!signer || typeof signer.signMessage !== "function") {
+          throw new Error(
+            "This Solana wallet connector does not expose signMessage",
+          );
+        }
         const result = await signer.signMessage(bytes);
         // Dynamic returns either Uint8Array directly or {signature: ...}
         // depending on connector version; normalise.
@@ -357,7 +380,15 @@ function useDynamicWalletValue(): WalletValue {
         "No signer available. Connect a Ledger or sign in to a wallet.",
       );
     },
-    [solanaWallet, ledger.session, ledgerPublicKey, dynamicPublicKey, isMobile, isPhantomWallet],
+    [
+      solanaWallet,
+      ledger.session,
+      ledgerPublicKey,
+      dynamicPublicKey,
+      isMobile,
+      isPhantomWallet,
+      signerIssue,
+    ],
   );
 
   const disconnect = useCallback(async () => {
