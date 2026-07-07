@@ -34,6 +34,7 @@ export * from "@/lib/agents/serverMarketDataAdapters";
 export * from "@/lib/agents/marketIntelligence";
 export * from "@/lib/agents/clientState";
 export * from "@/lib/agents/ownerApproval";
+export * from "@/lib/agents/creatorRegistry";
 export * from "@/lib/agents/publicProfile";
 export * from "@/lib/agents/marketplaceRegistry";
 export * from "@/lib/agents/notifications";

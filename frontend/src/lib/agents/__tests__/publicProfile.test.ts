@@ -69,7 +69,12 @@ describe("agent public profiles", () => {
       walletName: "vault",
       name: "Alpha",
       slug: "alpha-agent",
+      creatorType: "external",
       primarySource: "paper",
+      registryReadiness: {
+        status: "ready",
+        score: 100,
+      },
     });
     const paper = profile?.lanes.find((lane) => lane.source === "paper");
     expect(paper).toMatchObject({
@@ -93,6 +98,15 @@ describe("agent public profiles", () => {
     expect(profile?.recentDecisions[0]?.evidence[0]).toMatchObject({
       label: "Technical read",
     });
+    expect(profile?.registryReadiness.checks.map((check) => check.id)).toEqual([
+      "creator-profile",
+      "supported-markets",
+      "signing-identity",
+      "observed-performance",
+      "decision-evidence",
+      "user-disclosures",
+      "registry-review",
+    ]);
   });
 
   it("formats wallet-scoped public URLs", () => {
@@ -244,4 +258,3 @@ function execution(): AgentExecutionRecord {
     version: 1,
   };
 }
-

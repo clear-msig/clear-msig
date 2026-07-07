@@ -63,6 +63,9 @@ describe("agent marketplace registry", () => {
     expect(registry.entries[0]).toMatchObject({
       walletName: "vault-b",
       primarySource: "testnet",
+      registryReadiness: {
+        status: "needs_review",
+      },
       url: "/agents/vault-b/testnet-alpha",
     });
     expect(registry.entries[1]?.laneSummaries.map((lane) => lane.source)).toEqual([
@@ -196,4 +199,3 @@ function execution({
     version: 1,
   };
 }
-

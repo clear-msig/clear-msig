@@ -659,6 +659,11 @@ before adding more venues or autonomous capital:
    - Operator/user: publish an externally hosted agent, verify its signing
      identity, submit decisions through the SDK, and confirm the marketplace
      only shows ClearSig-observed performance.
+   - Current implementation: public profiles and marketplace entries now share
+     a creator registry readiness model. External agents must expose creator
+     details, supported markets and venues, signing identity metadata,
+     ClearSig-observed track-record lanes, decision evidence, disclosures, and
+     review metadata before they are marked registry ready.
 7. **Real-capital authority hardening**
    - Codex/build: add wallet-signed backend mutations, on-chain grants and
      revocation, signed agent intents, confidential enforcement, and durable

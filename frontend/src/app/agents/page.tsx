@@ -17,6 +17,7 @@ import {
   loadAgentMarketplaceRegistry,
   marketplaceWalletsFromSearch,
 } from "@/lib/agents/serverMarketplaceRegistry";
+import { creatorRegistryStatusLabel } from "@/lib/agents/creatorRegistry";
 import { AgentServerStatePersistenceError } from "@/lib/agents/serverState";
 import type { AgentTrackRecordSource } from "@/lib/agents/types";
 
@@ -170,6 +171,7 @@ function MarketplaceCard({ entry }: { entry: AgentMarketplaceEntry }) {
               {entry.name}
             </h2>
             <SourceTrustBadge source={entry.primarySource} />
+            <RegistryStatusBadge status={entry.registryReadiness.status} />
             {entry.identityVerified ? <Badge>Signed identity</Badge> : null}
           </div>
           <p className="mt-2 text-sm leading-relaxed text-text-soft">{entry.summary}</p>
@@ -293,6 +295,24 @@ function SourceTrustBadge({ source }: { source: AgentTrackRecordSource }) {
   return (
     <span className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-medium ${tone}`}>
       {sourceTrustLabel(source)}
+    </span>
+  );
+}
+
+function RegistryStatusBadge({
+  status,
+}: {
+  status: AgentMarketplaceEntry["registryReadiness"]["status"];
+}) {
+  const tone =
+    status === "ready"
+      ? "border-accent/30 bg-accent/[0.08] text-accent"
+      : status === "needs_review"
+        ? "border-warning/30 bg-warning/[0.08] text-warning"
+        : "border-danger/30 bg-danger/[0.08] text-danger";
+  return (
+    <span className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-medium ${tone}`}>
+      {creatorRegistryStatusLabel(status)}
     </span>
   );
 }
