@@ -663,7 +663,7 @@ function walletProgramErrorMessage(hay: string): FriendlyError | null {
   const customCode = hay.match(/custom program error:\s*0x([0-9a-f]+)/i);
   if (customCode) {
     const code = parseInt(customCode[1], 16);
-    if (code >= 6000 && code <= 6022) {
+    if (code >= 6000 && code < 6000 + WALLET_ERROR_INDEX.length) {
       const name = WALLET_ERROR_INDEX[code - 6000];
       const msg = WALLET_ERRORS[name];
       if (msg) return msg;
@@ -824,6 +824,16 @@ const WALLET_ERRORS: Record<string, FriendlyError> = {
     title: "A value in this request breaks the rule's constraints",
     body: "The amount, recipient, or another field doesn't satisfy the rule's limits. Adjust and try again.",
   },
+  InvalidClearSignAction: {
+    title: "ClearSign action is out of sync",
+    body:
+      "The app, backend, and on-chain program are not speaking the same ClearSign action format. Redeploy the backend from the latest commit, then retry.",
+  },
+  InvalidClearSignEnvelope: {
+    title: "ClearSign details did not verify",
+    body:
+      "The readable text, policy, amount, recipient, or expiry did not match the on-chain ClearSign commitment. Create a fresh request and retry.",
+  },
 };
 
 /// Ordered list of WalletError names by Anchor discriminant offset
@@ -853,4 +863,6 @@ const WALLET_ERROR_INDEX: ReadonlyArray<string> = [
   "AccountCountMismatch",
   "AccountAddressMismatch",
   "ParamConstraintViolation",
+  "InvalidClearSignAction",
+  "InvalidClearSignEnvelope",
 ];

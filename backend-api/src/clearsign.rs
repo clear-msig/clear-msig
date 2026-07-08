@@ -1,4 +1,4 @@
-use axum::{routing::post, Json, Router};
+use axum::{extract::State, routing::post, Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -82,8 +82,20 @@ struct ClearSignVoteMessages {
 }
 
 async fn prepare_clearsign_v2(
+    State(state): State<AppState>,
     Json(req): Json<ClearSignPrepareRequest>,
 ) -> Result<Json<ClearSignPrepareResponse>, ApiError> {
+    let wallet_id = resolve_wallet_id(&state, &req.envelope.wallet_name).await?;
+    prepare_clearsign_v2_response(req, Some(wallet_id))
+}
+
+fn prepare_clearsign_v2_response(
+    mut req: ClearSignPrepareRequest,
+    wallet_id_override: Option<String>,
+) -> Result<Json<ClearSignPrepareResponse>, ApiError> {
+    if let Some(wallet_id) = wallet_id_override {
+        req.envelope.wallet_id = Some(wallet_id);
+    }
     let envelope = req.envelope.normalized()?;
     let payload_hash = hash_payload(envelope.kind, &envelope.payload)?;
     let lines = action_lines(&envelope)?;
@@ -162,6 +174,28 @@ async fn prepare_clearsign_v2(
         signable_text,
         vote_messages,
     }))
+}
+
+async fn resolve_wallet_id(state: &AppState, wallet_name: &str) -> Result<String, ApiError> {
+    let name = normalize_text(wallet_name);
+    if name.is_empty() {
+        return Err(ApiError::BadRequest("wallet_name must not be empty".into()));
+    }
+
+    let wallet = state
+        .runner
+        .run_json(vec![
+            "wallet".to_string(),
+            "show".to_string(),
+            "--name".to_string(),
+            name,
+        ])
+        .await?;
+    wallet
+        .get("address")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .ok_or_else(|| ApiError::InvalidOutput("wallet show did not return address".into()))
 }
 
 struct NormalizedEnvelope {
@@ -332,7 +366,7 @@ mod tests {
             }),
         };
 
-        let Json(response) = prepare_clearsign_v2(Json(req)).await.unwrap();
+        let Json(response) = prepare_clearsign_v2_response(req, None).unwrap();
         let vote_messages = response.vote_messages.unwrap();
         let propose = decode_hex_string(&vote_messages.propose);
 
