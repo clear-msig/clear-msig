@@ -113,7 +113,6 @@ const enc = new TextEncoder();
 const CLEARSIGN_V2_VERSION = 2;
 const CLEARSIGN_V2_DOMAIN = "clearsig:policy-engine:v2";
 const CLEARSIGN_V2_PAYLOAD_DOMAIN = "clearsig:policy-engine:v2:payload";
-const CLEARSIGN_V2_VOTE_DOMAIN = "clearsig:policy-engine:v2:vote";
 
 export type ClearSignVoteKind = "propose" | "approve" | "cancel";
 
@@ -199,22 +198,6 @@ export function clearSignVoteMessage(input: {
   );
 }
 
-export function clearSignVoteMessageHash(input: {
-  voteKind: ClearSignVoteKind;
-  walletId: string;
-  proposalIndex: number | bigint;
-  envelopeHash: string;
-}): string {
-  const out = new ByteWriter();
-  out.pushBytes(CLEARSIGN_V2_VOTE_DOMAIN);
-  out.pushU8(CLEARSIGN_V2_VERSION);
-  out.pushU8(clearSignVoteKindCode(input.voteKind));
-  out.pushBytes(canonicalAddressOrText(normalizeText(input.walletId)));
-  out.pushU64(BigInt(input.proposalIndex));
-  out.pushRaw(fromHex(normalizeHash(input.envelopeHash)));
-  return toHex(sha256(out.bytes()));
-}
-
 export function clearSignActionKindCode(kind: ClearSignActionKind): number {
   switch (kind) {
     case "send":
@@ -239,17 +222,6 @@ export function clearSignActionKindCode(kind: ClearSignActionKind): number {
       return 10;
     case "swap_intent":
       return 11;
-  }
-}
-
-export function clearSignVoteKindCode(kind: ClearSignVoteKind): number {
-  switch (kind) {
-    case "propose":
-      return 1;
-    case "approve":
-      return 2;
-    case "cancel":
-      return 3;
   }
 }
 

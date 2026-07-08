@@ -16,6 +16,7 @@ use std::{thread, time::Duration};
 /// default instead of making each call site remember to opt in.
 const DEFAULT_COMPUTE_UNIT_LIMIT: u32 = 600_000;
 const RPC_SCAN_RETRY_ATTEMPTS: usize = 4;
+const RPC_SEND_RETRY_ATTEMPTS: usize = 4;
 
 pub fn client(config: &RuntimeConfig) -> RpcClient {
     RpcClient::new_with_commitment(&config.rpc_url, CommitmentConfig::confirmed())
@@ -98,8 +99,15 @@ fn is_retryable_rpc_error(error: &impl std::fmt::Display) -> bool {
         "error sending request",
         "connection",
         "deadline has elapsed",
+        "blockhash not found",
+        "max retries exceeded",
+        "node is behind",
+        "request failed",
+        "transport",
         "timed out",
         "timeout",
+        "transaction was not confirmed",
+        "unable to confirm transaction",
         "too many requests",
         "429",
         "500",
@@ -140,17 +148,40 @@ pub fn send_instructions(
     instructions: Vec<Instruction>,
 ) -> Result<Signature> {
     let instructions = with_compute_budget(instructions);
-    let recent_blockhash = rpc.get_latest_blockhash()?;
-    let transaction = Transaction::new_signed_with_payer(
-        &instructions,
-        Some(&config.payer.pubkey()),
-        &[&config.payer],
-        recent_blockhash,
-    );
-    let signature = rpc
-        .send_and_confirm_transaction(&transaction)
-        .with_context(|| "sending transaction")?;
-    Ok(signature)
+    for attempt in 1..=RPC_SEND_RETRY_ATTEMPTS {
+        let recent_blockhash = match rpc.get_latest_blockhash() {
+            Ok(blockhash) => blockhash,
+            Err(error) => {
+                if attempt >= RPC_SEND_RETRY_ATTEMPTS || !is_retryable_rpc_error(&error) {
+                    return Err(error).with_context(|| "fetching latest blockhash");
+                }
+                eprintln!(
+                    "devnet RPC blockhash fetch failed (attempt {attempt}/{RPC_SEND_RETRY_ATTEMPTS}); retrying..."
+                );
+                thread::sleep(rpc_retry_delay(attempt));
+                continue;
+            }
+        };
+        let transaction = Transaction::new_signed_with_payer(
+            &instructions,
+            Some(&config.payer.pubkey()),
+            &[&config.payer],
+            recent_blockhash,
+        );
+        match rpc.send_and_confirm_transaction(&transaction) {
+            Ok(signature) => return Ok(signature),
+            Err(error) => {
+                if attempt >= RPC_SEND_RETRY_ATTEMPTS || !is_retryable_rpc_error(&error) {
+                    return Err(error).with_context(|| "sending transaction");
+                }
+                eprintln!(
+                    "devnet RPC send failed (attempt {attempt}/{RPC_SEND_RETRY_ATTEMPTS}); retrying with a fresh blockhash..."
+                );
+                thread::sleep(rpc_retry_delay(attempt));
+            }
+        }
+    }
+    unreachable!("bounded send retry loop always returns")
 }
 
 fn with_compute_budget(mut instructions: Vec<Instruction>) -> Vec<Instruction> {
@@ -179,5 +210,29 @@ mod tests {
             prepared[0].program_id,
             ComputeBudgetInstruction::set_compute_unit_limit(1).program_id
         );
+    }
+
+    #[test]
+    fn classifies_transient_send_errors_as_retryable() {
+        for message in [
+            "error sending request for url",
+            "Blockhash not found",
+            "Data writes to account failed: Custom error: Max retries exceeded",
+            "unable to confirm transaction",
+            "429 Too Many Requests",
+        ] {
+            assert!(is_retryable_rpc_error(&message), "{message}");
+        }
+    }
+
+    #[test]
+    fn does_not_retry_program_logic_errors() {
+        for message in [
+            "custom program error: 0x1777",
+            "Error processing Instruction 1: invalid account data",
+            "signature verification failed",
+        ] {
+            assert!(!is_retryable_rpc_error(&message), "{message}");
+        }
     }
 }
