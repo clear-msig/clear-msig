@@ -273,6 +273,15 @@ export function friendlyError(
     };
   }
 
+  if (bag.walletErrorCode === "message_mismatch") {
+    return {
+      title: "ClearSign details changed before signing",
+      body:
+        "Nothing moved. The readable approval text did not match the prepared request. Start a fresh attempt and review the newest wallet popup.",
+      durationMs: 10_000,
+    };
+  }
+
   // ── Wallet UX: Ledger device-state errors (app closed, etc.) ──
   // These came in as "rejected" before, telling users they cancelled
   // when their device just had the Solana app closed. Each code gets
