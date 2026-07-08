@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  isLegacyWaasSolanaWallet,
-  selectSolanaWallet,
-} from "@/lib/wallet/selection";
+import { selectSolanaWallet } from "@/lib/wallet/selection";
 
 type TestWallet = {
   id: string;
@@ -45,28 +42,5 @@ describe("selectSolanaWallet", () => {
     expect(selectSolanaWallet(evm, [evm, embeddedSolana], isSolana)).toBe(
       embeddedSolana,
     );
-  });
-});
-
-describe("isLegacyWaasSolanaWallet", () => {
-  it("flags Dynamic WaaS SVM connectors as legacy signers", () => {
-    expect(
-      isLegacyWaasSolanaWallet({
-        connector: { key: "dynamicwaas-svm" },
-      }),
-    ).toBe(true);
-    expect(
-      isLegacyWaasSolanaWallet({
-        connector: { name: "Dynamic WaaS Solana" },
-      }),
-    ).toBe(true);
-  });
-
-  it("does not flag Turnkey embedded Solana wallets", () => {
-    expect(
-      isLegacyWaasSolanaWallet({
-        connector: { key: "turnkey-solana" },
-      }),
-    ).toBe(false);
   });
 });

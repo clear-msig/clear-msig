@@ -18,11 +18,6 @@ export function isCompatibleEmbeddedWallet(wallet: unknown): boolean {
   );
 }
 
-export function isLegacyWaasSolanaWallet(wallet: unknown): boolean {
-  const connector = walletConnectorId(wallet);
-  return /(?:^|[-_ ])(?:dynamic)?waas(?:[-_ ]|$)/.test(connector);
-}
-
 export function selectSolanaWallet<T>(
   primaryWallet: T | null | undefined,
   allWallets: readonly T[],

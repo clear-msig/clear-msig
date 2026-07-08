@@ -265,17 +265,6 @@ export function friendlyError(
     };
   }
 
-  if (
-    hay.includes("embedded signer cannot safely finish solana clearsign") ||
-    hay.includes("newer embedded solana wallet path")
-  ) {
-    return {
-      title: "This sign-in cannot finish ClearSign yet",
-      body:
-        "Nothing moved. This older Dynamic embedded signer cannot safely sign Solana ClearSign bytes. Connect Solflare, Backpack, Phantom, Coinbase Wallet, or recreate the embedded wallet on the newer Solana path.",
-    };
-  }
-
   if (bag.walletErrorCode === "stale_request") {
     return {
       title: "This request expired",

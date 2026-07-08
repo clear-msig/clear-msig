@@ -35,7 +35,6 @@ import { useLedger } from "@/lib/wallet/LedgerProvider";
 import { WalletRuntimeProvider, type WalletValue } from "@/lib/wallet/context";
 import {
   isCompatibleEmbeddedWallet,
-  isLegacyWaasSolanaWallet,
   selectSolanaWallet,
   walletConnectorId,
 } from "@/lib/wallet/selection";
@@ -194,13 +193,14 @@ function useDynamicWalletValue(): WalletValue {
 
   // Historical note: older Dynamic WaaS Solana signers corrupted the
   // wrapped offchain envelope's leading 0xff byte. The app now defaults
-  // software wallets to plain_v2 (ASCII body bytes) and locally verifies
-  // every returned signature before submit, so connector-name blocking is
-  // no longer correct. If any signer still mutates bytes, signBytes throws
-  // `wallet_signed_wrong_bytes` with a targeted recovery message.
+  // software wallets to plain_v2 / ClearSign text bytes and locally
+  // verifies every returned signature before submit, so connector-name
+  // blocking is no longer correct. If any signer still mutates bytes,
+  // signBytes throws `wallet_signed_wrong_bytes` before anything reaches
+  // the backend or program.
   const signerIssue = useMemo<"waas" | null>(() => {
-    if (ledger.session) return null; // Ledger always wins.
-    if (solanaWallet && isLegacyWaasSolanaWallet(solanaWallet)) return "waas";
+    void solanaWallet;
+    if (ledger.session) return null;
     return null;
   }, [ledger.session, solanaWallet]);
 
@@ -298,11 +298,6 @@ function useDynamicWalletValue(): WalletValue {
       if (useDynamic) {
         if (!solanaWallet) {
           throw new Error("Connect a wallet before signing");
-        }
-        if (signerIssue === "waas") {
-          throw new Error(
-            "This email/social embedded signer cannot safely finish Solana ClearSign yet. Connect a Solana wallet or recreate this account on the newer embedded Solana wallet path.",
-          );
         }
         // Phantom mobile in-app browser: bypass the Dynamic SDK and
         // call window.solana.signMessage(bytes, "utf8") directly so
