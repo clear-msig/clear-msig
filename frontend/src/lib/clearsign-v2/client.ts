@@ -12,7 +12,7 @@ export interface ClearSignVotePrepareInput {
   proposalIndex: number;
 }
 
-export interface ClearSignVoteHashes {
+export interface ClearSignVoteMessages {
   propose: string;
   approve: string;
   cancel: string;
@@ -22,7 +22,7 @@ export interface BackendClearSignSummary extends ClearSignSummary {
   version: 2;
   kind: ClearSignEnvelope<ClearSignPayload>["kind"];
   actionKindCode: number;
-  voteHashes?: ClearSignVoteHashes;
+  voteMessages?: ClearSignVoteMessages;
   source: "backend" | "local";
 }
 

@@ -1,7 +1,7 @@
 export {
   prepareClearSignAction,
   type BackendClearSignSummary,
-  type ClearSignVoteHashes,
+  type ClearSignVoteMessages,
   type ClearSignVotePrepareInput,
 } from "@/lib/clearsign-v2/client";
 

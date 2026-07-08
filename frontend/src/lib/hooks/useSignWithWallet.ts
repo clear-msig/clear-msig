@@ -43,7 +43,7 @@ export interface SignedPayload {
   /// Byte layout that was signed. The backend forwards this to the CLI
   /// so pre-signed verification uses the same layout instead of
   /// guessing via fallback.
-  message_flavor?: "offchain_v1" | "plain_v2" | "clearsign_v2_vote_hash" | "clearsign_v2_text";
+  message_flavor?: "offchain_v1" | "plain_v2" | "clearsign_v2_text";
   /// Hex-encoded exact message bytes the user signed. Typed ClearSign
   /// votes submit this so the program verifies the readable text.
   signed_message_hex?: string;

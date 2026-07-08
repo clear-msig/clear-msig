@@ -832,6 +832,85 @@ fn hex_string(bytes: &[u8]) -> String {
     out
 }
 
+#[test]
+fn test_typed_propose_rejects_signature_for_different_readable_text() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let wallet_name = "typed-readable-drift";
+    let action_id = sha256_hash(b"readable-drift-action");
+    let nonce = sha256_hash(b"readable-drift-nonce");
+    let expiry = typed_test_expiry();
+
+    let (instruction, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&proposer)],
+        1,
+    );
+    assert!(svm.process_instruction(&instruction, &accounts).is_ok());
+
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let proposal_index = 0u64;
+    let proposal = get_typed_proposal_address(intent, proposal_index);
+    let tampered_clear_text = b"Send 99 SOL from test wallet to attacker";
+    let payload_hash = hash_send_payload(
+        b"test recipient",
+        &ClearSignAmount {
+            asset: b"SOL",
+            raw_amount: 1_000_000_000,
+        },
+    );
+    let policy_commitment = hash_policy_commitment(&[b"send:sol"]);
+    let envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::Send,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: action_id.as_ref(),
+        nonce: nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment,
+        payload_hash,
+        clear_text_hash: hash_clear_text(tampered_clear_text).unwrap(),
+    });
+
+    let propose = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent,
+        proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::Send.code(),
+        policy_commitment,
+        payload_hash,
+        envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_typed_vote(
+            &proposer,
+            ClearSignVoteKind::Propose,
+            wallet_name,
+            proposal_index,
+            envelope_hash,
+        ),
+        clear_text: tampered_clear_text.to_vec(),
+        action_id,
+        nonce,
+    });
+    let result =
+        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
+
+    assert!(
+        result.is_err(),
+        "typed proposal accepted a signature over different readable text"
+    );
+}
+
 /// Full propose → approve → execute flow.
 struct ProposeApproveExecuteArgs<'a> {
     svm: &'a mut QuasarSvm,

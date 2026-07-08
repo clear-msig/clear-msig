@@ -4,7 +4,6 @@ pub const CLEARSIGN_V2_VERSION: u8 = 2;
 pub const CLEARSIGN_V2_DOMAIN: &[u8] = b"clearsig:policy-engine:v2";
 pub const CLEARSIGN_V2_PAYLOAD_DOMAIN: &[u8] = b"clearsig:policy-engine:v2:payload";
 pub const CLEARSIGN_V2_POLICY_DOMAIN: &[u8] = b"clearsig:policy-engine:v2:policy";
-pub const CLEARSIGN_V2_VOTE_DOMAIN: &[u8] = b"clearsig:policy-engine:v2:vote";
 pub const MAX_ACTION_TTL_SECONDS: i64 = 30 * 24 * 60 * 60;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -84,10 +83,6 @@ pub enum ClearSignVoteKind {
 }
 
 impl ClearSignVoteKind {
-    pub fn code(self) -> u8 {
-        self as u8
-    }
-
     pub fn label(self) -> &'static [u8] {
         match self {
             Self::Propose => b"propose",
@@ -242,22 +237,6 @@ pub fn hash_policy_commitment(parts: &[&[u8]]) -> [u8; 32] {
     for part in parts {
         update_bytes(&mut hasher, part);
     }
-    finish_hash(hasher)
-}
-
-pub fn hash_vote_message(
-    vote_kind: ClearSignVoteKind,
-    wallet_id: &[u8],
-    proposal_index: u64,
-    envelope_hash: [u8; 32],
-) -> [u8; 32] {
-    let mut hasher = Sha256::new();
-    update_bytes(&mut hasher, CLEARSIGN_V2_VOTE_DOMAIN);
-    hasher.update([CLEARSIGN_V2_VERSION]);
-    hasher.update([vote_kind.code()]);
-    update_bytes(&mut hasher, wallet_id);
-    hasher.update(proposal_index.to_le_bytes());
-    hasher.update(envelope_hash);
     finish_hash(hasher)
 }
 
@@ -670,34 +649,6 @@ mod tests {
                 &id32(b"nonce-1"),
                 changed_payload
             ))
-        );
-    }
-
-    #[test]
-    fn vote_hash_cannot_cross_action_boundaries() {
-        let payload = hash_send_payload(b"Sarah", &amount(b"SOL", 2_500_000_000));
-        let envelope_hash = hash_envelope(&test_envelope(
-            &id32(b"action-1"),
-            &id32(b"nonce-1"),
-            payload,
-        ));
-        let propose = hash_vote_message(ClearSignVoteKind::Propose, b"wallet", 7, envelope_hash);
-        assert_ne!(
-            propose,
-            hash_vote_message(ClearSignVoteKind::Approve, b"wallet", 7, envelope_hash)
-        );
-        assert_ne!(
-            propose,
-            hash_vote_message(ClearSignVoteKind::Propose, b"wallet", 8, envelope_hash)
-        );
-        assert_ne!(
-            propose,
-            hash_vote_message(
-                ClearSignVoteKind::Propose,
-                b"other-wallet",
-                7,
-                envelope_hash
-            )
         );
     }
 
