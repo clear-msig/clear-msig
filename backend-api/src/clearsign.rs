@@ -356,6 +356,37 @@ mod tests {
         );
     }
 
+    #[test]
+    fn prepare_overrides_stale_browser_wallet_id() {
+        let stale_req = ClearSignPrepareRequest {
+            envelope: send_envelope("2.5", "nonce-1"),
+            vote: None,
+        };
+        let mut canonical_req = ClearSignPrepareRequest {
+            envelope: send_envelope("2.5", "nonce-1"),
+            vote: None,
+        };
+        canonical_req.envelope.wallet_id = Some("CanonicalWallet1111111111111111111111111".into());
+
+        let Json(overridden) = prepare_clearsign_v2_response(
+            stale_req,
+            Some("CanonicalWallet1111111111111111111111111".into()),
+        )
+        .unwrap();
+        let Json(canonical) = prepare_clearsign_v2_response(canonical_req, None).unwrap();
+        let Json(stale) = prepare_clearsign_v2_response(
+            ClearSignPrepareRequest {
+                envelope: send_envelope("2.5", "nonce-1"),
+                vote: None,
+            },
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(overridden.envelope_hash, canonical.envelope_hash);
+        assert_ne!(overridden.envelope_hash, stale.envelope_hash);
+    }
+
     #[tokio::test]
     async fn prepare_returns_readable_vote_messages() {
         let req = ClearSignPrepareRequest {
