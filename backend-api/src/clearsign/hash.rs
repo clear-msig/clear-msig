@@ -163,8 +163,8 @@ pub(super) fn hash_envelope(
     hasher.update(envelope.expires_at.to_le_bytes());
     update_bytes(&mut hasher, envelope.wallet_name.as_bytes());
     update_bytes(&mut hasher, &canonical_address_or_text(&envelope.wallet_id));
-    hasher.update(Sha256::digest(envelope.action_id.as_bytes()));
-    hasher.update(Sha256::digest(envelope.nonce.as_bytes()));
+    update_bytes(&mut hasher, &Sha256::digest(envelope.action_id.as_bytes()));
+    update_bytes(&mut hasher, &Sha256::digest(envelope.nonce.as_bytes()));
     hasher.update(envelope.policy_commitment);
     hasher.update(payload_hash);
     hasher.update(clear_text_hash);
@@ -209,4 +209,54 @@ fn canonical_address_or_text(value: &str) -> Vec<u8> {
         .ok()
         .filter(|bytes| bytes.len() == 32)
         .unwrap_or_else(|| value.as_bytes().to_vec())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn envelope_hash_length_prefixes_replay_commitments() {
+        let envelope = NormalizedEnvelope {
+            kind: ClearSignActionKind::Send,
+            wallet_name: "Team".into(),
+            wallet_id: "WalletPda111".into(),
+            action_id: "action-1".into(),
+            nonce: "nonce-1".into(),
+            expires_at: 1_782_988_800,
+            policy_commitment: [0x11; 32],
+            payload: serde_json::json!({ "recipient": "Sarah", "amount": "2.5", "asset": "SOL" }),
+        };
+        let payload_hash = hash_payload(envelope.kind, &envelope.payload).unwrap();
+        let clear_text_hash = hash_clear_text("Send 2.5 SOL from Team to Sarah");
+
+        assert_ne!(
+            hash_envelope(&envelope, payload_hash, clear_text_hash),
+            legacy_envelope_hash_without_commitment_lengths(
+                &envelope,
+                payload_hash,
+                clear_text_hash
+            )
+        );
+    }
+
+    fn legacy_envelope_hash_without_commitment_lengths(
+        envelope: &NormalizedEnvelope,
+        payload_hash: [u8; 32],
+        clear_text_hash: [u8; 32],
+    ) -> [u8; 32] {
+        let mut hasher = Sha256::new();
+        update_bytes(&mut hasher, CLEARSIGN_V2_DOMAIN);
+        hasher.update([CLEARSIGN_V2_VERSION]);
+        hasher.update([envelope.kind.code()]);
+        hasher.update(envelope.expires_at.to_le_bytes());
+        update_bytes(&mut hasher, envelope.wallet_name.as_bytes());
+        update_bytes(&mut hasher, &canonical_address_or_text(&envelope.wallet_id));
+        hasher.update(Sha256::digest(envelope.action_id.as_bytes()));
+        hasher.update(Sha256::digest(envelope.nonce.as_bytes()));
+        hasher.update(envelope.policy_commitment);
+        hasher.update(payload_hash);
+        hasher.update(clear_text_hash);
+        finish_hash(hasher)
+    }
 }

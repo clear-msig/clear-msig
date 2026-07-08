@@ -9,6 +9,7 @@ import {
   type EscrowReturnPayload,
   type SendPayload,
 } from "@/lib/clearsign-v2";
+import { fromHex, sha256, toHex } from "@/lib/msig/hash";
 
 const base = {
   version: 2 as const,
@@ -170,6 +171,22 @@ describe("ClearSign v2 actions", () => {
     );
   });
 
+  it("length-prefixes action and nonce commitments like the Solana program", () => {
+    const envelope: ClearSignEnvelope<SendPayload> = {
+      ...base,
+      kind: "send",
+      payload: {
+        amount: "2.5",
+        asset: "SOL",
+        recipient: "Sarah",
+      },
+    };
+
+    expect(clearSignEnvelopeHash(envelope)).not.toBe(
+      legacyEnvelopeHashWithoutCommitmentLengths(envelope),
+    );
+  });
+
   it("builds readable vote messages for typed proposal signatures", () => {
     const envelope: ClearSignEnvelope<SendPayload> = {
       ...base,
@@ -196,3 +213,56 @@ describe("ClearSign v2 actions", () => {
     expect(propose).toContain(`Payload ${clearSignPayloadHash(envelope)}`);
   });
 });
+
+function legacyEnvelopeHashWithoutCommitmentLengths(
+  envelope: ClearSignEnvelope<SendPayload>,
+): string {
+  const signableText = summarizeClearSignAction(envelope).signableText;
+  const out = new TestWriter();
+  out.pushBytes("clearsig:policy-engine:v2");
+  out.pushU8(2);
+  out.pushU8(clearSignActionKindCode(envelope.kind));
+  out.pushI64(BigInt(envelope.expiresAt));
+  out.pushBytes(envelope.walletName.trim());
+  out.pushBytes(envelope.walletId?.trim() ?? "");
+  out.pushRaw(sha256(new TextEncoder().encode(envelope.actionId.trim())));
+  out.pushRaw(sha256(new TextEncoder().encode(envelope.nonce.trim())));
+  out.pushRaw(fromHex(envelope.policyCommitment));
+  out.pushRaw(fromHex(clearSignPayloadHash(envelope)));
+  out.pushRaw(sha256(new TextEncoder().encode(signableText)));
+  return toHex(sha256(out.bytes()));
+}
+
+class TestWriter {
+  private chunks: number[] = [];
+
+  pushRaw(bytes: Uint8Array) {
+    for (const byte of bytes) this.chunks.push(byte);
+  }
+
+  pushBytes(value: string | Uint8Array) {
+    const bytes = typeof value === "string" ? new TextEncoder().encode(value) : value;
+    this.pushU32(bytes.length);
+    this.pushRaw(bytes);
+  }
+
+  pushU8(value: number) {
+    this.chunks.push(value & 0xff);
+  }
+
+  pushU32(value: number) {
+    for (let i = 0; i < 4; i++) this.chunks.push((value >> (8 * i)) & 0xff);
+  }
+
+  pushI64(value: bigint) {
+    let v = BigInt.asUintN(64, value);
+    for (let i = 0; i < 8; i++) {
+      this.chunks.push(Number(v & 0xffn));
+      v >>= 8n;
+    }
+  }
+
+  bytes(): Uint8Array {
+    return new Uint8Array(this.chunks);
+  }
+}
