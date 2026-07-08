@@ -53,7 +53,7 @@ describe("prepareClearSignAction", () => {
     expect(summary.payloadHash).toMatch(/^2{64}$/);
   });
 
-  it("falls back to local summary when backend is unavailable", async () => {
+  it("requires explicit opt-in before falling back to local summary", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => {
@@ -61,7 +61,11 @@ describe("prepareClearSignAction", () => {
       }),
     );
 
-    const summary = await prepareClearSignAction(envelope);
+    await expect(prepareClearSignAction(envelope)).rejects.toThrow(
+      "Failed to fetch",
+    );
+
+    const summary = await prepareClearSignAction(envelope, { fallback: true });
 
     expect(summary.source).toBe("local");
     expect(summary.headline).toBe("Send 2.5 SOL from Team to Sarah");

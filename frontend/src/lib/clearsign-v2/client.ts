@@ -49,7 +49,7 @@ export async function prepareClearSignAction(
     );
     return { ...response, source: "backend" };
   } catch (error) {
-    if (options?.fallback === false) {
+    if (options?.fallback !== true) {
       throw error;
     }
     const local = summarizeClearSignAction(envelope);
