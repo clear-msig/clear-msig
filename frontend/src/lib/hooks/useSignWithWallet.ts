@@ -22,6 +22,10 @@ import {
 } from "@/lib/msig";
 import { messageFlavorForSigner } from "@/lib/hooks/signFlavor";
 import { LedgerError } from "@/lib/wallet/ledger";
+import {
+  TypedClearSignMessageVerificationError,
+  verifiedTypedClearSignMessageBytes,
+} from "@/lib/clearsign-v2/typedMessage";
 import type { DryRunDescriptor, TypedDryRunDescriptor } from "@/lib/api/types";
 import type { MessageFlavor } from "@/lib/msig/offchain";
 
@@ -237,7 +241,15 @@ export function useSignWithWallet() {
     options?: SignOptions,
   ): Promise<SignedPayload> {
     ensureDescriptorFresh(descriptor);
-    const bytes = fromHex(descriptor.message_hex);
+    let bytes: Uint8Array;
+    try {
+      bytes = verifiedTypedClearSignMessageBytes(descriptor);
+    } catch (err) {
+      if (err instanceof TypedClearSignMessageVerificationError) {
+        throw new WalletSignError("message_mismatch", err.message);
+      }
+      throw err;
+    }
     if (bytes.length === 0) {
       throw new WalletSignError(
         "message_mismatch",
