@@ -71,10 +71,17 @@ export const CLEARSIGN_SURFACE_COVERAGE: ClearSignSurfaceCoverage[] = [
   },
   {
     id: "eth-send",
-    label: "ETH / Hyperliquid send",
+    label: "ETH send",
     status: "legacy_custom_pending_typed_executor",
     signedPath: "legacy Custom proposal -> Ika broadcast",
     notes: "Needs typed cross-chain send action kind and executor before claiming SOL-level ClearSign.",
+  },
+  {
+    id: "hyperliquid-send",
+    label: "Hyperliquid send",
+    status: "legacy_custom_pending_typed_executor",
+    signedPath: "legacy Custom proposal -> Ika / venue broadcast",
+    notes: "Needs typed Hyperliquid action kind, policy payload, and executor before claiming SOL-level ClearSign.",
   },
   {
     id: "erc20-send",
