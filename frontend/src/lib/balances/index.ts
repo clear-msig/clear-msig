@@ -23,6 +23,7 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import type { ChainBindingResponse } from "@/lib/api/types";
 import { fetchBitcoinAddressSnapshot } from "@/lib/chain/btc";
 import { fetchZcashBalance } from "@/lib/chain/zcash";
+import { configuredBrowserRpcUrl } from "@/lib/config";
 
 export interface ChainBalance {
   /// Smallest-unit balance (lamports / wei / sats). `null` when the
@@ -39,6 +40,7 @@ export async function fetchChainBalance(
   ctx: {
     solanaConnection: Connection;
     evmRpcUrl: string;
+    hyperliquidRpcUrl: string;
     zcashRpcUrl: string;
   },
 ): Promise<ChainBalance | null> {
@@ -56,13 +58,17 @@ export async function fetchChainBalance(
     case 4: {
       const addr = binding.evm_address;
       if (!addr) return null;
-      const wei = await fetchEvmBalance(ctx.evmRpcUrl, addr);
+      const rpcUrl = configuredBrowserRpcUrl(ctx.evmRpcUrl);
+      if (!rpcUrl) return null;
+      const wei = await fetchEvmBalance(rpcUrl, addr);
       return { raw: wei, address: addr };
     }
     case 5: {
       const addr = binding.evm_address;
       if (!addr) return null;
-      const wei = await fetchEvmBalance(ctx.evmRpcUrl, addr);
+      const rpcUrl = configuredBrowserRpcUrl(ctx.hyperliquidRpcUrl);
+      if (!rpcUrl) return null;
+      const wei = await fetchEvmBalance(rpcUrl, addr);
       return { raw: wei, address: addr };
     }
     case 2: {
@@ -81,7 +87,9 @@ export async function fetchChainBalance(
       const addr =
         binding.zcash_t_addr_testnet ?? binding.zcash_t_addr_mainnet ?? null;
       if (!addr) return null;
-      const zats = await fetchZcashBalance(ctx.zcashRpcUrl, addr);
+      const rpcUrl = configuredBrowserRpcUrl(ctx.zcashRpcUrl);
+      if (!rpcUrl) return null;
+      const zats = await fetchZcashBalance(rpcUrl, addr);
       return { raw: zats, address: addr };
     }
     default:

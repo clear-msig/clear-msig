@@ -37,7 +37,7 @@ import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
 import { resolvePolicyEnforcement } from "@/lib/policies/enforce";
 import { chainByKind } from "@/lib/retail/chains";
-import { appConfig } from "@/lib/config";
+import { appConfig, configuredBrowserRpcUrl } from "@/lib/config";
 import {
   decodeZcashTransparentAddress,
   fetchZcashBalance,
@@ -107,6 +107,7 @@ export default function ZcashSendPage() {
   const zcashAddress = zcashBinding ? chainAddress(zcashBinding) : null;
   const senderDecoded = zcashAddress ? decodeZcashTransparentAddress(zcashAddress) : null;
   const zcashNetwork = zcashAddress ? networkForZcashAddress(zcashAddress) ?? "testnet" : "testnet";
+  const zcashRpcUrl = configuredBrowserRpcUrl(appConfig.preAlpha.zcashRpcUrl);
 
   const zcashIntent = useMemo(() => {
     return (intentsQuery.data ?? [])
@@ -151,19 +152,19 @@ export default function ZcashSendPage() {
   const amountValid = amountZats !== null && amountZats > 0n;
 
   const balanceQuery = useQuery({
-    queryKey: ["zcash-balance", zcashAddress ?? "", zcashNetwork],
+    queryKey: ["zcash-balance", zcashAddress ?? "", zcashNetwork, zcashRpcUrl ?? "unconfigured"],
     queryFn: () =>
-      zcashAddress ? fetchZcashBalance(appConfig.preAlpha.zcashRpcUrl, zcashAddress) : 0n,
-    enabled: !!zcashAddress,
+      zcashAddress && zcashRpcUrl ? fetchZcashBalance(zcashRpcUrl, zcashAddress) : 0n,
+    enabled: !!zcashAddress && !!zcashRpcUrl,
     staleTime: 15_000,
     refetchInterval: 30_000,
     retry: 1,
   });
   const utxosQuery = useQuery({
-    queryKey: ["zcash-utxos", zcashAddress ?? "", zcashNetwork],
+    queryKey: ["zcash-utxos", zcashAddress ?? "", zcashNetwork, zcashRpcUrl ?? "unconfigured"],
     queryFn: () =>
-      zcashAddress ? fetchZcashUtxos(appConfig.preAlpha.zcashRpcUrl, zcashAddress) : [],
-    enabled: !!zcashAddress,
+      zcashAddress && zcashRpcUrl ? fetchZcashUtxos(zcashRpcUrl, zcashAddress) : [],
+    enabled: !!zcashAddress && !!zcashRpcUrl,
     staleTime: 15_000,
     refetchInterval: 30_000,
     retry: 1,
@@ -293,6 +294,9 @@ export default function ZcashSendPage() {
       if (!zcashAddress || !senderDecoded) {
         throw new Error("Wallet's Zcash address isn't ready yet");
       }
+      if (!zcashRpcUrl) {
+        throw new Error("Zcash RPC is not configured for this deployment");
+      }
       if (!amountValid || !amountZats) throw new Error("Enter an amount");
       if (!recipientValid || !effectiveRecipient) {
         throw new Error("Recipient must be a valid transparent Zcash address");
@@ -368,15 +372,15 @@ export default function ZcashSendPage() {
         broadcast: true,
         dwallet_program: appConfig.preAlpha.dwalletProgramId,
         grpc_url: appConfig.preAlpha.grpcUrl,
-        rpc_url: appConfig.preAlpha.zcashRpcUrl,
+        rpc_url: zcashRpcUrl,
       });
       const broadcast = (executed as { broadcast?: { chain_kind?: number; tx_id?: string } })
         ?.broadcast;
       return { proposal, broadcast };
     },
     onSuccess: ({ broadcast }) => {
-      const explorerUrl = broadcastExplorerUrl(broadcast, appConfig.preAlpha.zcashRpcUrl);
-      const explorerLabel = explorerLabelForChainKind(broadcast?.chain_kind, appConfig.preAlpha.zcashRpcUrl);
+      const explorerUrl = broadcastExplorerUrl(broadcast, zcashRpcUrl ?? "");
+      const explorerLabel = explorerLabelForChainKind(broadcast?.chain_kind, zcashRpcUrl ?? "");
       const recipientText = recipient;
       setSentLabel({
         amount: amount.trim(),
@@ -476,7 +480,8 @@ export default function ZcashSendPage() {
               recipientValid={recipientValid}
               selectedUtxo={selectedUtxo}
               insufficientBalance={insufficientBalance}
-              canSubmit={!policyDenied && amountValid && recipientValid && !!selectedUtxo && !insufficientBalance && !!wallet.publicKey}
+              zcashRpcConfigured={!!zcashRpcUrl}
+              canSubmit={!policyDenied && !!zcashRpcUrl && amountValid && recipientValid && !!selectedUtxo && !insufficientBalance && !!wallet.publicKey}
               onSubmit={() => {
                 setStage("sending");
                 send.mutate();
@@ -547,6 +552,7 @@ function ZcashCompose({
   recipientValid,
   selectedUtxo,
   insufficientBalance,
+  zcashRpcConfigured,
   canSubmit,
   onSubmit,
 }: {
@@ -564,6 +570,7 @@ function ZcashCompose({
   recipientValid: boolean;
   selectedUtxo: { txid: string; vout: number; satoshis: bigint } | null;
   insufficientBalance: boolean;
+  zcashRpcConfigured: boolean;
   canSubmit: boolean;
   onSubmit: () => void;
 }) {
@@ -633,7 +640,9 @@ function ZcashCompose({
               </>
             }
             warning={
-              insufficientBalance ? (
+              !zcashRpcConfigured ? (
+                <span className="font-medium">Zcash RPC is not configured.</span>
+              ) : insufficientBalance ? (
                 <span className="font-medium">Insufficient balance.</span>
               ) : null
             }

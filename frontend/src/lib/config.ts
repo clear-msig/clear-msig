@@ -53,8 +53,30 @@ export const destinationRpcDefault =
 export const hyperliquidRpcDefault =
   process.env.NEXT_PUBLIC_HYPERLIQUID_RPC_URL ?? "https://rpc.hyperliquid.xyz/evm";
 
-export const zcashRpcDefault =
-  process.env.NEXT_PUBLIC_ZCASH_RPC_URL ?? "http://127.0.0.1:8232";
+// There is no browser-safe public Zcash RPC default. Leaving this
+// empty makes ZEC balance/send screens fail closed until deployment
+// config provides a real endpoint instead of polling localhost from
+// clearsig.xyz.
+export const zcashRpcDefault = process.env.NEXT_PUBLIC_ZCASH_RPC_URL ?? "";
+
+export function configuredBrowserRpcUrl(value: string): string | null {
+  const trimmed = value.trim();
+  if (!/^https?:\/\/[^\s]+$/i.test(trimmed)) return null;
+  try {
+    const url = new URL(trimmed);
+    const host = url.hostname.toLowerCase();
+    const loopback =
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "0.0.0.0" ||
+      host === "::1" ||
+      host === "[::1]";
+    if (IS_PRODUCTION && loopback) return null;
+    return trimmed;
+  } catch {
+    return null;
+  }
+}
 
 export const appConfig = {
   backendApiUrl:
