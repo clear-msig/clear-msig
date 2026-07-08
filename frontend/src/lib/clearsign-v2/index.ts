@@ -29,3 +29,10 @@ export {
   type SwapPayload,
   type ThresholdPayload,
 } from "@/lib/clearsign-v2/actions";
+
+export {
+  CLEARSIGN_SURFACE_COVERAGE,
+  clearSignSurfaceById,
+  type ClearSignSurfaceCoverage,
+  type ClearSignSurfaceStatus,
+} from "@/lib/clearsign-v2/surfaceCoverage";
