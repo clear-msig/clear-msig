@@ -1,7 +1,7 @@
 export {
   prepareClearSignAction,
   type BackendClearSignSummary,
-  type ClearSignVoteHashes,
+  type ClearSignVoteMessages,
   type ClearSignVotePrepareInput,
 } from "@/lib/clearsign-v2/client";
 
@@ -9,8 +9,7 @@ export {
   clearSignActionKindCode,
   clearSignEnvelopeHash,
   clearSignPayloadHash,
-  clearSignVoteKindCode,
-  clearSignVoteMessageHash,
+  clearSignVoteMessage,
   summarizeClearSignAction,
   type AgentTradePayload,
   type BatchSendPayload,
@@ -30,3 +29,10 @@ export {
   type SwapPayload,
   type ThresholdPayload,
 } from "@/lib/clearsign-v2/actions";
+
+export {
+  CLEARSIGN_SURFACE_COVERAGE,
+  clearSignSurfaceById,
+  type ClearSignSurfaceCoverage,
+  type ClearSignSurfaceStatus,
+} from "@/lib/clearsign-v2/surfaceCoverage";

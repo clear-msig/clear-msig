@@ -346,6 +346,22 @@ Current explicit limitation:
   evaluation still needs program-side confidential enforcement before private
   policy values should be treated as fully enforced on-chain.
 
+## Cross-Chain Send Assurance
+
+ClearSig keeps an explicit frontend assurance matrix for the non-Solana send
+paths that still use chain-native transaction templates:
+
+- ETH: `examples/intents/evm_transfer_sepolia.json`, `/send/eth`
+- BTC: `examples/intents/btc_transfer.json`, `/send/btc`
+- ZEC: `examples/intents/zcash_transfer.json`, `/send/zec`
+- HYPE: `examples/intents/hyperliquid_transfer.json`,
+  `/send/eth?network=hyperliquid`
+
+Each row must stay send-ready, show a signer preview, require a wallet proposal
+approval, execute through the ClearSig proposal path, and broadcast only after
+execute. The regression coverage lives in
+`frontend/src/lib/chain/clearsignAssurance.ts` and its tests.
+
 ## Next Typed Executor Order
 
 1. **Production Encrypt/FHE enforcement**

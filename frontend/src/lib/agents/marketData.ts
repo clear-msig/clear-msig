@@ -13,6 +13,23 @@ export interface AgentMarketDataSnapshot {
   volume24hUsd: string | null;
 }
 
+export type AgentMarketCandleInterval = "1m" | "5m" | "15m" | "1h" | "4h" | "1d";
+
+export interface AgentMarketCandle {
+  provider: AgentMarketDataProviderId;
+  source: "mock" | "live";
+  market: string;
+  interval: AgentMarketCandleInterval;
+  openTime: number;
+  closeTime: number;
+  openPriceUsd: string;
+  highPriceUsd: string;
+  lowPriceUsd: string;
+  closePriceUsd: string;
+  volumeBase: string | null;
+  volumeUsd: string | null;
+}
+
 export interface AgentMarketUniverseItem {
   provider: AgentMarketDataProviderId;
   source: "mock" | "live";
@@ -43,6 +60,19 @@ export function normalizeAgentMarket(
   if (typeof value !== "string") return null;
   const market = value.trim().toUpperCase();
   return /^[A-Z0-9][A-Z0-9._/-]{1,30}$/.test(market) ? market : null;
+}
+
+export function normalizeAgentMarketCandleInterval(
+  value: unknown,
+): AgentMarketCandleInterval | null {
+  return value === "1m" ||
+    value === "5m" ||
+    value === "15m" ||
+    value === "1h" ||
+    value === "4h" ||
+    value === "1d"
+    ? value
+    : null;
 }
 
 export function normalizeAgentMarketDataSnapshot(

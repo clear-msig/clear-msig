@@ -48,6 +48,7 @@ pub(super) struct PrepareTypedProposalCreateRequest {
     pub(super) envelope_hash: String,
     pub(super) action_id: String,
     pub(super) nonce: String,
+    pub(super) signable_text: String,
     pub(super) expiry: Option<String>,
     pub(super) actor_pubkey: Option<String>,
 }

@@ -23,6 +23,10 @@ pub(crate) struct PreSigned {
     /// for approve/cancel; required for propose / intent add / update.
     #[serde(default)]
     pub(crate) params_data_hex: Option<String>,
+    /// Hex-encoded exact readable ClearSign v2 typed vote bytes the
+    /// browser wallet signed. Required by typed proposal submit paths.
+    #[serde(default)]
+    pub(crate) signed_message_hex: Option<String>,
     /// Unix timestamp at which the signed message expires. MUST match the
     /// `expiry` the CLI builds into the message, or the PreSignedMessageSigner
     /// verification step fails.
@@ -37,10 +41,10 @@ impl PreSigned {
         ensure_hex_exact_len(&self.signature, "signature", 64)?;
         if let Some(flavor) = &self.message_flavor {
             match flavor.as_str() {
-                "offchain_v1" | "plain_v2" | "clearsign_v2_vote_hash" => {}
+                "offchain_v1" | "plain_v2" | "clearsign_v2_text" => {}
                 other => {
                     return Err(ApiError::BadRequest(format!(
-                        "message_flavor must be offchain_v1, plain_v2, or clearsign_v2_vote_hash, got {other}"
+                        "message_flavor must be offchain_v1, plain_v2, or clearsign_v2_text, got {other}"
                     )));
                 }
             }
@@ -48,6 +52,10 @@ impl PreSigned {
         if let Some(p) = &self.params_data_hex {
             ensure_non_empty(p, "params_data_hex")?;
             ensure_hex(p, "params_data_hex")?;
+        }
+        if let Some(m) = &self.signed_message_hex {
+            ensure_non_empty(m, "signed_message_hex")?;
+            ensure_hex(m, "signed_message_hex")?;
         }
         if self.expiry <= 0 {
             return Err(ApiError::BadRequest(
@@ -78,6 +86,10 @@ pub(crate) fn push_pre_signed_flags(args: &mut Vec<String>, ps: &PreSigned) {
     }
     if let Some(hex) = &ps.params_data_hex {
         args.push("--params-data".into());
+        args.push(hex.clone());
+    }
+    if let Some(hex) = &ps.signed_message_hex {
+        args.push("--signed-message".into());
         args.push(hex.clone());
     }
 }

@@ -64,6 +64,7 @@ import { ChainBadge } from "@/components/retail/ChainBadge";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import { SendAmountField } from "@/components/retail/SendAmountField";
 import { RecentRecipientsChips } from "@/components/retail/RecentRecipientsChips";
+import { FormField, TextInput } from "@/components/retail/FormField";
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
 import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
 import { resolvePolicyEnforcement } from "@/lib/policies/enforce";
@@ -702,16 +703,12 @@ function ComposeStage({
                 : undefined
           }
         >
-          <input
+          <TextInput
             type="text"
             value={tokenContract}
             onChange={(e) => setTokenContract(e.target.value)}
             placeholder="0x… (e.g. Sepolia USDC)"
-            className={
-              "w-full rounded-card border border-border-soft bg-surface-raised px-4 py-3 font-mono text-sm text-text-strong outline-none " +
-              "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-              "focus:border-accent focus:shadow-accent-rest"
-            }
+            className="font-mono"
           />
           {metadataLoading && (
             <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-text-soft">
@@ -820,21 +817,17 @@ function ComposeStage({
               : undefined
           }
         >
-          <input
+          <TextInput
             type="text"
             value={recipient}
             onChange={(e) => setRecipient(e.target.value)}
             placeholder="0x…"
-            className={
-              "w-full rounded-card border border-border-soft bg-surface-raised px-4 py-3 font-mono text-sm text-text-strong outline-none " +
-              "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-              "focus:border-accent focus:shadow-accent-rest"
-            }
+            className="font-mono"
           />
         </Field>
 
         <Field label={SEND_NOTE_LABEL}>
-          <input
+          <TextInput
             type="text"
             value={note}
             onChange={(e) =>
@@ -842,11 +835,6 @@ function ComposeStage({
             }
             placeholder={SEND_NOTE_PLACEHOLDER}
             maxLength={SEND_NOTE_MAX_LENGTH}
-            className={
-              "w-full rounded-card border border-border-soft bg-surface-raised px-4 py-3 text-sm text-text-strong outline-none " +
-              "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-              "focus:border-accent focus:shadow-accent-rest"
-            }
           />
         </Field>
       </div>
@@ -896,17 +884,9 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-        {label}
-      </span>
+    <FormField label={label} error={hint} as="div">
       {children}
-      {hint && (
-        <span className="text-xs text-warning" role="alert">
-          {hint}
-        </span>
-      )}
-    </label>
+    </FormField>
   );
 }
 

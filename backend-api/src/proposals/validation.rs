@@ -28,6 +28,14 @@ pub(super) fn push_typed_pre_signed_flags(args: &mut Vec<String>, ps: &PreSigned
     args.push(ps.signer_pubkey.clone());
     args.push("--signature".into());
     args.push(ps.signature.clone());
+    if let Some(flavor) = &ps.message_flavor {
+        args.push("--message-flavor".into());
+        args.push(flavor.clone());
+    }
+    if let Some(hex) = &ps.signed_message_hex {
+        args.push("--signed-message".into());
+        args.push(hex.clone());
+    }
 }
 
 pub(super) fn push_actor_pubkey(

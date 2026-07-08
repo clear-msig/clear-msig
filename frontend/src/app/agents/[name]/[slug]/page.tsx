@@ -26,6 +26,10 @@ import {
   AgentServerStatePersistenceError,
   getAgentServerWalletState,
 } from "@/lib/agents/serverState";
+import {
+  creatorRegistryStatusLabel,
+  type AgentCreatorRegistryReadiness,
+} from "@/lib/agents/creatorRegistry";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +106,7 @@ export default async function PublicAgentProfilePage({ params }: PageProps) {
               <Badge>{data.status}</Badge>
               <Badge>{data.kind === "api" ? "External API" : data.kind}</Badge>
               <Badge>{data.primarySource.replace("_", " ")}</Badge>
+              <RegistryStatusBadge status={data.registryReadiness.status} />
               {data.identityPubkey ? <Badge>Signed identity</Badge> : <Badge>No public key</Badge>}
             </div>
           </div>
@@ -166,6 +171,44 @@ export default async function PublicAgentProfilePage({ params }: PageProps) {
           </div>
 
           <aside className="flex flex-col gap-5">
+            <Panel title="Registry Readiness" Icon={ShieldCheck}>
+              <div className="rounded-soft border border-border-soft bg-canvas p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-text-strong">
+                      {data.registryReadiness.headline}
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-text-soft">
+                      {data.registryReadiness.summary}
+                    </p>
+                  </div>
+                  <span className="font-mono text-lg font-semibold text-text-strong">
+                    {data.registryReadiness.score}%
+                  </span>
+                </div>
+              </div>
+              <ul className="mt-3 grid gap-2">
+                {data.registryReadiness.checks.map((check) => (
+                  <li key={check.id} className="flex gap-2 text-xs leading-relaxed text-text-soft">
+                    <CheckCircle2
+                      className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${
+                        check.status === "pass"
+                          ? "text-accent"
+                          : check.status === "todo"
+                            ? "text-warning"
+                            : "text-danger"
+                      }`}
+                      aria-hidden="true"
+                    />
+                    <span>
+                      <span className="font-medium text-text-strong">{check.label}:</span>{" "}
+                      {check.message}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+
             <Panel title="Recent Trades" Icon={Activity}>
               <div className="grid gap-3">
                 {data.recentTrades.length > 0 ? (
@@ -373,6 +416,24 @@ function Badge({ children }: { children: ReactNode }) {
   return (
     <span className="inline-flex rounded-full border border-border-soft bg-canvas px-2 py-1 text-[11px] font-medium capitalize text-text-soft">
       {children}
+    </span>
+  );
+}
+
+function RegistryStatusBadge({
+  status,
+}: {
+  status: AgentCreatorRegistryReadiness["status"];
+}) {
+  const tone =
+    status === "ready"
+      ? "border-accent/30 bg-accent/[0.08] text-accent"
+      : status === "needs_review"
+        ? "border-warning/30 bg-warning/[0.08] text-warning"
+        : "border-danger/30 bg-danger/[0.08] text-danger";
+  return (
+    <span className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-medium ${tone}`}>
+      {creatorRegistryStatusLabel(status)}
     </span>
   );
 }

@@ -25,6 +25,7 @@ pub struct TypedProposal<'a> {
     pub envelope_hash: [u8; 32],
     pub action_id: Vec<'a, u8, 128>,
     pub nonce: Vec<'a, u8, 128>,
+    pub clear_text: Vec<'a, u8, 2048>,
 }
 
 impl TypedProposal<'_> {

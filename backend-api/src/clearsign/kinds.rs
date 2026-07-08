@@ -60,11 +60,11 @@ pub(super) enum ClearSignVoteKind {
 }
 
 impl ClearSignVoteKind {
-    pub(super) fn code(self) -> u8 {
+    pub(super) fn label(self) -> &'static str {
         match self {
-            Self::Propose => 1,
-            Self::Approve => 2,
-            Self::Cancel => 3,
+            Self::Propose => "propose",
+            Self::Approve => "approve",
+            Self::Cancel => "cancel",
         }
     }
 }

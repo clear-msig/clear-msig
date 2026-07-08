@@ -18,6 +18,7 @@ import { Button } from "@/components/retail/Button";
 import { useToast } from "@/components/ui/Toast";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
+import { formatUnixSigningExpiry } from "@/lib/api/expiry";
 import { listIntents } from "@/lib/chain/intents";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import {
@@ -423,7 +424,8 @@ function EscrowProjectCard({
       envelope_hash: summary.envelopeHash,
       action_id: envelope.actionId,
       nonce: envelope.nonce,
-      expiry: String(envelope.expiresAt),
+      signable_text: summary.signableText,
+      expiry: formatUnixSigningExpiry(envelope.expiresAt),
       actor_pubkey: proposerPk.toBase58(),
     });
     return { summary, dry };

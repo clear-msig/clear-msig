@@ -42,6 +42,9 @@ interface SignPayloadPreviewProps {
   details?: SignPayloadDetail[];
   /// Optional warning footer for high-stakes actions.
   warning?: string;
+  /// Optional signer-specific note for wallet popups that render a
+  /// digest or technical bytes instead of the human summary.
+  technicalNote?: string;
   /// When true, the detail rows render behind an info icon next to
   /// the headline instead of inline below it. Use on dense surfaces
   /// (e.g. /send) where the rows duplicate context the user has
@@ -53,6 +56,7 @@ export function SignPayloadPreview({
   action,
   details,
   warning,
+  technicalNote,
   collapsibleDetails = false,
 }: SignPayloadPreviewProps) {
   const hasDetails = !!details && details.length > 0;
@@ -164,6 +168,13 @@ export function SignPayloadPreview({
       {warning && (
         <p className="mt-3 rounded-soft bg-warning/10 px-2.5 py-1.5 text-[11px] leading-snug text-text-strong">
           <span className="font-medium text-warning">Heads up.</span> {warning}
+        </p>
+      )}
+
+      {technicalNote && (
+        <p className="mt-3 rounded-soft border border-border-soft bg-canvas px-2.5 py-1.5 text-[11px] leading-snug text-text-soft">
+          <span className="font-medium text-text-strong">ClearSign check.</span>{" "}
+          {technicalNote}
         </p>
       )}
     </section>

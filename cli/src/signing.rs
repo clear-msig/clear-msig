@@ -6,6 +6,7 @@ use std::str::FromStr;
 pub enum MessageFlavor {
     OffchainV1,
     PlainV2,
+    ClearSignV2Text,
 }
 
 impl FromStr for MessageFlavor {
@@ -15,8 +16,9 @@ impl FromStr for MessageFlavor {
         match value {
             "offchain_v1" => Ok(Self::OffchainV1),
             "plain_v2" => Ok(Self::PlainV2),
+            "clearsign_v2_text" => Ok(Self::ClearSignV2Text),
             other => Err(anyhow!(
-                "invalid message flavor {other:?}; expected offchain_v1 or plain_v2"
+                "invalid message flavor {other:?}; expected offchain_v1, plain_v2, or clearsign_v2_text"
             )),
         }
     }
@@ -55,6 +57,9 @@ pub fn sign_message_with_flavor<S: MessageSigner + ?Sized>(
         Some(MessageFlavor::PlainV2) => signer
             .sign_message(plain)
             .with_context(|| "signature did not verify against plain_v2 message bytes"),
+        Some(MessageFlavor::ClearSignV2Text) => signer
+            .sign_message(plain)
+            .with_context(|| "signature did not verify against clearsign_v2_text message bytes"),
         None => sign_message_with_fallback(signer, wrapped, plain),
     }
 }

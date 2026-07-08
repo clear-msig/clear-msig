@@ -6,6 +6,8 @@ import clsx from "clsx";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, AlertTriangle, Check, Circle, Clock, X } from "lucide-react";
+import { Button } from "@/components/retail/Button";
+import { NativeSelect, TextInput } from "@/components/retail/FormField";
 import { useToast } from "@/components/ui/Toast";
 import {
   closeAgentExecutionRecord,
@@ -241,7 +243,7 @@ export default function AgentTradesPage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Trade Performance Â· {display}
+              Trade Performance · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
               Trades
@@ -309,10 +311,11 @@ export default function AgentTradesPage() {
             </button>
           ))}
         </div>
-        <select
+        <NativeSelect
           value={agentFilter}
           onChange={(event) => setAgentFilter(event.target.value)}
-          className="min-h-10 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25"
+          className="min-h-8 py-1.5 text-xs font-medium"
+          aria-label="Agent filter"
         >
           <option value="all">All agents</option>
           {agents.map((agent) => (
@@ -320,7 +323,7 @@ export default function AgentTradesPage() {
               {agent.name}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </section>
 
       <section className="grid gap-3">
@@ -374,7 +377,7 @@ function TradeRow({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold text-text-strong">
-              {execution.market} Â· {execution.side}
+              {execution.market} · {execution.side}
             </p>
             <Badge tone={open ? "success" : "default"}>{open ? "Open" : "Closed"}</Badge>
             <Badge>{venueLabel(execution.venue)}</Badge>
@@ -386,7 +389,7 @@ function TradeRow({
             ) : null}
           </div>
           <p className="mt-1 text-xs text-text-soft">
-            {agent?.name ?? "Unknown agent"} Â· {formatUsd(execution.notionalUsd)} Â· {execution.leverage}x
+            {agent?.name ?? "Unknown agent"} · {formatUsd(execution.notionalUsd)} · {execution.leverage}x
           </p>
         </div>
         <div className="grid min-w-[16rem] gap-2 sm:grid-cols-4">
@@ -442,22 +445,23 @@ function TradeRow({
         </div>
         {open ? (
           <div className="flex flex-wrap items-center gap-2">
-            <input
+            <TextInput
               value={pnlUsd}
               onChange={(event) => setPnlUsd(event.target.value)}
               inputMode="decimal"
               placeholder="P/L USD"
-              className="min-h-8 w-28 rounded-soft border border-border-soft bg-canvas px-2 py-1 text-xs text-text-strong placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25"
+              className="min-h-8 w-28 px-2 py-1 text-xs"
             />
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
               disabled={pending}
               onClick={() => onClose(execution.id, closeValue)}
-              className="inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-border-soft px-2 py-1 text-[11px] font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
+              className="min-h-8 px-2 py-1 text-[11px]"
             >
               <Check className="h-3 w-3" aria-hidden="true" />
               Close
-            </button>
+            </Button>
           </div>
         ) : (
           <span className="inline-flex items-center gap-1 text-[11px] font-medium text-text-soft">

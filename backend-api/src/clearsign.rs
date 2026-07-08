@@ -9,11 +9,11 @@ mod kinds;
 mod payload;
 mod presigned;
 
-pub(crate) use expiry::format_expiry;
+pub(crate) use expiry::{format_expiry, normalize_expiry_arg};
 pub(crate) use presigned::{push_pre_signed_flags, PreSigned};
 
 use display::action_lines;
-use hash::{hash_envelope, hash_payload, hash_vote_message};
+use hash::{hash_clear_text, hash_envelope, hash_payload};
 use kinds::{ClearSignActionKind, ClearSignVoteKind};
 use payload::normalize_text;
 
@@ -22,7 +22,6 @@ use crate::{current_unix_timestamp, ensure_hex_exact_len, ApiError, AppState};
 const CLEARSIGN_V2_VERSION: u8 = 2;
 const CLEARSIGN_V2_DOMAIN: &[u8] = b"clearsig:policy-engine:v2";
 const CLEARSIGN_V2_PAYLOAD_DOMAIN: &[u8] = b"clearsig:policy-engine:v2:payload";
-const CLEARSIGN_V2_VOTE_DOMAIN: &[u8] = b"clearsig:policy-engine:v2:vote";
 const MAX_ACTION_TTL_SECONDS: i64 = 30 * 24 * 60 * 60;
 
 pub(crate) fn router() -> Router<AppState> {
@@ -71,12 +70,12 @@ struct ClearSignPrepareResponse {
     envelope_hash: String,
     signable_text: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    vote_hashes: Option<ClearSignVoteHashes>,
+    vote_messages: Option<ClearSignVoteMessages>,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct ClearSignVoteHashes {
+struct ClearSignVoteMessages {
     propose: String,
     approve: String,
     cancel: String,
@@ -87,46 +86,13 @@ async fn prepare_clearsign_v2(
 ) -> Result<Json<ClearSignPrepareResponse>, ApiError> {
     let envelope = req.envelope.normalized()?;
     let payload_hash = hash_payload(envelope.kind, &envelope.payload)?;
-    let envelope_hash = hash_envelope(&envelope, payload_hash);
     let lines = action_lines(&envelope)?;
-    let vote_hashes = req
-        .vote
-        .map(|vote| {
-            let wallet_id = normalize_text(&vote.wallet_id);
-            if wallet_id.is_empty() {
-                return Err(ApiError::BadRequest(
-                    "vote.wallet_id must not be empty".into(),
-                ));
-            }
-            Ok(ClearSignVoteHashes {
-                propose: to_hex(&hash_vote_message(
-                    ClearSignVoteKind::Propose,
-                    &wallet_id,
-                    vote.proposal_index,
-                    envelope_hash,
-                )),
-                approve: to_hex(&hash_vote_message(
-                    ClearSignVoteKind::Approve,
-                    &wallet_id,
-                    vote.proposal_index,
-                    envelope_hash,
-                )),
-                cancel: to_hex(&hash_vote_message(
-                    ClearSignVoteKind::Cancel,
-                    &wallet_id,
-                    vote.proposal_index,
-                    envelope_hash,
-                )),
-            })
-        })
-        .transpose()?;
     let payload_hex = to_hex(&payload_hash);
-    let envelope_hex = to_hex(&envelope_hash);
     let context = [
         format!("Wallet {}", envelope.wallet_name),
         format!("Action {}", envelope.action_id),
         format!("Nonce {}", envelope.nonce),
-        format!("Expires {}", envelope.expires_at),
+        format!("Expires {}", format_expiry(envelope.expires_at)?),
         format!("Payload {}", payload_hex),
     ];
     let signable_text = lines
@@ -135,6 +101,52 @@ async fn prepare_clearsign_v2(
         .cloned()
         .collect::<Vec<_>>()
         .join("\n");
+    let clear_text_hash = hash_clear_text(&signable_text);
+    let envelope_hash = hash_envelope(&envelope, payload_hash, clear_text_hash);
+    let vote_messages = req
+        .vote
+        .map(|vote| {
+            let wallet_id = normalize_text(&vote.wallet_id);
+            if wallet_id.is_empty() {
+                return Err(ApiError::BadRequest(
+                    "vote.wallet_id must not be empty".into(),
+                ));
+            }
+            Ok(ClearSignVoteMessages {
+                propose: to_hex(
+                    vote_message(
+                        ClearSignVoteKind::Propose,
+                        &envelope.wallet_name,
+                        vote.proposal_index,
+                        envelope_hash,
+                        &signable_text,
+                    )
+                    .as_bytes(),
+                ),
+                approve: to_hex(
+                    vote_message(
+                        ClearSignVoteKind::Approve,
+                        &envelope.wallet_name,
+                        vote.proposal_index,
+                        envelope_hash,
+                        &signable_text,
+                    )
+                    .as_bytes(),
+                ),
+                cancel: to_hex(
+                    vote_message(
+                        ClearSignVoteKind::Cancel,
+                        &envelope.wallet_name,
+                        vote.proposal_index,
+                        envelope_hash,
+                        &signable_text,
+                    )
+                    .as_bytes(),
+                ),
+            })
+        })
+        .transpose()?;
+    let envelope_hex = to_hex(&envelope_hash);
 
     Ok(Json(ClearSignPrepareResponse {
         version: CLEARSIGN_V2_VERSION,
@@ -148,7 +160,7 @@ async fn prepare_clearsign_v2(
         payload_hash: payload_hex,
         envelope_hash: envelope_hex,
         signable_text,
-        vote_hashes,
+        vote_messages,
     }))
 }
 
@@ -222,7 +234,24 @@ fn decode_hex_32(value: &str, field: &str) -> Result<[u8; 32], ApiError> {
     Ok(out)
 }
 
-fn to_hex(bytes: &[u8; 32]) -> String {
+fn vote_message(
+    vote_kind: ClearSignVoteKind,
+    wallet_name: &str,
+    proposal_index: u64,
+    envelope_hash: [u8; 32],
+    signable_text: &str,
+) -> String {
+    format!(
+        "ClearSign v2 {}\nWallet {}\nProposal {}\nEnvelope {}\n\n{}",
+        vote_kind.label(),
+        wallet_name,
+        proposal_index,
+        to_hex(&envelope_hash),
+        signable_text
+    )
+}
+
+fn to_hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
@@ -266,24 +295,91 @@ mod tests {
         let a_payload_hash = hash_payload(a.kind, &a.payload).unwrap();
         let b_payload_hash = hash_payload(b.kind, &b.payload).unwrap();
 
+        let clear_text_hash = hash_clear_text("Send 2.5 SOL to Sarah");
+
         assert_ne!(
-            to_hex(&hash_envelope(&a, a_payload_hash)),
-            to_hex(&hash_envelope(&b, b_payload_hash))
+            to_hex(&hash_envelope(&a, a_payload_hash, clear_text_hash)),
+            to_hex(&hash_envelope(&b, b_payload_hash, clear_text_hash))
         );
     }
 
     #[test]
-    fn vote_hashes_are_distinct_by_vote_kind() {
+    fn envelope_hash_binds_readable_text() {
         let envelope = send_envelope("2.5", "nonce-1").normalized().unwrap();
         let payload_hash = hash_payload(envelope.kind, &envelope.payload).unwrap();
-        let envelope_hash = hash_envelope(&envelope, payload_hash);
 
-        let propose = hash_vote_message(ClearSignVoteKind::Propose, "Team#abc", 7, envelope_hash);
-        let approve = hash_vote_message(ClearSignVoteKind::Approve, "Team#abc", 7, envelope_hash);
-        let cancel = hash_vote_message(ClearSignVoteKind::Cancel, "Team#abc", 7, envelope_hash);
+        assert_ne!(
+            to_hex(&hash_envelope(
+                &envelope,
+                payload_hash,
+                hash_clear_text("Send 2.5 SOL to Sarah")
+            )),
+            to_hex(&hash_envelope(
+                &envelope,
+                payload_hash,
+                hash_clear_text("Send 25 SOL to Mallory")
+            ))
+        );
+    }
 
-        assert_ne!(to_hex(&propose), to_hex(&approve));
-        assert_ne!(to_hex(&approve), to_hex(&cancel));
+    #[tokio::test]
+    async fn prepare_returns_readable_vote_messages() {
+        let req = ClearSignPrepareRequest {
+            envelope: send_envelope("2.5", "nonce-1"),
+            vote: Some(ClearSignVoteRequest {
+                wallet_id: "Team#abc".into(),
+                proposal_index: 7,
+            }),
+        };
+
+        let Json(response) = prepare_clearsign_v2(Json(req)).await.unwrap();
+        let vote_messages = response.vote_messages.unwrap();
+        let propose = decode_hex_string(&vote_messages.propose);
+
+        assert!(propose.starts_with("ClearSign v2 propose\nWallet Team\nProposal 7\nEnvelope "));
+        assert!(propose.contains("\nSend 2.5 SOL from Team to Sarah\n"));
+        assert!(propose.contains("\nPayload "));
+        assert!(propose.ends_with(&response.signable_text));
+        assert_ne!(vote_messages.propose, vote_messages.approve);
+        assert_ne!(vote_messages.approve, vote_messages.cancel);
+    }
+
+    #[test]
+    fn vote_messages_are_readable_and_distinct_by_vote_kind() {
+        let envelope = send_envelope("2.5", "nonce-1").normalized().unwrap();
+        let payload_hash = hash_payload(envelope.kind, &envelope.payload).unwrap();
+        let envelope_hash = hash_envelope(
+            &envelope,
+            payload_hash,
+            hash_clear_text("Send 2.5 SOL to Sarah"),
+        );
+
+        let propose = vote_message(
+            ClearSignVoteKind::Propose,
+            "Team",
+            7,
+            envelope_hash,
+            "Send 2.5 SOL to Sarah",
+        );
+        let approve = vote_message(
+            ClearSignVoteKind::Approve,
+            "Team",
+            7,
+            envelope_hash,
+            "Send 2.5 SOL to Sarah",
+        );
+        let cancel = vote_message(
+            ClearSignVoteKind::Cancel,
+            "Team",
+            7,
+            envelope_hash,
+            "Send 2.5 SOL to Sarah",
+        );
+
+        assert!(propose.starts_with("ClearSign v2 propose\nWallet Team\nProposal 7\nEnvelope "));
+        assert!(propose.ends_with("\n\nSend 2.5 SOL to Sarah"));
+        assert_ne!(propose, approve);
+        assert_ne!(approve, cancel);
     }
 
     #[test]
@@ -295,5 +391,12 @@ mod tests {
             envelope.normalized(),
             Err(ApiError::BadRequest(message)) if message.contains("policy_commitment")
         ));
+    }
+
+    fn decode_hex_string(hex: &str) -> String {
+        let bytes = (0..hex.len() / 2)
+            .map(|i| u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).unwrap())
+            .collect::<Vec<_>>();
+        String::from_utf8(bytes).unwrap()
     }
 }

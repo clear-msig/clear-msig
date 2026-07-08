@@ -317,6 +317,7 @@ pub mod clear_wallet {
         signature: [u8; 64],
         action_id: [u8; 32],
         nonce: [u8; 32],
+        clear_text: &[u8],
     ) -> Result<(), ProgramError> {
         ctx.accounts.propose_typed(
             proposal_index,
@@ -330,6 +331,7 @@ pub mod clear_wallet {
                 envelope_hash,
                 proposer_pubkey: &proposer_pubkey,
                 signature: &signature,
+                clear_text,
             },
             &ctx.bumps,
         )

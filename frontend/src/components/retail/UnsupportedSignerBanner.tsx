@@ -1,16 +1,9 @@
 "use client";
 
-// Banner shown when the connected wallet cannot sign clear-msig's
-// offchain-wrapped messages. One known cause today:
-//
-//   "waas"    - Dynamic's embedded WaaS-SVM signer UTF-8-decodes the
-//               message bytes before signing. Our offchain envelope
-//               starts with `\xff`, an invalid UTF-8 byte that gets
-//               replaced with U+FFFD, so the signature ends up over
-//               different bytes than we asked for. The CLI's verifier
-//               rejects every signed write.
-//
-// Mount on every signed-write entry point (dashboard, /welcome, /send).
+// Banner shown only when the wallet runtime has positively identified
+// a signer that cannot pass ClearSign's byte-preservation check. Do not
+// block by connector name alone; Dynamic embedded wallets are allowed
+// to try and are guarded by local ed25519 verification before submit.
 
 import Link from "next/link";
 import { AlertTriangle, ExternalLink } from "lucide-react";
@@ -30,7 +23,7 @@ export function UnsupportedSignerBanner({
   const wallet = useWallet();
   if (!wallet.signerIssue) return null;
 
-  const defaultTitle = "This embedded wallet can't sign on Solana right now";
+  const defaultTitle = "This signer cannot finish ClearSign safely";
 
   return (
     <div
@@ -51,12 +44,9 @@ export function UnsupportedSignerBanner({
         <div className="min-w-0 flex-1">
           <p className="font-medium">{title ?? defaultTitle}</p>
           <p className={"mt-1 text-text-soft " + (compact ? "text-[11px]" : "text-xs")}>
-            A legacy embedded signer path can corrupt the message
-            bytes before signing. Clear routes Google, email, and
-            phone sign-ins through the compatible embedded Solana
-            wallet path. If you still land here, your current account
-            is on the legacy signer path and needs to be replaced or
-            the app needs to be redeployed from the newer build. For
+            This signer failed ClearSign&rsquo;s byte-preservation safety
+            check. Use Solflare, Backpack, Phantom, Coinbase Wallet, or
+            try again with a fresh Dynamic embedded wallet. For
             hardware-tier security,{" "}
             <Link
               href="/security"
@@ -64,8 +54,7 @@ export function UnsupportedSignerBanner({
             >
               connect a Ledger
             </Link>
-            . Your connected wallet still receives funds and shows
-            balance fine.
+            . Nothing moves until a compatible signer approves.
           </p>
           {!compact && (
             <a

@@ -600,6 +600,8 @@ before adding more venues or autonomous capital:
      Signal key, and run the documented scenarios.
    - Current implementation:
      `examples/agent-signal-runner`.
+   - Current implementation: the runner submits `hmac_sha256_v1` signed
+     decisions by default and keeps an explicit unsigned compatibility mode.
    - Current implementation: `examples/creator-agent-sdk` explains the
      non-hosted model and provides a dependency-free decision helper for
      evidence-rich trade decisions, freshness/idempotency fields, and
@@ -609,6 +611,10 @@ before adding more venues or autonomous capital:
      scorecards, and audit events connected and testable.
    - Operator/user: choose the demo vault and strategy story, then verify the
      complete flow as a trader would see it.
+   - Current implementation: `runAgentPaperTradingDemo` seeds the beta demo,
+     closes the first paper trade with deterministic PnL, and returns a
+     checklist covering setup, paper execution, PnL, scorecard, leaderboard,
+     audit trail, and demo history evidence.
 3. **Market-data adapter boundary**
    - Codex/build: add provider-neutral price, candle, funding-rate, and open
      interest interfaces without giving data providers execution authority.
@@ -617,9 +623,9 @@ before adding more venues or autonomous capital:
    - Current implementation: `/api/agent-market-data/[provider]` exposes a
      rate-limited, read-only provider boundary. The deterministic mock adapter
      supplies BTC, ETH, and SOL perpetual mark price, funding, open interest,
-     and 24h volume. The Hyperliquid provider reads live public perpetual mark
-     price, funding, open interest, and 24h notional volume without credentials
-     or execution authority.
+     candles, and 24h volume. The Hyperliquid provider reads live public
+     perpetual mark price, candles, funding, open interest, and 24h notional
+     volume without credentials or execution authority.
 4. **One testnet execution venue**
    - Codex/build: connect one backend adapter and require verified exchange
      order artifacts before recording execution.
@@ -628,6 +634,8 @@ before adding more venues or autonomous capital:
    - Current implementation: ClearSig can submit a policy-approved,
      idempotent intent to an isolated Hyperliquid testnet executor and accepts
      success only when the executor returns a matching verified order artifact.
+     Submitted artifacts are stored with a deterministic hash for later audit
+     and reconciliation checks.
      `examples/hyperliquid-testnet-executor` repeats hard notional, leverage,
      freshness, account, market-order, and slippage checks before using the
      pinned official Hyperliquid Python SDK. The API-wallet private key stays
@@ -651,6 +659,11 @@ before adding more venues or autonomous capital:
    - Operator/user: publish an externally hosted agent, verify its signing
      identity, submit decisions through the SDK, and confirm the marketplace
      only shows ClearSig-observed performance.
+   - Current implementation: public profiles and marketplace entries now share
+     a creator registry readiness model. External agents must expose creator
+     details, supported markets and venues, signing identity metadata,
+     ClearSig-observed track-record lanes, decision evidence, disclosures, and
+     review metadata before they are marked registry ready.
 7. **Real-capital authority hardening**
    - Codex/build: add wallet-signed backend mutations, on-chain grants and
      revocation, signed agent intents, confidential enforcement, and durable

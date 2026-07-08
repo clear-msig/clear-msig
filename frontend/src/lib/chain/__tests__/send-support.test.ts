@@ -11,6 +11,7 @@ describe("chain send support", () => {
     expect(baseChainSendStatus(1)).toBe("ready");
     expect(baseChainSendStatus(2)).toBe("ready");
     expect(baseChainSendStatus(3)).toBe("ready");
+    expect(baseChainSendStatus(5)).toBe("ready");
   });
 
   it("falls back to coming soon for unknown chain kinds", () => {

@@ -3,7 +3,7 @@ import {
   clearSignActionKindCode,
   clearSignEnvelopeHash,
   clearSignPayloadHash,
-  clearSignVoteMessageHash,
+  clearSignVoteMessage,
   summarizeClearSignAction,
   type ClearSignEnvelope,
   type EscrowReturnPayload,
@@ -170,7 +170,7 @@ describe("ClearSign v2 actions", () => {
     );
   });
 
-  it("binds vote hashes to vote kind and proposal index", () => {
+  it("builds readable vote messages for typed proposal signatures", () => {
     const envelope: ClearSignEnvelope<SendPayload> = {
       ...base,
       kind: "send",
@@ -181,28 +181,18 @@ describe("ClearSign v2 actions", () => {
       },
     };
     const envelopeHash = clearSignEnvelopeHash(envelope);
-    const propose = clearSignVoteMessageHash({
+    const signableText = summarizeClearSignAction(envelope).signableText;
+    const propose = new TextDecoder().decode(clearSignVoteMessage({
       voteKind: "propose",
-      walletId: base.walletId,
+      walletName: base.walletName,
       proposalIndex: 7,
       envelopeHash,
-    });
+      signableText,
+    }));
 
-    expect(propose).not.toBe(
-      clearSignVoteMessageHash({
-        voteKind: "approve",
-        walletId: base.walletId,
-        proposalIndex: 7,
-        envelopeHash,
-      }),
-    );
-    expect(propose).not.toBe(
-      clearSignVoteMessageHash({
-        voteKind: "propose",
-        walletId: base.walletId,
-        proposalIndex: 8,
-        envelopeHash,
-      }),
-    );
+    expect(propose).toContain("ClearSign v2 propose\nWallet Team\nProposal 7\nEnvelope ");
+    expect(propose).toContain("\n\nSend 2.5 SOL from Team to Sarah");
+    expect(propose).toContain("Requires wallet approval");
+    expect(propose).toContain(`Payload ${clearSignPayloadHash(envelope)}`);
   });
 });

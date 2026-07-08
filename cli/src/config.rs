@@ -23,6 +23,7 @@ pub struct CliGlobals {
     pub signature: Option<String>,
     pub params_data: Option<String>,
     pub message_flavor: Option<String>,
+    pub signed_message: Option<String>,
     /// Dry-run: emit a JSON descriptor of what would be signed and exit.
     pub dry_run: bool,
 }
@@ -124,6 +125,9 @@ pub struct RuntimeConfig {
     /// that whatever the caller signed is what actually lands in the
     /// instruction.
     pub params_data_override: Option<Vec<u8>>,
+    /// Exact readable ClearSign typed vote bytes supplied via
+    /// `--signed-message` in browser pre-signed mode.
+    pub signed_message_override: Option<Vec<u8>>,
     /// True when `--dry-run` was passed. Handlers that build a signable
     /// message must emit `output::print_dry_run(...)` and early-return
     /// before calling the signer or RPC.
@@ -233,6 +237,12 @@ pub fn load_config(globals: &CliGlobals) -> Result<RuntimeConfig> {
         }
         None => None,
     };
+    let signed_message_override = match &globals.signed_message {
+        Some(hex_str) => {
+            Some(decode_hex(hex_str).with_context(|| "invalid --signed-message hex".to_string())?)
+        }
+        None => None,
+    };
     let message_flavor = match &globals.message_flavor {
         Some(value) => Some(value.parse::<MessageFlavor>()?),
         None => None,
@@ -244,6 +254,7 @@ pub fn load_config(globals: &CliGlobals) -> Result<RuntimeConfig> {
         signer,
         expiry_seconds: persisted.expiry_seconds,
         params_data_override,
+        signed_message_override,
         dry_run: globals.dry_run,
         pre_signed: globals.signer_pubkey.is_some(),
         message_flavor,

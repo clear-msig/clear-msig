@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { clientIp } from "@/lib/api/guard";
 import { checkRateLimit } from "@/lib/api/rateLimit";
 import {
+  fetchAgentMarketCandles,
   fetchAgentMarketData,
   fetchAgentMarketIntelligence,
   fetchAgentMarketUniverse,
@@ -57,6 +58,25 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     const includeIntelligence =
       request.nextUrl.searchParams.get("include") === "intelligence";
+    const includeCandles =
+      request.nextUrl.searchParams.get("include") === "candles";
+    if (includeCandles) {
+      const rawLimit = Number(request.nextUrl.searchParams.get("limit") ?? 24);
+      const candles = await fetchAgentMarketCandles({
+        provider,
+        market,
+        interval: request.nextUrl.searchParams.get("interval") ?? "1h",
+        limit: Number.isFinite(rawLimit) ? rawLimit : 24,
+      });
+      return NextResponse.json(
+        { ok: true, readiness, candles },
+        {
+          headers: {
+            "Cache-Control": "no-store",
+          },
+        },
+      );
+    }
     if (includeIntelligence) {
       const intelligence = await fetchAgentMarketIntelligence({ provider, market });
       return NextResponse.json(

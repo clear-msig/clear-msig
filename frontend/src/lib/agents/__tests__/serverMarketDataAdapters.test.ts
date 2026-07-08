@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  fetchAgentMarketCandles,
   fetchAgentMarketData,
   fetchAgentMarketIntelligence,
   fetchAgentMarketUniverse,
@@ -24,6 +25,27 @@ describe("server agent market-data adapters", () => {
       openInterestUsd: "18500000000",
       volume24hUsd: "32000000000",
     });
+  });
+
+  it("returns deterministic mock candles for chart and scout inputs", async () => {
+    const candles = await fetchAgentMarketCandles({
+      provider: "mock",
+      market: "btc-perp",
+      interval: "1h",
+      now: 1_780_000_000_000,
+      limit: 3,
+    });
+
+    expect(candles).toHaveLength(3);
+    expect(candles[0]).toMatchObject({
+      provider: "mock",
+      source: "mock",
+      market: "BTC-PERP",
+      interval: "1h",
+    });
+    expect(candles[0]?.openTime).toBeLessThan(candles[1]?.openTime ?? 0);
+    expect(Number(candles[2]?.closePriceUsd)).toBeGreaterThan(0);
+    expect(Number(candles[2]?.volumeUsd)).toBeGreaterThan(0);
   });
 
   it("keeps live provider data behind an unconnected backend adapter", async () => {
@@ -72,10 +94,101 @@ describe("server agent market-data adapters", () => {
     });
   });
 
+  it("reads live Hyperliquid candles through the read-only info endpoint", async () => {
+    let requestBody: unknown;
+    const candles = await fetchAgentMarketCandles({
+      provider: "hyperliquid",
+      market: "BTC-PERP",
+      interval: "1h",
+      now: 1_780_000_000_000,
+      limit: 2,
+      fetchImpl: async (_input, init) => {
+        requestBody = JSON.parse(String(init?.body));
+        return new Response(
+          JSON.stringify([
+            {
+              t: 1_779_992_800_000,
+              T: 1_779_996_399_999,
+              s: "BTC",
+              i: "1h",
+              o: "67000",
+              h: "67200",
+              l: "66900",
+              c: "67100",
+              v: "3",
+              n: 42,
+            },
+            {
+              t: 1_779_996_400_000,
+              T: 1_779_999_999_999,
+              s: "BTC",
+              i: "1h",
+              o: "67100",
+              h: "67600",
+              l: "67050",
+              c: "67500",
+              v: "2",
+              n: 33,
+            },
+          ]),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      },
+    });
+
+    expect(requestBody).toMatchObject({
+      type: "candleSnapshot",
+      req: {
+        coin: "BTC",
+        interval: "1h",
+      },
+    });
+    expect(candles).toEqual([
+      {
+        provider: "hyperliquid",
+        source: "live",
+        market: "BTC-PERP",
+        interval: "1h",
+        openTime: 1_779_992_800_000,
+        closeTime: 1_779_996_399_999,
+        openPriceUsd: "67000",
+        highPriceUsd: "67200",
+        lowPriceUsd: "66900",
+        closePriceUsd: "67100",
+        volumeBase: "3",
+        volumeUsd: "201300",
+      },
+      {
+        provider: "hyperliquid",
+        source: "live",
+        market: "BTC-PERP",
+        interval: "1h",
+        openTime: 1_779_996_400_000,
+        closeTime: 1_779_999_999_999,
+        openPriceUsd: "67100",
+        highPriceUsd: "67600",
+        lowPriceUsd: "67050",
+        closePriceUsd: "67500",
+        volumeBase: "2",
+        volumeUsd: "135000",
+      },
+    ]);
+  });
+
   it("rejects markets absent from the deterministic demo feed", async () => {
     await expect(
       fetchAgentMarketData({ provider: "mock", market: "DOGE-PERP" }),
     ).rejects.toThrow("not available");
+  });
+
+  it("rejects unsupported candle intervals", async () => {
+    await expect(
+      fetchAgentMarketCandles({
+        provider: "mock",
+        market: "BTC-PERP",
+        interval: "2h",
+      }),
+    ).rejects.toThrow("interval is unsupported");
   });
 
   it("lists live Hyperliquid perp markets for autonomous scanning", async () => {

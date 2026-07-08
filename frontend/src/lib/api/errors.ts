@@ -569,6 +569,31 @@ export function friendlyError(
     };
   }
 
+  // ── Solana RPC send/confirmation flake after ClearSign ───────
+  // This happens after the user signs a readable ClearSign message:
+  // the proposal may already be on chain, but the final transaction
+  // broadcast/confirmation through the backend RPC failed. The send
+  // page tags these with the proposal address so the user can retry
+  // execution instead of re-signing the whole request.
+  if (
+    context === "send" &&
+    (hay.includes("sending transaction") ||
+      hay.includes("error sending request") ||
+      hay.includes("blockhash not found") ||
+      hay.includes("max retries exceeded") ||
+      hay.includes("unable to confirm transaction") ||
+      hay.includes("transaction was not confirmed") ||
+      hay.includes("too many requests") ||
+      hay.includes("429"))
+  ) {
+    return {
+      title: "Send is waiting on Solana RPC",
+      body:
+        "ClearSign was accepted, but the final network submission did not confirm. Open the request from the dashboard and retry execution.",
+      durationMs: 8_000,
+    };
+  }
+
   // ── Catch-all: surface the underlying message but with a
   //    context-aware title so it doesn't read as raw stderr. ────
   const fallbackTitle: Record<ActionContext, string> = {

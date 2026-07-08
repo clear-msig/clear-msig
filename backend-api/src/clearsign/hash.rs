@@ -2,13 +2,12 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use super::{
-    kinds::{ClearSignActionKind, ClearSignVoteKind},
+    kinds::ClearSignActionKind,
     payload::{
         json_string, leverage_to_x100, payload_text, payload_u32, recipient_amount,
         update_recipient_amount, Money,
     },
     NormalizedEnvelope, CLEARSIGN_V2_DOMAIN, CLEARSIGN_V2_PAYLOAD_DOMAIN, CLEARSIGN_V2_VERSION,
-    CLEARSIGN_V2_VOTE_DOMAIN,
 };
 use crate::ApiError;
 
@@ -148,7 +147,15 @@ pub(super) fn hash_payload(
     Ok(finish_hash(hasher))
 }
 
-pub(super) fn hash_envelope(envelope: &NormalizedEnvelope, payload_hash: [u8; 32]) -> [u8; 32] {
+pub(super) fn hash_clear_text(clear_text: &str) -> [u8; 32] {
+    Sha256::digest(clear_text.as_bytes()).into()
+}
+
+pub(super) fn hash_envelope(
+    envelope: &NormalizedEnvelope,
+    payload_hash: [u8; 32],
+    clear_text_hash: [u8; 32],
+) -> [u8; 32] {
     let mut hasher = Sha256::new();
     update_bytes(&mut hasher, CLEARSIGN_V2_DOMAIN);
     hasher.update([CLEARSIGN_V2_VERSION]);
@@ -160,22 +167,7 @@ pub(super) fn hash_envelope(envelope: &NormalizedEnvelope, payload_hash: [u8; 32
     hasher.update(Sha256::digest(envelope.nonce.as_bytes()));
     hasher.update(envelope.policy_commitment);
     hasher.update(payload_hash);
-    finish_hash(hasher)
-}
-
-pub(super) fn hash_vote_message(
-    vote_kind: ClearSignVoteKind,
-    wallet_id: &str,
-    proposal_index: u64,
-    envelope_hash: [u8; 32],
-) -> [u8; 32] {
-    let mut hasher = Sha256::new();
-    update_bytes(&mut hasher, CLEARSIGN_V2_VOTE_DOMAIN);
-    hasher.update([CLEARSIGN_V2_VERSION]);
-    hasher.update([vote_kind.code()]);
-    update_bytes(&mut hasher, &canonical_address_or_text(wallet_id));
-    hasher.update(proposal_index.to_le_bytes());
-    hasher.update(envelope_hash);
+    hasher.update(clear_text_hash);
     finish_hash(hasher)
 }
 

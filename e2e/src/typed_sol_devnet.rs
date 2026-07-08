@@ -2,9 +2,9 @@ use std::env;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use clear_wallet::utils::clearsign::{
-    hash_envelope, hash_policy_commitment, hash_release_milestone_payload,
-    hash_return_escrow_sol_payload_iter, hash_send_payload, hash_vote_message, ClearSignActionKind,
-    ClearSignAmount, ClearSignEnvelope, ClearSignVoteKind,
+    hash_clear_text, hash_envelope, hash_policy_commitment, hash_release_milestone_payload,
+    hash_return_escrow_sol_payload_iter, hash_send_payload, ClearSignActionKind, ClearSignAmount,
+    ClearSignEnvelope, ClearSignVoteKind,
 };
 use clear_wallet_client::pda::{
     compute_name_hash, find_intent_address, find_typed_proposal_address, find_vault_address,
@@ -28,6 +28,8 @@ const SEND_LAMPORTS: u64 = 1_000_000;
 const ESCROW_RELEASE_LAMPORTS: u64 = 1_000_000;
 const ESCROW_RETURN_A_LAMPORTS: u64 = 1_000_000;
 const ESCROW_RETURN_B_LAMPORTS: u64 = 1_000_000;
+const TEST_CLEAR_TEXT: &[u8] =
+    b"ClearSign devnet typed E2E action\nVerify this readable text before signing.";
 const VAULT_FUND_LAMPORTS: u64 = 5_000_000;
 
 fn main() -> anyhow::Result<()> {
@@ -320,14 +322,15 @@ fn propose_and_approve_typed(
         expires_at,
         policy_commitment,
         payload_hash,
+        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
     });
-    let vote_hash = hash_vote_message(
+    let vote_message = typed_vote_message(
         ClearSignVoteKind::Propose,
-        wallet_pubkey.as_ref(),
+        wallet_name,
         proposal_index,
         envelope_hash,
     );
-    let signed = payer.sign_message(&vote_hash);
+    let signed = payer.sign_message(&vote_message);
     let mut signature = [0u8; 64];
     signature.copy_from_slice(signed.as_ref());
     let propose = build_propose_typed_ix(
@@ -346,17 +349,18 @@ fn propose_and_approve_typed(
         signature,
         action_id,
         nonce,
+        TEST_CLEAR_TEXT,
     );
     send_ix(client, payer, vec![propose])?;
     println!("created {action_label} proposal: {typed_proposal}");
 
-    let approve_hash = hash_vote_message(
+    let approve_message = typed_vote_message(
         ClearSignVoteKind::Approve,
-        wallet_pubkey.as_ref(),
+        wallet_name,
         proposal_index,
         envelope_hash,
     );
-    let signed_approval = approver.sign_message(&approve_hash);
+    let signed_approval = approver.sign_message(&approve_message);
     let mut approval_signature = [0u8; 64];
     approval_signature.copy_from_slice(signed_approval.as_ref());
     let approve = build_approve_typed_ix(
@@ -469,6 +473,7 @@ fn build_propose_typed_ix(
     signature: [u8; 64],
     action_id: [u8; 32],
     nonce: [u8; 32],
+    clear_text: &[u8],
 ) -> Instruction {
     let mut data = vec![8];
     wincode::serialize_into(&mut data, &proposal_index).unwrap();
@@ -481,6 +486,7 @@ fn build_propose_typed_ix(
     wincode::serialize_into(&mut data, &signature).unwrap();
     wincode::serialize_into(&mut data, &action_id).unwrap();
     wincode::serialize_into(&mut data, &nonce).unwrap();
+    wincode::serialize_into(&mut data, &TailBytes(clear_text.to_vec())).unwrap();
     Instruction {
         program_id,
         accounts: vec![
@@ -492,6 +498,36 @@ fn build_propose_typed_ix(
         ],
         data,
     }
+}
+
+fn typed_vote_message(
+    vote_kind: ClearSignVoteKind,
+    wallet_name: &str,
+    proposal_index: u64,
+    envelope_hash: [u8; 32],
+) -> Vec<u8> {
+    let mut out = Vec::new();
+    out.extend_from_slice(b"ClearSign v2 ");
+    out.extend_from_slice(vote_kind.label());
+    out.extend_from_slice(b"\nWallet ");
+    out.extend_from_slice(wallet_name.as_bytes());
+    out.extend_from_slice(b"\nProposal ");
+    out.extend_from_slice(proposal_index.to_string().as_bytes());
+    out.extend_from_slice(b"\nEnvelope ");
+    out.extend_from_slice(hex_string(&envelope_hash).as_bytes());
+    out.extend_from_slice(b"\n\n");
+    out.extend_from_slice(TEST_CLEAR_TEXT);
+    out
+}
+
+fn hex_string(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        out.push(HEX[(byte >> 4) as usize] as char);
+        out.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    out
 }
 
 #[allow(clippy::too_many_arguments)]

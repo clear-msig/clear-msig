@@ -59,7 +59,7 @@ pub struct TypedDryRunDescriptor<'a> {
     pub envelope_hash_hex: String,
     pub action_id: String,
     pub nonce: String,
-    /// Exact 32-byte ClearSign v2 vote hash to sign.
+    /// Exact readable ClearSign v2 vote message bytes to sign.
     pub message_hex: String,
     pub message_flavor: &'a str,
     pub expiry: i64,

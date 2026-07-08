@@ -54,6 +54,19 @@ type InjectedProviderCandidate = {
   provider: InjectedSolanaProvider | undefined;
 };
 
+type SolanaMessageSignature =
+  | Uint8Array
+  | { signature?: Uint8Array };
+
+type SolanaSignerLike = {
+  signMessage: (b: Uint8Array) => Promise<SolanaMessageSignature>;
+};
+
+type BytePreservingSolanaWallet = {
+  signUint8ArrayMessage?: (encodedMessage: Uint8Array) => Promise<Uint8Array>;
+  getSigner?: () => Promise<SolanaSignerLike | undefined>;
+};
+
 function getInjectedProviderCandidates(
   connectorKey: string,
 ): InjectedProviderCandidate[] {
@@ -180,14 +193,16 @@ function useDynamicWalletValue(): WalletValue {
 
   // Historical note: older Dynamic WaaS Solana signers corrupted the
   // wrapped offchain envelope's leading 0xff byte. The app now defaults
-  // software wallets to plain_v2 (ASCII body bytes) and locally verifies
-  // every returned signature before submit, so connector-name blocking is
-  // no longer correct. If any signer still mutates bytes, signBytes throws
-  // `wallet_signed_wrong_bytes` with a targeted recovery message.
+  // software wallets to plain_v2 / ClearSign text bytes and locally
+  // verifies every returned signature before submit, so connector-name
+  // blocking is no longer correct. If any signer still mutates bytes,
+  // signBytes throws `wallet_signed_wrong_bytes` before anything reaches
+  // the backend or program.
   const signerIssue = useMemo<"waas" | null>(() => {
-    if (ledger.session) return null; // Ledger always wins.
+    void solanaWallet;
+    if (ledger.session) return null;
     return null;
-  }, [ledger.session]);
+  }, [ledger.session, solanaWallet]);
 
   const walletConnectorKey = useMemo(() => walletConnectorId(solanaWallet), [solanaWallet]);
   const isPhantomWallet = /phantom/.test(walletConnectorKey);
@@ -334,15 +349,18 @@ function useDynamicWalletValue(): WalletValue {
             return sig;
           }
         }
-        const signer = await (
-          solanaWallet as unknown as {
-            getSigner: () => Promise<{
-              signMessage: (
-                b: Uint8Array,
-              ) => Promise<Uint8Array | { signature?: Uint8Array }>;
-            }>;
-          }
-        ).getSigner();
+        const bytePreservingWallet =
+          solanaWallet as unknown as BytePreservingSolanaWallet;
+        if (typeof bytePreservingWallet.signUint8ArrayMessage === "function") {
+          return bytePreservingWallet.signUint8ArrayMessage(bytes);
+        }
+
+        const signer = await bytePreservingWallet.getSigner?.();
+        if (!signer || typeof signer.signMessage !== "function") {
+          throw new Error(
+            "This Solana wallet connector does not expose signMessage",
+          );
+        }
         const result = await signer.signMessage(bytes);
         // Dynamic returns either Uint8Array directly or {signature: ...}
         // depending on connector version; normalise.
@@ -357,7 +375,15 @@ function useDynamicWalletValue(): WalletValue {
         "No signer available. Connect a Ledger or sign in to a wallet.",
       );
     },
-    [solanaWallet, ledger.session, ledgerPublicKey, dynamicPublicKey, isMobile, isPhantomWallet],
+    [
+      solanaWallet,
+      ledger.session,
+      ledgerPublicKey,
+      dynamicPublicKey,
+      isMobile,
+      isPhantomWallet,
+      signerIssue,
+    ],
   );
 
   const disconnect = useCallback(async () => {

@@ -113,7 +113,6 @@ const enc = new TextEncoder();
 const CLEARSIGN_V2_VERSION = 2;
 const CLEARSIGN_V2_DOMAIN = "clearsig:policy-engine:v2";
 const CLEARSIGN_V2_PAYLOAD_DOMAIN = "clearsig:policy-engine:v2:payload";
-const CLEARSIGN_V2_VOTE_DOMAIN = "clearsig:policy-engine:v2:vote";
 
 export type ClearSignVoteKind = "propose" | "approve" | "cancel";
 
@@ -121,23 +120,23 @@ export function summarizeClearSignAction(
   envelope: ClearSignEnvelope<ClearSignPayload>,
 ): ClearSignSummary {
   const payloadHash = clearSignPayloadHash(envelope);
-  const envelopeHash = clearSignEnvelopeHash(envelope);
   const lines = actionLines(envelope);
   const expires = `Expires ${formatTimestamp(envelope.expiresAt)}`;
   const context = [
     `Wallet ${envelope.walletName}`,
-    `Policy ${shortHash(envelope.policyCommitment)}`,
     `Action ${envelope.actionId}`,
     `Nonce ${envelope.nonce}`,
     expires,
   ];
   const signableLines = [...lines, ...context, `Payload ${payloadHash}`];
+  const signableText = signableLines.join("\n");
+  const envelopeHash = clearSignEnvelopeHash(envelope, signableText);
   return {
     headline: lines[0] ?? "Review ClearSig action",
     lines,
     payloadHash,
     envelopeHash,
-    signableText: signableLines.join("\n"),
+    signableText,
   };
 }
 
@@ -149,6 +148,7 @@ export function clearSignPayloadHash(
 
 export function clearSignEnvelopeHash(
   envelope: ClearSignEnvelope<ClearSignPayload>,
+  signableText = summarizeSignableText(envelope),
 ): string {
   const payloadHash = fromHex(clearSignPayloadHash(envelope));
   const out = new ByteWriter();
@@ -162,23 +162,40 @@ export function clearSignEnvelopeHash(
   out.pushRaw(sha256(enc.encode(normalizeText(envelope.nonce))));
   out.pushRaw(fromHex(normalizeHash(envelope.policyCommitment)));
   out.pushRaw(payloadHash);
+  out.pushRaw(sha256(enc.encode(signableText)));
   return toHex(sha256(out.bytes()));
 }
 
-export function clearSignVoteMessageHash(input: {
+function summarizeSignableText(envelope: ClearSignEnvelope<ClearSignPayload>): string {
+  const payloadHash = clearSignPayloadHash(envelope);
+  const lines = actionLines(envelope);
+  const context = [
+    `Wallet ${envelope.walletName}`,
+    `Action ${envelope.actionId}`,
+    `Nonce ${envelope.nonce}`,
+    `Expires ${formatTimestamp(envelope.expiresAt)}`,
+    `Payload ${payloadHash}`,
+  ];
+  return [...lines, ...context].join("\n");
+}
+
+export function clearSignVoteMessage(input: {
   voteKind: ClearSignVoteKind;
-  walletId: string;
+  walletName: string;
   proposalIndex: number | bigint;
   envelopeHash: string;
-}): string {
-  const out = new ByteWriter();
-  out.pushBytes(CLEARSIGN_V2_VOTE_DOMAIN);
-  out.pushU8(CLEARSIGN_V2_VERSION);
-  out.pushU8(clearSignVoteKindCode(input.voteKind));
-  out.pushBytes(canonicalAddressOrText(normalizeText(input.walletId)));
-  out.pushU64(BigInt(input.proposalIndex));
-  out.pushRaw(fromHex(normalizeHash(input.envelopeHash)));
-  return toHex(sha256(out.bytes()));
+  signableText: string;
+}): Uint8Array {
+  return enc.encode(
+    [
+      `ClearSign v2 ${input.voteKind}`,
+      `Wallet ${normalizeText(input.walletName)}`,
+      `Proposal ${BigInt(input.proposalIndex).toString()}`,
+      `Envelope ${normalizeHash(input.envelopeHash)}`,
+      "",
+      input.signableText,
+    ].join("\n"),
+  );
 }
 
 export function clearSignActionKindCode(kind: ClearSignActionKind): number {
@@ -205,17 +222,6 @@ export function clearSignActionKindCode(kind: ClearSignActionKind): number {
       return 10;
     case "swap_intent":
       return 11;
-  }
-}
-
-export function clearSignVoteKindCode(kind: ClearSignVoteKind): number {
-  switch (kind) {
-    case "propose":
-      return 1;
-    case "approve":
-      return 2;
-    case "cancel":
-      return 3;
   }
 }
 
@@ -582,9 +588,4 @@ function canonicalAddressOrText(value: string): Uint8Array | string {
     // Human test labels and non-Solana identifiers remain text.
   }
   return value;
-}
-
-function shortHash(value: string): string {
-  const normalized = normalizeHash(value);
-  return normalized.length > 12 ? `${normalized.slice(0, 12)}...` : normalized;
 }

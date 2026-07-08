@@ -57,7 +57,7 @@ export default function AgentFundingPage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-              Budget Â· {display}
+              Budget · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
               Set budgets by performance

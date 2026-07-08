@@ -33,6 +33,8 @@ import {
 import { encryptStatus } from "@/lib/encrypt/client";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { toDisplayName } from "@/lib/retail/walletNames";
+import { Button } from "@/components/retail/Button";
+import { FormField, NativeSelect, TextInput } from "@/components/retail/FormField";
 
 const VENUES: Array<{ value: TradingVenue; label: string }> = [
   { value: "mock_perps", label: "Built-in practice" },
@@ -372,12 +374,10 @@ export default function NewAgentSessionPage() {
         </div>
 
         <form onSubmit={submit} className="flex flex-col gap-4">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-text-soft">Trader</span>
-            <select
+          <FormField label="Trader">
+            <NativeSelect
               value={agentId}
               onChange={(event) => setAgentId(event.target.value)}
-              className={INPUT_CLASS}
             >
               {agents.length === 0 ? (
                 <option value="">No active traders</option>
@@ -387,8 +387,8 @@ export default function NewAgentSessionPage() {
                   {agent.name}
                 </option>
               ))}
-            </select>
-          </label>
+            </NativeSelect>
+          </FormField>
 
           {setupIssue ? (
             <div className="flex items-start gap-2 rounded-soft border border-warning/30 bg-warning/[0.08] px-3 py-2 text-xs leading-relaxed text-warning">
@@ -421,16 +421,12 @@ export default function NewAgentSessionPage() {
             </div>
           </fieldset>
 
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-text-soft">
-              Markets
-            </span>
-            <input
+          <FormField label="Markets">
+            <TextInput
               value={allowedMarkets}
               onChange={(event) => setAllowedMarkets(event.target.value)}
-              className={INPUT_CLASS}
             />
-          </label>
+          </FormField>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <TextField
@@ -460,14 +456,14 @@ export default function NewAgentSessionPage() {
               <Lock className="h-3 w-3" aria-hidden="true" />
               {encrypt.live ? "Privacy on" : "Privacy ready"}
             </span>
-            <button type="submit" disabled={saving || !policy} className={BUTTON_CLASS}>
+            <Button type="submit" disabled={saving || !policy}>
               <Save size={13} aria-hidden="true" />
               {saving
                 ? "Saving"
                 : activeAllowance
                   ? "Update budget"
                   : "Start practice"}
-            </button>
+            </Button>
           </div>
         </form>
       </section>
@@ -493,15 +489,13 @@ function TextField({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-text-soft">{label}</span>
-      <input
+    <FormField label={label}>
+      <TextInput
         value={value}
         onChange={(event) => onChange(event.target.value)}
         inputMode="decimal"
-        className={INPUT_CLASS}
       />
-    </label>
+    </FormField>
   );
 }
 
@@ -548,13 +542,6 @@ function venueLabel(value: TradingVenue): string {
       return "Built-in practice";
   }
 }
-
-const INPUT_CLASS = clsx(
-  "w-full rounded-soft border border-border-soft bg-canvas px-3 py-2 text-sm text-text-strong",
-  "placeholder:text-text-muted",
-  "transition-[border-color,box-shadow] duration-base ease-out-soft",
-  "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25",
-);
 
 const BUTTON_CLASS = clsx(
   "inline-flex min-h-tap items-center justify-center gap-1.5 rounded-soft bg-accent px-4 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest",

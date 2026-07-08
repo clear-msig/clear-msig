@@ -5,6 +5,10 @@ import {
   type AgentPublicProfile,
   type AgentPublicProfileLane,
 } from "@/lib/agents/publicProfile";
+import type {
+  AgentCreatorRegistryReadiness,
+  AgentCreatorType,
+} from "@/lib/agents/creatorRegistry";
 import type { AgentServerWalletState } from "@/lib/agents/serverState";
 import type { AgentTrackRecordSource, TradingVenue } from "@/lib/agents/types";
 
@@ -15,8 +19,10 @@ export interface AgentMarketplaceEntry {
   slug: string;
   url: string;
   summary: string;
+  creatorType: AgentCreatorType;
   creatorLabel: string;
   identityVerified: boolean;
+  registryReadiness: AgentCreatorRegistryReadiness;
   primarySource: AgentTrackRecordSource;
   primaryScore: number | null;
   realizedPnlUsd: string | null;
@@ -104,8 +110,10 @@ function marketplaceEntry(profile: AgentPublicProfile): AgentMarketplaceEntry {
     slug: profile.slug,
     url: publicProfileUrl(profile.walletName, profile.slug),
     summary: profile.summary,
+    creatorType: profile.creatorType,
     creatorLabel: profile.creatorLabel,
     identityVerified: Boolean(profile.identityPubkey),
+    registryReadiness: profile.registryReadiness,
     primarySource: profile.primarySource,
     primaryScore: primary?.score ?? null,
     realizedPnlUsd: primary?.realizedPnlUsd ?? null,
@@ -152,4 +160,3 @@ function numberValue(value: number | string | null | undefined): number {
 function unique<T extends string>(values: T[]): T[] {
   return Array.from(new Set(values)).sort();
 }
-

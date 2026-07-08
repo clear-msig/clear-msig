@@ -5,14 +5,19 @@ use axum::{
 };
 use serde_json::Value;
 
-use crate::clearsign::{format_expiry, push_pre_signed_flags};
+use crate::clearsign::{format_expiry, normalize_expiry_arg, push_pre_signed_flags};
 use crate::{
     ensure_base58, ensure_non_empty, ensure_non_empty_vec, ensure_wallet_name, ApiError, AppState,
 };
 
+mod typed_execution;
 mod types;
 mod validation;
 
+use typed_execution::{
+    execute_typed_escrow_release_args, execute_typed_escrow_return_args,
+    execute_typed_sol_batch_send_args, execute_typed_sol_send_args,
+};
 use types::{
     ExecuteProposalRequest, ExecuteTypedEscrowReleaseRequest, ExecuteTypedEscrowReturnRequest,
     ExecuteTypedSolBatchSendRequest, ExecuteTypedSolSendRequest, PrepareApproveCancelRequest,
@@ -150,6 +155,11 @@ async fn create_typed_proposal(
         &body.nonce,
     )?;
     body.pre_signed.ensure_valid()?;
+    if body.pre_signed.signed_message_hex.is_none() {
+        return Err(ApiError::BadRequest(
+            "signed_message_hex is required for typed proposal create".into(),
+        ));
+    }
     state
         .rate_limiter
         .check(&body.pre_signed.signer_pubkey)
@@ -226,6 +236,11 @@ async fn approve_proposal(
     ensure_wallet_name(&name, "name")?;
     ensure_base58(&proposal, "proposal", 32, 88)?;
     body.pre_signed.ensure_valid()?;
+    if body.pre_signed.signed_message_hex.is_none() {
+        return Err(ApiError::BadRequest(
+            "signed_message_hex is required for typed proposal vote".into(),
+        ));
+    }
     state
         .rate_limiter
         .check(&body.pre_signed.signer_pubkey)
@@ -313,9 +328,8 @@ async fn prepare_proposal_create(
         args.push(p);
     }
     if let Some(e) = body.expiry {
-        ensure_non_empty(&e, "expiry")?;
         args.push("--expiry".into());
-        args.push(e);
+        args.push(normalize_expiry_arg(&e)?);
     }
     Ok(Json(state.runner.run_json(args).await?))
 }
@@ -334,6 +348,7 @@ async fn prepare_typed_proposal_create(
         &body.action_id,
         &body.nonce,
     )?;
+    ensure_non_empty(&body.signable_text, "signable_text")?;
     let mut args = vec!["--dry-run".into()];
     push_actor_pubkey(&mut args, &body.actor_pubkey)?;
     args.extend([
@@ -355,11 +370,12 @@ async fn prepare_typed_proposal_create(
         body.action_id,
         "--nonce".into(),
         body.nonce,
+        "--signable-text".into(),
+        body.signable_text,
     ]);
     if let Some(e) = body.expiry {
-        ensure_non_empty(&e, "expiry")?;
         args.push("--expiry".into());
-        args.push(e);
+        args.push(normalize_expiry_arg(&e)?);
     }
     Ok(Json(state.runner.run_json(args).await?))
 }
@@ -420,9 +436,8 @@ async fn prepare_approve_or_cancel(
         proposal,
     ]);
     if let Some(e) = body.expiry {
-        ensure_non_empty(&e, "expiry")?;
         args.push("--expiry".into());
-        args.push(e);
+        args.push(normalize_expiry_arg(&e)?);
     }
     Ok(Json(state.runner.run_json(args).await?))
 }
@@ -491,37 +506,8 @@ async fn execute_typed_escrow_release(
     Path((name, proposal)): Path<(String, String)>,
     Json(body): Json<ExecuteTypedEscrowReleaseRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_wallet_name(&name, "name")?;
-    ensure_base58(&proposal, "proposal", 32, 88)?;
-    ensure_base58(&body.recipient, "recipient", 32, 44)?;
-    ensure_non_empty(&body.escrow_id, "escrowId")?;
-    ensure_non_empty(&body.milestone_id, "milestoneId")?;
-    if body.amount_lamports == 0 {
-        return Err(ApiError::BadRequest(
-            "amountLamports must be greater than zero".into(),
-        ));
-    }
-    Ok(Json(
-        state
-            .runner
-            .run_json(vec![
-                "proposal".into(),
-                "typed-escrow-release".into(),
-                "--wallet".into(),
-                name,
-                "--proposal".into(),
-                proposal,
-                "--recipient".into(),
-                body.recipient,
-                "--amount-lamports".into(),
-                body.amount_lamports.to_string(),
-                "--escrow-id".into(),
-                body.escrow_id,
-                "--milestone-id".into(),
-                body.milestone_id,
-            ])
-            .await?,
-    ))
+    let args = execute_typed_escrow_release_args(name, proposal, body)?;
+    Ok(Json(state.runner.run_json(args).await?))
 }
 
 async fn execute_typed_escrow_return(
@@ -529,39 +515,7 @@ async fn execute_typed_escrow_return(
     Path((name, proposal)): Path<(String, String)>,
     Json(body): Json<ExecuteTypedEscrowReturnRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_wallet_name(&name, "name")?;
-    ensure_base58(&proposal, "proposal", 32, 88)?;
-    ensure_non_empty(&body.escrow_id, "escrowId")?;
-    if body.returns.is_empty() {
-        return Err(ApiError::BadRequest(
-            "returns must include at least one recipient".into(),
-        ));
-    }
-    if body.returns.len() > 16 {
-        return Err(ApiError::BadRequest(
-            "returns supports at most 16 recipients".into(),
-        ));
-    }
-    let mut args = vec![
-        "proposal".into(),
-        "typed-escrow-return".into(),
-        "--wallet".into(),
-        name,
-        "--proposal".into(),
-        proposal,
-        "--escrow-id".into(),
-        body.escrow_id,
-    ];
-    for row in body.returns {
-        ensure_base58(&row.recipient, "returns.recipient", 32, 44)?;
-        if row.amount_lamports == 0 {
-            return Err(ApiError::BadRequest(
-                "returns.amountLamports must be greater than zero".into(),
-            ));
-        }
-        args.push("--return".into());
-        args.push(format!("{}:{}", row.recipient, row.amount_lamports));
-    }
+    let args = execute_typed_escrow_return_args(name, proposal, body)?;
     Ok(Json(state.runner.run_json(args).await?))
 }
 
@@ -570,31 +524,8 @@ async fn execute_typed_sol_send(
     Path((name, proposal)): Path<(String, String)>,
     Json(body): Json<ExecuteTypedSolSendRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_wallet_name(&name, "name")?;
-    ensure_base58(&proposal, "proposal", 32, 88)?;
-    ensure_base58(&body.recipient, "recipient", 32, 44)?;
-    if body.amount_lamports == 0 {
-        return Err(ApiError::BadRequest(
-            "amountLamports must be greater than zero".into(),
-        ));
-    }
-    Ok(Json(
-        state
-            .runner
-            .run_json(vec![
-                "proposal".into(),
-                "typed-sol-send".into(),
-                "--wallet".into(),
-                name,
-                "--proposal".into(),
-                proposal,
-                "--recipient".into(),
-                body.recipient,
-                "--amount-lamports".into(),
-                body.amount_lamports.to_string(),
-            ])
-            .await?,
-    ))
+    let args = execute_typed_sol_send_args(name, proposal, body)?;
+    Ok(Json(state.runner.run_json(args).await?))
 }
 
 async fn execute_typed_sol_batch_send(
@@ -602,36 +533,7 @@ async fn execute_typed_sol_batch_send(
     Path((name, proposal)): Path<(String, String)>,
     Json(body): Json<ExecuteTypedSolBatchSendRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_wallet_name(&name, "name")?;
-    ensure_base58(&proposal, "proposal", 32, 88)?;
-    if body.payments.is_empty() {
-        return Err(ApiError::BadRequest(
-            "payments must include at least one recipient".into(),
-        ));
-    }
-    if body.payments.len() > 16 {
-        return Err(ApiError::BadRequest(
-            "payments supports at most 16 recipients".into(),
-        ));
-    }
-    let mut args = vec![
-        "proposal".into(),
-        "typed-sol-batch-send".into(),
-        "--wallet".into(),
-        name,
-        "--proposal".into(),
-        proposal,
-    ];
-    for row in body.payments {
-        ensure_base58(&row.recipient, "payments.recipient", 32, 44)?;
-        if row.amount_lamports == 0 {
-            return Err(ApiError::BadRequest(
-                "payments.amountLamports must be greater than zero".into(),
-            ));
-        }
-        args.push("--payment".into());
-        args.push(format!("{}:{}", row.recipient, row.amount_lamports));
-    }
+    let args = execute_typed_sol_batch_send_args(name, proposal, body)?;
     Ok(Json(state.runner.run_json(args).await?))
 }
 

@@ -6,10 +6,10 @@ use axum::{
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::clearsign::{format_expiry, push_pre_signed_flags, PreSigned};
+use crate::clearsign::{format_expiry, normalize_expiry_arg, push_pre_signed_flags, PreSigned};
 use crate::{
-    ensure_base58_pubkey, ensure_intent_filename, ensure_non_empty, ensure_non_empty_vec,
-    ensure_wallet_name, ApiError, AppState,
+    ensure_base58_pubkey, ensure_intent_filename, ensure_non_empty_vec, ensure_wallet_name,
+    ApiError, AppState,
 };
 
 #[derive(Deserialize)]
@@ -233,9 +233,8 @@ async fn prepare_intent_add(
         body.timelock.unwrap_or(0).to_string(),
     ]);
     if let Some(e) = body.expiry {
-        ensure_non_empty(&e, "expiry")?;
         args.push("--expiry".into());
-        args.push(e);
+        args.push(normalize_expiry_arg(&e)?);
     }
     push_policy_ciphertexts(&mut args, &body.policy_ciphertexts);
     Ok(Json(state.runner.run_json(args).await?))
@@ -257,9 +256,8 @@ async fn prepare_intent_remove(
         body.index.to_string(),
     ]);
     if let Some(e) = body.expiry {
-        ensure_non_empty(&e, "expiry")?;
         args.push("--expiry".into());
-        args.push(e);
+        args.push(normalize_expiry_arg(&e)?);
     }
     Ok(Json(state.runner.run_json(args).await?))
 }
@@ -304,9 +302,8 @@ async fn prepare_intent_update(
         body.timelock.unwrap_or(0).to_string(),
     ]);
     if let Some(e) = body.expiry {
-        ensure_non_empty(&e, "expiry")?;
         args.push("--expiry".into());
-        args.push(e);
+        args.push(normalize_expiry_arg(&e)?);
     }
     push_policy_ciphertexts(&mut args, &body.policy_ciphertexts);
     Ok(Json(state.runner.run_json(args).await?))

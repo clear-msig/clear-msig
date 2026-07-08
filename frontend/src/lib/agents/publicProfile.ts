@@ -1,5 +1,10 @@
 import { agentLibraryMetrics } from "@/lib/agents/libraryMetrics";
 import {
+  buildAgentCreatorRegistryReadiness,
+  type AgentCreatorRegistryReadiness,
+  type AgentCreatorType,
+} from "@/lib/agents/creatorRegistry";
+import {
   buildAgentTrackRecordBook,
   executionTrackRecordSource,
   proposalTrackRecordSource,
@@ -76,6 +81,7 @@ export interface AgentPublicProfile {
   strategySummary?: string;
   allowedMarkets: string[];
   supportedVenues: TradingVenue[];
+  creatorType: AgentCreatorType;
   creatorLabel: string;
   identityPubkey?: string;
   publishedAt?: number;
@@ -86,6 +92,7 @@ export interface AgentPublicProfile {
   recentTrades: AgentPublicProfileTrade[];
   recentDecisions: AgentPublicProfileDecision[];
   disclosures: string[];
+  registryReadiness: AgentCreatorRegistryReadiness;
   updatedAt: number;
 }
 
@@ -130,6 +137,17 @@ export function buildAgentPublicProfile({
     lanes.find((lane) => lane.source === book.primarySource && lane.hasHistory)?.source ??
     lanes.find((lane) => lane.hasHistory)?.source ??
     book.primarySource;
+  const publicRecentTrades = recentTrades(agentExecutions);
+  const publicRecentDecisions = recentDecisions(agentProposals);
+  const disclosures = [
+    "ClearSig does not host, train, or custody creator-owned agents by default.",
+    "Agents submit trade decisions. ClearSig checks user permissions and risk rules before execution.",
+    "Paper, testnet, and verified live results are separated because they carry different risk meaning.",
+    "Past performance and reasoning quality do not guarantee future results.",
+  ];
+  const creatorType: AgentCreatorType = agent.libraryTraderId
+    ? "clearsig_prepared"
+    : "external";
 
   return {
     walletName: state.walletName,
@@ -145,6 +163,7 @@ export function buildAgentPublicProfile({
     strategySummary: agent.strategy?.summary,
     allowedMarkets: agent.strategy?.allowedMarkets ?? uniqueMarkets(agentProposals, agentExecutions),
     supportedVenues: uniqueVenues(agentProposals, agentExecutions),
+    creatorType,
     creatorLabel: agent.libraryTraderId ? "ClearSig prepared agent" : "External creator agent",
     identityPubkey: agent.identityPubkey,
     publishedAt: agent.publishing?.publishedAt,
@@ -152,14 +171,24 @@ export function buildAgentPublicProfile({
     reviewReason: agent.publishing?.moderation?.reason,
     primarySource,
     lanes,
-    recentTrades: recentTrades(agentExecutions),
-    recentDecisions: recentDecisions(agentProposals),
-    disclosures: [
-      "ClearSig does not host, train, or custody creator-owned agents by default.",
-      "Agents submit trade decisions. ClearSig checks user permissions and risk rules before execution.",
-      "Paper, testnet, and verified live results are separated because they carry different risk meaning.",
-      "Past performance and reasoning quality do not guarantee future results.",
-    ],
+    recentTrades: publicRecentTrades,
+    recentDecisions: publicRecentDecisions,
+    disclosures,
+    registryReadiness: buildAgentCreatorRegistryReadiness({
+      creatorType,
+      name: agent.name,
+      summary:
+        agent.publishing?.publicSummary?.trim() ||
+        agent.description?.trim() ||
+        `${agent.name} trading profile`,
+      allowedMarkets: agent.strategy?.allowedMarkets ?? uniqueMarkets(agentProposals, agentExecutions),
+      supportedVenues: uniqueVenues(agentProposals, agentExecutions),
+      identityPubkey: agent.identityPubkey,
+      reviewedAt: agent.publishing?.moderation?.reviewedAt,
+      lanes,
+      recentDecisions: publicRecentDecisions,
+      disclosures,
+    }),
     updatedAt: Math.max(
       state.updatedAt,
       agent.updatedAt,

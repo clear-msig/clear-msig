@@ -70,6 +70,7 @@ import { SendAmountField } from "@/components/retail/SendAmountField";
 import { InfoTip } from "@/components/retail/InfoTip";
 import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
+import { FormField, TextInput } from "@/components/retail/FormField";
 import { chainByKind } from "@/lib/retail/chains";
 import { appConfig } from "@/lib/config";
 import {
@@ -1115,14 +1116,8 @@ function ComposeForm(props: {
             "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-4 lg:shadow-card-rest"
           }
         >
-          <label
-            htmlFor="btc-destination"
-            className="flex flex-col gap-1"
-          >
-            <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              To
-            </span>
-            <input
+          <FormField label="To" error={props.destinationError}>
+            <TextInput
               id="btc-destination"
               type="text"
               value={props.destination}
@@ -1132,27 +1127,12 @@ function ComposeForm(props: {
               autoCapitalize="off"
               autoCorrect="off"
               autoComplete="off"
-              className={
-                "w-full rounded-card border border-border-soft bg-canvas px-4 py-3 font-mono text-sm text-text-strong outline-none " +
-                "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-                "focus:border-accent focus:shadow-accent-rest"
-              }
+              className="font-mono"
             />
-            {props.destinationError && (
-              <span className="text-[11px] text-warning" role="alert">
-                {props.destinationError}
-              </span>
-            )}
-          </label>
+          </FormField>
 
-          <label
-            htmlFor="btc-note"
-            className="flex flex-col gap-1"
-          >
-            <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              {SEND_NOTE_LABEL}
-            </span>
-            <input
+          <FormField label={SEND_NOTE_LABEL}>
+            <TextInput
               id="btc-note"
               type="text"
               value={props.note}
@@ -1161,13 +1141,8 @@ function ComposeForm(props: {
               }
               placeholder={SEND_NOTE_PLACEHOLDER}
               maxLength={SEND_NOTE_MAX_LENGTH}
-              className={
-                "w-full rounded-card border border-border-soft bg-canvas px-4 py-3 text-sm text-text-strong outline-none " +
-                "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-                "focus:border-accent focus:shadow-accent-rest"
-              }
             />
-          </label>
+          </FormField>
         </section>
       </div>
 

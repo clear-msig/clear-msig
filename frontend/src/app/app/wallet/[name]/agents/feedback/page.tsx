@@ -5,6 +5,13 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Check, MessageSquare, Trash2 } from "lucide-react";
+import { Button } from "@/components/retail/Button";
+import {
+  FormField,
+  NativeSelect,
+  TextArea,
+  TextInput,
+} from "@/components/retail/FormField";
 import { useToast } from "@/components/ui/Toast";
 import {
   clearAgentBetaFeedback,
@@ -88,7 +95,7 @@ export default function AgentFeedbackPage() {
         </Link>
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-            Beta Feedback Â· {display}
+            Beta Feedback · {display}
           </p>
           <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
             Feedback
@@ -113,55 +120,47 @@ export default function AgentFeedbackPage() {
           </div>
 
           <div className="mt-4 grid gap-3">
-            <label className="grid gap-1.5">
-              <span className="text-xs font-medium text-text-soft">Type</span>
-              <select
+            <FormField label="Type">
+              <NativeSelect
                 value={kind}
                 onChange={(event) => setKind(event.target.value as AgentBetaFeedbackKind)}
-                className={INPUT_CLASS}
               >
                 {FEEDBACK_KINDS.map((item) => (
                   <option key={item.value} value={item.value}>
                     {item.label}
                   </option>
                 ))}
-              </select>
-            </label>
-            <label className="grid gap-1.5">
-              <span className="text-xs font-medium text-text-soft">Route</span>
-              <input
+              </NativeSelect>
+            </FormField>
+            <FormField label="Route">
+              <TextInput
                 value={route}
                 onChange={(event) => setRoute(event.target.value)}
-                className={INPUT_CLASS}
               />
-            </label>
-            <label className="grid gap-1.5">
-              <span className="text-xs font-medium text-text-soft">Contact</span>
-              <input
+            </FormField>
+            <FormField label="Contact">
+              <TextInput
                 value={contact}
                 onChange={(event) => setContact(event.target.value)}
                 placeholder="Optional"
-                className={INPUT_CLASS}
               />
-            </label>
-            <label className="grid gap-1.5">
-              <span className="text-xs font-medium text-text-soft">What happened?</span>
-              <textarea
+            </FormField>
+            <FormField label="What happened?">
+              <TextArea
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
                 rows={5}
-                className={INPUT_CLASS}
               />
-            </label>
-            <button
-              type="button"
+            </FormField>
+            <Button
               disabled={pending}
               onClick={submit}
-              className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+              size="sm"
+              fullWidth
             >
               <Check className="h-3.5 w-3.5" aria-hidden="true" />
               Save feedback
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -175,15 +174,15 @@ export default function AgentFeedbackPage() {
                 {items.length} saved locally
               </p>
             </div>
-            <button
-              type="button"
+            <Button
+              variant="danger"
+              size="sm"
               disabled={pending || items.length === 0}
               onClick={clearAll}
-              className="inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-rose-500/30 px-2 py-1 text-[11px] font-medium text-rose-300 transition-colors hover:bg-rose-500/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Trash2 className="h-3 w-3" aria-hidden="true" />
               Clear
-            </button>
+            </Button>
           </div>
           <div className="mt-4 grid gap-2">
             {items.length > 0 ? (
@@ -242,6 +241,3 @@ function decodeParam(value: string | undefined): string {
 function kindLabel(kind: AgentBetaFeedbackKind): string {
   return FEEDBACK_KINDS.find((item) => item.value === kind)?.label ?? "Other";
 }
-
-const INPUT_CLASS =
-  "min-h-10 w-full rounded-soft border border-border-soft bg-canvas px-3 py-2 text-sm text-text-strong placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25";

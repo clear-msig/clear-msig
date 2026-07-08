@@ -2,17 +2,9 @@
 
 // Batch send - payroll-style "one input, N requests."
 //
-// The proposer enters {recipient, amount} rows, taps "Send batch",
-// and signs once per row. Each row becomes its
-// own SolTransfer proposal under the wallet's first spending rule.
-// Rows are grouped under one batch_id locally so the dashboard can
-// render them as a single line ("Payroll • 50 requests") instead of
-// 50 near-identical rows.
-//
-// Why N proposals: the on-chain SolTransfer template fires a single
-// CPI per execution. A program-level batch-intent type (one signature
-// per actor for the whole bundle) is on the roadmap; this is the v1
-// that ships against today's program with no contract changes.
+// The proposer enters {recipient, amount} rows, reviews one ClearSign
+// v2 batch action, then signs one typed proposal. The program verifies
+// the exact recipient list + lamports before moving funds.
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -45,6 +37,7 @@ import { useBatchSend, type BatchSendRow } from "@/lib/hooks/useBatchSend";
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
+import { FormField, TextArea, TextInput } from "@/components/retail/FormField";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { getProTreasuryRuntime } from "@/lib/pro/treasury";
 import { consumeProBatchPrefill } from "@/lib/pro/escrow";
@@ -432,32 +425,31 @@ function ComposeStage({
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
             {csvColumns.join(", ")}
           </p>
-          <textarea
+          <TextArea
             value={csvText}
             onChange={(event) => onCsvTextChange(event.target.value)}
             rows={5}
             placeholder="name,address,asset,amount,note"
             spellCheck={false}
-            className="min-h-28 resize-y rounded-soft border border-border-soft bg-canvas px-3 py-2 font-mono text-xs leading-relaxed text-text-strong outline-none placeholder:text-text-soft/60 focus:border-accent/50"
+            className="min-h-28 resize-y font-mono text-xs"
           />
           <div className="grid gap-2 sm:grid-cols-2">
-            <button
+            <Button
               type="button"
               onClick={onDownloadTemplate}
-              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-soft border border-border-soft bg-canvas px-3 text-sm font-semibold text-text-strong transition hover:border-accent/40 hover:text-accent"
+              variant="secondary"
             >
               <Download className="h-4 w-4" aria-hidden="true" />
               Template
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={onImportCsv}
               disabled={!csvText.trim()}
-              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-soft bg-accent px-3 text-sm font-semibold text-text-on-accent shadow-accent-rest transition-[background-color,opacity,transform] hover:bg-accent-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
             >
               <Upload className="h-4 w-4" aria-hidden="true" />
               Fill rows
-            </button>
+            </Button>
           </div>
         </div>
       </details>
@@ -565,11 +557,8 @@ function RecipientRow({
           {index}
         </span>
         <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-          <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-text-soft">
-              Recipient
-            </span>
-            <input
+          <FormField label="Recipient">
+            <TextInput
               value={draft.recipient}
               onChange={(e) => onChange({ recipient: e.target.value })}
               placeholder="Name or wallet address"
@@ -577,19 +566,10 @@ function RecipientRow({
               maxLength={64}
               spellCheck={false}
               autoComplete="off"
-              className={
-                "w-full rounded-soft border border-border-soft bg-canvas px-3 py-2 text-sm text-text-strong outline-none " +
-                "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-                "placeholder:text-text-soft/60 " +
-                "focus:border-accent focus:shadow-accent-rest"
-              }
             />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-text-soft">
-              SOL
-            </span>
-            <input
+          </FormField>
+          <FormField label="SOL">
+            <TextInput
               value={draft.amount}
               onChange={(e) =>
                 onChange({ amount: sanitizeAmount(e.target.value) })
@@ -597,14 +577,9 @@ function RecipientRow({
               inputMode="decimal"
               placeholder="0.00"
               maxLength={20}
-              className={
-                "w-full rounded-soft border border-border-soft bg-canvas px-3 py-2 text-right font-numerals text-sm tabular-nums text-text-strong outline-none sm:w-32 " +
-                "transition-[border-color,box-shadow] duration-base ease-out-soft " +
-                "placeholder:text-text-soft/60 " +
-                "focus:border-accent focus:shadow-accent-rest"
-              }
+              className="text-right font-numerals tabular-nums sm:w-32"
             />
-          </label>
+          </FormField>
         </div>
         {canRemove && (
           <button

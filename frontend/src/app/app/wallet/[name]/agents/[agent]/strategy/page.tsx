@@ -15,6 +15,12 @@ import {
   type AgentTradingMode,
 } from "@/lib/agents/client";
 import { toDisplayName } from "@/lib/retail/walletNames";
+import { Button } from "@/components/retail/Button";
+import {
+  FormField,
+  TextArea as SharedTextArea,
+  TextInput,
+} from "@/components/retail/FormField";
 
 const MODES: Array<{ value: AgentTradingMode; label: string; hint: string }> = [
   {
@@ -149,7 +155,7 @@ export default function AgentStrategyPage() {
         </Link>
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-            Trading style Â· {display}
+            Trading style · {display}
           </p>
           <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
             {agentName}
@@ -234,14 +240,13 @@ export default function AgentStrategyPage() {
               <Lock className="h-3 w-3" aria-hidden="true" />
               {encrypt.live ? "Privacy on" : "Privacy ready"}
             </span>
-            <button
+            <Button
               type="submit"
               disabled={pending}
-              className="inline-flex min-h-tap items-center justify-center gap-1.5 rounded-soft bg-accent px-4 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest transition-[background-color,box-shadow,transform] duration-base ease-out-soft hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Save size={13} aria-hidden="true" />
               {pending ? "Saving" : "Save trading plan"}
-            </button>
+            </Button>
           </div>
         </form>
       </section>
@@ -261,15 +266,13 @@ function TextField({
   placeholder?: string;
 }) {
   return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-text-soft">{label}</span>
-      <input
+    <FormField label={label}>
+      <TextInput
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className={INPUT_CLASS}
       />
-    </label>
+    </FormField>
   );
 }
 
@@ -287,16 +290,14 @@ function TextArea({
   rows?: number;
 }) {
   return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-text-soft">{label}</span>
-      <textarea
+    <FormField label={label}>
+      <SharedTextArea
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         rows={rows}
-        className={clsx(INPUT_CLASS, "resize-none leading-relaxed")}
       />
-    </label>
+    </FormField>
   );
 }
 
@@ -308,10 +309,3 @@ function decodeParam(value: string | undefined): string {
     return raw;
   }
 }
-
-const INPUT_CLASS = clsx(
-  "w-full rounded-soft border border-border-soft bg-canvas px-3 py-2 text-sm text-text-strong",
-  "placeholder:text-text-muted",
-  "transition-[border-color,box-shadow] duration-base ease-out-soft",
-  "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25",
-);

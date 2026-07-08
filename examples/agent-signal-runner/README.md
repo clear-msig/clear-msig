@@ -1,11 +1,12 @@
 # ClearSig Agent Signal Runner
 
 This dependency-free runner acts like an external trading agent. It can submit
-fresh signals to a ClearSig agent inbox, prove webhook retry idempotency, and
-produce a deliberately unsafe signal for a risk-policy demo.
+fresh signed decisions to a ClearSig agent inbox, prove webhook retry
+idempotency, and produce a deliberately unsafe signal for a risk-policy demo.
 
-It receives only the submit-only signal key. Never give an external agent the
-ClearSig management key, wallet credentials, or venue credentials.
+It receives only the submit-only signal key and uses it to create an
+`hmac_sha256_v1` decision signature. Never give an external agent the ClearSig
+management key, wallet credentials, or venue credentials.
 
 ## Setup
 
@@ -73,6 +74,13 @@ Preview a fresh payload without sending it:
 
 ```bash
 node examples/agent-signal-runner/run.mjs --scenario valid --dry-run
+```
+
+Signed decision delivery is the default. To test the old signal-key-only
+compatibility path explicitly:
+
+```bash
+node examples/agent-signal-runner/run.mjs --scenario valid --unsigned
 ```
 
 Run the runner's tests:

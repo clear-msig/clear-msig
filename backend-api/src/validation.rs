@@ -224,6 +224,7 @@ mod tests {
             signature: "00".repeat(64),
             message_flavor: None,
             params_data_hex: Some("00".to_string()),
+            signed_message_hex: None,
             expiry: current_unix_timestamp().unwrap(),
         };
         let err = ps.ensure_valid().unwrap_err();

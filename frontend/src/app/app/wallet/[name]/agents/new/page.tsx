@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useMemo, useState, useTransition } from "react";
-import clsx from "clsx";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Bot, Lock, Save } from "lucide-react";
@@ -16,6 +15,8 @@ import {
 } from "@/lib/agents/client";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { useToast } from "@/components/ui/Toast";
+import { Button } from "@/components/retail/Button";
+import { FormField, NativeSelect, TextArea, TextInput } from "@/components/retail/FormField";
 
 const AGENT_KINDS: Array<{ value: AgentKind; label: string }> = [
   { value: "mock", label: "Built-in practice trader" },
@@ -105,7 +106,7 @@ export default function NewAgentPage() {
         </Link>
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-            Trader Profile Â· {display}
+            Trader Profile · {display}
           </p>
           <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
             {advanced ? "Connect an outside trader" : "Create your own trader"}
@@ -126,70 +127,56 @@ export default function NewAgentPage() {
         </div>
 
         <form onSubmit={submit} className="flex flex-col gap-4">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-text-soft">Name</span>
-            <input
+          <FormField label="Name">
+            <TextInput
               value={agentName}
               onChange={(event) => setAgentName(event.target.value)}
               placeholder="Hermes Momentum"
-              className={INPUT_CLASS}
             />
-          </label>
+          </FormField>
 
           {advanced ? (
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-text-soft">Trader type</span>
-              <select
+            <FormField label="Trader type">
+              <NativeSelect
                 value={kind}
                 onChange={(event) => setKind(event.target.value as AgentKind)}
-                className={INPUT_CLASS}
               >
                 {AGENT_KINDS.filter((option) => option.value !== "mock").map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
                 ))}
-              </select>
-            </label>
+              </NativeSelect>
+            </FormField>
           ) : null}
 
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-text-soft">
-              What should it focus on?
-            </span>
-            <textarea
+          <FormField label="What should it focus on?">
+            <TextArea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               placeholder="What this trader should watch or trade."
               rows={4}
-              className={clsx(INPUT_CLASS, "resize-none leading-relaxed")}
             />
-          </label>
+          </FormField>
 
           {advanced ? (
             <div className="rounded-soft border border-border-soft bg-canvas px-3 py-3">
               <div className="grid gap-4">
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-xs font-medium text-text-soft">
-                    Public identity
-                  </span>
-                  <input
+                <FormField label="Public identity">
+                  <TextInput
                     value={identityPubkey}
                     onChange={(event) => setIdentityPubkey(event.target.value)}
                     placeholder="Optional"
-                    className={INPUT_CLASS}
                   />
-                </label>
+                </FormField>
 
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-xs font-medium text-text-soft">Home address</span>
-                  <input
+                <FormField label="Home address">
+                  <TextInput
                     value={endpoint}
                     onChange={(event) => setEndpoint(event.target.value)}
                     placeholder="https://example.com"
-                    className={INPUT_CLASS}
                   />
-                </label>
+                </FormField>
               </div>
             </div>
           ) : null}
@@ -199,16 +186,10 @@ export default function NewAgentPage() {
               <Lock className="h-3 w-3" aria-hidden="true" />
               {encrypt.live ? "Privacy on" : "Privacy ready"}
             </span>
-            <button
+            <Button
               type="submit"
               disabled={pending}
-              className={clsx(
-                "inline-flex min-h-tap items-center justify-center gap-1.5 rounded-soft bg-accent px-4 py-2 text-xs font-medium text-text-on-accent shadow-accent-rest",
-                "transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
-                "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
-                "disabled:cursor-not-allowed disabled:opacity-60",
-              )}
+              size="md"
             >
               <Save size={13} aria-hidden="true" />
               {pending
@@ -216,17 +197,10 @@ export default function NewAgentPage() {
                 : advanced
                   ? "Connect trader and continue"
                   : "Create trader and continue"}
-            </button>
+            </Button>
           </div>
         </form>
       </section>
     </div>
   );
 }
-
-const INPUT_CLASS = clsx(
-  "w-full rounded-soft border border-border-soft bg-canvas px-3 py-2 text-sm text-text-strong",
-  "placeholder:text-text-muted",
-  "transition-[border-color,box-shadow] duration-base ease-out-soft",
-  "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25",
-);

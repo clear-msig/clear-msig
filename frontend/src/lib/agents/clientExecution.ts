@@ -21,6 +21,7 @@ export type AgentVenueReadiness = AgentServerExecutionReadiness & {
     message?: string;
     readinessState?: string;
     artifact?: HyperliquidTestnetOrderArtifact;
+    artifactHash?: string;
     createdAt?: number;
     updatedAt?: number;
     request: {

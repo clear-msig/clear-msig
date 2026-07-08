@@ -13,6 +13,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
+import { formatUnixSigningExpiry } from "@/lib/api/expiry";
 import { ProposalStatus, sha256, toHex } from "@/lib/msig";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
@@ -165,7 +166,8 @@ export function useBatchSend() {
           envelope_hash: summary.envelopeHash,
           action_id: envelope.actionId,
           nonce: envelope.nonce,
-          expiry: String(envelope.expiresAt),
+          signable_text: summary.signableText,
+          expiry: formatUnixSigningExpiry(envelope.expiresAt),
           actor_pubkey: proposerPk.toBase58(),
         });
 

@@ -43,9 +43,6 @@ export function SendChainPicker({
   // single asset chooser: ready assets open the send form, missing
   // assets start the same "turn on sending" path.
   const visible = options;
-  const boundCount = options.filter(
-    (o) => o.status === "ready" || o.status === "needs_setup",
-  ).length;
   // Always render the row - even with only Solana bound - because
   // the trailing "Add chain" tile is now part of the row, not a
   // hidden affordance.
@@ -53,9 +50,9 @@ export function SendChainPicker({
   return (
     <nav
       aria-label="Choose what to send"
-      className="mb-4 rounded-card border border-border-soft bg-surface-raised p-2.5 shadow-card-rest sm:p-3"
+      className="mb-4"
     >
-      <div className="flex flex-col gap-2 md:flex-row md:overflow-x-auto md:pb-1">
+      <div className="flex items-center gap-2 overflow-x-auto rounded-card border border-border-soft bg-surface-raised/80 p-1.5 shadow-card-rest backdrop-blur md:pb-1.5">
         {visible.map((opt) => {
           const isActive = opt.chain.kind === activeKind;
           const href = sendHrefFor(walletName, opt.chain, opt.status);
@@ -63,13 +60,13 @@ export function SendChainPicker({
           const tile = (
             <span
               className={
-                "flex w-full items-center gap-2 rounded-soft border px-3 py-2 text-left md:min-w-[8.75rem] " +
-                "transition-[border-color,background-color,transform] duration-base ease-out-soft " +
+                "flex h-12 min-w-[8.25rem] items-center gap-2 rounded-soft border px-2.5 text-left " +
+                "transition-[border-color,background-color,color] duration-base ease-out-soft " +
                 (disabled
                   ? "cursor-not-allowed opacity-60 border-border-soft bg-canvas"
                   : isActive
-                    ? "border-accent bg-accent/5 shadow-card-rest"
-                    : "border-border-soft bg-canvas hover:-translate-y-px hover:border-accent/40")
+                    ? "border-accent bg-canvas text-text-strong shadow-card-rest"
+                    : "border-transparent bg-transparent hover:bg-canvas hover:text-text-strong")
               }
             >
               <ChainBadge chain={opt.chain} size="sm" />
@@ -88,7 +85,7 @@ export function SendChainPicker({
               <span
                 key={opt.chain.kind}
                 aria-disabled
-                className="hidden md:inline-flex"
+                className="hidden shrink-0 md:inline-flex"
               >
                 {tile}
               </span>
@@ -99,42 +96,28 @@ export function SendChainPicker({
               key={opt.chain.kind}
               href={href}
               aria-current={isActive ? "page" : undefined}
-              className="block md:inline-block"
+              className="block shrink-0"
             >
               {tile}
             </Link>
           );
         })}
 
-        {/* Add-asset tile - always rendered as the last item so users
-          can find the chain-management flow without leaving /send.
-          Solana-only wallets see this as the only secondary tile;
-          multi-chain wallets see it after their bound chains.
-          Subtitle adapts so the row reads as a single thought. */}
+        {/* Compact add-asset control keeps the picker calm while preserving
+          the route into chain management from every send page. */}
         <Link
           href={addChainHref}
           aria-label="Turn on another asset"
+          title="Turn on another asset"
           className={
-            "flex w-full items-center gap-2 rounded-soft border border-dashed border-border-soft bg-canvas px-3 py-2 text-left md:min-w-[8.75rem] " +
-            "transition-[border-color,background-color,transform] duration-base ease-out-soft " +
-            "hover:-translate-y-px hover:border-accent/40 hover:bg-accent/5 " +
+            "ml-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-soft border border-border-soft bg-canvas text-text-soft " +
+            "transition-[border-color,background-color,color] duration-base ease-out-soft " +
+            "hover:border-accent/40 hover:bg-accent/5 hover:text-accent " +
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
           }
         >
-          <span
-            aria-hidden="true"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent"
-          >
-            <Plus className="h-4 w-4" strokeWidth={2.25} />
-          </span>
-          <span className="flex min-w-0 flex-col">
-            <span className="truncate text-xs font-medium text-text-strong">
-              Turn on asset
-            </span>
-            <span className="truncate text-[10px] text-text-soft">
-              {boundCount === 1 ? "ETH, BTC, ZEC, HYPE" : "More options"}
-            </span>
-          </span>
+          <Plus className="h-4 w-4" strokeWidth={2.25} aria-hidden="true" />
+          <span className="sr-only">Turn on another asset</span>
         </Link>
       </div>
     </nav>
