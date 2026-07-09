@@ -317,6 +317,7 @@ pub mod clear_wallet {
         signature: [u8; 64],
         action_id: [u8; 32],
         nonce: [u8; 32],
+        policy_bytes: Vec<u8, 2048>,
         clear_text: &[u8],
     ) -> Result<(), ProgramError> {
         ctx.accounts.propose_typed(
@@ -332,6 +333,7 @@ pub mod clear_wallet {
                 proposer_pubkey: &proposer_pubkey,
                 signature: &signature,
                 clear_text,
+                policy_bytes: policy_bytes.as_ref(),
             },
             &ctx.bumps,
         )

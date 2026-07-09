@@ -280,6 +280,7 @@ export interface TypedProposalAccount {
   envelopeHash: string;
   actionId: string;
   nonce: string;
+  policyBytesHex: string;
 }
 
 export type AnyProposalAccount = ProposalAccount | TypedProposalAccount;
@@ -339,6 +340,20 @@ export function parseTypedProposal(data: Uint8Array): TypedProposalAccount {
   const envelopeHash = hex(r.fixed(32));
   const actionId = r.utf8(Number(r.u32()));
   const nonce = r.utf8(Number(r.u32()));
+  const beforePolicy = r.position();
+  let policyBytesHex = "";
+  try {
+    const policyBytes = r.vecU8();
+    try {
+      r.vecU8();
+      r.reset(beforePolicy);
+      policyBytesHex = hex(r.vecU8());
+    } catch {
+      r.reset(beforePolicy);
+    }
+  } catch {
+    r.reset(beforePolicy);
+  }
   const statusLabel = (
     ["Active", "Approved", "Executed", "Cancelled"] as const
   )[statusByte] ?? "Unknown";
@@ -363,6 +378,7 @@ export function parseTypedProposal(data: Uint8Array): TypedProposalAccount {
     envelopeHash,
     actionId,
     nonce,
+    policyBytesHex,
   };
 }
 
@@ -516,6 +532,12 @@ class Reader {
   }
   position(): number {
     return this.off;
+  }
+  reset(position: number): void {
+    if (position < 1 || position > this.data.length) {
+      throw new Error(`parse${this.tag}: invalid reader reset`);
+    }
+    this.off = position;
   }
   vecParamEntries(): ParamEntry[] {
     const n = Number(this.u32());

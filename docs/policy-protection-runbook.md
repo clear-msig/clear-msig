@@ -13,22 +13,26 @@ On-chain today:
 - Proposer and approver membership checks.
 - Proposal status checks before execute.
 - Typed ClearSign proposal commitments for typed surfaces.
+- Typed SOL send policy bytes are committed in the ClearSign envelope and stored
+  on the typed proposal. When present, the program enforces recipient
+  allow/block lists, per-send SOL amount caps, required extra approvers, and
+  extra cooldown seconds before moving lamports.
 - Intent policy ciphertext references are stored with intents for future FHE
   evaluation.
 
 Client-side today:
 
-- Recipient allow/block rules.
-- Amount limits.
-- Time-window rules.
 - Velocity rules based on local transaction history.
-- Extra approver policy rules.
-- Additional cooldown rules beyond the on-chain intent timelock.
+- Time-window rules.
+- Non-SOL recipient allow/block rules.
+- Non-SOL amount limits.
+- Non-SOL extra approver policy rules.
+- Non-SOL additional cooldown rules beyond the on-chain intent timelock.
 
 The client-side rules protect the normal app path, but they are not a final
 security boundary. A signer who bypasses the frontend and submits through the
-CLI/backend can still avoid these richer policy checks until the program has
-typed policy executors/FHE policy handlers.
+CLI/backend can still avoid richer policy checks on surfaces that do not yet
+have typed policy executors/FHE policy handlers.
 
 ## App-Level Guardrails
 
@@ -49,14 +53,14 @@ npm test -- --run src/lib/policies/__tests__/enforce.test.ts src/lib/policies/__
 ## What Must Become On-Chain
 
 Before we claim policies are fully verifiable and on-chain-enforced, the program
-needs typed policy execution for:
+still needs typed policy execution for:
 
 - Deny rules.
-- Recipient allow/block rules.
-- Per-action amount caps.
+- Recipient allow/block rules outside typed SOL send.
+- Per-action amount caps outside typed SOL send.
 - Daily/weekly/monthly velocity caps.
-- Extra approver requirements.
-- Extra cooldown requirements.
+- Extra approver requirements outside typed SOL send.
+- Extra cooldown requirements outside typed SOL send.
 - Agent trading risk limits and session allowances.
 
 The final form should be:
@@ -78,6 +82,8 @@ High priority checks:
 - Cooldown policy delays execution before broadcast.
 - Threshold and timelock still fail on-chain if the frontend is bypassed.
 - Typed proposal policy commitment mismatch fails on-chain.
+- Typed SOL send recipient blocklist and amount cap failures return explicit
+  program policy errors.
 
 Program checks to keep running:
 

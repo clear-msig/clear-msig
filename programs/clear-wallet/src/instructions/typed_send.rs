@@ -12,6 +12,7 @@ use crate::{
     utils::clearsign::{
         hash_batch_send_sol_payload_iter, hash_send_payload, ClearSignActionKind, ClearSignAmount,
     },
+    utils::policy::enforce_typed_sol_send_policy,
 };
 
 const SOL_ASSET: &[u8] = b"SOL";
@@ -100,6 +101,18 @@ impl<'info> ExecuteTypedSolSend<'info> {
             args.policy_commitment,
             payload_hash,
             args.envelope_hash,
+        )?;
+        let recipient_bytes = self.recipient.address().as_ref();
+        let recipient_key: &[u8; 32] = recipient_bytes
+            .try_into()
+            .map_err(|_| WalletError::InvalidPolicy)?;
+        enforce_typed_sol_send_policy(
+            self.proposal.policy_bytes().as_ref(),
+            args.policy_commitment,
+            recipient_key,
+            args.amount_lamports,
+            &self.intent,
+            &self.proposal,
         )?;
         let vault_seeds = self.vault_seeds(bumps);
         transfer_lamports(

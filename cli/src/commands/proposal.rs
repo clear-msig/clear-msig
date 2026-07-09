@@ -48,6 +48,8 @@ pub enum ProposalAction {
         action_id: String,
         #[arg(long)]
         nonce: String,
+        #[arg(long)]
+        policy_bytes_hex: Option<String>,
         /// Human-readable ClearSign v2 action text produced by /clearsign/v2/prepare.
         ///
         /// Required for dry-run and local signing. Browser pre-signed submits
@@ -455,6 +457,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             envelope_hash,
             action_id,
             nonce,
+            policy_bytes_hex,
             signable_text,
             expiry,
         } => {
@@ -487,6 +490,12 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             let policy_commitment = decode_hex_32(&policy_commitment, "policy_commitment")?;
             let payload_hash = decode_hex_32(&payload_hash, "payload_hash")?;
             let envelope_hash = decode_hex_32(&envelope_hash, "envelope_hash")?;
+            let policy_bytes = policy_bytes_hex
+                .as_deref()
+                .map(parse_hex_local)
+                .transpose()
+                .with_context(|| "invalid policy-bytes-hex")?
+                .unwrap_or_default();
             ensure_typed_text(&action_id, "action_id")?;
             ensure_typed_text(&nonce, "nonce")?;
 
@@ -603,6 +612,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 signature,
                 action_id: action_id_hash,
                 nonce: nonce_hash,
+                policy_bytes: &policy_bytes,
                 clear_text: clear_text.as_ref(),
             });
             let sig = rpc::send_instruction(&client, config, ix)?;

@@ -18,6 +18,7 @@ pub(super) struct SignedTypedProposalCreateRequest {
     pub(super) envelope_hash: String,
     pub(super) action_id: String,
     pub(super) nonce: String,
+    pub(super) policy_bytes_hex: Option<String>,
     #[serde(flatten)]
     pub(super) pre_signed: PreSigned,
 }
@@ -48,6 +49,7 @@ pub(super) struct PrepareTypedProposalCreateRequest {
     pub(super) envelope_hash: String,
     pub(super) action_id: String,
     pub(super) nonce: String,
+    pub(super) policy_bytes_hex: Option<String>,
     pub(super) signable_text: String,
     pub(super) expiry: Option<String>,
     pub(super) actor_pubkey: Option<String>,

@@ -24,6 +24,7 @@ function plan(action: "allow" | "deny"): PolicyEnforcementPlan {
     },
     extraApprovers: [],
     extraCooldownSeconds: 0,
+    conditions: [],
   };
 }
 
@@ -40,6 +41,7 @@ describe("policy enforcement guardrails", () => {
       assertPolicyNotDenied({
         evaluation: null,
         rule: null,
+        conditions: [],
         extraApprovers: [],
         extraCooldownSeconds: 0,
       }),

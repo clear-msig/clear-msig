@@ -7,7 +7,8 @@ use serde_json::Value;
 
 use crate::clearsign::{format_expiry, normalize_expiry_arg, push_pre_signed_flags};
 use crate::{
-    ensure_base58, ensure_non_empty, ensure_non_empty_vec, ensure_wallet_name, ApiError, AppState,
+    ensure_base58, ensure_hex, ensure_non_empty, ensure_non_empty_vec, ensure_wallet_name,
+    ApiError, AppState,
 };
 
 mod typed_execution;
@@ -189,6 +190,10 @@ async fn create_typed_proposal(
         "--expiry".into(),
         format_expiry(body.pre_signed.expiry)?,
     ]);
+    if let Some(policy_bytes_hex) = body.policy_bytes_hex {
+        ensure_hex(&policy_bytes_hex, "policyBytesHex")?;
+        args.extend(["--policy-bytes-hex".into(), policy_bytes_hex]);
+    }
     Ok(Json(state.runner.run_json(args).await?))
 }
 
@@ -373,6 +378,10 @@ async fn prepare_typed_proposal_create(
         "--signable-text".into(),
         body.signable_text,
     ]);
+    if let Some(policy_bytes_hex) = body.policy_bytes_hex {
+        ensure_hex(&policy_bytes_hex, "policyBytesHex")?;
+        args.extend(["--policy-bytes-hex".into(), policy_bytes_hex]);
+    }
     if let Some(e) = body.expiry {
         args.push("--expiry".into());
         args.push(normalize_expiry_arg(&e)?);

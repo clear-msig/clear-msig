@@ -209,6 +209,7 @@ pub struct ProposeTypedArgs<'a> {
     pub signature: [u8; 64],
     pub action_id: [u8; 32],
     pub nonce: [u8; 32],
+    pub policy_bytes: &'a [u8],
     pub clear_text: &'a [u8],
 }
 
@@ -234,6 +235,7 @@ pub fn propose_typed(args: ProposeTypedArgs) -> Instruction {
     wincode::serialize_into(&mut data, &args.signature).unwrap();
     wincode::serialize_into(&mut data, &args.action_id).unwrap();
     wincode::serialize_into(&mut data, &args.nonce).unwrap();
+    wincode::serialize_into(&mut data, &DynBytes::<u32>::new(args.policy_bytes.to_vec())).unwrap();
     wincode::serialize_into(&mut data, &TailBytes(args.clear_text.to_vec())).unwrap();
 
     Instruction {
@@ -878,6 +880,7 @@ mod tests {
             signature: [9; 64],
             action_id: [10; 32],
             nonce: [11; 32],
+            policy_bytes: &[],
             clear_text: b"Readable action",
         });
 
