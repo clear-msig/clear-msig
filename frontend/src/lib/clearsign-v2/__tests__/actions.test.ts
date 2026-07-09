@@ -5,6 +5,7 @@ import {
   clearSignPayloadHash,
   clearSignVoteMessage,
   summarizeClearSignAction,
+  type AgentTradePayload,
   type ClearSignEnvelope,
   type EscrowReturnPayload,
   type SendPayload,
@@ -150,6 +151,66 @@ describe("ClearSign v2 actions", () => {
     expect(clearSignActionKindCode("send")).toBe(1);
     expect(clearSignActionKindCode("return_escrow_funds")).toBe(8);
     expect(clearSignActionKindCode("swap_intent")).toBe(11);
+  });
+
+  it("binds agent trade approval v2 fields into the payload hash", () => {
+    const envelope: ClearSignEnvelope<AgentTradePayload> = {
+      ...base,
+      kind: "agent_trade_approval",
+      payload: {
+        venue: "Hyperliquid Testnet",
+        market: "btc-perp",
+        side: "long",
+        maxNotionalUsd: "250.00",
+        maxLeverage: "2.5x",
+        stopLossRequired: true,
+        assetId: "USDC:hyperliquid:testnet",
+        sessionId: "agent-session:morning-risk-pass",
+        route: "clearsig-agent:hyperliquid:testnet:limit",
+        riskCheckHash:
+          "8a58cb501c3269e8abe8f456629b04e12855131b2e8b1e6807749817d167a9d4",
+      },
+    };
+
+    expect(clearSignPayloadHash(envelope)).toMatch(/^[0-9a-f]{64}$/);
+    expect(clearSignPayloadHash(envelope)).not.toBe(
+      clearSignPayloadHash({
+        ...envelope,
+        payload: {
+          ...envelope.payload,
+          riskCheckHash:
+            "2d4724a75961caff9e395a8d610dc4720c02bd809138e54ce2d32681bfcd9f49",
+        },
+      }),
+    );
+    expect(clearSignPayloadHash(envelope)).not.toBe(
+      clearSignPayloadHash({
+        ...envelope,
+        payload: {
+          ...envelope.payload,
+          route: "clearsig-agent:hyperliquid:testnet:market",
+        },
+      }),
+    );
+  });
+
+  it("rejects partial agent trade approval v2 payloads", () => {
+    const envelope: ClearSignEnvelope<AgentTradePayload> = {
+      ...base,
+      kind: "agent_trade_approval",
+      payload: {
+        venue: "Hyperliquid Testnet",
+        market: "BTC-PERP",
+        side: "long",
+        maxNotionalUsd: "250",
+        maxLeverage: "2.5x",
+        stopLossRequired: true,
+      },
+    };
+
+    expect(() => clearSignPayloadHash(envelope)).toThrow(
+      /requires venue, assetId, sessionId, route, and riskCheckHash/,
+    );
   });
 
   it("binds envelope hash to replay fields", () => {

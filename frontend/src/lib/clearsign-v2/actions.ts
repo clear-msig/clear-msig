@@ -84,11 +84,16 @@ export interface EscrowReturnPayload {
 }
 
 export interface AgentTradePayload {
+  venue?: string;
   market: string;
   side: "long" | "short";
   maxNotionalUsd: string;
   maxLeverage: string;
   stopLossRequired: boolean;
+  assetId?: string;
+  sessionId?: string;
+  route?: string;
+  riskCheckHash?: string;
 }
 
 export interface RecoveryPayload {
@@ -358,11 +363,16 @@ function normalizePayload(
     case "agent_trade_approval": {
       const row = payload as AgentTradePayload;
       return {
+        venue: normalizeText(row.venue ?? ""),
         market: normalizeText(row.market).toUpperCase(),
         side: row.side,
         maxNotionalUsd: normalizeDecimal(row.maxNotionalUsd),
         maxLeverage: normalizeText(row.maxLeverage).toLowerCase(),
         stopLossRequired: Boolean(row.stopLossRequired),
+        assetId: normalizeText(row.assetId ?? ""),
+        sessionId: normalizeText(row.sessionId ?? ""),
+        route: normalizeText(row.route ?? ""),
+        riskCheckHash: normalizeText(row.riskCheckHash ?? ""),
       };
     }
     case "recovery_action":
@@ -417,13 +427,25 @@ function canonicalPayloadBytes(
     }
     case "agent_trade_approval": {
       const row = normalizePayload(kind, payload) as AgentTradePayload;
-      out.pushBytes(row.market);
-      out.pushBytes(row.side);
-      out.pushAmount({
-        asset: "USD",
-        amount: row.maxNotionalUsd,
-      });
-      out.pushU32(leverageToX100(row.maxLeverage));
+      if (isAgentTradeApprovalV2(row)) {
+        out.pushBytes(textCommitment(row.venue));
+        out.pushBytes(textCommitment(row.market));
+        out.pushBytes(textCommitment(row.side));
+        out.pushBytes(textCommitment(row.assetId));
+        out.pushU128(decimalToRawAmount(row.maxNotionalUsd, "USD"));
+        out.pushU32(leverageToX100(row.maxLeverage));
+        out.pushBytes(textCommitment(row.sessionId));
+        out.pushBytes(textCommitment(row.route));
+        out.pushBytes(hashBytesFromHex(row.riskCheckHash));
+      } else {
+        out.pushBytes(row.market);
+        out.pushBytes(row.side);
+        out.pushAmount({
+          asset: "USD",
+          amount: row.maxNotionalUsd,
+        });
+        out.pushU32(leverageToX100(row.maxLeverage));
+      }
       break;
     }
     default:
@@ -448,6 +470,18 @@ function normalizeMoney(row: MoneyAmount): MoneyAmount {
   };
 }
 
+function isAgentTradeApprovalV2(row: AgentTradePayload): boolean {
+  const fields = [row.venue, row.assetId, row.sessionId, row.route, row.riskCheckHash];
+  const hasAny = fields.some((value) => normalizeText(value ?? "") !== "");
+  const hasAll = fields.every((value) => normalizeText(value ?? "") !== "");
+  if (hasAny && !hasAll) {
+    throw new Error(
+      "Agent trade approval v2 requires venue, assetId, sessionId, route, and riskCheckHash.",
+    );
+  }
+  return hasAll;
+}
+
 function formatMoney(row: MoneyAmount): string {
   return `${normalizeDecimal(row.amount)} ${normalizeText(row.asset).toUpperCase()}`;
 }
@@ -470,6 +504,14 @@ function normalizeNumber(value: number): number {
 
 function textCommitment(value: string): Uint8Array {
   return sha256(enc.encode(normalizeText(value)));
+}
+
+function hashBytesFromHex(value: string): Uint8Array {
+  const normalized = normalizeHash(value);
+  if (!/^[0-9a-f]{64}$/.test(normalized)) {
+    throw new Error("Agent trade riskCheckHash must be a 32-byte hex hash.");
+  }
+  return fromHex(normalized);
 }
 
 function normalizeDecimal(value: string): string {

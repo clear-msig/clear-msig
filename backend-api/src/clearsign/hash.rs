@@ -80,13 +80,46 @@ pub(super) fn hash_payload(
                 ));
             }
             let amount = Money::new(payload_text(payload, "maxNotionalUsd")?, "USD".into())?;
-            update_bytes(&mut hasher, market.as_bytes());
-            update_bytes(&mut hasher, side.as_bytes());
-            update_amount(&mut hasher, &amount);
-            update_u32(
-                &mut hasher,
-                leverage_to_x100(&payload_text(payload, "maxLeverage")?)?,
-            );
+            let leverage = leverage_to_x100(&payload_text(payload, "maxLeverage")?)?;
+            let v2_fields = [
+                optional_payload_text(payload, "venue")?,
+                optional_payload_text(payload, "assetId")?,
+                optional_payload_text(payload, "sessionId")?,
+                optional_payload_text(payload, "route")?,
+                optional_payload_text(payload, "riskCheckHash")?,
+            ];
+            let has_any_v2 = v2_fields.iter().any(Option::is_some);
+            let has_all_v2 = v2_fields.iter().all(Option::is_some);
+            if has_any_v2 && !has_all_v2 {
+                return Err(ApiError::BadRequest(
+                    "agent_trade_approval v2 requires venue, assetId, sessionId, route, and riskCheckHash"
+                        .into(),
+                ));
+            }
+            if has_all_v2 {
+                let venue = v2_fields[0].as_deref().unwrap_or_default();
+                let asset_id = v2_fields[1].as_deref().unwrap_or_default();
+                let session_id = v2_fields[2].as_deref().unwrap_or_default();
+                let route = v2_fields[3].as_deref().unwrap_or_default();
+                let risk_check_hash = hash_bytes_from_hex(
+                    v2_fields[4].as_deref().unwrap_or_default(),
+                    "payload.riskCheckHash",
+                )?;
+                update_bytes(&mut hasher, &text_commitment(venue));
+                update_bytes(&mut hasher, &text_commitment(&market));
+                update_bytes(&mut hasher, &text_commitment(&side));
+                update_bytes(&mut hasher, &text_commitment(asset_id));
+                hasher.update(amount.raw_amount.to_le_bytes());
+                update_u32(&mut hasher, leverage);
+                update_bytes(&mut hasher, &text_commitment(session_id));
+                update_bytes(&mut hasher, &text_commitment(route));
+                update_bytes(&mut hasher, &risk_check_hash);
+            } else {
+                update_bytes(&mut hasher, market.as_bytes());
+                update_bytes(&mut hasher, side.as_bytes());
+                update_amount(&mut hasher, &amount);
+                update_u32(&mut hasher, leverage);
+            }
         }
         ClearSignActionKind::AddMember | ClearSignActionKind::RemoveMember => {
             let member = payload_text(payload, "member")?;
@@ -182,6 +215,47 @@ pub(super) fn text_commitment(value: &str) -> [u8; 32] {
     Sha256::digest(value.trim().as_bytes()).into()
 }
 
+fn optional_payload_text(payload: &Value, field: &str) -> Result<Option<String>, ApiError> {
+    let Some(value) = payload.get(field) else {
+        return Ok(None);
+    };
+    let Some(raw) = value.as_str() else {
+        return Err(ApiError::BadRequest(format!(
+            "payload.{field} must be a string"
+        )));
+    };
+    let normalized = raw.trim().to_string();
+    if normalized.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(normalized))
+}
+
+fn hash_bytes_from_hex(value: &str, field: &str) -> Result<[u8; 32], ApiError> {
+    let normalized = value.trim().to_lowercase();
+    if normalized.len() != 64 || !normalized.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(ApiError::BadRequest(format!(
+            "{field} must be a 32-byte hex hash"
+        )));
+    }
+    let mut out = [0u8; 32];
+    for (idx, pair) in normalized.as_bytes().chunks_exact(2).enumerate() {
+        out[idx] = (hex_nibble(pair[0])? << 4) | hex_nibble(pair[1])?;
+    }
+    Ok(out)
+}
+
+fn hex_nibble(value: u8) -> Result<u8, ApiError> {
+    match value {
+        b'0'..=b'9' => Ok(value - b'0'),
+        b'a'..=b'f' => Ok(value - b'a' + 10),
+        b'A'..=b'F' => Ok(value - b'A' + 10),
+        _ => Err(ApiError::BadRequest(
+            "payload.riskCheckHash must be a 32-byte hex hash".into(),
+        )),
+    }
+}
+
 pub(super) fn update_amount(hasher: &mut Sha256, money: &Money) {
     update_bytes(hasher, money.asset.as_bytes());
     hasher.update(money.raw_amount.to_le_bytes());
@@ -238,6 +312,74 @@ mod tests {
                 clear_text_hash
             )
         );
+    }
+
+    #[test]
+    fn agent_trade_approval_v2_binds_route_and_risk_artifact() {
+        let payload = serde_json::json!({
+            "venue": "Hyperliquid Testnet",
+            "market": "btc-perp",
+            "side": "long",
+            "maxNotionalUsd": "250.00",
+            "maxLeverage": "2.5x",
+            "stopLossRequired": true,
+            "assetId": "USDC:hyperliquid:testnet",
+            "sessionId": "agent-session:morning-risk-pass",
+            "route": "clearsig-agent:hyperliquid:testnet:limit",
+            "riskCheckHash": "8a58cb501c3269e8abe8f456629b04e12855131b2e8b1e6807749817d167a9d4"
+        });
+        let route_changed = serde_json::json!({
+            "venue": "Hyperliquid Testnet",
+            "market": "btc-perp",
+            "side": "long",
+            "maxNotionalUsd": "250.00",
+            "maxLeverage": "2.5x",
+            "stopLossRequired": true,
+            "assetId": "USDC:hyperliquid:testnet",
+            "sessionId": "agent-session:morning-risk-pass",
+            "route": "clearsig-agent:hyperliquid:testnet:market",
+            "riskCheckHash": "8a58cb501c3269e8abe8f456629b04e12855131b2e8b1e6807749817d167a9d4"
+        });
+        let risk_changed = serde_json::json!({
+            "venue": "Hyperliquid Testnet",
+            "market": "btc-perp",
+            "side": "long",
+            "maxNotionalUsd": "250.00",
+            "maxLeverage": "2.5x",
+            "stopLossRequired": true,
+            "assetId": "USDC:hyperliquid:testnet",
+            "sessionId": "agent-session:morning-risk-pass",
+            "route": "clearsig-agent:hyperliquid:testnet:limit",
+            "riskCheckHash": "2d4724a75961caff9e395a8d610dc4720c02bd809138e54ce2d32681bfcd9f49"
+        });
+
+        let base = hash_payload(ClearSignActionKind::AgentTradeApproval, &payload).unwrap();
+        assert_ne!(
+            base,
+            hash_payload(ClearSignActionKind::AgentTradeApproval, &route_changed).unwrap()
+        );
+        assert_ne!(
+            base,
+            hash_payload(ClearSignActionKind::AgentTradeApproval, &risk_changed).unwrap()
+        );
+    }
+
+    #[test]
+    fn agent_trade_approval_v2_rejects_partial_payloads() {
+        let payload = serde_json::json!({
+            "venue": "Hyperliquid Testnet",
+            "market": "btc-perp",
+            "side": "long",
+            "maxNotionalUsd": "250.00",
+            "maxLeverage": "2.5x",
+            "stopLossRequired": true
+        });
+
+        let error = hash_payload(ClearSignActionKind::AgentTradeApproval, &payload)
+            .expect_err("partial v2 payload should fail");
+        assert!(error
+            .to_string()
+            .contains("agent_trade_approval v2 requires venue"));
     }
 
     fn legacy_envelope_hash_without_commitment_lengths(
