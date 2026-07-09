@@ -15,6 +15,7 @@ const USD_DECIMALS = 6;
 
 export function buildAgentTradeClearSignV2(
   proposal: AgentTradeProposal,
+  options: { walletId?: string } = {},
 ): AgentTradeClearSignV2Snapshot {
   const market = proposal.market.trim().toUpperCase();
   const venue = proposal.venue;
@@ -50,7 +51,7 @@ export function buildAgentTradeClearSignV2(
     version: 2,
     kind: "agent_trade_approval",
     walletName: proposal.walletName,
-    walletId: "",
+    walletId: options.walletId ?? proposal.clearSignV2?.walletId ?? "",
     actionId: proposal.id,
     nonce: sessionId,
     expiresAt: Math.floor(proposal.expiresAt / 1000),
@@ -60,9 +61,15 @@ export function buildAgentTradeClearSignV2(
   const summary = summarizeClearSignAction(envelope);
 
   return {
+    actionId: envelope.actionId,
+    nonce: envelope.nonce,
+    expiresAt: envelope.expiresAt,
+    walletId: envelope.walletId ?? "",
+    policyCommitment: envelope.policyCommitment,
     payloadHash: summary.payloadHash,
     envelopeHash: summary.envelopeHash,
     signableText: summary.signableText,
+    onchainProposal: proposal.clearSignV2?.onchainProposal,
     payload: {
       venue,
       market,

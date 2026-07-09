@@ -236,9 +236,23 @@ export interface AgentTradeProposal {
 }
 
 export interface AgentTradeClearSignV2Snapshot {
+  actionId: string;
+  nonce: string;
+  expiresAt: number;
+  walletId: string;
+  policyCommitment: string;
   payloadHash: string;
   envelopeHash: string;
   signableText: string;
+  onchainProposal?: {
+    proposalAddress: string;
+    proposalIndex: number;
+    intentIndex: number;
+    status: "created" | "approved" | "executed";
+    createdAt: number;
+    executedAt?: number;
+    txid?: string;
+  };
   payload: {
     venue: string;
     market: string;

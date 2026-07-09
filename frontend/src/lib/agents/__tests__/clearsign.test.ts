@@ -29,10 +29,17 @@ const baseProposal: AgentTradeProposal = {
 
 describe("agent ClearSign v2 binding", () => {
   it("builds executor fields for typed agent approval", () => {
-    const binding = buildAgentTradeClearSignV2(baseProposal);
+    const binding = buildAgentTradeClearSignV2(baseProposal, {
+      walletId: "WalletPda111",
+    });
 
     expect(binding.payloadHash).toMatch(/^[0-9a-f]{64}$/);
     expect(binding.envelopeHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(binding.policyCommitment).toBe(baseProposal.policyHash);
+    expect(binding.actionId).toBe(baseProposal.id);
+    expect(binding.nonce).toBe("signal-1");
+    expect(binding.expiresAt).toBe(1_783_424_650);
+    expect(binding.walletId).toBe("WalletPda111");
     expect(binding.signableText).toContain("Approve BTC-PERP long up to $250");
     expect(binding.payload).toMatchObject({
       venue: "hyperliquid_testnet",
