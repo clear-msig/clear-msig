@@ -24,6 +24,8 @@ pub mod typed_agent;
 pub use typed_agent::*;
 pub mod typed_chain_send;
 pub use typed_chain_send::*;
+pub mod typed_chain_sign;
+pub use typed_chain_sign::*;
 pub mod typed_send;
 pub use typed_send::*;
 

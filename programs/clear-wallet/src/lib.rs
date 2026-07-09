@@ -330,6 +330,39 @@ pub mod clear_wallet {
         )
     }
 
+    #[instruction(discriminator = 25)]
+    pub fn ika_sign_typed_chain_send(
+        ctx: Ctx<IkaSignTypedChainSend>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        chain_kind: u8,
+        amount_raw_le: [u8; 16],
+        recipient_hash: [u8; 32],
+        asset_id_hash: [u8; 32],
+        tx_template_hash: [u8; 32],
+        message_approval_bump: u8,
+        cpi_authority_bump: u8,
+        blake2b_hashes: [u8; 96],
+        params_data: &[u8],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.ika_sign_typed_chain_send(
+            IkaSignTypedChainSendArgs {
+                policy_commitment,
+                envelope_hash,
+                chain_kind,
+                amount_raw_le,
+                recipient_hash,
+                asset_id_hash,
+                tx_template_hash,
+                message_approval_bump,
+                cpi_authority_bump,
+                blake2b_hashes,
+                params_data,
+            },
+            &ctx.bumps,
+        )
+    }
+
     #[instruction(discriminator = 6)]
     pub fn bind_dwallet(
         ctx: Ctx<BindDwallet>,
