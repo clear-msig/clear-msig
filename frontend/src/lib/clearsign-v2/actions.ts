@@ -470,7 +470,15 @@ function normalizeMoney(row: MoneyAmount): MoneyAmount {
   };
 }
 
-function isAgentTradeApprovalV2(row: AgentTradePayload): boolean {
+type AgentTradePayloadV2 = AgentTradePayload & {
+  venue: string;
+  assetId: string;
+  sessionId: string;
+  route: string;
+  riskCheckHash: string;
+};
+
+function isAgentTradeApprovalV2(row: AgentTradePayload): row is AgentTradePayloadV2 {
   const fields = [row.venue, row.assetId, row.sessionId, row.route, row.riskCheckHash];
   const hasAny = fields.some((value) => normalizeText(value ?? "") !== "");
   const hasAll = fields.every((value) => normalizeText(value ?? "") !== "");
