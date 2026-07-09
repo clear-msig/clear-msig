@@ -1,8 +1,8 @@
-use crate::{ensure_base58, ensure_non_empty, ensure_wallet_name, ApiError};
+use crate::{ensure_base58, ensure_hex_exact_len, ensure_non_empty, ensure_wallet_name, ApiError};
 
 use super::types::{
-    ExecuteTypedEscrowReleaseRequest, ExecuteTypedEscrowReturnRequest,
-    ExecuteTypedSolBatchSendRequest, ExecuteTypedSolSendRequest,
+    ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedEscrowReleaseRequest,
+    ExecuteTypedEscrowReturnRequest, ExecuteTypedSolBatchSendRequest, ExecuteTypedSolSendRequest,
 };
 
 pub(super) fn execute_typed_escrow_release_args(
@@ -93,6 +93,50 @@ pub(super) fn execute_typed_sol_batch_send_args(
     Ok(args)
 }
 
+pub(super) fn execute_typed_agent_trade_approval_args(
+    name: String,
+    proposal: String,
+    body: ExecuteTypedAgentTradeApprovalRequest,
+) -> Result<Vec<String>, ApiError> {
+    ensure_wallet_proposal(&name, &proposal)?;
+    let amount_raw = parse_positive_u128(&body.amount_raw, "amountRaw")?;
+    if body.max_leverage_x100 == 0 {
+        return Err(ApiError::BadRequest(
+            "maxLeverageX100 must be greater than zero".into(),
+        ));
+    }
+    let venue_hash = validated_hash(body.venue_hash, "venueHash")?;
+    let market_hash = validated_hash(body.market_hash, "marketHash")?;
+    let side_hash = validated_hash(body.side_hash, "sideHash")?;
+    let asset_id_hash = validated_hash(body.asset_id_hash, "assetIdHash")?;
+    let session_id_hash = validated_hash(body.session_id_hash, "sessionIdHash")?;
+    let route_hash = validated_hash(body.route_hash, "routeHash")?;
+    let risk_check_hash = validated_hash(body.risk_check_hash, "riskCheckHash")?;
+
+    let mut args = base_proposal_args("typed-agent-trade-approval", name, proposal);
+    args.extend([
+        "--amount-raw".into(),
+        amount_raw.to_string(),
+        "--venue-hash".into(),
+        venue_hash,
+        "--market-hash".into(),
+        market_hash,
+        "--side-hash".into(),
+        side_hash,
+        "--asset-id-hash".into(),
+        asset_id_hash,
+        "--max-leverage-x100".into(),
+        body.max_leverage_x100.to_string(),
+        "--session-id-hash".into(),
+        session_id_hash,
+        "--route-hash".into(),
+        route_hash,
+        "--risk-check-hash".into(),
+        risk_check_hash,
+    ]);
+    Ok(args)
+}
+
 fn ensure_wallet_proposal(name: &str, proposal: &str) -> Result<(), ApiError> {
     ensure_wallet_name(name, "name")?;
     ensure_base58(proposal, "proposal", 32, 88)?;
@@ -133,9 +177,27 @@ fn ensure_bounded_rows(len: usize, field: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
+fn parse_positive_u128(value: &str, field: &str) -> Result<u128, ApiError> {
+    let parsed = value
+        .trim()
+        .parse::<u128>()
+        .map_err(|_| ApiError::BadRequest(format!("{field} must be a positive integer")))?;
+    if parsed == 0 {
+        return Err(ApiError::BadRequest(format!(
+            "{field} must be greater than zero"
+        )));
+    }
+    Ok(parsed)
+}
+
 fn validated_base58(value: String, field: &str) -> Result<String, ApiError> {
     ensure_base58(&value, field, 32, 44)?;
     Ok(value)
+}
+
+fn validated_hash(value: String, field: &str) -> Result<String, ApiError> {
+    ensure_hex_exact_len(&value, field, 32)?;
+    Ok(value.trim().to_lowercase())
 }
 
 fn push_recipient_lamports(
@@ -156,9 +218,13 @@ fn push_recipient_lamports(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::proposals::types::{ExecuteTypedEscrowReturnRow, ExecuteTypedSolBatchSendRow};
+    use crate::proposals::types::{
+        ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedEscrowReturnRow,
+        ExecuteTypedSolBatchSendRow,
+    };
 
     const VALID_PUBKEY: &str = "11111111111111111111111111111111";
+    const VALID_HASH: &str = "8a58cb501c3269e8abe8f456629b04e12855131b2e8b1e6807749817d167a9d4";
 
     fn bad_request_message(result: Result<Vec<String>, ApiError>) -> String {
         match result {
@@ -296,6 +362,56 @@ mod tests {
     }
 
     #[test]
+    fn typed_agent_trade_approval_args_match_cli_shape() {
+        let args = execute_typed_agent_trade_approval_args(
+            "team".into(),
+            VALID_PUBKEY.into(),
+            ExecuteTypedAgentTradeApprovalRequest {
+                amount_raw: "250000000".into(),
+                venue_hash: VALID_HASH.into(),
+                market_hash: VALID_HASH.into(),
+                side_hash: VALID_HASH.into(),
+                asset_id_hash: VALID_HASH.into(),
+                max_leverage_x100: 250,
+                session_id_hash: VALID_HASH.into(),
+                route_hash: VALID_HASH.into(),
+                risk_check_hash: VALID_HASH.into(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            args,
+            vec![
+                "proposal",
+                "typed-agent-trade-approval",
+                "--wallet",
+                "team",
+                "--proposal",
+                VALID_PUBKEY,
+                "--amount-raw",
+                "250000000",
+                "--venue-hash",
+                VALID_HASH,
+                "--market-hash",
+                VALID_HASH,
+                "--side-hash",
+                VALID_HASH,
+                "--asset-id-hash",
+                VALID_HASH,
+                "--max-leverage-x100",
+                "250",
+                "--session-id-hash",
+                VALID_HASH,
+                "--route-hash",
+                VALID_HASH,
+                "--risk-check-hash",
+                VALID_HASH,
+            ]
+        );
+    }
+
+    #[test]
     fn typed_routes_reject_zero_lamports() {
         let send = bad_request_message(execute_typed_sol_send_args(
             "team".into(),
@@ -318,5 +434,22 @@ mod tests {
             },
         ));
         assert_eq!(batch, "payments.amountLamports must be greater than zero");
+
+        let agent = bad_request_message(execute_typed_agent_trade_approval_args(
+            "team".into(),
+            VALID_PUBKEY.into(),
+            ExecuteTypedAgentTradeApprovalRequest {
+                amount_raw: "0".into(),
+                venue_hash: VALID_HASH.into(),
+                market_hash: VALID_HASH.into(),
+                side_hash: VALID_HASH.into(),
+                asset_id_hash: VALID_HASH.into(),
+                max_leverage_x100: 250,
+                session_id_hash: VALID_HASH.into(),
+                route_hash: VALID_HASH.into(),
+                risk_check_hash: VALID_HASH.into(),
+            },
+        ));
+        assert_eq!(agent, "amountRaw must be greater than zero");
     }
 }

@@ -217,6 +217,31 @@ pub enum ProposalAction {
         #[arg(long)]
         settlement_artifact_hash: String,
     },
+    /// Finalize an approved typed agent trade decision.
+    TypedAgentTradeApproval {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        amount_raw: u128,
+        #[arg(long)]
+        venue_hash: String,
+        #[arg(long)]
+        market_hash: String,
+        #[arg(long)]
+        side_hash: String,
+        #[arg(long)]
+        asset_id_hash: String,
+        #[arg(long)]
+        max_leverage_x100: u32,
+        #[arg(long)]
+        session_id_hash: String,
+        #[arg(long)]
+        route_hash: String,
+        #[arg(long)]
+        risk_check_hash: String,
+    },
     /// Execute an approved typed escrow unwind / return.
     ///
     /// Pass one `--return recipient:lamports` per funder.
@@ -1195,6 +1220,78 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 "policy_ciphertexts_hash": crate::output::hex_of(&policy_ciphertexts_hash),
                 "private_evaluation_hash": crate::output::hex_of(&private_evaluation_hash),
                 "settlement_artifact_hash": crate::output::hex_of(&settlement_artifact_hash),
+            }));
+        }
+
+        ProposalAction::TypedAgentTradeApproval {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            amount_raw,
+            venue_hash,
+            market_hash,
+            side_hash,
+            asset_id_hash,
+            max_leverage_x100,
+            session_id_hash,
+            route_hash,
+            risk_check_hash,
+        } => {
+            if amount_raw == 0 {
+                return Err(anyhow!("amount-raw must be greater than zero"));
+            }
+            if max_leverage_x100 == 0 {
+                return Err(anyhow!("max-leverage-x100 must be greater than zero"));
+            }
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::AgentTradeApproval,
+                "typed agent trade approval",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let venue_hash = decode_hex_32(&venue_hash, "venue_hash")?;
+            let market_hash = decode_hex_32(&market_hash, "market_hash")?;
+            let side_hash = decode_hex_32(&side_hash, "side_hash")?;
+            let asset_id_hash = decode_hex_32(&asset_id_hash, "asset_id_hash")?;
+            let session_id_hash = decode_hex_32(&session_id_hash, "session_id_hash")?;
+            let route_hash = decode_hex_32(&route_hash, "route_hash")?;
+            let risk_check_hash = decode_hex_32(&risk_check_hash, "risk_check_hash")?;
+            let ix = crate::instructions::execute_typed_agent_trade_approval(
+                wallet_pubkey,
+                intent_pubkey,
+                proposal_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                amount_raw.to_le_bytes(),
+                venue_hash,
+                market_hash,
+                side_hash,
+                asset_id_hash,
+                max_leverage_x100,
+                session_id_hash,
+                route_hash,
+                risk_check_hash,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_agent_trade_approval",
+                "status": "executed",
+                "amount_raw": amount_raw.to_string(),
+                "venue_hash": crate::output::hex_of(&venue_hash),
+                "market_hash": crate::output::hex_of(&market_hash),
+                "side_hash": crate::output::hex_of(&side_hash),
+                "asset_id_hash": crate::output::hex_of(&asset_id_hash),
+                "max_leverage_x100": max_leverage_x100,
+                "session_id_hash": crate::output::hex_of(&session_id_hash),
+                "route_hash": crate::output::hex_of(&route_hash),
+                "risk_check_hash": crate::output::hex_of(&risk_check_hash),
             }));
         }
 
