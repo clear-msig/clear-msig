@@ -367,6 +367,32 @@ export interface EsploraUtxo {
   status: { confirmed: boolean; block_height?: number; block_time?: number };
 }
 
+export const BTC_SEND_FEE_RESERVE_SATS = 300n;
+
+export interface BitcoinSendSelection {
+  utxo: EsploraUtxo;
+  feeSats: bigint;
+  changeSats: bigint;
+}
+
+export function selectBitcoinSendUtxo(
+  utxos: readonly EsploraUtxo[],
+  amountSats: bigint,
+  feeSats: bigint = BTC_SEND_FEE_RESERVE_SATS,
+): BitcoinSendSelection | null {
+  if (amountSats <= 0n || feeSats < 0n) return null;
+  const needed = amountSats + feeSats;
+  const utxo = [...utxos]
+    .sort((a, b) => a.value - b.value)
+    .find((candidate) => BigInt(candidate.value) >= needed);
+  if (!utxo) return null;
+  return {
+    utxo,
+    feeSats,
+    changeSats: BigInt(utxo.value) - needed,
+  };
+}
+
 export interface BitcoinAddressSnapshot {
   network: BitcoinNetwork;
   balanceSats: bigint;

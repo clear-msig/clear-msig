@@ -9,11 +9,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Loader2, Send } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
-import { IntentType } from "@/lib/msig";
+import { IntentType, toHex } from "@/lib/msig";
+import { encodeParams } from "@/lib/msig/encode";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
+import {
+  waitForProposalApproval,
+} from "@/lib/chain/proposals";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
+import { formatUnixSigningExpiry } from "@/lib/api/expiry";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
@@ -39,13 +44,27 @@ import {
   assertPolicyNotDenied,
   resolvePolicyEnforcement,
 } from "@/lib/policies/enforce";
+import {
+  encodeTypedRemoteSendPolicy,
+  policyCommitmentHexForParts,
+} from "@/lib/policies/onchain";
+import {
+  pkhClearSignRecipient,
+  prepareClearSignAction,
+  randomActionLabel,
+  textCommitmentHex,
+  type ClearSignEnvelope,
+  type SendPayload,
+} from "@/lib/clearsign-v2";
 import { chainByKind } from "@/lib/retail/chains";
 import { appConfig, configuredBrowserRpcUrl } from "@/lib/config";
 import {
+  ZCASH_SEND_FEE_RESERVE_ZATS,
   decodeZcashTransparentAddress,
   fetchZcashBalance,
   fetchZcashUtxos,
   networkForZcashAddress,
+  selectZcashNoChangeUtxo,
   validateZcashDestination,
 } from "@/lib/chain/zcash";
 import { parseBtcAmount, formatSats, reverseHex } from "@/lib/chain/btc";
@@ -60,9 +79,6 @@ import {
 
 const ZEC_TEMPLATE = "examples/intents/zcash_transfer.json";
 const ZEC_CHAIN_KIND = 3;
-const FEE_RESERVE_ZATS = 1000n;
-
-type Stage = "compose" | "sending" | "sent";
 
 export default function ZcashSendPage() {
   const params = useParams<{ name: string }>();
@@ -77,7 +93,7 @@ export default function ZcashSendPage() {
   const reduce = useReducedMotion();
   const wallet = useWallet();
   const { connection } = useConnection();
-  const { signDescriptor } = useSignWithWallet();
+  const { signDescriptor, signTypedDescriptor } = useSignWithWallet();
   const toast = useToast();
   const queryClient = useQueryClient();
   const walletDisplay = toDisplayName(name);
@@ -131,7 +147,6 @@ export default function ZcashSendPage() {
     !chainsQuery.isFetching;
   const needsBinding = allSettled && !zcashBinding;
   const needsIntent = allSettled && !!zcashBinding && !zcashIntent;
-  const [stage, setStage] = useState<Stage>("compose");
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState(() => searchParams?.get("note")?.trim() ?? "");
@@ -173,16 +188,18 @@ export default function ZcashSendPage() {
     retry: 1,
   });
   const zcashBalance = balanceQuery.data ?? null;
-  const selectedUtxo = useMemo(() => {
+  const sendSelection = useMemo(() => {
     if (!amountValid || !amountZats || !utxosQuery.data) return null;
-    const needed = amountZats + FEE_RESERVE_ZATS;
-    return utxosQuery.data.find((u) => u.satoshis >= needed) ?? null;
+    return selectZcashNoChangeUtxo(utxosQuery.data, amountZats);
   }, [amountValid, amountZats, utxosQuery.data]);
+  const selectedUtxo = sendSelection?.utxo ?? null;
+  const impliedFeeZats = sendSelection?.impliedFeeZats ?? null;
+  const zcashFeeBurnRisk = sendSelection?.feeBurnRisk ?? false;
   const insufficientBalance =
     zcashBalance !== null &&
     amountValid &&
     amountZats !== null &&
-    zcashBalance < amountZats + FEE_RESERVE_ZATS;
+    zcashBalance < amountZats + ZCASH_SEND_FEE_RESERVE_ZATS;
 
   const policyEvaluation = usePolicyEvaluation({
     walletName: name,
@@ -271,7 +288,6 @@ export default function ZcashSendPage() {
         queryClient.refetchQueries({ queryKey: ["wallet-intents"] }),
       ]).then(() => {
         toast.success(`${walletDisplay} can now send ZEC`);
-        setStage("compose");
       });
     },
     onError: (err) => {
@@ -307,6 +323,14 @@ export default function ZcashSendPage() {
       if (!selectedUtxo) {
         throw new Error("No UTXO large enough to cover the send amount");
       }
+      if (
+        zcashFeeBurnRisk ||
+        impliedFeeZats !== ZCASH_SEND_FEE_RESERVE_ZATS
+      ) {
+        throw new Error(
+          "This Zcash input would spend the remainder as fee. Enter the input amount minus the fixed fee.",
+        );
+      }
       if (recipientDecoded.network !== zcashNetwork) {
         throw new Error("Recipient network does not match the wallet's Zcash network");
       }
@@ -325,30 +349,94 @@ export default function ZcashSendPage() {
         );
       }
 
-      const dry = await backendApi.prepare.createProposal(name, {
+      const committedRecipient = pkhClearSignRecipient(
+        "zcash-transparent",
+        effectiveRecipient,
+      );
+      const onchainPolicy = encodeTypedRemoteSendPolicy(submitPolicyPlan, {
+        assetTicker: "ZEC",
+        decimals: 8,
+        normalizeRecipient: normalizeZcashPolicyRecipient,
+      });
+      const paramsDataHex = toHex(
+        encodeParams(zcashIntent, {
+          prev_txid: `0x${reverseHex(selectedUtxo.txid)}`,
+          prev_vout: String(selectedUtxo.vout),
+          prev_amount_zat: selectedUtxo.satoshis.toString(),
+          sender_pkh: `0x${bytesToHex(senderDecoded.pkh)}`,
+          recipient_pkh: `0x${bytesToHex(effectiveRecipient)}`,
+          send_amount_zat: amountZats.toString(),
+        }),
+      );
+      const actionId = randomActionLabel("zec-send");
+      const actionNonce = randomActionLabel("nonce");
+      const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
+      const policyCommitment =
+        onchainPolicy?.commitmentHex ??
+        policyCommitmentHexForParts([
+          `wallet:${walletQuery.data?.pda.toBase58() ?? name}`,
+          `intent:${zcashIntent.intentIndex}`,
+          `chain:${ZEC_CHAIN_KIND}`,
+          `threshold:${zcashIntent.approvalThreshold ?? ""}`,
+          `proposers:${zcashIntent.proposers.join(",")}`,
+          `approvers:${zcashIntent.approvers.join(",")}`,
+        ]);
+      const envelope: ClearSignEnvelope<SendPayload> = {
+        version: 2,
+        kind: "send",
+        walletName: name,
+        walletId: walletQuery.data?.pda.toBase58(),
+        actionId,
+        nonce: actionNonce,
+        expiresAt,
+        policyCommitment,
+        payload: {
+          recipient: committedRecipient,
+          recipientEncoding: "sha256_text",
+          amount: amountZats.toString(),
+          asset: "ZEC",
+          assetEncoding: "sha256_text",
+          note: note.trim() || undefined,
+        },
+      };
+      const summary = await prepareClearSignAction(envelope, {
+        fallback: false,
+      });
+      const dry = await backendApi.prepare.createTypedProposal(name, {
         intent_index: zcashIntent.intentIndex,
-        params: [
-          `prev_txid=${reverseHex(selectedUtxo.txid)}`,
-          `prev_vout=${selectedUtxo.vout}`,
-          `prev_amount_zat=${selectedUtxo.satoshis.toString()}`,
-          `sender_pkh=${bytesToHex(senderDecoded.pkh)}`,
-          `recipient_pkh=${bytesToHex(effectiveRecipient)}`,
-          `send_amount_zat=${amountZats.toString()}`,
-        ],
+        action_kind: summary.actionKindCode,
+        policy_commitment: envelope.policyCommitment,
+        payload_hash: summary.payloadHash,
+        envelope_hash: summary.envelopeHash,
+        action_id: envelope.actionId,
+        nonce: envelope.nonce,
+        policyBytesHex: onchainPolicy?.hex,
+        signable_text: summary.signableText,
+        expiry: formatUnixSigningExpiry(envelope.expiresAt),
         actor_pubkey: proposerPk.toBase58(),
       });
-      const signed = await signDescriptor(dry, { preferSigner: proposerPk });
-      const submitted = await backendApi.submit.createProposal(name, {
+      const signed = await signTypedDescriptor(dry, { preferSigner: proposerPk });
+      const submitted = await backendApi.submit.createTypedProposal(name, {
         ...signed,
-        params_data_hex: dry.params_data_hex,
         expiry: dry.expiry,
-        intent_index: zcashIntent.intentIndex,
+        intent_index: dry.intent_index,
+        action_kind: dry.action_kind,
+        policy_commitment: dry.policy_commitment_hex,
+        payload_hash: dry.payload_hash_hex,
+        envelope_hash: dry.envelope_hash_hex,
+        action_id: dry.action_id,
+        nonce: dry.nonce,
+        policyBytesHex: onchainPolicy?.hex,
       });
       const proposal = (submitted as Record<string, unknown>)?.proposal;
       if (typeof proposal !== "string" || proposal.length === 0) {
         throw new Error("Backend didn't return a proposal address from submit");
       }
-      const decision = await approveIfNeeded(connection, proposal);
+      const decision = await approveIfNeeded(connection, proposal, {
+        approvers: zcashIntent.approvers,
+        approverPubkey: wallet.pickSigner(zcashIntent.approvers)?.toBase58() ?? null,
+        approvalThreshold: zcashIntent.approvalThreshold,
+      });
       if (decision.needsApproveSignature) {
         const approverPk = wallet.pickSigner(zcashIntent.approvers);
         if (!approverPk) {
@@ -356,13 +444,13 @@ export default function ZcashSendPage() {
             "The proposal landed, but none of your connected wallets can approve it.",
           );
         }
-        const approveDry = await backendApi.prepare.approveProposal(name, proposal, {
+        const approveDry = await backendApi.prepare.approveTypedProposal(name, proposal, {
           actor_pubkey: approverPk.toBase58(),
         });
-        const approveSigned = await signDescriptor(approveDry, {
+        const approveSigned = await signTypedDescriptor(approveDry, {
           preferSigner: approverPk,
         });
-        await backendApi.submit.approveProposal(name, proposal, {
+        await backendApi.submit.approveTypedProposal(name, proposal, {
           ...approveSigned,
           expiry: approveDry.expiry,
         });
@@ -404,13 +492,13 @@ export default function ZcashSendPage() {
                 `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but none of your connected wallets can sign as that approver.`,
               );
             }
-            const extraDry = await backendApi.prepare.approveProposal(name, proposal, {
+            const extraDry = await backendApi.prepare.approveTypedProposal(name, proposal, {
               actor_pubkey: extraSigner.toBase58(),
             });
-            const extraSigned = await signDescriptor(extraDry, {
+            const extraSigned = await signTypedDescriptor(extraDry, {
               preferSigner: extraSigner,
             });
-            await backendApi.submit.approveProposal(name, proposal, {
+            await backendApi.submit.approveTypedProposal(name, proposal, {
               ...extraSigned,
               expiry: extraDry.expiry,
             });
@@ -424,17 +512,33 @@ export default function ZcashSendPage() {
           );
         }
       }
-      const executed = await backendApi.executeProposal(name, proposal, {
+      const readyToExecute = await waitForProposalApproval(connection, proposal);
+      if (!readyToExecute) {
+        return { proposal, broadcast: null, awaitingApprovers: true };
+      }
+      const executed = await backendApi.executeTypedChainSend(name, proposal, {
+        chainKind: ZEC_CHAIN_KIND,
+        amountRaw: amountZats.toString(),
+        recipientHash: textCommitmentHex(committedRecipient),
+        assetIdHash: textCommitmentHex("ZEC"),
+        paramsDataHex,
         broadcast: true,
-        dwallet_program: appConfig.preAlpha.dwalletProgramId,
-        grpc_url: appConfig.preAlpha.grpcUrl,
-        rpc_url: zcashRpcUrl,
+        dwalletProgram: appConfig.preAlpha.dwalletProgramId,
+        grpcUrl: appConfig.preAlpha.grpcUrl,
+        rpcUrl: zcashRpcUrl,
       });
       const broadcast = (executed as { broadcast?: { chain_kind?: number; tx_id?: string } })
         ?.broadcast;
-      return { proposal, broadcast };
+      return { proposal, broadcast, awaitingApprovers: false };
     },
-    onSuccess: ({ broadcast }) => {
+    onSuccess: ({ broadcast, awaitingApprovers }) => {
+      if (awaitingApprovers) {
+        toast.success("Zcash request created", {
+          details: "It is waiting for the remaining approval before broadcast.",
+        });
+        queryClient.invalidateQueries({ queryKey: ["proposals", name] });
+        return;
+      }
       const explorerUrl = broadcastExplorerUrl(broadcast, zcashRpcUrl ?? "");
       const explorerLabel = explorerLabelForChainKind(broadcast?.chain_kind, zcashRpcUrl ?? "");
       const recipientText = recipient;
@@ -459,13 +563,11 @@ export default function ZcashSendPage() {
       queryClient.invalidateQueries({ queryKey: ["proposals", name] });
       queryClient.invalidateQueries({ queryKey: ["wallet-other-chain-balances"] });
       queryClient.invalidateQueries({ queryKey: ["chain-balance"] });
-      setStage("sent");
     },
     onError: (err) => {
       console.error("[send-zec]", err);
       const fe = friendlyError(err, "send");
       toast.error(fe.title, { details: fe.body });
-      setStage("compose");
     },
   });
 
@@ -491,13 +593,13 @@ export default function ZcashSendPage() {
           transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
           className="w-full"
         >
-          {stage === "compose" && (
+          {!send.isPending && !sentLabel && (
             <SendChainPicker walletName={name} activeKind={ZEC_CHAIN_KIND} />
           )}
-          {stage === "compose" && policyEvaluation?.matched && (
+          {!send.isPending && !sentLabel && policyEvaluation?.matched && (
             <PolicyMatchBanner walletName={name} evaluation={policyEvaluation} />
           )}
-          {stage === "compose" && needsIntent && (
+          {!send.isPending && !sentLabel && needsIntent && (
             <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
                 Turn on Zcash
@@ -520,7 +622,7 @@ export default function ZcashSendPage() {
               </Button>
             </div>
           )}
-          {stage === "compose" && !needsIntent && (
+          {!send.isPending && !sentLabel && !needsIntent && (
             <ZcashCompose
               walletDisplay={walletDisplay}
               walletAddress={zcashAddress}
@@ -537,17 +639,16 @@ export default function ZcashSendPage() {
               amountValid={amountValid}
               recipientValid={recipientValid}
               selectedUtxo={selectedUtxo}
+              impliedFeeZats={impliedFeeZats}
+              zcashFeeBurnRisk={zcashFeeBurnRisk}
               insufficientBalance={insufficientBalance}
               zcashRpcConfigured={!!zcashRpcUrl}
-              canSubmit={!policyDenied && !!zcashRpcUrl && amountValid && recipientValid && !!selectedUtxo && !insufficientBalance && !!wallet.publicKey}
-              onSubmit={() => {
-                setStage("sending");
-                send.mutate();
-              }}
+              canSubmit={!policyDenied && !!zcashRpcUrl && amountValid && recipientValid && !!selectedUtxo && !insufficientBalance && !zcashFeeBurnRisk && !!wallet.publicKey}
+              onSubmit={() => send.mutate()}
             />
           )}
-          {stage === "sending" && <SendingStage />}
-          {stage === "sent" && sentLabel && (
+          {send.isPending && <SendingStage />}
+          {sentLabel && (
             <SentStage
               walletName={name}
               walletDisplay={walletDisplay}
@@ -611,6 +712,8 @@ function ZcashCompose({
   amountValid,
   recipientValid,
   selectedUtxo,
+  impliedFeeZats,
+  zcashFeeBurnRisk,
   insufficientBalance,
   zcashRpcConfigured,
   canSubmit,
@@ -631,6 +734,8 @@ function ZcashCompose({
   amountValid: boolean;
   recipientValid: boolean;
   selectedUtxo: { txid: string; vout: number; satoshis: bigint } | null;
+  impliedFeeZats: bigint | null;
+  zcashFeeBurnRisk: boolean;
   insufficientBalance: boolean;
   zcashRpcConfigured: boolean;
   canSubmit: boolean;
@@ -706,6 +811,9 @@ function ZcashCompose({
                   <span className="block pt-1 text-[11px]">
                     Using input {selectedUtxo.txid.slice(0, 10)}…:
                     {selectedUtxo.vout}
+                    {impliedFeeZats !== null ? (
+                      <> · fee {formatSats(impliedFeeZats)} ZEC</>
+                    ) : null}
                   </span>
                 ) : null}
               </>
@@ -719,6 +827,14 @@ function ZcashCompose({
                 </span>
               ) : insufficientBalance ? (
                 <span className="font-medium">Insufficient balance.</span>
+              ) : zcashFeeBurnRisk && selectedUtxo ? (
+                <span className="font-medium">
+                  This input has no change output. Send exactly{" "}
+                  {formatSats(
+                    selectedUtxo.satoshis - ZCASH_SEND_FEE_RESERVE_ZATS,
+                  )} ZEC to keep the fee at{" "}
+                  {formatSats(ZCASH_SEND_FEE_RESERVE_ZATS)} ZEC.
+                </span>
               ) : null
             }
           />
@@ -846,4 +962,11 @@ function SentStage({
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function normalizeZcashPolicyRecipient(value: string): string {
+  const decoded = decodeZcashTransparentAddress(value);
+  return decoded
+    ? pkhClearSignRecipient("zcash-transparent", decoded.pkh)
+    : value.trim();
 }

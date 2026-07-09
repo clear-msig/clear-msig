@@ -123,11 +123,8 @@ After deploy:
 The product standard is SOL typed ClearSign for every money-moving action.
 These surfaces still need the same typed, no-hidden-hash treatment:
 
-- BTC send execution
-- ETH native send
 - ERC-20 send
-- Zcash transparent send
-- Hyperliquid send/trade flows
+- Hyperliquid trade flows outside the typed native HYPE send
 - Agent-created proposals
 - Policy/member/admin changes
 - Escrow creation, approval, release, cancel, and cleanup

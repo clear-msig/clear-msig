@@ -6,8 +6,41 @@ import {
   networkForHrp,
   parseBtcAmount,
   reverseHex,
+  selectBitcoinSendUtxo,
   validateBtcDestination,
 } from "@/lib/chain/btc";
+
+describe("selectBitcoinSendUtxo", () => {
+  const utxo = (value: number, suffix: string) => ({
+    txid: suffix.repeat(64),
+    vout: 0,
+    value,
+    status: { confirmed: true },
+  });
+
+  it("uses the smallest covering input and returns explicit fee and change", () => {
+    const selection = selectBitcoinSendUtxo(
+      [utxo(20_000, "a"), utxo(11_000, "b"), utxo(15_000, "c")],
+      10_000n,
+      300n,
+    );
+
+    expect(selection?.utxo.value).toBe(11_000);
+    expect(selection?.feeSats).toBe(300n);
+    expect(selection?.changeSats).toBe(700n);
+  });
+
+  it("keeps an exact spend at the fixed fee instead of burning the input", () => {
+    const selection = selectBitcoinSendUtxo([utxo(10_300, "d")], 10_000n, 300n);
+
+    expect(selection?.feeSats).toBe(300n);
+    expect(selection?.changeSats).toBe(0n);
+  });
+
+  it("rejects a set with no input covering amount plus fee", () => {
+    expect(selectBitcoinSendUtxo([utxo(10_299, "e")], 10_000n, 300n)).toBeNull();
+  });
+});
 
 // Reference vectors from BIP173 / BIP350 + real testnet/signet/mainnet
 // addresses. These pin the bech32 / bech32m decode logic. The BTC

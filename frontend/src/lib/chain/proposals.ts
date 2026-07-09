@@ -25,6 +25,7 @@ import {
   parseAnyProposal,
   type AnyProposalAccount,
   type WalletAccount,
+  ProposalStatus,
 } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID, DEFAULT_COMMITMENT } from "@/lib/chain/client";
 
@@ -42,6 +43,61 @@ export async function fetchProposal(
   const info = await connection.getAccountInfo(pda, DEFAULT_COMMITMENT);
   if (!info) return null;
   return parseAnyProposal(new Uint8Array(info.data));
+}
+
+export interface ProposalStatusPollOptions {
+  attempts?: number;
+  delayMs?: number;
+  accepted?: readonly ProposalStatus[];
+}
+
+export async function waitForProposalStatus(
+  connection: Connection,
+  proposalPda: string,
+  options: ProposalStatusPollOptions = {},
+): Promise<ProposalStatus | null> {
+  const attempts = options.attempts ?? 6;
+  const delayMs = options.delayMs ?? 350;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      const proposal = await fetchProposal(connection, new PublicKey(proposalPda));
+      if (
+        proposal &&
+        (!options.accepted || options.accepted.includes(proposal.status))
+      ) {
+        return proposal.status;
+      }
+      if (
+        proposal &&
+        (proposal.status === ProposalStatus.Cancelled ||
+          proposal.status === ProposalStatus.Executed)
+      ) {
+        return proposal.status;
+      }
+    } catch {
+      // RPC read lag must never be interpreted as approval.
+    }
+    if (attempt < attempts - 1) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs * (attempt + 1)));
+    }
+  }
+  return null;
+}
+
+export function proposalIsApproved(status: ProposalStatus | null): boolean {
+  return status === ProposalStatus.Approved;
+}
+
+export async function waitForProposalApproval(
+  connection: Connection,
+  proposalPda: string,
+  options: Omit<ProposalStatusPollOptions, "accepted"> = {},
+): Promise<boolean> {
+  const status = await waitForProposalStatus(connection, proposalPda, {
+    ...options,
+    accepted: [ProposalStatus.Approved],
+  });
+  return proposalIsApproved(status);
 }
 
 /// List every proposal ever created for this wallet. The scan space is

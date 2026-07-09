@@ -36,3 +36,9 @@ export {
   type ClearSignSurfaceCoverage,
   type ClearSignSurfaceStatus,
 } from "@/lib/clearsign-v2/surfaceCoverage";
+
+export {
+  pkhClearSignRecipient,
+  randomActionLabel,
+  textCommitmentHex,
+} from "@/lib/clearsign-v2/commitments";

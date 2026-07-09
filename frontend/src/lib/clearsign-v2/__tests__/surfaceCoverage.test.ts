@@ -25,14 +25,14 @@ describe("ClearSign surface coverage", () => {
     ]);
   });
 
-  it("marks native cross-chain send executors as available but not fully UI-wired", () => {
+  it("marks UI-wired native cross-chain sends as typed on-chain", () => {
     for (const id of [
       "btc-send",
       "eth-send",
       "hyperliquid-send",
       "zec-send",
     ]) {
-      expect(clearSignSurfaceById(id)?.status).toBe("typed_executor_available");
+      expect(clearSignSurfaceById(id)?.status).toBe("typed_onchain");
     }
     expect(clearSignSurfaceById("erc20-send")?.status).toBe(
       "legacy_custom_pending_typed_executor",

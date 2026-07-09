@@ -7,7 +7,7 @@ import {
 import { baseChainSendStatus } from "@/lib/chain/send-support";
 
 describe("cross-chain send assurances", () => {
-  it("covers ETH, BTC, ZEC, and Hyperliquid as typed-executor-ready paths", () => {
+  it("covers ETH, BTC, ZEC, and Hyperliquid as typed on-chain paths", () => {
     expect(CLEAR_SIGNED_CHAIN_ASSURANCES.map((item) => item.key)).toEqual([
       "eth",
       "btc",
@@ -17,7 +17,7 @@ describe("cross-chain send assurances", () => {
 
     for (const item of CLEAR_SIGNED_CHAIN_ASSURANCES) {
       expect(baseChainSendStatus(item.chainKind)).toBe("ready");
-      expect(item.status).toBe("typed_executor_available");
+      expect(item.status).toBe("typed_onchain");
       expect(item.intentFile).toMatch(/^examples\/intents\/.+\.json$/);
       expect(item.signPreview).toBe(true);
       expect(item.approvalGate).toBe("wallet_proposal");
@@ -29,7 +29,7 @@ describe("cross-chain send assurances", () => {
   it("looks up assurances by route key and chain kind", () => {
     expect(clearSignedChainAssurance("eth")).toMatchObject({
       surfaceId: "eth-send",
-      status: "typed_executor_available",
+      status: "typed_onchain",
       chainKind: 1,
       ticker: "ETH",
       sendRoute: "/send/eth",

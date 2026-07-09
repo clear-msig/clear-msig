@@ -21,6 +21,35 @@ export interface ZcashUtxo {
   height: number | null;
 }
 
+export const ZCASH_SEND_FEE_RESERVE_ZATS = 1000n;
+
+export interface ZcashSendSelection {
+  utxo: ZcashUtxo;
+  impliedFeeZats: bigint;
+  feeBurnRisk: boolean;
+}
+
+export function selectZcashNoChangeUtxo(
+  utxos: readonly ZcashUtxo[],
+  amountZats: bigint,
+  feeZats: bigint = ZCASH_SEND_FEE_RESERVE_ZATS,
+): ZcashSendSelection | null {
+  if (amountZats <= 0n || feeZats < 0n) return null;
+  const needed = amountZats + feeZats;
+  const utxo = [...utxos]
+    .sort((a, b) =>
+      a.satoshis === b.satoshis ? 0 : a.satoshis < b.satoshis ? -1 : 1,
+    )
+    .find((candidate) => candidate.satoshis >= needed);
+  if (!utxo) return null;
+  const impliedFeeZats = utxo.satoshis - amountZats;
+  return {
+    utxo,
+    impliedFeeZats,
+    feeBurnRisk: impliedFeeZats !== feeZats,
+  };
+}
+
 export interface ZcashTxRow {
   txId: string;
   blockTime: number | null;

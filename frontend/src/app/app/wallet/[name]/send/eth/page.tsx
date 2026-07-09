@@ -49,13 +49,15 @@ import {
 } from "@/lib/explorer";
 import { formatUnixSigningExpiry } from "@/lib/api/expiry";
 import { recordAttempt } from "@/lib/retail/txLog";
-import { IntentType, sha256, toHex } from "@/lib/msig";
+import { IntentType, toHex } from "@/lib/msig";
 import { encodeParams } from "@/lib/msig/encode";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import {
   prepareClearSignAction,
+  randomActionLabel,
+  textCommitmentHex,
   type ClearSignEnvelope,
   type SendPayload,
 } from "@/lib/clearsign-v2";
@@ -124,16 +126,6 @@ function parseEvmRecipientFromQr(raw: string): string {
   // Otherwise let the input field's existing validation surface
   // any issues - better to pass through than silently swallow.
   return trimmed;
-}
-
-function randomActionLabel(prefix: string): string {
-  const bytes = new Uint8Array(12);
-  crypto.getRandomValues(bytes);
-  return `${prefix}:0x${toHex(bytes)}`;
-}
-
-function textCommitmentHex(value: string): string {
-  return toHex(sha256(new TextEncoder().encode(value.trim())));
 }
 
 export default function SendEthPageWrapper() {

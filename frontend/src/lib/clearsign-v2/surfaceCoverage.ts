@@ -1,6 +1,5 @@
 export type ClearSignSurfaceStatus =
   | "typed_onchain"
-  | "typed_executor_available"
   | "typed_approval_only"
   | "legacy_custom_pending_typed_executor"
   | "local_policy_only";
@@ -47,7 +46,7 @@ export const CLEARSIGN_SURFACE_COVERAGE: ClearSignSurfaceCoverage[] = [
     label: "BTC / EVM / Ika escrow release / return",
     status: "typed_onchain",
     signedPath: "typed proposal -> typed cross-chain escrow execute",
-    notes: "Finalizes verified cross-chain artifacts; direct chain sends now have a typed executor available for UI wiring.",
+    notes: "Finalizes verified cross-chain artifacts through program-verified typed execution.",
   },
   {
     id: "private-escrow",
@@ -66,23 +65,23 @@ export const CLEARSIGN_SURFACE_COVERAGE: ClearSignSurfaceCoverage[] = [
   {
     id: "btc-send",
     label: "BTC send",
-    status: "typed_executor_available",
+    status: "typed_onchain",
     signedPath: "typed proposal -> typed chain-send proof -> Ika broadcast",
-    notes: "Program/CLI/backend executor verifies recipient, asset, amount, chain binding, and tx template; send UI still needs full typed flow wiring.",
+    notes: "The send UI uses typed proposal creation and approval; the program verifies recipient, asset, amount, chain binding, and tx template before Ika signing.",
   },
   {
     id: "eth-send",
     label: "ETH send",
-    status: "typed_executor_available",
+    status: "typed_onchain",
     signedPath: "typed proposal -> typed chain-send proof -> Ika broadcast",
-    notes: "Program/CLI/backend executor verifies recipient, asset, amount, chain binding, and tx template; send UI still needs full typed flow wiring.",
+    notes: "The send UI uses typed proposal creation and approval; the program verifies recipient, asset, amount, chain binding, and tx template before Ika signing.",
   },
   {
     id: "hyperliquid-send",
     label: "Hyperliquid send",
-    status: "typed_executor_available",
+    status: "typed_onchain",
     signedPath: "typed proposal -> typed chain-send proof -> Ika / venue broadcast",
-    notes: "Typed chain-send executor is available for HYPE movement; venue-specific agent policy payloads remain separate.",
+    notes: "HYPE movement is wired to typed proposal creation and program-verified chain-send execution; venue-specific agent policy payloads remain separate.",
   },
   {
     id: "erc20-send",
@@ -94,9 +93,9 @@ export const CLEARSIGN_SURFACE_COVERAGE: ClearSignSurfaceCoverage[] = [
   {
     id: "zec-send",
     label: "Zcash send",
-    status: "typed_executor_available",
+    status: "typed_onchain",
     signedPath: "typed proposal -> typed chain-send proof -> Ika broadcast",
-    notes: "Program/CLI/backend executor verifies transparent recipient commitment, asset, amount, chain binding, and tx template; send UI still needs full typed flow wiring.",
+    notes: "The send UI uses typed proposal creation and approval; the program verifies the transparent recipient, asset, amount, chain binding, and tx template before Ika signing.",
   },
   {
     id: "members-policy",

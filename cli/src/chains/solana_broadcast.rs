@@ -11,13 +11,11 @@ use crate::error::*;
 ///
 /// `signature` is the 64-byte Ed25519 signature from the dWallet network.
 /// `dwallet_pubkey` is the 32-byte Ed25519 public key (= Solana address).
-/// `rpc_url` is the Solana RPC endpoint.
 pub fn assemble_and_broadcast(
     destination: [u8; 32],
     amount_lamports: u64,
     signature: &[u8],
     dwallet_pubkey: &[u8],
-    rpc_url: &str,
 ) -> Result<BroadcastResult> {
     if signature.len() != 64 {
         return Err(anyhow!(

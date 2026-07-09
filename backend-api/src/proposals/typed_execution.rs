@@ -117,10 +117,9 @@ pub(super) fn execute_typed_chain_send_args(
         asset_id_hash,
     ]);
     if typed_ika {
-        if !matches!(body.chain_kind, 1 | 5) {
+        if !matches!(body.chain_kind, 1 | 2 | 3 | 5) {
             return Err(ApiError::BadRequest(
-                "typed Ika chain send currently supports native EVM/HYPE chain kinds 1 and 5"
-                    .into(),
+                "typed Ika chain send currently supports chain kinds 1, 2, 3, and 5".into(),
             ));
         }
         let params_data_hex = body.params_data_hex.ok_or_else(|| {
@@ -472,6 +471,38 @@ mod tests {
                 "--broadcast",
             ]
         );
+    }
+
+    #[test]
+    fn typed_chain_send_ika_allows_btc_and_zcash() {
+        for chain_kind in [2, 3] {
+            let args = execute_typed_chain_send_args(
+                "team".into(),
+                VALID_PUBKEY.into(),
+                ExecuteTypedChainSendRequest {
+                    chain_kind,
+                    amount_raw: "1000".into(),
+                    recipient_hash: VALID_HASH.into(),
+                    asset_id_hash: VALID_HASH.into(),
+                    params_data_hex: Some("01020304".into()),
+                    dwallet_program: None,
+                    grpc_url: None,
+                    rpc_url: None,
+                    broadcast: Some(false),
+                },
+                Some(VALID_PUBKEY.into()),
+                Some("https://ika.example".into()),
+                Some("https://rpc.example".into()),
+            )
+            .unwrap();
+
+            assert_eq!(args[1], "typed-chain-send-ika");
+            let idx = args
+                .iter()
+                .position(|arg| arg == "--chain-kind")
+                .expect("missing --chain-kind");
+            assert_eq!(args.get(idx + 1), Some(&chain_kind.to_string()));
+        }
     }
 
     #[test]

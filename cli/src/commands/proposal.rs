@@ -1557,9 +1557,9 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             if amount_raw == 0 {
                 return Err(anyhow!("amount-raw must be greater than zero"));
             }
-            if !matches!(chain_kind, 1 | 5) {
+            if !matches!(chain_kind, 1 | 2 | 3 | 5) {
                 return Err(anyhow!(
-                    "typed-chain-send-ika currently supports native EVM/HYPE chain kinds 1 and 5"
+                    "typed-chain-send-ika currently supports chain kinds 1, 2, 3, and 5"
                 ));
             }
 
@@ -2503,7 +2503,6 @@ fn build_broadcast_inputs(
         3 => {
             let prev_txid = ika::read_param_bytes32(intent, params_data, 0)?;
             let prev_vout = ika::read_param_u64(intent, params_data, 1)? as u32;
-            let sender_pkh = ika::read_param_bytes20(intent, params_data, 3)?;
             let recipient_pkh = ika::read_param_bytes20(intent, params_data, 4)?;
             let send_amount_zat = ika::read_param_u64(intent, params_data, 5)?;
 
@@ -2528,7 +2527,6 @@ fn build_broadcast_inputs(
                 version_group_id,
                 prev_txid,
                 prev_vout,
-                sender_pkh,
                 recipient_pkh,
                 send_amount_zat,
                 lock_time,
@@ -2867,14 +2865,11 @@ fn approve_or_cancel(
     is_approve: bool,
 ) -> Result<()> {
     let expiry_ts = message::resolve_expiry(expiry, config)?;
-    let program_id = crate::instructions::program_id();
-    let pid = solana_address::Address::new_from_array(program_id.to_bytes());
 
     // Resolve wallet by name. Creator-scoped PDA upgrade — see
     // intent.rs:120 for context.
     let client = rpc::client(config);
     let (wallet_pubkey, wallet_account) = rpc::resolve_wallet_by_name(&client, wallet_name)?;
-    let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
 
     let proposal_pubkey: Pubkey = proposal_addr_str
         .parse()

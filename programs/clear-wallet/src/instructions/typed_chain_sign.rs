@@ -272,8 +272,54 @@ fn verify_native_send_params(
             );
             Ok(())
         }
+        ChainKind::BitcoinP2wpkh => {
+            let params_amount = read_u64(intent, params_data, 5)?;
+            let recipient_pkh = read_bytes20(intent, params_data, 4)?;
+            verify_pkh_send_commitments(
+                kind,
+                amount_raw,
+                params_amount,
+                recipient_hash,
+                &recipient_pkh,
+            )
+        }
+        ChainKind::ZcashTransparent => {
+            let params_amount = read_u64(intent, params_data, 5)?;
+            let recipient_pkh = read_bytes20(intent, params_data, 4)?;
+            verify_pkh_send_commitments(
+                kind,
+                amount_raw,
+                params_amount,
+                recipient_hash,
+                &recipient_pkh,
+            )
+        }
         _ => Err(ProgramError::InvalidArgument),
     }
+}
+
+fn verify_pkh_send_commitments(
+    kind: ChainKind,
+    amount_raw: u128,
+    params_amount: u64,
+    recipient_hash: &[u8; 32],
+    recipient_pkh: &[u8; 20],
+) -> Result<(), ProgramError> {
+    let amount_u64 = u64::try_from(amount_raw).map_err(|_| WalletError::PolicyAmountExceeded)?;
+    require!(
+        params_amount == amount_u64,
+        WalletError::InvalidClearSignEnvelope
+    );
+    let namespace = match kind {
+        ChainKind::BitcoinP2wpkh => b"btc-p2wpkh:0x".as_slice(),
+        ChainKind::ZcashTransparent => b"zcash-transparent:0x".as_slice(),
+        _ => return Err(ProgramError::InvalidArgument),
+    };
+    require!(
+        pkh_text_commitment(namespace, recipient_pkh) == *recipient_hash,
+        WalletError::InvalidClearSignEnvelope
+    );
+    Ok(())
 }
 
 fn approve_ika_message(
@@ -343,6 +389,63 @@ fn evm_address_text_commitment(address: &[u8; 20]) -> [u8; 32] {
         text[3 + idx * 2] = hex_nibble(byte & 0x0f);
     }
     Sha256::digest(text).into()
+}
+
+fn pkh_text_commitment(prefix: &[u8], pkh: &[u8; 20]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(prefix);
+    for byte in pkh {
+        hasher.update([hex_nibble(byte >> 4), hex_nibble(byte & 0x0f)]);
+    }
+    hasher.finalize().into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const AMOUNT: u64 = 125_000;
+    const RECIPIENT_PKH: [u8; 20] = [0x2a; 20];
+
+    #[test]
+    fn btc_commitments_reject_amount_and_recipient_mismatches() {
+        assert_commitment_guards(ChainKind::BitcoinP2wpkh, b"btc-p2wpkh:0x");
+    }
+
+    #[test]
+    fn zcash_commitments_reject_amount_and_recipient_mismatches() {
+        assert_commitment_guards(ChainKind::ZcashTransparent, b"zcash-transparent:0x");
+    }
+
+    fn assert_commitment_guards(kind: ChainKind, namespace: &[u8]) {
+        let recipient_hash = pkh_text_commitment(namespace, &RECIPIENT_PKH);
+        assert!(verify_pkh_send_commitments(
+            kind,
+            AMOUNT as u128,
+            AMOUNT,
+            &recipient_hash,
+            &RECIPIENT_PKH,
+        )
+        .is_ok());
+        assert!(verify_pkh_send_commitments(
+            kind,
+            AMOUNT as u128,
+            AMOUNT + 1,
+            &recipient_hash,
+            &RECIPIENT_PKH,
+        )
+        .is_err());
+
+        let wrong_recipient = [0x7b; 20];
+        assert!(verify_pkh_send_commitments(
+            kind,
+            AMOUNT as u128,
+            AMOUNT,
+            &recipient_hash,
+            &wrong_recipient,
+        )
+        .is_err());
+    }
 }
 
 fn hex_nibble(value: u8) -> u8 {

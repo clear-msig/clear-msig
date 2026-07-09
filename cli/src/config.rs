@@ -136,7 +136,6 @@ pub struct RuntimeConfig {
     /// "signer must be a wallet member" check can use this to emit a
     /// clearer error if the pre-signed pubkey isn't in the proposer /
     /// approver list of the intent.
-    pub pre_signed: bool,
     /// Exact message byte layout the browser says it signed. Only set
     /// in pre-signed mode by newer frontends.
     pub message_flavor: Option<MessageFlavor>,
@@ -256,7 +255,6 @@ pub fn load_config(globals: &CliGlobals) -> Result<RuntimeConfig> {
         params_data_override,
         signed_message_override,
         dry_run: globals.dry_run,
-        pre_signed: globals.signer_pubkey.is_some(),
         message_flavor,
     })
 }

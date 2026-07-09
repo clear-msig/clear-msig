@@ -161,7 +161,6 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
             }
             let program_id = crate::instructions::program_id();
             let pid = solana_address::Address::new_from_array(program_id.to_bytes());
-
             // Creator-scoped PDA: the payer is the wallet's namespace
             // owner. Two payers can both create a wallet named "Family"
             // and end up at distinct PDAs.
@@ -239,7 +238,6 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
                 .with_context(|| format!("invalid dWallet program ID: {dwallet_program}"))?;
 
             let program_id = crate::instructions::program_id();
-            let pid = solana_address::Address::new_from_array(program_id.to_bytes());
 
             // Creator-scoped PDA: we don't know the creator from the
             // command line, so scan to resolve. The scan also returns
@@ -248,8 +246,6 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
             let client = rpc::client(config);
             let (wallet_pubkey, _wallet_account) =
                 rpc::resolve_wallet_by_name(&client, &wallet_name)?;
-            let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
-
             // Wait for the dWallet program's coordinator (mock auto-init).
             ika::wait_for_coordinator(&client, &dwallet_program_pk, Duration::from_secs(30))
                 .with_context(|| "dWallet program coordinator not initialized")?;
