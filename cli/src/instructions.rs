@@ -621,6 +621,51 @@ pub fn execute_typed_private_escrow_return(
     }
 }
 
+/// Build execute_typed_agent_trade_approval instruction (ClearSign v2 discriminator 23).
+#[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
+pub fn execute_typed_agent_trade_approval(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_raw_le: [u8; 16],
+    venue_hash: [u8; 32],
+    market_hash: [u8; 32],
+    side_hash: [u8; 32],
+    asset_id_hash: [u8; 32],
+    max_leverage_x100: u32,
+    session_id_hash: [u8; 32],
+    route_hash: [u8; 32],
+    risk_check_hash: [u8; 32],
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+    ];
+
+    let mut data = vec![23u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &amount_raw_le).unwrap();
+    wincode::serialize_into(&mut data, &venue_hash).unwrap();
+    wincode::serialize_into(&mut data, &market_hash).unwrap();
+    wincode::serialize_into(&mut data, &side_hash).unwrap();
+    wincode::serialize_into(&mut data, &asset_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &max_leverage_x100).unwrap();
+    wincode::serialize_into(&mut data, &session_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &route_hash).unwrap();
+    wincode::serialize_into(&mut data, &risk_check_hash).unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
 /// Build execute_typed_escrow_return instruction (ClearSign v2 discriminator 13).
 #[allow(dead_code)]
 pub fn execute_typed_escrow_return(
@@ -1131,6 +1176,33 @@ mod tests {
         assert!(!refund.accounts[0].is_writable);
         assert!(refund.accounts[1].is_writable);
         assert!(refund.accounts[2].is_writable);
+    }
+
+    #[test]
+    fn typed_agent_trade_executor_uses_expected_accounts_and_discriminator() {
+        let trade = execute_typed_agent_trade_approval(
+            key(1),
+            key(2),
+            key(3),
+            [4; 32],
+            [5; 32],
+            100_000_000u128.to_le_bytes(),
+            [6; 32],
+            [7; 32],
+            [8; 32],
+            [9; 32],
+            250,
+            [10; 32],
+            [11; 32],
+            [12; 32],
+        );
+
+        assert_eq!(trade.data[0], 23);
+        assert_eq!(trade.data.len(), 309);
+        assert_eq!(trade.accounts.len(), 3);
+        assert!(!trade.accounts[0].is_writable);
+        assert!(trade.accounts[1].is_writable);
+        assert!(trade.accounts[2].is_writable);
     }
 
     #[test]

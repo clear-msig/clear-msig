@@ -274,6 +274,37 @@ pub mod clear_wallet {
             })
     }
 
+    #[instruction(discriminator = 23)]
+    pub fn execute_typed_agent_trade_approval(
+        ctx: Ctx<ExecuteTypedAgentTradeApproval>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        amount_raw_le: [u8; 16],
+        venue_hash: [u8; 32],
+        market_hash: [u8; 32],
+        side_hash: [u8; 32],
+        asset_id_hash: [u8; 32],
+        max_leverage_x100: u32,
+        session_id_hash: [u8; 32],
+        route_hash: [u8; 32],
+        risk_check_hash: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_typed_agent_trade_approval(ExecuteTypedAgentTradeApprovalArgs {
+                policy_commitment,
+                envelope_hash,
+                amount_raw_le,
+                venue_hash,
+                market_hash,
+                side_hash,
+                asset_id_hash,
+                max_leverage_x100,
+                session_id_hash,
+                route_hash,
+                risk_check_hash,
+            })
+    }
+
     #[instruction(discriminator = 6)]
     pub fn bind_dwallet(
         ctx: Ctx<BindDwallet>,

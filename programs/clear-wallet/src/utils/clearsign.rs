@@ -465,6 +465,29 @@ pub fn hash_agent_trade_payload(
     finish_hash(hasher)
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn hash_agent_trade_approval_payload(
+    venue_hash: &[u8],
+    market_hash: &[u8],
+    side_hash: &[u8],
+    amount: &ClearSignAmount<'_>,
+    max_leverage_x100: u32,
+    session_id_hash: &[u8],
+    route_hash: &[u8],
+    risk_check_hash: &[u8],
+) -> [u8; 32] {
+    let mut hasher = payload_hasher(ClearSignActionKind::AgentTradeApproval);
+    update_bytes(&mut hasher, venue_hash);
+    update_bytes(&mut hasher, market_hash);
+    update_bytes(&mut hasher, side_hash);
+    update_amount(&mut hasher, amount);
+    update_u32(&mut hasher, max_leverage_x100);
+    update_bytes(&mut hasher, session_id_hash);
+    update_bytes(&mut hasher, route_hash);
+    update_bytes(&mut hasher, risk_check_hash);
+    finish_hash(hasher)
+}
+
 fn payload_hasher(kind: ClearSignActionKind) -> Sha256 {
     let mut hasher = Sha256::new();
     update_bytes(&mut hasher, CLEARSIGN_V2_PAYLOAD_DOMAIN);

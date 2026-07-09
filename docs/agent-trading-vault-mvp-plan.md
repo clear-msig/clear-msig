@@ -115,6 +115,11 @@ On-chain later:
 - policy hash binding,
 - revocation state,
 - execution authorization check.
+- typed agent trade approval executor. **Completed for approval
+  finalization:** the Solana program now binds venue, market, side, asset id,
+  amount, max leverage, session id, route, and risk-check artifact commitments
+  before marking an agent trade approval executed. Dedicated session-grant and
+  venue-settlement execution are still future work.
 
 ## Phase 1: Pure Agent Domain
 
@@ -200,6 +205,8 @@ Current local slice:
   signals, paper trades, scorecard, and audit log,
 - audit events are recorded locally,
 - scorecards update from proposal/action transitions and closed paper trades.
+- agent trade approval has a ClearSign v2 typed program finalizer for the
+  approved decision digest. It is not yet a direct venue order executor.
 - external agents can submit signals into `/api/agent-signals/[wallet]/[agent]`
   after the UI registers the agent signal key.
 - external bot signals must include `clientSignalId` so retries do not create

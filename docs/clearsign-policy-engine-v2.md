@@ -196,7 +196,7 @@ It currently ships:
   maximum action lifetime
 - domain-separated SHA-256 hashing for envelopes, policy commitments, send
   payloads, batch send payloads, milestone release payloads, escrow return
-  payloads, and agent trade payloads
+  payloads, agent trade payloads, and richer agent trade approval payloads
 - focused unit tests proving action-code stability, replay binding, payload
   binding, and escrow-return binding
 - typed proposal account storage for v2 envelopes
@@ -220,6 +220,9 @@ It currently ships:
 - `PolicySpendState`, a wallet-scoped PDA that stores the active typed SOL
   policy commitment, current window start, and lamports spent inside the active
   window so velocity rules are enforced by the program before funds move
+- agent trade approval finalization that binds the ClearSign approval to
+  venue, market, side, asset id, amount, max leverage, session id, route, and
+  risk-check artifact commitments before marking the proposal executed
 
 Action codes are fixed as:
 
@@ -254,6 +257,7 @@ Typed proposal instruction discriminators are:
 | 20 | `execute_typed_cross_chain_escrow_return` |
 | 21 | `execute_typed_private_escrow_release` |
 | 22 | `execute_typed_private_escrow_return` |
+| 23 | `execute_typed_agent_trade_approval` |
 
 `execute_typed` remains the generic status gate. The SOL escrow-specific
 executors additionally move SOL from the wallet vault after recomputing the
@@ -276,6 +280,10 @@ executors are ciphertext-bound artifact finalizers: they require non-empty
 Encrypt ciphertext references on the governing intent and bind execution to the
 stored ciphertext-reference hash, private evaluation hash, settlement artifact
 hash, recipient/refund commitment, asset id hash, amount, and escrow id.
+The agent trade approval executor finalizes a verified agent decision without
+placing a venue order directly; it binds the proposal to venue, market, side,
+asset id, amount, max leverage, session id, route, and risk-check artifact
+commitments so a changed trade/risk digest cannot reuse the human approval.
 
 ## Security Review Snapshot: 2026-07-04
 
@@ -325,6 +333,9 @@ Current enforced guarantees:
   id before marking the proposal executed. The program requires non-empty
   ciphertext references and does not claim to decrypt or evaluate private
   policy values.
+- Typed agent trade approval recomputes the payload hash from the exact
+  committed venue, market, side, asset id, amount, max leverage, session id,
+  route, and risk-check artifact before marking the proposal executed.
 - Typed SOL send enforces committed policy bytes before transfer. For velocity
   rules, execution initializes or updates the wallet's `PolicySpendState`; a
   policy commitment change resets that meter, and a send that would exceed the
@@ -351,9 +362,11 @@ Current explicit limitation:
 
 - Typed SOL escrow release/return, SPL-token milestone release/return,
   cross-chain BTC/EVM/Ika escrow release/return, and ciphertext-bound private
-  escrow release/return now have program executors. Full Encrypt/FHE policy
-  evaluation still needs program-side confidential enforcement before private
-  policy values should be treated as fully enforced on-chain.
+  escrow release/return now have program executors. Agent trade approvals also
+  have a typed program executor, but venue order placement and bounded-session
+  execution still need dedicated program/backend integration. Full Encrypt/FHE
+  policy evaluation still needs program-side confidential enforcement before
+  private policy values should be treated as fully enforced on-chain.
 
 ## Cross-Chain Send Assurance
 
@@ -373,7 +386,15 @@ execute. The regression coverage lives in
 
 ## Next Typed Executor Order
 
-1. **Production Encrypt/FHE enforcement**
+1. **Agent session grants and venue-settlement execution**
+   - Add a program-visible session grant/revocation account for bounded agent
+     execution.
+   - Connect the agent trade approval finalizer to backend venue placement
+     records so order ids, fills, and reconciliation artifacts are committed
+     back to ClearSign.
+   - Add tests proving a stale session, changed venue route, or changed risk
+     artifact cannot reuse a prior approval.
+2. **Production Encrypt/FHE enforcement**
    - Replace ciphertext-bound artifact finalization with program-side Encrypt
      handlers once the runtime is available.
    - Keep the same public commitment shape so signer-facing text, payload hash,

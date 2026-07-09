@@ -5,13 +5,14 @@ use {
     crate::clear_wallet::cpi::*,
     crate::state::ika_config::{IKA_CONFIG_DISCRIMINATOR, IKA_CONFIG_LEN},
     crate::utils::clearsign::{
-        hash_batch_send_sol_payload_iter, hash_clear_text, hash_cross_chain_escrow_release_payload,
-        hash_cross_chain_escrow_return_payload, hash_envelope, hash_policy_commitment,
-        hash_private_escrow_release_payload, hash_private_escrow_return_payload,
-        hash_release_milestone_payload, hash_release_token_milestone_payload,
-        hash_return_escrow_sol_payload_iter, hash_return_token_escrow_payload_iter,
-        hash_send_payload, write_vote_message, ClearSignActionKind, ClearSignAmount,
-        ClearSignEnvelope, ClearSignVoteKind, MAX_CLEARSIGN_TEXT_BYTES,
+        hash_agent_trade_approval_payload, hash_batch_send_sol_payload_iter, hash_clear_text,
+        hash_cross_chain_escrow_release_payload, hash_cross_chain_escrow_return_payload,
+        hash_envelope, hash_policy_commitment, hash_private_escrow_release_payload,
+        hash_private_escrow_return_payload, hash_release_milestone_payload,
+        hash_release_token_milestone_payload, hash_return_escrow_sol_payload_iter,
+        hash_return_token_escrow_payload_iter, hash_send_payload, write_vote_message,
+        ClearSignActionKind, ClearSignAmount, ClearSignEnvelope, ClearSignVoteKind,
+        MAX_CLEARSIGN_TEXT_BYTES,
     },
     crate::utils::policy::hash_typed_policy,
     alloc::vec,
@@ -641,6 +642,47 @@ fn build_execute_typed_private_escrow_return_ix(
     wincode::serialize_into(&mut data, &policy_ciphertexts_hash).unwrap();
     wincode::serialize_into(&mut data, &private_evaluation_hash).unwrap();
     wincode::serialize_into(&mut data, &settlement_artifact_hash).unwrap();
+
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new(intent, false),
+            AccountMeta::new(proposal, false),
+        ],
+        data,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_execute_typed_agent_trade_approval_ix(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    amount_raw_le: [u8; 16],
+    venue_hash: [u8; 32],
+    market_hash: [u8; 32],
+    side_hash: [u8; 32],
+    asset_id_hash: [u8; 32],
+    max_leverage_x100: u32,
+    session_id_hash: [u8; 32],
+    route_hash: [u8; 32],
+    risk_check_hash: [u8; 32],
+) -> Instruction {
+    let mut data = vec![23u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &amount_raw_le).unwrap();
+    wincode::serialize_into(&mut data, &venue_hash).unwrap();
+    wincode::serialize_into(&mut data, &market_hash).unwrap();
+    wincode::serialize_into(&mut data, &side_hash).unwrap();
+    wincode::serialize_into(&mut data, &asset_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &max_leverage_x100).unwrap();
+    wincode::serialize_into(&mut data, &session_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &route_hash).unwrap();
+    wincode::serialize_into(&mut data, &risk_check_hash).unwrap();
 
     Instruction {
         program_id: crate::ID,
@@ -2268,6 +2310,154 @@ fn test_execute_typed_private_escrow_finalizes_ciphertext_bound_artifacts() {
         svm.get_account(&return_proposal).unwrap().data[105],
         2,
         "typed private return proposal should be Executed(2)"
+    );
+}
+
+#[test]
+fn test_execute_typed_agent_trade_approval_finalizes_verified_digest() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let wallet_name = "typed-agent-trade";
+    let amount_raw = 250_000_000u128;
+    let venue_hash = sha256_hash(b"hyperliquid:testnet");
+    let market_hash = sha256_hash(b"BTC-PERP");
+    let side_hash = sha256_hash(b"long");
+    let asset_id_hash = sha256_hash(b"USDC:hyperliquid:testnet");
+    let max_leverage_x100 = 250u32;
+    let session_id_hash = sha256_hash(b"agent-session:morning-risk-pass");
+    let route_hash = sha256_hash(b"clearsig-agent:hyperliquid:testnet:limit");
+    let risk_check_hash = sha256_hash(b"risk-ok:cap-velocity-thesis-stoploss-v1");
+    let wrong_risk_check_hash = sha256_hash(b"risk-skipped:wrong-artifact");
+    let action_id = sha256_hash(b"agent-trade-action-1");
+    let nonce = sha256_hash(b"agent-trade-nonce-1");
+    let expiry = typed_test_expiry();
+
+    let (instruction, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&proposer)],
+        1,
+    );
+    assert!(svm.process_instruction(&instruction, &accounts).is_ok());
+
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let proposal_index = 0u64;
+    let proposal = get_typed_proposal_address(intent, proposal_index);
+    let policy_commitment = hash_policy_commitment(&[b"agent:hyperliquid:testnet:v1"]);
+    let amount = ClearSignAmount {
+        asset: &asset_id_hash,
+        raw_amount: amount_raw,
+    };
+    let payload_hash = hash_agent_trade_approval_payload(
+        &venue_hash,
+        &market_hash,
+        &side_hash,
+        &amount,
+        max_leverage_x100,
+        &session_id_hash,
+        &route_hash,
+        &risk_check_hash,
+    );
+    let envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::AgentTradeApproval,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: action_id.as_ref(),
+        nonce: nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment,
+        payload_hash,
+        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
+    });
+
+    let propose = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent,
+        proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::AgentTradeApproval.code(),
+        policy_commitment,
+        payload_hash,
+        envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_typed_vote(
+            &proposer,
+            ClearSignVoteKind::Propose,
+            wallet_name,
+            proposal_index,
+            envelope_hash,
+        ),
+        clear_text: TEST_CLEAR_TEXT.to_vec(),
+        policy_bytes: Vec::new(),
+        action_id,
+        nonce,
+    });
+    let result =
+        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
+    assert!(
+        result.is_ok(),
+        "typed agent trade proposal failed: {:?}",
+        result.raw_result
+    );
+
+    let wrong_execute = build_execute_typed_agent_trade_approval_ix(
+        wallet,
+        intent,
+        proposal,
+        policy_commitment,
+        envelope_hash,
+        amount_raw.to_le_bytes(),
+        venue_hash,
+        market_hash,
+        side_hash,
+        asset_id_hash,
+        max_leverage_x100,
+        session_id_hash,
+        route_hash,
+        wrong_risk_check_hash,
+    );
+    assert!(
+        svm.process_instruction(&wrong_execute, &[]).is_err(),
+        "agent trade executor accepted a changed risk-check artifact"
+    );
+
+    let execute = build_execute_typed_agent_trade_approval_ix(
+        wallet,
+        intent,
+        proposal,
+        policy_commitment,
+        envelope_hash,
+        amount_raw.to_le_bytes(),
+        venue_hash,
+        market_hash,
+        side_hash,
+        asset_id_hash,
+        max_leverage_x100,
+        session_id_hash,
+        route_hash,
+        risk_check_hash,
+    );
+    let result = svm.process_instruction(&execute, &[]);
+    if result.is_err() {
+        result.print_logs();
+    }
+    assert!(
+        result.is_ok(),
+        "typed agent trade execute failed: {:?}",
+        result.raw_result
+    );
+    assert_eq!(
+        svm.get_account(&proposal).unwrap().data[105],
+        2,
+        "typed proposal should be Executed(2)"
     );
 }
 
