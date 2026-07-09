@@ -266,6 +266,21 @@ pub enum ProposalAction {
         #[arg(long)]
         amount_lamports: u64,
     },
+    /// Verify and finalize an approved typed BTC/EVM/Zcash/HYPE send.
+    TypedChainSend {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        chain_kind: u8,
+        #[arg(long)]
+        amount_raw: u128,
+        #[arg(long)]
+        recipient_hash: String,
+        #[arg(long)]
+        asset_id_hash: String,
+    },
     /// Execute an approved typed SOL batch send.
     ///
     /// Pass one `--payment recipient:lamports` per recipient.
@@ -1404,6 +1419,88 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 "status": "executed",
                 "recipient": recipient_pubkey.to_string(),
                 "amount_lamports": amount_lamports,
+            }));
+        }
+
+        ProposalAction::TypedChainSend {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            chain_kind,
+            amount_raw,
+            recipient_hash,
+            asset_id_hash,
+        } => {
+            if amount_raw == 0 {
+                return Err(anyhow!("amount-raw must be greater than zero"));
+            }
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::Send,
+                "typed chain send",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let intent_data = rpc::fetch_account(&client, &intent_pubkey)
+                .with_context(|| "failed to fetch typed proposal intent")?;
+            let intent_account = accounts::parse_intent(&intent_data)?;
+            if intent_account.chain_kind != chain_kind {
+                return Err(anyhow!(
+                    "typed chain send chain_kind mismatch: intent has {}, command got {}",
+                    intent_account.chain_kind,
+                    chain_kind
+                ));
+            }
+
+            let program_id = crate::instructions::program_id();
+            let (ika_config_pubkey, _) =
+                crate::ika::ika_config_pda(&program_id, &wallet_pubkey, chain_kind);
+            let ika_config_data =
+                rpc::fetch_account(&client, &ika_config_pubkey).with_context(|| {
+                    format!(
+                        "wallet has no IkaConfig for chain_kind={chain_kind}; bind the chain first"
+                    )
+                })?;
+            let ika_config = accounts::parse_ika_config(&ika_config_data)?;
+            let dwallet_pubkey: Pubkey = ika_config
+                .dwallet
+                .parse()
+                .with_context(|| "invalid dwallet address in IkaConfig")?;
+
+            let recipient_hash = decode_hex_32(&recipient_hash, "recipient_hash")?;
+            let asset_id_hash = decode_hex_32(&asset_id_hash, "asset_id_hash")?;
+            let tx_template_hash = intent_tx_template_hash(&intent_account)?;
+            let ix = crate::instructions::execute_typed_chain_send(
+                wallet_pubkey,
+                intent_pubkey,
+                proposal_pubkey,
+                ika_config_pubkey,
+                dwallet_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                chain_kind,
+                amount_raw.to_le_bytes(),
+                recipient_hash,
+                asset_id_hash,
+                tx_template_hash,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_chain_send",
+                "status": "executed",
+                "chain_kind": chain_kind,
+                "amount_raw": amount_raw.to_string(),
+                "recipient_hash": crate::output::hex_of(&recipient_hash),
+                "asset_id_hash": crate::output::hex_of(&asset_id_hash),
+                "ika_config": ika_config_pubkey.to_string(),
+                "dwallet": dwallet_pubkey.to_string(),
+                "tx_template_hash": crate::output::hex_of(&tx_template_hash),
             }));
         }
 

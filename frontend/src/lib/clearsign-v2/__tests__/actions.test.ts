@@ -147,6 +147,41 @@ describe("ClearSign v2 actions", () => {
     );
   });
 
+  it("binds cross-chain send recipient and asset as text commitments", () => {
+    const committed: ClearSignEnvelope<SendPayload> = {
+      ...base,
+      kind: "send",
+      payload: {
+        amount: "1.250000000000000000",
+        asset: "eth",
+        assetEncoding: "sha256_text",
+        recipient: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+        recipientEncoding: "sha256_text",
+      },
+    };
+    const plain: ClearSignEnvelope<SendPayload> = {
+      ...committed,
+      payload: {
+        ...committed.payload,
+        assetEncoding: "text",
+        recipientEncoding: "text",
+      },
+    };
+    const recipientChanged: ClearSignEnvelope<SendPayload> = {
+      ...committed,
+      payload: {
+        ...committed.payload,
+        recipient: "0x1111111111111111111111111111111111111111",
+      },
+    };
+
+    expect(clearSignPayloadHash(committed)).toMatch(/^[0-9a-f]{64}$/);
+    expect(clearSignPayloadHash(committed)).not.toBe(clearSignPayloadHash(plain));
+    expect(clearSignPayloadHash(committed)).not.toBe(
+      clearSignPayloadHash(recipientChanged),
+    );
+  });
+
   it("uses the same fixed action codes as the Solana program", () => {
     expect(clearSignActionKindCode("send")).toBe(1);
     expect(clearSignActionKindCode("return_escrow_funds")).toBe(8);

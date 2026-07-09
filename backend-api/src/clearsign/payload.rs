@@ -1,5 +1,5 @@
 use serde_json::Value;
-use sha2::Sha256;
+use sha2::{Digest, Sha256};
 
 use super::hash::{update_amount, update_bytes};
 use crate::ApiError;
@@ -8,6 +8,7 @@ use crate::ApiError;
 pub(super) struct Money {
     pub(super) amount: String,
     pub(super) asset: String,
+    pub(super) asset_encoding: AssetEncoding,
     pub(super) raw_amount: u128,
 }
 
@@ -22,10 +23,21 @@ pub(super) struct RecipientAmount {
 pub(super) enum RecipientEncoding {
     Text,
     SolanaPubkey,
+    Sha256Text,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum AssetEncoding {
+    Text,
+    Sha256Text,
 }
 
 impl Money {
-    pub(super) fn new(amount: String, asset: String) -> Result<Self, ApiError> {
+    pub(super) fn new(
+        amount: String,
+        asset: String,
+        asset_encoding: AssetEncoding,
+    ) -> Result<Self, ApiError> {
         let asset = normalize_text(&asset).to_uppercase();
         if asset.is_empty() {
             return Err(ApiError::BadRequest("asset must not be empty".into()));
@@ -35,6 +47,7 @@ impl Money {
         Ok(Self {
             amount,
             asset,
+            asset_encoding,
             raw_amount,
         })
     }
@@ -47,6 +60,7 @@ pub(super) fn recipient_amount(value: &Value) -> Result<RecipientAmount, ApiErro
         money: Money::new(
             payload_text(value, "amount")?,
             payload_text(value, "asset")?,
+            asset_encoding(value)?,
         )?,
     };
     validate_recipient_amount(&row)?;
@@ -56,6 +70,7 @@ pub(super) fn recipient_amount(value: &Value) -> Result<RecipientAmount, ApiErro
 pub(super) fn update_recipient_amount(hasher: &mut Sha256, row: &RecipientAmount) {
     match row.recipient_encoding {
         RecipientEncoding::Text => update_bytes(hasher, row.recipient.as_bytes()),
+        RecipientEncoding::Sha256Text => update_bytes(hasher, &text_commitment(&row.recipient)),
         RecipientEncoding::SolanaPubkey => {
             let decoded = bs58::decode(&row.recipient)
                 .into_vec()
@@ -124,10 +139,33 @@ fn recipient_encoding(payload: &Value) -> Result<RecipientEncoding, ApiError> {
     match normalize_text(raw).as_str() {
         "" | "text" => Ok(RecipientEncoding::Text),
         "solana_pubkey" => Ok(RecipientEncoding::SolanaPubkey),
+        "sha256_text" => Ok(RecipientEncoding::Sha256Text),
         _ => Err(ApiError::BadRequest(
-            "payload.recipientEncoding must be text or solana_pubkey".into(),
+            "payload.recipientEncoding must be text, solana_pubkey, or sha256_text".into(),
         )),
     }
+}
+
+fn asset_encoding(payload: &Value) -> Result<AssetEncoding, ApiError> {
+    let Some(value) = payload.get("assetEncoding") else {
+        return Ok(AssetEncoding::Text);
+    };
+    let Some(raw) = value.as_str() else {
+        return Err(ApiError::BadRequest(
+            "payload.assetEncoding must be a string".into(),
+        ));
+    };
+    match normalize_text(raw).as_str() {
+        "" | "text" => Ok(AssetEncoding::Text),
+        "sha256_text" => Ok(AssetEncoding::Sha256Text),
+        _ => Err(ApiError::BadRequest(
+            "payload.assetEncoding must be text or sha256_text".into(),
+        )),
+    }
+}
+
+fn text_commitment(value: &str) -> [u8; 32] {
+    Sha256::digest(normalize_text(value).as_bytes()).into()
 }
 
 pub(super) fn leverage_to_x100(value: &str) -> Result<u32, ApiError> {
@@ -231,7 +269,7 @@ fn decimal_to_raw(value: &str, decimals: usize) -> Result<u128, ApiError> {
 
 fn asset_decimals(asset: &str) -> usize {
     match asset {
-        "BTC" => 8,
+        "BTC" | "ZEC" => 8,
         "ETH" | "HYPE" => 18,
         "USDC" | "USDT" | "USD" => 6,
         _ => 9,

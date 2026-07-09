@@ -102,6 +102,15 @@ pub(super) struct ExecuteTypedSolSendRequest {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedChainSendRequest {
+    pub(super) chain_kind: u8,
+    pub(super) amount_raw: String,
+    pub(super) recipient_hash: String,
+    pub(super) asset_id_hash: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct ExecuteTypedSolBatchSendRequest {
     pub(super) payments: Vec<ExecuteTypedSolBatchSendRow>,
 }

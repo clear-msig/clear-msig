@@ -1,5 +1,6 @@
 export type ClearSignSurfaceStatus =
   | "typed_onchain"
+  | "typed_executor_available"
   | "typed_approval_only"
   | "legacy_custom_pending_typed_executor"
   | "local_policy_only";
@@ -46,7 +47,7 @@ export const CLEARSIGN_SURFACE_COVERAGE: ClearSignSurfaceCoverage[] = [
     label: "BTC / EVM / Ika escrow release / return",
     status: "typed_onchain",
     signedPath: "typed proposal -> typed cross-chain escrow execute",
-    notes: "Finalizes verified cross-chain artifacts; direct chain sends still need typed executors.",
+    notes: "Finalizes verified cross-chain artifacts; direct chain sends now have a typed executor available for UI wiring.",
   },
   {
     id: "private-escrow",
@@ -65,23 +66,23 @@ export const CLEARSIGN_SURFACE_COVERAGE: ClearSignSurfaceCoverage[] = [
   {
     id: "btc-send",
     label: "BTC send",
-    status: "legacy_custom_pending_typed_executor",
-    signedPath: "legacy Custom proposal -> Ika broadcast",
-    notes: "Human-readable legacy signing exists, but not typed ClearSign v2 on-chain envelope/executor yet.",
+    status: "typed_executor_available",
+    signedPath: "typed proposal -> typed chain-send proof -> Ika broadcast",
+    notes: "Program/CLI/backend executor verifies recipient, asset, amount, chain binding, and tx template; send UI still needs full typed flow wiring.",
   },
   {
     id: "eth-send",
     label: "ETH send",
-    status: "legacy_custom_pending_typed_executor",
-    signedPath: "legacy Custom proposal -> Ika broadcast",
-    notes: "Needs typed cross-chain send action kind and executor before claiming SOL-level ClearSign.",
+    status: "typed_executor_available",
+    signedPath: "typed proposal -> typed chain-send proof -> Ika broadcast",
+    notes: "Program/CLI/backend executor verifies recipient, asset, amount, chain binding, and tx template; send UI still needs full typed flow wiring.",
   },
   {
     id: "hyperliquid-send",
     label: "Hyperliquid send",
-    status: "legacy_custom_pending_typed_executor",
-    signedPath: "legacy Custom proposal -> Ika / venue broadcast",
-    notes: "Needs typed Hyperliquid action kind, policy payload, and executor before claiming SOL-level ClearSign.",
+    status: "typed_executor_available",
+    signedPath: "typed proposal -> typed chain-send proof -> Ika / venue broadcast",
+    notes: "Typed chain-send executor is available for HYPE movement; venue-specific agent policy payloads remain separate.",
   },
   {
     id: "erc20-send",
@@ -93,9 +94,9 @@ export const CLEARSIGN_SURFACE_COVERAGE: ClearSignSurfaceCoverage[] = [
   {
     id: "zec-send",
     label: "Zcash send",
-    status: "legacy_custom_pending_typed_executor",
-    signedPath: "legacy Custom proposal -> Ika broadcast",
-    notes: "Needs typed Zcash transparent-send payload and executor.",
+    status: "typed_executor_available",
+    signedPath: "typed proposal -> typed chain-send proof -> Ika broadcast",
+    notes: "Program/CLI/backend executor verifies transparent recipient commitment, asset, amount, chain binding, and tx template; send UI still needs full typed flow wiring.",
   },
   {
     id: "members-policy",

@@ -5,7 +5,7 @@ use super::{
     kinds::ClearSignActionKind,
     payload::{
         json_string, leverage_to_x100, payload_text, payload_u32, recipient_amount,
-        update_recipient_amount, Money,
+        update_recipient_amount, AssetEncoding, Money,
     },
     NormalizedEnvelope, CLEARSIGN_V2_DOMAIN, CLEARSIGN_V2_PAYLOAD_DOMAIN, CLEARSIGN_V2_VERSION,
 };
@@ -79,7 +79,11 @@ pub(super) fn hash_payload(
                     "payload.side must be long or short".into(),
                 ));
             }
-            let amount = Money::new(payload_text(payload, "maxNotionalUsd")?, "USD".into())?;
+            let amount = Money::new(
+                payload_text(payload, "maxNotionalUsd")?,
+                "USD".into(),
+                AssetEncoding::Text,
+            )?;
             let leverage = leverage_to_x100(&payload_text(payload, "maxLeverage")?)?;
             let v2_fields = [
                 optional_payload_text(payload, "venue")?,
@@ -159,8 +163,11 @@ pub(super) fn hash_payload(
             let from = payload
                 .get("from")
                 .ok_or_else(|| ApiError::BadRequest("payload.from must be an object".into()))?;
-            let from_money =
-                Money::new(payload_text(from, "amount")?, payload_text(from, "asset")?)?;
+            let from_money = Money::new(
+                payload_text(from, "amount")?,
+                payload_text(from, "asset")?,
+                AssetEncoding::Text,
+            )?;
             let to_asset = payload_text(payload, "toAsset")?.to_uppercase();
             let min_receive =
                 super::payload::normalize_decimal(&payload_text(payload, "minReceive")?)?;
@@ -257,7 +264,11 @@ fn hex_nibble(value: u8) -> Result<u8, ApiError> {
 }
 
 pub(super) fn update_amount(hasher: &mut Sha256, money: &Money) {
-    update_bytes(hasher, money.asset.as_bytes());
+    if money.asset_encoding == AssetEncoding::Sha256Text {
+        update_bytes(hasher, &text_commitment(&money.asset));
+    } else {
+        update_bytes(hasher, money.asset.as_bytes());
+    }
     hasher.update(money.raw_amount.to_le_bytes());
 }
 
@@ -380,6 +391,41 @@ mod tests {
         assert!(error
             .to_string()
             .contains("agent_trade_approval v2 requires venue"));
+    }
+
+    #[test]
+    fn send_payload_binds_committed_recipient_and_asset() {
+        let committed = serde_json::json!({
+            "recipient": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+            "recipientEncoding": "sha256_text",
+            "amount": "1.250000000000000000",
+            "asset": "eth",
+            "assetEncoding": "sha256_text"
+        });
+        let plain = serde_json::json!({
+            "recipient": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+            "recipientEncoding": "text",
+            "amount": "1.250000000000000000",
+            "asset": "eth",
+            "assetEncoding": "text"
+        });
+        let recipient_changed = serde_json::json!({
+            "recipient": "0x1111111111111111111111111111111111111111",
+            "recipientEncoding": "sha256_text",
+            "amount": "1.250000000000000000",
+            "asset": "eth",
+            "assetEncoding": "sha256_text"
+        });
+
+        let base = hash_payload(ClearSignActionKind::Send, &committed).unwrap();
+        assert_ne!(
+            base,
+            hash_payload(ClearSignActionKind::Send, &plain).unwrap()
+        );
+        assert_ne!(
+            base,
+            hash_payload(ClearSignActionKind::Send, &recipient_changed).unwrap()
+        );
     }
 
     fn legacy_envelope_hash_without_commitment_lengths(

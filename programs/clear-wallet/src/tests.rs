@@ -579,6 +579,43 @@ fn build_execute_typed_cross_chain_escrow_return_ix(
 }
 
 #[allow(clippy::too_many_arguments)]
+fn build_execute_typed_chain_send_ix(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    ika_config: Pubkey,
+    dwallet: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    chain_kind: u8,
+    amount_raw_le: [u8; 16],
+    recipient_hash: [u8; 32],
+    asset_id_hash: [u8; 32],
+    tx_template_hash: [u8; 32],
+) -> Instruction {
+    let mut data = vec![24u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &chain_kind).unwrap();
+    wincode::serialize_into(&mut data, &amount_raw_le).unwrap();
+    wincode::serialize_into(&mut data, &recipient_hash).unwrap();
+    wincode::serialize_into(&mut data, &asset_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &tx_template_hash).unwrap();
+
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new(intent, false),
+            AccountMeta::new(proposal, false),
+            AccountMeta::new_readonly(ika_config, false),
+            AccountMeta::new_readonly(dwallet, false),
+        ],
+        data,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn build_execute_typed_private_escrow_release_ix(
     wallet: Pubkey,
     intent: Pubkey,
@@ -1711,6 +1748,187 @@ fn test_execute_typed_spl_escrow_return_moves_tokens_to_funders() {
     assert_eq!(destination_b_state.owner, funder_b);
     assert_eq!(
         svm.get_account(&proposal).unwrap().data[105],
+        2,
+        "typed proposal should be Executed(2)"
+    );
+}
+
+#[test]
+fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let approver = new_keypair();
+    let wallet_name = "typed-chain-send";
+    let chain_kind = 2u8;
+    let amount_raw = 250_000_000u128;
+    let recipient_hash = sha256_hash(b"tb1qrecipientaddress");
+    let wrong_recipient_hash = sha256_hash(b"tb1qattackeraddress");
+    let asset_id_hash = sha256_hash(b"BTC:testnet");
+    let tx_template = b"btc-send-template-v1";
+    let tx_template_hash = sha256_hash(tx_template);
+    let action_id = sha256_hash(b"chain-send-action-1");
+    let nonce = sha256_hash(b"chain-send-nonce-1");
+    let expiry = typed_test_expiry();
+
+    let (instruction, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&approver)],
+        1,
+    );
+    assert!(svm.process_instruction(&instruction, &accounts).is_ok());
+
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (add_intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let mut builder = IntentBuilder::new();
+    builder
+        .set_chain_kind(chain_kind)
+        .set_governance(1, 1, 0)
+        .add_proposer(solana_address::Address::new_from_array(
+            pubkey_of(&proposer).to_bytes(),
+        ))
+        .add_approver(solana_address::Address::new_from_array(
+            pubkey_of(&proposer).to_bytes(),
+        ))
+        .set_template("Send BTC")
+        .set_tx_template(tx_template);
+    let built_intent = builder.build();
+    let intent_index = 3u8;
+    let intent_body = built_intent.serialize_body(&wallet, 0, intent_index, 3);
+    let (remote_intent, _) = find_intent_address(&wallet, intent_index, &crate::ID);
+
+    propose_approve_execute(ProposeApproveExecuteArgs {
+        svm: &mut svm,
+        payer,
+        wallet,
+        wallet_name,
+        intent: add_intent,
+        proposal_index: 0,
+        proposer: &proposer,
+        approver: &approver,
+        params_data: intent_body,
+        msg_fn: &add_intent_msg,
+        execute_remaining: vec![
+            AccountMeta::new(payer, true),
+            AccountMeta::new(remote_intent, false),
+        ],
+        execute_extra_accounts: vec![funded_account(payer), empty_account(remote_intent)],
+    });
+
+    let (ika_config, ika_config_bump) =
+        Pubkey::find_program_address(&[b"ika_config", wallet.as_ref(), &[chain_kind]], &crate::ID);
+    let dwallet = Pubkey::new_unique();
+    svm.set_account(keyed_ika_config_account(
+        ika_config,
+        wallet,
+        dwallet,
+        chain_kind,
+        1,
+        ika_config_bump,
+    ));
+
+    let proposal_index = 1u64;
+    let typed_proposal = get_typed_proposal_address(remote_intent, proposal_index);
+    let policy_commitment = hash_policy_commitment(&[b"send:chain:btc"]);
+    let amount = ClearSignAmount {
+        asset: &asset_id_hash,
+        raw_amount: amount_raw,
+    };
+    let payload_hash = hash_send_payload(&recipient_hash, &amount);
+    let envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::Send,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: action_id.as_ref(),
+        nonce: nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment,
+        payload_hash,
+        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
+    });
+
+    let propose = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent: remote_intent,
+        proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::Send.code(),
+        policy_commitment,
+        payload_hash,
+        envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_typed_vote(
+            &proposer,
+            ClearSignVoteKind::Propose,
+            wallet_name,
+            proposal_index,
+            envelope_hash,
+        ),
+        clear_text: TEST_CLEAR_TEXT.to_vec(),
+        policy_bytes: Vec::new(),
+        action_id,
+        nonce,
+    });
+    let result = svm.process_instruction(
+        &propose,
+        &[funded_account(payer), empty_account(typed_proposal)],
+    );
+    assert!(
+        result.is_ok(),
+        "typed chain send propose failed: {:?}",
+        result.raw_result
+    );
+
+    let wrong_execute = build_execute_typed_chain_send_ix(
+        wallet,
+        remote_intent,
+        typed_proposal,
+        ika_config,
+        dwallet,
+        policy_commitment,
+        envelope_hash,
+        chain_kind,
+        amount_raw.to_le_bytes(),
+        wrong_recipient_hash,
+        asset_id_hash,
+        tx_template_hash,
+    );
+    assert!(svm
+        .process_instruction(&wrong_execute, &[empty_account(dwallet)])
+        .is_err());
+
+    let execute = build_execute_typed_chain_send_ix(
+        wallet,
+        remote_intent,
+        typed_proposal,
+        ika_config,
+        dwallet,
+        policy_commitment,
+        envelope_hash,
+        chain_kind,
+        amount_raw.to_le_bytes(),
+        recipient_hash,
+        asset_id_hash,
+        tx_template_hash,
+    );
+    let result = svm.process_instruction(&execute, &[empty_account(dwallet)]);
+    if result.is_err() {
+        result.print_logs();
+    }
+    assert!(
+        result.is_ok(),
+        "typed chain send execute failed: {:?}",
+        result.raw_result
+    );
+    assert_eq!(
+        svm.get_account(&typed_proposal).unwrap().data[105],
         2,
         "typed proposal should be Executed(2)"
     );

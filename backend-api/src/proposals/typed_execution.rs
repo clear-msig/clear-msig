@@ -1,8 +1,9 @@
 use crate::{ensure_base58, ensure_hex_exact_len, ensure_non_empty, ensure_wallet_name, ApiError};
 
 use super::types::{
-    ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedEscrowReleaseRequest,
-    ExecuteTypedEscrowReturnRequest, ExecuteTypedSolBatchSendRequest, ExecuteTypedSolSendRequest,
+    ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedChainSendRequest,
+    ExecuteTypedEscrowReleaseRequest, ExecuteTypedEscrowReturnRequest,
+    ExecuteTypedSolBatchSendRequest, ExecuteTypedSolSendRequest,
 };
 
 pub(super) fn execute_typed_escrow_release_args(
@@ -67,6 +68,35 @@ pub(super) fn execute_typed_sol_send_args(
         validated_base58(body.recipient, "recipient")?,
         "--amount-lamports".into(),
         body.amount_lamports.to_string(),
+    ]);
+    Ok(args)
+}
+
+pub(super) fn execute_typed_chain_send_args(
+    name: String,
+    proposal: String,
+    body: ExecuteTypedChainSendRequest,
+) -> Result<Vec<String>, ApiError> {
+    ensure_wallet_proposal(&name, &proposal)?;
+    if body.chain_kind == 0 {
+        return Err(ApiError::BadRequest(
+            "chainKind must be a remote chain kind".into(),
+        ));
+    }
+    let amount_raw = parse_positive_u128(&body.amount_raw, "amountRaw")?;
+    let recipient_hash = validated_hash(body.recipient_hash, "recipientHash")?;
+    let asset_id_hash = validated_hash(body.asset_id_hash, "assetIdHash")?;
+
+    let mut args = base_proposal_args("typed-chain-send", name, proposal);
+    args.extend([
+        "--chain-kind".into(),
+        body.chain_kind.to_string(),
+        "--amount-raw".into(),
+        amount_raw.to_string(),
+        "--recipient-hash".into(),
+        recipient_hash,
+        "--asset-id-hash".into(),
+        asset_id_hash,
     ]);
     Ok(args)
 }
@@ -219,8 +249,8 @@ fn push_recipient_lamports(
 mod tests {
     use super::*;
     use crate::proposals::types::{
-        ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedEscrowReturnRow,
-        ExecuteTypedSolBatchSendRow,
+        ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedChainSendRequest,
+        ExecuteTypedEscrowReturnRow, ExecuteTypedSolBatchSendRow,
     };
 
     const VALID_PUBKEY: &str = "11111111111111111111111111111111";
@@ -295,6 +325,56 @@ mod tests {
                 "milestone-1",
             ]
         );
+    }
+
+    #[test]
+    fn typed_chain_send_args_match_cli_shape() {
+        let args = execute_typed_chain_send_args(
+            "team".into(),
+            VALID_PUBKEY.into(),
+            ExecuteTypedChainSendRequest {
+                chain_kind: 1,
+                amount_raw: "1000000000000000000".into(),
+                recipient_hash: VALID_HASH.into(),
+                asset_id_hash: VALID_HASH.into(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            args,
+            vec![
+                "proposal",
+                "typed-chain-send",
+                "--wallet",
+                "team",
+                "--proposal",
+                VALID_PUBKEY,
+                "--chain-kind",
+                "1",
+                "--amount-raw",
+                "1000000000000000000",
+                "--recipient-hash",
+                VALID_HASH,
+                "--asset-id-hash",
+                VALID_HASH,
+            ]
+        );
+    }
+
+    #[test]
+    fn typed_chain_send_rejects_sol_chain_kind() {
+        let error = bad_request_message(execute_typed_chain_send_args(
+            "team".into(),
+            VALID_PUBKEY.into(),
+            ExecuteTypedChainSendRequest {
+                chain_kind: 0,
+                amount_raw: "1".into(),
+                recipient_hash: VALID_HASH.into(),
+                asset_id_hash: VALID_HASH.into(),
+            },
+        ));
+        assert_eq!(error, "chainKind must be a remote chain kind");
     }
 
     #[test]

@@ -42,11 +42,12 @@ export type ClearSignPayload =
 export interface MoneyAmount {
   amount: string;
   asset: string;
+  assetEncoding?: "text" | "sha256_text";
 }
 
 export interface RecipientAmount extends MoneyAmount {
   recipient: string;
-  recipientEncoding?: "text" | "solana_pubkey";
+  recipientEncoding?: "text" | "solana_pubkey" | "sha256_text";
 }
 
 export interface SendPayload extends RecipientAmount {
@@ -467,6 +468,7 @@ function normalizeMoney(row: MoneyAmount): MoneyAmount {
   return {
     amount: normalizeDecimal(row.amount),
     asset: normalizeText(row.asset).toUpperCase(),
+    assetEncoding: row.assetEncoding ?? "text",
   };
 }
 
@@ -530,6 +532,7 @@ function normalizeDecimal(value: string): string {
 function assetDecimals(asset: string): number {
   switch (normalizeText(asset).toUpperCase()) {
     case "BTC":
+    case "ZEC":
       return 8;
     case "ETH":
     case "HYPE":
@@ -581,7 +584,8 @@ class ByteWriter {
   }
 
   pushAmount(row: MoneyAmount) {
-    this.pushBytes(normalizeText(row.asset).toUpperCase());
+    const asset = normalizeText(row.asset).toUpperCase();
+    this.pushBytes(row.assetEncoding === "sha256_text" ? textCommitment(asset) : asset);
     this.pushU128(decimalToRawAmount(row.amount, row.asset));
   }
 
@@ -619,6 +623,9 @@ class ByteWriter {
 }
 
 function canonicalRecipientBytes(row: RecipientAmount): Uint8Array | string {
+  if (row.recipientEncoding === "sha256_text") {
+    return textCommitment(row.recipient);
+  }
   if (row.recipientEncoding !== "solana_pubkey") {
     return row.recipient;
   }

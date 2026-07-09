@@ -537,6 +537,47 @@ pub fn execute_typed_cross_chain_escrow_return(
     }
 }
 
+/// Build execute_typed_chain_send instruction (ClearSign v2 discriminator 24).
+#[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
+pub fn execute_typed_chain_send(
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    ika_config: Pubkey,
+    dwallet: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    chain_kind: u8,
+    amount_raw_le: [u8; 16],
+    recipient_hash: [u8; 32],
+    asset_id_hash: [u8; 32],
+    tx_template_hash: [u8; 32],
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new_readonly(ika_config, false),
+        AccountMeta::new_readonly(dwallet, false),
+    ];
+
+    let mut data = vec![24u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &chain_kind).unwrap();
+    wincode::serialize_into(&mut data, &amount_raw_le).unwrap();
+    wincode::serialize_into(&mut data, &recipient_hash).unwrap();
+    wincode::serialize_into(&mut data, &asset_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &tx_template_hash).unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
 /// Build execute_typed_private_escrow_release instruction (ClearSign v2 discriminator 21).
 #[allow(dead_code)]
 #[allow(clippy::too_many_arguments)]

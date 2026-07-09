@@ -16,12 +16,12 @@ mod types;
 mod validation;
 
 use typed_execution::{
-    execute_typed_agent_trade_approval_args, execute_typed_escrow_release_args,
-    execute_typed_escrow_return_args, execute_typed_sol_batch_send_args,
-    execute_typed_sol_send_args,
+    execute_typed_agent_trade_approval_args, execute_typed_chain_send_args,
+    execute_typed_escrow_release_args, execute_typed_escrow_return_args,
+    execute_typed_sol_batch_send_args, execute_typed_sol_send_args,
 };
 use types::{
-    ExecuteProposalRequest, ExecuteTypedAgentTradeApprovalRequest,
+    ExecuteProposalRequest, ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedChainSendRequest,
     ExecuteTypedEscrowReleaseRequest, ExecuteTypedEscrowReturnRequest,
     ExecuteTypedSolBatchSendRequest, ExecuteTypedSolSendRequest, PrepareApproveCancelRequest,
     PrepareProposalCreateRequest, PrepareTypedProposalCreateRequest, SignedApproveCancelRequest,
@@ -74,6 +74,10 @@ pub(crate) fn router() -> Router<AppState> {
         .route(
             "/wallets/{name}/proposals/{proposal}/typed-sol-send",
             post(execute_typed_sol_send),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-chain-send",
+            post(execute_typed_chain_send),
         )
         .route(
             "/wallets/{name}/proposals/{proposal}/typed-sol-batch-send",
@@ -540,6 +544,15 @@ async fn execute_typed_sol_send(
     Json(body): Json<ExecuteTypedSolSendRequest>,
 ) -> Result<Json<Value>, ApiError> {
     let args = execute_typed_sol_send_args(name, proposal, body)?;
+    Ok(Json(state.runner.run_json(args).await?))
+}
+
+async fn execute_typed_chain_send(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedChainSendRequest>,
+) -> Result<Json<Value>, ApiError> {
+    let args = execute_typed_chain_send_args(name, proposal, body)?;
     Ok(Json(state.runner.run_json(args).await?))
 }
 

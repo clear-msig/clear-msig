@@ -305,6 +305,29 @@ pub mod clear_wallet {
             })
     }
 
+    #[instruction(discriminator = 24)]
+    pub fn execute_typed_chain_send(
+        ctx: Ctx<ExecuteTypedChainSend>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        chain_kind: u8,
+        amount_raw_le: [u8; 16],
+        recipient_hash: [u8; 32],
+        asset_id_hash: [u8; 32],
+        tx_template_hash: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_typed_chain_send(ExecuteTypedChainSendArgs {
+                policy_commitment,
+                envelope_hash,
+                chain_kind,
+                amount_raw_le,
+                recipient_hash,
+                asset_id_hash,
+                tx_template_hash,
+            })
+    }
+
     #[instruction(discriminator = 6)]
     pub fn bind_dwallet(
         ctx: Ctx<BindDwallet>,

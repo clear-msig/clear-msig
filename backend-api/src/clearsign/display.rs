@@ -3,7 +3,8 @@ use serde_json::Value;
 use super::{
     kinds::ClearSignActionKind,
     payload::{
-        format_money, normalize_decimal, payload_text, payload_u32, recipient_amount, Money,
+        format_money, normalize_decimal, payload_text, payload_u32, recipient_amount,
+        AssetEncoding, Money,
     },
     NormalizedEnvelope,
 };
@@ -137,8 +138,11 @@ pub(super) fn action_lines(envelope: &NormalizedEnvelope) -> Result<Vec<String>,
                 .payload
                 .get("from")
                 .ok_or_else(|| ApiError::BadRequest("payload.from must be an object".into()))?;
-            let from_money =
-                Money::new(payload_text(from, "amount")?, payload_text(from, "asset")?)?;
+            let from_money = Money::new(
+                payload_text(from, "amount")?,
+                payload_text(from, "asset")?,
+                AssetEncoding::Text,
+            )?;
             Ok(vec![
                 format!(
                     "Swap {} from {}",

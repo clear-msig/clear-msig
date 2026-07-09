@@ -277,6 +277,25 @@ export const backendApi = {
       ),
     ),
 
+  executeTypedChainSend: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      chainKind: number;
+      amountRaw: string;
+      recipientHash: string;
+      assetIdHash: string;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-chain-send`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
   executeTypedSolBatchSend: (
     walletName: string,
     proposalAddress: string,
