@@ -580,6 +580,7 @@ fn build_execute_typed_cross_chain_escrow_return_ix(
 
 #[allow(clippy::too_many_arguments)]
 fn build_execute_typed_chain_send_ix(
+    payer: Pubkey,
     wallet: Pubkey,
     intent: Pubkey,
     proposal: Pubkey,
@@ -605,11 +606,14 @@ fn build_execute_typed_chain_send_ix(
     Instruction {
         program_id: crate::ID,
         accounts: vec![
+            AccountMeta::new(payer, true),
             AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new(find_policy_spend_address(&wallet, &crate::ID).0, false),
             AccountMeta::new(intent, false),
             AccountMeta::new(proposal, false),
             AccountMeta::new_readonly(ika_config, false),
             AccountMeta::new_readonly(dwallet, false),
+            AccountMeta::new_readonly(quasar_svm::system_program::ID, false),
         ],
         data,
     }
@@ -949,6 +953,29 @@ fn typed_sol_policy_bytes_with_velocity(
     out.extend_from_slice(&12u16.to_le_bytes());
     out.extend_from_slice(&velocity_cap_lamports.to_le_bytes());
     out.extend_from_slice(&velocity_window_seconds.to_le_bytes());
+    out
+}
+
+fn typed_hash_policy_bytes(
+    mode: u8,
+    max_amount_raw: u64,
+    extra_cooldown_seconds: u32,
+    recipients: &[[u8; 32]],
+    required_approvers: &[Pubkey],
+) -> Vec<u8> {
+    let mut out = Vec::new();
+    out.extend_from_slice(b"CSP1");
+    out.push(mode);
+    out.extend_from_slice(&max_amount_raw.to_le_bytes());
+    out.extend_from_slice(&extra_cooldown_seconds.to_le_bytes());
+    out.push(recipients.len() as u8);
+    out.push(required_approvers.len() as u8);
+    for recipient in recipients {
+        out.extend_from_slice(recipient);
+    }
+    for approver in required_approvers {
+        out.extend_from_slice(approver.as_ref());
+    }
     out
 }
 
@@ -1887,6 +1914,7 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
     );
 
     let wrong_execute = build_execute_typed_chain_send_ix(
+        payer,
         wallet,
         remote_intent,
         typed_proposal,
@@ -1901,10 +1929,18 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
         tx_template_hash,
     );
     assert!(svm
-        .process_instruction(&wrong_execute, &[empty_account(dwallet)])
+        .process_instruction(
+            &wrong_execute,
+            &[
+                funded_account(payer),
+                empty_policy_spend_account(wallet, policy_commitment),
+                empty_account(dwallet)
+            ]
+        )
         .is_err());
 
     let execute = build_execute_typed_chain_send_ix(
+        payer,
         wallet,
         remote_intent,
         typed_proposal,
@@ -1918,7 +1954,14 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
         asset_id_hash,
         tx_template_hash,
     );
-    let result = svm.process_instruction(&execute, &[empty_account(dwallet)]);
+    let result = svm.process_instruction(
+        &execute,
+        &[
+            funded_account(payer),
+            empty_policy_spend_account(wallet, policy_commitment),
+            empty_account(dwallet),
+        ],
+    );
     if result.is_err() {
         result.print_logs();
     }
@@ -1931,6 +1974,84 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
         svm.get_account(&typed_proposal).unwrap().data[105],
         2,
         "typed proposal should be Executed(2)"
+    );
+
+    let blocked_proposal_index = 2u64;
+    let blocked_proposal = get_typed_proposal_address(remote_intent, blocked_proposal_index);
+    let blocked_policy_bytes = typed_hash_policy_bytes(2, 0, 0, &[recipient_hash], &[]);
+    let blocked_policy_commitment = hash_typed_policy(&blocked_policy_bytes);
+    let blocked_action_id = sha256_hash(b"chain-send-blocked-action-1");
+    let blocked_nonce = sha256_hash(b"chain-send-blocked-nonce-1");
+    let blocked_envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::Send,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: blocked_action_id.as_ref(),
+        nonce: blocked_nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment: blocked_policy_commitment,
+        payload_hash,
+        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
+    });
+    let propose_blocked = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent: remote_intent,
+        proposal_index: blocked_proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::Send.code(),
+        policy_commitment: blocked_policy_commitment,
+        payload_hash,
+        envelope_hash: blocked_envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature: sign_typed_vote(
+            &proposer,
+            ClearSignVoteKind::Propose,
+            wallet_name,
+            blocked_proposal_index,
+            blocked_envelope_hash,
+        ),
+        clear_text: TEST_CLEAR_TEXT.to_vec(),
+        policy_bytes: blocked_policy_bytes,
+        action_id: blocked_action_id,
+        nonce: blocked_nonce,
+    });
+    let result = svm.process_instruction(
+        &propose_blocked,
+        &[funded_account(payer), empty_account(blocked_proposal)],
+    );
+    assert!(
+        result.is_ok(),
+        "typed chain send blocked-policy propose failed: {:?}",
+        result.raw_result
+    );
+
+    let blocked_execute = build_execute_typed_chain_send_ix(
+        payer,
+        wallet,
+        remote_intent,
+        blocked_proposal,
+        ika_config,
+        dwallet,
+        blocked_policy_commitment,
+        blocked_envelope_hash,
+        chain_kind,
+        amount_raw.to_le_bytes(),
+        recipient_hash,
+        asset_id_hash,
+        tx_template_hash,
+    );
+    let result = svm.process_instruction(
+        &blocked_execute,
+        &[
+            funded_account(payer),
+            empty_policy_spend_account(wallet, blocked_policy_commitment),
+            empty_account(dwallet),
+        ],
+    );
+    assert!(
+        result.is_err(),
+        "typed chain send blocklist policy did not stop execution"
     );
 }
 

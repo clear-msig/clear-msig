@@ -1475,7 +1475,9 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             let asset_id_hash = decode_hex_32(&asset_id_hash, "asset_id_hash")?;
             let tx_template_hash = intent_tx_template_hash(&intent_account)?;
             let ix = crate::instructions::execute_typed_chain_send(
+                solana_sdk::signer::Signer::pubkey(&config.payer),
                 wallet_pubkey,
+                policy_spend_pubkey(wallet_pubkey),
                 intent_pubkey,
                 proposal_pubkey,
                 ika_config_pubkey,

@@ -6,15 +6,25 @@ use crate::{
     error::WalletError,
     instructions::typed_proposal::{mark_typed_executed, verify_typed_execution_ready},
     state::{
-        ika_config::IkaConfig, intent::Intent, proposal::ProposalStatus,
-        typed_proposal::TypedProposal, wallet::ClearWallet,
+        ika_config::IkaConfig, intent::Intent, policy_spend::PolicySpendState,
+        proposal::ProposalStatus, typed_proposal::TypedProposal, wallet::ClearWallet,
     },
     utils::clearsign::{hash_send_payload, ClearSignActionKind, ClearSignAmount},
+    utils::policy::enforce_typed_remote_send_policy,
 };
 
 #[derive(Accounts)]
 pub struct ExecuteTypedChainSend<'info> {
+    #[account(mut)]
+    pub payer: &'info mut Signer,
     pub wallet: Account<ClearWallet<'info>>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = PolicySpendState::seeds(wallet),
+        bump,
+    )]
+    pub policy_spend: &'info mut Account<PolicySpendState>,
     #[account(
         mut,
         has_one = wallet,
@@ -34,6 +44,7 @@ pub struct ExecuteTypedChainSend<'info> {
     #[cfg_attr(target_os = "solana", allow(quasar::unconstrained))]
     #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
     pub dwallet: &'info UncheckedAccount,
+    pub system_program: &'info Program<System>,
 }
 
 pub struct ExecuteTypedChainSendArgs {
@@ -50,6 +61,7 @@ impl<'info> ExecuteTypedChainSend<'info> {
     pub fn execute_typed_chain_send(
         &mut self,
         args: ExecuteTypedChainSendArgs,
+        bumps: &ExecuteTypedChainSendBumps,
     ) -> Result<(), ProgramError> {
         let amount_raw = u128::from_le_bytes(args.amount_raw_le);
         require!(amount_raw > 0, ProgramError::InvalidInstructionData);
@@ -110,6 +122,16 @@ impl<'info> ExecuteTypedChainSend<'info> {
             args.policy_commitment,
             payload_hash,
             args.envelope_hash,
+        )?;
+        enforce_typed_remote_send_policy(
+            self.proposal.policy_bytes().as_ref(),
+            args.policy_commitment,
+            &args.recipient_hash,
+            amount_raw,
+            &self.intent,
+            &self.proposal,
+            &mut self.policy_spend,
+            bumps.policy_spend,
         )?;
 
         mark_typed_executed(&mut self.intent, &mut self.proposal);

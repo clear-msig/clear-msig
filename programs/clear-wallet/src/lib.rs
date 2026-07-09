@@ -316,8 +316,8 @@ pub mod clear_wallet {
         asset_id_hash: [u8; 32],
         tx_template_hash: [u8; 32],
     ) -> Result<(), ProgramError> {
-        ctx.accounts
-            .execute_typed_chain_send(ExecuteTypedChainSendArgs {
+        ctx.accounts.execute_typed_chain_send(
+            ExecuteTypedChainSendArgs {
                 policy_commitment,
                 envelope_hash,
                 chain_kind,
@@ -325,7 +325,9 @@ pub mod clear_wallet {
                 recipient_hash,
                 asset_id_hash,
                 tx_template_hash,
-            })
+            },
+            &ctx.bumps,
+        )
     }
 
     #[instruction(discriminator = 6)]

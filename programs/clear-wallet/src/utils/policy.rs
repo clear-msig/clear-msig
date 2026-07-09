@@ -58,6 +58,29 @@ pub fn enforce_typed_sol_send_policy(
     Ok(())
 }
 
+pub fn enforce_typed_remote_send_policy(
+    policy_bytes: &[u8],
+    committed_policy_hash: [u8; 32],
+    recipient_hash: &[u8; 32],
+    amount_raw: u128,
+    intent: &Intent<'_>,
+    proposal: &TypedProposal<'_>,
+    policy_spend: &mut PolicySpendState,
+    policy_spend_bump: u8,
+) -> Result<(), ProgramError> {
+    let amount_raw = u64::try_from(amount_raw).map_err(|_| WalletError::PolicyAmountExceeded)?;
+    enforce_typed_sol_send_policy(
+        policy_bytes,
+        committed_policy_hash,
+        recipient_hash,
+        amount_raw,
+        intent,
+        proposal,
+        policy_spend,
+        policy_spend_bump,
+    )
+}
+
 struct TypedSolPolicy<'a> {
     mode: u8,
     max_amount_lamports: u64,

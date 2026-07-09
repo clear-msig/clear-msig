@@ -541,7 +541,9 @@ pub fn execute_typed_cross_chain_escrow_return(
 #[allow(dead_code)]
 #[allow(clippy::too_many_arguments)]
 pub fn execute_typed_chain_send(
+    payer: Pubkey,
     wallet: Pubkey,
+    policy_spend: Pubkey,
     intent: Pubkey,
     proposal: Pubkey,
     ika_config: Pubkey,
@@ -555,11 +557,14 @@ pub fn execute_typed_chain_send(
     tx_template_hash: [u8; 32],
 ) -> Instruction {
     let accounts = vec![
+        AccountMeta::new(payer, true),
         AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(policy_spend, false),
         AccountMeta::new(intent, false),
         AccountMeta::new(proposal, false),
         AccountMeta::new_readonly(ika_config, false),
         AccountMeta::new_readonly(dwallet, false),
+        AccountMeta::new_readonly(solana_sdk::system_program::id(), false),
     ];
 
     let mut data = vec![24u8];
