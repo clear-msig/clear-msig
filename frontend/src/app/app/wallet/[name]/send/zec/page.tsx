@@ -35,7 +35,10 @@ import { SendAmountField } from "@/components/retail/SendAmountField";
 import { FormField, TextInput } from "@/components/retail/FormField";
 import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
-import { resolvePolicyEnforcement } from "@/lib/policies/enforce";
+import {
+  assertPolicyNotDenied,
+  resolvePolicyEnforcement,
+} from "@/lib/policies/enforce";
 import { chainByKind } from "@/lib/retail/chains";
 import { appConfig, configuredBrowserRpcUrl } from "@/lib/config";
 import {
@@ -307,6 +310,14 @@ export default function ZcashSendPage() {
       if (recipientDecoded.network !== zcashNetwork) {
         throw new Error("Recipient network does not match the wallet's Zcash network");
       }
+      const submitPolicyPlan = await resolvePolicyEnforcement(name, {
+        walletName: name,
+        chainKind: ZEC_CHAIN_KIND,
+        recipient,
+        ticker: "ZEC",
+        amountDisplay: amount,
+      });
+      assertPolicyNotDenied(submitPolicyPlan);
       const proposerPk = wallet.pickSigner(zcashIntent.proposers);
       if (!proposerPk) {
         throw new Error(
@@ -363,10 +374,55 @@ export default function ZcashSendPage() {
         ticker: "ZEC",
         amountDisplay: amount,
       });
-      if (policyPlan.evaluation?.matched && policyPlan.rule?.action === "require-cooldown") {
-        await new Promise((resolve) =>
-          setTimeout(resolve, (policyPlan.extraCooldownSeconds ?? 0) * 1000),
-        );
+      assertPolicyNotDenied(policyPlan);
+      if (policyPlan.evaluation?.matched) {
+        if (policyPlan.rule?.action === "require-extra-approvers") {
+          const seen = new Set<string>([
+            proposerPk.toBase58(),
+            wallet.pickSigner(zcashIntent.approvers)?.toBase58() ?? "",
+          ]);
+          const extraApprovers = policyPlan.extraApprovers.filter((addr) => {
+            const normalized = addr.trim();
+            if (!normalized || seen.has(normalized)) return false;
+            seen.add(normalized);
+            return true;
+          });
+          if (extraApprovers.length === 0) {
+            throw new Error(
+              `Policy "${policyPlan.rule.name}" requires extra approvers, but none were configured.`,
+            );
+          }
+          for (const extraApprover of extraApprovers) {
+            if (!zcashIntent.approvers.includes(extraApprover)) {
+              throw new Error(
+                `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but that signer is not in the wallet's approver list.`,
+              );
+            }
+            const extraSigner = wallet.pickSigner([extraApprover]);
+            if (!extraSigner) {
+              throw new Error(
+                `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but none of your connected wallets can sign as that approver.`,
+              );
+            }
+            const extraDry = await backendApi.prepare.approveProposal(name, proposal, {
+              actor_pubkey: extraSigner.toBase58(),
+            });
+            const extraSigned = await signDescriptor(extraDry, {
+              preferSigner: extraSigner,
+            });
+            await backendApi.submit.approveProposal(name, proposal, {
+              ...extraSigned,
+              expiry: extraDry.expiry,
+            });
+          }
+        } else if (
+          policyPlan.rule?.action === "require-cooldown" &&
+          policyPlan.extraCooldownSeconds > 0
+        ) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, policyPlan.extraCooldownSeconds * 1000),
+          );
+        }
       }
       const executed = await backendApi.executeProposal(name, proposal, {
         broadcast: true,

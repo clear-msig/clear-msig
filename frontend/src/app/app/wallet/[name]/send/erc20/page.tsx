@@ -67,7 +67,10 @@ import { RecentRecipientsChips } from "@/components/retail/RecentRecipientsChips
 import { FormField, TextInput } from "@/components/retail/FormField";
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
 import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
-import { resolvePolicyEnforcement } from "@/lib/policies/enforce";
+import {
+  assertPolicyNotDenied,
+  resolvePolicyEnforcement,
+} from "@/lib/policies/enforce";
 import {
   SendReceipt,
   type ReceiptDetail,
@@ -294,6 +297,15 @@ function SendErc20Page() {
             "Disconnect the Ledger or sign in with the wallet that originally created this multisig.",
         );
       }
+      const submitPolicyPlan = await resolvePolicyEnforcement(walletName, {
+        walletName,
+        chainKind: 4,
+        tokenContract: trimmedToken.toLowerCase(),
+        recipient: trimmedRecipient,
+        ticker: symbol ?? "TOKEN",
+        amountDisplay: amount,
+      });
+      assertPolicyNotDenied(submitPolicyPlan);
 
       const { nonce } = await fetchEvmNonce(walletEthAddress);
 
@@ -352,6 +364,7 @@ function SendErc20Page() {
         ticker: symbol ?? "TOKEN",
         amountDisplay: amount,
       });
+      assertPolicyNotDenied(policyPlan);
       if (policyPlan.evaluation?.matched) {
         if (policyPlan.rule?.action === "require-extra-approvers") {
           const seen = new Set<string>([

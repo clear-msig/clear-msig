@@ -66,7 +66,10 @@ import { QrScanButton } from "@/components/retail/QrScanButton";
 import { RecentRecipientsChips } from "@/components/retail/RecentRecipientsChips";
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
 import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
-import { resolvePolicyEnforcement } from "@/lib/policies/enforce";
+import {
+  assertPolicyNotDenied,
+  resolvePolicyEnforcement,
+} from "@/lib/policies/enforce";
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
@@ -368,6 +371,14 @@ function SendEthPage() {
             "Disconnect the Ledger or sign in with the wallet that originally created this multisig.",
         );
       }
+      const submitPolicyPlan = await resolvePolicyEnforcement(walletName, {
+        walletName,
+        chainKind: EVM_CHAIN_KIND,
+        recipient: effectiveRecipient,
+        ticker: EVM_TICKER,
+        amountDisplay: amount,
+      });
+      assertPolicyNotDenied(submitPolicyPlan);
 
       // 1. Pull the live nonce. Without this the EVM tx the dWallet
       //    signs gets rejected as a duplicate.
@@ -438,6 +449,7 @@ function SendEthPage() {
         ticker: EVM_TICKER,
         amountDisplay: amount,
       });
+      assertPolicyNotDenied(policyPlan);
       if (policyPlan.evaluation?.matched) {
         if (policyPlan.rule?.action === "require-extra-approvers") {
           const seen = new Set<string>([

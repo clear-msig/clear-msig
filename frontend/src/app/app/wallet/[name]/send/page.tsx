@@ -83,7 +83,10 @@ import { FormField, TextInput } from "@/components/retail/FormField";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
 import { chainByKind } from "@/lib/retail/chains";
 import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
-import { resolvePolicyEnforcement } from "@/lib/policies/enforce";
+import {
+  assertPolicyNotDenied,
+  resolvePolicyEnforcement,
+} from "@/lib/policies/enforce";
 import { SEND_NOTE_MAX_LENGTH, SEND_NOTE_PLACEHOLDER } from "@/lib/sendFields";
 import {
   prepareClearSignAction,
@@ -595,6 +598,15 @@ function SendPage() {
       if (!destination)
         throw new Error("Pick a contact or paste an address");
 
+      const submitPolicyPlan = await resolvePolicyEnforcement(walletName, {
+        walletName,
+        chainKind: 0,
+        recipient: destination,
+        ticker: "SOL",
+        amountDisplay: amount,
+      });
+      assertPolicyNotDenied(submitPolicyPlan);
+
       // Policy pre-flight. Block before the signing request opens so the
       // user never signs a doomed send. Sources of truth: localStorage
       // allowlist + time window + per-friend allowance + wallet-wide
@@ -755,6 +767,7 @@ function SendPage() {
         ticker: "SOL",
         amountDisplay: amount,
       });
+      assertPolicyNotDenied(policyPlan);
       if (policyPlan.evaluation?.matched) {
         if (policyPlan.rule?.action === "require-extra-approvers") {
           const alreadyCovered = new Set<string>([

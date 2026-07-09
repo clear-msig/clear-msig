@@ -27,6 +27,16 @@ export interface PolicyEnforcementPlan {
   extraCooldownSeconds: number;
 }
 
+export function assertPolicyNotDenied(
+  plan: PolicyEnforcementPlan,
+  actionLabel: string = "send",
+): void {
+  if (plan.evaluation?.matched && plan.evaluation.action === "deny") {
+    const name = plan.rule?.name ?? plan.evaluation.ruleName;
+    throw new Error(`Policy "${name}" denies this ${actionLabel}.`);
+  }
+}
+
 export async function resolvePolicyEnforcement(
   walletName: string,
   candidate: CandidateProposal,

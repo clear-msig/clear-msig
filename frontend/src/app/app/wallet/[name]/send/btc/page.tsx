@@ -78,7 +78,10 @@ import {
   SEND_NOTE_MAX_LENGTH,
   SEND_NOTE_PLACEHOLDER,
 } from "@/lib/sendFields";
-import { resolvePolicyEnforcement } from "@/lib/policies/enforce";
+import {
+  assertPolicyNotDenied,
+  resolvePolicyEnforcement,
+} from "@/lib/policies/enforce";
 import {
   DEFAULT_BITCOIN_NETWORK,
   decodeSegwitAddress,
@@ -450,6 +453,14 @@ function BitcoinSendPage() {
       }
       const dest = validateBtcDestination(destination, btcNetwork);
       if (!dest.ok) throw new Error(dest.reason);
+      const policyPlan = await resolvePolicyEnforcement(name, {
+        walletName: name,
+        chainKind: BTC_CHAIN_KIND,
+        recipient: destination.trim(),
+        ticker: "BTC",
+        amountDisplay: amountBtc,
+      });
+      assertPolicyNotDenied(policyPlan);
 
       // Bitcoin txids round-trip in TWO byte orders:
       //   - Esplora / block explorers / `mempool.space` return them in
@@ -519,6 +530,58 @@ function BitcoinSendPage() {
           ...approveSigned,
           expiry: approveDry.expiry,
         });
+      }
+      assertPolicyNotDenied(policyPlan);
+      if (policyPlan.evaluation?.matched) {
+        if (policyPlan.rule?.action === "require-extra-approvers") {
+          const seen = new Set<string>([
+            proposerPk.toBase58(),
+            wallet.pickSigner(btcIntent.approvers)?.toBase58() ?? "",
+          ]);
+          const extraApprovers = policyPlan.extraApprovers.filter((addr) => {
+            const normalized = addr.trim();
+            if (!normalized || seen.has(normalized)) return false;
+            seen.add(normalized);
+            return true;
+          });
+          if (extraApprovers.length === 0) {
+            throw new Error(
+              `Policy "${policyPlan.rule.name}" requires extra approvers, but none were configured.`,
+            );
+          }
+          for (const extraApprover of extraApprovers) {
+            if (!btcIntent.approvers.includes(extraApprover)) {
+              throw new Error(
+                `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but that signer is not in the wallet's approver list.`,
+              );
+            }
+            const extraSigner = wallet.pickSigner([extraApprover]);
+            if (!extraSigner) {
+              throw new Error(
+                `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but none of your connected wallets can sign as that approver.`,
+              );
+            }
+            const extraDry = await backendApi.prepare.approveProposal(
+              name,
+              proposal,
+              { actor_pubkey: extraSigner.toBase58() },
+            );
+            const extraSigned = await signDescriptor(extraDry, {
+              preferSigner: extraSigner,
+            });
+            await backendApi.submit.approveProposal(name, proposal, {
+              ...extraSigned,
+              expiry: extraDry.expiry,
+            });
+          }
+        } else if (
+          policyPlan.rule?.action === "require-cooldown" &&
+          policyPlan.extraCooldownSeconds > 0
+        ) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, policyPlan.extraCooldownSeconds * 1000),
+          );
+        }
       }
       const statusBeforeExecute = await waitForProposalStatus(connection, proposal);
       if (statusBeforeExecute !== ProposalStatus.Approved) {
