@@ -1,4 +1,6 @@
-use crate::{ensure_base58, ensure_hex_exact_len, ensure_non_empty, ensure_wallet_name, ApiError};
+use crate::{
+    ensure_base58, ensure_hex, ensure_hex_exact_len, ensure_non_empty, ensure_wallet_name, ApiError,
+};
 
 use super::types::{
     ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedChainSendRequest,
@@ -76,6 +78,9 @@ pub(super) fn execute_typed_chain_send_args(
     name: String,
     proposal: String,
     body: ExecuteTypedChainSendRequest,
+    default_dwallet_program: Option<String>,
+    default_grpc_url: Option<String>,
+    default_rpc_url: Option<String>,
 ) -> Result<Vec<String>, ApiError> {
     ensure_wallet_proposal(&name, &proposal)?;
     if body.chain_kind == 0 {
@@ -87,7 +92,20 @@ pub(super) fn execute_typed_chain_send_args(
     let recipient_hash = validated_hash(body.recipient_hash, "recipientHash")?;
     let asset_id_hash = validated_hash(body.asset_id_hash, "assetIdHash")?;
 
-    let mut args = base_proposal_args("typed-chain-send", name, proposal);
+    let typed_ika = body.params_data_hex.is_some()
+        || body.dwallet_program.is_some()
+        || body.grpc_url.is_some()
+        || body.rpc_url.is_some()
+        || body.broadcast.unwrap_or(false);
+    let mut args = base_proposal_args(
+        if typed_ika {
+            "typed-chain-send-ika"
+        } else {
+            "typed-chain-send"
+        },
+        name,
+        proposal,
+    );
     args.extend([
         "--chain-kind".into(),
         body.chain_kind.to_string(),
@@ -98,6 +116,40 @@ pub(super) fn execute_typed_chain_send_args(
         "--asset-id-hash".into(),
         asset_id_hash,
     ]);
+    if typed_ika {
+        if !matches!(body.chain_kind, 1 | 5) {
+            return Err(ApiError::BadRequest(
+                "typed Ika chain send currently supports native EVM/HYPE chain kinds 1 and 5"
+                    .into(),
+            ));
+        }
+        let params_data_hex = body.params_data_hex.ok_or_else(|| {
+            ApiError::BadRequest("paramsDataHex is required for typed Ika chain send".into())
+        })?;
+        ensure_hex(&params_data_hex, "paramsDataHex")?;
+        args.extend(["--params-data-hex".into(), params_data_hex]);
+
+        let dwallet_program = body
+            .dwallet_program
+            .or(default_dwallet_program)
+            .ok_or_else(|| {
+                ApiError::BadRequest("dwalletProgram is required for typed Ika chain send".into())
+            })?;
+        ensure_non_empty(&dwallet_program, "dwalletProgram")?;
+        args.extend(["--dwallet-program".into(), dwallet_program]);
+
+        if let Some(grpc_url) = body.grpc_url.or(default_grpc_url) {
+            ensure_non_empty(&grpc_url, "grpcUrl")?;
+            args.extend(["--grpc-url".into(), grpc_url]);
+        }
+        if let Some(rpc_url) = body.rpc_url.or(default_rpc_url) {
+            ensure_non_empty(&rpc_url, "rpcUrl")?;
+            args.extend(["--rpc-url".into(), rpc_url]);
+        }
+        if body.broadcast.unwrap_or(false) {
+            args.push("--broadcast".into());
+        }
+    }
     Ok(args)
 }
 
@@ -337,7 +389,15 @@ mod tests {
                 amount_raw: "1000000000000000000".into(),
                 recipient_hash: VALID_HASH.into(),
                 asset_id_hash: VALID_HASH.into(),
+                params_data_hex: None,
+                dwallet_program: None,
+                grpc_url: None,
+                rpc_url: None,
+                broadcast: None,
             },
+            None,
+            None,
+            None,
         )
         .unwrap();
 
@@ -363,6 +423,58 @@ mod tests {
     }
 
     #[test]
+    fn typed_chain_send_ika_args_match_cli_shape_with_defaults() {
+        let args = execute_typed_chain_send_args(
+            "team".into(),
+            VALID_PUBKEY.into(),
+            ExecuteTypedChainSendRequest {
+                chain_kind: 5,
+                amount_raw: "42000000000000000".into(),
+                recipient_hash: VALID_HASH.into(),
+                asset_id_hash: VALID_HASH.into(),
+                params_data_hex: Some("01020304".into()),
+                dwallet_program: None,
+                grpc_url: None,
+                rpc_url: None,
+                broadcast: Some(true),
+            },
+            Some(VALID_PUBKEY.into()),
+            Some("https://ika.example".into()),
+            Some("https://rpc.example".into()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            args,
+            vec![
+                "proposal",
+                "typed-chain-send-ika",
+                "--wallet",
+                "team",
+                "--proposal",
+                VALID_PUBKEY,
+                "--chain-kind",
+                "5",
+                "--amount-raw",
+                "42000000000000000",
+                "--recipient-hash",
+                VALID_HASH,
+                "--asset-id-hash",
+                VALID_HASH,
+                "--params-data-hex",
+                "01020304",
+                "--dwallet-program",
+                VALID_PUBKEY,
+                "--grpc-url",
+                "https://ika.example",
+                "--rpc-url",
+                "https://rpc.example",
+                "--broadcast",
+            ]
+        );
+    }
+
+    #[test]
     fn typed_chain_send_rejects_sol_chain_kind() {
         let error = bad_request_message(execute_typed_chain_send_args(
             "team".into(),
@@ -372,7 +484,15 @@ mod tests {
                 amount_raw: "1".into(),
                 recipient_hash: VALID_HASH.into(),
                 asset_id_hash: VALID_HASH.into(),
+                params_data_hex: None,
+                dwallet_program: None,
+                grpc_url: None,
+                rpc_url: None,
+                broadcast: None,
             },
+            None,
+            None,
+            None,
         ));
         assert_eq!(error, "chainKind must be a remote chain kind");
     }

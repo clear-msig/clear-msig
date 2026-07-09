@@ -552,7 +552,14 @@ async fn execute_typed_chain_send(
     Path((name, proposal)): Path<(String, String)>,
     Json(body): Json<ExecuteTypedChainSendRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    let args = execute_typed_chain_send_args(name, proposal, body)?;
+    let args = execute_typed_chain_send_args(
+        name,
+        proposal,
+        body,
+        state.runner.default_dwallet_program.clone(),
+        state.runner.default_grpc_url.clone(),
+        state.runner.default_destination_rpc_url.clone(),
+    )?;
     Ok(Json(state.runner.run_json(args).await?))
 }
 

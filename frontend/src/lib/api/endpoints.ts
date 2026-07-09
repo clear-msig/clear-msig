@@ -285,6 +285,11 @@ export const backendApi = {
       amountRaw: string;
       recipientHash: string;
       assetIdHash: string;
+      paramsDataHex?: string;
+      dwalletProgram?: string;
+      grpcUrl?: string;
+      rpcUrl?: string;
+      broadcast?: boolean;
     },
   ) =>
     withRetry(() =>

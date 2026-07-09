@@ -281,6 +281,36 @@ pub enum ProposalAction {
         #[arg(long)]
         asset_id_hash: String,
     },
+    /// Sign and optionally broadcast an approved typed ETH/HYPE send via Ika.
+    TypedChainSendIka {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        chain_kind: u8,
+        #[arg(long)]
+        amount_raw: u128,
+        #[arg(long)]
+        recipient_hash: String,
+        #[arg(long)]
+        asset_id_hash: String,
+        /// Destination-chain params_data bytes as hex. Must match the signed ClearSign action.
+        #[arg(long)]
+        params_data_hex: String,
+        /// Ika dWallet program ID on the current cluster.
+        #[arg(long)]
+        dwallet_program: String,
+        /// Ika gRPC endpoint.
+        #[arg(long, default_value = crate::ika::DEFAULT_GRPC_URL)]
+        grpc_url: String,
+        /// Destination-chain RPC URL for broadcast.
+        #[arg(long)]
+        rpc_url: Option<String>,
+        /// Broadcast the signed transaction after Ika signing.
+        #[arg(long, default_value = "false")]
+        broadcast: bool,
+    },
     /// Execute an approved typed SOL batch send.
     ///
     /// Pass one `--payment recipient:lamports` per recipient.
@@ -1506,6 +1536,89 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             }));
         }
 
+        ProposalAction::TypedChainSendIka {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            chain_kind,
+            amount_raw,
+            recipient_hash,
+            asset_id_hash,
+            params_data_hex,
+            dwallet_program,
+            grpc_url,
+            rpc_url,
+            broadcast,
+        } => {
+            if broadcast && rpc_url.is_none() {
+                return Err(anyhow!(
+                    "--broadcast requires --rpc-url <URL> for the destination chain"
+                ));
+            }
+            if amount_raw == 0 {
+                return Err(anyhow!("amount-raw must be greater than zero"));
+            }
+            if !matches!(chain_kind, 1 | 5) {
+                return Err(anyhow!(
+                    "typed-chain-send-ika currently supports native EVM/HYPE chain kinds 1 and 5"
+                ));
+            }
+
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::Send,
+                "typed chain send Ika",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let intent_data = rpc::fetch_account(&client, &intent_pubkey)
+                .with_context(|| "failed to fetch typed proposal intent")?;
+            let intent_account = accounts::parse_intent(&intent_data)?;
+            if intent_account.chain_kind != chain_kind {
+                return Err(anyhow!(
+                    "typed chain send Ika chain_kind mismatch: intent has {}, command got {}",
+                    intent_account.chain_kind,
+                    chain_kind
+                ));
+            }
+
+            let params_data =
+                parse_hex_local(&params_data_hex).with_context(|| "invalid params_data_hex")?;
+            let recipient_hash = decode_hex_32(&recipient_hash, "recipient_hash")?;
+            let asset_id_hash = decode_hex_32(&asset_id_hash, "asset_id_hash")?;
+            let tx_template_hash = intent_tx_template_hash(&intent_account)?;
+            let dwallet_program_pk: Pubkey = dwallet_program
+                .parse()
+                .with_context(|| "invalid dWallet program ID")?;
+
+            execute_via_ika(
+                config,
+                &client,
+                &wallet_name,
+                wallet_pubkey,
+                intent_pubkey,
+                &intent_account,
+                proposal_pubkey,
+                &params_data,
+                dwallet_program_pk,
+                &grpc_url,
+                rpc_url.as_deref(),
+                broadcast,
+                IkaOnchainSignMode::TypedChainSend {
+                    policy_commitment: proposal_account.policy_commitment,
+                    envelope_hash: proposal_account.envelope_hash,
+                    amount_raw_le: amount_raw.to_le_bytes(),
+                    recipient_hash,
+                    asset_id_hash,
+                    tx_template_hash,
+                },
+            )?;
+        }
+
         ProposalAction::TypedSolBatchSend {
             wallet: wallet_name,
             proposal: proposal_addr_str,
@@ -1684,11 +1797,12 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                     intent_pubkey,
                     &intent_account,
                     proposal_pubkey,
-                    &proposal_account,
+                    &proposal_account.params_data,
                     dwallet_program_pk,
                     &grpc_url,
                     rpc_url.as_deref(),
                     broadcast,
+                    IkaOnchainSignMode::LegacyProposal,
                 )?;
             }
         }
@@ -1830,6 +1944,19 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
 /// presign + sign roundtrip and verify the signature lands in the
 /// `MessageApproval` PDA. If `broadcast` is set, also assemble the
 /// chain-native signed transaction and push it to `rpc_url`.
+#[derive(Clone, Copy)]
+enum IkaOnchainSignMode {
+    LegacyProposal,
+    TypedChainSend {
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        amount_raw_le: [u8; 16],
+        recipient_hash: [u8; 32],
+        asset_id_hash: [u8; 32],
+        tx_template_hash: [u8; 32],
+    },
+}
+
 #[allow(clippy::too_many_arguments)]
 fn execute_via_ika(
     config: &RuntimeConfig,
@@ -1839,11 +1966,12 @@ fn execute_via_ika(
     intent_pubkey: Pubkey,
     intent_account: &accounts::IntentAccount,
     proposal_pubkey: Pubkey,
-    proposal_account: &accounts::ProposalAccount,
+    params_data: &[u8],
     dwallet_program: Pubkey,
     grpc_url: &str,
     rpc_url: Option<&str>,
     broadcast: bool,
+    sign_mode: IkaOnchainSignMode,
 ) -> Result<()> {
     use crate::ika;
     use std::time::Duration;
@@ -1884,10 +2012,9 @@ fn execute_via_ika(
     //    For others: chain-native preimage.
     let preimage = match chain_kind {
         0 => {
-            let dest = ika::read_param_bytes32(intent_account, &proposal_account.params_data, 0)?;
-            let amt = ika::read_param_u64(intent_account, &proposal_account.params_data, 1)?;
-            let nonce_val =
-                ika::read_param_bytes32(intent_account, &proposal_account.params_data, 2)?;
+            let dest = ika::read_param_bytes32(intent_account, params_data, 0)?;
+            let amt = ika::read_param_u64(intent_account, params_data, 1)?;
+            let nonce_val = ika::read_param_bytes32(intent_account, params_data, 2)?;
             let off = intent_account.tx_template_offset as usize;
             let nonce_acct: [u8; 32] = intent_account.byte_pool[off..off + 32]
                 .try_into()
@@ -1900,8 +2027,8 @@ fn execute_via_ika(
                 &nonce_val,
             )
         }
-        3 => ika::build_zcash_zip243_preimage(intent_account, &proposal_account.params_data)?,
-        _ => ika::build_chain_preimage(intent_account, &proposal_account.params_data)?,
+        3 => ika::build_zcash_zip243_preimage(intent_account, params_data)?,
+        _ => ika::build_chain_preimage(intent_account, params_data)?,
     };
     let message_hash = ika::hash_preimage(chain_kind, &preimage);
     eprintln!(
@@ -1930,28 +2057,62 @@ fn execute_via_ika(
     // 5. For Zcash, compute the BLAKE2b sub-hashes so the on-chain program
     //    can build the full ZIP-243 preimage for the MA PDA.
     let blake2b_hashes = if chain_kind == 3 {
-        ika::compute_zcash_blake2b_hashes(intent_account, &proposal_account.params_data)?
+        ika::compute_zcash_blake2b_hashes(intent_account, params_data)?
     } else {
         [0u8; 96]
     };
 
     let payer_pubkey = solana_sdk::signer::Signer::pubkey(&config.payer);
-    let ix = crate::instructions::ika_sign(
-        payer_pubkey,
-        wallet_pubkey,
-        intent_pubkey,
-        proposal_pubkey,
-        ika_config_pk,
-        dwallet_ownership_pk,
-        dwallet_pk,
-        message_approval_pk,
-        coordinator_pk,
-        cpi_authority_pk,
-        dwallet_program,
-        message_approval_bump,
-        cpi_authority_bump,
-        blake2b_hashes,
-    );
+    let ix = match sign_mode {
+        IkaOnchainSignMode::LegacyProposal => crate::instructions::ika_sign(
+            payer_pubkey,
+            wallet_pubkey,
+            intent_pubkey,
+            proposal_pubkey,
+            ika_config_pk,
+            dwallet_ownership_pk,
+            dwallet_pk,
+            message_approval_pk,
+            coordinator_pk,
+            cpi_authority_pk,
+            dwallet_program,
+            message_approval_bump,
+            cpi_authority_bump,
+            blake2b_hashes,
+        ),
+        IkaOnchainSignMode::TypedChainSend {
+            policy_commitment,
+            envelope_hash,
+            amount_raw_le,
+            recipient_hash,
+            asset_id_hash,
+            tx_template_hash,
+        } => crate::instructions::ika_sign_typed_chain_send(
+            payer_pubkey,
+            wallet_pubkey,
+            policy_spend_pubkey(wallet_pubkey),
+            intent_pubkey,
+            proposal_pubkey,
+            ika_config_pk,
+            dwallet_ownership_pk,
+            dwallet_pk,
+            message_approval_pk,
+            coordinator_pk,
+            cpi_authority_pk,
+            dwallet_program,
+            policy_commitment,
+            envelope_hash,
+            chain_kind,
+            amount_raw_le,
+            recipient_hash,
+            asset_id_hash,
+            tx_template_hash,
+            message_approval_bump,
+            cpi_authority_bump,
+            blake2b_hashes,
+            params_data,
+        ),
+    };
     let quorum_tx_sig =
         rpc::send_instruction(client, config, ix).with_context(|| "ika_sign failed")?;
     eprintln!("✓ ika_sign tx: {quorum_tx_sig}");
@@ -1972,11 +2133,9 @@ fn execute_via_ika(
     let sign_message_for_broadcast: Vec<u8> = match chain_kind {
         0 => {
             // Solana: full transaction message with durable nonce.
-            let destination =
-                ika::read_param_bytes32(intent_account, &proposal_account.params_data, 0)?;
-            let amount = ika::read_param_u64(intent_account, &proposal_account.params_data, 1)?;
-            let nonce_value =
-                ika::read_param_bytes32(intent_account, &proposal_account.params_data, 2)?;
+            let destination = ika::read_param_bytes32(intent_account, params_data, 0)?;
+            let amount = ika::read_param_u64(intent_account, params_data, 1)?;
+            let nonce_value = ika::read_param_bytes32(intent_account, params_data, 2)?;
             let off = intent_account.tx_template_offset as usize;
             let nonce_account: [u8; 32] = intent_account.byte_pool[off..off + 32]
                 .try_into()
@@ -1989,7 +2148,7 @@ fn execute_via_ika(
                 &nonce_value,
             )
         }
-        3 => ika::build_zcash_zip243_preimage(intent_account, &proposal_account.params_data)?,
+        3 => ika::build_zcash_zip243_preimage(intent_account, params_data)?,
         _ => preimage.clone(),
     };
 
@@ -2197,8 +2356,7 @@ fn execute_via_ika(
                 "raw_tx_hex": format!("0x{}", hex_lower(&wire_tx)),
             });
         } else {
-            let inputs =
-                build_broadcast_inputs(chain_kind, intent_account, &proposal_account.params_data)?;
+            let inputs = build_broadcast_inputs(chain_kind, intent_account, params_data)?;
 
             let result = crate::chains::broadcast_signed_tx(
                 chain_kind,

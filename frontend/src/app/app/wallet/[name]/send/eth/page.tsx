@@ -47,11 +47,18 @@ import {
   explorerLabelForChainKind,
   type BroadcastResultLike,
 } from "@/lib/explorer";
+import { formatUnixSigningExpiry } from "@/lib/api/expiry";
 import { recordAttempt } from "@/lib/retail/txLog";
-import { IntentType } from "@/lib/msig";
+import { IntentType, sha256, toHex } from "@/lib/msig";
+import { encodeParams } from "@/lib/msig/encode";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
+import {
+  prepareClearSignAction,
+  type ClearSignEnvelope,
+  type SendPayload,
+} from "@/lib/clearsign-v2";
 import {
   ethToWei,
   fetchEvmBalance,
@@ -70,6 +77,7 @@ import {
   assertPolicyNotDenied,
   resolvePolicyEnforcement,
 } from "@/lib/policies/enforce";
+import { policyCommitmentHexForParts } from "@/lib/policies/onchain";
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
@@ -115,6 +123,16 @@ function parseEvmRecipientFromQr(raw: string): string {
   return trimmed;
 }
 
+function randomActionLabel(prefix: string): string {
+  const bytes = new Uint8Array(12);
+  crypto.getRandomValues(bytes);
+  return `${prefix}:0x${toHex(bytes)}`;
+}
+
+function textCommitmentHex(value: string): string {
+  return toHex(sha256(new TextEncoder().encode(value.trim())));
+}
+
 export default function SendEthPageWrapper() {
   return (
     <Suspense
@@ -138,7 +156,7 @@ function SendEthPage() {
   const reduce = useReducedMotion();
   const wallet = useWallet();
   const { connection } = useConnection();
-  const { signDescriptor } = useSignWithWallet();
+  const { signTypedDescriptor } = useSignWithWallet();
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -389,30 +407,84 @@ function SendEthPage() {
       //    signs gets rejected as a duplicate.
       const { nonce } = await fetchEvmNonce(walletEthAddress, EVM_RPC_URL);
 
-      // 2. Prepare. The CLI encodes nonce/to/value_wei/data into
-      //    params_data per the EVM transfer template.
-      const dry = await backendApi.prepare.createProposal(walletName, {
+      const recipientForClearSign = effectiveRecipient.toLowerCase();
+      const paramsDataHex = toHex(
+        encodeParams(ethIntent.account, {
+          nonce: String(nonce),
+          to: recipientForClearSign,
+          value_wei: amountWei.toString(),
+          data: "",
+        }),
+      );
+
+      // 2. Prepare a typed ClearSign proposal. The readable text and
+      //    commitment cover the recipient, amount, asset, policy, nonce,
+      //    and expiry. The raw EVM params bytes are passed later into the
+      //    typed Ika signer, where the program verifies they match this
+      //    signed ClearSign action before asking Ika to sign.
+      const actionId = randomActionLabel(
+        isHyperliquid ? "hype-send" : "eth-send",
+      );
+      const actionNonce = randomActionLabel("nonce");
+      const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
+      const policyCommitment = policyCommitmentHexForParts([
+        `wallet:${walletQuery.data?.pda.toBase58() ?? walletName}`,
+        `intent:${ethIntent.account.intentIndex}`,
+        `chain:${EVM_CHAIN_KIND}`,
+        `threshold:${ethIntent.account.approvalThreshold ?? ""}`,
+        `proposers:${ethIntent.account.proposers.join(",")}`,
+        `approvers:${ethIntent.account.approvers.join(",")}`,
+      ]);
+      const envelope: ClearSignEnvelope<SendPayload> = {
+        version: 2,
+        kind: "send",
+        walletName,
+        walletId: walletQuery.data?.pda.toBase58(),
+        actionId,
+        nonce: actionNonce,
+        expiresAt,
+        policyCommitment,
+        payload: {
+          recipient: recipientForClearSign,
+          recipientEncoding: "sha256_text",
+          amount: amountWei.toString(),
+          asset: EVM_TICKER,
+          assetEncoding: "sha256_text",
+          note: note.trim() || undefined,
+        },
+      };
+      const summary = await prepareClearSignAction(envelope, {
+        fallback: false,
+      });
+      const dry = await backendApi.prepare.createTypedProposal(walletName, {
         intent_index: ethIntent.account.intentIndex,
-        params: [
-          `nonce=${nonce}`,
-          `to=${effectiveRecipient}`,
-          `value_wei=${amountWei.toString()}`,
-          `data=`,
-        ],
+        action_kind: summary.actionKindCode,
+        policy_commitment: envelope.policyCommitment,
+        payload_hash: summary.payloadHash,
+        envelope_hash: summary.envelopeHash,
+        action_id: envelope.actionId,
+        nonce: envelope.nonce,
+        signable_text: summary.signableText,
+        expiry: formatUnixSigningExpiry(envelope.expiresAt),
         actor_pubkey: proposerPk.toBase58(),
       });
 
       // 3. Sign on Solana. Proves to the program that this user is
       //    a proposer + counts as their approval.
-      const signed = await signDescriptor(dry, { preferSigner: proposerPk });
+      const signed = await signTypedDescriptor(dry, { preferSigner: proposerPk });
 
       // 4. Submit. Lands the proposal Approved on chain (program's
       //    auto-approve when proposer-in-approvers).
-      const submitted = await backendApi.submit.createProposal(walletName, {
+      const submitted = await backendApi.submit.createTypedProposal(walletName, {
         ...signed,
-        params_data_hex: dry.params_data_hex,
         expiry: dry.expiry,
-        intent_index: ethIntent.account.intentIndex,
+        intent_index: dry.intent_index,
+        action_kind: dry.action_kind,
+        policy_commitment: dry.policy_commitment_hex,
+        payload_hash: dry.payload_hash_hex,
+        envelope_hash: dry.envelope_hash_hex,
+        action_id: dry.action_id,
+        nonce: dry.nonce,
       });
       const proposal = (submitted as Record<string, unknown>)?.proposal;
       if (typeof proposal !== "string" || proposal.length === 0) {
@@ -433,15 +505,15 @@ function SendEthPage() {
             "The proposal landed, but none of your connected wallets can approve it.",
           );
         }
-        const approveDry = await backendApi.prepare.approveProposal(
+        const approveDry = await backendApi.prepare.approveTypedProposal(
           walletName,
           proposal,
           { actor_pubkey: approverPk.toBase58() },
         );
-        const approveSigned = await signDescriptor(approveDry, {
+        const approveSigned = await signTypedDescriptor(approveDry, {
           preferSigner: approverPk,
         });
-        await backendApi.submit.approveProposal(walletName, proposal, {
+        await backendApi.submit.approveTypedProposal(walletName, proposal, {
           ...approveSigned,
           expiry: approveDry.expiry,
         });
@@ -484,15 +556,15 @@ function SendEthPage() {
                 `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but none of your connected wallets can sign as that approver.`,
               );
             }
-            const extraDry = await backendApi.prepare.approveProposal(
+            const extraDry = await backendApi.prepare.approveTypedProposal(
               walletName,
               proposal,
               { actor_pubkey: extraSigner.toBase58() },
             );
-            const extraSigned = await signDescriptor(extraDry, {
+            const extraSigned = await signTypedDescriptor(extraDry, {
               preferSigner: extraSigner,
             });
-            await backendApi.submit.approveProposal(walletName, proposal, {
+            await backendApi.submit.approveTypedProposal(walletName, proposal, {
               ...extraSigned,
               expiry: extraDry.expiry,
             });
@@ -507,13 +579,17 @@ function SendEthPage() {
         }
       }
 
-      // 5. Execute with broadcast=true and Ika dWallet params. The
-      //    backend tells Ika to sign + broadcast the EVM tx.
-      const executed = await backendApi.executeProposal(walletName, proposal, {
+      // 5. Execute with typed ClearSign verification + Ika broadcast.
+      const executed = await backendApi.executeTypedChainSend(walletName, proposal, {
+        chainKind: EVM_CHAIN_KIND,
+        amountRaw: amountWei.toString(),
+        recipientHash: textCommitmentHex(recipientForClearSign),
+        assetIdHash: textCommitmentHex(EVM_TICKER),
+        paramsDataHex,
         broadcast: true,
-        dwallet_program: appConfig.preAlpha.dwalletProgramId,
-        grpc_url: appConfig.preAlpha.grpcUrl,
-        rpc_url: EVM_RPC_URL,
+        dwalletProgram: appConfig.preAlpha.dwalletProgramId,
+        grpcUrl: appConfig.preAlpha.grpcUrl,
+        rpcUrl: EVM_RPC_URL,
       });
       const broadcast = (executed as { broadcast?: BroadcastResultLike })
         ?.broadcast;

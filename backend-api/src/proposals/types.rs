@@ -107,6 +107,11 @@ pub(super) struct ExecuteTypedChainSendRequest {
     pub(super) amount_raw: String,
     pub(super) recipient_hash: String,
     pub(super) asset_id_hash: String,
+    pub(super) params_data_hex: Option<String>,
+    pub(super) dwallet_program: Option<String>,
+    pub(super) grpc_url: Option<String>,
+    pub(super) rpc_url: Option<String>,
+    pub(super) broadcast: Option<bool>,
 }
 
 #[derive(Deserialize)]
