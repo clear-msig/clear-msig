@@ -659,7 +659,9 @@ pub fn execute_typed_escrow_return(
 /// Build execute_typed_sol_send instruction (ClearSign v2 discriminator 14).
 #[allow(dead_code)]
 pub fn execute_typed_sol_send(
+    payer: Pubkey,
     wallet: Pubkey,
+    policy_spend: Pubkey,
     vault: Pubkey,
     intent: Pubkey,
     proposal: Pubkey,
@@ -669,7 +671,9 @@ pub fn execute_typed_sol_send(
     amount_lamports: u64,
 ) -> Instruction {
     let accounts = vec![
+        AccountMeta::new(payer, true),
         AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(policy_spend, false),
         AccountMeta::new(vault, false),
         AccountMeta::new(intent, false),
         AccountMeta::new(proposal, false),
@@ -1137,8 +1141,10 @@ mod tests {
             key(3),
             key(4),
             key(5),
-            [6; 32],
-            [7; 32],
+            key(6),
+            key(7),
+            [8; 32],
+            [9; 32],
             1_000_000,
         );
         let batch = execute_typed_sol_batch_send(
@@ -1154,14 +1160,17 @@ mod tests {
 
         assert_eq!(send.data[0], 14);
         assert_eq!(batch.data[0], 15);
-        assert_eq!(send.accounts.len(), 6);
+        assert_eq!(send.accounts.len(), 8);
         assert_eq!(batch.accounts.len(), 6);
-        assert!(!send.accounts[0].is_writable);
-        assert!(send.accounts[1].is_writable);
+        assert!(send.accounts[0].is_signer);
+        assert!(send.accounts[0].is_writable);
+        assert!(!send.accounts[1].is_writable);
         assert!(send.accounts[2].is_writable);
         assert!(send.accounts[3].is_writable);
         assert!(send.accounts[4].is_writable);
-        assert!(!send.accounts[5].is_writable);
+        assert!(send.accounts[5].is_writable);
+        assert!(send.accounts[6].is_writable);
+        assert!(!send.accounts[7].is_writable);
         assert!(batch.accounts[1].is_writable);
         assert!(!batch.accounts[4].is_writable);
         assert!(batch.accounts[5].is_writable);

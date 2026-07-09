@@ -1,6 +1,6 @@
 extern crate std;
 
-use alloc::{string::ToString, vec::Vec};
+use alloc::vec::Vec;
 use {
     crate::clear_wallet::cpi::*,
     crate::state::ika_config::{IKA_CONFIG_DISCRIMINATOR, IKA_CONFIG_LEN},
@@ -10,8 +10,8 @@ use {
         hash_private_escrow_release_payload, hash_private_escrow_return_payload,
         hash_release_milestone_payload, hash_release_token_milestone_payload,
         hash_return_escrow_sol_payload_iter, hash_return_token_escrow_payload_iter,
-        hash_send_payload, ClearSignActionKind, ClearSignAmount, ClearSignEnvelope,
-        ClearSignVoteKind,
+        hash_send_payload, write_vote_message, ClearSignActionKind, ClearSignAmount,
+        ClearSignEnvelope, ClearSignVoteKind, MAX_CLEARSIGN_TEXT_BYTES,
     },
     crate::utils::policy::hash_typed_policy,
     alloc::vec,
@@ -19,8 +19,9 @@ use {
         intent_builder::IntentBuilder,
         intents,
         pda::{
-            compute_name_hash, find_intent_address, find_proposal_address,
-            find_typed_proposal_address, find_vault_address, find_wallet_address,
+            compute_name_hash, find_intent_address, find_policy_spend_address,
+            find_proposal_address, find_typed_proposal_address, find_vault_address,
+            find_wallet_address,
         },
     },
     ed25519_dalek::Signer as DalekSigner,
@@ -686,6 +687,7 @@ fn build_execute_typed_escrow_return_ix(
 }
 
 fn build_execute_typed_sol_send_ix(
+    payer: Pubkey,
     wallet: Pubkey,
     intent: Pubkey,
     proposal: Pubkey,
@@ -695,6 +697,7 @@ fn build_execute_typed_sol_send_ix(
     amount_lamports: u64,
 ) -> Instruction {
     let (vault, _) = find_vault_address(&wallet, &crate::ID);
+    let (policy_spend, _) = find_policy_spend_address(&wallet, &crate::ID);
     let mut data = vec![14u8];
     wincode::serialize_into(&mut data, &policy_commitment).unwrap();
     wincode::serialize_into(&mut data, &envelope_hash).unwrap();
@@ -703,7 +706,9 @@ fn build_execute_typed_sol_send_ix(
     Instruction {
         program_id: crate::ID,
         accounts: vec![
+            AccountMeta::new(payer, true),
             AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new(policy_spend, false),
             AccountMeta::new(vault, false),
             AccountMeta::new(intent, false),
             AccountMeta::new(proposal, false),
@@ -712,6 +717,12 @@ fn build_execute_typed_sol_send_ix(
         ],
         data,
     }
+}
+
+fn empty_policy_spend_account(wallet: Pubkey, policy_commitment: [u8; 32]) -> Account {
+    let _ = policy_commitment;
+    let (policy_spend, _) = find_policy_spend_address(&wallet, &crate::ID);
+    empty_account(policy_spend)
 }
 
 fn build_execute_typed_sol_batch_send_ix(
@@ -793,47 +804,28 @@ fn sign_typed_vote(
     proposal_index: u64,
     envelope_hash: [u8; 32],
 ) -> [u8; 64] {
-    key.sign(&typed_vote_message(
+    let mut message = [0u8; MAX_CLEARSIGN_TEXT_BYTES + 160];
+    let message_len = write_vote_message(
+        &mut message,
         vote_kind,
-        wallet_name,
+        wallet_name.as_bytes(),
         proposal_index,
         envelope_hash,
-    ))
-    .to_bytes()
+        TEST_CLEAR_TEXT,
+    )
+    .expect("test ClearSign vote message should be valid");
+    let signature = key.sign(&message[..message_len]).to_bytes();
+    brine_ed25519::sig_verify(
+        &key.verifying_key().to_bytes(),
+        &signature,
+        &message[..message_len],
+    )
+    .expect("test ClearSign signature should verify locally");
+    signature
 }
 
 const TEST_CLEAR_TEXT: &[u8] =
     b"Send 1 SOL from test wallet to test recipient\nRequires wallet approval";
-
-fn typed_vote_message(
-    vote_kind: ClearSignVoteKind,
-    wallet_name: &str,
-    proposal_index: u64,
-    envelope_hash: [u8; 32],
-) -> Vec<u8> {
-    let mut out = Vec::new();
-    out.extend_from_slice(b"ClearSign v2 ");
-    out.extend_from_slice(vote_kind.label());
-    out.extend_from_slice(b"\nWallet ");
-    out.extend_from_slice(wallet_name.as_bytes());
-    out.extend_from_slice(b"\nProposal ");
-    out.extend_from_slice(proposal_index.to_string().as_bytes());
-    out.extend_from_slice(b"\nEnvelope ");
-    out.extend_from_slice(hex_string(&envelope_hash).as_bytes());
-    out.extend_from_slice(b"\n\n");
-    out.extend_from_slice(TEST_CLEAR_TEXT);
-    out
-}
-
-fn hex_string(bytes: &[u8]) -> String {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        out.push(HEX[(byte >> 4) as usize] as char);
-        out.push(HEX[(byte & 0x0f) as usize] as char);
-    }
-    out
-}
 
 fn typed_sol_policy_bytes(
     mode: u8,
@@ -855,6 +847,29 @@ fn typed_sol_policy_bytes(
     for approver in required_approvers {
         out.extend_from_slice(approver.as_ref());
     }
+    out
+}
+
+fn typed_sol_policy_bytes_with_velocity(
+    mode: u8,
+    max_amount_lamports: u64,
+    extra_cooldown_seconds: u32,
+    recipients: &[Pubkey],
+    required_approvers: &[Pubkey],
+    velocity_cap_lamports: u64,
+    velocity_window_seconds: u32,
+) -> Vec<u8> {
+    let mut out = typed_sol_policy_bytes(
+        mode,
+        max_amount_lamports,
+        extra_cooldown_seconds,
+        recipients,
+        required_approvers,
+    );
+    out.push(1);
+    out.extend_from_slice(&12u16.to_le_bytes());
+    out.extend_from_slice(&velocity_cap_lamports.to_le_bytes());
+    out.extend_from_slice(&velocity_window_seconds.to_le_bytes());
     out
 }
 
@@ -884,10 +899,51 @@ fn propose_typed_sol_send_with_policy(
         &crate::ID,
     );
     let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
-    let proposal_index = 0u64;
+    let (proposal, policy_commitment, envelope_hash) = propose_typed_sol_send_on_wallet(
+        svm,
+        payer,
+        wallet_name,
+        wallet,
+        intent,
+        0,
+        proposer,
+        recipient,
+        amount_lamports,
+        policy_bytes,
+    );
+
+    (wallet, intent, proposal, policy_commitment, envelope_hash)
+}
+
+fn propose_typed_sol_send_on_wallet(
+    svm: &mut QuasarSvm,
+    payer: Pubkey,
+    wallet_name: &str,
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal_index: u64,
+    proposer: &ed25519_dalek::SigningKey,
+    recipient: Pubkey,
+    amount_lamports: u64,
+    policy_bytes: &[u8],
+) -> (Pubkey, [u8; 32], [u8; 32]) {
     let proposal = get_typed_proposal_address(intent, proposal_index);
-    let action_id = sha256_hash(wallet_name.as_bytes());
-    let nonce = sha256_hash(&[wallet_name.as_bytes(), b":nonce"].concat());
+    let action_id = sha256_hash(
+        &[
+            wallet_name.as_bytes(),
+            b":sol-send:",
+            &proposal_index.to_le_bytes(),
+        ]
+        .concat(),
+    );
+    let nonce = sha256_hash(
+        &[
+            wallet_name.as_bytes(),
+            b":nonce:",
+            &proposal_index.to_le_bytes(),
+        ]
+        .concat(),
+    );
     let expiry = typed_test_expiry();
     let policy_commitment = if policy_bytes.is_empty() {
         hash_policy_commitment(&[b"send:sol"])
@@ -944,7 +1000,7 @@ fn propose_typed_sol_send_with_policy(
         result.raw_result
     );
 
-    (wallet, intent, proposal, policy_commitment, envelope_hash)
+    (proposal, policy_commitment, envelope_hash)
 }
 
 #[test]
@@ -2420,15 +2476,12 @@ fn test_execute_typed_sol_send_moves_sol() {
     });
     let result =
         svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
-    assert!(
-        result.is_ok(),
-        "typed SOL send propose failed: {:?}",
-        result.raw_result
-    );
+    result.expect("typed SOL send propose failed");
 
     let vault = fund_vault(&mut svm, payer, wallet, amount_lamports + 1_000_000);
     let vault_pre = svm.get_account(&vault).map(|a| a.lamports).unwrap_or(0);
     let execute = build_execute_typed_sol_send_ix(
+        payer,
         wallet,
         intent,
         proposal,
@@ -2437,7 +2490,14 @@ fn test_execute_typed_sol_send_moves_sol() {
         envelope_hash,
         amount_lamports,
     );
-    let result = svm.process_instruction(&execute, &[empty_account(recipient)]);
+    let result = svm.process_instruction(
+        &execute,
+        &[
+            funded_account(payer),
+            empty_policy_spend_account(wallet, policy_commitment),
+            empty_account(recipient),
+        ],
+    );
     assert!(
         result.is_ok(),
         "typed SOL send execute failed: {:?}",
@@ -2483,6 +2543,7 @@ fn test_execute_typed_sol_send_rejects_policy_amount_cap() {
     fund_vault(&mut svm, payer, wallet, amount_lamports + 1_000_000);
 
     let execute = build_execute_typed_sol_send_ix(
+        payer,
         wallet,
         intent,
         proposal,
@@ -2491,7 +2552,14 @@ fn test_execute_typed_sol_send_rejects_policy_amount_cap() {
         envelope_hash,
         amount_lamports,
     );
-    let result = svm.process_instruction(&execute, &[empty_account(recipient)]);
+    let result = svm.process_instruction(
+        &execute,
+        &[
+            funded_account(payer),
+            empty_policy_spend_account(wallet, policy_commitment),
+            empty_account(recipient),
+        ],
+    );
     assert!(result.is_err(), "policy amount cap did not stop execute");
 }
 
@@ -2519,6 +2587,7 @@ fn test_execute_typed_sol_send_rejects_policy_blocklist() {
     fund_vault(&mut svm, payer, wallet, amount_lamports + 1_000_000);
 
     let execute = build_execute_typed_sol_send_ix(
+        payer,
         wallet,
         intent,
         proposal,
@@ -2527,7 +2596,14 @@ fn test_execute_typed_sol_send_rejects_policy_blocklist() {
         envelope_hash,
         amount_lamports,
     );
-    let result = svm.process_instruction(&execute, &[empty_account(recipient)]);
+    let result = svm.process_instruction(
+        &execute,
+        &[
+            funded_account(payer),
+            empty_policy_spend_account(wallet, policy_commitment),
+            empty_account(recipient),
+        ],
+    );
     assert!(result.is_err(), "policy blocklist did not stop execute");
 }
 
@@ -2556,6 +2632,7 @@ fn test_execute_typed_sol_send_requires_policy_extra_approver() {
     fund_vault(&mut svm, payer, wallet, amount_lamports + 1_000_000);
 
     let execute = build_execute_typed_sol_send_ix(
+        payer,
         wallet,
         intent,
         proposal,
@@ -2564,7 +2641,14 @@ fn test_execute_typed_sol_send_requires_policy_extra_approver() {
         envelope_hash,
         amount_lamports,
     );
-    let result = svm.process_instruction(&execute, &[empty_account(recipient)]);
+    let result = svm.process_instruction(
+        &execute,
+        &[
+            funded_account(payer),
+            empty_policy_spend_account(wallet, policy_commitment),
+            empty_account(recipient),
+        ],
+    );
     assert!(
         result.is_err(),
         "policy-required extra approver did not stop execute"
@@ -2595,6 +2679,7 @@ fn test_execute_typed_sol_send_accepts_committed_policy() {
     fund_vault(&mut svm, payer, wallet, amount_lamports + 1_000_000);
 
     let execute = build_execute_typed_sol_send_ix(
+        payer,
         wallet,
         intent,
         proposal,
@@ -2603,11 +2688,102 @@ fn test_execute_typed_sol_send_accepts_committed_policy() {
         envelope_hash,
         amount_lamports,
     );
-    let result = svm.process_instruction(&execute, &[empty_account(recipient)]);
+    let result = svm.process_instruction(
+        &execute,
+        &[
+            funded_account(payer),
+            empty_policy_spend_account(wallet, policy_commitment),
+            empty_account(recipient),
+        ],
+    );
     assert!(
         result.is_ok(),
         "committed policy should allow execute: {:?}",
         result.raw_result
+    );
+}
+
+#[test]
+fn test_execute_typed_sol_send_enforces_velocity_window() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let wallet_name = "typed-sol-policy-velocity";
+    let recipient_a = Pubkey::new_unique();
+    let recipient_b = Pubkey::new_unique();
+    let amount_lamports = 600_000u64;
+    let policy_bytes =
+        typed_sol_policy_bytes_with_velocity(0, 0, 0, &[], &[], 1_000_000, 24 * 60 * 60);
+
+    let (wallet, intent, proposal_a, policy_commitment, envelope_hash_a) =
+        propose_typed_sol_send_with_policy(
+            &mut svm,
+            payer,
+            wallet_name,
+            &proposer,
+            &[pubkey_of(&proposer)],
+            1,
+            recipient_a,
+            amount_lamports,
+            &policy_bytes,
+        );
+    fund_vault(&mut svm, payer, wallet, amount_lamports * 3);
+
+    let execute_a = build_execute_typed_sol_send_ix(
+        payer,
+        wallet,
+        intent,
+        proposal_a,
+        recipient_a,
+        policy_commitment,
+        envelope_hash_a,
+        amount_lamports,
+    );
+    let result = svm.process_instruction(
+        &execute_a,
+        &[
+            funded_account(payer),
+            empty_policy_spend_account(wallet, policy_commitment),
+            empty_account(recipient_a),
+        ],
+    );
+    assert!(
+        result.is_ok(),
+        "first velocity-tracked send should execute: {:?}",
+        result.raw_result
+    );
+
+    let (proposal_b, policy_commitment_b, envelope_hash_b) = propose_typed_sol_send_on_wallet(
+        &mut svm,
+        payer,
+        wallet_name,
+        wallet,
+        intent,
+        1,
+        &proposer,
+        recipient_b,
+        amount_lamports,
+        &policy_bytes,
+    );
+    assert_eq!(policy_commitment_b, policy_commitment);
+
+    let execute_b = build_execute_typed_sol_send_ix(
+        payer,
+        wallet,
+        intent,
+        proposal_b,
+        recipient_b,
+        policy_commitment_b,
+        envelope_hash_b,
+        amount_lamports,
+    );
+    let result = svm.process_instruction(
+        &execute_b,
+        &[funded_account(payer), empty_account(recipient_b)],
+    );
+    assert!(
+        result.is_err(),
+        "second send should exceed the on-chain velocity cap"
     );
 }
 

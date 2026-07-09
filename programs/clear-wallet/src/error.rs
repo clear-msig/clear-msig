@@ -62,4 +62,6 @@ pub enum WalletError {
     PolicyCooldownNotElapsed,
     /// A program-enforced typed policy required an approver who has not approved.
     PolicyRequiredApprovalMissing,
+    /// A program-enforced typed policy velocity cap was exceeded.
+    PolicyVelocityExceeded,
 }

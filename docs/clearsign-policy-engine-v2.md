@@ -215,6 +215,11 @@ It currently ships:
   envelopes before those actions are routed into wallet signing
 - typed proposal cleanup/rent reclamation through the shared proposal cleanup
   path
+- typed SOL policy execution for recipient allow/block lists, per-send amount
+  caps, extra approvers, extra cooldowns, and velocity caps
+- `PolicySpendState`, a wallet-scoped PDA that stores the active typed SOL
+  policy commitment, current window start, and lamports spent inside the active
+  window so velocity rules are enforced by the program before funds move
 
 Action codes are fixed as:
 
@@ -320,6 +325,10 @@ Current enforced guarantees:
   id before marking the proposal executed. The program requires non-empty
   ciphertext references and does not claim to decrypt or evaluate private
   policy values.
+- Typed SOL send enforces committed policy bytes before transfer. For velocity
+  rules, execution initializes or updates the wallet's `PolicySpendState`; a
+  policy commitment change resets that meter, and a send that would exceed the
+  committed window cap fails before lamports leave the vault.
 - Escrow release and escrow return payload hashes are domain-separated and
   tested so they cannot be swapped under the same signer approval.
 - Frontend typed proposal account parsing and typed PDA derivation are covered

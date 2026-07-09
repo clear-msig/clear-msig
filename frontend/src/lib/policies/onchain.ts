@@ -4,6 +4,7 @@ import type { PolicyEnforcementPlan } from "@/lib/policies/enforce";
 
 const POLICY_DOMAIN = "typed-sol-send-policy-v1";
 const MAGIC = [0x43, 0x53, 0x50, 0x31]; // CSP1
+const EXT_VELOCITY_SOL = 1;
 
 export interface EncodedSolPolicy {
   bytes: Uint8Array;
@@ -21,6 +22,8 @@ export function encodeTypedSolPolicy(
   let mode = 0;
   let recipients: string[] = [];
   let maxAmountLamports = 0n;
+  let velocityCapLamports = 0n;
+  let velocityWindowSeconds = 0;
 
   for (const condition of plan.conditions) {
     if (condition.kind === "recipient") {
@@ -33,6 +36,14 @@ export function encodeTypedSolPolicy(
           ? parseSolLamports(condition.maxDisplay)
           : 0n;
       }
+    } else if (condition.kind === "velocity") {
+      const ticker = condition.ticker?.trim().toUpperCase();
+      if (!ticker || ticker === "SOL") {
+        velocityCapLamports = condition.capDisplay
+          ? parseSolLamports(condition.capDisplay)
+          : 0n;
+        velocityWindowSeconds = condition.windowDays * 24 * 60 * 60;
+      }
     }
   }
 
@@ -44,6 +55,7 @@ export function encodeTypedSolPolicy(
   if (
     mode === 0 &&
     maxAmountLamports === 0n &&
+    velocityCapLamports === 0n &&
     requiredApprovers.length === 0 &&
     extraCooldownSeconds === 0
   ) {
@@ -59,6 +71,12 @@ export function encodeTypedSolPolicy(
   writer.pushU8(requiredApprovers.length);
   for (const recipient of recipients) writer.pushPubkey(recipient);
   for (const approver of requiredApprovers) writer.pushPubkey(approver);
+  if (velocityCapLamports > 0n && velocityWindowSeconds > 0) {
+    writer.pushU8(EXT_VELOCITY_SOL);
+    writer.pushU16(12);
+    writer.pushU64(velocityCapLamports);
+    writer.pushU32(velocityWindowSeconds);
+  }
 
   const bytes = writer.bytes();
   return {
@@ -117,6 +135,13 @@ class ByteWriter {
       throw new Error("Policy byte value is out of range.");
     }
     this.chunks.push(value);
+  }
+
+  pushU16(value: number) {
+    if (!Number.isInteger(value) || value < 0 || value > 0xffff) {
+      throw new Error("Policy u16 value is out of range.");
+    }
+    this.chunks.push(value & 0xff, (value >> 8) & 0xff);
   }
 
   pushU32(value: number) {

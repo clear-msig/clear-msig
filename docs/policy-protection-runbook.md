@@ -17,13 +17,16 @@ On-chain today:
   on the typed proposal. When present, the program enforces recipient
   allow/block lists, per-send SOL amount caps, required extra approvers, and
   extra cooldown seconds before moving lamports.
+- Typed SOL velocity caps are tracked by a program-owned `PolicySpendState`
+  PDA per wallet. The state is bound to the active policy commitment, resets
+  when the policy commitment changes, and rejects sends that would exceed the
+  committed lamport cap inside the configured time window.
 - Intent policy ciphertext references are stored with intents for future FHE
   evaluation.
 
 Client-side today:
 
-- Velocity rules based on local transaction history.
-- Time-window rules.
+- Velocity and time-window rules outside typed SOL send.
 - Non-SOL recipient allow/block rules.
 - Non-SOL amount limits.
 - Non-SOL extra approver policy rules.
@@ -58,7 +61,7 @@ still needs typed policy execution for:
 - Deny rules.
 - Recipient allow/block rules outside typed SOL send.
 - Per-action amount caps outside typed SOL send.
-- Daily/weekly/monthly velocity caps.
+- Daily/weekly/monthly velocity caps outside typed SOL send.
 - Extra approver requirements outside typed SOL send.
 - Extra cooldown requirements outside typed SOL send.
 - Agent trading risk limits and session allowances.
@@ -84,6 +87,8 @@ High priority checks:
 - Typed proposal policy commitment mismatch fails on-chain.
 - Typed SOL send recipient blocklist and amount cap failures return explicit
   program policy errors.
+- Typed SOL velocity attempts that exceed the committed time-window cap return
+  an explicit program policy error before lamports move.
 
 Program checks to keep running:
 

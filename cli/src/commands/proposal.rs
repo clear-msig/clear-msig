@@ -1288,7 +1288,9 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 .parse()
                 .with_context(|| "invalid recipient address")?;
             let ix = crate::instructions::execute_typed_sol_send(
+                solana_sdk::signer::Signer::pubkey(&config.payer),
                 wallet_pubkey,
+                policy_spend_pubkey(wallet_pubkey),
                 vault_pubkey(wallet_pubkey),
                 intent_pubkey,
                 proposal_pubkey,
@@ -2358,6 +2360,14 @@ fn vault_pubkey(wallet_pubkey: Pubkey) -> Pubkey {
         &solana_address::Address::new_from_array(crate::instructions::program_id().to_bytes()),
     );
     Pubkey::new_from_array(vault.to_bytes())
+}
+
+fn policy_spend_pubkey(wallet_pubkey: Pubkey) -> Pubkey {
+    let (policy_spend, _) = clear_wallet_client::pda::find_policy_spend_address(
+        &solana_address::Address::new_from_array(wallet_pubkey.to_bytes()),
+        &solana_address::Address::new_from_array(crate::instructions::program_id().to_bytes()),
+    );
+    Pubkey::new_from_array(policy_spend.to_bytes())
 }
 
 fn typed_approve_or_cancel(
