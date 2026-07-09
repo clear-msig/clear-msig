@@ -3514,6 +3514,7 @@ function ProposalCard({
             {proposal.leverage}x
           </p>
           <TradeLifecycleStrip lifecycle={lifecycle} />
+          <AgentClearSignProof proposal={proposal} />
           {proposal.policyViolations && proposal.policyViolations.length > 0 ? (
             <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-rose-300">
               {proposal.policyViolations[0]?.message}
@@ -3543,6 +3544,21 @@ function ProposalCard({
         </div>
       </div>
     </li>
+  );
+}
+
+function AgentClearSignProof({ proposal }: { proposal: AgentTradeProposal }) {
+  const proof = proposal.clearSignV2;
+  if (!proof) return null;
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 rounded-soft border border-accent/20 bg-accent/[0.05] px-2 py-1.5 text-[10px] font-medium text-text-soft">
+      <span className="inline-flex items-center gap-1 text-accent">
+        <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+        ClearSign v2
+      </span>
+      <span className="font-mono">payload {proof.payloadHash.slice(0, 10)}</span>
+      <span className="font-mono">risk {proof.payload.riskCheckHash.slice(0, 10)}</span>
+    </div>
   );
 }
 

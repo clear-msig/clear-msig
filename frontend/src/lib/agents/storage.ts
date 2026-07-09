@@ -5,6 +5,7 @@ import {
   canOpenLocalAgentExecution,
   executionModeForVenue,
 } from "@/lib/agents/executionAdapters";
+import { buildAgentTradeClearSignV2 } from "@/lib/agents/clearsign";
 import { closeAgentExecutionRecord } from "@/lib/agents/executionClose";
 import { evaluateAgentTradeProposal } from "@/lib/agents/policy";
 import { defaultAgentVaultPolicy } from "@/lib/agents/policy";
@@ -504,7 +505,9 @@ export function saveAgentProposal(proposal: AgentTradeProposal): AgentTradePropo
   const policy =
     shape.policiesByWallet[proposal.walletName] ??
     defaultAgentVaultPolicy(proposal.walletName);
-  const boundProposal = bindAgentProposalPolicyHash(proposal, normalizePolicy(policy));
+  const boundProposal = bindProposalClearSignV2(
+    bindAgentProposalPolicyHash(proposal, normalizePolicy(policy)),
+  );
   const list = shape.proposalsByWallet[proposal.walletName] ?? [];
   const idx = list.findIndex((existing) => existing.id === boundProposal.id);
   const duplicateIdx = findDuplicateClientSignalIndex(list, boundProposal);
@@ -580,13 +583,13 @@ export function recheckAgentProposal(
     now,
   });
   const status = statusForEvaluation(evaluation);
-  const updatedBase: AgentTradeProposal = {
+  const updatedBase: AgentTradeProposal = bindProposalClearSignV2({
     ...proposalForPolicy,
     status,
     evaluationDecision: evaluation.decision,
     policyViolations: evaluation.violations,
     updatedAt: now,
-  };
+  });
   const execution =
     status === "approved" ? executionFromProposal(updatedBase, now) : null;
   const updated: AgentTradeProposal = {
@@ -685,7 +688,7 @@ export function openAgentPaperTrade(
   const proposalForPolicy = bindAgentProposalPolicyHash(proposal, policy);
   const evaluation = evaluateProposalForCurrentRisk(shape, proposalForPolicy, now);
   if (!evaluation || evaluation.decision === "blocked") {
-    const updated = {
+    const updated = bindProposalClearSignV2({
       ...proposalForPolicy,
       status: "blocked" as AgentProposalStatus,
       evaluationDecision: evaluation?.decision ?? "blocked",
@@ -697,7 +700,7 @@ export function openAgentPaperTrade(
         },
       ],
       updatedAt: now,
-    };
+    });
     list[idx] = updated;
     shape.proposalsByWallet[walletName] = list;
     updateScorecardForStatusChange(shape, proposal, updated);
@@ -723,13 +726,13 @@ export function openAgentPaperTrade(
     evaluation.decision === "requires_human_approval" &&
     proposal.status !== "approved"
   ) {
-    const updated = {
+    const updated = bindProposalClearSignV2({
       ...proposalForPolicy,
       status: "needs_approval" as AgentProposalStatus,
       evaluationDecision: evaluation.decision,
       policyViolations: evaluation.violations,
       updatedAt: now,
-    };
+    });
     list[idx] = updated;
     shape.proposalsByWallet[walletName] = list;
     updateScorecardForStatusChange(shape, proposal, updated);
@@ -743,13 +746,13 @@ export function openAgentPaperTrade(
   }
   const execution = executionFromProposal(proposalForPolicy, now);
   if (!execution) {
-    const updated = {
+    const updated = bindProposalClearSignV2({
       ...proposalForPolicy,
       status: "approved" as AgentProposalStatus,
       evaluationDecision: evaluation.decision,
       policyViolations: evaluation.violations,
       updatedAt: now,
-    };
+    });
     list[idx] = updated;
     shape.proposalsByWallet[walletName] = list;
     writeAll(shape);
@@ -760,13 +763,13 @@ export function openAgentPaperTrade(
       reason: "backend_required",
     };
   }
-  const updated = {
+  const updated = bindProposalClearSignV2({
     ...proposalForPolicy,
     status: "executed" as AgentProposalStatus,
     evaluationDecision: evaluation.decision,
     policyViolations: evaluation.violations,
     updatedAt: now,
-  };
+  });
   list[idx] = updated;
   shape.proposalsByWallet[walletName] = list;
   shape.executionsByWallet[walletName] ??= [];
@@ -810,9 +813,11 @@ export function saveAgentProposalAndExecuteIfAllowed(
   const policy =
     shape.policiesByWallet[proposal.walletName] ??
     defaultAgentVaultPolicy(proposal.walletName);
-  const boundProposal = bindAgentProposalPolicyHash(
-    proposal,
-    normalizePolicy(policy),
+  const boundProposal = bindProposalClearSignV2(
+    bindAgentProposalPolicyHash(
+      proposal,
+      normalizePolicy(policy),
+    ),
   );
   const list = shape.proposalsByWallet[boundProposal.walletName] ?? [];
   const idx = list.findIndex((existing) => existing.id === boundProposal.id);
@@ -825,13 +830,13 @@ export function saveAgentProposalAndExecuteIfAllowed(
     boundProposal.status === "approved" && canExecuteProposal(shape, boundProposal)
       ? executionFromProposal(boundProposal, now)
       : null;
-  const savedProposal = execution
+  const savedProposal = bindProposalClearSignV2(execution
     ? {
         ...boundProposal,
         status: "executed" as AgentProposalStatus,
         updatedAt: now,
       }
-    : boundProposal;
+    : boundProposal);
   if (idx >= 0) list[idx] = savedProposal;
   else {
     list.push(savedProposal);
@@ -1284,6 +1289,13 @@ function currentPolicyForShape(
   );
 }
 
+function bindProposalClearSignV2(proposal: AgentTradeProposal): AgentTradeProposal {
+  return {
+    ...proposal,
+    clearSignV2: buildAgentTradeClearSignV2(proposal),
+  };
+}
+
 function activeSessionFor(
   shape: StoredShape,
   walletName: string,
@@ -1437,9 +1449,11 @@ function transitionAgentProposal(
     return proposal ?? null;
   }
   const policy = currentPolicyForShape(shape, walletName);
-  const updated = bindAgentProposalPolicyHash(
-    { ...proposal, status, updatedAt: Date.now() },
-    policy,
+  const updated = bindProposalClearSignV2(
+    bindAgentProposalPolicyHash(
+      { ...proposal, status, updatedAt: Date.now() },
+      policy,
+    ),
   );
   list[idx] = updated;
   shape.proposalsByWallet[walletName] = list;
