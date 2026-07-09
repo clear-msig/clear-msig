@@ -608,7 +608,10 @@ fn build_execute_typed_chain_send_ix(
         accounts: vec![
             AccountMeta::new(payer, true),
             AccountMeta::new_readonly(wallet, false),
-            AccountMeta::new(find_policy_spend_address(&wallet, &crate::ID).0, false),
+            AccountMeta::new(
+                find_policy_spend_address(&wallet, &intent, &crate::ID).0,
+                false,
+            ),
             AccountMeta::new(intent, false),
             AccountMeta::new(proposal, false),
             AccountMeta::new_readonly(ika_config, false),
@@ -780,7 +783,7 @@ fn build_execute_typed_sol_send_ix(
     amount_lamports: u64,
 ) -> Instruction {
     let (vault, _) = find_vault_address(&wallet, &crate::ID);
-    let (policy_spend, _) = find_policy_spend_address(&wallet, &crate::ID);
+    let (policy_spend, _) = find_policy_spend_address(&wallet, &intent, &crate::ID);
     let mut data = vec![14u8];
     wincode::serialize_into(&mut data, &policy_commitment).unwrap();
     wincode::serialize_into(&mut data, &envelope_hash).unwrap();
@@ -802,9 +805,13 @@ fn build_execute_typed_sol_send_ix(
     }
 }
 
-fn empty_policy_spend_account(wallet: Pubkey, policy_commitment: [u8; 32]) -> Account {
+fn empty_policy_spend_account(
+    wallet: Pubkey,
+    intent: Pubkey,
+    policy_commitment: [u8; 32],
+) -> Account {
     let _ = policy_commitment;
-    let (policy_spend, _) = find_policy_spend_address(&wallet, &crate::ID);
+    let (policy_spend, _) = find_policy_spend_address(&wallet, &intent, &crate::ID);
     empty_account(policy_spend)
 }
 
@@ -954,6 +961,30 @@ fn typed_sol_policy_bytes_with_velocity(
     out.extend_from_slice(&velocity_cap_lamports.to_le_bytes());
     out.extend_from_slice(&velocity_window_seconds.to_le_bytes());
     out
+}
+
+fn typed_sol_policy_bytes_with_send_count(
+    max_send_count: u32,
+    count_window_seconds: u32,
+) -> Vec<u8> {
+    let mut out = typed_sol_policy_bytes(0, 0, 0, &[], &[]);
+    out.push(2);
+    out.extend_from_slice(&8u16.to_le_bytes());
+    out.extend_from_slice(&max_send_count.to_le_bytes());
+    out.extend_from_slice(&count_window_seconds.to_le_bytes());
+    out
+}
+
+fn append_send_count_extension(
+    mut policy: Vec<u8>,
+    max_send_count: u32,
+    count_window_seconds: u32,
+) -> Vec<u8> {
+    policy.push(2);
+    policy.extend_from_slice(&8u16.to_le_bytes());
+    policy.extend_from_slice(&max_send_count.to_le_bytes());
+    policy.extend_from_slice(&count_window_seconds.to_le_bytes());
+    policy
 }
 
 fn typed_hash_policy_bytes(
@@ -1933,7 +1964,7 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
             &wrong_execute,
             &[
                 funded_account(payer),
-                empty_policy_spend_account(wallet, policy_commitment),
+                empty_policy_spend_account(wallet, remote_intent, policy_commitment),
                 empty_account(dwallet)
             ]
         )
@@ -1958,7 +1989,7 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
         &execute,
         &[
             funded_account(payer),
-            empty_policy_spend_account(wallet, policy_commitment),
+            empty_policy_spend_account(wallet, remote_intent, policy_commitment),
             empty_account(dwallet),
         ],
     );
@@ -2045,7 +2076,7 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
         &blocked_execute,
         &[
             funded_account(payer),
-            empty_policy_spend_account(wallet, blocked_policy_commitment),
+            empty_policy_spend_account(wallet, remote_intent, blocked_policy_commitment),
             empty_account(dwallet),
         ],
     );
@@ -3023,7 +3054,7 @@ fn test_execute_typed_sol_send_moves_sol() {
         &execute,
         &[
             funded_account(payer),
-            empty_policy_spend_account(wallet, policy_commitment),
+            empty_policy_spend_account(wallet, intent, policy_commitment),
             empty_account(recipient),
         ],
     );
@@ -3085,7 +3116,7 @@ fn test_execute_typed_sol_send_rejects_policy_amount_cap() {
         &execute,
         &[
             funded_account(payer),
-            empty_policy_spend_account(wallet, policy_commitment),
+            empty_policy_spend_account(wallet, intent, policy_commitment),
             empty_account(recipient),
         ],
     );
@@ -3129,7 +3160,7 @@ fn test_execute_typed_sol_send_rejects_policy_blocklist() {
         &execute,
         &[
             funded_account(payer),
-            empty_policy_spend_account(wallet, policy_commitment),
+            empty_policy_spend_account(wallet, intent, policy_commitment),
             empty_account(recipient),
         ],
     );
@@ -3174,7 +3205,7 @@ fn test_execute_typed_sol_send_requires_policy_extra_approver() {
         &execute,
         &[
             funded_account(payer),
-            empty_policy_spend_account(wallet, policy_commitment),
+            empty_policy_spend_account(wallet, intent, policy_commitment),
             empty_account(recipient),
         ],
     );
@@ -3221,7 +3252,7 @@ fn test_execute_typed_sol_send_accepts_committed_policy() {
         &execute,
         &[
             funded_account(payer),
-            empty_policy_spend_account(wallet, policy_commitment),
+            empty_policy_spend_account(wallet, intent, policy_commitment),
             empty_account(recipient),
         ],
     );
@@ -3272,7 +3303,7 @@ fn test_execute_typed_sol_send_enforces_velocity_window() {
         &execute_a,
         &[
             funded_account(payer),
-            empty_policy_spend_account(wallet, policy_commitment),
+            empty_policy_spend_account(wallet, intent, policy_commitment),
             empty_account(recipient_a),
         ],
     );
@@ -3313,6 +3344,163 @@ fn test_execute_typed_sol_send_enforces_velocity_window() {
     assert!(
         result.is_err(),
         "second send should exceed the on-chain velocity cap"
+    );
+}
+
+#[test]
+fn test_execute_typed_sol_send_enforces_count_window() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let wallet_name = "typed-sol-policy-count";
+    let recipient_a = Pubkey::new_unique();
+    let recipient_b = Pubkey::new_unique();
+    let amount_lamports = 100_000u64;
+    let policy_bytes = typed_sol_policy_bytes_with_send_count(1, 24 * 60 * 60);
+
+    let (wallet, intent, proposal_a, policy_commitment, envelope_hash_a) =
+        propose_typed_sol_send_with_policy(
+            &mut svm,
+            payer,
+            wallet_name,
+            &proposer,
+            &[pubkey_of(&proposer)],
+            1,
+            recipient_a,
+            amount_lamports,
+            &policy_bytes,
+        );
+    fund_vault(&mut svm, payer, wallet, amount_lamports * 3);
+
+    let execute_a = build_execute_typed_sol_send_ix(
+        payer,
+        wallet,
+        intent,
+        proposal_a,
+        recipient_a,
+        policy_commitment,
+        envelope_hash_a,
+        amount_lamports,
+    );
+    let result = svm.process_instruction(
+        &execute_a,
+        &[
+            funded_account(payer),
+            empty_policy_spend_account(wallet, intent, policy_commitment),
+            empty_account(recipient_a),
+        ],
+    );
+    assert!(result.is_ok(), "first count-tracked send should execute");
+
+    let (proposal_b, policy_commitment_b, envelope_hash_b) = propose_typed_sol_send_on_wallet(
+        &mut svm,
+        payer,
+        wallet_name,
+        wallet,
+        intent,
+        1,
+        &proposer,
+        recipient_b,
+        amount_lamports,
+        &policy_bytes,
+    );
+    let execute_b = build_execute_typed_sol_send_ix(
+        payer,
+        wallet,
+        intent,
+        proposal_b,
+        recipient_b,
+        policy_commitment_b,
+        envelope_hash_b,
+        amount_lamports,
+    );
+    let result = svm.process_instruction(
+        &execute_b,
+        &[funded_account(payer), empty_account(recipient_b)],
+    );
+    assert!(
+        result.is_err(),
+        "second send should exceed the on-chain send-count cap"
+    );
+}
+
+#[test]
+fn test_policy_change_does_not_reset_spend_window() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let wallet_name = "typed-sol-policy-change";
+    let recipient_a = Pubkey::new_unique();
+    let recipient_b = Pubkey::new_unique();
+    let amount_lamports = 600_000u64;
+    let policy_a = typed_sol_policy_bytes_with_velocity(0, 0, 0, &[], &[], 1_000_000, 86_400);
+
+    let (wallet, intent, proposal_a, commitment_a, envelope_a) = propose_typed_sol_send_with_policy(
+        &mut svm,
+        payer,
+        wallet_name,
+        &proposer,
+        &[pubkey_of(&proposer)],
+        1,
+        recipient_a,
+        amount_lamports,
+        &policy_a,
+    );
+    fund_vault(&mut svm, payer, wallet, amount_lamports * 3);
+    let execute_a = build_execute_typed_sol_send_ix(
+        payer,
+        wallet,
+        intent,
+        proposal_a,
+        recipient_a,
+        commitment_a,
+        envelope_a,
+        amount_lamports,
+    );
+    let first = svm.process_instruction(
+        &execute_a,
+        &[
+            funded_account(payer),
+            empty_policy_spend_account(wallet, intent, commitment_a),
+            empty_account(recipient_a),
+        ],
+    );
+    assert!(
+        first.is_ok(),
+        "first spend should establish the rolling window"
+    );
+
+    let policy_b = append_send_count_extension(policy_a, 99, 86_400);
+    let (proposal_b, commitment_b, envelope_b) = propose_typed_sol_send_on_wallet(
+        &mut svm,
+        payer,
+        wallet_name,
+        wallet,
+        intent,
+        1,
+        &proposer,
+        recipient_b,
+        amount_lamports,
+        &policy_b,
+    );
+    assert_ne!(commitment_b, commitment_a);
+    let execute_b = build_execute_typed_sol_send_ix(
+        payer,
+        wallet,
+        intent,
+        proposal_b,
+        recipient_b,
+        commitment_b,
+        envelope_b,
+        amount_lamports,
+    );
+    let second = svm.process_instruction(
+        &execute_b,
+        &[funded_account(payer), empty_account(recipient_b)],
+    );
+    assert!(
+        second.is_err(),
+        "changing policy bytes must not erase previously-accounted spend"
     );
 }
 

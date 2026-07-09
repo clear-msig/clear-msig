@@ -6,6 +6,13 @@ import {
 } from "@/lib/policies/onchain";
 import { sha256, toHex } from "@/lib/msig/hash";
 
+const NO_LIMITS: PolicyEnforcementPlan["onchainLimits"] = {
+  velocityCapDisplay: null,
+  velocityWindowSeconds: 0,
+  maxSendCount: 0,
+  countWindowSeconds: 0,
+};
+
 function plan(action: "allow" | "deny"): PolicyEnforcementPlan {
   return {
     evaluation: {
@@ -30,6 +37,7 @@ function plan(action: "allow" | "deny"): PolicyEnforcementPlan {
     extraApprovers: [],
     extraCooldownSeconds: 0,
     conditions: [],
+    onchainLimits: NO_LIMITS,
   };
 }
 
@@ -49,6 +57,7 @@ describe("policy enforcement guardrails", () => {
         conditions: [],
         extraApprovers: [],
         extraCooldownSeconds: 0,
+        onchainLimits: NO_LIMITS,
       }),
     ).not.toThrow();
   });
@@ -84,6 +93,7 @@ describe("policy enforcement guardrails", () => {
           windowDays: 1,
         },
       ],
+      onchainLimits: NO_LIMITS,
     });
 
     expect(encoded).not.toBeNull();
@@ -134,6 +144,7 @@ describe("policy enforcement guardrails", () => {
             maxDisplay: "0.5",
           },
         ],
+        onchainLimits: NO_LIMITS,
       },
       {
         assetTicker: "ETH",
@@ -149,6 +160,30 @@ describe("policy enforcement guardrails", () => {
     expect(toHex(encoded!.bytes.slice(19, 51))).toBe(
       toHex(sha256(new TextEncoder().encode(recipient))),
     );
+  });
+
+  it("encodes saved amount and send-count limits without an advanced rule", () => {
+    const encoded = encodeTypedSolPolicy({
+      evaluation: null,
+      rule: null,
+      conditions: [],
+      extraApprovers: [],
+      extraCooldownSeconds: 0,
+      onchainLimits: {
+        velocityCapDisplay: "2.5",
+        velocityWindowSeconds: 7 * 86_400,
+        maxSendCount: 3,
+        countWindowSeconds: 86_400,
+      },
+    });
+
+    expect(encoded).not.toBeNull();
+    expect(encoded!.bytes[19]).toBe(1);
+    expect(readU64Le(encoded!.bytes, 22)).toBe(2_500_000_000n);
+    expect(readU32Le(encoded!.bytes, 30)).toBe(7 * 86_400);
+    expect(encoded!.bytes[34]).toBe(2);
+    expect(readU32Le(encoded!.bytes, 37)).toBe(3);
+    expect(readU32Le(encoded!.bytes, 41)).toBe(86_400);
   });
 });
 

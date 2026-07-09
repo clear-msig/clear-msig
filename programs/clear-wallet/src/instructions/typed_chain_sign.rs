@@ -34,7 +34,7 @@ pub struct IkaSignTypedChainSend<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = PolicySpendState::seeds(wallet),
+        seeds = PolicySpendState::seeds(wallet, intent),
         bump,
     )]
     pub policy_spend: &'info mut Account<PolicySpendState>,

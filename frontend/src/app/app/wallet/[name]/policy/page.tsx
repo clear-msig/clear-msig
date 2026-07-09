@@ -365,13 +365,17 @@ function ThresholdCard({
 
   const apply = async () => {
     try {
-      await update.mutateAsync({
+      const result = await update.mutateAsync({
         walletName,
         intentIndex: intent.intentIndex,
         newThreshold: draft,
         templateFile: templateFileForChainKind(intent.chainKind),
       });
-      toast.success(`Approval quorum set to ${draft} of ${memberCount}`);
+      toast.success(
+        result.kind === "awaiting_approvals"
+          ? "Quorum change proposed and waiting for the remaining approvals"
+          : `Approval quorum set to ${draft} of ${memberCount}`,
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't change quorum");
     }

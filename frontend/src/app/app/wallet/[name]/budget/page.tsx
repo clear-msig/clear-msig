@@ -12,12 +12,9 @@
 //      the wallet-wide one.
 //   4. Daily velocity. Optional "no more than N sends per day" rule.
 //
-// Caps are enforced in dollars so the user never has to convert SOL
-// to BTC to USDC in their head. Today's enforcement is advisory: the
-// /send page bakes the policy impact ("after this: $4.2k of $5k on
-// Solana") into the SignPayloadPreview so the user sees the rule
-// applied at sign time. Real on-chain enforcement lands when the
-// program adds the policy fields.
+// The editor converts USD caps into stable native-token snapshots when
+// saved. Typed sends commit those snapshots, and the program maintains
+// per-intent rolling amount and send-count windows.
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -45,6 +42,7 @@ import {
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { CHAIN_CATALOG, type ChainMeta } from "@/lib/retail/chains";
 import { toDisplayName } from "@/lib/retail/walletNames";
+import { deriveNativeWeeklyCaps } from "@/lib/policies/budgetLimits";
 
 const QUICK_WALLET_AMOUNTS: ReadonlyArray<{ label: string; usd: number }> = [
   { label: "$500", usd: 500 },
@@ -180,6 +178,7 @@ export default function BudgetPage() {
       walletName: name,
       weeklyUsd,
       perChainUsd,
+      onchainWeeklyNative: deriveNativeWeeklyCaps(weeklyUsd, perChainUsd),
       velocityPerDay,
     });
     toast.success(`${toDisplayName(name)}'s limits saved`, {
@@ -220,8 +219,8 @@ export default function BudgetPage() {
 
       <p className="max-w-2xl text-sm text-text-soft sm:text-base">
         One wallet-wide weekly cap, plus optional per-chain caps and a
-        daily send-count limit. ClearSig warns you before a send pushes past
-        the limit.
+        daily send-count limit. Every typed send commits the applicable
+        native-token cap for program enforcement.
       </p>
 
       <CurrentUsageCard name={name} usage={usage} />
@@ -356,11 +355,9 @@ export default function BudgetPage() {
       </Button>
 
       <p className="text-center text-xs text-text-soft">
-        <strong className="text-text-strong">Heads up.</strong> Demo
-        prices today ({formatUsd(quotePerWhole("SOL")?.usdPerWhole ?? 0)}{" "}
-        / SOL etc.). Caps are nudges; wallet approvals still rule. Real
-        on-chain enforcement lands when the protection program ships the
-        fields.
+        Native-token equivalents are fixed when you save, then enforced by
+        the program for every typed send. Save again whenever you want to
+        refresh the USD conversion.
       </p>
     </div>
   );

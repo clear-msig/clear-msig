@@ -5,6 +5,7 @@ import type { PolicyEnforcementPlan } from "@/lib/policies/enforce";
 const POLICY_DOMAIN = "typed-sol-send-policy-v1";
 const MAGIC = [0x43, 0x53, 0x50, 0x31]; // CSP1
 const EXT_VELOCITY_SOL = 1;
+const EXT_SEND_COUNT = 2;
 
 export interface EncodedSolPolicy {
   bytes: Uint8Array;
@@ -15,15 +16,23 @@ export interface EncodedSolPolicy {
 export function encodeTypedSolPolicy(
   plan: PolicyEnforcementPlan,
 ): EncodedSolPolicy | null {
-  if (!plan.evaluation?.matched || !plan.rule || plan.evaluation.action === "deny") {
+  if (plan.evaluation?.action === "deny") {
     return null;
   }
 
   let mode = 0;
   let recipients: string[] = [];
   let maxAmountLamports = 0n;
-  let velocityCapLamports = 0n;
-  let velocityWindowSeconds = 0;
+  let velocityCapLamports = plan.onchainLimits.velocityCapDisplay
+    ? parseSolLamports(plan.onchainLimits.velocityCapDisplay)
+    : 0n;
+  let velocityWindowSeconds = velocityCapLamports > 0n
+    ? plan.onchainLimits.velocityWindowSeconds
+    : 0;
+  const maxSendCount = plan.onchainLimits.maxSendCount;
+  const countWindowSeconds = maxSendCount > 0
+    ? plan.onchainLimits.countWindowSeconds
+    : 0;
 
   for (const condition of plan.conditions) {
     if (condition.kind === "recipient") {
@@ -39,25 +48,29 @@ export function encodeTypedSolPolicy(
     } else if (condition.kind === "velocity") {
       const ticker = condition.ticker?.trim().toUpperCase();
       if (!ticker || ticker === "SOL") {
-        velocityCapLamports = condition.capDisplay
+        const conditionCap = condition.capDisplay
           ? parseSolLamports(condition.capDisplay)
           : 0n;
-        velocityWindowSeconds = condition.windowDays * 24 * 60 * 60;
+        velocityCapLamports = stricterCap(velocityCapLamports, conditionCap);
+        if (conditionCap > 0n) {
+          velocityWindowSeconds = condition.windowDays * 24 * 60 * 60;
+        }
       }
     }
   }
 
   const requiredApprovers =
-    plan.rule.action === "require-extra-approvers" ? plan.extraApprovers : [];
+    plan.rule?.action === "require-extra-approvers" ? plan.extraApprovers : [];
   const extraCooldownSeconds =
-    plan.rule.action === "require-cooldown" ? plan.extraCooldownSeconds : 0;
+    plan.rule?.action === "require-cooldown" ? plan.extraCooldownSeconds : 0;
 
   if (
     mode === 0 &&
     maxAmountLamports === 0n &&
     velocityCapLamports === 0n &&
     requiredApprovers.length === 0 &&
-    extraCooldownSeconds === 0
+    extraCooldownSeconds === 0 &&
+    maxSendCount === 0
   ) {
     return null;
   }
@@ -77,6 +90,12 @@ export function encodeTypedSolPolicy(
     writer.pushU64(velocityCapLamports);
     writer.pushU32(velocityWindowSeconds);
   }
+  if (maxSendCount > 0 && countWindowSeconds > 0) {
+    writer.pushU8(EXT_SEND_COUNT);
+    writer.pushU16(8);
+    writer.pushU32(maxSendCount);
+    writer.pushU32(countWindowSeconds);
+  }
 
   const bytes = writer.bytes();
   return {
@@ -94,7 +113,7 @@ export function encodeTypedRemoteSendPolicy(
     normalizeRecipient?: (value: string) => string;
   },
 ): EncodedSolPolicy | null {
-  if (!plan.evaluation?.matched || !plan.rule || plan.evaluation.action === "deny") {
+  if (plan.evaluation?.action === "deny") {
     return null;
   }
 
@@ -106,8 +125,16 @@ export function encodeTypedRemoteSendPolicy(
   let mode = 0;
   let recipients: Uint8Array[] = [];
   let maxAmountRaw = 0n;
-  let velocityCapRaw = 0n;
-  let velocityWindowSeconds = 0;
+  let velocityCapRaw = plan.onchainLimits.velocityCapDisplay
+    ? parseUnits(plan.onchainLimits.velocityCapDisplay, decimals, ticker)
+    : 0n;
+  let velocityWindowSeconds = velocityCapRaw > 0n
+    ? plan.onchainLimits.velocityWindowSeconds
+    : 0;
+  const maxSendCount = plan.onchainLimits.maxSendCount;
+  const countWindowSeconds = maxSendCount > 0
+    ? plan.onchainLimits.countWindowSeconds
+    : 0;
 
   for (const condition of plan.conditions) {
     if (condition.kind === "recipient") {
@@ -125,25 +152,29 @@ export function encodeTypedRemoteSendPolicy(
     } else if (condition.kind === "velocity") {
       const conditionTicker = condition.ticker?.trim().toUpperCase();
       if (!conditionTicker || conditionTicker === ticker) {
-        velocityCapRaw = condition.capDisplay
+        const conditionCap = condition.capDisplay
           ? parseUnits(condition.capDisplay, decimals, ticker)
           : 0n;
-        velocityWindowSeconds = condition.windowDays * 24 * 60 * 60;
+        velocityCapRaw = stricterCap(velocityCapRaw, conditionCap);
+        if (conditionCap > 0n) {
+          velocityWindowSeconds = condition.windowDays * 24 * 60 * 60;
+        }
       }
     }
   }
 
   const requiredApprovers =
-    plan.rule.action === "require-extra-approvers" ? plan.extraApprovers : [];
+    plan.rule?.action === "require-extra-approvers" ? plan.extraApprovers : [];
   const extraCooldownSeconds =
-    plan.rule.action === "require-cooldown" ? plan.extraCooldownSeconds : 0;
+    plan.rule?.action === "require-cooldown" ? plan.extraCooldownSeconds : 0;
 
   if (
     mode === 0 &&
     maxAmountRaw === 0n &&
     velocityCapRaw === 0n &&
     requiredApprovers.length === 0 &&
-    extraCooldownSeconds === 0
+    extraCooldownSeconds === 0 &&
+    maxSendCount === 0
   ) {
     return null;
   }
@@ -162,6 +193,12 @@ export function encodeTypedRemoteSendPolicy(
     writer.pushU16(12);
     writer.pushU64(velocityCapRaw);
     writer.pushU32(velocityWindowSeconds);
+  }
+  if (maxSendCount > 0 && countWindowSeconds > 0) {
+    writer.pushU8(EXT_SEND_COUNT);
+    writer.pushU16(8);
+    writer.pushU32(maxSendCount);
+    writer.pushU32(countWindowSeconds);
   }
 
   const bytes = writer.bytes();
@@ -214,6 +251,12 @@ function parseUnits(input: string, decimals: number, ticker: string): bigint {
 
 function textCommitment(value: string): Uint8Array {
   return sha256(new TextEncoder().encode(value.trim()));
+}
+
+function stricterCap(current: bigint, candidate: bigint): bigint {
+  if (current === 0n) return candidate;
+  if (candidate === 0n) return current;
+  return current < candidate ? current : candidate;
 }
 
 class ByteWriter {

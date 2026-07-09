@@ -18,13 +18,14 @@ import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { listProposalsForWallet } from "@/lib/chain/proposals";
-import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
+import { completeGovernedProposal } from "@/lib/hooks/completeGovernedProposal";
 import {
   IntentType,
   ProposalStatus,
   type IntentAccount,
 } from "@/lib/msig";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
+import { u32LeBytes } from "@/lib/encoding/integers";
 
 interface UpdateArgs {
   walletName: string;
@@ -51,14 +52,15 @@ export function templateFileForChainKind(chainKind: number): string {
       return "examples/intents/solana_transfer.json";
     case 1:
       return "examples/intents/evm_transfer_sepolia.json";
+    case 2:
+      return "examples/intents/btc_transfer.json";
+    case 3:
+      return "examples/intents/zcash_transfer.json";
     case 4:
       return "examples/intents/erc20_transfer_sepolia.json";
     case 5:
       return "examples/intents/hyperliquid_transfer.json";
     default:
-      // Bitcoin (2) and Zcash (3) intents aren't editable from
-      // the UI today; the rules page hides the timelock-edit
-      // affordance for them.
       throw new Error(`No editable template for chainKind ${chainKind}`);
   }
 }
@@ -164,7 +166,7 @@ export function useUpdateTimelock() {
           fheType: "euint8",
         },
         {
-          plaintext: new Uint8Array([newTimelockSeconds & 0xff]),
+          plaintext: u32LeBytes(newTimelockSeconds),
           fheType: "euint32",
         },
       ]);
@@ -199,28 +201,20 @@ export function useUpdateTimelock() {
         );
       }
 
-      const decision = await approveIfNeeded(connection, proposal, {
+      const completion = await completeGovernedProposal({
+        connection,
+        walletName,
+        proposal,
         approvers: governanceIntent?.approvers ?? intent.approvers,
         approverPubkey: me,
+        approvalThreshold:
+          governanceIntent?.approvalThreshold ?? intent.approvalThreshold,
+        signerPk,
+        signDescriptor,
       });
-      if (decision.needsApproveSignature) {
-        const approveDry = await backendApi.prepare.approveProposal(
-          walletName,
-          proposal,
-          { actor_pubkey: me },
-        );
-        const approveSigned = await signDescriptor(approveDry, {
-          preferSigner: signerPk,
-        });
-        await backendApi.submit.approveProposal(walletName, proposal, {
-          ...approveSigned,
-          expiry: approveDry.expiry,
-        });
-      }
-
-      await backendApi.executeProposal(walletName, proposal, {});
-
-      return { kind: "updated", proposal } as const;
+      return completion === "executed"
+        ? ({ kind: "updated", proposal } as const)
+        : ({ kind: "awaiting_approvals", proposal } as const);
     },
     onSuccess: (_result, vars) => {
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });

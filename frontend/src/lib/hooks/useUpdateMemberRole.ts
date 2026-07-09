@@ -23,7 +23,7 @@ import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { listProposalsForWallet } from "@/lib/chain/proposals";
-import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
+import { completeGovernedProposal } from "@/lib/hooks/completeGovernedProposal";
 import {
   IntentType,
   ProposalStatus,
@@ -214,27 +214,20 @@ export function useUpdateMemberRole() {
       // 3. Approve - only when propose hasn't already auto-approved
       //    on chain (program flips proposer's bit when proposer ∈
       //    approvers; with threshold=1 the proposal lands Approved).
-      const decision = await approveIfNeeded(connection, proposal, {
+      const completion = await completeGovernedProposal({
+        connection,
+        walletName,
+        proposal,
         approvers: governanceIntent?.approvers ?? intent.approvers,
         approverPubkey: me,
+        approvalThreshold:
+          governanceIntent?.approvalThreshold ?? intent.approvalThreshold,
+        signerPk,
+        signDescriptor,
       });
-      if (decision.needsApproveSignature) {
-        const approveDry = await backendApi.prepare.approveProposal(
-          walletName,
-          proposal,
-          { actor_pubkey: me },
-        );
-        const approveSigned = await signDescriptor(approveDry, {
-          preferSigner: signerPk,
-        });
-        await backendApi.submit.approveProposal(walletName, proposal, {
-          ...approveSigned,
-          expiry: approveDry.expiry,
-        });
+      if (completion === "awaiting_approvals") {
+        return { kind: "awaiting_approvals", proposal } as const;
       }
-
-      // 4. Execute - sponsored, no signature.
-      await backendApi.executeProposal(walletName, proposal, {});
 
       // 5. Reconcile the local watcher record.
       if (newRole === "watcher") {
@@ -251,7 +244,7 @@ export function useUpdateMemberRole() {
       // remove hook's call sites; consumers can branch on the return.
       void isOnChain;
 
-      return { kind: "updated" } as const;
+      return { kind: "updated", proposal } as const;
     },
     onSuccess: (_result, vars) => {
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });

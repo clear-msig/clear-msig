@@ -11,7 +11,7 @@ import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { listProposalsForWallet } from "@/lib/chain/proposals";
-import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
+import { completeGovernedProposal } from "@/lib/hooks/completeGovernedProposal";
 import {
   IntentType,
   ProposalStatus,
@@ -145,27 +145,20 @@ export function useUpdateApprovalThreshold() {
         );
       }
 
-      const decision = await approveIfNeeded(connection, proposal, {
+      const completion = await completeGovernedProposal({
+        connection,
+        walletName,
+        proposal,
         approvers: governanceIntent?.approvers ?? intent.approvers,
         approverPubkey: me,
+        approvalThreshold:
+          governanceIntent?.approvalThreshold ?? intent.approvalThreshold,
+        signerPk,
+        signDescriptor,
       });
-      if (decision.needsApproveSignature) {
-        const approveDry = await backendApi.prepare.approveProposal(
-          walletName,
-          proposal,
-          { actor_pubkey: me },
-        );
-        const approveSigned = await signDescriptor(approveDry, {
-          preferSigner: signerPk,
-        });
-        await backendApi.submit.approveProposal(walletName, proposal, {
-          ...approveSigned,
-          expiry: approveDry.expiry,
-        });
-      }
-
-      await backendApi.executeProposal(walletName, proposal, {});
-      return { kind: "updated", proposal } as const;
+      return completion === "executed"
+        ? ({ kind: "updated", proposal } as const)
+        : ({ kind: "awaiting_approvals", proposal } as const);
     },
     onSuccess: (_result, vars) => {
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });

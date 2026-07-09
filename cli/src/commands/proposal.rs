@@ -1432,7 +1432,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             let ix = crate::instructions::execute_typed_sol_send(
                 solana_sdk::signer::Signer::pubkey(&config.payer),
                 wallet_pubkey,
-                policy_spend_pubkey(wallet_pubkey),
+                policy_spend_pubkey(wallet_pubkey, intent_pubkey),
                 vault_pubkey(wallet_pubkey),
                 intent_pubkey,
                 proposal_pubkey,
@@ -1507,7 +1507,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             let ix = crate::instructions::execute_typed_chain_send(
                 solana_sdk::signer::Signer::pubkey(&config.payer),
                 wallet_pubkey,
-                policy_spend_pubkey(wallet_pubkey),
+                policy_spend_pubkey(wallet_pubkey, intent_pubkey),
                 intent_pubkey,
                 proposal_pubkey,
                 ika_config_pubkey,
@@ -2090,7 +2090,7 @@ fn execute_via_ika(
         } => crate::instructions::ika_sign_typed_chain_send(
             payer_pubkey,
             wallet_pubkey,
-            policy_spend_pubkey(wallet_pubkey),
+            policy_spend_pubkey(wallet_pubkey, intent_pubkey),
             intent_pubkey,
             proposal_pubkey,
             ika_config_pk,
@@ -2714,9 +2714,10 @@ fn vault_pubkey(wallet_pubkey: Pubkey) -> Pubkey {
     Pubkey::new_from_array(vault.to_bytes())
 }
 
-fn policy_spend_pubkey(wallet_pubkey: Pubkey) -> Pubkey {
+fn policy_spend_pubkey(wallet_pubkey: Pubkey, intent_pubkey: Pubkey) -> Pubkey {
     let (policy_spend, _) = clear_wallet_client::pda::find_policy_spend_address(
         &solana_address::Address::new_from_array(wallet_pubkey.to_bytes()),
+        &solana_address::Address::new_from_array(intent_pubkey.to_bytes()),
         &solana_address::Address::new_from_array(crate::instructions::program_id().to_bytes()),
     );
     Pubkey::new_from_array(policy_spend.to_bytes())

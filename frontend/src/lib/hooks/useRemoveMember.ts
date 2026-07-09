@@ -16,7 +16,7 @@ import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { listProposalsForWallet } from "@/lib/chain/proposals";
-import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
+import { completeGovernedProposal } from "@/lib/hooks/completeGovernedProposal";
 import {
   IntentType,
   ProposalStatus,
@@ -184,34 +184,26 @@ export function useRemoveMember() {
       //    (the program flips the proposer's bit when proposer is
       //    in approvers; with threshold=1 this lands the proposal
       //    Approved directly).
-      const decision = await approveIfNeeded(connection, proposal, {
+      const completion = await completeGovernedProposal({
+        connection,
+        walletName,
+        proposal,
         approvers: governanceIntent?.approvers ?? intent.approvers,
         approverPubkey: me,
+        approvalThreshold:
+          governanceIntent?.approvalThreshold ?? intent.approvalThreshold,
+        signerPk,
+        signDescriptor,
       });
-      if (decision.needsApproveSignature) {
-        const approveDry = await backendApi.prepare.approveProposal(
-          walletName,
-          proposal,
-          { actor_pubkey: me },
-        );
-        const approveSigned = await signDescriptor(approveDry, {
-          preferSigner: signerPk,
-        });
-        await backendApi.submit.approveProposal(walletName, proposal, {
-          ...approveSigned,
-          expiry: approveDry.expiry,
-        });
+      if (completion === "awaiting_approvals") {
+        return { kind: "awaiting_approvals", proposal } as const;
       }
-
-      // 5. Execute - sponsored, no signature. Actually swaps the
-      //    on-chain proposer/approver lists.
-      await backendApi.executeProposal(walletName, proposal, {});
 
       // Clean up the local watcher record too in case the friend was
       // pinned there as well.
       removeWatcher(walletName, friendAddress);
 
-      return { kind: "removed" } as const;
+      return { kind: "removed", proposal } as const;
     },
     onSuccess: (_result, vars) => {
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });

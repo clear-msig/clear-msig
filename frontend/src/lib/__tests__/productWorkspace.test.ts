@@ -107,7 +107,7 @@ describe("product workspace routing", () => {
         surface: "personal",
         pathname: "/app/wallet/Family%23abc123/budget",
       }),
-    ).toBe("/app/wallet/Family%23abc123");
+    ).toBeNull();
     expect(
       productWorkspaceRedirectHref({
         walletName,

@@ -7,9 +7,8 @@
 //   - require-extra-approvers => collect and submit the extra approvals
 //   - require-cooldown         => wait the extra cooldown before execute
 //
-// It stays client-side because the current policy system is still
-// browser-stored. Once the policy rules move on-chain, this helper
-// becomes the UI-side mirror of the program check.
+// Rule authoring stays browser-local for now, while the resulting typed
+// policy is committed by the signers and enforced by the program.
 
 import type { CandidateProposal } from "@/lib/policies/evaluate";
 import { evaluateFirstMatch } from "@/lib/policies/evaluate";
@@ -20,6 +19,12 @@ import {
   decryptConditions,
   decryptCooldownSeconds,
 } from "@/lib/policies/encryption";
+import {
+  BUDGET_WINDOW_MS,
+  VELOCITY_WINDOW_MS,
+  getBudget,
+  type PolicyChainTicker,
+} from "@/lib/retail/spendingBudget";
 
 const decoder = new TextDecoder();
 
@@ -29,6 +34,12 @@ export interface PolicyEnforcementPlan {
   conditions: RuleCondition[];
   extraApprovers: string[];
   extraCooldownSeconds: number;
+  onchainLimits: {
+    velocityCapDisplay: string | null;
+    velocityWindowSeconds: number;
+    maxSendCount: number;
+    countWindowSeconds: number;
+  };
 }
 
 export function assertPolicyNotDenied(
@@ -45,6 +56,7 @@ export async function resolvePolicyEnforcement(
   walletName: string,
   candidate: CandidateProposal,
 ): Promise<PolicyEnforcementPlan> {
+  const onchainLimits = resolveOnchainLimits(walletName, candidate.ticker);
   const rules = listPolicies(walletName);
   const evaluation = await evaluateFirstMatch(rules, candidate);
   if (!evaluation) {
@@ -54,6 +66,7 @@ export async function resolvePolicyEnforcement(
       conditions: [],
       extraApprovers: [],
       extraCooldownSeconds: 0,
+      onchainLimits,
     };
   }
 
@@ -65,6 +78,7 @@ export async function resolvePolicyEnforcement(
       conditions: [],
       extraApprovers: [],
       extraCooldownSeconds: 0,
+      onchainLimits,
     };
   }
 
@@ -89,6 +103,25 @@ export async function resolvePolicyEnforcement(
             )) ?? 0,
           )
         : 0,
+    onchainLimits,
+  };
+}
+
+function resolveOnchainLimits(
+  walletName: string,
+  tickerInput: string,
+): PolicyEnforcementPlan["onchainLimits"] {
+  const budget = getBudget(walletName);
+  const ticker = tickerInput.trim().toUpperCase() as PolicyChainTicker;
+  const nativeCap = budget?.onchainWeeklyNative?.[ticker] ?? null;
+  return {
+    velocityCapDisplay:
+      typeof nativeCap === "string" && nativeCap.trim().length > 0
+        ? nativeCap
+        : null,
+    velocityWindowSeconds: Math.floor(BUDGET_WINDOW_MS / 1000),
+    maxSendCount: Math.max(0, Math.floor(budget?.velocityPerDay ?? 0)),
+    countWindowSeconds: Math.floor(VELOCITY_WINDOW_MS / 1000),
   };
 }
 

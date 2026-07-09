@@ -18,11 +18,10 @@ import {
   useUserWallets,
   type DynamicContextProps,
 } from "@dynamic-labs/sdk-react-core";
-import { DynamicWaasEVMConnectors } from "@dynamic-labs/waas-evm";
 import { TurnkeySolanaWalletConnectors } from "@dynamic-labs/embedded-wallet-solana";
 import { SolanaWalletConnectors } from "@dynamic-labs/solana";
 import { isSolanaWallet } from "@dynamic-labs/solana-core";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { LedgerProvider } from "@/lib/wallet/LedgerProvider";
 import { DynamicWalletRuntimeProvider } from "@/lib/wallet/dynamic";
 
@@ -179,22 +178,19 @@ export default function DynamicProviderTree({ environmentId, children }: Props) 
   // Same settings shape and same comments live here as before, just
   // moved out of AppProviders. See the original notes there for
   // why each connector is listed.
-  const settings: DynamicContextProps["settings"] = {
-    environmentId,
-    walletConnectors: [
-      SolanaWalletConnectors,
-      TurnkeySolanaWalletConnectors,
-      DynamicWaasEVMConnectors,
-    ],
-    initialAuthenticationMode: "connect-and-sign",
-    deviceRegistrationModal: { enabled: false },
-    // The cssOverrides string remaps every load-bearing
-    // `--dynamic-*` token to the Obsidian & Lime palette directly,
-    // so we don't need to ask the SDK to swap to its built-in
-    // dark theme first. (`theme` isn't in the public settings type
-    // anyway.)
-    cssOverrides: DYNAMIC_BRAND_CSS,
-  };
+  const settings = useMemo<DynamicContextProps["settings"]>(
+    () => ({
+      environmentId,
+      walletConnectors: [
+        SolanaWalletConnectors,
+        TurnkeySolanaWalletConnectors,
+      ],
+      initialAuthenticationMode: "connect-and-sign",
+      deviceRegistrationModal: { enabled: false },
+      cssOverrides: DYNAMIC_BRAND_CSS,
+    }),
+    [environmentId],
+  );
 
   return (
     <DynamicContextProvider settings={settings}>

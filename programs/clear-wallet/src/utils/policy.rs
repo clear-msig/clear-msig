@@ -18,8 +18,10 @@ const MODE_BLOCKLIST: u8 = 2;
 const HEADER_LEN: usize = 4 + 1 + 8 + 4 + 1 + 1;
 const MAX_POLICY_KEYS: usize = 16;
 const EXT_VELOCITY_SOL: u8 = 1;
+const EXT_SEND_COUNT: u8 = 2;
 const EXT_HEADER_LEN: usize = 1 + 2;
 const EXT_VELOCITY_SOL_LEN: usize = 8 + 4;
+const EXT_SEND_COUNT_LEN: usize = 4 + 4;
 
 pub fn hash_typed_policy(policy_bytes: &[u8]) -> [u8; 32] {
     hash_policy_commitment(&[POLICY_DOMAIN, policy_bytes])
@@ -50,6 +52,12 @@ pub fn enforce_typed_sol_send_policy(
     policy.enforce_required_approvers(intent, proposal)?;
     policy.enforce_velocity(
         amount_lamports,
+        intent,
+        committed_policy_hash,
+        policy_spend,
+        policy_spend_bump,
+    )?;
+    policy.enforce_send_count(
         intent,
         committed_policy_hash,
         policy_spend,
@@ -87,6 +95,8 @@ struct TypedSolPolicy<'a> {
     extra_cooldown_seconds: u32,
     velocity_cap_lamports: u64,
     velocity_window_seconds: u32,
+    max_send_count: u32,
+    count_window_seconds: u32,
     recipients: &'a [[u8; 32]],
     required_approvers: &'a [[u8; 32]],
 }
@@ -133,15 +143,16 @@ impl<'a> TypedSolPolicy<'a> {
         let approvers_end = approvers_start + required_approver_count * 32;
         let recipients = bytes_to_keys(&bytes[recipients_start..approvers_start])?;
         let required_approvers = bytes_to_keys(&bytes[approvers_start..approvers_end])?;
-        let (velocity_cap_lamports, velocity_window_seconds) =
-            parse_extensions(&bytes[approvers_end..])?;
+        let extensions = parse_extensions(&bytes[approvers_end..])?;
 
         Ok(Self {
             mode,
             max_amount_lamports,
             extra_cooldown_seconds,
-            velocity_cap_lamports,
-            velocity_window_seconds,
+            velocity_cap_lamports: extensions.velocity_cap_lamports,
+            velocity_window_seconds: extensions.velocity_window_seconds,
+            max_send_count: extensions.max_send_count,
+            count_window_seconds: extensions.count_window_seconds,
             recipients,
             required_approvers,
         })
@@ -226,21 +237,7 @@ impl<'a> TypedSolPolicy<'a> {
             return Ok(());
         }
 
-        if policy_spend.policy_commitment != policy_commitment {
-            policy_spend.set_inner(PolicySpendStateInner {
-                wallet: intent.wallet,
-                policy_commitment,
-                window_start: 0i64,
-                spent_lamports: 0u64,
-                bump: policy_spend_bump,
-            });
-        }
-
-        require!(
-            policy_spend.wallet == intent.wallet
-                && policy_spend.policy_commitment == policy_commitment,
-            WalletError::InvalidPolicy
-        );
+        initialize_policy_spend(intent, policy_commitment, policy_spend, policy_spend_bump)?;
 
         let clock = Clock::get()?;
         let now = clock.unix_timestamp.get();
@@ -269,6 +266,84 @@ impl<'a> TypedSolPolicy<'a> {
         policy_spend.spent_lamports = projected.into();
         Ok(())
     }
+
+    fn enforce_send_count(
+        &self,
+        intent: &Intent<'_>,
+        policy_commitment: [u8; 32],
+        policy_spend: &mut PolicySpendState,
+        policy_spend_bump: u8,
+    ) -> Result<(), ProgramError> {
+        if self.max_send_count == 0 || self.count_window_seconds == 0 {
+            return Ok(());
+        }
+        initialize_policy_spend(intent, policy_commitment, policy_spend, policy_spend_bump)?;
+
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp.get();
+        let window_start = policy_spend.count_window_start.get();
+        let send_count = policy_spend.send_count.get();
+        let window_uninitialized = window_start == 0 && send_count == 0;
+        let window_elapsed = window_uninitialized
+            || now
+                .checked_sub(window_start)
+                .map(|elapsed| elapsed >= self.count_window_seconds as i64)
+                .unwrap_or(true);
+        if window_elapsed {
+            policy_spend.count_window_start = now.into();
+            policy_spend.send_count = 0u32.into();
+        }
+
+        let projected = policy_spend
+            .send_count
+            .get()
+            .checked_add(1)
+            .ok_or(WalletError::PolicyVelocityExceeded)?;
+        require!(
+            projected <= self.max_send_count,
+            WalletError::PolicyVelocityExceeded
+        );
+        policy_spend.send_count = projected.into();
+        Ok(())
+    }
+}
+
+fn initialize_policy_spend(
+    intent: &Intent<'_>,
+    policy_commitment: [u8; 32],
+    policy_spend: &mut PolicySpendState,
+    policy_spend_bump: u8,
+) -> Result<(), ProgramError> {
+    let intent_address = intent_pda(intent);
+    if policy_spend.wallet == Address::default() {
+        policy_spend.set_inner(PolicySpendStateInner {
+            wallet: intent.wallet,
+            intent: intent_address,
+            policy_commitment,
+            window_start: 0i64,
+            spent_lamports: 0u64,
+            count_window_start: 0i64,
+            send_count: 0u32,
+            bump: policy_spend_bump,
+        });
+    }
+    require!(
+        policy_spend.wallet == intent.wallet && policy_spend.intent == intent_address,
+        WalletError::InvalidPolicy
+    );
+    // Policy edits must not erase already-accounted spend. Keep one aggregate
+    // ledger per intent and retain the latest commitment for auditability.
+    policy_spend.policy_commitment = policy_commitment;
+    Ok(())
+}
+
+fn intent_pda(intent: &Intent<'_>) -> Address {
+    let intent_index = [intent.intent_index];
+    Address::find_program_address(
+        &[b"intent", intent.wallet.as_ref(), &intent_index],
+        &crate::ID,
+    )
+    .0
 }
 
 fn bytes_to_keys(bytes: &[u8]) -> Result<&[[u8; 32]], ProgramError> {
@@ -276,10 +351,17 @@ fn bytes_to_keys(bytes: &[u8]) -> Result<&[[u8; 32]], ProgramError> {
     Ok(unsafe { core::slice::from_raw_parts(bytes.as_ptr() as *const [u8; 32], bytes.len() / 32) })
 }
 
-fn parse_extensions(bytes: &[u8]) -> Result<(u64, u32), ProgramError> {
+#[derive(Default)]
+struct PolicyExtensions {
+    velocity_cap_lamports: u64,
+    velocity_window_seconds: u32,
+    max_send_count: u32,
+    count_window_seconds: u32,
+}
+
+fn parse_extensions(bytes: &[u8]) -> Result<PolicyExtensions, ProgramError> {
     let mut offset = 0usize;
-    let mut velocity_cap_lamports = 0u64;
-    let mut velocity_window_seconds = 0u32;
+    let mut extensions = PolicyExtensions::default();
     while offset < bytes.len() {
         require!(
             offset + EXT_HEADER_LEN <= bytes.len(),
@@ -297,13 +379,26 @@ fn parse_extensions(bytes: &[u8]) -> Result<(u64, u32), ProgramError> {
         match tag {
             EXT_VELOCITY_SOL => {
                 require!(len == EXT_VELOCITY_SOL_LEN, WalletError::InvalidPolicy);
-                velocity_cap_lamports = u64::from_le_bytes(
+                extensions.velocity_cap_lamports = u64::from_le_bytes(
                     payload[0..8]
                         .try_into()
                         .map_err(|_| WalletError::InvalidPolicy)?,
                 );
-                velocity_window_seconds = u32::from_le_bytes(
+                extensions.velocity_window_seconds = u32::from_le_bytes(
                     payload[8..12]
+                        .try_into()
+                        .map_err(|_| WalletError::InvalidPolicy)?,
+                );
+            }
+            EXT_SEND_COUNT => {
+                require!(len == EXT_SEND_COUNT_LEN, WalletError::InvalidPolicy);
+                extensions.max_send_count = u32::from_le_bytes(
+                    payload[0..4]
+                        .try_into()
+                        .map_err(|_| WalletError::InvalidPolicy)?,
+                );
+                extensions.count_window_seconds = u32::from_le_bytes(
+                    payload[4..8]
                         .try_into()
                         .map_err(|_| WalletError::InvalidPolicy)?,
                 );
@@ -312,5 +407,5 @@ fn parse_extensions(bytes: &[u8]) -> Result<(u64, u32), ProgramError> {
         }
         offset += len;
     }
-    Ok((velocity_cap_lamports, velocity_window_seconds))
+    Ok(extensions)
 }

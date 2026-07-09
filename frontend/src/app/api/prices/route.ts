@@ -6,7 +6,14 @@ import { NextResponse } from "next/server";
 // CoinGecko from the server side. That avoids browser CORS failures
 // while keeping the feed live.
 
-const COINGECKO_IDS = ["solana", "ethereum", "bitcoin", "zcash", "usd-coin"] as const;
+const COINGECKO_IDS = [
+  "solana",
+  "ethereum",
+  "bitcoin",
+  "zcash",
+  "hyperliquid",
+  "usd-coin",
+] as const;
 const COINGECKO_URL =
   "https://api.coingecko.com/api/v3/simple/price?" +
   `ids=${COINGECKO_IDS.join(",")}` +
@@ -16,6 +23,7 @@ const FALLBACK_PRICES_USD: Record<string, number> = {
   ETH: 3000,
   BTC: 90000,
   ZEC: 30,
+  HYPE: 100,
   USDC: 1,
 };
 
@@ -47,6 +55,7 @@ export async function GET() {
       ethereum: "ETH",
       bitcoin: "BTC",
       zcash: "ZEC",
+      hyperliquid: "HYPE",
       "usd-coin": "USDC",
     })) {
       const usd = json[coinId]?.usd;

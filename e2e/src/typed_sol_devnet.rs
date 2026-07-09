@@ -552,6 +552,7 @@ fn build_execute_typed_sol_send_ix(
     let policy_spend = pubkey_from_address(
         find_policy_spend_address(
             &Address::new_from_array(wallet.to_bytes()),
+            &Address::new_from_array(intent.to_bytes()),
             &clear_wallet_client::ID,
         )
         .0,

@@ -204,9 +204,7 @@ function RuleCard({ intent, delay, reduce, walletName }: RuleCardProps) {
   // templates have.
   const editable =
     intent.intentType === IntentType.Custom &&
-    (intent.chainKind === 0 ||
-      intent.chainKind === 1 ||
-      intent.chainKind === 4);
+    [0, 1, 2, 3, 4, 5].includes(intent.chainKind);
 
   return (
     <motion.li
@@ -400,16 +398,18 @@ function TimelockEditModal({
     }
     try {
       const templateFile = templateFileForChainKind(chainKind);
-      await update.mutateAsync({
+      const result = await update.mutateAsync({
         walletName,
         intentIndex,
         newTimelockSeconds: value,
         templateFile,
       });
       toast.success(
-        value === 0
-          ? "Timelock removed - sends ship right away after approval"
-          : `Timelock set to ${formatDuration(value)}`,
+        result.kind === "awaiting_approvals"
+          ? "Timelock change proposed and waiting for the remaining approvals"
+          : value === 0
+            ? "Timelock removed - sends ship right away after approval"
+            : `Timelock set to ${formatDuration(value)}`,
       );
       onClose();
     } catch (err) {

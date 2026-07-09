@@ -32,6 +32,7 @@ import { ArrowRight, Loader2 } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
+import { u32LeBytes } from "@/lib/encoding/integers";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useToast } from "@/components/ui/Toast";
@@ -166,7 +167,7 @@ export default function SetupErc20Page() {
         { plaintext: enc.encode(JSON.stringify(proposers)), fheType: "ebytes" },
         { plaintext: enc.encode(JSON.stringify(approvers)), fheType: "ebytes" },
         { plaintext: new Uint8Array([threshold]), fheType: "euint8" },
-        { plaintext: new Uint8Array([delaySeconds & 0xff]), fheType: "euint32" },
+        { plaintext: u32LeBytes(delaySeconds), fheType: "euint32" },
       ]);
       const policy_ciphertexts = encrypted
         .map((p) => p.ciphertextIdentifier)

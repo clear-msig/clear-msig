@@ -37,6 +37,7 @@ import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { toOnChainName } from "@/lib/retail/walletNames";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
+import { u32LeBytes } from "@/lib/encoding/integers";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { useToast } from "@/components/ui/Toast";
 import { saveWalletAppearance } from "@/lib/retail/walletAppearance";
@@ -398,7 +399,7 @@ function NewWalletContent() {
         { plaintext: enc.encode(JSON.stringify(initialMembers)), fheType: "ebytes" },
         { plaintext: enc.encode(JSON.stringify(initialMembers)), fheType: "ebytes" },
         { plaintext: new Uint8Array([threshold]), fheType: "euint8" },
-        { plaintext: new Uint8Array([delaySeconds & 0xff]), fheType: "euint32" },
+        { plaintext: u32LeBytes(delaySeconds), fheType: "euint32" },
       ]);
       const enableIds = enableCt
         .map((p) => p.ciphertextIdentifier)
