@@ -77,7 +77,10 @@ import {
   assertPolicyNotDenied,
   resolvePolicyEnforcement,
 } from "@/lib/policies/enforce";
-import { policyCommitmentHexForParts } from "@/lib/policies/onchain";
+import {
+  encodeTypedRemoteSendPolicy,
+  policyCommitmentHexForParts,
+} from "@/lib/policies/onchain";
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
@@ -402,6 +405,11 @@ function SendEthPage() {
         amountDisplay: amount,
       });
       assertPolicyNotDenied(submitPolicyPlan);
+      const onchainPolicy = encodeTypedRemoteSendPolicy(submitPolicyPlan, {
+        assetTicker: EVM_TICKER,
+        decimals: 18,
+        normalizeRecipient: (value) => value.trim().toLowerCase(),
+      });
 
       // 1. Pull the live nonce. Without this the EVM tx the dWallet
       //    signs gets rejected as a duplicate.
@@ -427,14 +435,16 @@ function SendEthPage() {
       );
       const actionNonce = randomActionLabel("nonce");
       const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
-      const policyCommitment = policyCommitmentHexForParts([
-        `wallet:${walletQuery.data?.pda.toBase58() ?? walletName}`,
-        `intent:${ethIntent.account.intentIndex}`,
-        `chain:${EVM_CHAIN_KIND}`,
-        `threshold:${ethIntent.account.approvalThreshold ?? ""}`,
-        `proposers:${ethIntent.account.proposers.join(",")}`,
-        `approvers:${ethIntent.account.approvers.join(",")}`,
-      ]);
+      const policyCommitment =
+        onchainPolicy?.commitmentHex ??
+        policyCommitmentHexForParts([
+          `wallet:${walletQuery.data?.pda.toBase58() ?? walletName}`,
+          `intent:${ethIntent.account.intentIndex}`,
+          `chain:${EVM_CHAIN_KIND}`,
+          `threshold:${ethIntent.account.approvalThreshold ?? ""}`,
+          `proposers:${ethIntent.account.proposers.join(",")}`,
+          `approvers:${ethIntent.account.approvers.join(",")}`,
+        ]);
       const envelope: ClearSignEnvelope<SendPayload> = {
         version: 2,
         kind: "send",
@@ -464,6 +474,7 @@ function SendEthPage() {
         envelope_hash: summary.envelopeHash,
         action_id: envelope.actionId,
         nonce: envelope.nonce,
+        policyBytesHex: onchainPolicy?.hex,
         signable_text: summary.signableText,
         expiry: formatUnixSigningExpiry(envelope.expiresAt),
         actor_pubkey: proposerPk.toBase58(),
@@ -485,6 +496,7 @@ function SendEthPage() {
         envelope_hash: dry.envelope_hash_hex,
         action_id: dry.action_id,
         nonce: dry.nonce,
+        policyBytesHex: onchainPolicy?.hex,
       });
       const proposal = (submitted as Record<string, unknown>)?.proposal;
       if (typeof proposal !== "string" || proposal.length === 0) {

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { assertPolicyNotDenied, type PolicyEnforcementPlan } from "@/lib/policies/enforce";
-import { encodeTypedSolPolicy } from "@/lib/policies/onchain";
+import {
+  encodeTypedRemoteSendPolicy,
+  encodeTypedSolPolicy,
+} from "@/lib/policies/onchain";
+import { sha256, toHex } from "@/lib/msig/hash";
 
 function plan(action: "allow" | "deny"): PolicyEnforcementPlan {
   return {
@@ -91,6 +95,60 @@ describe("policy enforcement guardrails", () => {
     expect(encoded!.bytes[21]).toBe(0);
     expect(readU64Le(encoded!.bytes, 22)).toBe(1_250_000_000n);
     expect(readU32Le(encoded!.bytes, 30)).toBe(86_400);
+  });
+
+  it("encodes EVM recipients as sha256 text commitments for remote typed sends", () => {
+    const recipient = "0x1111111111111111111111111111111111111111";
+    const encoded = encodeTypedRemoteSendPolicy(
+      {
+        evaluation: {
+          ruleId: "rule-eth",
+          ruleName: "ETH guard",
+          matched: true,
+          reasons: [],
+          action: "allow",
+        },
+        rule: {
+          id: "rule-eth",
+          walletName: "Team treasury#abc123",
+          name: "ETH guard",
+          priority: 10,
+          enabled: true,
+          conditions: [],
+          action: "allow",
+          createdAt: 1,
+          updatedAt: 1,
+          version: 1,
+        },
+        extraApprovers: [],
+        extraCooldownSeconds: 0,
+        conditions: [
+          {
+            kind: "recipient",
+            mode: "allowlist",
+            addresses: [recipient.toUpperCase()],
+          },
+          {
+            kind: "amount",
+            ticker: "ETH",
+            maxDisplay: "0.5",
+          },
+        ],
+      },
+      {
+        assetTicker: "ETH",
+        decimals: 18,
+        normalizeRecipient: (value) => value.trim().toLowerCase(),
+      },
+    );
+
+    expect(encoded).not.toBeNull();
+    expect(encoded!.bytes[4]).toBe(1);
+    expect(readU64Le(encoded!.bytes, 5)).toBe(500_000_000_000_000_000n);
+    expect(encoded!.bytes[17]).toBe(1);
+    expect(toHex(encoded!.bytes.slice(19, 51))).toBe(
+      toHex(sha256(new TextEncoder().encode(recipient))),
+    );
   });
 });
 
