@@ -293,6 +293,30 @@ export const backendApi = {
       ),
     ),
 
+  executeTypedAgentTradeApproval: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      amountRaw: string;
+      venueHash: string;
+      marketHash: string;
+      sideHash: string;
+      assetIdHash: string;
+      maxLeverageX100: number;
+      sessionIdHash: string;
+      routeHash: string;
+      riskCheckHash: string;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-agent-trade-approval`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
   cleanupProposal: (proposalAddress: string) =>
     apiRequest<Record<string, unknown>, Record<string, never>>(
       `/proposals/${encodeURIComponent(proposalAddress)}/cleanup`,

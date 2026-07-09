@@ -275,12 +275,17 @@ function SendEthPage() {
     amountValid = false;
   }
 
-  // Live wallet ETH balance for the dWallet's Sepolia address. Fetched
+  // Live wallet EVM balance for the dWallet address on the selected network. Fetched
   // every 15s; refreshed after a successful send so the post-send
-  // balance is fresh. Drives the "Wallet has X.XXXX ETH" display + the
+  // balance is fresh. Drives the "Wallet has X.XXXX ETH/HYPE" display + the
   // pre-flight insufficient-balance check below.
   const ethBalanceQuery = useQuery({
-    queryKey: ["wallet-eth-balance", walletEthAddress ?? ""],
+    queryKey: [
+      "wallet-evm-native-balance",
+      EVM_CHAIN_KIND,
+      EVM_RPC_URL,
+      walletEthAddress ?? "",
+    ],
     queryFn: () => fetchEvmBalance(walletEthAddress!, EVM_RPC_URL),
     enabled: !!walletEthAddress,
     staleTime: 15_000,
@@ -382,7 +387,7 @@ function SendEthPage() {
 
       // 1. Pull the live nonce. Without this the EVM tx the dWallet
       //    signs gets rejected as a duplicate.
-      const { nonce } = await fetchEvmNonce(walletEthAddress);
+      const { nonce } = await fetchEvmNonce(walletEthAddress, EVM_RPC_URL);
 
       // 2. Prepare. The CLI encodes nonce/to/value_wei/data into
       //    params_data per the EVM transfer template.
@@ -554,6 +559,7 @@ function SendEthPage() {
       // compose, /chains row, and portfolio panel all reflect the
       // new number. Multiple keys for the same data - each consumer
       // picked its own type/shape; invalidate them all.
+      queryClient.invalidateQueries({ queryKey: ["wallet-evm-native-balance"] });
       queryClient.invalidateQueries({ queryKey: ["wallet-eth-balance"] });
       queryClient.invalidateQueries({ queryKey: ["chain-balance"] });
       queryClient.invalidateQueries({

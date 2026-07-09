@@ -525,6 +525,8 @@ export default function ZcashSendPage() {
               walletDisplay={walletDisplay}
               walletAddress={zcashAddress}
               balance={zcashBalance}
+              balanceLoading={balanceQuery.isLoading || utxosQuery.isLoading}
+              balanceError={balanceQuery.error ?? utxosQuery.error ?? null}
               amount={amount}
               setAmount={setAmount}
               note={note}
@@ -597,6 +599,8 @@ function ZcashCompose({
   walletDisplay,
   walletAddress,
   balance,
+  balanceLoading,
+  balanceError,
   amount,
   setAmount,
   note,
@@ -615,6 +619,8 @@ function ZcashCompose({
   walletDisplay: string;
   walletAddress: string | null;
   balance: bigint | null;
+  balanceLoading: boolean;
+  balanceError: Error | null;
   amount: string;
   setAmount: (s: string) => void;
   note: string;
@@ -631,6 +637,15 @@ function ZcashCompose({
   onSubmit: () => void;
 }) {
   const zecMeta = chainByKind(ZEC_CHAIN_KIND);
+  const balanceLabel = !zcashRpcConfigured
+    ? "RPC not configured"
+    : balance !== null
+      ? formatSats(balance)
+      : balanceError
+        ? "Couldn't load"
+        : balanceLoading
+          ? "Checking"
+          : "-";
   const details: SignPayloadDetail[] = [
     { label: "From wallet", value: walletDisplay || "your wallet" },
     { label: "Chain", value: "Zcash" },
@@ -677,9 +692,9 @@ function ZcashCompose({
               <>
                 <span>Wallet has </span>
                 <span className="font-numerals font-medium text-text-strong tabular-nums">
-                  {balance !== null ? formatSats(balance) : "..."}
+                  {balanceLabel}
                 </span>
-                <span> ZEC</span>
+                {balance !== null ? <span> ZEC</span> : null}
                 {balance !== null ? (
                   <UsdHint
                     amount={balance}
@@ -698,6 +713,10 @@ function ZcashCompose({
             warning={
               !zcashRpcConfigured ? (
                 <span className="font-medium">Zcash RPC is not configured.</span>
+              ) : balanceError ? (
+                <span className="font-medium">
+                  Couldn&apos;t load Zcash balance or UTXOs.
+                </span>
               ) : insufficientBalance ? (
                 <span className="font-medium">Insufficient balance.</span>
               ) : null
