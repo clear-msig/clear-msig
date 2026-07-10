@@ -7,7 +7,7 @@ function source(path: string): string {
 }
 
 describe("first-use wallet creation", () => {
-  const walletHome = source("src/app/app/wallet/page.tsx");
+  const walletHome = source("src/features/wallet/routes/WalletHomePage.tsx");
   const newWallet = source("src/app/app/wallet/new/page.tsx");
   const chooser = source("src/app/choose/page.tsx");
 

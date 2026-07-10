@@ -59,7 +59,6 @@ export function encodeParams(
   );
   for (const key of Object.keys(kv)) {
     if (!declared.has(key)) {
-      // eslint-disable-next-line no-console
       console.warn(`encodeParams: unknown param "${key}" (not defined in intent)`);
     }
   }

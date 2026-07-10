@@ -68,11 +68,6 @@ const SECURITY_HEADERS = [
 
 const nextConfig = {
   transpilePackages: ["@encrypt.xyz/pre-alpha-solana-client"],
-  eslint: {
-    // Keep production deploys unblocked by existing repo lint debt.
-    // Local linting still runs via `npm run lint`.
-    ignoreDuringBuilds: true,
-  },
   // optimizePackageImports rewrites named imports from these
   // packages into deep imports at build time. Without it, every
   // `import { X } from "lucide-react"` pulls the barrel and the

@@ -22,8 +22,8 @@ describe("application accessibility contract", () => {
   it("keeps connected app pages out of nested main landmarks", () => {
     const nestedMainPages = [
       "src/app/app/wallet/[name]/chains/add/page.tsx",
-      "src/app/app/wallet/[name]/escrow/page.tsx",
-      "src/app/app/wallet/[name]/send/btc/page.tsx",
+      "src/features/treasury/routes/EscrowPage.tsx",
+      "src/features/send/routes/BtcSendPage.tsx",
       "src/app/app/wallet/[name]/setup/erc20/page.tsx",
       "src/app/app/wallet/[name]/setup/page.tsx",
     ];
@@ -47,7 +47,7 @@ describe("application accessibility contract", () => {
   it("traps and restores focus in custom modal surfaces", () => {
     const approval = source("src/components/agents/OwnerApprovalDialog.tsx");
     const tour = source("src/components/onboarding/WalletTourModal.tsx");
-    const walletHub = source("src/app/app/wallet/page.tsx");
+    const walletHub = source("src/features/wallet/routes/WalletHomePage.tsx");
 
     for (const modal of [approval, tour, walletHub]) {
       expect(modal).toContain("useFocusTrap(");

@@ -4,10 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "NODE_OPTIONS=\"--max-old-space-size=4096 --dns-result-order=ipv4first\" next build",
+    "build": "npm run check:architecture && NODE_OPTIONS=\"--max-old-space-size=4096 --dns-result-order=ipv4first\" next build && npm run check:bundles",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit --incremental false",
+    "typecheck": "tsc --noEmit",
+    "typecheck:clean": "tsc --noEmit --incremental false",
+    "check:architecture": "node scripts/check-architecture.mjs",
+    "check:bundles": "node scripts/check-bundle-budgets.mjs",
+    "verify": "npm run check:architecture && npm run lint && npm run typecheck && npm test",
     "test": "vitest run",
     "test:watch": "vitest"
   },

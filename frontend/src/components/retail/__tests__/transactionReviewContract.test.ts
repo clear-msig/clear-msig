@@ -7,12 +7,12 @@ function source(path: string): string {
 }
 
 const sendPages = [
-  "src/app/app/wallet/[name]/send/page.tsx",
-  "src/app/app/wallet/[name]/send/eth/page.tsx",
-  "src/app/app/wallet/[name]/send/erc20/page.tsx",
-  "src/app/app/wallet/[name]/send/btc/page.tsx",
-  "src/app/app/wallet/[name]/send/zec/page.tsx",
-  "src/app/app/wallet/[name]/send/batch/page.tsx",
+  "src/features/send/routes/SolanaSendPage.tsx",
+  "src/features/send/routes/EthSendPage.tsx",
+  "src/features/send/routes/Erc20SendPage.tsx",
+  "src/features/send/routes/BtcSendPage.tsx",
+  "src/features/send/routes/ZecSendPage.tsx",
+  "src/features/send/routes/BatchSendPage.tsx",
 ];
 
 describe("transaction review contract", () => {
@@ -35,15 +35,15 @@ describe("transaction review contract", () => {
   });
 
   it("does not call created approval requests sent", () => {
-    const batch = source("src/app/app/wallet/[name]/send/batch/page.tsx");
+    const batch = source("src/features/send/routes/BatchSendPage.tsx");
     expect(batch).toContain("Requests created");
     expect(batch).toContain("of {progress.total} created");
     expect(batch).not.toContain("of {progress.total} sent");
   });
 
   it.each([
-    "src/app/app/wallet/[name]/send/eth/page.tsx",
-    "src/app/app/wallet/[name]/send/erc20/page.tsx",
+    "src/features/send/routes/EthSendPage.tsx",
+    "src/features/send/routes/Erc20SendPage.tsx",
   ])("renders an under-approved remote send as pending on %s", (path) => {
     const page = source(path);
     expect(page).toContain("waitForProposalApproval(connection, proposal)");

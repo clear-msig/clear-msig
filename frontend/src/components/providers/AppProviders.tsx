@@ -39,7 +39,6 @@ function needsWalletRuntime(pathname: string | null): boolean {
   if (!pathname) return false;
   return (
     pathname === "/connect" ||
-    pathname === "/spike/dynamic" ||
     pathname === "/welcome" ||
     pathname === "/send" ||
     pathname.startsWith("/send/") ||

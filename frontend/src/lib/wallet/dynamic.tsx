@@ -382,7 +382,6 @@ function useDynamicWalletValue(): WalletValue {
       dynamicPublicKey,
       isMobile,
       isPhantomWallet,
-      signerIssue,
     ],
   );
 

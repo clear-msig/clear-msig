@@ -172,6 +172,31 @@ export function useSignWithWallet() {
     [connected, publicKey, signMessage]
   );
 
+  const signDescriptorWithFlavor = useCallback(
+    async (
+      descriptor: DryRunDescriptor,
+      options: SignOptions | undefined,
+      flavor: MessageFlavor,
+    ): Promise<SignedPayload> => {
+      let bytes: Uint8Array;
+      try {
+        bytes = await rebuildAndVerifyMessage(descriptor, connection, flavor);
+      } catch (err) {
+        if (err instanceof MessageVerificationError) {
+          throw new WalletSignError("message_mismatch", err.message, {
+            expectedHex: err.expected,
+            gotHex: err.got,
+          });
+        }
+        throw err;
+      }
+      const signed = await signBytes(bytes, options);
+      ensureDescriptorFresh(descriptor);
+      return { ...signed, message_flavor: flavor };
+    },
+    [connection, signBytes],
+  );
+
   /// Rebuild the signable bytes from chain state, verify they match
   /// the backend-supplied `message_hex`, then ask the wallet to sign
   /// the locally-rebuilt bytes. Throws `WalletSignError` with code
@@ -226,7 +251,7 @@ export function useSignWithWallet() {
         throw err;
       }
     },
-    [connection, isLedger, ledgerPublicKey, signBytes],
+    [isLedger, ledgerPublicKey, signDescriptorWithFlavor],
   );
 
   return {
@@ -265,32 +290,6 @@ export function useSignWithWallet() {
     };
   }
 
-  async function signDescriptorWithFlavor(
-    descriptor: DryRunDescriptor,
-    options: SignOptions | undefined,
-    flavor: MessageFlavor,
-  ): Promise<SignedPayload> {
-    let bytes: Uint8Array;
-    try {
-      bytes = await rebuildAndVerifyMessage(
-        descriptor,
-        connection,
-        flavor,
-      );
-    } catch (err) {
-      if (err instanceof MessageVerificationError) {
-        throw new WalletSignError(
-          "message_mismatch",
-          err.message,
-          { expectedHex: err.expected, gotHex: err.got },
-        );
-      }
-      throw err;
-    }
-    const signed = await signBytes(bytes, options);
-    ensureDescriptorFresh(descriptor);
-    return { ...signed, message_flavor: flavor };
-  }
 }
 
 function ensureDescriptorFresh(descriptor: { expiry: number }) {

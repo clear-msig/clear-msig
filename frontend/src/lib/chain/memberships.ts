@@ -10,7 +10,11 @@
 // connects to Solana directly and computes memberships locally.
 
 import bs58 from "bs58";
-import { Connection, PublicKey } from "@solana/web3.js";
+import {
+  Connection,
+  PublicKey,
+  type GetProgramAccountsFilter,
+} from "@solana/web3.js";
 import {
   DISC_CLEAR_WALLET,
   DISC_INTENT,
@@ -143,7 +147,7 @@ async function fetchByDiscriminator(
   connection: Connection,
   discriminator: number
 ): Promise<RawAccount[]> {
-  const filter = {
+  const filter: GetProgramAccountsFilter = {
     memcmp: {
       offset: 0,
       bytes: bs58.encode(new Uint8Array([discriminator])),
@@ -153,8 +157,7 @@ async function fetchByDiscriminator(
     CLEAR_WALLET_PROGRAM_ID,
     {
       commitment: DEFAULT_COMMITMENT,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      filters: [filter as any],
+      filters: [filter],
     }
   );
   return raw.map((r) => ({

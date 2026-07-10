@@ -8,7 +8,7 @@ function source(path: string): string {
 
 describe("wallet-first information architecture", () => {
   const sidebar = source("src/components/layout/WorkspaceSidebar.tsx");
-  const walletHome = source("src/app/app/wallet/page.tsx");
+  const walletHome = source("src/features/wallet/routes/WalletHomePage.tsx");
 
   it("uses wallets, not product workspaces, as primary navigation", () => {
     expect(sidebar).toContain('label="Wallets"');

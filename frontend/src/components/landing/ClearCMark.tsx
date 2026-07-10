@@ -18,6 +18,8 @@
  * theme). Wider product rollout is gated on review.
  */
 
+import Image from "next/image";
+
 interface ClearCMarkProps {
   size?: number;
   className?: string;
@@ -39,7 +41,7 @@ export function ClearCMark({
   const src =
     variant === "on-light" ? "/clearmark-light.svg" : "/clearmark-dark.svg";
   return (
-    <img
+    <Image
       src={src}
       width={size}
       height={size}
@@ -47,6 +49,7 @@ export function ClearCMark({
       className={className}
       style={{ display: "block" }}
       draggable={false}
+      unoptimized
     />
   );
 }
