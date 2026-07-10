@@ -110,9 +110,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   // Clear outstanding timers on unmount.
   useEffect(() => {
+    const activeTimers = timers.current;
     return () => {
-      for (const t of timers.current.values()) clearTimeout(t);
-      timers.current.clear();
+      for (const t of activeTimers.values()) clearTimeout(t);
+      activeTimers.clear();
     };
   }, []);
 
@@ -184,7 +185,7 @@ function ToastItem({
       // of paint cost on every scroll while the toast is up,
       // measurable on mid-tier mobile. Solid bg keeps it cheap.
       className={[
-        "pointer-events-auto w-full max-w-sm rounded-2xl border px-4 py-3 shadow-2xl",
+        "pointer-events-auto w-[calc(100vw-2rem)] max-w-sm rounded-card border px-4 py-3 shadow-card-raised sm:w-full",
         "flex flex-col gap-2",
         entry.kind === "success" &&
           "border-accent/30 bg-surface-card text-white",

@@ -26,6 +26,7 @@ import {
   SidebarProvider,
   useSidebar,
 } from "@/components/providers/SidebarProvider";
+import { ActionNeededProvider } from "@/lib/hooks/useActionNeeded";
 
 const DashboardHeader = dynamic(
   () =>
@@ -68,7 +69,9 @@ export default function WorkspaceLayout({
   return (
     <AppLockOverlay>
       <SidebarProvider>
-        <WorkspaceShell>{children}</WorkspaceShell>
+        <ActionNeededProvider>
+          <WorkspaceShell>{children}</WorkspaceShell>
+        </ActionNeededProvider>
       </SidebarProvider>
     </AppLockOverlay>
   );
@@ -79,6 +82,7 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
   const expanded = sidebar?.expanded ?? true;
   const pathname = usePathname() ?? "";
   const isWalletHub = pathname === "/app/wallet";
+  const notificationsReady = useDeferredRuntime();
   return (
     <main
       className={clsx(
@@ -86,36 +90,9 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
         isWalletHub && "wallet-dot-canvas",
       )}
     >
-      {/* Atmospheric accents - two soft radial blooms anchoring the
-          page corners. Pure decoration, pointer-events-none, lifts
-          the obsidian canvas off the "flat black" reading without
-          competing with foreground content. */}
-      <div
-        aria-hidden="true"
-        className={clsx(
-          "pointer-events-none fixed inset-0 -z-0 overflow-hidden",
-          isWalletHub && "hidden",
-        )}
-      >
-        <div
-          className="absolute -left-40 -top-40 h-[560px] w-[560px] rounded-full opacity-35"
-          style={{
-            background:
-              "radial-gradient(circle at center, rgba(204, 255, 0, 0.08) 0%, rgba(204, 255, 0, 0.035) 32%, rgba(204, 255, 0, 0) 68%)",
-          }}
-        />
-        <div
-          className="absolute -bottom-44 -right-44 h-[640px] w-[640px] rounded-full opacity-30"
-          style={{
-            background:
-              "radial-gradient(circle at center, rgba(16, 185, 129, 0.08) 0%, rgba(16, 185, 129, 0.03) 34%, rgba(16, 185, 129, 0) 70%)",
-          }}
-        />
-      </div>
-
       <MobileHeaderBackdrop />
       <HeaderBar />
-      <ActionNotificationsRuntime />
+      {notificationsReady ? <ActionNotificationsRuntime /> : null}
       <CommandPaletteLoader />
 
       {/* Sidebar - pinned to the viewport's left edge on md+. Owns
@@ -162,6 +139,23 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
       <BottomNav />
     </main>
   );
+}
+
+function useDeferredRuntime(): boolean {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (typeof window.requestIdleCallback === "function") {
+      const handle = window.requestIdleCallback(() => setReady(true), {
+        timeout: 2_000,
+      });
+      return () => window.cancelIdleCallback(handle);
+    }
+    const handle = window.setTimeout(() => setReady(true), 1_200);
+    return () => window.clearTimeout(handle);
+  }, []);
+
+  return ready;
 }
 
 function MobileHeaderBackdrop() {

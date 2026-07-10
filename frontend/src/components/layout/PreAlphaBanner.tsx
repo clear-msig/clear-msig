@@ -30,12 +30,11 @@ export function PreAlphaBanner() {
     }
     if (acknowledged) return;
 
-    // 14s gives a comfortable read for the line; not so long that it
-    // hangs around if the user is mid-interaction. Toast system
-    // dismisses on click and on auto-timeout either way.
+    // Keep the first viewport usable. This is a status disclosure,
+    // not a blocking onboarding step.
     toast.info(
-      "This is a preview. Everything works, but it's running on a test network. Keep amounts small while we're still in early days.",
-      { durationMs: 14000 },
+      "Preview mode. Testnet only, so keep amounts small.",
+      { durationMs: 6000 },
     );
 
     try {

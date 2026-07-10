@@ -67,7 +67,6 @@ import { findVaultAddress } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
 import { Button } from "@/components/retail/Button";
 import { BrandMark } from "@/components/retail/BrandMark";
-import { BalanceCardPattern } from "@/components/retail/BalanceCardPattern";
 import { relativeTime } from "@/lib/util/relativeTime";
 import {
   friendlyIntentLabel,
@@ -1508,10 +1507,10 @@ function FirstVisitCard({
           </div>
           <div>
             <h2 className="font-display text-xl font-semibold text-text-strong sm:text-display-xs">
-              Choose your ClearSig
+              Choose your ClearSig product
             </h2>
             <p className="mt-1 text-sm text-text-soft">
-              Pick one product first. We will remember it after that.
+              Pick the workspace that matches what you need.
             </p>
           </div>
           <Link href="/choose">

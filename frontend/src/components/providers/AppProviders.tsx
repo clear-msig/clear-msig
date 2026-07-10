@@ -134,8 +134,29 @@ export function AppProviders({ children }: Props) {
 
 function WalletRuntimeLoading() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-canvas px-6">
-      <div className="h-10 w-10 animate-pulse rounded-full bg-accent shadow-accent-rest" />
+    <main
+      aria-label="Loading wallet"
+      className="min-h-screen bg-canvas md:flex"
+    >
+      <aside className="hidden w-64 shrink-0 border-r border-border-soft bg-surface-raised md:block">
+        <div className="space-y-4 p-5">
+          <div className="h-8 w-28 animate-pulse rounded-soft bg-border-soft" />
+          <div className="h-10 animate-pulse rounded-soft bg-border-soft/70" />
+          <div className="h-10 animate-pulse rounded-soft bg-border-soft/70" />
+          <div className="h-10 animate-pulse rounded-soft bg-border-soft/70" />
+        </div>
+      </aside>
+      <div className="min-w-0 flex-1">
+        <div className="h-16 border-b border-border-soft bg-surface-raised md:h-14" />
+        <div className="mx-auto w-full max-w-[76rem] space-y-4 px-4 py-6 sm:px-5 md:px-8 lg:px-10">
+          <div className="h-7 w-48 animate-pulse rounded-soft bg-border-soft" />
+          <div className="h-40 animate-pulse rounded-card border border-border-soft bg-surface-raised" />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="h-28 animate-pulse rounded-card border border-border-soft bg-surface-raised" />
+            <div className="h-28 animate-pulse rounded-card border border-border-soft bg-surface-raised" />
+          </div>
+        </div>
+      </div>
     </main>
   );
 }

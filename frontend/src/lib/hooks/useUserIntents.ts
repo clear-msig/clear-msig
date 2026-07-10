@@ -29,15 +29,16 @@ export interface UserIntentRow {
   approvalThreshold: number;
 }
 
-export function useUserIntents() {
+export function useUserIntents(options: { enabled?: boolean } = {}) {
   const wallet = useWallet();
   const { connection } = useConnection();
   const address = wallet.publicKey?.toBase58() ?? "";
+  const enabled = (options.enabled ?? true) && address.length > 0;
 
   const memberships = useQuery({
     queryKey: ["my-organizations", address],
     queryFn: () => fetchOnchainMemberships(address),
-    enabled: address.length > 0,
+    enabled,
     staleTime: 30_000,
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
@@ -45,7 +46,7 @@ export function useUserIntents() {
   });
 
   const walletQueries = useQueries({
-    queries: (memberships.data ?? []).map((m) => ({
+    queries: enabled ? (memberships.data ?? []).map((m) => ({
       queryKey: ["wallet-account-by-pda", m.wallet],
       queryFn: async (): Promise<{
         membership: OnchainMembership;
@@ -55,11 +56,11 @@ export function useUserIntents() {
         return { membership: m, account };
       },
       staleTime: 30_000,
-    })),
+    })) : [],
   });
 
   const intentsQueries = useQueries({
-    queries: walletQueries.map((wq) => {
+    queries: enabled ? walletQueries.map((wq) => {
       const ready = wq.data?.account != null;
       return {
         queryKey: [
@@ -81,16 +82,13 @@ export function useUserIntents() {
         },
         enabled: ready,
         staleTime: 5_000,
-        // Matched to useRecentActivity's cadence so a brand-new intent
-        // and its first proposal can both be visible to the action-
-        // needed feed within the same poll window. Backgrounded polls
-        // continue so a teammate adding an intent + proposing against
-        // it while you're on another tab still produces a timely push.
-        refetchInterval: 10_000,
+        // Match the proposal feed so background approval notifications
+        // can resolve both the proposal and its approver policy.
+        refetchInterval: 30_000,
         refetchIntervalInBackground: true,
         refetchOnWindowFocus: true,
       };
-    }),
+    }) : [],
   });
 
   // useQueries returns a fresh array each render - keying the memo

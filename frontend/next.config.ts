@@ -84,8 +84,6 @@ const nextConfig = {
     optimizePackageImports: [
       "lucide-react",
       "framer-motion",
-      "@dynamic-labs/sdk-react-core",
-      "date-fns",
     ],
   },
   // Strip console.log in prod but keep .error/.warn - production

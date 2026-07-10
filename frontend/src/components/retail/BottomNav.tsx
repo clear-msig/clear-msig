@@ -17,9 +17,8 @@
 
 "use client";
 
-import { useEffect, useState, type MouseEvent } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   Activity,
   Contact,
@@ -98,8 +97,6 @@ function isActive(pathname: string | null, item: NavItem): boolean {
 
 export function BottomNav() {
   const pathname = usePathname();
-  const router = useRouter();
-  const [launchingCreate, setLaunchingCreate] = useState(false);
   const currentPathname = pathname ?? "";
   // Multisig-specific signal: how many proposals across all my wallets
   // need MY approval right now? The badge sits on the Home tab because
@@ -113,19 +110,6 @@ export function BottomNav() {
   const rightItems = navItems.slice(2);
   const createHref = "/app/wallet/new";
   const activeWalletSlug = activeWalletSlugFromPathname(currentPathname);
-  useEffect(() => {
-    setLaunchingCreate(false);
-  }, [pathname]);
-
-  const handleCreateClick = (event: MouseEvent<HTMLAnchorElement>) => {
-    if (pathname === createHref || launchingCreate) return;
-    event.preventDefault();
-    setLaunchingCreate(true);
-    window.setTimeout(() => {
-      router.push(createHref);
-    }, 260);
-  };
-
   if (activeWalletSlug) {
     return (
       <WalletScopedBottomNav
@@ -158,7 +142,6 @@ export function BottomNav() {
           anchors it to the palette. */}
       <Link
         href={createHref}
-        onClick={handleCreateClick}
         aria-label="Create a new wallet"
         className={clsx(
           "absolute left-1/2 -top-7 z-10 -translate-x-1/2",
@@ -173,14 +156,10 @@ export function BottomNav() {
           "transition-[transform,box-shadow] duration-base ease-out-soft",
           "hover:scale-[1.04] hover:shadow-accent-hover active:scale-95",
           "focus-visible:outline-none focus-visible:shadow-accent-hover",
-          launchingCreate && "scale-[1.08] shadow-accent-hover",
         )}
       >
         <Plus
-          className={clsx(
-            "h-6 w-6 transition-transform duration-300 ease-out-soft",
-            launchingCreate && "rotate-180 scale-110",
-          )}
+          className="h-6 w-6"
           strokeWidth={2.5}
           aria-hidden="true"
         />
@@ -219,8 +198,6 @@ function WalletScopedBottomNav({
   slug: string;
   pathname: string;
 }) {
-  const router = useRouter();
-  const [launchingCreate, setLaunchingCreate] = useState(false);
   const base = `/app/wallet/${encodeURIComponent(slug)}`;
   const surface = resolveWalletProductSurface(slug);
   const items = walletSubNav(surface);
@@ -229,19 +206,6 @@ function WalletScopedBottomNav({
   const splitIndex = Math.ceil(items.length / 2);
   const leftItems = items.slice(0, splitIndex);
   const rightItems = items.slice(splitIndex);
-
-  useEffect(() => {
-    setLaunchingCreate(false);
-  }, [pathname]);
-
-  const handleCreateClick = (event: MouseEvent<HTMLAnchorElement>) => {
-    if (launchingCreate) return;
-    event.preventDefault();
-    setLaunchingCreate(true);
-    window.setTimeout(() => {
-      router.push(productHomeHref);
-    }, 260);
-  };
 
   return (
     <nav
@@ -255,7 +219,6 @@ function WalletScopedBottomNav({
     >
       <Link
         href={productHomeHref}
-        onClick={handleCreateClick}
         aria-label="Product home"
         className={clsx(
           "absolute left-1/2 -top-7 z-10 -translate-x-1/2",
@@ -264,14 +227,10 @@ function WalletScopedBottomNav({
           "transition-[transform,box-shadow] duration-base ease-out-soft",
           "hover:scale-[1.04] hover:shadow-accent-hover active:scale-95",
           "focus-visible:outline-none focus-visible:shadow-accent-hover",
-          launchingCreate && "scale-[1.08] shadow-accent-hover",
         )}
       >
         <Home
-          className={clsx(
-            "h-6 w-6 transition-transform duration-300 ease-out-soft",
-            launchingCreate && "scale-110",
-          )}
+          className="h-6 w-6"
           strokeWidth={2.5}
           aria-hidden="true"
         />

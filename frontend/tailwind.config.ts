@@ -181,8 +181,8 @@ const config: Config = {
 
       transitionDuration: {
         fast: "150ms",
-        base: "250ms",
-        slow: "400ms",
+        base: "180ms",
+        slow: "300ms",
       },
 
       transitionTimingFunction: {
@@ -204,10 +204,8 @@ const config: Config = {
         //      hover signal. Light theme uses cool slate drops at much
         //      lower opacity so the card reads "lifted" without the
         //      heavy black halo that suits the obsidian canvas.
-        "card-rest":
-          "inset 0 1px 0 var(--clear-card-rim-top), inset 0 -1px 0 var(--clear-card-rim-bottom), 0 1px 2px var(--clear-card-shadow-close), 0 8px 16px -2px var(--clear-card-shadow-mid), 0 16px 32px -4px var(--clear-card-shadow-far)",
-        "card-raised":
-          "inset 0 1px 0 var(--clear-card-rim-top-raised), inset 0 -1px 0 var(--clear-card-rim-bottom-raised), 0 2px 4px var(--clear-card-shadow-close-raised), 0 12px 24px -2px var(--clear-card-shadow-mid-raised), 0 28px 56px -8px var(--clear-card-shadow-far-raised)",
+        "card-rest": "0 1px 2px var(--clear-card-shadow-close)",
+        "card-raised": "0 10px 28px -12px var(--clear-card-shadow-far-raised)",
         "accent-rest": "0 4px 10px -4px var(--clear-accent-glow-rest)",
         "accent-hover": "0 6px 14px -6px var(--clear-accent-glow-hover)",
 

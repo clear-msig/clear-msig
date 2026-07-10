@@ -19,13 +19,13 @@
 
 import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import dynamic from "next/dynamic";
+import { useParams, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { proposerDisplayName } from "@/lib/retail/proposerName";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, ArrowRight, Banknote, Bell, Bot, ChevronDown, Coins, Download, Eye, EyeOff, FileCheck2, Heart, Network, PauseCircle, ReceiptText, Repeat2, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
-import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { findVaultAddress } from "@/lib/msig";
@@ -66,7 +66,6 @@ import { useBatchApprove } from "@/lib/hooks/useBatchApprove";
 import { ProposalStatus } from "@/lib/msig";
 import { Button } from "@/components/retail/Button";
 import { BadgePill } from "@/components/retail/BadgePill";
-import { BalanceCardPattern } from "@/components/retail/BalanceCardPattern";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { MemberAvatarStack } from "@/components/retail/MemberAvatar";
 import { WalletAvatar } from "@/components/retail/WalletAvatar";
@@ -118,12 +117,21 @@ import {
   useProSchedules,
   type ProSchedule,
 } from "@/lib/pro/treasury";
-import {
-  isProductSurfaceId,
-  type ProductSurfaceId,
-} from "@/lib/productSurfaces";
 import { productSurfaceIcon } from "@/lib/productIcons";
-import { resolveWalletProductSurface } from "@/lib/productWorkspace";
+import { isProductSurfaceId } from "@/lib/productSurfaces";
+import {
+  resolveWalletProductSurface,
+  walletProductSurface,
+  type WalletProductSurface,
+} from "@/lib/productWorkspace";
+
+const WalletTourModal = dynamic(
+  () =>
+    import("@/components/onboarding/WalletTourModal").then(
+      (mod) => mod.WalletTourModal,
+    ),
+  { ssr: false, loading: () => null },
+);
 
 type WalletTab = "activity" | "holdings" | "manage";
 const WALLET_TAB_ORDER: WalletTab[] = ["holdings", "activity", "manage"];
@@ -135,27 +143,21 @@ function readWalletTabFromHash(): WalletTab {
   return "holdings";
 }
 
-function useProductSurfaceIntent(): ProductSurfaceId | null {
-  const [surface, setSurface] = useState<ProductSurfaceId | null>(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const requested = new URLSearchParams(window.location.search).get("surface");
-    setSurface(isProductSurfaceId(requested) ? requested : null);
-  }, []);
-
-  return surface;
-}
-
-function useWalletProductSurface(walletName: string): ProductSurfaceId | null {
-  const requestedSurface = useProductSurfaceIntent();
-  const [storedSurface, setStoredSurface] = useState<ProductSurfaceId | null>(null);
+function useWalletProductSurface(walletName: string): WalletProductSurface | null {
+  const searchParams = useSearchParams();
+  const requested = searchParams.get("surface");
+  const requestedSurface = walletProductSurface(
+    isProductSurfaceId(requested) ? requested : null,
+  );
+  const [storedSurface, setStoredSurface] = useState<WalletProductSurface | null>(
+    () => resolveWalletProductSurface(walletName),
+  );
 
   useEffect(() => {
     const appearance = getWalletAppearance(walletName);
-    const surface = isProductSurfaceId(appearance?.surface)
-      ? appearance.surface
-      : resolveWalletProductSurface(walletName);
+    const surface =
+      walletProductSurface(appearance?.surface) ??
+      resolveWalletProductSurface(walletName);
     setStoredSurface(surface);
   }, [walletName]);
 
@@ -189,6 +191,7 @@ export default function WalletDetailPage() {
   );
   const [loadChainHistory, setLoadChainHistory] = useState(false);
   const productSurface = useWalletProductSurface(name);
+  const portfolio = useWalletPortfolio(name);
 
   useEffect(() => {
     if (detailTab !== "activity") return;
@@ -369,6 +372,7 @@ export default function WalletDetailPage() {
           needed here anymore. */}
       <Hero
         name={name}
+        portfolio={portfolio}
         productSurface={productSurface}
         memberCount={memberCount}
         memberAddresses={memberAddresses}
@@ -401,6 +405,7 @@ export default function WalletDetailPage() {
         erc20Holdings={erc20HoldingsQuery.data ?? []}
         // Manage tab data
         name={name}
+        portfolio={portfolio}
         productSurface={productSurface}
         actionRows={walletAction}
         hasIntents={hasIntents}
@@ -441,7 +446,8 @@ interface WalletDetailTabsProps {
   zcashHistory: ChainTxRow[];
   erc20Holdings: Erc20Holding[];
   name: string;
-  productSurface: ProductSurfaceId | null;
+  portfolio: ReturnType<typeof useWalletPortfolio>;
+  productSurface: WalletProductSurface | null;
   actionRows: ActionNeededRow[];
   /// Tri-state to match the upstream useMemo: null while the
   /// intents query is in flight, true/false once known.
@@ -462,13 +468,12 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
     zcashHistory,
     erc20Holdings,
     name,
+    portfolio,
     productSurface,
     actionRows,
     hasIntents,
     reduce,
   } = props;
-  const portfolio = useWalletPortfolio(name);
-
   useEffect(() => {
     if (typeof window === "undefined") return;
     const onHash = () => {
@@ -624,7 +629,7 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
 }
 
 interface TabBarProps {
-  productSurface: ProductSurfaceId | null;
+  productSurface: WalletProductSurface | null;
   tab: WalletTab;
   onSelect: (next: WalletTab) => void;
   counts: { holdings: number };
@@ -718,7 +723,7 @@ const TabBar = forwardRef<HTMLDivElement, TabBarProps>(function TabBar(
   );
 });
 
-function tabLabelsFor(surface: ProductSurfaceId | null): Record<WalletTab, string> {
+function tabLabelsFor(surface: WalletProductSurface | null): Record<WalletTab, string> {
   if (surface === "personal") {
     return { holdings: "Money", activity: "History", manage: "More" };
   }
@@ -939,7 +944,8 @@ function nativeHoldingSendHref(
 
 interface HeroProps {
   name: string;
-  productSurface: ProductSurfaceId | null;
+  portfolio: ReturnType<typeof useWalletPortfolio>;
+  productSurface: WalletProductSurface | null;
   memberCount: number | null;
   memberAddresses: string[];
   loadingMembers: boolean;
@@ -952,6 +958,7 @@ interface HeroProps {
 
 function Hero({
   name,
+  portfolio,
   productSurface,
   memberCount,
   memberAddresses,
@@ -1076,24 +1083,11 @@ function Hero({
           top-right lifts the card off the canvas without
           competing with the number. */}
       <div className={profile.cardClass}>
-        <BalanceCardPattern />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 -z-0"
-        >
-          <div
-            className={profile.glowClass}
-            style={{
-              background: profile.glow,
-              filter: "blur(60px)",
-            }}
-          />
-        </div>
         <div className="relative z-10 flex flex-col gap-2.5 p-3 sm:gap-4 sm:p-4 lg:gap-5">
           <div className={profile.portfolioWrapClass}>
             <div className="flex min-w-0 items-start justify-between gap-3">
               <PortfolioPanel
-                walletName={name}
+                portfolio={portfolio}
                 fallbackBalance={balance}
                 fallbackBalanceLamports={balanceLamports}
                 loadingFallback={loadingBalance}
@@ -1167,14 +1161,8 @@ type HeroStat = {
 const SHARED_BALANCE_CARD_CLASS =
   "relative overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-rest";
 
-const SHARED_BALANCE_GLOW_CLASS =
-  "absolute -right-24 -top-24 h-60 w-60 rounded-full opacity-50";
-
-const SHARED_BALANCE_GLOW =
-  "radial-gradient(circle at center, rgba(204, 255, 0, 0.08) 0%, rgba(204, 255, 0, 0) 70%)";
-
 function productHeroProfile(
-  surface: ProductSurfaceId | null,
+  surface: WalletProductSurface | null,
   shapeLabel: string | null,
 ): {
   productName: string;
@@ -1182,8 +1170,6 @@ function productHeroProfile(
   avatarClass: string;
   avatarIcon: LucideIcon;
   cardClass: string;
-  glowClass: string;
-  glow: string;
   portfolioWrapClass: string;
   actionsGridClass: string;
   actionTone: "personal" | "pro" | "agent" | "default";
@@ -1196,8 +1182,6 @@ function productHeroProfile(
       eyebrow: shapeLabel ? `Personal wallet · ${shapeLabel}` : "Personal wallet",
       avatarClass: "rounded-full",
       cardClass: SHARED_BALANCE_CARD_CLASS,
-      glowClass: SHARED_BALANCE_GLOW_CLASS,
-      glow: SHARED_BALANCE_GLOW,
       portfolioWrapClass: "grid gap-3 sm:gap-4 lg:grid-cols-[1fr_0.85fr] lg:items-end",
       actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
       avatarIcon: productSurfaceIcon(surface),
@@ -1217,8 +1201,6 @@ function productHeroProfile(
       avatarClass: "rounded-full",
       avatarIcon: productSurfaceIcon(surface),
       cardClass: SHARED_BALANCE_CARD_CLASS,
-      glowClass: SHARED_BALANCE_GLOW_CLASS,
-      glow: SHARED_BALANCE_GLOW,
       portfolioWrapClass: "grid gap-3 sm:gap-4 lg:grid-cols-[1.25fr_1fr] lg:items-end",
       actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
       actionTone: "pro",
@@ -1236,8 +1218,6 @@ function productHeroProfile(
       eyebrow: "Agent vault · trading desk",
       avatarClass: "rounded-full",
       cardClass: SHARED_BALANCE_CARD_CLASS,
-      glowClass: SHARED_BALANCE_GLOW_CLASS,
-      glow: SHARED_BALANCE_GLOW,
       portfolioWrapClass: "grid gap-3 sm:gap-4 lg:grid-cols-[1fr_1.1fr] lg:items-end",
       actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
       avatarIcon: productSurfaceIcon(surface),
@@ -1250,45 +1230,11 @@ function productHeroProfile(
       ],
     };
   }
-  if (surface === "p2pdefi") {
-    return {
-      productName: "P2P",
-      eyebrow: "P2P wallet",
-      avatarClass: "rounded-full",
-      avatarIcon: productSurfaceIcon(surface),
-      cardClass: SHARED_BALANCE_CARD_CLASS,
-      glowClass: SHARED_BALANCE_GLOW_CLASS,
-      glow: SHARED_BALANCE_GLOW,
-      portfolioWrapClass: "grid gap-3 sm:gap-4 lg:grid-cols-[1.25fr_1fr] lg:items-end",
-      actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
-      actionTone: "default",
-      balanceLabel: "Settlement balance",
-      stats: [],
-    };
-  }
-  if (surface === "payments") {
-    return {
-      productName: "Payments",
-      eyebrow: "Payments wallet",
-      avatarClass: "rounded-full",
-      avatarIcon: productSurfaceIcon(surface),
-      cardClass: SHARED_BALANCE_CARD_CLASS,
-      glowClass: SHARED_BALANCE_GLOW_CLASS,
-      glow: SHARED_BALANCE_GLOW,
-      portfolioWrapClass: "grid gap-3 sm:gap-4 lg:grid-cols-[1.25fr_1fr] lg:items-end",
-      actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
-      actionTone: "default",
-      balanceLabel: "Payment balance",
-      stats: [],
-    };
-  }
   return {
     productName: "Wallet",
     eyebrow: shapeLabel ? `Shared wallet · ${shapeLabel}` : "Shared wallet · Solana devnet",
     avatarClass: "rounded-full",
     cardClass: SHARED_BALANCE_CARD_CLASS,
-    glowClass: SHARED_BALANCE_GLOW_CLASS,
-    glow: SHARED_BALANCE_GLOW,
     portfolioWrapClass: "flex flex-col",
     actionsGridClass: "grid grid-cols-3 gap-2 sm:gap-3",
     avatarIcon: productSurfaceIcon(surface),
@@ -1299,7 +1245,7 @@ function productHeroProfile(
 }
 
 function productHeroActions(
-  surface: ProductSurfaceId | null,
+  surface: WalletProductSurface | null,
   encoded: string,
 ): Array<{ href: string; Icon: LucideIcon; label: string; hint?: string }> {
   if (surface === "personal") {
@@ -1394,21 +1340,20 @@ function HeroActionTile({
 // present; ETH/BTC/Zcash join when bound. The hero deliberately shows
 // only one number; per-chain balances live in the Assets section.
 function PortfolioPanel({
-  walletName,
+  portfolio,
   fallbackBalance,
   fallbackBalanceLamports,
   loadingFallback,
   label = "Balance",
   balancesHidden = false,
 }: {
-  walletName: string;
+  portfolio: ReturnType<typeof useWalletPortfolio>;
   fallbackBalance: { amount: string; ticker: string } | null;
   fallbackBalanceLamports: number | null;
   loadingFallback: boolean;
   label?: string;
   balancesHidden?: boolean;
 }) {
-  const portfolio = useWalletPortfolio(walletName);
   const fiat = useDisplayCurrency();
   const hiddenClass = balancesHidden ? "blur-sm select-none" : "";
 
@@ -2453,7 +2398,7 @@ function Actions({
   reduce,
 }: {
   name: string;
-  productSurface: ProductSurfaceId | null;
+  productSurface: WalletProductSurface | null;
   /// null while loading, false once we've confirmed no intents exist.
   hasIntents: boolean | null;
   reduce: boolean;
@@ -2745,7 +2690,7 @@ function PersonalSafetyLink({
 }
 
 function manageActionGroups(
-  surface: ProductSurfaceId | null,
+  surface: WalletProductSurface | null,
   encoded: string,
 ): ManageActionGroup[] {
   if (surface === "personal") {
@@ -2819,7 +2764,7 @@ function manageActionGroups(
 
 function rulesActionRows(
   encoded: string,
-  surface: ProductSurfaceId | null,
+  surface: WalletProductSurface | null,
 ): ManageActionGroup["rows"] {
   return [
     {

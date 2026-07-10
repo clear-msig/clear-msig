@@ -9,7 +9,15 @@
 // (approvers list per intent). Both hooks share queryKey infrastructure
 // so this is pure derivation, not extra RPC.
 
-import { useMemo } from "react";
+import {
+  createContext,
+  createElement,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { useWallet } from "@/lib/wallet";
 import {
   useRecentActivity,
@@ -43,12 +51,44 @@ export interface ActionNeededRow {
   intentPending: boolean;
 }
 
-export function useActionNeeded() {
+export interface ActionNeededResult {
+  rows: ActionNeededRow[];
+  loading: boolean;
+  activity: RecentActivityResult;
+}
+
+const ActionNeededContext = createContext<ActionNeededResult | null>(null);
+
+export function ActionNeededProvider({ children }: { children: ReactNode }) {
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    if (typeof window.requestIdleCallback === "function") {
+      const handle = window.requestIdleCallback(() => setEnabled(true), {
+        timeout: 800,
+      });
+      return () => window.cancelIdleCallback(handle);
+    }
+    const handle = window.setTimeout(() => setEnabled(true), 250);
+    return () => window.clearTimeout(handle);
+  }, []);
+  const value = useActionNeededSource(enabled);
+  return createElement(ActionNeededContext.Provider, { value }, children);
+}
+
+export function useActionNeeded(): ActionNeededResult {
+  const value = useContext(ActionNeededContext);
+  if (!value) {
+    throw new Error("useActionNeeded must be used inside ActionNeededProvider");
+  }
+  return value;
+}
+
+function useActionNeededSource(enabled: boolean): ActionNeededResult {
   const wallet = useWallet();
   const address = wallet.publicKey?.toBase58() ?? "";
 
-  const proposals = useRecentActivity(Number.POSITIVE_INFINITY);
-  const intents = useUserIntents();
+  const proposals = useRecentActivity(Number.POSITIVE_INFINITY, { enabled });
+  const intents = useUserIntents({ enabled });
 
   const rows = useMemo<ActionNeededRow[]>(() => {
     if (!address) return [];
