@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
+import { productSetupHref } from "@/lib/productSurfaces";
 import { resolveWalletProductSurface } from "@/lib/productWorkspace";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import {
@@ -52,11 +53,10 @@ type NavItem = {
 const navItems: NavItem[] = [
   {
     id: "home",
-    href: "/app/wallet",
+    href: "/app",
     label: "Home",
     Icon: Home,
     matchPrefixes: [
-      "/app/wallet",
       "/app/proposals",
       "/app/intents",
       "/app/invitations",
@@ -225,7 +225,7 @@ function WalletScopedBottomNav({
   const surface = resolveWalletProductSurface(slug);
   const items = walletSubNav(surface);
   const display = toDisplayName(slug);
-  const productHomeHref = "/app/wallet?surface=all";
+  const createHref = surface ? productSetupHref(surface) : "/app/wallet/new";
   const splitIndex = Math.ceil(items.length / 2);
   const leftItems = items.slice(0, splitIndex);
   const rightItems = items.slice(splitIndex);
@@ -239,7 +239,7 @@ function WalletScopedBottomNav({
     event.preventDefault();
     setLaunchingCreate(true);
     window.setTimeout(() => {
-      router.push(productHomeHref);
+      router.push(createHref);
     }, 260);
   };
 
@@ -254,9 +254,9 @@ function WalletScopedBottomNav({
       )}
     >
       <Link
-        href={productHomeHref}
+        href={createHref}
         onClick={handleCreateClick}
-        aria-label="Product home"
+        aria-label={`Create ${surface ?? "wallet"} workspace`}
         className={clsx(
           "absolute left-1/2 -top-7 z-10 -translate-x-1/2",
           "flex h-14 w-14 items-center justify-center rounded-full",
@@ -267,7 +267,7 @@ function WalletScopedBottomNav({
           launchingCreate && "scale-[1.08] shadow-accent-hover",
         )}
       >
-        <Home
+        <Plus
           className={clsx(
             "h-6 w-6 transition-transform duration-300 ease-out-soft",
             launchingCreate && "scale-110",

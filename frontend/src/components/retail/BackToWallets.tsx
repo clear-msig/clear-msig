@@ -4,13 +4,12 @@
 // on mobile workspace subpages. The full StickyTopBar (breadcrumb)
 // was killed on mobile because it ate ~56px of above-fold space
 // to show chrome the BottomNav already covers - but the user
-// pointed out that BottomNav Home goes to /app/wallet (the wallet
-// hub), so once you're inside a subpage like /send or /policies
-// there's no obvious in-page affordance to bounce out.
+// pointed out that once you're inside a subpage like /send or
+// /policies there's no obvious in-page affordance to bounce out.
 //
 // This chip is the lightweight replacement: a single 44px-tall
 // pill (Apple HIG minimum) that sits just above the page's Hero,
-// links straight to /app/wallet, and reads as "navigation crumb"
+// links straight to the app resolver, and reads as "navigation crumb"
 // without the full-width band of the original StickyTopBar.
 // Was h-9 (36px) until 2026-05-08; bumped to h-11 (44px) to clear
 // the HIG minimum exactly. Visual weight stays "chip" because of
@@ -36,7 +35,7 @@ export function BackToWallets({
 }) {
   return (
     <Link
-      href="/app/wallet"
+      href="/app"
       aria-label={`Back to ${label}`}
       className={
         "group inline-flex h-11 w-fit items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-4 text-xs font-medium text-text-soft md:hidden " +

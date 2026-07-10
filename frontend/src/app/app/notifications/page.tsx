@@ -40,7 +40,7 @@ export default function NotificationsPage() {
       className="flex flex-col gap-6"
     >
       <Link
-        href="/app/wallet"
+        href="/app"
         className="inline-flex w-fit items-center gap-2 text-xs font-medium text-text-soft transition-colors duration-base hover:text-text-strong md:hidden"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />

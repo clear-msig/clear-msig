@@ -78,12 +78,10 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
   const sidebar = useSidebar();
   const expanded = sidebar?.expanded ?? true;
   const pathname = usePathname() ?? "";
-  const isWalletHub = pathname === "/app/wallet";
   return (
     <main
       className={clsx(
         "app-experience relative bg-canvas font-sans md:flex md:h-screen md:overflow-hidden",
-        isWalletHub && "wallet-dot-canvas",
       )}
     >
       {/* Atmospheric accents - two soft radial blooms anchoring the
@@ -92,10 +90,7 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
           competing with foreground content. */}
       <div
         aria-hidden="true"
-        className={clsx(
-          "pointer-events-none fixed inset-0 -z-0 overflow-hidden",
-          isWalletHub && "hidden",
-        )}
+        className="pointer-events-none fixed inset-0 -z-0 overflow-hidden"
       >
         <div
           className="absolute -left-40 -top-40 h-[560px] w-[560px] rounded-full opacity-35"

@@ -1,7 +1,7 @@
 "use client";
 
 // Per-device set of wallet names the user has pinned. Pinned
-// wallets sort to the top of /app/wallet so a treasury team in 5+
+// wallets sort to the top of switcher lists so a treasury team in 5+
 // multisigs can keep their daily one front-and-center without
 // scrolling.
 //

@@ -6,6 +6,7 @@ import {
 const GLOBAL_KEY = "clear-msig:selected-product:v1";
 const ACCOUNT_KEY_PREFIX = "clear-msig:selected-product:v1:";
 const PENDING_KEY = "clear-msig:pending-product:v1";
+const SELECTED_WALLET_KEY_PREFIX = "clear-msig:selected-product-wallet:v1:";
 
 export function productSurfaceFromPath(
   path: string | null | undefined,
@@ -65,6 +66,35 @@ export function rememberProductSurfaceChoice(surface: ProductSurfaceId): void {
   savePendingProductSurface(surface);
 }
 
+export function readSelectedProductWalletHref(
+  surface: ProductSurfaceId,
+  address?: string | null,
+): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const value = window.sessionStorage.getItem(
+      selectedWalletKey(surface, address),
+    );
+    return isSafeAppWalletHref(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveSelectedProductWalletHref(
+  surface: ProductSurfaceId,
+  href: string,
+  address?: string | null,
+): void {
+  if (typeof window === "undefined") return;
+  if (!isSafeAppWalletHref(href)) return;
+  try {
+    window.sessionStorage.setItem(selectedWalletKey(surface, address), href);
+  } catch {
+    // Session-only convenience; routing still works without storage.
+  }
+}
+
 function readSurface(key: string): ProductSurfaceId | null {
   try {
     const value = window.localStorage.getItem(key);
@@ -85,4 +115,18 @@ function writeSurface(key: string, surface: ProductSurfaceId): void {
 function normalizeAddress(address?: string | null): string | null {
   const trimmed = address?.trim();
   return trimmed ? trimmed : null;
+}
+
+function selectedWalletKey(
+  surface: ProductSurfaceId,
+  address?: string | null,
+): string {
+  return `${SELECTED_WALLET_KEY_PREFIX}${normalizeAddress(address) ?? "global"}:${surface}`;
+}
+
+function isSafeAppWalletHref(value: string | null): value is string {
+  if (!value) return false;
+  if (!value.startsWith("/app/wallet/")) return false;
+  if (value.startsWith("//") || value.includes("\\")) return false;
+  return !value.includes(":");
 }

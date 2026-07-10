@@ -18,15 +18,21 @@
 // covers create / send / approve / member management.
 
 import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { proposerDisplayName } from "@/lib/retail/proposerName";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ArrowRight, Banknote, Bell, Bot, ChevronDown, Coins, Download, Eye, EyeOff, FileCheck2, Heart, Network, PauseCircle, ReceiptText, Repeat2, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, type LucideIcon } from "lucide-react";
+import { PublicKey } from "@solana/web3.js";
+import { Activity, ArrowRight, Banknote, Bell, Bot, ChevronDown, ChevronLeft, Coins, Download, Eye, EyeOff, FileCheck2, Heart, Network, PauseCircle, ReceiptText, Repeat2, Send, Settings as SettingsIcon, ShieldCheck, TrendingDown, Users, Wallet as WalletIcon, type LucideIcon } from "lucide-react";
 import { WalletTourModal } from "@/components/onboarding/WalletTourModal";
 import { fetchWalletByName } from "@/lib/chain/wallets";
+import {
+  fetchOnchainMemberships,
+  type OnchainMembership,
+} from "@/lib/memberships/client";
 import { listIntents } from "@/lib/chain/intents";
 import { findVaultAddress } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
@@ -97,6 +103,10 @@ import {
   saveEmergencyPause,
 } from "@/lib/retail/policy";
 import {
+  sortPinnedFirst,
+  subscribePinnedWallets,
+} from "@/lib/security/pinnedWallets";
+import {
   getSpendingCategories,
   saveSpendingCategories,
   type SpendingCategory,
@@ -123,7 +133,12 @@ import {
   type ProductSurfaceId,
 } from "@/lib/productSurfaces";
 import { productSurfaceIcon } from "@/lib/productIcons";
-import { resolveWalletProductSurface } from "@/lib/productWorkspace";
+import {
+  productWorkspaceHomeHref,
+  productWorkspaceLabel,
+  resolveWalletProductSurface,
+  type WalletProductSurface,
+} from "@/lib/productWorkspace";
 
 type WalletTab = "activity" | "holdings" | "manage";
 const WALLET_TAB_ORDER: WalletTab[] = ["holdings", "activity", "manage"];
@@ -184,6 +199,8 @@ export default function WalletDetailPage() {
   }, [rawName]);
   const reduce = useReducedMotion();
   const { connection } = useConnection();
+  const wallet = useWallet();
+  const address = wallet.publicKey?.toBase58() ?? "";
   const [detailTab, setDetailTab] = useState<WalletTab>(
     readWalletTabFromHash,
   );
@@ -271,6 +288,47 @@ export default function WalletDetailPage() {
   const allActivity = useRecentActivity(50);
   const allAction = useActionNeeded();
   const sendAttempts = useTxAttempts(name, 5);
+
+  const switcherWalletsQuery = useQuery({
+    queryKey: ["my-organizations", address],
+    queryFn: () => fetchOnchainMemberships(address),
+    enabled: address.length > 0 && wallet.connected,
+    staleTime: 30_000,
+    placeholderData: (previous) => previous,
+  });
+  const switcherWallets = switcherWalletsQuery.data ?? [];
+  const switcherWalletKeys = useMemo(
+    () => switcherWallets.map((membership) => membership.wallet).sort().join(","),
+    [switcherWallets],
+  );
+  const switcherBalancesQuery = useQuery({
+    queryKey: ["selected-wallet-switcher-balances", switcherWalletKeys],
+    queryFn: async () => {
+      const entries = switcherWallets.flatMap((membership) => {
+        try {
+          const [vault] = findVaultAddress(
+            new PublicKey(membership.wallet),
+            CLEAR_WALLET_PROGRAM_ID,
+          );
+          return [{ membership, vault }];
+        } catch {
+          return [];
+        }
+      });
+      const balances = new Map<string, number>();
+      if (entries.length === 0) return balances;
+      const infos = await connection.getMultipleAccountsInfo(
+        entries.map((entry) => entry.vault),
+      );
+      entries.forEach((entry, index) => {
+        balances.set(entry.membership.wallet, infos[index]?.lamports ?? 0);
+      });
+      return balances;
+    },
+    enabled: switcherWallets.length > 0 && switcherWalletKeys.length > 0,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  });
 
   // Per-chain addresses for the tx-history sections below. Solana =
   // vault PDA (where execute_custom moves SOL from). EVM/BTC =
@@ -376,6 +434,10 @@ export default function WalletDetailPage() {
         balanceLamports={balanceQuery.data ?? null}
         loadingBalance={balanceQuery.isLoading}
         pendingApprovalCount={walletAction.length}
+        switcherWallets={switcherWallets}
+        switcherBalances={switcherBalancesQuery.data}
+        loadingSwitcherBalances={switcherBalancesQuery.isLoading}
+        switcherPendingByWallet={allAction.activity.pendingByWallet}
         reduce={!!reduce}
       />
       {/* Pending approvals come right after the hero - they're the
@@ -946,6 +1008,10 @@ interface HeroProps {
   balanceLamports: number | null;
   loadingBalance: boolean;
   pendingApprovalCount: number;
+  switcherWallets: OnchainMembership[];
+  switcherBalances: Map<string, number> | undefined;
+  loadingSwitcherBalances: boolean;
+  switcherPendingByWallet: Map<string, number>;
   reduce: boolean;
 }
 
@@ -959,6 +1025,10 @@ function Hero({
   balanceLamports,
   loadingBalance,
   pendingApprovalCount,
+  switcherWallets,
+  switcherBalances,
+  loadingSwitcherBalances,
+  switcherPendingByWallet,
   reduce,
 }: HeroProps) {
   const motionProps = reduce
@@ -978,6 +1048,8 @@ function Hero({
   const heroActions = productHeroActions(productSurface, encoded);
   const { hidden: balancesHidden, toggle: toggleBalancesHidden } =
     useBalancePrivacy();
+  const [walletSwitcherOpen, setWalletSwitcherOpen] = useState(false);
+  const canSwitchWallets = switcherWallets.length > 1;
 
   return (
     <motion.section
@@ -1100,19 +1172,30 @@ function Hero({
                 label={profile.balanceLabel}
                 balancesHidden={balancesHidden}
               />
-              <button
-                type="button"
-                onClick={toggleBalancesHidden}
-                aria-label={balancesHidden ? "Show balances" : "Hide balances"}
-                title={balancesHidden ? "Show balances" : "Hide balances"}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-soft bg-canvas/60 text-text-soft transition-colors hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
-              >
-                {balancesHidden ? (
-                  <EyeOff className="h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <Eye className="h-4 w-4" aria-hidden="true" />
-                )}
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                {canSwitchWallets ? (
+                  <button
+                    type="button"
+                    onClick={() => setWalletSwitcherOpen(true)}
+                    className="inline-flex h-9 items-center justify-center rounded-full bg-accent px-3 text-xs font-semibold text-text-on-accent transition-[transform,background-color] hover:-translate-y-0.5 hover:bg-accent/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+                  >
+                    Switch
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={toggleBalancesHidden}
+                  aria-label={balancesHidden ? "Show balances" : "Hide balances"}
+                  title={balancesHidden ? "Show balances" : "Hide balances"}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-soft bg-canvas/60 text-text-soft transition-colors hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+                >
+                  {balancesHidden ? (
+                    <EyeOff className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <Eye className="h-4 w-4" aria-hidden="true" />
+                  )}
+                </button>
+              </div>
             </div>
             {profile.stats.length > 0 ? (
               <ul className="hidden grid-cols-3 gap-1.5 sm:grid sm:gap-2">
@@ -1155,7 +1238,259 @@ function Hero({
 
         </div>
       </div>
+      <WalletSwitchModal
+        open={walletSwitcherOpen}
+        wallets={switcherWallets}
+        balances={switcherBalances}
+        loadingBalances={loadingSwitcherBalances}
+        pendingByWallet={switcherPendingByWallet}
+        onClose={() => setWalletSwitcherOpen(false)}
+      />
     </motion.section>
+  );
+}
+
+function WalletSwitchModal({
+  open,
+  wallets,
+  balances,
+  loadingBalances,
+  pendingByWallet,
+  onClose,
+}: {
+  open: boolean;
+  wallets: OnchainMembership[];
+  balances: Map<string, number> | undefined;
+  loadingBalances: boolean;
+  pendingByWallet: Map<string, number>;
+  onClose: () => void;
+}) {
+  const [pinTick, setPinTick] = useState(0);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+  useEffect(() => subscribePinnedWallets(() => setPinTick((n) => n + 1)), []);
+
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previous;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onClose, open]);
+
+  const ordered = useMemo(() => {
+    void pinTick;
+    return sortPinnedFirst(wallets, (membership) => membership.wallet_name ?? "");
+  }, [pinTick, wallets]);
+
+  const grouped = useMemo(() => {
+    const buckets = new Map<WalletProductSurface | "shared", OnchainMembership[]>();
+    for (const membership of ordered) {
+      const surface =
+        resolveWalletProductSurface(membership.wallet_name ?? "") ?? "shared";
+      const bucket = buckets.get(surface) ?? [];
+      bucket.push(membership);
+      buckets.set(surface, bucket);
+    }
+
+    const productGroups = (
+      ["personal", "pro", "agent", "secure"] satisfies WalletProductSurface[]
+    )
+      .map((surface) => ({
+        key: surface,
+        label: productWorkspaceLabel(surface),
+        Icon: productSurfaceIcon(surface),
+        wallets: buckets.get(surface) ?? [],
+      }))
+      .filter((group) => group.wallets.length > 0);
+
+    const shared = buckets.get("shared") ?? [];
+    return shared.length > 0
+      ? [
+          ...productGroups,
+          {
+            key: "shared" as const,
+            label: "Shared wallets",
+            Icon: WalletIcon,
+            wallets: shared,
+          },
+        ]
+      : productGroups;
+  }, [ordered]);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <AnimatePresence>
+      {open ? (
+        <motion.div
+          className="fixed inset-0 z-[500] bg-canvas md:flex md:items-center md:justify-center md:bg-black/55 md:p-6 md:backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Switch wallet"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.16 }}
+        >
+          <motion.div
+            className="flex h-full flex-col bg-canvas md:h-auto md:max-h-[min(760px,calc(100vh-3rem))] md:w-full md:max-w-xl md:overflow-hidden md:rounded-card md:border md:border-border-soft md:bg-surface-raised md:shadow-card-rest"
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", stiffness: 360, damping: 34 }}
+          >
+            <header className="relative flex h-16 shrink-0 items-center justify-between border-b border-border-soft bg-canvas px-4">
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Back to wallet"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border-soft bg-surface-raised text-text-strong shadow-[0_10px_28px_-20px_rgba(0,0,0,0.7)] transition-colors hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+              >
+                <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+              </button>
+              <h2 className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-base font-semibold tracking-tight text-text-strong">
+                Switch wallet
+              </h2>
+              <span className="h-10 w-10" aria-hidden="true" />
+            </header>
+
+            <div className="flex-1 overflow-y-auto px-4 pb-8 pt-4">
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.28em] text-text-soft">
+                    Workspaces
+                  </p>
+                  <p className="mt-1 text-sm text-text-soft">
+                    Choose the wallet you want to open.
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full bg-surface-raised px-2.5 py-1 font-numerals text-xs font-semibold text-text-soft">
+                  {wallets.length}
+                </span>
+              </div>
+              <div className="mt-5 flex flex-col gap-5">
+                {grouped.map(({ key, label, Icon, wallets: groupWallets }) => (
+                  <section key={key}>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+                          <Icon
+                            className="h-3.5 w-3.5"
+                            strokeWidth={1.9}
+                            aria-hidden="true"
+                          />
+                        </span>
+                        <p className="truncate font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-text-soft">
+                          {label}
+                        </p>
+                      </div>
+                      <span className="font-numerals text-xs font-semibold text-text-soft tabular-nums">
+                        {groupWallets.length}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-2.5">
+                      {groupWallets.map((membership) => (
+                        <WalletSwitchRow
+                          key={membership.wallet}
+                          membership={membership}
+                          balanceLamports={balances?.get(membership.wallet) ?? null}
+                          loadingBalance={loadingBalances}
+                          pendingCount={pendingByWallet.get(membership.wallet) ?? 0}
+                          onNavigate={onClose}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>,
+    document.body,
+  );
+}
+
+function WalletSwitchRow({
+  membership,
+  balanceLamports,
+  loadingBalance,
+  pendingCount,
+  onNavigate,
+}: {
+  membership: OnchainMembership;
+  balanceLamports: number | null;
+  loadingBalance: boolean;
+  pendingCount: number;
+  onNavigate: () => void;
+}) {
+  const onChainName = membership.wallet_name ?? "Wallet";
+  const name = toDisplayName(onChainName);
+  const surface = resolveWalletProductSurface(onChainName);
+  const ProductIcon = productSurfaceIcon(surface);
+  const productLabel = surface ? productWorkspaceLabel(surface) : "Shared wallet";
+  const href = productWorkspaceHomeHref(onChainName, surface);
+  const balance = balanceLamports !== null ? formatBalance(balanceLamports) : null;
+  const { hidden } = useBalancePrivacy();
+  const hiddenClass = hidden ? " blur-sm select-none" : "";
+
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      className="group flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest transition-[border-color,transform] duration-base hover:-translate-y-0.5 hover:border-accent/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+    >
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+        <ProductIcon className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-base font-semibold text-text-strong">
+          {name}
+        </span>
+        <span className="mt-0.5 flex min-w-0 items-center gap-2">
+          <span className="truncate font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+            {productLabel}
+          </span>
+          <span className="h-1 w-1 shrink-0 rounded-full bg-border-strong" />
+          {loadingBalance && balance === null ? (
+            <Shimmer className="h-3.5 w-14 rounded-full" />
+          ) : (
+            <span
+              className={`font-numerals text-xs font-semibold text-text-soft tabular-nums transition-[filter] duration-base${hiddenClass}`}
+            >
+              {`${balance?.amount ?? "0"} ${balance?.ticker ?? "SOL"}`}
+            </span>
+          )}
+        </span>
+      </span>
+      {pendingCount > 0 ? (
+        <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold text-text-on-accent">
+          {pendingCount}
+        </span>
+      ) : null}
+      <ArrowRight
+        className="h-4 w-4 shrink-0 text-text-soft transition-transform duration-base group-hover:translate-x-0.5 group-hover:text-accent"
+        aria-hidden="true"
+      />
+    </Link>
+  );
+}
+
+function Shimmer({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`block animate-shimmer bg-border-soft/55 bg-skeleton-shimmer bg-[length:200%_100%] ${className ?? ""}`}
+    />
   );
 }
 
@@ -3435,7 +3770,7 @@ function NotFound({ name }: { name: string }) {
         <p className="mt-2 max-w-md text-text-soft">
           The wallet may have been renamed, or you may not be a member.
         </p>
-        <Link href="/app/wallet" className="mt-6 inline-block">
+        <Link href="/app" className="mt-6 inline-block">
           <Button size="md">
             Back to wallets
             <ArrowRight className="h-4 w-4" aria-hidden="true" />

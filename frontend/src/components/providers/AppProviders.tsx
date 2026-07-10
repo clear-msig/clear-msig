@@ -35,6 +35,11 @@ const LazyDynamicProviderTree = dynamic(
   },
 );
 
+const LazyPublicAuthRedirectBoundary = dynamic(
+  () => import("@/components/providers/PublicAuthRedirectBoundary"),
+  { ssr: false, loading: () => <WalletRuntimeLoading /> },
+);
+
 function needsWalletRuntime(pathname: string | null): boolean {
   if (!pathname) return false;
   return (
@@ -45,6 +50,24 @@ function needsWalletRuntime(pathname: string | null): boolean {
     pathname.startsWith("/send/") ||
     pathname === "/app" ||
     pathname.startsWith("/app/")
+  );
+}
+
+function needsPublicAuthRedirect(pathname: string | null): boolean {
+  if (!pathname) return false;
+  return (
+    pathname === "/choose" ||
+    pathname === "/personal" ||
+    pathname === "/pro" ||
+    pathname === "/agent" ||
+    pathname === "/secure" ||
+    pathname === "/p2pdefi" ||
+    pathname === "/payments" ||
+    pathname === "/privacy" ||
+    pathname === "/security" ||
+    pathname === "/changelog" ||
+    pathname === "/agents" ||
+    pathname.startsWith("/agents/")
   );
 }
 
@@ -112,7 +135,19 @@ export function AppProviders({ children }: Props) {
     }
   }
 
-  const content = (
+  const publicAuthRedirect = needsPublicAuthRedirect(pathname);
+
+  const content = publicAuthRedirect ? (
+    <QueryClientProvider client={queryClient}>
+      <LazyDynamicProviderTree environmentId={environmentId ?? ""}>
+        <ToastProvider>
+          <LazyPublicAuthRedirectBoundary>
+            {children}
+          </LazyPublicAuthRedirectBoundary>
+        </ToastProvider>
+      </LazyDynamicProviderTree>
+    </QueryClientProvider>
+  ) : (
     <QueryClientProvider client={queryClient}>
       <ToastProvider>{children}</ToastProvider>
     </QueryClientProvider>

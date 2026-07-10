@@ -71,7 +71,7 @@ export function HeaderBar() {
   const walletMenuRef = useRef<HTMLDivElement | null>(null);
 
   const inApp = pathname.startsWith("/app");
-  const isHome = pathname === "/app/wallet";
+  const isHome = pathname === "/app";
   const isWalletLandingRoute = /^\/app\/wallet\/[^/]+$/.test(pathname);
   const inAppConnected = hydrated && connected && inApp;
 
@@ -84,7 +84,7 @@ export function HeaderBar() {
   //                    from the Settings header now that Settings lives
   //                    in the bottom nav).
   //   showSecure     - only on the Home page (recovery hub shortcut).
-  const showBack = inAppConnected && !isHome;
+  const showBack = inAppConnected && !isHome && !isWalletLandingRoute;
   const showTitle = inAppConnected;
   const showBrandPill = !inApp || !connected;
   const showScan = isSendRoute(pathname);
@@ -145,14 +145,10 @@ export function HeaderBar() {
   }, [walletMenuOpen]);
 
   const handleBack = () => {
-    if (isWalletLandingRoute) {
-      router.replace("/app/wallet");
-      return;
-    }
     if (navCountRef.current > 1) {
       router.back();
     } else {
-      router.push("/app/wallet");
+      router.push("/app");
     }
   };
 
