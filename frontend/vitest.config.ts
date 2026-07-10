@@ -12,6 +12,7 @@ export default defineConfig({
   test: {
     // Co-located `__tests__` folders + `*.test.ts` siblings.
     include: ["src/**/*.test.ts", "src/**/__tests__/**/*.ts"],
+    setupFiles: ["./test/setup.ts"],
     // We're testing pure-function utilities; the Node default env is
     // fast and skips the JSDOM overhead.
     environment: "node",

@@ -9,6 +9,9 @@ import {
 
 describe("server notification feed", () => {
   beforeEach(() => {
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "");
     resetNotificationMemoryForTests();
   });
 
