@@ -6,16 +6,10 @@ import { Lock, Save, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/retail/Button";
 import { FormField, TextInput } from "@/components/retail/FormField";
 import { useToast } from "@/components/ui/Toast";
-import {
-  decryptAgentVaultPolicy,
-  encryptAgentVaultPolicy,
-  getAgentVaultPolicy,
-  listAgentSessions,
-  saveAgentVaultPolicy,
-  syncAgentVaultPolicy,
-  type AgentVaultPolicy,
-  type TradingVenue,
-} from "@/features/agents/infrastructure/browserRuntime";
+import { type AgentVaultPolicy, type TradingVenue } from "@/features/agents/domain/runtime";
+import { syncAgentVaultPolicy } from "@/features/agents/infrastructure/stateClient";
+import { getAgentVaultPolicy, listAgentSessions, saveAgentVaultPolicy } from "@/features/agents/infrastructure/agentStore";
+import { decryptAgentVaultPolicy, encryptAgentVaultPolicy } from "@/features/agents/infrastructure/vaultCrypto";
 import { encryptStatus } from "@/lib/encrypt/client";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
@@ -54,9 +48,9 @@ export default function AgentPolicyPage() {
       setPolicy(
         requestedVenue && !decrypted.allowedVenues.includes(requestedVenue)
           ? {
-              ...decrypted,
-              allowedVenues: [...decrypted.allowedVenues, requestedVenue],
-            }
+            ...decrypted,
+            allowedVenues: [...decrypted.allowedVenues, requestedVenue],
+          }
           : decrypted,
       );
       setMarkets(decrypted.allowedMarkets.join(", "));
@@ -110,7 +104,7 @@ export default function AgentPolicyPage() {
               ? "Max-loss rules saved here. Review current budgets."
               : "Safety rules saved on this device for now",
             {
-            details: synced.message,
+              details: synced.message,
             },
           );
         }

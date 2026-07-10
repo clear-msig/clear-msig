@@ -5,31 +5,10 @@ import clsx from "clsx";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, BrainCircuit, Lock, Send } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
-import {
-  decryptAgentVaultPolicy,
-  bindAgentProposalPolicyHash,
-  buildAgentTradeClearSignV2,
-  encryptAgentTradeProposal,
-  evaluateAgentTradeProposal,
-  findAgent,
-  buildAgentTradeDecisionJournal,
-  getAgentVaultPolicy,
-  agentRiskSnapshot,
-  listAgents,
-  listAgentSessions,
-  newAgentProposalId,
-  saveAgentProposal,
-  saveAgentProposalAndExecuteIfAllowed,
-  syncAgentExecution,
-  syncAgentProposal,
-  type AgentPolicyEvaluation,
-  type AgentProfile,
-  type AgentProposalStatus,
-  type AgentTradeProposal,
-  type TradeOrderType,
-  type TradeSide,
-  type TradingVenue,
-} from "@/features/agents/infrastructure/browserRuntime";
+import { type AgentPolicyEvaluation, type AgentProfile, type AgentProposalStatus, type AgentTradeProposal, bindAgentProposalPolicyHash, buildAgentTradeClearSignV2, buildAgentTradeDecisionJournal, evaluateAgentTradeProposal, type TradeOrderType, type TradeSide, type TradingVenue } from "@/features/agents/domain/runtime";
+import { syncAgentExecution, syncAgentProposal } from "@/features/agents/infrastructure/stateClient";
+import { agentRiskSnapshot, findAgent, getAgentVaultPolicy, listAgents, listAgentSessions, newAgentProposalId, saveAgentProposal, saveAgentProposalAndExecuteIfAllowed } from "@/features/agents/infrastructure/agentStore";
+import { decryptAgentVaultPolicy, encryptAgentTradeProposal } from "@/features/agents/infrastructure/vaultCrypto";
 import { encryptStatus } from "@/lib/encrypt/client";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { Button } from "@/components/retail/Button";

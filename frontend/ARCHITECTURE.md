@@ -29,13 +29,15 @@ The agent feature uses a stricter four-layer dependency flow:
    actions. Route entry points only select a controller and render a screen.
 3. `features/agents/domain` owns pure presentation and reconciliation rules. It
    cannot runtime-import React, Next.js, wallet code, clients, or server modules.
-4. `features/agents/infrastructure` is the single browser adapter for network,
-   persistence, wallet signing, and market-data clients. Server implementations
-   remain behind API handlers in `lib/agents/server*`.
+4. `features/agents/infrastructure` contains narrow browser ports for local
+   persistence, backend synchronization, execution, market data, and wallet
+   signing. Wildcard exports and catch-all runtime barrels are forbidden. Server
+   implementations remain behind API handlers in `lib/agents/server*`.
 
 Agent routes and components cannot import wallet or legacy agent client internals
-directly. `check:architecture` enforces these imports and a 1,200-line maximum for
-every agent feature module.
+directly. `check:architecture` resolves alias and relative imports, caps agent
+controllers at 700 lines and all agent modules at 900 lines, and caps explicit
+infrastructure ports at 120 lines.
 
 ## Performance contract
 

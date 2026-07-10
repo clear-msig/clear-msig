@@ -14,36 +14,13 @@ import {
   Send,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
-import { importAgentInboxSignalsOnServer } from "@/features/agents/infrastructure/browserRuntime";
-import { submitAgentVenueExecution } from "@/features/agents/infrastructure/browserRuntime";
+import { importAgentInboxSignalsOnServer } from "@/features/agents/infrastructure/inboxClient";
+import { submitAgentVenueExecution } from "@/features/agents/infrastructure/executionClient";
 import { encryptStatus } from "@/lib/encrypt/client";
-import {
-  agentRiskSnapshot,
-  buildAgentTradeDecisionJournal,
-  buildAgentTradeProposalFromSignal,
-  canOpenLocalAgentExecution,
-  decryptAgentVaultPolicy,
-  encryptAgentTradeProposal,
-  evaluateAgentTradeProposal,
-  findAgent,
-  getAgentConnectionKit,
-  getAgentVaultPolicy,
-  listAgentSessions,
-  parseAgentSignalJson,
-  rotateAgentSignalKey,
-  sampleAgentSignalPayload,
-  saveAgentProposal,
-  saveAgentProposalAndExecuteIfAllowed,
-  syncAgentExecution,
-  syncAgentProposal,
-  updateAgentConnectionSettings,
-  type AgentConnectionKit,
-  type AgentPolicyEvaluation,
-  type AgentProfile,
-  type AgentProposalStatus,
-  type AgentSignalInboxItem,
-  type AgentTradeProposal,
-} from "@/features/agents/infrastructure/browserRuntime";
+import { type AgentConnectionKit, type AgentPolicyEvaluation, type AgentProfile, type AgentProposalStatus, type AgentSignalInboxItem, type AgentTradeProposal, buildAgentTradeDecisionJournal, buildAgentTradeProposalFromSignal, canOpenLocalAgentExecution, evaluateAgentTradeProposal, parseAgentSignalJson, sampleAgentSignalPayload } from "@/features/agents/domain/runtime";
+import { syncAgentExecution, syncAgentProposal } from "@/features/agents/infrastructure/stateClient";
+import { agentRiskSnapshot, findAgent, getAgentConnectionKit, getAgentVaultPolicy, listAgentSessions, rotateAgentSignalKey, saveAgentProposal, saveAgentProposalAndExecuteIfAllowed, updateAgentConnectionSettings } from "@/features/agents/infrastructure/agentStore";
+import { decryptAgentVaultPolicy, encryptAgentTradeProposal } from "@/features/agents/infrastructure/vaultCrypto";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 export default function AgentConnectionPage() {

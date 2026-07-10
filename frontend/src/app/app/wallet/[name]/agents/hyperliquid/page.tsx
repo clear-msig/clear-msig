@@ -18,19 +18,8 @@ import {
 import { Button } from "@/components/retail/Button";
 import { FormField, TextInput } from "@/components/retail/FormField";
 import { useToast } from "@/components/ui/Toast";
-import {
-  buildAgentHyperliquidSetupSummary,
-  getAgentHyperliquidSetupSettings,
-  saveAgentHyperliquidSetupSettings,
-  updateAgentHyperliquidDelegationStatus,
-  type AgentHyperliquidSetupSettings,
-  type AgentHyperliquidSetupStep,
-} from "@/features/agents/infrastructure/browserRuntime";
-import {
-  loadAgentVenueReadiness,
-  startAgentVenueReadinessPolling,
-  type AgentVenueReadiness,
-} from "@/features/agents/infrastructure/browserRuntime";
+import { type AgentHyperliquidSetupSettings, type AgentHyperliquidSetupStep, buildAgentHyperliquidSetupSummary, getAgentHyperliquidSetupSettings, saveAgentHyperliquidSetupSettings, updateAgentHyperliquidDelegationStatus } from "@/features/agents/infrastructure/hyperliquidSettings";
+import { type AgentVenueReadiness, loadAgentVenueReadiness, startAgentVenueReadinessPolling } from "@/features/agents/infrastructure/executionClient";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 const EMPTY_SETTINGS: AgentHyperliquidSetupSettings = {

@@ -46,8 +46,19 @@ for (const file of metrics) {
     failures.push(`${label(file.path)} imports a server runtime into the browser graph`);
   }
 
-  if (file.path.includes("/features/agents/") && file.lines > 1_200) {
-    failures.push(`${label(file.path)} has ${file.lines} lines; agent feature modules are capped at 1,200`);
+  if (file.path.includes("/features/agents/") && file.lines > 900) {
+    failures.push(`${label(file.path)} has ${file.lines} lines; agent feature modules are capped at 900`);
+  }
+  if (file.path.includes("/features/agents/controllers/") && file.lines > 700) {
+    failures.push(`${label(file.path)} has ${file.lines} lines; agent controllers are capped at 700`);
+  }
+  if (file.path.includes("/features/agents/infrastructure/")) {
+    if (/^\s*export\s+\*/m.test(file.source)) {
+      failures.push(`${label(file.path)} uses a wildcard export; infrastructure ports must be explicit`);
+    }
+    if (file.lines > 120) {
+      failures.push(`${label(file.path)} has ${file.lines} lines; split infrastructure ports above 120`);
+    }
   }
 
   const isAgentBoundary =
@@ -60,6 +71,9 @@ for (const file of metrics) {
       (statement) => {
         const importedPath = resolveImport(file.path, statement);
         return (
+          /\/features\/agents\/infrastructure\/(?:browserRuntime|localAgentRuntime)$/.test(
+            importedPath,
+          ) ||
           /\/lib\/agents\/(?:client|server)/.test(importedPath) ||
           /\/lib\/(?:wallet|hooks\/useSignWithWallet)/.test(importedPath)
         );
@@ -107,6 +121,13 @@ if (clientRatio > 0.7) {
 }
 if (metrics.some(({ path }) => path.includes("/app/spike/"))) {
   failures.push("diagnostic spike routes must not ship in the production app tree");
+}
+if (
+  metrics.some(({ path }) =>
+    /\/features\/agents\/infrastructure\/(?:browserRuntime|localAgentRuntime)\.ts$/.test(path),
+  )
+) {
+  failures.push("catch-all agent browser runtime barrels must not be reintroduced");
 }
 
 console.log(

@@ -7,31 +7,12 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, ArrowLeft, ArrowRight, Clock, Lock, Play, Save } from "lucide-react";
 import { OwnerApprovalDialog } from "@/components/agents/OwnerApprovalDialog";
 import { useToast } from "@/components/ui/Toast";
-import {
-  boundAgentSessionToPolicy,
-  createBrowserOwnerApproval,
-  decryptAgentVaultPolicy,
-  agentAllocationLimits,
-  agentAllocationTierById,
-  agentSessionSetupIssue,
-  getAgentVaultPolicy,
-  isAgentSessionCurrent,
-  listAgents,
-  listAgentSessions,
-  newAgentSessionId,
-  ownerApprovalSignableText,
-  saveAgentOwnerApproval,
-  saveAgentSession,
-  syncAgentOwnerApproval,
-  syncAgentSession,
-  type AgentOwnerApprovalInput,
-  type AgentProfile,
-  type AgentSessionGrant,
-  type AgentVaultPolicy,
-  type TradingVenue,
-} from "@/features/agents/infrastructure/browserRuntime";
+import { agentAllocationLimits, agentAllocationTierById, type AgentOwnerApprovalInput, type AgentProfile, type AgentSessionGrant, agentSessionSetupIssue, type AgentVaultPolicy, boundAgentSessionToPolicy, createBrowserOwnerApproval, isAgentSessionCurrent, ownerApprovalSignableText, type TradingVenue } from "@/features/agents/domain/runtime";
+import { syncAgentOwnerApproval, syncAgentSession } from "@/features/agents/infrastructure/stateClient";
+import { getAgentVaultPolicy, listAgents, listAgentSessions, newAgentSessionId, saveAgentOwnerApproval, saveAgentSession } from "@/features/agents/infrastructure/agentStore";
+import { decryptAgentVaultPolicy } from "@/features/agents/infrastructure/vaultCrypto";
 import { encryptStatus } from "@/lib/encrypt/client";
-import { useSignWithWallet } from "@/features/agents/infrastructure/browserRuntime";
+import { useSignWithWallet } from "@/features/agents/infrastructure/walletSigningClient";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { Button } from "@/components/retail/Button";
 import { FormField, NativeSelect, TextInput } from "@/components/retail/FormField";
@@ -86,10 +67,10 @@ export default function NewAgentSessionPage() {
   const activeAllowance =
     selectedAgent && policy
       ? sessions.find(
-          (session) =>
-            session.agentId === selectedAgent.id &&
-            isAgentSessionCurrent(session, policy),
-        )
+        (session) =>
+          session.agentId === selectedAgent.id &&
+          isAgentSessionCurrent(session, policy),
+      )
       : null;
   const activeAllowanceVenue =
     activeAllowance?.allowedVenues?.[0] ??
@@ -117,10 +98,10 @@ export default function NewAgentSessionPage() {
         requestedVenue
           ? [requestedVenue]
           : allocation?.allowedVenues.length
-          ? allocation.allowedVenues
-          : decrypted.allowedVenues.length
-            ? decrypted.allowedVenues
-            : ["mock_perps"],
+            ? allocation.allowedVenues
+            : decrypted.allowedVenues.length
+              ? decrypted.allowedVenues
+              : ["mock_perps"],
       );
       setAllowedMarkets(
         allocation?.allowedMarkets.length
@@ -131,13 +112,13 @@ export default function NewAgentSessionPage() {
       );
       setMaxNotionalUsd(
         requestedAmount ??
-          allocation?.maxNotionalUsd ??
-          decrypted.maxNotionalUsd ??
-          "250",
+        allocation?.maxNotionalUsd ??
+        decrypted.maxNotionalUsd ??
+        "250",
       );
       setMaxLeverage(
         requestedLeverage ??
-          String(allocation?.maxLeverage ?? decrypted.maxLeverage ?? 1),
+        String(allocation?.maxLeverage ?? decrypted.maxLeverage ?? 1),
       );
       setMaxOpenPositions(
         String(

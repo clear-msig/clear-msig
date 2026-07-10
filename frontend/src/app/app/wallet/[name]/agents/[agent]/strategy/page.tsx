@@ -7,13 +7,9 @@ import clsx from "clsx";
 import { ArrowLeft, Lock, Save, ShieldCheck } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { encryptStatus } from "@/lib/encrypt/client";
-import {
-  findAgent,
-  saveAgent,
-  syncAgentProfile,
-  type AgentStrategyProfile,
-  type AgentTradingMode,
-} from "@/features/agents/infrastructure/browserRuntime";
+import { type AgentStrategyProfile, type AgentTradingMode } from "@/features/agents/domain/runtime";
+import { syncAgentProfile } from "@/features/agents/infrastructure/stateClient";
+import { findAgent, saveAgent } from "@/features/agents/infrastructure/agentStore";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { Button } from "@/components/retail/Button";
 import {
