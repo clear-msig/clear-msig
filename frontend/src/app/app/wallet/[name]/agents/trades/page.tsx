@@ -29,14 +29,14 @@ import {
   type AgentMarketDataSnapshot,
   type AgentProfile,
   type AgentTradeProposal,
-} from "@/lib/agents/client";
+} from "@/features/agents/infrastructure/browserRuntime";
 import {
   loadAgentVenueReadinessForAgents,
   startAgentVenueReadinessPolling,
   type AgentVenueReadiness,
   type AgentVenueRequestRecord,
-} from "@/lib/agents/clientExecution";
-import { loadAgentMarketDataSnapshots } from "@/lib/agents/clientMarketData";
+} from "@/features/agents/infrastructure/browserRuntime";
+import { loadAgentMarketDataSnapshots } from "@/features/agents/infrastructure/browserRuntime";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 type TradeFilter = "open" | "closed" | "all";

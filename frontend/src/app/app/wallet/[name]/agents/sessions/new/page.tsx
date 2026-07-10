@@ -29,9 +29,9 @@ import {
   type AgentSessionGrant,
   type AgentVaultPolicy,
   type TradingVenue,
-} from "@/lib/agents/client";
+} from "@/features/agents/infrastructure/browserRuntime";
 import { encryptStatus } from "@/lib/encrypt/client";
-import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
+import { useSignWithWallet } from "@/features/agents/infrastructure/browserRuntime";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { Button } from "@/components/retail/Button";
 import { FormField, NativeSelect, TextInput } from "@/components/retail/FormField";

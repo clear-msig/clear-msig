@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "npm run check:architecture && NODE_OPTIONS=\"--max-old-space-size=4096 --dns-result-order=ipv4first\" next build && npm run check:bundles",
+    "build": "npm run check:architecture && npm run lint && npm run typecheck && npm test && npm run build:webpack && npm run check:bundles",
+    "build:webpack": "NODE_OPTIONS=\"--max-old-space-size=4096 --dns-result-order=ipv4first\" next build",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -12,7 +13,7 @@
     "check:architecture": "node scripts/check-architecture.mjs",
     "check:bundles": "node scripts/check-bundle-budgets.mjs",
     "verify": "npm run check:architecture && npm run lint && npm run typecheck && npm test",
-    "test": "vitest run",
+    "test": "vitest run && node --test scripts/*.test.mjs",
     "test:watch": "vitest"
   },
   "dependencies": {

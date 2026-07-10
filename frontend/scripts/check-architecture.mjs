@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { extname, join, relative } from "node:path";
+import { dirname, extname, join, relative, resolve } from "node:path";
 
 const root = new URL("../src/", import.meta.url).pathname;
 const sourceFiles = walk(root).filter((path) => [".ts", ".tsx"].includes(extname(path)));
@@ -17,6 +17,7 @@ const metrics = sourceFiles.map((path) => {
 });
 
 const pages = metrics.filter(({ path }) => pageFiles.includes(path));
+const agentModules = metrics.filter(({ path }) => path.includes("/features/agents/"));
 const routeLines = pages.reduce((total, file) => total + file.lines, 0);
 const clientPages = pages.filter((file) => file.client).length;
 const clientRatio = pages.length === 0 ? 0 : clientPages / pages.length;
@@ -28,8 +29,8 @@ for (const file of pages) {
 }
 
 for (const file of metrics) {
-  if (file.lines > 4_200) {
-    failures.push(`${label(file.path)} has ${file.lines} lines; split modules above 4,200`);
+  if (file.lines > 2_000) {
+    failures.push(`${label(file.path)} has ${file.lines} lines; split modules above 2,000`);
   }
   if (file.path.includes("/app/api/") && file.client) {
     failures.push(`${label(file.path)} is an API module marked as a client component`);
@@ -39,10 +40,62 @@ for (const file of metrics) {
     .some(
       (statement) =>
         /from\s+["']@\/lib\/[^"']*\/server[^"']*["']/.test(statement) &&
-        !/^\s*import\s+type\b/.test(statement),
+        !/^\s*(?:import|export)\s+type\b/.test(statement),
     );
   if (file.client && importsServerRuntime) {
     failures.push(`${label(file.path)} imports a server runtime into the browser graph`);
+  }
+
+  if (file.path.includes("/features/agents/") && file.lines > 1_200) {
+    failures.push(`${label(file.path)} has ${file.lines} lines; agent feature modules are capped at 1,200`);
+  }
+
+  const isAgentBoundary =
+    file.path.includes("/features/agents/routes/") ||
+    file.path.includes("/features/agents/controllers/") ||
+    file.path.includes("/features/agents/ui/") ||
+    /\/app\/app\/wallet\/\[name\]\/agents\/.*page\.tsx$/.test(file.path);
+  if (isAgentBoundary) {
+    const forbidden = importStatements(file.source).find(
+      (statement) => {
+        const importedPath = resolveImport(file.path, statement);
+        return (
+          /\/lib\/agents\/(?:client|server)/.test(importedPath) ||
+          /\/lib\/(?:wallet|hooks\/useSignWithWallet)/.test(importedPath)
+        );
+      },
+    );
+    if (forbidden) {
+      failures.push(`${label(file.path)} bypasses the agent feature boundary`);
+    }
+  }
+
+  if (file.path.includes("/features/agents/ui/")) {
+    const importsInfrastructure = importStatements(file.source).some((statement) =>
+      resolveImport(file.path, statement).includes("/features/agents/infrastructure/"),
+    );
+    if (importsInfrastructure) {
+      failures.push(`${label(file.path)} imports infrastructure from render-only UI`);
+    }
+  }
+
+  if (file.path.includes("/features/agents/domain/")) {
+    const importsRuntimeBoundary = importStatements(file.source).some(
+      (statement) => {
+        if (/^\s*(?:import|export)\s+type\b/.test(statement)) return false;
+        const importedPath = resolveImport(file.path, statement);
+        return (
+          importedPath === "react" ||
+          importedPath === "next" ||
+          importedPath.startsWith("next/") ||
+          /\/lib\/wallet/.test(importedPath) ||
+          /\/lib\/agents\/(?:client|server)/.test(importedPath)
+        );
+      },
+    );
+    if (importsRuntimeBoundary) {
+      failures.push(`${label(file.path)} pulls runtime infrastructure into the agent domain`);
+    }
   }
 }
 
@@ -60,6 +113,11 @@ console.log(
   `Architecture: ${sourceFiles.length} modules, ${pages.length} pages, ${routeLines} route lines, ` +
     `${clientPages} client pages (${(clientRatio * 100).toFixed(1)}%)`,
 );
+const largestAgentModule = [...agentModules].sort((a, b) => b.lines - a.lines)[0];
+console.log(
+  `Agent feature: ${agentModules.length} modules, largest ${largestAgentModule?.lines ?? 0} lines ` +
+    `(${largestAgentModule ? label(largestAgentModule.path) : "none"})`,
+);
 
 if (failures.length > 0) {
   console.error(failures.map((failure) => `- ${failure}`).join("\n"));
@@ -75,4 +133,17 @@ function walk(directory) {
 
 function label(path) {
   return relative(root, path);
+}
+
+function importStatements(source) {
+  return source
+    .split(";")
+    .filter((statement) => /^\s*(?:import|export)\b/.test(statement));
+}
+
+function resolveImport(sourcePath, statement) {
+  const specifier = statement.match(/(?:from\s+)?["']([^"']+)["']/)?.[1] ?? "";
+  if (specifier.startsWith("@/")) return join(root, specifier.slice(2));
+  if (specifier.startsWith(".")) return resolve(dirname(sourcePath), specifier);
+  return specifier;
 }

@@ -14,8 +14,8 @@ import {
   Send,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
-import { importAgentInboxSignalsOnServer } from "@/lib/agents/clientInbox";
-import { submitAgentVenueExecution } from "@/lib/agents/clientExecution";
+import { importAgentInboxSignalsOnServer } from "@/features/agents/infrastructure/browserRuntime";
+import { submitAgentVenueExecution } from "@/features/agents/infrastructure/browserRuntime";
 import { encryptStatus } from "@/lib/encrypt/client";
 import {
   agentRiskSnapshot,
@@ -43,7 +43,7 @@ import {
   type AgentProposalStatus,
   type AgentSignalInboxItem,
   type AgentTradeProposal,
-} from "@/lib/agents/client";
+} from "@/features/agents/infrastructure/browserRuntime";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 export default function AgentConnectionPage() {

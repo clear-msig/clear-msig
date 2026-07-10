@@ -83,19 +83,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-next-${{ hashFiles('frontend/package-lock.json') }}-
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Architecture budgets
-        run: npm run check:architecture
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Unit tests
-        run: npm test
-
-      - name: Production build and bundle budgets
+      - name: Production verification
         run: npm run build
 
   # ------------------------------------------------------------------

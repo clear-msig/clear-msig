@@ -25,12 +25,12 @@ import {
   updateAgentHyperliquidDelegationStatus,
   type AgentHyperliquidSetupSettings,
   type AgentHyperliquidSetupStep,
-} from "@/lib/agents/client";
+} from "@/features/agents/infrastructure/browserRuntime";
 import {
   loadAgentVenueReadiness,
   startAgentVenueReadinessPolling,
   type AgentVenueReadiness,
-} from "@/lib/agents/clientExecution";
+} from "@/features/agents/infrastructure/browserRuntime";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 const EMPTY_SETTINGS: AgentHyperliquidSetupSettings = {

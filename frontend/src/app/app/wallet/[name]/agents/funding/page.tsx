@@ -24,7 +24,7 @@ import {
   listAgentSessions,
   listAgents,
   type AgentFundingRecommendation,
-} from "@/lib/agents/client";
+} from "@/features/agents/infrastructure/browserRuntime";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 export default function AgentFundingPage() {

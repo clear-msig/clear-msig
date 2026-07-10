@@ -1,0 +1,1087 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useReducedMotion } from "framer-motion";
+import { Bot, Clock, Play, ShieldCheck, type LucideIcon } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
+import { encryptStatus } from "@/lib/encrypt/client";
+import { agentLeaderboard, recommendAgentAllocation, agentRiskSnapshot, approveAgentProposal, buildAgentAutomaticExitDecisions, buildAgentBetaReadiness, buildAgentNotifications, buildAgentScoutProposal, buildAgentScoutReports, buildAgentMarketReadiness, buildAgentTradingReadiness, closeMockAgentExecution, closeOpenMockAgentExecutions, canOpenLocalAgentExecution, getAgentVaultPolicy, hasAgentComplianceAcknowledgement, listAgentConnectionKits, listAgentEvents, listAgentExecutions, listAgentOwnerApprovals, listAgentProposals, listAgentScorecards, listAgentSessions, listAgents, isAgentSessionCurrent, newAgentProposalId, openAgentPaperTrade, rejectAgentProposal, recheckAgentProposal, renewAgentSession, saveAgentProposal, saveAgentProposalAndExecuteIfAllowed, setAgentVaultEmergencyPause, setupAgentBetaDemo, subscribeAgents, syncAgentEmergencyPause, syncAgentExecution, syncAgentProfile, syncAgentProposal, syncAgentProposalApproval, syncAgentProposalRejection, syncAgentSession, syncAgentSessionStatus, loadAgentBackendState, markAgentNotificationSeen, markAllAgentNotificationsSeen, readSeenAgentNotificationIds, getAgentHyperliquidSetupSettings, subscribeAgentNotifications, updateAgentSessionStatus, updateAgentStatus, type AgentAuditEvent, type AgentExecutionRecord, type AgentLeaderboardEntry, type AgentProfile, type AgentScorecard, type AgentSessionGrant, type AgentTradeProposal, type AgentVaultPolicy, type AgentMarketDataSnapshot, type AgentMarketIntelligenceSnapshot, type AgentMarketReadiness, type AgentScoutReport, type AgentTradingReadiness, type AgentAllocationRecommendation, type AgentBetaReadiness, type AgentKillSwitchHandoff, closeAgentExecutionRecord, loadAgentInboxSummary, type AgentInboxSummary, runAgentAutonomyTickClient, loadAgentVenueReadinessForAgents, startAgentVenueReadinessPolling, submitAgentVenueExecution, type AgentVenueReadiness, loadAgentMarketDataSnapshots, loadAgentMarketIntelligenceSnapshots, useAgentTypedClearSignApproval } from "@/features/agents/infrastructure/browserRuntime";
+import { toDisplayName } from "@/lib/retail/walletNames";
+
+type BackendPersistenceStatus = {
+  state: "checking" | "synced" | "local";
+  storage?: "redis" | "memory";
+  agents: number;
+  proposals: number;
+  sessions: number;
+  events: number;
+  message: string;
+  updatedAt?: number;
+};
+type GettingStartedStep = {
+  id: string;
+  label: string;
+  description: string;
+  Icon: LucideIcon;
+  done: boolean;
+  href: string;
+  actionLabel: string;
+};
+
+export function useAgentDashboardController() {
+  const params = useParams<{ name: string }>();
+  const router = useRouter();
+  const search = useSearchParams();
+  const reduce = useReducedMotion();
+  const toast = useToast();
+  const [pendingAction, startAction] = useTransition();
+  const name = useMemo(() => {
+    const raw = params?.name ?? "";
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
+  }, [params?.name]);
+  const encoded = encodeURIComponent(name);
+  const display = toDisplayName(name);
+  const encrypt = encryptStatus();
+  const showDeveloperSurfaces = search.get("debug") === "1";
+  const approveTypedAgentClearSign = useAgentTypedClearSignApproval(name);
+  const [agents, setAgents] = useState<AgentProfile[]>([]);
+  const [policy, setPolicy] = useState<AgentVaultPolicy | null>(null);
+  const [leaderboard, setLeaderboard] = useState<AgentLeaderboardEntry[]>([]);
+  const [proposals, setProposals] = useState<AgentTradeProposal[]>([]);
+  const [sessions, setSessions] = useState<AgentSessionGrant[]>([]);
+  const [executions, setExecutions] = useState<AgentExecutionRecord[]>([]);
+  const [events, setEvents] = useState<AgentAuditEvent[]>([]);
+  const [scorecards, setScorecards] = useState<AgentScorecard[]>([]);
+  const [proposalCount, setProposalCount] = useState(0);
+  const [inboxSummaries, setInboxSummaries] = useState<Record<string, AgentInboxSummary>>({});
+  const [marketByMarket, setMarketByMarket] = useState<Record<string, AgentMarketDataSnapshot>>({});
+  const [intelligenceByMarket, setIntelligenceByMarket] = useState<Record<string, AgentMarketIntelligenceSnapshot>>({});
+  const [seenAgentNotifications, setSeenAgentNotifications] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [liveVenueReadiness, setLiveVenueReadiness] =
+    useState<AgentVenueReadiness | null>(null);
+  const [liveVenueLoading, setLiveVenueLoading] = useState(true);
+  const [killSwitchHandoff, setKillSwitchHandoff] =
+    useState<AgentKillSwitchHandoff | null>(null);
+  const [backendStatus, setBackendStatus] = useState<BackendPersistenceStatus>({
+    state: "checking",
+    agents: 0,
+    proposals: 0,
+    sessions: 0,
+    events: 0,
+    message: "Checking saved changes.",
+  });
+  useEffect(() => {
+    const refresh = () => {
+      setAgents(listAgents(name));
+      setPolicy(getAgentVaultPolicy(name));
+      setLeaderboard(agentLeaderboard(name));
+      const nextProposals = listAgentProposals(name);
+      const nextSessions = listAgentSessions(name);
+      setProposals(nextProposals);
+      setSessions(nextSessions);
+      setExecutions(listAgentExecutions(name));
+      setEvents(listAgentEvents(name));
+      setScorecards(listAgentScorecards(name));
+      setProposalCount(nextProposals.length);
+    };
+    refresh();
+    return subscribeAgents(refresh);
+  }, [name]);
+  const refreshBackendState = useCallback(async () => {
+    setBackendStatus((current) => ({ ...current, state: "checking" }));
+    const result = await loadAgentBackendState(name);
+    if (!result.ok || !result.value) {
+      setBackendStatus({
+        state: "local",
+        agents: 0,
+        proposals: 0,
+        sessions: 0,
+        events: 0,
+        message: result.message,
+      });
+      return;
+    }
+    const state = result.value.state;
+    setBackendStatus({
+      state: "synced",
+      storage: result.value.storage,
+      agents: state.agents.length,
+      proposals: state.proposals.length,
+      sessions: state.sessions.length,
+      events: state.events.length,
+      message:
+        result.value.storage === "redis"
+          ? "Backend persistence is using Redis."
+          : "Backend persistence is using local memory.",
+      updatedAt: state.updatedAt,
+    });
+  }, [name]);
+  useEffect(() => {
+    if (!showDeveloperSurfaces) return;
+    void refreshBackendState();
+  }, [refreshBackendState, showDeveloperSurfaces]);
+  useEffect(() => {
+    const refresh = () => setSeenAgentNotifications(readSeenAgentNotificationIds(name));
+    refresh();
+    return subscribeAgentNotifications(refresh);
+  }, [name]);
+  useEffect(() => {
+    if (agents.length === 0) {
+      setInboxSummaries({});
+      return;
+    }
+    let cancelled = false;
+    const run = async () => {
+      const pairs = await Promise.all(
+        agents.map(async (agent) => {
+          try {
+            return [agent.id, await loadAgentInboxSummary(name, agent.id)] as const;
+          } catch {
+            return [
+              agent.id,
+              {
+                count: 0,
+                storage: "unknown",
+                status: "unavailable",
+                updatedAt: Date.now(),
+              } satisfies AgentInboxSummary,
+            ] as const;
+          }
+        }),
+      );
+      if (!cancelled) setInboxSummaries(Object.fromEntries(pairs));
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [agents, name]);
+  const agentIds = useMemo(() => agents.map((agent) => agent.id).sort(), [agents]);
+  useEffect(() => {
+    setLiveVenueLoading(true);
+    const setup = getAgentHyperliquidSetupSettings(name);
+    return startAgentVenueReadinessPolling({
+      venue: "hyperliquid_testnet",
+      load: () =>
+        loadAgentVenueReadinessForAgents("hyperliquid_testnet", {
+          walletName: name,
+          agentIds,
+          accountAddress: setup.accountAddress,
+        }),
+      onUpdate: (readiness) => {
+        setLiveVenueReadiness(readiness);
+        setLiveVenueLoading(false);
+      },
+      onError: () => {
+        setLiveVenueReadiness(null);
+        setLiveVenueLoading(false);
+      },
+    });
+  }, [agentIds, name]);
+  const openExecutionRecords = useMemo(
+    () => executions.filter((execution) => execution.status === "open"),
+    [executions],
+  );
+  const watchedMarketKey = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...openExecutionRecords.map((execution) => execution.market.trim().toUpperCase()),
+          ...agents
+            .filter((agent) => agent.status === "active")
+            .flatMap((agent) => agent.strategy?.allowedMarkets ?? [])
+            .map((market) => market.trim().toUpperCase()),
+        ]),
+      )
+        .filter(Boolean)
+        .sort()
+        .slice(0, 8)
+        .join("|"),
+    [agents, openExecutionRecords],
+  );
+  useEffect(() => {
+    const watchedMarkets = watchedMarketKey ? watchedMarketKey.split("|") : [];
+    if (watchedMarkets.length === 0) {
+      setMarketByMarket({});
+      setIntelligenceByMarket({});
+      return;
+    }
+    let cancelled = false;
+    void loadAgentMarketDataSnapshots(watchedMarkets).then((snapshots) => {
+      if (!cancelled) setMarketByMarket(snapshots);
+    });
+    if (showDeveloperSurfaces) {
+      void loadAgentMarketIntelligenceSnapshots(watchedMarkets).then((snapshots) => {
+        if (!cancelled) setIntelligenceByMarket(snapshots);
+      });
+    } else {
+      setIntelligenceByMarket({});
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [showDeveloperSurfaces, watchedMarketKey]);
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  const activeAgents = agents.filter((agent) => agent.status === "active").length;
+  const activeSessions = policy
+    ? sessions.filter((session) => isAgentSessionCurrent(session, policy)).length
+    : 0;
+  const openExecutions = openExecutionRecords.length;
+  const queuedSignals = Object.values(inboxSummaries).reduce(
+    (total, summary) => total + summary.count,
+    0,
+  );
+  const readiness = useMemo<AgentTradingReadiness[]>(() => {
+    if (!policy) return [];
+    const now = Date.now();
+    return agents.map((agent) =>
+      buildAgentTradingReadiness({
+        agent,
+        policy,
+        sessions: sessions.filter((session) => session.agentId === agent.id),
+        risk: agentRiskSnapshot(name, agent.id),
+        now,
+      }),
+    );
+  }, [agents, name, policy, sessions]);
+  const readyAgents = readiness.filter((item) => item.status === "ready").length;
+  const canRunAutonomyScan =
+    readyAgents > 0 && backendStatus.state === "synced";
+  const scoutReports = useMemo<AgentScoutReport[]>(() => {
+    if (!policy) return [];
+    const now = Date.now();
+    return buildAgentScoutReports({
+      agents,
+      policy,
+      sessions,
+      marketByMarket,
+      intelligenceByMarket,
+      risksByAgent: Object.fromEntries(
+        agents.map((agent) => [agent.id, agentRiskSnapshot(name, agent.id)]),
+      ),
+      now,
+    }).slice(0, 3);
+  }, [agents, intelligenceByMarket, marketByMarket, name, policy, sessions]);
+  const automaticExitDecisions = useMemo(
+    () =>
+      buildAgentAutomaticExitDecisions({
+        executions: openExecutionRecords,
+        proposals,
+        marketByMarket,
+      }),
+    [marketByMarket, openExecutionRecords, proposals],
+  );
+  const agentNotificationSummary = useMemo(
+    () =>
+      buildAgentNotifications({
+        walletName: name,
+        walletHref: `/app/wallet/${encoded}`,
+        agents,
+        proposals,
+        sessions,
+        executions,
+        events,
+        policy,
+      }),
+    [agents, encoded, events, executions, name, policy, proposals, sessions],
+  );
+  const unreadAgentNotifications = agentNotificationSummary.notifications.filter(
+    (notification) => !seenAgentNotifications.has(notification.id),
+  );
+  const markAgentNoticeSeen = useCallback(
+    (id: string) => {
+      markAgentNotificationSeen(name, id);
+      setSeenAgentNotifications(readSeenAgentNotificationIds(name));
+    },
+    [name],
+  );
+  const markAllAgentNoticesSeen = useCallback(() => {
+    markAllAgentNotificationsSeen(
+      name,
+      agentNotificationSummary.notifications.map((notification) => notification.id),
+    );
+    setSeenAgentNotifications(readSeenAgentNotificationIds(name));
+  }, [agentNotificationSummary.notifications, name]);
+  const gettingStartedSteps = useMemo<GettingStartedStep[]>(() => {
+    const firstAgent = agents[0];
+    const firstReadiness = firstAgent
+      ? readiness.find((item) => item.agentId === firstAgent.id)
+      : undefined;
+    const itemPassed = (id: string) =>
+      firstReadiness?.items.find((item) => item.id === id)?.status === "pass";
+    const hasFirstPractice = executions.length > 0;
+
+    return [
+      {
+        id: "trader",
+        label: "Choose trader",
+        description: "Pick the prepared trader you want to try.",
+        Icon: Bot,
+        done: Boolean(firstAgent),
+        href: `/app/wallet/${encoded}/agents/library`,
+        actionLabel: "Choose trader",
+      },
+      {
+        id: "allowance",
+        label: "Set budget",
+        description: "Give the trader a small practice budget.",
+        Icon: Clock,
+        done: itemPassed("session"),
+        href: firstAgent
+          ? `/app/wallet/${encoded}/agents/sessions/new?agent=${encodeURIComponent(firstAgent.id)}`
+          : `/app/wallet/${encoded}/agents/library`,
+        actionLabel: "Set budget",
+      },
+      {
+        id: "safety",
+        label: "Set safety",
+        description: "Choose max size, max loss, and stop conditions.",
+        Icon: ShieldCheck,
+        done: itemPassed("risk-limits"),
+        href: `/app/wallet/${encoded}/agents/policy`,
+        actionLabel: "Set safety",
+      },
+      {
+        id: "practice",
+        label: "Start practice",
+        description: "Run the first practice trade. Pause anytime.",
+        Icon: Play,
+        done: hasFirstPractice,
+        href: firstAgent
+          ? `/app/wallet/${encoded}/agents/start?agent=${encodeURIComponent(firstAgent.id)}`
+          : `/app/wallet/${encoded}/agents/library`,
+        actionLabel: "Start practice",
+      },
+    ];
+  }, [agents, encoded, executions.length, readiness]);
+  const setupComplete = gettingStartedSteps.every((step) => step.done);
+  const allocationRecommendations = useMemo(() => {
+    if (!policy) return {} as Record<string, AgentAllocationRecommendation>;
+    const now = Date.now();
+    return Object.fromEntries(
+      agents.map((agent) => [
+        agent.id,
+        recommendAgentAllocation({
+          agent,
+          scorecard: scorecards.find((item) => item.agentId === agent.id),
+          leaderboard: leaderboard.find((item) => item.agentId === agent.id),
+          currentSession: sessions.find(
+            (session) =>
+              session.agentId === agent.id &&
+              isAgentSessionCurrent(session, policy, now),
+          ),
+          policy,
+          now,
+        }),
+      ]),
+    );
+  }, [agents, leaderboard, policy, scorecards, sessions]);
+  const betaReadiness = useMemo<AgentBetaReadiness | null>(() => {
+    if (!policy) return null;
+    const openMarkets = Array.from(
+      new Set(
+        openExecutionRecords
+          .map((execution) => execution.market.trim().toUpperCase())
+          .filter(Boolean),
+      ),
+    );
+    const connected =
+      liveVenueReadiness?.state === "ready" &&
+      liveVenueReadiness.executorProbe?.state === "ready" &&
+      liveVenueReadiness.accountProbe?.state === "funded";
+    return buildAgentBetaReadiness({
+      agents,
+      policy,
+      sessions,
+      executions,
+      proposals,
+      approvals: listAgentOwnerApprovals(name),
+      connections: listAgentConnectionKits(name),
+      backend: {
+        state: backendStatus.state,
+        storage: backendStatus.storage,
+      },
+      marketData: {
+        openMarkets: openMarkets.length,
+        pricedOpenMarkets: openMarkets.filter((market) => marketByMarket[market]).length,
+      },
+      venue: {
+        state: liveVenueLoading
+          ? "checking"
+          : connected
+            ? "connected"
+            : liveVenueReadiness
+              ? "needs_setup"
+              : "unavailable",
+      },
+      walletHref: `/app/wallet/${encoded}`,
+    });
+  }, [
+    agents,
+    backendStatus.state,
+    backendStatus.storage,
+    encoded,
+    executions,
+    liveVenueLoading,
+    liveVenueReadiness,
+    marketByMarket,
+    name,
+    openExecutionRecords,
+    policy,
+    proposals,
+    sessions,
+  ]);
+  const marketReadiness = useMemo<AgentMarketReadiness | null>(() => {
+    if (!policy) return null;
+    const openMarkets = Array.from(
+      new Set(
+        openExecutionRecords
+          .map((execution) => execution.market.trim().toUpperCase())
+          .filter(Boolean),
+      ),
+    );
+    const connected =
+      liveVenueReadiness?.state === "ready" &&
+      liveVenueReadiness.executorProbe?.state === "ready" &&
+      liveVenueReadiness.accountProbe?.state === "funded";
+    const snapshots = Object.values(marketByMarket);
+    const intelligence = Object.values(intelligenceByMarket);
+    const approvals = listAgentOwnerApprovals(name);
+    const connections = listAgentConnectionKits(name);
+    return buildAgentMarketReadiness({
+      agents,
+      policy,
+      sessions,
+      executions,
+      proposals,
+      approvals,
+      connections,
+      backend: {
+        state: backendStatus.state,
+        storage: backendStatus.storage,
+      },
+      marketData: {
+        openMarkets: openMarkets.length,
+        pricedOpenMarkets: openMarkets.filter((market) => marketByMarket[market]).length,
+        liveMarkets: snapshots.filter((snapshot) => snapshot.source === "live").length,
+        hasFundingRates: snapshots.some((snapshot) => snapshot.fundingRatePct != null),
+      },
+      venue: {
+        state: liveVenueLoading
+          ? "checking"
+          : connected
+            ? "connected"
+            : liveVenueReadiness
+              ? "needs_setup"
+              : "unavailable",
+      },
+      operations: {
+        walletSignedMutations: approvals.some(
+          (approval) => approval.approvalMethod === "wallet_signature" && approval.signature,
+        )
+          ? "partial"
+          : "none",
+        creatorRegistry: agents.some((agent) => agent.publishing?.status === "published")
+          ? "local_profiles"
+          : "none",
+        creatorPayouts: "not_started",
+        externalVerification: connections.length > 0 ? "signed_decisions" : "none",
+        marketIntelligence: {
+          news: intelligence.some((snapshot) => snapshot.coverage.news),
+          macro: intelligence.some((snapshot) => snapshot.coverage.macro),
+          rateLimited: true,
+        },
+        leaderboardMode: "separated",
+        compliance: hasAgentComplianceAcknowledgement(name, "mock_perps")
+          ? "user_disclosures"
+          : "draft",
+        moderation: agents.some((agent) => agent.publishing?.status === "published")
+          ? agents
+            .filter((agent) => agent.publishing?.status === "published")
+            .every((agent) => agent.publishing?.moderation)
+            ? "active"
+            : "admin_review"
+          : "none",
+        abuseControls: {
+          sameOrigin: true,
+          rateLimits: true,
+          signalKeys: connections.length > 0,
+          replayProtection: proposals.some((proposal) => Boolean(proposal.clientSignalId)),
+          signedSignals: false,
+        },
+        venueReconciliation: connected ? "testnet_snapshots" : "requested",
+      },
+      walletHref: `/app/wallet/${encoded}`,
+    });
+  }, [
+    agents,
+    backendStatus.state,
+    backendStatus.storage,
+    encoded,
+    executions,
+    liveVenueLoading,
+    liveVenueReadiness,
+    intelligenceByMarket,
+    marketByMarket,
+    name,
+    openExecutionRecords,
+    policy,
+    proposals,
+    sessions,
+  ]);
+  const prepareScoutIdea = (report: AgentScoutReport) => {
+    startAction(async () => {
+      if (!policy) {
+        toast.error("Finish safety rules before preparing scout ideas");
+        return;
+      }
+      const agent = agents.find((item) => item.id === report.agentId);
+      if (!agent) {
+        toast.error("Trader not found");
+        return;
+      }
+      const now = Date.now();
+      const activeSession =
+        sessions.find(
+          (session) =>
+            session.agentId === agent.id &&
+            isAgentSessionCurrent(session, policy, now),
+        ) ?? null;
+      const built = buildAgentScoutProposal({
+        report,
+        agent,
+        policy,
+        session: activeSession,
+        risk: agentRiskSnapshot(name, agent.id),
+        id: newAgentProposalId(),
+        now,
+      });
+      const result =
+        built.evaluation.decision === "allowed" &&
+          canOpenLocalAgentExecution(built.proposal.venue)
+          ? saveAgentProposalAndExecuteIfAllowed(built.proposal)
+          : { proposal: saveAgentProposal(built.proposal), execution: null };
+      const syncedProposal = await syncAgentProposal(result.proposal);
+      if (result.execution) {
+        const syncedExecution = await syncAgentExecution(result.execution);
+        if (syncedProposal.ok && syncedExecution.ok) {
+          toast.success("Scout idea opened as a practice trade");
+          void refreshBackendState();
+        } else {
+          toast.info("Scout idea opened on this device for now");
+        }
+        return;
+      }
+      if (built.evaluation.decision === "allowed") {
+        toast.success("Scout idea is ready", {
+          details: canOpenLocalAgentExecution(built.proposal.venue)
+            ? undefined
+            : "Send it to the connected practice venue from Recent trade ideas.",
+        });
+      } else if (built.evaluation.decision === "requires_human_approval") {
+        toast.info("Scout idea needs approval");
+      } else {
+        toast.info("ClearSig stopped the scout idea", {
+          details: built.evaluation.violations[0]?.message,
+        });
+      }
+      if (syncedProposal.ok) {
+        void refreshBackendState();
+      }
+    });
+  };
+  const runAutonomyScan = () => {
+    startAction(() => {
+      void runAgentAutonomyTickClient({
+        walletName: name,
+        venue: "hyperliquid_testnet",
+        maxMarkets: 80,
+        maxIdeas: 3,
+      })
+        .then((result) => {
+          if (!result.ok) {
+            toast.error("Autonomy scan failed", {
+              details: result.message,
+            });
+            return;
+          }
+          const prepared = result.proposals ?? [];
+          for (const item of prepared) {
+            saveAgentProposal(item.proposal);
+          }
+          const placed = prepared.filter((item) => item.execution?.placed).length;
+          const handoffBlocked = prepared.filter(
+            (item) => item.execution && !item.execution.placed,
+          ).length;
+          const scanDetails = `${result.scannedMarkets ?? 0} markets scanned · ${result.consideredMarkets ?? 0} tradable`;
+          if (prepared.length === 0) {
+            toast.info("No trade passed the current max-loss rules", {
+              details: `${scanDetails}. ${result.message}`,
+            });
+          } else if (placed > 0) {
+            toast.success(
+              `${placed} connected practice trade${placed === 1 ? "" : "s"} sent`,
+              {
+                details:
+                  prepared.length > placed
+                    ? `${prepared.length - placed} idea${prepared.length - placed === 1 ? "" : "s"} saved for review.`
+                    : scanDetails,
+              },
+            );
+          } else {
+            toast.success(
+              `${prepared.length} guarded idea${prepared.length === 1 ? "" : "s"} prepared`,
+              {
+                details:
+                  handoffBlocked > 0
+                    ? prepared.find((item) => item.execution && !item.execution.placed)
+                      ?.execution?.message
+                    : scanDetails,
+              },
+            );
+          }
+          void refreshBackendState();
+        })
+        .catch(() => {
+          toast.error("Could not run the autonomy scan");
+        });
+    });
+  };
+  const setKillSwitch = (enabled: boolean) => {
+    startAction(() => {
+      const updated = setAgentVaultEmergencyPause(name, enabled);
+      setPolicy(updated);
+      void syncAgentEmergencyPause(name, enabled).then((synced) => {
+        if (synced.ok) {
+          setKillSwitchHandoff(synced.killSwitch ?? null);
+          toast.success(
+            enabled ? "All automatic actions stopped" : "Automatic actions allowed again",
+            synced.killSwitch
+              ? { details: synced.killSwitch.message }
+              : undefined,
+          );
+          void refreshBackendState();
+        } else {
+          toast.info("This change is saved on this device for now", {
+            details: synced.message,
+          });
+        }
+      });
+    });
+  };
+  const startBetaDemo = () => {
+    startAction(() => {
+      try {
+        const result = setupAgentBetaDemo({ walletName: name });
+        toast.success("Beta demo is ready", {
+          details: result.firstTradeOpened
+            ? "A demo trader, small budget, open practice trade, and trade history are ready to inspect."
+            : "A demo trader, small budget, and trade history are ready to inspect.",
+        });
+        router.push(`/app/wallet/${encoded}/agents/trades`);
+      } catch (error) {
+        toast.error("Could not start beta demo", {
+          details: error instanceof Error ? error.message : String(error),
+        });
+      }
+    });
+  };
+  const submitVenueProposal = (id: string) => {
+    startAction(() => {
+      const proposal = proposals.find((item) => item.id === id);
+      if (!proposal) {
+        toast.error("Trade idea not found");
+        return;
+      }
+      void submitAgentVenueExecution(proposal)
+        .then((result) => {
+          if (result.ok) {
+            toast.success("Trade request sent to the connected practice account");
+            return;
+          }
+          toast.error(
+            result.serverRequest
+              ? `${result.message} ${result.duplicate ? "It was already saved." : "It was saved."}`
+              : result.message,
+          );
+          if (result.readiness) {
+            setLiveVenueReadiness(result.readiness);
+          }
+        })
+        .catch(() => {
+          toast.error("Could not check the connected practice account");
+        });
+    });
+  };
+  const approveProposal = (id: string) => {
+    startAction(() => {
+      void (async () => {
+        const proposal = proposals.find((item) => item.id === id);
+        if (!proposal) {
+          toast.error("Trade idea not found");
+          return;
+        }
+        let typedResult: Awaited<ReturnType<typeof approveTypedAgentClearSign>>;
+        try {
+          typedResult = await approveTypedAgentClearSign({
+            ...proposal,
+            status: "approved",
+            updatedAt: Date.now(),
+          });
+        } catch (err) {
+          toast.error("ClearSign approval did not reach chain", {
+            details: err instanceof Error ? err.message : String(err),
+          });
+          return;
+        }
+        const updated = approveAgentProposal(name, id);
+        if (!updated) {
+          toast.error("Trade idea not found");
+          return;
+        }
+        saveAgentProposal({
+          ...updated,
+          clearSignV2: typedResult.proposal.clearSignV2,
+        });
+        void syncAgentProposalApproval(name, id).then((synced) => {
+          if (!synced.ok) {
+            toast.info("Trade idea approved on this device for now", {
+              details: synced.message,
+            });
+            return;
+          }
+          if (synced.value?.status === "blocked") {
+            toast.info("Your safety rules stopped this idea", {
+              details: synced.value.policyViolations?.[0]?.message,
+            });
+          } else {
+            toast.success(
+              typedResult.status === "executed"
+                ? "Agent approval verified on chain"
+                : "Agent approval is waiting on chain",
+            );
+          }
+          void refreshBackendState();
+        });
+      })();
+    });
+  };
+  const rejectProposal = (id: string) => {
+    startAction(() => {
+      const updated = rejectAgentProposal(name, id);
+      if (!updated) {
+        toast.error("Trade idea not found");
+        return;
+      }
+      void syncAgentProposalRejection(name, id).then((synced) => {
+        if (synced.ok) {
+          toast.success("Trade idea declined");
+          void refreshBackendState();
+        } else {
+          toast.info("Trade idea declined on this device for now", {
+            details: synced.message,
+          });
+        }
+      });
+    });
+  };
+  const executeProposal = (id: string) => {
+    startAction(() => {
+      const result = openAgentPaperTrade(name, id);
+      if (result.reason === "opened") {
+        toast.success("Practice trade opened");
+        if (result.execution) {
+          void syncAgentExecution(result.execution).then((synced) => {
+            if (synced.ok) {
+              void refreshBackendState();
+            } else {
+              toast.info("Practice trade saved on this device for now", {
+                details: synced.message,
+              });
+            }
+          });
+        }
+      } else if (result.reason === "already_open") {
+        toast.success("Practice trade is already open");
+      } else if (result.reason === "blocked") {
+        toast.error(
+          result.proposal?.policyViolations?.[0]?.message ??
+          "Your safety rules stopped this trade idea",
+        );
+      } else if (result.reason === "backend_required") {
+        toast.error("Connect the practice account before using it");
+      } else if (result.reason === "not_approved") {
+        toast.error("Approve this trade idea first");
+      } else {
+        toast.error("Trade idea not found");
+      }
+    });
+  };
+  const recheckProposal = (id: string) => {
+    startAction(() => {
+      const result = recheckAgentProposal(name, id);
+      if (!result) {
+        toast.error("Trade idea not found");
+        return;
+      }
+      if (result.execution) {
+        toast.success("Trade idea passed your rules and a practice trade opened");
+        void syncAgentExecution(result.execution).then((synced) => {
+          if (synced.ok) {
+            void refreshBackendState();
+          } else {
+            toast.info("Practice trade saved on this device for now", {
+              details: synced.message,
+            });
+          }
+        });
+      } else if (result.proposal.status === "blocked") {
+        toast.error("Your safety rules still stop this trade idea");
+      } else if (result.proposal.status === "approved") {
+        toast.success("Trade idea fits the current budget");
+      } else {
+        toast.success("Trade idea now needs your approval");
+      }
+    });
+  };
+  const closeExecution = (id: string, pnlUsd: string) => {
+    startAction(() => {
+      const local = closeMockAgentExecution(name, id, pnlUsd);
+      const execution = executions.find((item) => item.id === id);
+      const proposal = proposals.find((item) => item.id === execution?.proposalId);
+      const updated = local ?? (execution
+        ? closeAgentExecutionRecord({ execution, proposal, realizedPnlUsd: pnlUsd })
+        : null);
+      if (!updated) {
+        toast.error("Practice trade not found");
+        return;
+      }
+      if (!local) {
+        setExecutions((current) =>
+          current.map((item) => (item.id === updated.id ? updated : item)),
+        );
+      }
+      toast.success("Practice trade closed");
+      void syncAgentExecution(updated).then((synced) => {
+        if (synced.ok) {
+          void refreshBackendState();
+        } else {
+          toast.info("Practice trade saved on this device for now", {
+            details: synced.message,
+          });
+        }
+      });
+    });
+  };
+  const closeAllOpenPaperTrades = () => {
+    startAction(() => {
+      const localClosed = closeOpenMockAgentExecutions({ walletName: name });
+      const localClosedIds = new Set(localClosed.map((execution) => execution.id));
+      const fallbackClosed = openExecutionRecords
+        .filter((execution) => !localClosedIds.has(execution.id))
+        .map((execution) =>
+          closeAgentExecutionRecord({
+            execution,
+            proposal: proposals.find((item) => item.id === execution.proposalId),
+            realizedPnlUsd: "0",
+          }),
+        );
+      const closed = [...localClosed, ...fallbackClosed];
+      if (closed.length === 0) {
+        toast.error("No open trades to close");
+        return;
+      }
+      if (fallbackClosed.length > 0) {
+        setExecutions((current) =>
+          current.map(
+            (execution) =>
+              fallbackClosed.find((closedExecution) => closedExecution.id === execution.id) ??
+              execution,
+          ),
+        );
+      }
+      toast.success(
+        `${closed.length} open practice trade${closed.length === 1 ? "" : "s"} closed`,
+      );
+      void Promise.all(closed.map((execution) => syncAgentExecution(execution))).then(
+        (results) => {
+          if (results.every((result) => result.ok)) {
+            void refreshBackendState();
+          } else {
+            toast.info("Practice trades saved on this device for now");
+          }
+        },
+      );
+    });
+  };
+  const closeAutomaticExitTrades = () => {
+    startAction(() => {
+      if (automaticExitDecisions.length === 0) {
+        toast.info("No automatic exits are ready");
+        return;
+      }
+      const closed = automaticExitDecisions.map((decision) => {
+        const local = closeMockAgentExecution(
+          name,
+          decision.execution.id,
+          decision.realizedPnlUsd,
+        );
+        return (
+          local ??
+          closeAgentExecutionRecord({
+            execution: decision.execution,
+            proposal: decision.proposal,
+            realizedPnlUsd: decision.realizedPnlUsd,
+          })
+        );
+      });
+      setExecutions((current) =>
+        current.map(
+          (execution) =>
+            closed.find((closedExecution) => closedExecution.id === execution.id) ??
+            execution,
+        ),
+      );
+      toast.success(
+        `${closed.length} automatic exit${closed.length === 1 ? "" : "s"} closed`,
+      );
+      void Promise.all(closed.map((execution) => syncAgentExecution(execution))).then(
+        (results) => {
+          if (results.every((result) => result.ok)) {
+            void refreshBackendState();
+          } else {
+            toast.info("Automatic exits closed on this device for now");
+          }
+        },
+      );
+    });
+  };
+  const setAgentStatus = (id: string, status: AgentProfile["status"]) => {
+    startAction(() => {
+      const updated = updateAgentStatus(name, id, status);
+      if (!updated) {
+        toast.error("Trader not found");
+        return;
+      }
+      void syncAgentProfile(updated).then((synced) => {
+        if (synced.ok) {
+          toast.success(
+            status === "active"
+              ? "Trader resumed"
+              : status === "paused"
+                ? "Trader paused"
+                : "Trader access removed",
+          );
+          void refreshBackendState();
+        } else {
+          toast.info("Trader change saved on this device for now", {
+            details: synced.message,
+          });
+        }
+      });
+    });
+  };
+  const revokeSession = (id: string) => {
+    startAction(() => {
+      const updated = updateAgentSessionStatus(name, id, "revoked");
+      if (!updated) {
+        toast.error("Budget not found");
+        return;
+      }
+      void syncAgentSessionStatus(name, id, "revoked").then((synced) => {
+        if (synced.ok) {
+          toast.success("Budget ended");
+          void refreshBackendState();
+        } else {
+          toast.info("Budget ended on this device for now", {
+            details: synced.message,
+          });
+        }
+      });
+    });
+  };
+  const renewSession = (id: string) => {
+    startAction(() => {
+      const renewed = renewAgentSession(name, id);
+      if (!renewed) {
+        toast.error("Turn the trader back on before renewing this budget");
+        return;
+      }
+      void syncAgentSession(renewed).then((synced) => {
+        if (synced.ok) {
+          toast.success("Budget renewed");
+          void refreshBackendState();
+        } else {
+          toast.info("Budget renewed on this device for now", {
+            details: synced.message,
+          });
+        }
+      });
+    });
+  };
+  return {
+    activeAgents,
+    agentNotificationSummary,
+    agents,
+    allocationRecommendations,
+    approveProposal,
+    automaticExitDecisions,
+    backendStatus,
+    betaReadiness,
+    canRunAutonomyScan,
+    closeAllOpenPaperTrades,
+    closeAutomaticExitTrades,
+    closeExecution,
+    display,
+    encoded,
+    encrypt,
+    events,
+    executeProposal,
+    executions,
+    gettingStartedSteps,
+    inboxSummaries,
+    intelligenceByMarket,
+    killSwitchHandoff,
+    leaderboard,
+    liveVenueLoading,
+    liveVenueReadiness,
+    markAgentNoticeSeen,
+    markAllAgentNoticesSeen,
+    marketByMarket,
+    marketReadiness,
+    motionProps,
+    openExecutionRecords,
+    openExecutions,
+    pendingAction,
+    policy,
+    prepareScoutIdea,
+    proposals,
+    readiness,
+    readyAgents,
+    recheckProposal,
+    rejectProposal,
+    renewSession,
+    revokeSession,
+    runAutonomyScan,
+    scorecards,
+    scoutReports,
+    seenAgentNotifications,
+    sessions,
+    setAgentStatus,
+    setKillSwitch,
+    setupComplete,
+    showDeveloperSurfaces,
+    startBetaDemo,
+    submitVenueProposal,
+    unreadAgentNotifications,
+  };
+}

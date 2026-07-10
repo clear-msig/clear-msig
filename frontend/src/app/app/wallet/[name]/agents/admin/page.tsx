@@ -32,11 +32,11 @@ import {
   type AgentMarketReadiness,
   type AgentProfile,
   type AgentTradeProposal,
-} from "@/lib/agents/client";
+} from "@/features/agents/infrastructure/browserRuntime";
 import {
   loadAgentVenueReadiness,
   type AgentVenueReadiness,
-} from "@/lib/agents/clientExecution";
+} from "@/features/agents/infrastructure/browserRuntime";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 export default function AgentAdminPage() {

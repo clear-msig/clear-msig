@@ -19,7 +19,7 @@ import {
   saveAgentBetaFeedback,
   type AgentBetaFeedbackItem,
   type AgentBetaFeedbackKind,
-} from "@/lib/agents/client";
+} from "@/features/agents/infrastructure/browserRuntime";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 const FEEDBACK_KINDS: Array<{ value: AgentBetaFeedbackKind; label: string }> = [

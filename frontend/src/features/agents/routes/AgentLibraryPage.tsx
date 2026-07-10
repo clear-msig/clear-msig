@@ -54,9 +54,16 @@ import {
   type TradingVenue,
   type ClearSigTraderRisk,
   type ClearSigTraderTemplate,
-} from "@/lib/agents/client";
-import { loadAgentMarketDataSnapshots } from "@/lib/agents/clientMarketData";
+} from "@/features/agents/infrastructure/browserRuntime";
+import { loadAgentMarketDataSnapshots } from "@/features/agents/infrastructure/browserRuntime";
 import { toDisplayName } from "@/lib/retail/walletNames";
+import {
+  decodeRouteParam as decodeParam,
+  formatNumber,
+  formatSignedUsd,
+  formatUsd,
+  venueLabel,
+} from "@/features/agents/domain";
 
 type LibraryWindow = "7d" | "30d" | "all";
 type TrackedAgentItem = {
@@ -372,32 +379,32 @@ export default function TraderLibraryPage() {
           </h2>
         </div>
         <div className="grid gap-3 lg:grid-cols-3">
-        {filteredTemplates.map((trader) => {
-          const existing = chosen.some(
-            (agent) => agent.libraryTraderId === trader.id && agent.status !== "revoked",
-          );
-          const existingAgent = chosen.find(
-            (agent) => agent.libraryTraderId === trader.id && agent.status !== "revoked",
-          );
-          const hasAllowance = existingAgent
-            ? sessions.some(
+          {filteredTemplates.map((trader) => {
+            const existing = chosen.some(
+              (agent) => agent.libraryTraderId === trader.id && agent.status !== "revoked",
+            );
+            const existingAgent = chosen.find(
+              (agent) => agent.libraryTraderId === trader.id && agent.status !== "revoked",
+            );
+            const hasAllowance = existingAgent
+              ? sessions.some(
                 (session) =>
                   session.agentId === existingAgent.id &&
                   isAgentSessionCurrent(session, policy) &&
                   sessionAllowsVenue(session, "mock_perps", policy),
               )
-            : false;
-          return (
-            <TraderCard
-              key={trader.id}
-              trader={trader}
-              existing={existing}
-              hasAllowance={hasAllowance}
-              pending={pending}
-              onChoose={() => chooseTrader(trader)}
-            />
-          );
-        })}
+              : false;
+            return (
+              <TraderCard
+                key={trader.id}
+                trader={trader}
+                existing={existing}
+                hasAllowance={hasAllowance}
+                pending={pending}
+                onChoose={() => chooseTrader(trader)}
+              />
+            );
+          })}
         </div>
         {filteredTemplates.length === 0 ? (
           <div className="rounded-card bg-surface-raised p-5 text-sm text-text-soft">
@@ -449,11 +456,11 @@ function AgentRecipePanel({
           );
           const hasAllowance = existingAgent
             ? sessions.some(
-                (session) =>
-                  session.agentId === existingAgent.id &&
-                  isAgentSessionCurrent(session, policy) &&
-                  sessionAllowsVenue(session, "mock_perps", policy),
-              )
+              (session) =>
+                session.agentId === existingAgent.id &&
+                isAgentSessionCurrent(session, policy) &&
+                sessionAllowsVenue(session, "mock_perps", policy),
+            )
             : false;
           return (
             <button
@@ -705,8 +712,8 @@ function TrackedAgentCard({
   const primaryLabel = hasCurrentAllowance
     ? "Start practice"
     : allocation.action === "promote" ||
-        allocation.action === "demote" ||
-        allocation.action === "review"
+      allocation.action === "demote" ||
+      allocation.action === "review"
       ? "Review budget"
       : "Set budget";
   const latestExecutions = [...executions]
@@ -922,11 +929,11 @@ function LibraryTradeRow({
                   : "border-border-soft text-text-soft"
               : isOpen
                 ? "border-warning/30 bg-warning/[0.08] text-warning"
-              : pnl > 0
-                ? "border-accent/30 bg-accent/[0.08] text-accent"
-                : pnl < 0
-                  ? "border-rose-500/30 bg-rose-500/[0.08] text-rose-300"
-                  : "border-border-soft text-text-soft",
+                : pnl > 0
+                  ? "border-accent/30 bg-accent/[0.08] text-accent"
+                  : pnl < 0
+                    ? "border-rose-500/30 bg-rose-500/[0.08] text-rose-300"
+                    : "border-border-soft text-text-soft",
           )}
         >
           {isOpen
@@ -1075,37 +1082,6 @@ function allowanceTone(action: AgentAllocationRecommendation["action"]): string 
   return "border-border-soft bg-canvas text-text-soft";
 }
 
-function formatSignedUsd(value: string): string {
-  const parsed = Number(value);
-  const safe = Number.isFinite(parsed) ? parsed : 0;
-  const abs = Math.abs(safe).toLocaleString("en-US", {
-    maximumFractionDigits: 2,
-  });
-  if (safe > 0) return `+$${abs}`;
-  if (safe < 0) return `-$${abs}`;
-  return "$0";
-}
-
-function formatUsd(value: string): string {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return "$0";
-  return `$${parsed.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
-}
-
-function formatNumber(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
-}
-
-function venueLabel(venue: TradingVenue): string {
-  switch (venue) {
-    case "mock_perps":
-      return "Built-in practice";
-    case "hyperliquid_testnet":
-      return "Connected practice";
-    case "bulktrade_mock":
-      return "Bulk practice";
-  }
-}
 
 function sessionAllowsVenue(
   session: AgentSessionGrant,
@@ -1119,15 +1095,6 @@ function sessionAllowsVenue(
 
 function currentSessionVenue(session: AgentSessionGrant | undefined): TradingVenue {
   return session?.allowedVenues?.[0] ?? "mock_perps";
-}
-
-function decodeParam(value: string | undefined): string {
-  const raw = value ?? "";
-  try {
-    return decodeURIComponent(raw);
-  } catch {
-    return raw;
-  }
 }
 
 const SECONDARY_BUTTON =

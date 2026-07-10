@@ -13,7 +13,7 @@ import {
   syncAgentProfile,
   type AgentStrategyProfile,
   type AgentTradingMode,
-} from "@/lib/agents/client";
+} from "@/features/agents/infrastructure/browserRuntime";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { Button } from "@/components/retail/Button";
 import {

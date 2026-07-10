@@ -12,7 +12,7 @@ import {
   subscribeAgents,
   type AgentOwnerApproval,
   type AgentProfile,
-} from "@/lib/agents/client";
+} from "@/features/agents/infrastructure/browserRuntime";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 type ApprovalFilter = "all" | "wallet_signature" | "browser_confirm";

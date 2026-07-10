@@ -15,7 +15,7 @@ import {
   syncAgentVaultPolicy,
   type AgentVaultPolicy,
   type TradingVenue,
-} from "@/lib/agents/client";
+} from "@/features/agents/infrastructure/browserRuntime";
 import { encryptStatus } from "@/lib/encrypt/client";
 import { toDisplayName } from "@/lib/retail/walletNames";
 

@@ -3,10 +3,10 @@ import {
   AGENT_VENUE_REALTIME_POLL_MS,
   loadAgentVenueReadinessForAgents,
   loadAgentVenueReadiness,
-  reconcileAgentVenueRequest,
   startAgentVenueReadinessPolling,
   submitAgentVenueExecution,
 } from "@/lib/agents/clientExecution";
+import { reconcileAgentVenueRequest } from "@/features/agents/domain";
 import type { AgentTradeProposal } from "@/lib/agents";
 
 const proposal: AgentTradeProposal = {

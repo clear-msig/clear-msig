@@ -19,19 +19,41 @@ API handlers validate transport input and delegate to server-side domain modules
 Client components consume typed client adapters or hooks; they do not reach into
 server persistence directly.
 
+## Agent feature boundaries
+
+The agent feature uses a stricter four-layer dependency flow:
+
+1. `features/agents/ui` contains render-only screens and components. UI receives
+   controller state and callbacks; it cannot import browser infrastructure.
+2. `features/agents/controllers` coordinates route state, effects, and user
+   actions. Route entry points only select a controller and render a screen.
+3. `features/agents/domain` owns pure presentation and reconciliation rules. It
+   cannot runtime-import React, Next.js, wallet code, clients, or server modules.
+4. `features/agents/infrastructure` is the single browser adapter for network,
+   persistence, wallet signing, and market-data clients. Server implementations
+   remain behind API handlers in `lib/agents/server*`.
+
+Agent routes and components cannot import wallet or legacy agent client internals
+directly. `check:architecture` enforces these imports and a 1,200-line maximum for
+every agent feature module.
+
 ## Performance contract
 
 - Development uses Turbopack for fast feedback. Production uses Webpack because
   its measured route payloads are materially smaller for the current wallet SDKs.
 - `npm run check:architecture` enforces route size, route-layer size, client-page
   ratio, browser/server boundaries, and exclusion of diagnostic routes.
-- `npm run check:bundles` measures every built route's gzip payload from the Next
-  manifest and rejects regressions beyond the public and authenticated budgets.
-- CI caches `.next/cache`, then runs lint, architecture checks, typecheck, tests,
-  the production build, and bundle budgets.
+- `npm run check:bundles` deduplicates each route's manifest chunks, separates
+  shared chunks from route-owned chunks, and enforces both total and route-owned
+  gzip budgets without adding a shared chunk more than once per route.
+- CI caches `.next/cache`, then runs the same production verification command used
+  by Vercel and local releases.
 
 ## Commands
 
 - `npm run verify`: architecture, lint, incremental typecheck, and unit tests.
-- `npm run build`: architecture gate, production build, and bundle gate.
+- `npm run build`: architecture, lint, typecheck, tests, Webpack build, and bundle
+  budgets. This is the production release gate.
+- `npm run build:webpack`: Webpack production compilation only. Use this for build
+  profiling; do not use it as a release gate.
 - `npm run typecheck:clean`: non-incremental typecheck for toolchain debugging.
