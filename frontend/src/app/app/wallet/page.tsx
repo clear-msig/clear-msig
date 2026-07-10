@@ -35,7 +35,6 @@ import {
   ChevronLeft,
   Eye,
   EyeOff,
-  Layers,
   KeyRound,
   Plus,
   ShieldCheck,
@@ -1423,22 +1422,24 @@ function FirstVisitCard({
 }) {
   if (!selectedSurface) {
     return (
-      <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-8">
-        <div className="flex flex-col items-center gap-3 text-center sm:gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 sm:h-14 sm:w-14">
-            <Layers className="h-6 w-6 text-accent sm:h-7 sm:w-7" strokeWidth={1.75} />
+      <div className="border-y border-border-soft py-6 sm:py-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+              <Wallet className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
+            </div>
+            <div>
+              <h2 className="font-display text-lg font-semibold text-text-strong sm:text-xl">
+                Create your first wallet
+              </h2>
+              <p className="mt-1 text-sm text-text-soft">
+                Personal is selected by default. Team and agent setups are one tap away.
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="font-display text-xl font-semibold text-text-strong sm:text-display-xs">
-              Choose your ClearSig product
-            </h2>
-            <p className="mt-1 text-sm text-text-soft">
-              Pick the workspace that matches what you need.
-            </p>
-          </div>
-          <Link href="/choose">
-            <Button size="lg">
-              Choose product
+          <Link href="/app/wallet/new" className="shrink-0">
+            <Button size="md">
+              Create wallet
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Button>
           </Link>
