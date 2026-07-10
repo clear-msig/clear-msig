@@ -1,9 +1,9 @@
 "use client";
 
 // Per-wallet policy-rule storage. Rules persist locally under a
-// stable per-wallet key - when on-chain enforcement lands (Encrypt's
-// `#[encrypt_fn]` handlers), this same shape moves to chain-stored
-// ciphertext refs without changing call sites.
+// stable per-wallet key. Typed proposals commit the selected plaintext
+// enforcement values for program verification; a future Encrypt rollout
+// can move private rule storage to chain-backed ciphertext references.
 //
 // Storage shape: map of wallet name → ordered list of rules. A
 // custom event ("clear:policies-changed") fires on every write so

@@ -18,6 +18,7 @@ const metrics = sourceFiles.map((path) => {
 
 const pages = metrics.filter(({ path }) => pageFiles.includes(path));
 const agentModules = metrics.filter(({ path }) => path.includes("/features/agents/"));
+const featureModules = metrics.filter(({ path }) => path.includes("/features/"));
 const routeLines = pages.reduce((total, file) => total + file.lines, 0);
 const clientPages = pages.filter((file) => file.client).length;
 const clientRatio = pages.length === 0 ? 0 : clientPages / pages.length;
@@ -34,6 +35,12 @@ for (const file of metrics) {
   }
   if (file.path.includes("/app/api/") && file.client) {
     failures.push(`${label(file.path)} is an API module marked as a client component`);
+  }
+  if (
+    /from\s+["']nodemailer["']/.test(file.source) &&
+    !/^\s*import\s+["']server-only["'];/m.test(file.source)
+  ) {
+    failures.push(`${label(file.path)} imports nodemailer without a server-only boundary`);
   }
   const importsServerRuntime = file.source
     .split(";")
@@ -111,6 +118,34 @@ for (const file of metrics) {
       failures.push(`${label(file.path)} pulls runtime infrastructure into the agent domain`);
     }
   }
+
+  const layer = featureLayer(file.path);
+  if (layer?.name !== "agents" && layer?.layer === "ui") {
+    const importsInfrastructure = importStatements(file.source).some((statement) => {
+      const importedPath = resolveImport(file.path, statement);
+      return importedPath.includes(`/features/${layer.name}/infrastructure/`);
+    });
+    if (importsInfrastructure) {
+      failures.push(`${label(file.path)} imports infrastructure from render-only feature UI`);
+    }
+  }
+  if (layer?.name !== "agents" && layer?.layer === "domain") {
+    const importsRuntimeBoundary = importStatements(file.source).some((statement) => {
+      if (/^\s*(?:import|export)\s+type\b/.test(statement)) return false;
+      const importedPath = resolveImport(file.path, statement);
+      return (
+        importedPath === "react" ||
+        importedPath === "next" ||
+        importedPath.startsWith("next/") ||
+        importedPath.includes(`/features/${layer.name}/infrastructure/`) ||
+        importedPath.includes(`/features/${layer.name}/ui/`) ||
+        /\/lib\/wallet/.test(importedPath)
+      );
+    });
+    if (importsRuntimeBoundary) {
+      failures.push(`${label(file.path)} pulls runtime or UI dependencies into feature domain`);
+    }
+  }
 }
 
 if (routeLines > 26_000) {
@@ -139,6 +174,13 @@ console.log(
   `Agent feature: ${agentModules.length} modules, largest ${largestAgentModule?.lines ?? 0} lines ` +
     `(${largestAgentModule ? label(largestAgentModule.path) : "none"})`,
 );
+const largestFeatureModules = [...featureModules]
+  .sort((a, b) => b.lines - a.lines)
+  .slice(0, 5);
+console.log("Largest feature modules:");
+for (const file of largestFeatureModules) {
+  console.log(`- ${label(file.path)}: ${file.lines} lines`);
+}
 
 if (failures.length > 0) {
   console.error(failures.map((failure) => `- ${failure}`).join("\n"));
@@ -167,4 +209,9 @@ function resolveImport(sourcePath, statement) {
   if (specifier.startsWith("@/")) return join(root, specifier.slice(2));
   if (specifier.startsWith(".")) return resolve(dirname(sourcePath), specifier);
   return specifier;
+}
+
+function featureLayer(path) {
+  const match = path.match(/\/features\/([^/]+)\/(domain|infrastructure|ui)\//);
+  return match ? { name: match[1], layer: match[2] } : null;
 }

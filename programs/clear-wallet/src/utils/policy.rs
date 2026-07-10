@@ -19,9 +19,11 @@ const HEADER_LEN: usize = 4 + 1 + 8 + 4 + 1 + 1;
 const MAX_POLICY_KEYS: usize = 16;
 const EXT_VELOCITY_SOL: u8 = 1;
 const EXT_SEND_COUNT: u8 = 2;
+const EXT_ALLOWED_TIME: u8 = 3;
 const EXT_HEADER_LEN: usize = 1 + 2;
 const EXT_VELOCITY_SOL_LEN: usize = 8 + 4;
 const EXT_SEND_COUNT_LEN: usize = 4 + 4;
+const EXT_ALLOWED_TIME_LEN: usize = 1 + 1 + 1 + 2;
 
 pub fn hash_typed_policy(policy_bytes: &[u8]) -> [u8; 32] {
     hash_policy_commitment(&[POLICY_DOMAIN, policy_bytes])
@@ -38,6 +40,12 @@ pub fn enforce_typed_sol_send_policy(
     policy_spend_bump: u8,
 ) -> Result<(), ProgramError> {
     if policy_bytes.is_empty() {
+        initialize_policy_spend(
+            intent,
+            committed_policy_hash,
+            policy_spend,
+            policy_spend_bump,
+        )?;
         return Ok(());
     }
     require!(
@@ -50,6 +58,7 @@ pub fn enforce_typed_sol_send_policy(
     policy.enforce_amount(amount_lamports)?;
     policy.enforce_cooldown(intent, proposal)?;
     policy.enforce_required_approvers(intent, proposal)?;
+    policy.enforce_allowed_time()?;
     policy.enforce_velocity(
         amount_lamports,
         intent,
@@ -76,7 +85,11 @@ pub fn enforce_typed_remote_send_policy(
     policy_spend: &mut PolicySpendState,
     policy_spend_bump: u8,
 ) -> Result<(), ProgramError> {
-    let amount_raw = u64::try_from(amount_raw).map_err(|_| WalletError::PolicyAmountExceeded)?;
+    // The v1 policy wire stores numeric caps as u64, while ERC-20 amounts are
+    // u128. Saturation preserves recipient/time/send-count enforcement and
+    // guarantees any configured u64 amount or velocity cap rejects a larger
+    // value instead of disabling the entire typed ERC-20 path.
+    let amount_raw = u64::try_from(amount_raw).unwrap_or(u64::MAX);
     enforce_typed_sol_send_policy(
         policy_bytes,
         committed_policy_hash,
@@ -97,6 +110,7 @@ struct TypedSolPolicy<'a> {
     velocity_window_seconds: u32,
     max_send_count: u32,
     count_window_seconds: u32,
+    allowed_time: Option<AllowedTimeWindow>,
     recipients: &'a [[u8; 32]],
     required_approvers: &'a [[u8; 32]],
 }
@@ -153,6 +167,7 @@ impl<'a> TypedSolPolicy<'a> {
             velocity_window_seconds: extensions.velocity_window_seconds,
             max_send_count: extensions.max_send_count,
             count_window_seconds: extensions.count_window_seconds,
+            allowed_time: extensions.allowed_time,
             recipients,
             required_approvers,
         })
@@ -222,6 +237,18 @@ impl<'a> TypedSolPolicy<'a> {
                 WalletError::PolicyRequiredApprovalMissing
             );
         }
+        Ok(())
+    }
+
+    fn enforce_allowed_time(&self) -> Result<(), ProgramError> {
+        let Some(window) = self.allowed_time else {
+            return Ok(());
+        };
+        let now = Clock::get()?.unix_timestamp.get();
+        require!(
+            window.allows_timestamp(now),
+            WalletError::PolicyOutsideAllowedHours
+        );
         Ok(())
     }
 
@@ -357,6 +384,37 @@ struct PolicyExtensions {
     velocity_window_seconds: u32,
     max_send_count: u32,
     count_window_seconds: u32,
+    allowed_time: Option<AllowedTimeWindow>,
+}
+
+#[derive(Clone, Copy)]
+struct AllowedTimeWindow {
+    start_hour: u8,
+    end_hour: u8,
+    days_mask: u8,
+    utc_offset_minutes: i16,
+}
+
+impl AllowedTimeWindow {
+    fn allows_timestamp(&self, unix_timestamp: i64) -> bool {
+        let local_timestamp = unix_timestamp - i64::from(self.utc_offset_minutes) * 60;
+        let local_day = local_timestamp.div_euclid(86_400);
+        let local_hour = local_timestamp.rem_euclid(86_400) / 3_600;
+        let weekday = (local_day + 4).rem_euclid(7) as u8;
+        let day_allowed = self.days_mask == 0 || self.days_mask & (1 << weekday) != 0;
+        if !day_allowed {
+            return false;
+        }
+        let start = i64::from(self.start_hour);
+        let end = i64::from(self.end_hour);
+        if start < end {
+            local_hour >= start && local_hour < end
+        } else if start > end {
+            local_hour >= start || local_hour < end
+        } else {
+            false
+        }
+    }
 }
 
 fn parse_extensions(bytes: &[u8]) -> Result<PolicyExtensions, ProgramError> {
@@ -403,9 +461,66 @@ fn parse_extensions(bytes: &[u8]) -> Result<PolicyExtensions, ProgramError> {
                         .map_err(|_| WalletError::InvalidPolicy)?,
                 );
             }
+            EXT_ALLOWED_TIME => {
+                require!(len == EXT_ALLOWED_TIME_LEN, WalletError::InvalidPolicy);
+                let start_hour = payload[0];
+                let end_hour = payload[1];
+                let days_mask = payload[2];
+                let utc_offset_minutes = i16::from_le_bytes(
+                    payload[3..5]
+                        .try_into()
+                        .map_err(|_| WalletError::InvalidPolicy)?,
+                );
+                require!(
+                    start_hour <= 23 && end_hour <= 23,
+                    WalletError::InvalidPolicy
+                );
+                require!(days_mask & !0x7f == 0, WalletError::InvalidPolicy);
+                require!(
+                    (-14 * 60..=14 * 60).contains(&utc_offset_minutes),
+                    WalletError::InvalidPolicy
+                );
+                extensions.allowed_time = Some(AllowedTimeWindow {
+                    start_hour,
+                    end_hour,
+                    days_mask,
+                    utc_offset_minutes,
+                });
+            }
             _ => return Err(WalletError::InvalidPolicy.into()),
         }
         offset += len;
     }
     Ok(extensions)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AllowedTimeWindow;
+
+    #[test]
+    fn allowed_hours_apply_the_signed_local_offset_and_day() {
+        let monday_nine_utc = 4 * 86_400 + 9 * 3_600;
+        let window = AllowedTimeWindow {
+            start_hour: 9,
+            end_hour: 17,
+            days_mask: 1 << 1,
+            utc_offset_minutes: 0,
+        };
+        assert!(window.allows_timestamp(monday_nine_utc));
+        assert!(!window.allows_timestamp(monday_nine_utc + 8 * 3_600));
+    }
+
+    #[test]
+    fn allowed_hours_support_windows_that_wrap_midnight() {
+        let window = AllowedTimeWindow {
+            start_hour: 22,
+            end_hour: 6,
+            days_mask: 0,
+            utc_offset_minutes: -60,
+        };
+        let utc_21_local_22 = 21 * 3_600;
+        assert!(window.allows_timestamp(utc_21_local_22));
+        assert!(!window.allows_timestamp(12 * 3_600));
+    }
 }

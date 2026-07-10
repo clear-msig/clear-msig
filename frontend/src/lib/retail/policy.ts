@@ -1,6 +1,6 @@
 "use client";
 
-// Policy v1 - client-side spending policies that enforce at sign time.
+// Policy v1 - locally authored spending policies committed at sign time.
 //
 // Three new fields on top of what /budget + /allowances already do:
 //
@@ -16,15 +16,12 @@
 // per-friend allowance + wallet-wide budget under one evaluator
 // (see lib/retail/policyEvaluation.ts).
 //
-// **Enforcement is client-side until the on-chain program grows
-// FHE-aware policy slots.** Same disclosure as /budget: a motivated
-// user opening DevTools can defeat any of these checks. Honest
-// framing matters - /policy chips say "pre-alpha" and /SECURITY.md
-// describes the gap.
+// Typed sends include these values in signed policy bytes. The browser
+// provides immediate pre-flight feedback and clear-wallet repeats the
+// recipient and allowed-hours checks during execution.
 
 const ALLOWLIST_KEY = "clear-msig:policy.allowlist:v1";
 const TIME_WINDOW_KEY = "clear-msig:policy.timeWindow:v1";
-const EMERGENCY_PAUSE_KEY = "clear-msig:policy.emergencyPause:v1";
 
 // ── Allowlist ───────────────────────────────────────────────────────
 
@@ -78,7 +75,7 @@ export function saveAllowlist(input: Omit<Allowlist, "updatedAt">): Allowlist {
   const all = loadAllowlists().filter((r) => r.walletName !== input.walletName);
   const record: Allowlist = {
     ...input,
-    addresses: dedupe(input.addresses).slice(0, 200),
+    addresses: dedupe(input.addresses).slice(0, 16),
     updatedAt: Date.now(),
   };
   all.push(record);
@@ -159,64 +156,6 @@ export function saveTimeWindow(
   return record;
 }
 
-// ── Emergency pause ────────────────────────────────────────────────
-
-export interface EmergencyPause {
-  walletName: string;
-  paused: boolean;
-  updatedAt: number;
-}
-
-function loadEmergencyPauses(): EmergencyPause[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(EMERGENCY_PAUSE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isEmergencyPause);
-  } catch {
-    return [];
-  }
-}
-
-function persistEmergencyPauses(rows: EmergencyPause[]): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(EMERGENCY_PAUSE_KEY, JSON.stringify(rows));
-  } catch {
-    /* localStorage full or blocked - fall through */
-  }
-}
-
-export function getEmergencyPause(walletName: string): EmergencyPause {
-  return (
-    loadEmergencyPauses().find((row) => row.walletName === walletName) ?? {
-      walletName,
-      paused: false,
-      updatedAt: 0,
-    }
-  );
-}
-
-export function saveEmergencyPause(
-  walletName: string,
-  paused: boolean,
-): EmergencyPause {
-  const all = loadEmergencyPauses().filter((row) => row.walletName !== walletName);
-  const record: EmergencyPause = {
-    walletName,
-    paused,
-    updatedAt: Date.now(),
-  };
-  all.push(record);
-  persistEmergencyPauses(all);
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new Event("clear:emergency-pause-changed"));
-  }
-  return record;
-}
-
 /// Test whether `now` falls inside the window. When the window is
 /// disabled, every time is "in window". When days-of-week is empty,
 /// every day is blocked (failsafe).
@@ -256,16 +195,6 @@ function isTimeWindow(r: unknown): r is TimeWindow {
     typeof o.startHour === "number" &&
     typeof o.endHour === "number" &&
     Array.isArray(o.daysOfWeek) &&
-    typeof o.updatedAt === "number"
-  );
-}
-
-function isEmergencyPause(r: unknown): r is EmergencyPause {
-  if (!r || typeof r !== "object") return false;
-  const o = r as Record<string, unknown>;
-  return (
-    typeof o.walletName === "string" &&
-    typeof o.paused === "boolean" &&
     typeof o.updatedAt === "number"
   );
 }

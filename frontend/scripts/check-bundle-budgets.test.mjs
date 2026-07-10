@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { analyzeBundleManifest } from "./check-bundle-budgets.mjs";
+import {
+  analyzeBundleManifest,
+  includeImmediateRuntimeChunks,
+} from "./check-bundle-budgets.mjs";
 
 test("separates shared and route-owned chunks without double counting", () => {
   const sizes = new Map([
@@ -29,4 +32,28 @@ test("separates shared and route-owned chunks without double counting", () => {
   });
   assert.equal(routes[1].totalBytes, 17);
   assert.equal(routes[1].sharedBytes + routes[1].routeBytes, routes[1].totalBytes);
+});
+
+test("counts immediately mounted dynamic runtime chunks once per route", () => {
+  const manifest = includeImmediateRuntimeChunks(
+    {
+      pages: {
+        "/app/a/page": ["shared.js", "route-a.js"],
+        "/public/page": ["shared.js"],
+      },
+    },
+    {
+      "providers -> wallet": {
+        files: ["shared.js", "wallet.js", "wallet.js"],
+      },
+    },
+    [{ routePrefix: "/app/", loadableKey: "providers -> wallet" }],
+  );
+
+  assert.deepEqual(manifest.pages["/app/a/page"], [
+    "shared.js",
+    "route-a.js",
+    "wallet.js",
+  ]);
+  assert.deepEqual(manifest.pages["/public/page"], ["shared.js"]);
 });

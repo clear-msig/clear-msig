@@ -281,7 +281,7 @@ pub enum ProposalAction {
         #[arg(long)]
         asset_id_hash: String,
     },
-    /// Sign and optionally broadcast an approved typed ETH/HYPE send via Ika.
+    /// Sign and optionally broadcast an approved typed remote send via Ika.
     TypedChainSendIka {
         #[arg(long)]
         wallet: String,
@@ -1557,9 +1557,9 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             if amount_raw == 0 {
                 return Err(anyhow!("amount-raw must be greater than zero"));
             }
-            if !matches!(chain_kind, 1 | 2 | 3 | 5) {
+            if !matches!(chain_kind, 1 | 2 | 3 | 4 | 5) {
                 return Err(anyhow!(
-                    "typed-chain-send-ika currently supports chain kinds 1, 2, 3, and 5"
+                    "typed-chain-send-ika currently supports chain kinds 1 through 5"
                 ));
             }
 
@@ -1657,7 +1657,9 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 recipient_accounts.push(AccountMeta::new(*recipient, false));
             }
             let ix = crate::instructions::execute_typed_sol_batch_send(
+                solana_sdk::signer::Signer::pubkey(&config.payer),
                 wallet_pubkey,
+                policy_spend_pubkey(wallet_pubkey, intent_pubkey),
                 vault_pubkey(wallet_pubkey),
                 intent_pubkey,
                 proposal_pubkey,

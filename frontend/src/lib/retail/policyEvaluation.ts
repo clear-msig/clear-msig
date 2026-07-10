@@ -13,12 +13,11 @@
 //   - getAllowance(walletName, friend) (lib/retail/allowances.ts)
 //   - getBudget(walletName)            (lib/retail/spendingBudget.ts)
 //
-// Enforcement is client-side. A user with DevTools can defeat any of
-// these. /SECURITY.md and the /policy chips disclose this.
+// This evaluator gives immediate feedback. Typed execution repeats the
+// signed recipient, allowed-hours, and rolling-limit checks on chain.
 
 import {
   getAllowlist,
-  getEmergencyPause,
   getTimeWindow,
   isInsideTimeWindow,
 } from "@/lib/retail/policy";
@@ -31,7 +30,6 @@ import {
 import { quotePerWhole } from "@/lib/retail/priceConversion";
 
 export type PolicyViolationCode =
-  | "emergency_paused"
   | "recipient_not_allowed"
   | "outside_time_window"
   | "exceeds_friend_allowance"
@@ -93,16 +91,6 @@ export interface PolicyEvaluation {
 export function evaluatePolicy(input: PolicyCheckInput): PolicyEvaluation {
   const violations: PolicyViolation[] = [];
   const now = new Date(input.nowMs ?? Date.now());
-
-  // 0. Emergency pause.
-  const pause = getEmergencyPause(input.walletName);
-  if (pause.paused) {
-    violations.push({
-      code: "emergency_paused",
-      title: "Sends are paused",
-      body: "This wallet is paused for safety. Turn sending back on from Protection when you are ready.",
-    });
-  }
 
   // 1. Allowlist.
   const allowlist = getAllowlist(input.walletName);
@@ -201,7 +189,6 @@ export function evaluatePolicy(input: PolicyCheckInput): PolicyEvaluation {
 }
 
 function hasAnyActiveRule(walletName: string, budget: WalletBudget | null): boolean {
-  if (getEmergencyPause(walletName).paused) return true;
   if (getAllowlist(walletName).mode === "on") return true;
   if (getTimeWindow(walletName).enabled) return true;
   if (budget && (budget.weeklyUsd ?? 0) > 0) return true;

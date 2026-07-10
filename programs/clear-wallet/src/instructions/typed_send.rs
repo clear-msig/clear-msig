@@ -1,5 +1,3 @@
-use core::mem::MaybeUninit;
-
 use quasar_lang::{cpi::Seed, prelude::*, remaining::RemainingAccounts};
 
 use crate::{
@@ -62,7 +60,16 @@ pub struct ExecuteTypedSolSendArgs {
 
 #[derive(Accounts)]
 pub struct ExecuteTypedSolBatchSend<'info> {
+    #[account(mut)]
+    pub payer: &'info mut Signer,
     pub wallet: Account<ClearWallet<'info>>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = PolicySpendState::seeds(wallet, intent),
+        bump,
+    )]
+    pub policy_spend: &'info mut Account<PolicySpendState>,
     #[cfg_attr(target_os = "solana", allow(quasar::writable_no_authority))]
     #[account(
         mut,
@@ -157,14 +164,13 @@ impl<'info> ExecuteTypedSolBatchSend<'info> {
         require!(recipient_count > 0, ProgramError::InvalidInstructionData);
         require!(recipient_count <= 16, WalletError::TooManyAccounts);
 
-        let mut recipients: [MaybeUninit<AccountView>; 16] =
-            unsafe { MaybeUninit::uninit().assume_init() };
+        let mut recipient_keys = [[0u8; 32]; 16];
         let mut remaining_iter = remaining.iter();
         for index in 0..recipient_count {
             let account = remaining_iter
                 .next()
                 .ok_or(ProgramError::NotEnoughAccountKeys)??;
-            recipients[index].write(account);
+            recipient_keys[index].copy_from_slice(account.address().as_ref());
         }
         require!(
             remaining_iter.next().is_none(),
@@ -172,9 +178,8 @@ impl<'info> ExecuteTypedSolBatchSend<'info> {
         );
 
         let payload_hash = hash_batch_send_sol_payload_iter((0..recipient_count).map(|index| {
-            let recipient = unsafe { recipients[index].assume_init_ref() };
             (
-                recipient.address().as_ref(),
+                recipient_keys[index].as_ref(),
                 read_amount(args.amount_lamports_le, index),
             )
         }));
@@ -187,13 +192,28 @@ impl<'info> ExecuteTypedSolBatchSend<'info> {
             args.envelope_hash,
         )?;
 
+        for index in 0..recipient_count {
+            enforce_typed_sol_send_policy(
+                self.proposal.policy_bytes().as_ref(),
+                args.policy_commitment,
+                &recipient_keys[index],
+                read_amount(args.amount_lamports_le, index),
+                &self.intent,
+                &self.proposal,
+                &mut self.policy_spend,
+                bumps.policy_spend,
+            )?;
+        }
+
         let vault = self.vault.to_account_view();
         let vault_seeds = self.vault_seeds(bumps);
         for index in 0..recipient_count {
-            let recipient = unsafe { recipients[index].assume_init_ref() };
+            let recipient = remaining
+                .get(index)?
+                .ok_or(ProgramError::NotEnoughAccountKeys)?;
             transfer_lamports(
                 vault,
-                recipient,
+                &recipient,
                 self.system_program,
                 &vault_seeds,
                 read_amount(args.amount_lamports_le, index),

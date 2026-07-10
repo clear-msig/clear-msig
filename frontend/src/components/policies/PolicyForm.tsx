@@ -701,7 +701,8 @@ function TimeWindowEditor({
         })}
       </div>
       <p className="text-[10px] text-text-soft">
-        Empty days set = every day. Hours are local time on this device.
+        Empty days means every day. Clear signs this device&rsquo;s timezone
+        offset and the program checks the allowed hours before execution.
       </p>
     </div>
   );

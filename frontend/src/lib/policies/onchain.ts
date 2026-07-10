@@ -6,6 +6,7 @@ const POLICY_DOMAIN = "typed-sol-send-policy-v1";
 const MAGIC = [0x43, 0x53, 0x50, 0x31]; // CSP1
 const EXT_VELOCITY_SOL = 1;
 const EXT_SEND_COUNT = 2;
+const EXT_ALLOWED_TIME = 3;
 
 export interface EncodedSolPolicy {
   bytes: Uint8Array;
@@ -20,8 +21,13 @@ export function encodeTypedSolPolicy(
     return null;
   }
 
-  let mode = 0;
-  let recipients: string[] = [];
+  let mode =
+    plan.recipientGuard?.mode === "allowlist"
+      ? 1
+      : plan.recipientGuard?.mode === "blocklist"
+        ? 2
+        : 0;
+  let recipients: string[] = plan.recipientGuard?.addresses ?? [];
   let maxAmountLamports = 0n;
   let velocityCapLamports = plan.onchainLimits.velocityCapDisplay
     ? parseSolLamports(plan.onchainLimits.velocityCapDisplay)
@@ -36,8 +42,12 @@ export function encodeTypedSolPolicy(
 
   for (const condition of plan.conditions) {
     if (condition.kind === "recipient") {
-      mode = condition.mode === "allowlist" ? 1 : 2;
-      recipients = condition.addresses ?? [];
+      ({ mode, recipients } = mergeRecipientPolicy(
+        mode,
+        recipients,
+        condition.mode === "allowlist" ? 1 : 2,
+        condition.addresses ?? [],
+      ));
     } else if (condition.kind === "amount") {
       const ticker = condition.ticker?.trim().toUpperCase();
       if (!ticker || ticker === "SOL") {
@@ -63,6 +73,8 @@ export function encodeTypedSolPolicy(
     plan.rule?.action === "require-extra-approvers" ? plan.extraApprovers : [];
   const extraCooldownSeconds =
     plan.rule?.action === "require-cooldown" ? plan.extraCooldownSeconds : 0;
+  recipients = dedupe(recipients);
+  assertPolicyKeyCounts(recipients.length, requiredApprovers.length);
 
   if (
     mode === 0 &&
@@ -70,7 +82,8 @@ export function encodeTypedSolPolicy(
     velocityCapLamports === 0n &&
     requiredApprovers.length === 0 &&
     extraCooldownSeconds === 0 &&
-    maxSendCount === 0
+    maxSendCount === 0 &&
+    !plan.allowedTimeWindow
   ) {
     return null;
   }
@@ -96,6 +109,7 @@ export function encodeTypedSolPolicy(
     writer.pushU32(maxSendCount);
     writer.pushU32(countWindowSeconds);
   }
+  writeAllowedTimeExtension(writer, plan.allowedTimeWindow);
 
   const bytes = writer.bytes();
   return {
@@ -122,8 +136,15 @@ export function encodeTypedRemoteSendPolicy(
   const normalizeRecipient =
     options.normalizeRecipient ?? ((value: string) => value.trim());
 
-  let mode = 0;
-  let recipients: Uint8Array[] = [];
+  let mode =
+    plan.recipientGuard?.mode === "allowlist"
+      ? 1
+      : plan.recipientGuard?.mode === "blocklist"
+        ? 2
+        : 0;
+  let recipientTexts: string[] = (plan.recipientGuard?.addresses ?? []).map(
+    normalizeRecipient,
+  );
   let maxAmountRaw = 0n;
   let velocityCapRaw = plan.onchainLimits.velocityCapDisplay
     ? parseUnits(plan.onchainLimits.velocityCapDisplay, decimals, ticker)
@@ -138,10 +159,12 @@ export function encodeTypedRemoteSendPolicy(
 
   for (const condition of plan.conditions) {
     if (condition.kind === "recipient") {
-      mode = condition.mode === "allowlist" ? 1 : 2;
-      recipients = (condition.addresses ?? []).map((address) =>
-        textCommitment(normalizeRecipient(address)),
-      );
+      ({ mode, recipients: recipientTexts } = mergeRecipientPolicy(
+        mode,
+        recipientTexts,
+        condition.mode === "allowlist" ? 1 : 2,
+        (condition.addresses ?? []).map(normalizeRecipient),
+      ));
     } else if (condition.kind === "amount") {
       const conditionTicker = condition.ticker?.trim().toUpperCase();
       if (!conditionTicker || conditionTicker === ticker) {
@@ -167,6 +190,8 @@ export function encodeTypedRemoteSendPolicy(
     plan.rule?.action === "require-extra-approvers" ? plan.extraApprovers : [];
   const extraCooldownSeconds =
     plan.rule?.action === "require-cooldown" ? plan.extraCooldownSeconds : 0;
+  recipientTexts = dedupe(recipientTexts);
+  assertPolicyKeyCounts(recipientTexts.length, requiredApprovers.length);
 
   if (
     mode === 0 &&
@@ -174,12 +199,14 @@ export function encodeTypedRemoteSendPolicy(
     velocityCapRaw === 0n &&
     requiredApprovers.length === 0 &&
     extraCooldownSeconds === 0 &&
-    maxSendCount === 0
+    maxSendCount === 0 &&
+    !plan.allowedTimeWindow
   ) {
     return null;
   }
 
   const writer = new ByteWriter();
+  const recipients = dedupe(recipientTexts).map(textCommitment);
   writer.pushRaw(new Uint8Array(MAGIC));
   writer.pushU8(mode);
   writer.pushU64(maxAmountRaw);
@@ -200,6 +227,7 @@ export function encodeTypedRemoteSendPolicy(
     writer.pushU32(maxSendCount);
     writer.pushU32(countWindowSeconds);
   }
+  writeAllowedTimeExtension(writer, plan.allowedTimeWindow);
 
   const bytes = writer.bytes();
   return {
@@ -259,6 +287,70 @@ function stricterCap(current: bigint, candidate: bigint): bigint {
   return current < candidate ? current : candidate;
 }
 
+function mergeRecipientPolicy(
+  currentMode: number,
+  current: string[],
+  nextMode: number,
+  next: string[],
+): { mode: number; recipients: string[] } {
+  if (currentMode === 0) return { mode: nextMode, recipients: dedupe(next) };
+  if (nextMode === 0) return { mode: currentMode, recipients: dedupe(current) };
+  const currentSet = new Set(current);
+  const nextSet = new Set(next);
+  if (currentMode === 1 && nextMode === 1) {
+    return { mode: 1, recipients: current.filter((value) => nextSet.has(value)) };
+  }
+  if (currentMode === 2 && nextMode === 2) {
+    return { mode: 2, recipients: dedupe([...current, ...next]) };
+  }
+  const allowlist = currentMode === 1 ? current : next;
+  const blocklist = currentMode === 2 ? currentSet : nextSet;
+  return { mode: 1, recipients: allowlist.filter((value) => !blocklist.has(value)) };
+}
+
+function dedupe(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
+function assertPolicyKeyCounts(recipientCount: number, approverCount: number) {
+  if (recipientCount > 16) {
+    throw new Error("Program-enforced recipient policies support up to 16 addresses.");
+  }
+  if (approverCount > 16) {
+    throw new Error("Program-enforced approval policies support up to 16 approvers.");
+  }
+}
+
+function writeAllowedTimeExtension(
+  writer: ByteWriter,
+  window: PolicyEnforcementPlan["allowedTimeWindow"],
+) {
+  if (!window) return;
+  if (
+    !Number.isInteger(window.startHour) ||
+    !Number.isInteger(window.endHour) ||
+    window.startHour < 0 ||
+    window.startHour > 23 ||
+    window.endHour < 0 ||
+    window.endHour > 23
+  ) {
+    throw new Error("Policy allowed hours must use whole hours from 0 to 23.");
+  }
+  let daysMask = 0;
+  for (const day of window.daysOfWeek) {
+    if (!Number.isInteger(day) || day < 0 || day > 6) {
+      throw new Error("Policy allowed days must be between Sunday and Saturday.");
+    }
+    daysMask |= 1 << day;
+  }
+  writer.pushU8(EXT_ALLOWED_TIME);
+  writer.pushU16(5);
+  writer.pushU8(window.startHour);
+  writer.pushU8(window.endHour);
+  writer.pushU8(daysMask);
+  writer.pushI16(window.utcOffsetMinutes);
+}
+
 class ByteWriter {
   private chunks: number[] = [];
 
@@ -296,6 +388,14 @@ class ByteWriter {
       throw new Error("Policy u16 value is out of range.");
     }
     this.chunks.push(value & 0xff, (value >> 8) & 0xff);
+  }
+
+  pushI16(value: number) {
+    if (!Number.isInteger(value) || value < -0x8000 || value > 0x7fff) {
+      throw new Error("Policy i16 value is out of range.");
+    }
+    const unsigned = value & 0xffff;
+    this.chunks.push(unsigned & 0xff, (unsigned >> 8) & 0xff);
   }
 
   pushU32(value: number) {

@@ -19,6 +19,8 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 import { ToastProvider } from "@/components/ui/Toast";
+import { needsWalletRuntime } from "@/features/wallet-runtime/domain/routePolicy";
+import { ConfigGapBanner, WalletRuntimeLoading } from "@/features/wallet-runtime/ui/RuntimeStates";
 import { validateConfig } from "@/lib/config";
 import { applyTheme, getStoredTheme, watchSystemTheme } from "@/lib/security/theme";
 import { LivePricesProvider } from "@/lib/retail/priceFeed";
@@ -28,24 +30,12 @@ type Props = {
 };
 
 const LazyDynamicProviderTree = dynamic(
-  () => import("@/components/providers/DynamicProviderTree"),
+  () => import("@/features/wallet-runtime/infrastructure/DynamicProviderTree"),
   {
     ssr: false,
     loading: () => <WalletRuntimeLoading />,
   },
 );
-
-function needsWalletRuntime(pathname: string | null): boolean {
-  if (!pathname) return false;
-  return (
-    pathname === "/connect" ||
-    pathname === "/welcome" ||
-    pathname === "/send" ||
-    pathname.startsWith("/send/") ||
-    pathname === "/app" ||
-    pathname.startsWith("/app/")
-  );
-}
 
 export function AppProviders({ children }: Props) {
   const configGaps = validateConfig();
@@ -128,80 +118,5 @@ export function AppProviders({ children }: Props) {
         <ToastProvider>{children}</ToastProvider>
       </LazyDynamicProviderTree>
     </QueryClientProvider>
-  );
-}
-
-function WalletRuntimeLoading() {
-  return (
-    <main
-      aria-label="Loading wallet"
-      className="min-h-screen bg-canvas md:flex"
-    >
-      <aside className="hidden w-64 shrink-0 border-r border-border-soft bg-surface-raised md:block">
-        <div className="space-y-4 p-5">
-          <div className="h-8 w-28 animate-pulse rounded-soft bg-border-soft" />
-          <div className="h-10 animate-pulse rounded-soft bg-border-soft/70" />
-          <div className="h-10 animate-pulse rounded-soft bg-border-soft/70" />
-          <div className="h-10 animate-pulse rounded-soft bg-border-soft/70" />
-        </div>
-      </aside>
-      <div className="min-w-0 flex-1">
-        <div className="h-16 border-b border-border-soft bg-surface-raised md:h-14" />
-        <div className="mx-auto w-full max-w-[76rem] space-y-4 px-4 py-6 sm:px-5 md:px-8 lg:px-10">
-          <div className="h-7 w-48 animate-pulse rounded-soft bg-border-soft" />
-          <div className="h-40 animate-pulse rounded-card border border-border-soft bg-surface-raised" />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="h-28 animate-pulse rounded-card border border-border-soft bg-surface-raised" />
-            <div className="h-28 animate-pulse rounded-card border border-border-soft bg-surface-raised" />
-          </div>
-        </div>
-      </div>
-    </main>
-  );
-}
-
-// ─── Production misconfiguration screen ───────────────────────────
-//
-// When a NEXT_PUBLIC_ var the production deploy depends on is
-// missing, the silent failure mode (calls to localhost, an empty
-// Dynamic widget) is much worse than a fatal banner. This screen
-// ships in place of the app and lists exactly what's missing + why.
-// Renders only in NODE_ENV === "production"; dev hacking is unaffected.
-
-function ConfigGapBanner({
-  gaps,
-}: {
-  gaps: ReturnType<typeof validateConfig>;
-}) {
-  return (
-    <main className="min-h-screen bg-canvas px-gutter py-12">
-      <div className="mx-auto max-w-xl rounded-card border border-danger/40 bg-danger/[0.05] p-6">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-danger">
-          This deployment is misconfigured
-        </p>
-        <h1 className="mt-2 font-display text-display-xs text-text-strong">
-          {gaps.length === 1 ? "1 environment variable" : `${gaps.length} environment variables`}{" "}
-          missing
-        </h1>
-        <p className="mt-2 text-sm text-text-soft">
-          The production build started without the required configuration.
-          Set the variables below in the Vercel project settings and
-          redeploy.
-        </p>
-        <ul className="mt-4 flex flex-col gap-3">
-          {gaps.map((g) => (
-            <li
-              key={g.envVar}
-              className="rounded-soft border border-border-soft bg-surface-raised p-3"
-            >
-              <code className="font-mono text-sm font-medium text-text-strong">
-                {g.envVar}
-              </code>
-              <p className="mt-1 text-xs text-text-soft">{g.why}</p>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </main>
   );
 }

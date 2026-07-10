@@ -552,10 +552,8 @@ function SendPage() {
   // "require-*" actions surface a banner above the CTA so the
   // user knows extra friction is coming.
   //
-  // Today this is UI-only: a determined member with the CLI can
-  // still propose. The tripwire becomes load-bearing once
-  // Encrypt's #[encrypt_fn] handlers are in the program and the
-  // on-chain code reads policy ciphertexts during ika_sign.
+  // The immediate banner is a pre-flight affordance. Typed execution
+  // independently verifies the signed policy bytes on chain.
   const policyRecipient = useMemo(() => {
     if (resolved.kind === "contact") return resolved.contact.address;
     if (resolved.kind === "address" || resolved.kind === "sns") {
@@ -630,7 +628,8 @@ function SendPage() {
       // Policy pre-flight. Block before the signing request opens so the
       // user never signs a doomed send. Sources of truth: localStorage
       // allowlist + time window + per-friend allowance + wallet-wide
-      // budget. Client-side enforcement; see lib/retail/policyEvaluation.ts.
+      // budget. The local evaluator gives immediate feedback; typed policy
+      // bytes independently enforce supported constraints on chain.
       const policy = evaluatePolicy({
         walletName,
         recipientAddress: destination,

@@ -24,6 +24,8 @@
 // CR/LF as separator characters by default; sanitizeHeader strips
 // them so a hostile body can't inject a Bcc / extra subject line.
 
+import "server-only";
+
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { assertSameOrigin, clientIp } from "@/lib/api/guard";

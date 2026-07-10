@@ -1,3 +1,5 @@
+import "server-only";
+
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { buildMultisigInviteEmail } from "@/lib/email/templates/multisigInvite";

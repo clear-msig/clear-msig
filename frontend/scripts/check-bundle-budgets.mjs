@@ -2,6 +2,39 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 
+const IMMEDIATE_RUNTIME_RULES = [
+  {
+    routePrefix: "/app/",
+    loadableKey:
+      "components/providers/AppProviders.tsx -> @/features/wallet-runtime/infrastructure/DynamicProviderTree",
+  },
+];
+
+const CURRENT_APP_TOTAL_BUDGET_KB = 1_250;
+const CURRENT_MAX_CHUNK_BUDGET_KB = 510;
+const TARGET_APP_TOTAL_BUDGET_KB = 250;
+const TARGET_MAX_CHUNK_BUDGET_KB = 150;
+
+export function includeImmediateRuntimeChunks(
+  manifest,
+  loadableManifest,
+  rules = IMMEDIATE_RUNTIME_RULES,
+) {
+  const pages = Object.fromEntries(
+    Object.entries(manifest.pages ?? {}).map(([route, files]) => {
+      const immediateFiles = rules
+        .filter(
+          (rule) =>
+            (rule.route !== undefined && route === rule.route) ||
+            (rule.routePrefix !== undefined && route.startsWith(rule.routePrefix)),
+        )
+        .flatMap((rule) => loadableManifest[rule.loadableKey]?.files ?? []);
+      return [route, [...new Set([...files, ...immediateFiles])]];
+    }),
+  );
+  return { ...manifest, pages };
+}
+
 export function analyzeBundleManifest(manifest, gzipBytesForFile) {
   const pages = Object.entries(manifest.pages ?? {}).filter(([route]) =>
     route.endsWith("/page"),
@@ -38,12 +71,25 @@ function sumSizes(files, gzipBytesForFile) {
 function run() {
   const buildRoot = new URL("../.next/", import.meta.url).pathname;
   const manifestPath = `${buildRoot}app-build-manifest.json`;
+  const loadableManifestPath = `${buildRoot}react-loadable-manifest.json`;
   if (!existsSync(manifestPath)) {
     console.error("Bundle budget requires a completed Next.js build.");
     process.exit(1);
   }
+  if (!existsSync(loadableManifestPath)) {
+    console.error("Bundle budget requires the React loadable manifest.");
+    process.exit(1);
+  }
 
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  const initialManifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  const loadableManifest = JSON.parse(readFileSync(loadableManifestPath, "utf8"));
+  for (const rule of IMMEDIATE_RUNTIME_RULES) {
+    if (!loadableManifest[rule.loadableKey]) {
+      console.error(`Bundle budget could not find immediate runtime: ${rule.loadableKey}`);
+      process.exit(1);
+    }
+  }
+  const manifest = includeImmediateRuntimeChunks(initialManifest, loadableManifest);
   const failures = [];
   const gzipCache = new Map();
   const routeSizes = analyzeBundleManifest(manifest, (file) => {
@@ -61,7 +107,7 @@ function run() {
 
   for (const item of routeSizes) {
     const appRoute = item.route.startsWith("/app/");
-    const totalBudgetKb = appRoute ? 335 : 260;
+    const totalBudgetKb = appRoute ? CURRENT_APP_TOTAL_BUDGET_KB : 260;
     const routeBudgetKb = appRoute ? 230 : 180;
     const totalKb = item.totalBytes / 1024;
     const routeKb = item.routeBytes / 1024;
@@ -77,6 +123,15 @@ function run() {
     }
   }
 
+  for (const [file, bytes] of gzipCache) {
+    const chunkKb = bytes / 1024;
+    if (chunkKb > CURRENT_MAX_CHUNK_BUDGET_KB) {
+      failures.push(
+        `${file} is ${chunkKb.toFixed(1)} kB gzip; chunk budget is ${CURRENT_MAX_CHUNK_BUDGET_KB} kB`,
+      );
+    }
+  }
+
   routeSizes.sort((left, right) => right.totalBytes - left.totalBytes);
   console.log("Largest route payloads (total = shared + route-owned):");
   for (const item of routeSizes.slice(0, 8)) {
@@ -86,6 +141,11 @@ function run() {
         `${(item.routeBytes / 1024).toFixed(1)} route)`,
     );
   }
+  console.log(
+    `Bundle ratchet: authenticated routes <= ${CURRENT_APP_TOTAL_BUDGET_KB} kB and chunks <= ` +
+      `${CURRENT_MAX_CHUNK_BUDGET_KB} kB gzip; final targets are ${TARGET_APP_TOTAL_BUDGET_KB} kB and ` +
+      `${TARGET_MAX_CHUNK_BUDGET_KB} kB.`,
+  );
 
   if (failures.length > 0) {
     console.error([...new Set(failures)].map((failure) => `- ${failure}`).join("\n"));

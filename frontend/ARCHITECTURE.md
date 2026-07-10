@@ -19,6 +19,20 @@ API handlers validate transport input and delegate to server-side domain modules
 Client components consume typed client adapters or hooks; they do not reach into
 server persistence directly.
 
+## Feature boundaries
+
+New and actively refactored workflows use four explicit layers:
+
+1. `ui` renders state and emits callbacks. It cannot import feature infrastructure.
+2. `routes` or `controllers` coordinate state, effects, and user actions.
+3. `domain` owns pure rules and value transformations. It cannot import React,
+   Next.js, wallet runtimes, feature UI, or feature infrastructure.
+4. `infrastructure` owns network, wallet, persistence, and SDK adapters.
+
+The wallet runtime and BTC send workflow follow this structure. The architecture
+gate enforces these dependency directions for every layered feature, so item 9
+modularity is a repository contract rather than a naming convention.
+
 ## Agent feature boundaries
 
 The agent feature uses a stricter four-layer dependency flow:
@@ -45,9 +59,13 @@ infrastructure ports at 120 lines.
   its measured route payloads are materially smaller for the current wallet SDKs.
 - `npm run check:architecture` enforces route size, route-layer size, client-page
   ratio, browser/server boundaries, and exclusion of diagnostic routes.
-- `npm run check:bundles` deduplicates each route's manifest chunks, separates
-  shared chunks from route-owned chunks, and enforces both total and route-owned
-  gzip budgets without adding a shared chunk more than once per route.
+- `npm run check:bundles` deduplicates each route's manifest chunks, includes
+  immediately mounted dynamic wallet-runtime chunks, separates shared chunks
+  from route-owned chunks, and enforces total, route-owned, and individual-chunk
+  gzip budgets without adding a chunk more than once per route.
+- Current bundle ceilings are regression ratchets, not performance targets. The
+  checker prints the stricter 250 kB authenticated-route and 150 kB chunk targets
+  until the wallet SDK graph is replaced or materially reduced.
 - CI caches `.next/cache`, then runs the same production verification command used
   by Vercel and local releases.
 

@@ -122,6 +122,9 @@ export function saveBudget(
   const rest = all.filter((r) => r.walletName !== input.walletName);
   rest.push(next);
   persist(rest);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("clear:spending-budget-changed"));
+  }
   return next;
 }
 

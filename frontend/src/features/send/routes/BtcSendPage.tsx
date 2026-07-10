@@ -39,10 +39,20 @@ import { useParams, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Loader2, Send, X } from "lucide-react";
+import { ArrowRight, Loader2, Send } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
-import { fromHex, IntentType, parseIntent, ProposalStatus, toHex } from "@/lib/msig";
+import { IntentType, ProposalStatus, toHex } from "@/lib/msig";
+import {
+  assertPreparedBitcoinSetupIsCurrent,
+  bytesToHex,
+  normalizeBitcoinPolicyRecipient,
+} from "@/features/send/domain/bitcoin";
+import {
+  hasBitcoinChangeIntent,
+  waitForBitcoinChangeIntent,
+} from "@/features/send/infrastructure/bitcoinIntent";
+import { SendErrorBanner } from "@/features/send/ui/bitcoin/SendErrorBanner";
 import { encodeParams } from "@/lib/msig/encode";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import {
@@ -1527,128 +1537,8 @@ function buildBtcPreviewDetails(args: {
   return details;
 }
 
-function assertPreparedBitcoinSetupIsCurrent(paramsDataHex: string) {
-  let preparedParams = 0;
-  try {
-    const body = fromHex(paramsDataHex);
-    const accountData = new Uint8Array(body.length + 1);
-    accountData[0] = 2;
-    accountData.set(body, 1);
-    const intent = parseIntent(accountData);
-    preparedParams = intent.params.length;
-    if (intent.chainKind === BTC_CHAIN_KIND && bitcoinSendReady(intent)) return;
-  } catch (err) {
-    throw new Error(
-      `Bitcoin sending could not be prepared right now. ${err instanceof Error ? err.message : ""}`.trim(),
-    );
-  }
-
-  throw new Error(
-    preparedParams > 0
-      ? "Bitcoin sending needs a one-time update. Tap Turn on Bitcoin sending once, then wait for it to finish."
-      : "Bitcoin sending needs to be turned on before sending BTC.",
-  );
-}
-
 // ─── error banner ─────────────────────────────────────────────────
-//
-// Persistent inline banner shown when a send mutation fails. Replaces
-// the ephemeral toast as the primary surface for the diagnostic so
-// users can:
-//   - Read the friendly title + body without it auto-dismissing.
-//   - Expand "Show technical details" to see the raw CLI stderr ,
-//     critical for forwarding to upstream (e.g. the Ika devrel
-//     thread when the secp256k1 sign path fails on BTC + ETH).
-//   - "Start fresh attempt" clears destination/amount/UI errors so
-//     a retry isn't polluted by stale form state. (Note: the failed
-//     proposal stays on chain; framework-level proposal cleanup is
-//     broken in this Quasar version. Hitting Send again with
-//     different params will create a NEW
-//     proposal, which is what we want here.)
-
-function SendErrorBanner({
-  error,
-  onReset,
-  onDismiss,
-}: {
-  error: { title: string; body: string; stderr?: string };
-  onReset: () => void;
-  onDismiss: () => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <div
-      role="alert"
-      className="rounded-2xl border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-text-strong"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1">
-          <p className="font-semibold">{error.title}</p>
-          <p className="mt-1 text-text-soft">{error.body}</p>
-        </div>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="-mr-1 -mt-1 rounded-md p-1 text-text-soft hover:text-text-strong"
-          aria-label="Dismiss error"
-        >
-          <X className="h-4 w-4" aria-hidden="true" />
-        </button>
-      </div>
-      {error.stderr && (
-        <details
-          className="mt-3 text-xs"
-          open={expanded}
-          onToggle={(e) => setExpanded((e.target as HTMLDetailsElement).open)}
-        >
-          <summary className="cursor-pointer text-text-soft hover:text-text-strong">
-            Details
-          </summary>
-          <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-black/30 p-3 font-mono text-[11px] leading-relaxed text-text-soft">
-            {error.stderr.trim()}
-          </pre>
-        </details>
-      )}
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={onReset}>
-          Try again
-        </Button>
-        {error.stderr && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              void navigator.clipboard
-                .writeText(error.stderr ?? "")
-                .catch(() => {
-                  // ignore clipboard rejection (Safari permissions etc.)
-                });
-            }}
-          >
-            Copy details
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ─── helpers ─────────────────────────────────────────────────────────
-
-function bytesToHex(bytes: Uint8Array): string {
-  let s = "";
-  for (let i = 0; i < bytes.length; i++) {
-    s += (bytes[i] ?? 0).toString(16).padStart(2, "0");
-  }
-  return s;
-}
-
-function normalizeBitcoinPolicyRecipient(value: string): string {
-  const decoded = decodeSegwitAddress(value);
-  return decoded && decoded.version === 0 && decoded.program.length === 20
-    ? pkhClearSignRecipient("btc-p2wpkh", decoded.program)
-    : value.trim();
-}
 
 function shortBtcAddress(addr: string): string {
   if (addr.length <= 16) return addr;
@@ -1672,35 +1562,4 @@ function btcBalanceStatusLabel(
     return "Balance temporarily unavailable";
   }
   return "Check balance";
-}
-
-async function waitForBitcoinChangeIntent(
-  connection: Parameters<typeof fetchWalletByName>[0],
-  walletName: string,
-): Promise<boolean> {
-  for (let i = 0; i < 12; i++) {
-    if (await hasBitcoinChangeIntent(connection, walletName)) return true;
-    await new Promise((resolve) => setTimeout(resolve, 500 * (i + 1)));
-  }
-  return false;
-}
-
-async function hasBitcoinChangeIntent(
-  connection: Parameters<typeof fetchWalletByName>[0],
-  walletName: string,
-): Promise<boolean> {
-  try {
-    const wallet = await fetchWalletByName(connection, walletName);
-    if (!wallet) return false;
-    const intents = await listIntents(
-      connection,
-      wallet.pda,
-      wallet.account.intentIndex,
-    );
-    return bitcoinSendReady(
-      selectBitcoinSendIntent(intents.map((it) => it.account)),
-    );
-  } catch {
-    return false;
-  }
 }

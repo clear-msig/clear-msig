@@ -5,7 +5,7 @@ use crate::ika;
 use crate::output::print_json;
 use crate::rpc;
 use clap::Subcommand;
-use solana_sdk::pubkey::Pubkey;
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use std::time::Duration;
 
 #[derive(Subcommand)]
@@ -402,26 +402,13 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
             let dwallet_data = rpc::fetch_account(&client, &dwallet_pda)
                 .with_context(|| "fetch dWallet account before transfer")?;
             let current_authority = accounts::parse_dwallet_authority(&dwallet_data)?;
-            if current_authority == cpi_auth_pk {
-                eprintln!("✓ Authority already → clear-wallet CPI PDA ({cpi_auth_pk}) — skipping transfer");
-            } else if current_authority == payer_pubkey {
-                let xfer_ix = crate::instructions::ika_transfer_ownership(
-                    dwallet_program_pk,
-                    payer_pubkey,
-                    dwallet_pda,
-                    cpi_auth_pk,
-                );
-                rpc::send_instruction(&client, config, xfer_ix)
-                    .with_context(|| "transfer_ownership failed")?;
-                eprintln!("✓ Authority → clear-wallet CPI PDA ({cpi_auth_pk})");
-            } else {
+            let ownership_exists =
+                rpc::fetch_account_optional(&client, &dwallet_ownership_pk)?.is_some();
+            if current_authority == cpi_auth_pk && !ownership_exists {
                 return Err(anyhow!(
-                    "dWallet {dwallet_pda} is owned by {current_authority}, neither the payer \
-                     ({payer_pubkey}) nor the clear-wallet CPI authority ({cpi_auth_pk}). \
-                     This wallet was bound by someone else; cannot rebind."
+                    "dWallet {dwallet_pda} already uses the clear-wallet CPI authority but has no ownership lock. Refusing an unverifiable first bind; recover or rotate this pre-hardening dWallet instead."
                 ));
             }
-
             // 4. On-chain bind_dwallet → creates the IkaConfig PDA.
             let (ika_config_pk, _) = ika::ika_config_pda(&program_id, &wallet_pubkey, chain_kind);
             // We store the dWallet's *DKG address* (not the curve public key)
@@ -445,8 +432,27 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
                 scheme_u16,
                 cpi_auth_bump,
             );
-            let bind_sig = rpc::send_instruction(&client, config, bind_ix)
-                .with_context(|| "bind_dwallet failed")?;
+            let transfer_ix = crate::instructions::ika_transfer_ownership(
+                dwallet_program_pk,
+                payer_pubkey,
+                dwallet_pda,
+                cpi_auth_pk,
+            );
+            let bind_plan = build_atomic_dwallet_bind_plan(
+                current_authority,
+                payer_pubkey,
+                cpi_auth_pk,
+                transfer_ix,
+                bind_ix,
+            )?;
+            let transferred = bind_plan.len() == 2;
+            let bind_sig = rpc::send_instructions(&client, config, bind_plan)
+                .with_context(|| "atomic transfer_ownership + bind_dwallet failed")?;
+            if transferred {
+                eprintln!("✓ Authority transferred and bound atomically → {cpi_auth_pk}");
+            } else {
+                eprintln!("✓ Authority already → clear-wallet CPI PDA ({cpi_auth_pk})");
+            }
             eprintln!("✓ IkaConfig: {ika_config_pk}");
 
             print_json(&serde_json::json!({
@@ -600,4 +606,74 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn build_atomic_dwallet_bind_plan(
+    current_authority: Pubkey,
+    payer: Pubkey,
+    cpi_authority: Pubkey,
+    transfer: Instruction,
+    bind: Instruction,
+) -> Result<Vec<Instruction>> {
+    if current_authority == payer {
+        return Ok(vec![transfer, bind]);
+    }
+    if current_authority == cpi_authority {
+        return Ok(vec![bind]);
+    }
+    Err(anyhow!(
+        "dWallet is owned by {current_authority}, neither the payer ({payer}) nor the clear-wallet CPI authority ({cpi_authority}); cannot bind"
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn instruction(program_id: Pubkey, marker: u8) -> Instruction {
+        Instruction {
+            program_id,
+            accounts: vec![],
+            data: vec![marker],
+        }
+    }
+
+    #[test]
+    fn fresh_dwallet_transfers_and_binds_in_one_ordered_plan() {
+        let payer = Pubkey::new_unique();
+        let cpi = Pubkey::new_unique();
+        let transfer = instruction(Pubkey::new_unique(), 24);
+        let bind = instruction(Pubkey::new_unique(), 6);
+
+        let plan =
+            build_atomic_dwallet_bind_plan(payer, payer, cpi, transfer.clone(), bind.clone())
+                .unwrap();
+
+        assert_eq!(plan, vec![transfer, bind]);
+    }
+
+    #[test]
+    fn existing_program_authority_only_needs_the_bind() {
+        let payer = Pubkey::new_unique();
+        let cpi = Pubkey::new_unique();
+        let transfer = instruction(Pubkey::new_unique(), 24);
+        let bind = instruction(Pubkey::new_unique(), 6);
+
+        let plan = build_atomic_dwallet_bind_plan(cpi, payer, cpi, transfer, bind.clone()).unwrap();
+
+        assert_eq!(plan, vec![bind]);
+    }
+
+    #[test]
+    fn unrelated_authority_is_rejected() {
+        let result = build_atomic_dwallet_bind_plan(
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            instruction(Pubkey::new_unique(), 24),
+            instruction(Pubkey::new_unique(), 6),
+        );
+
+        assert!(result.is_err());
+    }
 }

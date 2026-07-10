@@ -3,7 +3,8 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     chains::{
-        dispatch_metadata_digest, dispatch_sighash, read_bytes20, read_param, read_u64, ChainKind,
+        dispatch_metadata_digest, dispatch_sighash, read_bytes20, read_param, read_u128, read_u64,
+        ChainKind,
     },
     error::WalletError,
     instructions::{
@@ -145,6 +146,7 @@ impl<'info> IkaSignTypedChainSend<'info> {
             kind,
             amount_raw,
             &args.recipient_hash,
+            &args.asset_id_hash,
         )?;
 
         let amount = ClearSignAmount {
@@ -251,6 +253,7 @@ fn verify_native_send_params(
     kind: ChainKind,
     amount_raw: u128,
     recipient_hash: &[u8; 32],
+    asset_id_hash: &[u8; 32],
 ) -> Result<(), ProgramError> {
     match kind {
         ChainKind::Evm1559 | ChainKind::HyperliquidEvm => {
@@ -271,6 +274,18 @@ fn verify_native_send_params(
                 WalletError::InvalidClearSignEnvelope
             );
             Ok(())
+        }
+        ChainKind::Evm1559Erc20 => {
+            let token_contract = read_bytes20(intent, params_data, 1)?;
+            let recipient = read_bytes20(intent, params_data, 2)?;
+            verify_erc20_send_commitments(
+                amount_raw,
+                read_u128(intent, params_data, 3)?,
+                recipient_hash,
+                &recipient,
+                asset_id_hash,
+                &token_contract,
+            )
         }
         ChainKind::BitcoinP2wpkh => {
             let params_amount = read_u64(intent, params_data, 5)?;
@@ -296,6 +311,29 @@ fn verify_native_send_params(
         }
         _ => Err(ProgramError::InvalidArgument),
     }
+}
+
+fn verify_erc20_send_commitments(
+    amount_raw: u128,
+    params_amount: u128,
+    recipient_hash: &[u8; 32],
+    recipient: &[u8; 20],
+    asset_id_hash: &[u8; 32],
+    token_contract: &[u8; 20],
+) -> Result<(), ProgramError> {
+    require!(
+        amount_raw == params_amount,
+        WalletError::InvalidClearSignEnvelope
+    );
+    require!(
+        evm_address_text_commitment(recipient) == *recipient_hash,
+        WalletError::InvalidClearSignEnvelope
+    );
+    require!(
+        evm_address_text_commitment(token_contract) == *asset_id_hash,
+        WalletError::InvalidClearSignEnvelope
+    );
+    Ok(())
 }
 
 fn verify_pkh_send_commitments(
@@ -415,6 +453,52 @@ mod tests {
     #[test]
     fn zcash_commitments_reject_amount_and_recipient_mismatches() {
         assert_commitment_guards(ChainKind::ZcashTransparent, b"zcash-transparent:0x");
+    }
+
+    #[test]
+    fn erc20_commitments_bind_amount_recipient_and_token_contract() {
+        let amount = 25_000_000u128;
+        let recipient = [0x11; 20];
+        let token = [0x22; 20];
+        let recipient_hash = evm_address_text_commitment(&recipient);
+        let asset_hash = evm_address_text_commitment(&token);
+
+        assert!(verify_erc20_send_commitments(
+            amount,
+            amount,
+            &recipient_hash,
+            &recipient,
+            &asset_hash,
+            &token,
+        )
+        .is_ok());
+        assert!(verify_erc20_send_commitments(
+            amount,
+            amount + 1,
+            &recipient_hash,
+            &recipient,
+            &asset_hash,
+            &token,
+        )
+        .is_err());
+        assert!(verify_erc20_send_commitments(
+            amount,
+            amount,
+            &recipient_hash,
+            &[0x33; 20],
+            &asset_hash,
+            &token,
+        )
+        .is_err());
+        assert!(verify_erc20_send_commitments(
+            amount,
+            amount,
+            &recipient_hash,
+            &recipient,
+            &asset_hash,
+            &[0x44; 20],
+        )
+        .is_err());
     }
 
     fn assert_commitment_guards(kind: ChainKind, namespace: &[u8]) {

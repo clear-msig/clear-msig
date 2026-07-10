@@ -62,7 +62,7 @@ IkaConfig           PDA: ["ika_config", wallet, chain_kind]
                     (wallet, dwallet, user_pubkey, signature_scheme)
 
 DwalletOwnership    PDA: ["dwallet_owner", dwallet]
-                    First binder wins — immutable ownership lock
+                    Atomic authority transfer + immutable ownership lock
 
 Proposal            PDA: ["proposal", intent, index]
                     params_data, approval / cancellation bitmaps
@@ -182,7 +182,7 @@ clear-msig config set --signer  ~/signer.json
 
 ## dWallet Ownership
 
-The Ika dWallet program has a single CPI authority per caller program. clear-msig adds a per-dWallet ownership lock (`DwalletOwnership` PDA) so each multisig wallet truly owns its dWallet — no other wallet under the same program can sign with it. First binder wins.
+The Ika dWallet program has a single CPI authority per caller program. clear-msig adds a per-dWallet ownership lock (`DwalletOwnership` PDA) so each multisig wallet truly owns its dWallet — no other wallet under the same program can sign with it. A first bind is accepted only when the immediately preceding instruction in the same transaction transfers that exact dWallet to clear-msig's CPI authority. Existing locks remain immutable.
 
 ## Project Structure
 

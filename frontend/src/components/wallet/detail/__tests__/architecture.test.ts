@@ -7,6 +7,10 @@ const routePath = resolve(
   "src/app/app/wallet/[name]/page.tsx",
 );
 const routeSource = readFileSync(routePath, "utf8");
+const manageSource = readFileSync(
+  resolve(process.cwd(), "src/components/wallet/detail/ManagePanel.tsx"),
+  "utf8",
+);
 
 describe("wallet detail architecture", () => {
   it("keeps the route as a coordinator", () => {
@@ -29,5 +33,12 @@ describe("wallet detail architecture", () => {
     expect(routeSource).not.toContain('from "@/lib/hooks/useChainTxHistory"');
     expect(routeSource).not.toContain('from "@/lib/pro/treasury"');
     expect(routeSource).not.toContain('from "@/lib/agents/');
+  });
+
+  it("keeps Personal protection compact and spending limits persistent", () => {
+    expect(manageSource).toContain("Spending limits");
+    expect(manageSource).toContain('href={`/app/wallet/${encoded}/budget`}');
+    expect(manageSource).not.toContain("A shared wallet normal people can trust");
+    expect(manageSource).not.toContain("function PersonalSafetyLink");
   });
 });

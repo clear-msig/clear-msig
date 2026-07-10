@@ -412,6 +412,19 @@ function WalletScopedSidebar({
         >
           <ArrowLeft size={14} aria-hidden="true" />
         </Link>
+        <Link
+          href="/app/wallet/new"
+          onClick={onNavigate}
+          aria-label="New wallet"
+          title="New wallet"
+          className={clsx(
+            "flex h-10 w-10 items-center justify-center rounded-soft bg-accent text-text-on-accent shadow-accent-rest",
+            "transition-[background-color,box-shadow,transform] duration-base ease-out-soft hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+          )}
+        >
+          <Plus size={14} aria-hidden="true" />
+        </Link>
         <span
           aria-label={display}
           title={display}
@@ -463,6 +476,19 @@ function WalletScopedSidebar({
       >
         <ArrowLeft size={11} aria-hidden="true" />
         All wallets
+      </Link>
+
+      <Link
+        href="/app/wallet/new"
+        onClick={onNavigate}
+        className={clsx(
+          "inline-flex min-h-10 items-center justify-center gap-2 rounded-soft bg-accent px-3 text-xs font-semibold text-text-on-accent shadow-accent-rest",
+          "transition-[background-color,box-shadow,transform] duration-base ease-out-soft hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+        )}
+      >
+        <Plus size={13} aria-hidden="true" />
+        New wallet
       </Link>
 
       {/* Active wallet identity card - display name +

@@ -10,6 +10,7 @@ describe("first-use wallet creation", () => {
   const walletHome = source("src/features/wallet/routes/WalletHomePage.tsx");
   const newWallet = source("src/app/app/wallet/new/page.tsx");
   const chooser = source("src/app/choose/page.tsx");
+  const sidebar = source("src/components/layout/WorkspaceSidebar.tsx");
 
   it("opens wallet creation directly from the empty state", () => {
     expect(walletHome).toContain("Create your first wallet");
@@ -29,5 +30,12 @@ describe("first-use wallet creation", () => {
   it("retires the standalone product chooser", () => {
     expect(chooser).toContain('redirect("/app/wallet/new")');
     expect(chooser).not.toContain("ProductChooserPage");
+  });
+
+  it("keeps wallet creation available in desktop wallet-scoped navigation", () => {
+    const scopedStart = sidebar.indexOf("function WalletScopedSidebar");
+    expect(scopedStart).toBeGreaterThan(0);
+    expect(sidebar.slice(scopedStart)).toContain('href="/app/wallet/new"');
+    expect(sidebar.slice(scopedStart)).toContain("New wallet");
   });
 });

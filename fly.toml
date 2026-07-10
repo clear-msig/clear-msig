@@ -18,7 +18,9 @@ primary_region = "iad"
   dockerfile = "Dockerfile"
 
 [env]
+  CLEAR_MSIG_ENV = "production"
   CLEAR_MSIG_URL = "https://api.devnet.solana.com"
+  CLEAR_MSIG_ALLOWED_ORIGIN = "https://clearsig.xyz,https://www.clearsig.xyz"
   BACKEND_API_BIND = "0.0.0.0:8080"
   RUST_LOG = "info"
   # DKG attestations persist on the mounted volume below. Without

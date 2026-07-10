@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { assertPolicyNotDenied, type PolicyEnforcementPlan } from "@/lib/policies/enforce";
+import {
+  assertPolicyNotDenied,
+  type PolicyEnforcementPlan,
+} from "@/lib/policies/enforce";
 import {
   encodeTypedRemoteSendPolicy,
   encodeTypedSolPolicy,
@@ -184,6 +187,55 @@ describe("policy enforcement guardrails", () => {
     expect(encoded!.bytes[34]).toBe(2);
     expect(readU32Le(encoded!.bytes, 37)).toBe(3);
     expect(readU32Le(encoded!.bytes, 41)).toBe(86_400);
+  });
+
+  it("encodes the Personal allowlist without requiring an advanced rule", () => {
+    const recipient = "11111111111111111111111111111111";
+    const encoded = encodeTypedSolPolicy({
+      evaluation: null,
+      rule: null,
+      conditions: [],
+      extraApprovers: [],
+      extraCooldownSeconds: 0,
+      recipientGuard: { mode: "allowlist", addresses: [recipient] },
+      onchainLimits: NO_LIMITS,
+    });
+
+    expect(encoded).not.toBeNull();
+    expect(encoded!.bytes[4]).toBe(1);
+    expect(encoded!.bytes[17]).toBe(1);
+    expect(Array.from(encoded!.bytes.slice(19, 51))).toEqual(
+      new Array(32).fill(0),
+    );
+  });
+
+  it("encodes allowed hours and timezone into program-enforced policy bytes", () => {
+    const encoded = encodeTypedSolPolicy({
+      evaluation: null,
+      rule: null,
+      conditions: [],
+      extraApprovers: [],
+      extraCooldownSeconds: 0,
+      allowedTimeWindow: {
+        startHour: 9,
+        endHour: 17,
+        daysOfWeek: [1, 2, 3, 4, 5],
+        utcOffsetMinutes: -60,
+      },
+      onchainLimits: NO_LIMITS,
+    });
+
+    expect(encoded).not.toBeNull();
+    expect(Array.from(encoded!.bytes.slice(19))).toEqual([
+      3,
+      5,
+      0,
+      9,
+      17,
+      0b0011_1110,
+      0xc4,
+      0xff,
+    ]);
   });
 });
 

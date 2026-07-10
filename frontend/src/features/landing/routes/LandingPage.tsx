@@ -35,7 +35,6 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import nextDynamic from "next/dynamic";
 import { LandingAtmospherics, LandingNav } from "@/components/landing/LandingChrome";
 import {
   LandingBackToTop,
@@ -45,17 +44,6 @@ import { SecureSection } from "@/components/landing/SecureSection";
 import { BrandMark } from "@/components/retail/BrandMark";
 import { ClearCMark } from "@/components/landing/ClearCMark";
 import { CHAINS, SolanaLogo, type ChainMeta } from "@/components/landing/ChainLogos";
-
-// Auto-redirect for already-authenticated users is now lazy-loaded
-// in a separate async chunk so the marketing landing can render
-// without pulling the Dynamic SDK into its initial bundle. Returning
-// signed-in users still get bounced to /app/wallet. Just a fraction
-// of a second after first paint instead of synchronously at mount.
-// First-time visitors never pay the cost.
-const AutoRedirectIsland = nextDynamic(
-  () => import("@/components/landing/AutoRedirectIsland"),
-  { ssr: false, loading: () => null },
-);
 
 export default function HomePage() {
   const reduce = useReducedMotion();
@@ -91,12 +79,6 @@ export default function HomePage() {
           reduced-motion, and stay above the atmospherics layer. */}
       <LandingScrollProgress />
       <LandingBackToTop />
-
-      {/* Lazy auto-redirect for returning authenticated users.
-          Renders null; only exists to host useWalletGate() behind a
-          lazy boundary so the Dynamic SDK stays out of the landing's
-          static bundle. */}
-      <AutoRedirectIsland />
 
       {/* atmospherics live in their own absolute overflow-hidden
           wrapper that sits behind sections (z-0) - so the sticky

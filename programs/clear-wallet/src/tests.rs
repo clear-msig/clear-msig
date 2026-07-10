@@ -816,6 +816,7 @@ fn empty_policy_spend_account(
 }
 
 fn build_execute_typed_sol_batch_send_ix(
+    payer: Pubkey,
     wallet: Pubkey,
     intent: Pubkey,
     proposal: Pubkey,
@@ -825,13 +826,16 @@ fn build_execute_typed_sol_batch_send_ix(
     remaining_accounts: Vec<AccountMeta>,
 ) -> Instruction {
     let (vault, _) = find_vault_address(&wallet, &crate::ID);
+    let (policy_spend, _) = find_policy_spend_address(&wallet, &intent, &crate::ID);
     let mut data = vec![15u8];
     wincode::serialize_into(&mut data, &policy_commitment).unwrap();
     wincode::serialize_into(&mut data, &envelope_hash).unwrap();
     data.extend_from_slice(&amount_lamports_le);
 
     let mut accounts = vec![
+        AccountMeta::new(payer, true),
         AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(policy_spend, false),
         AccountMeta::new(vault, false),
         AccountMeta::new(intent, false),
         AccountMeta::new(proposal, false),
@@ -987,6 +991,22 @@ fn append_send_count_extension(
     policy
 }
 
+fn append_allowed_time_extension(
+    mut policy: Vec<u8>,
+    start_hour: u8,
+    end_hour: u8,
+    days_mask: u8,
+    utc_offset_minutes: i16,
+) -> Vec<u8> {
+    policy.push(3);
+    policy.extend_from_slice(&5u16.to_le_bytes());
+    policy.push(start_hour);
+    policy.push(end_hour);
+    policy.push(days_mask);
+    policy.extend_from_slice(&utc_offset_minutes.to_le_bytes());
+    policy
+}
+
 fn typed_hash_policy_bytes(
     mode: u8,
     max_amount_raw: u64,
@@ -1138,6 +1158,84 @@ fn propose_typed_sol_send_on_wallet(
     );
 
     (proposal, policy_commitment, envelope_hash)
+}
+
+fn propose_typed_sol_batch_with_policy(
+    svm: &mut QuasarSvm,
+    payer: Pubkey,
+    wallet_name: &str,
+    proposer: &ed25519_dalek::SigningKey,
+    payments: &[(Pubkey, u64)],
+    policy_bytes: &[u8],
+) -> (Pubkey, Pubkey, Pubkey, [u8; 32], [u8; 32]) {
+    let (instruction, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(proposer)],
+        &[pubkey_of(proposer)],
+        1,
+    );
+    assert!(svm.process_instruction(&instruction, &accounts).is_ok());
+
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let proposal_index = 0u64;
+    let proposal = get_typed_proposal_address(intent, proposal_index);
+    let action_id = sha256_hash(&[wallet_name.as_bytes(), b":batch"].concat());
+    let nonce = sha256_hash(&[wallet_name.as_bytes(), b":nonce"].concat());
+    let expiry = typed_test_expiry();
+    let policy_commitment = hash_typed_policy(policy_bytes);
+    let payload_hash = hash_batch_send_sol_payload_iter(
+        payments
+            .iter()
+            .map(|(recipient, amount)| (recipient.as_ref(), *amount)),
+    );
+    let envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::BatchSend,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: action_id.as_ref(),
+        nonce: nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment,
+        payload_hash,
+        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
+    });
+    let propose = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent,
+        proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::BatchSend.code(),
+        policy_commitment,
+        payload_hash,
+        envelope_hash,
+        proposer_pubkey: pubkey_bytes(proposer),
+        signature: sign_typed_vote(
+            proposer,
+            ClearSignVoteKind::Propose,
+            wallet_name,
+            proposal_index,
+            envelope_hash,
+        ),
+        clear_text: TEST_CLEAR_TEXT.to_vec(),
+        policy_bytes: policy_bytes.to_vec(),
+        action_id,
+        nonce,
+    });
+    let result =
+        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
+    assert!(
+        result.is_ok(),
+        "typed SOL batch policy proposal failed: {:?}",
+        result.raw_result
+    );
+    (wallet, intent, proposal, policy_commitment, envelope_hash)
 }
 
 #[test]
@@ -3168,6 +3266,103 @@ fn test_execute_typed_sol_send_rejects_policy_blocklist() {
 }
 
 #[test]
+fn test_execute_typed_sol_send_rejects_recipient_outside_allowlist() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let recipient = Pubkey::new_unique();
+    let allowed_recipient = Pubkey::new_unique();
+    let amount_lamports = 1_000_000u64;
+    let policy_bytes = typed_sol_policy_bytes(1, 0, 0, &[allowed_recipient], &[]);
+
+    let (wallet, intent, proposal, policy_commitment, envelope_hash) =
+        propose_typed_sol_send_with_policy(
+            &mut svm,
+            payer,
+            "typed-sol-policy-allowlist-reject",
+            &proposer,
+            &[pubkey_of(&proposer)],
+            1,
+            recipient,
+            amount_lamports,
+            &policy_bytes,
+        );
+    fund_vault(&mut svm, payer, wallet, amount_lamports + 1_000_000);
+
+    let execute = build_execute_typed_sol_send_ix(
+        payer,
+        wallet,
+        intent,
+        proposal,
+        recipient,
+        policy_commitment,
+        envelope_hash,
+        amount_lamports,
+    );
+    let result = svm.process_instruction(
+        &execute,
+        &[
+            funded_account(payer),
+            empty_policy_spend_account(wallet, intent, policy_commitment),
+            empty_account(recipient),
+        ],
+    );
+    assert!(
+        result.is_err(),
+        "recipient outside the signed allowlist did not stop execute"
+    );
+}
+
+#[test]
+fn test_execute_typed_sol_send_rejects_outside_allowed_hours() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let recipient = Pubkey::new_unique();
+    let amount_lamports = 1_000_000u64;
+    // Equal start/end is an intentionally empty allowed-hours window.
+    let policy_bytes =
+        append_allowed_time_extension(typed_sol_policy_bytes(0, 0, 0, &[], &[]), 9, 9, 0, 0);
+
+    let (wallet, intent, proposal, policy_commitment, envelope_hash) =
+        propose_typed_sol_send_with_policy(
+            &mut svm,
+            payer,
+            "typed-sol-policy-allowed-hours-reject",
+            &proposer,
+            &[pubkey_of(&proposer)],
+            1,
+            recipient,
+            amount_lamports,
+            &policy_bytes,
+        );
+    fund_vault(&mut svm, payer, wallet, amount_lamports + 1_000_000);
+
+    let execute = build_execute_typed_sol_send_ix(
+        payer,
+        wallet,
+        intent,
+        proposal,
+        recipient,
+        policy_commitment,
+        envelope_hash,
+        amount_lamports,
+    );
+    let result = svm.process_instruction(
+        &execute,
+        &[
+            funded_account(payer),
+            empty_policy_spend_account(wallet, intent, policy_commitment),
+            empty_account(recipient),
+        ],
+    );
+    assert!(
+        result.is_err(),
+        "program executed a send outside the signed allowed-hours window"
+    );
+}
+
+#[test]
 fn test_execute_typed_sol_send_requires_policy_extra_approver() {
     let mut svm = setup();
     let payer = Pubkey::new_unique();
@@ -3593,6 +3788,7 @@ fn test_execute_typed_sol_batch_send_moves_sol_to_recipients() {
     amount_bytes.extend_from_slice(&amount_a.to_le_bytes());
     amount_bytes.extend_from_slice(&amount_b.to_le_bytes());
     let execute = build_execute_typed_sol_batch_send_ix(
+        payer,
         wallet,
         intent,
         proposal,
@@ -3606,7 +3802,12 @@ fn test_execute_typed_sol_batch_send_moves_sol_to_recipients() {
     );
     let result = svm.process_instruction(
         &execute,
-        &[empty_account(recipient_a), empty_account(recipient_b)],
+        &[
+            funded_account(payer),
+            empty_policy_spend_account(wallet, intent, policy_commitment),
+            empty_account(recipient_a),
+            empty_account(recipient_b),
+        ],
     );
     assert!(
         result.is_ok(),
@@ -3634,6 +3835,68 @@ fn test_execute_typed_sol_batch_send_moves_sol_to_recipients() {
         svm.get_account(&proposal).unwrap().data[105],
         2,
         "typed proposal should be Executed(2)"
+    );
+}
+
+#[test]
+fn test_execute_typed_sol_batch_send_rejects_recipient_outside_allowlist() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let allowed_recipient = Pubkey::new_unique();
+    let blocked_recipient = Pubkey::new_unique();
+    let payments = [
+        (allowed_recipient, 1_000_000),
+        (blocked_recipient, 2_000_000),
+    ];
+    let policy_bytes = typed_sol_policy_bytes(1, 0, 0, &[allowed_recipient], &[]);
+    let (wallet, intent, proposal, policy_commitment, envelope_hash) =
+        propose_typed_sol_batch_with_policy(
+            &mut svm,
+            payer,
+            "typed-sol-batch-allowlist-reject",
+            &proposer,
+            &payments,
+            &policy_bytes,
+        );
+    fund_vault(&mut svm, payer, wallet, 4_000_000);
+
+    let mut amount_bytes = Vec::new();
+    for (_, amount) in payments {
+        amount_bytes.extend_from_slice(&amount.to_le_bytes());
+    }
+    let execute = build_execute_typed_sol_batch_send_ix(
+        payer,
+        wallet,
+        intent,
+        proposal,
+        policy_commitment,
+        envelope_hash,
+        amount_bytes,
+        vec![
+            AccountMeta::new(allowed_recipient, false),
+            AccountMeta::new(blocked_recipient, false),
+        ],
+    );
+    let result = svm.process_instruction(
+        &execute,
+        &[
+            funded_account(payer),
+            empty_policy_spend_account(wallet, intent, policy_commitment),
+            empty_account(allowed_recipient),
+            empty_account(blocked_recipient),
+        ],
+    );
+    assert!(
+        result.is_err(),
+        "batch recipient outside the signed allowlist did not stop execute"
+    );
+    assert_eq!(
+        svm.get_account(&allowed_recipient)
+            .map(|account| account.lamports)
+            .unwrap_or(0),
+        0,
+        "batch rejection must be atomic"
     );
 }
 

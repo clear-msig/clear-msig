@@ -117,9 +117,9 @@ pub(super) fn execute_typed_chain_send_args(
         asset_id_hash,
     ]);
     if typed_ika {
-        if !matches!(body.chain_kind, 1 | 2 | 3 | 5) {
+        if !matches!(body.chain_kind, 1 | 2 | 3 | 4 | 5) {
             return Err(ApiError::BadRequest(
-                "typed Ika chain send currently supports chain kinds 1, 2, 3, and 5".into(),
+                "typed Ika chain send currently supports chain kinds 1 through 5".into(),
             ));
         }
         let params_data_hex = body.params_data_hex.ok_or_else(|| {
@@ -474,8 +474,8 @@ mod tests {
     }
 
     #[test]
-    fn typed_chain_send_ika_allows_btc_and_zcash() {
-        for chain_kind in [2, 3] {
+    fn typed_chain_send_ika_allows_all_remote_send_kinds() {
+        for chain_kind in [1, 2, 3, 4, 5] {
             let args = execute_typed_chain_send_args(
                 "team".into(),
                 VALID_PUBKEY.into(),

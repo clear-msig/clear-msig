@@ -9,11 +9,9 @@
 // listPolicies(). The first rule whose every condition matches
 // applies.
 //
-// The evaluator runs at compose-time on the send pages, before
-// the user fires the wallet popup. It's a tripwire, not enforced
-// by the on-chain program (FHE handlers are the follow-up). A
-// determined member with the CLI can bypass it; treat as a UI
-// guardrail, not a security boundary.
+// The evaluator selects the policy before signing. Typed send execution
+// independently verifies the committed recipient, amount, allowed-hours,
+// approval, cooldown, and rolling-limit bytes in clear-wallet.
 
 import { listAttempts } from "@/lib/retail/txLog";
 import type {

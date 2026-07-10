@@ -28,6 +28,8 @@ services:
     envVars:
       - key: PORT
         value: "10000"
+      - key: CLEAR_MSIG_ENV
+        value: production
       - key: CLEAR_MSIG_URL
         sync: false
       - key: BACKEND_API_BIND

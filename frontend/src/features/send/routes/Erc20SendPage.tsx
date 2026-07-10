@@ -33,13 +33,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Check, List as ListIcon, Loader2, ShieldAlert } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
+import { formatUnixSigningExpiry } from "@/lib/api/expiry";
 import {
   broadcastExplorerUrl,
   explorerLabelForChainKind,
   type BroadcastResultLike,
 } from "@/lib/explorer";
 import { recordAttempt } from "@/lib/retail/txLog";
-import { IntentType } from "@/lib/msig";
+import { IntentType, toHex } from "@/lib/msig";
+import { encodeParams } from "@/lib/msig/encode";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
@@ -72,6 +74,17 @@ import {
   assertPolicyNotDenied,
   resolvePolicyEnforcement,
 } from "@/lib/policies/enforce";
+import {
+  encodeTypedRemoteSendPolicy,
+  policyCommitmentHexForParts,
+} from "@/lib/policies/onchain";
+import {
+  prepareClearSignAction,
+  randomActionLabel,
+  textCommitmentHex,
+  type ClearSignEnvelope,
+  type SendPayload,
+} from "@/lib/clearsign-v2";
 import {
   SendReceipt,
   type ReceiptDetail,
@@ -109,7 +122,7 @@ function SendErc20Page() {
   const reduce = useReducedMotion();
   const wallet = useWallet();
   const { connection } = useConnection();
-  const { signDescriptor } = useSignWithWallet();
+  const { signTypedDescriptor } = useSignWithWallet();
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -309,27 +322,82 @@ function SendErc20Page() {
         amountDisplay: amount,
       });
       assertPolicyNotDenied(submitPolicyPlan);
+      const tokenForClearSign = trimmedToken.toLowerCase();
+      const recipientForClearSign = trimmedRecipient.toLowerCase();
+      const onchainPolicy = encodeTypedRemoteSendPolicy(submitPolicyPlan, {
+        assetTicker: symbol ?? "TOKEN",
+        decimals: meta.decimals,
+        normalizeRecipient: (value) => value.trim().toLowerCase(),
+      });
 
       const { nonce } = await fetchEvmNonce(walletEthAddress);
-
-      const dry = await backendApi.prepare.createProposal(walletName, {
+      const paramsDataHex = toHex(
+        encodeParams(erc20Intent.account, {
+          nonce: String(nonce),
+          token_contract: tokenForClearSign,
+          recipient: recipientForClearSign,
+          amount: amountBase.toString(),
+        }),
+      );
+      const actionId = randomActionLabel("erc20-send");
+      const actionNonce = randomActionLabel("nonce");
+      const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
+      const policyCommitment =
+        onchainPolicy?.commitmentHex ??
+        policyCommitmentHexForParts([
+          `wallet:${walletQuery.data?.pda.toBase58() ?? walletName}`,
+          `intent:${erc20Intent.account.intentIndex}`,
+          `chain:${ERC20_CHAIN_KIND}`,
+          `threshold:${erc20Intent.account.approvalThreshold ?? ""}`,
+          `proposers:${erc20Intent.account.proposers.join(",")}`,
+          `approvers:${erc20Intent.account.approvers.join(",")}`,
+        ]);
+      const envelope: ClearSignEnvelope<SendPayload> = {
+        version: 2,
+        kind: "send",
+        walletName,
+        walletId: walletQuery.data?.pda.toBase58(),
+        actionId,
+        nonce: actionNonce,
+        expiresAt,
+        policyCommitment,
+        payload: {
+          recipient: recipientForClearSign,
+          recipientEncoding: "sha256_text",
+          amount: amountBase.toString(),
+          asset: tokenForClearSign,
+          assetEncoding: "sha256_text",
+          note: note.trim() || undefined,
+        },
+      };
+      const summary = await prepareClearSignAction(envelope, { fallback: false });
+      const dry = await backendApi.prepare.createTypedProposal(walletName, {
         intent_index: erc20Intent.account.intentIndex,
-        params: [
-          `nonce=${nonce}`,
-          `token_contract=${trimmedToken}`,
-          `recipient=${trimmedRecipient}`,
-          `amount=${amountBase.toString()}`,
-        ],
+        action_kind: summary.actionKindCode,
+        policy_commitment: envelope.policyCommitment,
+        payload_hash: summary.payloadHash,
+        envelope_hash: summary.envelopeHash,
+        action_id: envelope.actionId,
+        nonce: envelope.nonce,
+        policyBytesHex: onchainPolicy?.hex,
+        signable_text: summary.signableText,
+        expiry: formatUnixSigningExpiry(envelope.expiresAt),
         actor_pubkey: proposerPk.toBase58(),
       });
 
-      const signed = await signDescriptor(dry, { preferSigner: proposerPk });
+      const signed = await signTypedDescriptor(dry, { preferSigner: proposerPk });
 
-      const submitted = await backendApi.submit.createProposal(walletName, {
+      const submitted = await backendApi.submit.createTypedProposal(walletName, {
         ...signed,
-        params_data_hex: dry.params_data_hex,
         expiry: dry.expiry,
-        intent_index: erc20Intent.account.intentIndex,
+        intent_index: dry.intent_index,
+        action_kind: dry.action_kind,
+        policy_commitment: dry.policy_commitment_hex,
+        payload_hash: dry.payload_hash_hex,
+        envelope_hash: dry.envelope_hash_hex,
+        action_id: dry.action_id,
+        nonce: dry.nonce,
+        policyBytesHex: onchainPolicy?.hex,
       });
       const proposal = (submitted as Record<string, unknown>)?.proposal;
       if (typeof proposal !== "string" || proposal.length === 0) {
@@ -338,22 +406,25 @@ function SendErc20Page() {
       const intent = erc20Intent.account;
       const approverPk = wallet.pickSigner(intent.approvers);
 
-      const decision = await approveIfNeeded(connection, proposal);
+      const decision = await approveIfNeeded(connection, proposal, {
+        approvers: intent.approvers,
+        approverPubkey: approverPk?.toBase58() ?? null,
+      });
       if (decision.needsApproveSignature) {
         if (!approverPk) {
           throw new Error(
             "The proposal landed, but none of your connected wallets can approve it.",
           );
         }
-        const approveDry = await backendApi.prepare.approveProposal(
+        const approveDry = await backendApi.prepare.approveTypedProposal(
           walletName,
           proposal,
           { actor_pubkey: approverPk.toBase58() },
         );
-        const approveSigned = await signDescriptor(approveDry, {
+        const approveSigned = await signTypedDescriptor(approveDry, {
           preferSigner: approverPk,
         });
-        await backendApi.submit.approveProposal(walletName, proposal, {
+        await backendApi.submit.approveTypedProposal(walletName, proposal, {
           ...approveSigned,
           expiry: approveDry.expiry,
         });
@@ -397,15 +468,15 @@ function SendErc20Page() {
                 `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but none of your connected wallets can sign as that approver.`,
               );
             }
-            const extraDry = await backendApi.prepare.approveProposal(
+            const extraDry = await backendApi.prepare.approveTypedProposal(
               walletName,
               proposal,
               { actor_pubkey: extraSigner.toBase58() },
             );
-            const extraSigned = await signDescriptor(extraDry, {
+            const extraSigned = await signTypedDescriptor(extraDry, {
               preferSigner: extraSigner,
             });
-            await backendApi.submit.approveProposal(walletName, proposal, {
+            await backendApi.submit.approveTypedProposal(walletName, proposal, {
               ...extraSigned,
               expiry: extraDry.expiry,
             });
@@ -425,14 +496,16 @@ function SendErc20Page() {
         return { proposal, broadcast: null, awaitingApprovers: true };
       }
 
-      // Execute via Ika. Same shape as the EVM native send: pass the
-      // dWallet program + gRPC + destination RPC so the backend can
-      // sign + broadcast the ERC-20 transfer call to Sepolia.
-      const executed = await backendApi.executeProposal(walletName, proposal, {
+      const executed = await backendApi.executeTypedChainSend(walletName, proposal, {
+        chainKind: ERC20_CHAIN_KIND,
+        amountRaw: amountBase.toString(),
+        recipientHash: textCommitmentHex(recipientForClearSign),
+        assetIdHash: textCommitmentHex(tokenForClearSign),
+        paramsDataHex,
         broadcast: true,
-        dwallet_program: appConfig.preAlpha.dwalletProgramId,
-        grpc_url: appConfig.preAlpha.grpcUrl,
-        rpc_url: appConfig.preAlpha.destinationRpcUrl,
+        dwalletProgram: appConfig.preAlpha.dwalletProgramId,
+        grpcUrl: appConfig.preAlpha.grpcUrl,
+        rpcUrl: appConfig.preAlpha.destinationRpcUrl,
       });
       const broadcast = (executed as { broadcast?: BroadcastResultLike })
         ?.broadcast;

@@ -45,7 +45,7 @@ jobs:
       # only cover the off-chain pieces.
 
       - name: cargo test (host crates)
-        run: cargo test -p clear-msig-cli -p clear-wallet-client
+        run: cargo test -p clear-msig-cli -p clear-wallet-client -p clear-msig-backend-api
 
   frontend-tests:
     name: frontend unit tests
@@ -169,7 +169,5 @@ jobs:
           name: clear_wallet-so
           path: target/deploy
 
-      - name: Run typed execution SVM tests
-        run: |
-          cargo test -p clear-wallet test_execute_typed_escrow -- --nocapture
-          cargo test -p clear-wallet test_execute_typed_sol -- --nocapture
+      - name: Run clear-wallet SVM tests
+        run: cargo test -p clear-wallet -- --nocapture

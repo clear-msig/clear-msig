@@ -16,13 +16,11 @@
 //     clear so the UI can render the rule without round-tripping
 //     decrypt for every list view.
 //
-// What this is NOT today:
-//   - Enforced on chain. The clear-wallet program has no FHE
-//     handlers yet. Rules apply at compose-time as a pre-flight
-//     check before the user fires the wallet popup; a member of
-//     the multisig who skips the UI can still propose anyway. The
-//     tripwire becomes load-bearing once Encrypt's `#[encrypt_fn]`
-//     EUint slots land + the program reads policy ciphertexts.
+// Enforcement:
+//   - Typed sends commit recipient lists, amount caps, allowed hours,
+//     cooldowns, required approvers, and rolling limits. clear-wallet
+//     verifies those bytes during execution. Encrypt-backed private
+//     policy storage remains a separate rollout.
 //   - Synced across devices. Each user's policy rules live in
 //     their own browser localStorage. When on-chain enforcement
 //     ships, the rules become a single source of truth visible to
@@ -47,12 +45,9 @@ export type RuleAction =
   /// recipient, deny everyone else" by ordering rules.
   | "allow"
   /// Require additional approvers on top of the on-chain
-  /// threshold. Today the additional approvers are recorded in
-  /// the rule but enforced as a UI banner pre-sign; on-chain
-  /// enforcement is the FHE follow-up.
+  /// threshold. Typed execution checks every required approver.
   | "require-extra-approvers"
-  /// Add a wait time on top of the intent's timelock. Same
-  /// caveat - UI-only today.
+  /// Add a program-enforced wait time on top of the intent's timelock.
   | "require-cooldown";
 
 // ── Conditions ──────────────────────────────────────────────────
@@ -103,8 +98,9 @@ export interface AmountCondition {
   encryptedTicker?: EncryptedPayload;
 }
 
-/// Time-of-day + days-of-week window. Hours are local to the
-/// device (UI shows the mismatch to the user). Days are 0-6 with
+/// Time-of-day + days-of-week window. Typed sends sign the device's
+/// UTC offset with this window so the program can enforce it against
+/// the on-chain clock. Days are 0-6 with
 /// Sunday=0 to match JS's getDay().
 export interface TimeWindowCondition {
   kind: "time-window";

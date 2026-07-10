@@ -64,4 +64,6 @@ pub enum WalletError {
     PolicyRequiredApprovalMissing,
     /// A program-enforced typed policy velocity cap was exceeded.
     PolicyVelocityExceeded,
+    /// The program clock is outside the signed policy's allowed hours.
+    PolicyOutsideAllowedHours,
 }

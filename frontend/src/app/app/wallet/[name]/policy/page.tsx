@@ -482,6 +482,12 @@ function AllowlistCard({ walletName }: { walletName: string }) {
       toast.info("Already on the allowlist");
       return;
     }
+    if (draft.addresses.length >= 16) {
+      toast.error("Allowlist is full", {
+        details: "Program-enforced recipient lists support up to 16 addresses.",
+      });
+      return;
+    }
     const next = { ...draft, addresses: [...draft.addresses, trimmed] };
     setDraft(next);
     saveAllowlist({
@@ -521,9 +527,8 @@ function AllowlistCard({ walletName }: { walletName: string }) {
             Allowlist
           </h2>
           <p className="mt-1 text-sm leading-relaxed text-text-soft">
-            When on, the app warns and blocks local sends to addresses outside
-            this list before signing. On-chain enforcement arrives with the
-            encrypted policy path.
+            When on, typed SOL sends commit this list and the program rejects
+            every recipient outside it during execution.
           </p>
         </div>
       </header>
@@ -701,8 +706,8 @@ function TimeWindowCard({ walletName }: { walletName: string }) {
             Allowed hours
           </h2>
           <p className="mt-1 text-sm leading-relaxed text-text-soft">
-            Block sends outside business hours. Useful when you don&apos;t
-            want a midnight popup to ever land in your wallet.
+            The signed timezone and selected hours are checked against the
+            program clock before a typed send can execute.
           </p>
         </div>
       </header>

@@ -851,7 +851,9 @@ pub fn execute_typed_sol_send(
 /// Build execute_typed_sol_batch_send instruction (ClearSign v2 discriminator 15).
 #[allow(dead_code)]
 pub fn execute_typed_sol_batch_send(
+    payer: Pubkey,
     wallet: Pubkey,
+    policy_spend: Pubkey,
     vault: Pubkey,
     intent: Pubkey,
     proposal: Pubkey,
@@ -861,7 +863,9 @@ pub fn execute_typed_sol_batch_send(
     recipients: Vec<AccountMeta>,
 ) -> Instruction {
     let mut accounts = vec![
+        AccountMeta::new(payer, true),
         AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(policy_spend, false),
         AccountMeta::new(vault, false),
         AccountMeta::new(intent, false),
         AccountMeta::new(proposal, false),
@@ -943,6 +947,7 @@ pub fn bind_dwallet(
         caller_program: pk_to_addr(program_id()),
         dwallet_program: pk_to_addr(dwallet_program),
         system_program: pk_to_addr(solana_sdk::system_program::id()),
+        instructions_sysvar: pk_to_addr(solana_sdk::sysvar::instructions::id()),
         chain_kind,
         user_pubkey,
         signature_scheme,
@@ -1388,16 +1393,22 @@ mod tests {
             key(2),
             key(3),
             key(4),
-            [6; 32],
+            key(5),
+            key(6),
             [7; 32],
+            [8; 32],
             &1_000_000u64.to_le_bytes(),
-            vec![AccountMeta::new(key(8), false)],
+            vec![AccountMeta::new(key(9), false)],
         );
 
         assert_eq!(send.data[0], 14);
         assert_eq!(batch.data[0], 15);
         assert_eq!(send.accounts.len(), 8);
-        assert_eq!(batch.accounts.len(), 6);
+        assert_eq!(batch.accounts.len(), 8);
+        assert!(batch.accounts[0].is_signer);
+        assert!(batch.accounts[0].is_writable);
+        assert!(!batch.accounts[1].is_writable);
+        assert!(batch.accounts[2].is_writable);
         assert!(send.accounts[0].is_signer);
         assert!(send.accounts[0].is_writable);
         assert!(!send.accounts[1].is_writable);
@@ -1407,8 +1418,9 @@ mod tests {
         assert!(send.accounts[5].is_writable);
         assert!(send.accounts[6].is_writable);
         assert!(!send.accounts[7].is_writable);
-        assert!(batch.accounts[1].is_writable);
-        assert!(!batch.accounts[4].is_writable);
+        assert!(batch.accounts[3].is_writable);
+        assert!(!batch.accounts[6].is_writable);
+        assert!(batch.accounts[7].is_writable);
         assert!(batch.accounts[5].is_writable);
     }
 
