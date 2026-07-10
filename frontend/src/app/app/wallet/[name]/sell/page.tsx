@@ -46,7 +46,7 @@ import { CHAIN_CATALOG, chainByKind } from "@/lib/retail/chains";
 import type { ChainBindingResponse } from "@/lib/api/types";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { friendlyError } from "@/lib/api/errors";
-import { recordNotificationFeed } from "@/lib/security/notificationFeed";
+import { syncNotificationEvents } from "@/lib/notifications/client";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
@@ -197,7 +197,8 @@ function SellPage() {
     }
     const key = `${stage.kind}:${stage.intentId}`;
     if (recordedOutcomes.has(key)) return;
-    recordNotificationFeed(userAddress, {
+    void syncNotificationEvents([{
+      sourceId: `ramp:sell:${stage.intentId}:${stage.kind}`,
       kind: "money_movement",
       walletName,
       title:
@@ -209,7 +210,7 @@ function SellPage() {
           ? `${walletDisplay} sent crypto and the bank payout completed.`
           : `${walletDisplay} did not complete that bank withdrawal.`,
       href: `/app/wallet/${encodeURIComponent(walletName)}`,
-    });
+    }]).catch(() => undefined);
     setRecordedOutcomes((current) => new Set(current).add(key));
   }, [recordedOutcomes, stage, userAddress, walletDisplay, walletName]);
 

@@ -35,7 +35,7 @@ import { CHAIN_CATALOG, chainByKind } from "@/lib/retail/chains";
 import type { ChainBindingResponse } from "@/lib/api/types";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { friendlyError } from "@/lib/api/errors";
-import { recordNotificationFeed } from "@/lib/security/notificationFeed";
+import { syncNotificationEvents } from "@/lib/notifications/client";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
@@ -178,7 +178,8 @@ function BuyPage() {
     }
     const key = `${stage.kind}:${stage.intentId}`;
     if (recordedOutcomes.has(key)) return;
-    recordNotificationFeed(userAddress, {
+    void syncNotificationEvents([{
+      sourceId: `ramp:buy:${stage.intentId}:${stage.kind}`,
       kind: "money_movement",
       walletName,
       title: stage.kind === "completed" ? "Crypto bought" : "Buy did not finish",
@@ -187,7 +188,7 @@ function BuyPage() {
           ? `${walletDisplay} received the crypto from your bank checkout.`
           : `${walletDisplay} did not receive crypto from that checkout.`,
       href: `/app/wallet/${encodeURIComponent(walletName)}`,
-    });
+    }]).catch(() => undefined);
     setRecordedOutcomes((current) => new Set(current).add(key));
   }, [recordedOutcomes, stage, userAddress, walletDisplay, walletName]);
 

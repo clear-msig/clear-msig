@@ -34,15 +34,15 @@ for (const file of metrics) {
   if (file.path.includes("/app/api/") && file.client) {
     failures.push(`${label(file.path)} is an API module marked as a client component`);
   }
-  const importsAgentServerRuntime = file.source
+  const importsServerRuntime = file.source
     .split(";")
     .some(
       (statement) =>
-        statement.includes("@/lib/agents/server") &&
+        /from\s+["']@\/lib\/[^"']*\/server[^"']*["']/.test(statement) &&
         !/^\s*import\s+type\b/.test(statement),
     );
-  if (file.client && importsAgentServerRuntime) {
-    failures.push(`${label(file.path)} imports an agent server runtime into the browser graph`);
+  if (file.client && importsServerRuntime) {
+    failures.push(`${label(file.path)} imports a server runtime into the browser graph`);
   }
 }
 

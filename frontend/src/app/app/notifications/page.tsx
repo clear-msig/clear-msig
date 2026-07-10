@@ -1,7 +1,6 @@
 "use client";
 
-// Notifications inbox - local device feed for multisig events.
-// Uses the same Obsidian & Lime card styling as Activity and Wallet.
+// Notifications inbox backed by the authenticated server feed.
 
 import { useMemo } from "react";
 import Link from "next/link";
@@ -18,7 +17,7 @@ export default function NotificationsPage() {
   const reduce = useReducedMotion();
   const wallet = useWallet();
   const address = wallet.publicKey?.toBase58() ?? "";
-  const { rows, unreadCount, markAllSeen } = useNotificationFeed(address);
+  const { rows, unreadCount, loading, error, markAllSeen } = useNotificationFeed(address);
 
   const motionProps = reduce
     ? {}
@@ -28,10 +27,12 @@ export default function NotificationsPage() {
       };
 
   const summary = useMemo(() => {
+    if (loading) return "Syncing notifications...";
+    if (error) return "Notification sync is unavailable.";
     if (rows.length === 0) return "No notifications yet.";
     if (unreadCount === 0) return `${rows.length} notification${rows.length === 1 ? "" : "s"} · all caught up`;
     return `${rows.length} notification${rows.length === 1 ? "" : "s"} · ${unreadCount} unread`;
-  }, [rows.length, unreadCount]);
+  }, [error, loading, rows.length, unreadCount]);
 
   return (
     <motion.div
@@ -61,7 +62,23 @@ export default function NotificationsPage() {
         )}
       </header>
 
-      {rows.length === 0 ? (
+      {loading ? (
+        <div
+          className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest"
+          role="status"
+        >
+          <p className="text-sm font-medium text-text-strong">Loading notifications</p>
+          <p className="mt-1 text-xs text-text-soft">Syncing your latest wallet updates.</p>
+        </div>
+      ) : error ? (
+        <div
+          className="rounded-card border border-warning/30 bg-warning/[0.06] p-6"
+          role="alert"
+        >
+          <p className="text-sm font-medium text-text-strong">Notifications unavailable</p>
+          <p className="mt-1 text-xs text-text-soft">{error}</p>
+        </div>
+      ) : rows.length === 0 ? (
         <div className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest">
           <div className="flex items-center gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-full bg-glass-soft text-text-soft">
