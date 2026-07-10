@@ -943,6 +943,8 @@ function BitcoinSendPage() {
                 effectiveFeeSats,
                 changeSats,
                 note,
+                approvalThreshold: btcIntent?.approvalThreshold ?? 1,
+                timelockSeconds: btcIntent?.timelockSeconds ?? 0,
               })}
               collapsibleDetails
             />
@@ -1471,10 +1473,23 @@ function buildBtcPreviewDetails(args: {
   effectiveFeeSats: bigint | null;
   changeSats: bigint | null;
   note: string;
+  approvalThreshold: number;
+  timelockSeconds: number;
 }): SignPayloadDetail[] {
   const details: SignPayloadDetail[] = [
     { label: "From wallet", value: args.walletDisplay },
     { label: "Network", value: "Bitcoin" },
+    {
+      label: "Approval threshold",
+      value: `${args.approvalThreshold} ${args.approvalThreshold === 1 ? "approval" : "approvals"}`,
+    },
+    {
+      label: "Timelock",
+      value:
+        args.timelockSeconds > 0
+          ? `${args.timelockSeconds} seconds after approval`
+          : "Immediately after approval",
+    },
   ];
   const destination = args.destination.trim();
   if (destination) {

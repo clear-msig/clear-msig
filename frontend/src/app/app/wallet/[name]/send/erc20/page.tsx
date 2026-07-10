@@ -43,6 +43,7 @@ import { IntentType } from "@/lib/msig";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
+import { waitForProposalApproval } from "@/lib/chain/proposals";
 import {
   fetchEvmNonce,
   isValidEvmAddress,
@@ -197,6 +198,8 @@ function SendErc20Page() {
     to: string;
     explorerUrl: string | null;
     explorerLabel: string;
+    pending: boolean;
+    proposal: string | null;
   } | null>(null);
 
   const trimmedToken = tokenContract.trim();
@@ -417,6 +420,11 @@ function SendErc20Page() {
         }
       }
 
+      const readyToExecute = await waitForProposalApproval(connection, proposal);
+      if (!readyToExecute) {
+        return { proposal, broadcast: null, awaitingApprovers: true };
+      }
+
       // Execute via Ika. Same shape as the EVM native send: pass the
       // dWallet program + gRPC + destination RPC so the backend can
       // sign + broadcast the ERC-20 transfer call to Sepolia.
@@ -428,9 +436,9 @@ function SendErc20Page() {
       });
       const broadcast = (executed as { broadcast?: BroadcastResultLike })
         ?.broadcast;
-      return { proposal, broadcast };
+      return { proposal, broadcast, awaitingApprovers: false };
     },
-    onSuccess: ({ broadcast }) => {
+    onSuccess: ({ proposal, broadcast, awaitingApprovers }) => {
       const explorerUrl = broadcastExplorerUrl(
         broadcast,
         appConfig.preAlpha.destinationRpcUrl,
@@ -446,7 +454,14 @@ function SendErc20Page() {
         to: shortEvmAddress(trimmedRecipient),
         explorerUrl,
         explorerLabel,
+        pending: awaitingApprovers,
+        proposal: awaitingApprovers ? proposal : null,
       });
+      queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
+      if (awaitingApprovers) {
+        setStage("sent");
+        return;
+      }
       recordAttempt({
         walletName,
         chainKind: ERC20_CHAIN_KIND,
@@ -458,7 +473,6 @@ function SendErc20Page() {
         txId: broadcast?.tx_id,
         explorerUrl: explorerUrl ?? undefined,
       });
-      queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
       queryClient.invalidateQueries({ queryKey: ["wallet-erc20-balance"] });
       queryClient.invalidateQueries({ queryKey: ["chain-balance"] });
       queryClient.invalidateQueries({
@@ -565,6 +579,8 @@ function SendErc20Page() {
               walletBalance={balance}
               balanceLoading={balanceQuery.isLoading}
               insufficientBalance={insufficientBalance}
+              approvalThreshold={erc20Intent?.account?.approvalThreshold ?? 1}
+              timelockSeconds={erc20Intent?.account?.timelockSeconds ?? 0}
               onSubmit={handleSubmit}
               reduce={!!reduce}
             />
@@ -580,6 +596,8 @@ function SendErc20Page() {
               walletName={walletName}
               walletDisplay={walletDisplay || "your shared wallet"}
               reduce={!!reduce}
+              pending={sentLabel.pending}
+              proposal={sentLabel.proposal}
             />
           )}
         </motion.section>
@@ -612,6 +630,8 @@ interface ComposeStageProps {
   walletBalance: bigint | null;
   balanceLoading: boolean;
   insufficientBalance: boolean;
+  approvalThreshold: number;
+  timelockSeconds: number;
   onSubmit: () => void;
   reduce: boolean;
 }
@@ -638,6 +658,8 @@ function ComposeStage({
   walletBalance,
   balanceLoading,
   insufficientBalance,
+  approvalThreshold,
+  timelockSeconds,
   onSubmit,
 }: ComposeStageProps) {
   const walletDisplay = toDisplayName(walletName);
@@ -648,6 +670,18 @@ function ComposeStage({
   const previewDetails: SignPayloadDetail[] = [
     { label: "From wallet", value: walletDisplay || "your wallet" },
     { label: "Chain", value: "Ethereum (Sepolia) - ERC-20" },
+    {
+      label: "Approval threshold",
+      value: `${approvalThreshold} ${approvalThreshold === 1 ? "approval" : "approvals"}`,
+    },
+    {
+      label: "Timelock",
+      value:
+        timelockSeconds > 0
+          ? `${timelockSeconds} seconds after approval`
+          : "Immediately after approval",
+    },
+    { label: "Network fee", value: "Estimated at execution" },
     walletEthAddress
       ? {
           label: "From address",
@@ -937,6 +971,8 @@ function SentStage({
   walletName,
   walletDisplay,
   reduce,
+  pending,
+  proposal,
 }: {
   amount: string;
   symbol: string;
@@ -946,16 +982,28 @@ function SentStage({
   walletName: string;
   walletDisplay: string;
   reduce: boolean;
+  pending: boolean;
+  proposal: string | null;
 }) {
   const details: ReceiptDetail[] = [
     { label: "From", value: walletDisplay },
     { label: "Network", value: "Sepolia" },
     { label: "Token", value: symbol },
   ];
+  if (proposal) {
+    details.push({
+      label: "Proposal",
+      value: `${proposal.slice(0, 8)}...${proposal.slice(-6)}`,
+      mono: true,
+      copyText: proposal,
+    });
+  }
   return (
     <SendReceipt
-      status="confirmed"
-      statusLabel="Confirmed on Sepolia"
+      status={pending ? "pending" : "confirmed"}
+      statusLabel={
+        pending ? "Waiting for remaining approvals" : "Confirmed on Sepolia"
+      }
       amount={amount}
       ticker={symbol}
       recipientLabel={to}

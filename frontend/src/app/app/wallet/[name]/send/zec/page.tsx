@@ -157,6 +157,11 @@ export default function ZcashSendPage() {
     explorerUrl: string | null;
     explorerLabel: string;
   } | null>(null);
+  const [awaitingApproval, setAwaitingApproval] = useState<{
+    amount: string;
+    to: string;
+    proposal: string;
+  } | null>(null);
   const [autoStartedSetup, setAutoStartedSetup] = useState(false);
   const autoStartSetup = searchParams?.get("autostart") === "1";
 
@@ -531,8 +536,13 @@ export default function ZcashSendPage() {
         ?.broadcast;
       return { proposal, broadcast, awaitingApprovers: false };
     },
-    onSuccess: ({ broadcast, awaitingApprovers }) => {
+    onSuccess: ({ proposal, broadcast, awaitingApprovers }) => {
       if (awaitingApprovers) {
+        setAwaitingApproval({
+          amount: amount.trim(),
+          to: recipient,
+          proposal,
+        });
         toast.success("Zcash request created", {
           details: "It is waiting for the remaining approval before broadcast.",
         });
@@ -593,13 +603,13 @@ export default function ZcashSendPage() {
           transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
           className="w-full"
         >
-          {!send.isPending && !sentLabel && (
+          {!send.isPending && !sentLabel && !awaitingApproval && (
             <SendChainPicker walletName={name} activeKind={ZEC_CHAIN_KIND} />
           )}
-          {!send.isPending && !sentLabel && policyEvaluation?.matched && (
+          {!send.isPending && !sentLabel && !awaitingApproval && policyEvaluation?.matched && (
             <PolicyMatchBanner walletName={name} evaluation={policyEvaluation} />
           )}
-          {!send.isPending && !sentLabel && needsIntent && (
+          {!send.isPending && !sentLabel && !awaitingApproval && needsIntent && (
             <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
                 Turn on Zcash
@@ -622,7 +632,7 @@ export default function ZcashSendPage() {
               </Button>
             </div>
           )}
-          {!send.isPending && !sentLabel && !needsIntent && (
+          {!send.isPending && !sentLabel && !awaitingApproval && !needsIntent && (
             <ZcashCompose
               walletDisplay={walletDisplay}
               walletAddress={zcashAddress}
@@ -643,6 +653,8 @@ export default function ZcashSendPage() {
               zcashFeeBurnRisk={zcashFeeBurnRisk}
               insufficientBalance={insufficientBalance}
               zcashRpcConfigured={!!zcashRpcUrl}
+              approvalThreshold={zcashIntent?.approvalThreshold ?? 1}
+              timelockSeconds={zcashIntent?.timelockSeconds ?? 0}
               canSubmit={!policyDenied && !!zcashRpcUrl && amountValid && recipientValid && !!selectedUtxo && !insufficientBalance && !zcashFeeBurnRisk && !!wallet.publicKey}
               onSubmit={() => send.mutate()}
             />
@@ -657,6 +669,19 @@ export default function ZcashSendPage() {
               note={sentLabel.note}
               explorerUrl={sentLabel.explorerUrl}
               explorerLabel={sentLabel.explorerLabel}
+            />
+          )}
+          {awaitingApproval && (
+            <ZcashAwaitingApproval
+              request={awaitingApproval}
+              walletName={name}
+              walletDisplay={walletDisplay}
+              onAnother={() => {
+                setAwaitingApproval(null);
+                setAmount("");
+                setRecipient("");
+                setNote("");
+              }}
             />
           )}
         </motion.section>
@@ -716,6 +741,8 @@ function ZcashCompose({
   zcashFeeBurnRisk,
   insufficientBalance,
   zcashRpcConfigured,
+  approvalThreshold,
+  timelockSeconds,
   canSubmit,
   onSubmit,
 }: {
@@ -738,6 +765,8 @@ function ZcashCompose({
   zcashFeeBurnRisk: boolean;
   insufficientBalance: boolean;
   zcashRpcConfigured: boolean;
+  approvalThreshold: number;
+  timelockSeconds: number;
   canSubmit: boolean;
   onSubmit: () => void;
 }) {
@@ -754,6 +783,17 @@ function ZcashCompose({
   const details: SignPayloadDetail[] = [
     { label: "From wallet", value: walletDisplay || "your wallet" },
     { label: "Chain", value: "Zcash" },
+    {
+      label: "Approval threshold",
+      value: `${approvalThreshold} ${approvalThreshold === 1 ? "approval" : "approvals"}`,
+    },
+    {
+      label: "Timelock",
+      value:
+        timelockSeconds > 0
+          ? `${timelockSeconds} seconds after approval`
+          : "Immediately after approval",
+    },
     walletAddress
       ? { label: "From address", value: shortEvmAddress(walletAddress), emphasis: "mono" }
       : { label: "From address", value: "spinning up" },
@@ -763,6 +803,10 @@ function ZcashCompose({
   }
   if (amountValid) {
     details.push({ label: "Amount", value: `${amount.trim()} ZEC`, emphasis: "amount" });
+    details.push({
+      label: "Network fee",
+      value: `${formatSats(ZCASH_SEND_FEE_RESERVE_ZATS)} ZEC`,
+    });
   }
   if (note.trim()) {
     details.push({ label: "Note", value: note.trim() });
@@ -955,6 +999,47 @@ function SentStage({
           href: `/app/wallet/${encodeURIComponent(walletName)}/activity`,
           icon: Send,
         },
+      ]}
+    />
+  );
+}
+
+function ZcashAwaitingApproval({
+  request,
+  walletName,
+  walletDisplay,
+  onAnother,
+}: {
+  request: { amount: string; to: string; proposal: string };
+  walletName: string;
+  walletDisplay: string;
+  onAnother: () => void;
+}) {
+  return (
+    <SendReceipt
+      status="pending"
+      statusLabel="Waiting for remaining approvals"
+      amount={request.amount}
+      ticker="ZEC"
+      recipientLabel={request.to}
+      details={[
+        { label: "From", value: walletDisplay },
+        { label: "Network", value: "Zcash" },
+        {
+          label: "Proposal",
+          value: `${request.proposal.slice(0, 8)}...${request.proposal.slice(-6)}`,
+          mono: true,
+          copyText: request.proposal,
+        },
+      ]}
+      actions={[
+        {
+          label: "View approvals",
+          href: `/app/wallet/${encodeURIComponent(walletName)}/activity`,
+          primary: true,
+          icon: ArrowRight,
+        },
+        { label: "New request", onClick: onAnother },
       ]}
     />
   );

@@ -39,6 +39,10 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { FormField, TextArea, TextInput } from "@/components/retail/FormField";
 import { BrandLoader } from "@/components/retail/BrandLoader";
+import {
+  SignPayloadPreview,
+  type SignPayloadDetail,
+} from "@/components/retail/SignPayloadPreview";
 import { getProTreasuryRuntime } from "@/lib/pro/treasury";
 import { consumeProBatchPrefill } from "@/lib/pro/escrow";
 import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
@@ -304,6 +308,8 @@ function BatchSendPage() {
               rows={validRows}
               totalSol={totalSol}
               risk={batchRisk}
+              approvalThreshold={firstIntent?.account?.approvalThreshold ?? 1}
+              timelockSeconds={firstIntent?.account?.timelockSeconds ?? 0}
               onBack={() => setStage("compose")}
               onSend={handleSendBatch}
             />
@@ -642,6 +648,8 @@ function ReviewStage({
   rows,
   totalSol,
   risk,
+  approvalThreshold,
+  timelockSeconds,
   onBack,
   onSend,
 }: {
@@ -649,10 +657,30 @@ function ReviewStage({
   rows: ResolvedValid[];
   totalSol: number;
   risk: BatchRiskSummary | null;
+  approvalThreshold: number;
+  timelockSeconds: number;
   onBack: () => void;
   onSend: () => void;
 }) {
   const walletDisplay = toDisplayName(walletName);
+  const details: SignPayloadDetail[] = [
+    { label: "From wallet", value: walletDisplay },
+    { label: "Chain", value: "Solana" },
+    { label: "Recipients", value: String(rows.length) },
+    { label: "Amount", value: `${formatSol(totalSol)} SOL`, emphasis: "amount" },
+    { label: "Network fee", value: "Reserved for each request" },
+    {
+      label: "Approval threshold",
+      value: `${approvalThreshold} ${approvalThreshold === 1 ? "approval" : "approvals"}`,
+    },
+    {
+      label: "Timelock",
+      value:
+        timelockSeconds > 0
+          ? `${timelockSeconds} seconds after approval`
+          : "Immediately after approval",
+    },
+  ];
   return (
     <div className="flex flex-col gap-5">
       <header className="flex flex-col gap-1">
@@ -667,6 +695,12 @@ function ReviewStage({
           Each row becomes its own request. Review the recipients before sending.
         </p>
       </header>
+
+      <SignPayloadPreview
+        action={`Create ${rows.length} payment ${rows.length === 1 ? "request" : "requests"}`}
+        details={details}
+        warning={risk?.body}
+      />
 
       <ul className="flex flex-col divide-y divide-border-soft rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
         {rows.map((r, i) => (
@@ -771,7 +805,7 @@ function SendingStage({
     <div className="flex flex-col items-center text-center">
       <BrandLoader size={40} label="Sending batch" />
       <h1 className="mt-6 font-display text-display-sm leading-[1.05] text-text-strong">
-        Sending batch…
+        Creating requests…
       </h1>
       <p className="mt-2 max-w-sm text-base text-text-soft">
         {currentLabel
@@ -793,7 +827,7 @@ function SendingStage({
         />
       </div>
       <p className="mt-2 text-sm text-text-soft">
-        {completed} of {total} processed · {succeeded} sent · {failed} failed
+        {completed} of {total} processed · {succeeded} created · {failed} failed
       </p>
 
       <button
@@ -821,7 +855,9 @@ function DoneStage({
   const walletDisplay = toDisplayName(walletName);
   if (!progress) return null;
   const allSucceeded = progress.failed === 0;
-  const heading = allSucceeded ? "Batch sent" : "Batch finished with issues";
+  const heading = allSucceeded
+    ? "Requests created"
+    : "Batch finished with issues";
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest">
@@ -852,12 +888,12 @@ function DoneStage({
             {progress.succeeded}
           </span>
           <span className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft">
-            of {progress.total} sent
+            of {progress.total} created
           </span>
         </p>
         <p className="mt-1.5 text-sm text-text-soft">
           {allSucceeded
-            ? "Every row landed. Approvers can review the batch."
+            ? "Every request is ready for approver review."
             : `${progress.failed} row${progress.failed === 1 ? "" : "s"} didn't go through. Review the list below and retry just those.`}
         </p>
 

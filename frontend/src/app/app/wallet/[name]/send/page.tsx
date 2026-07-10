@@ -213,6 +213,9 @@ interface SendPreviewArgs {
   resolved: ResolvedRecipient;
   pendingUsd: number;
   budgetUsage: ReturnType<typeof useWalletBudgetUsage>;
+  approvalThreshold: number;
+  timelockSeconds: number;
+  feeReserveLamports: bigint;
 }
 
 function buildSendPreviewDetails(args: SendPreviewArgs): SignPayloadDetail[] {
@@ -220,6 +223,21 @@ function buildSendPreviewDetails(args: SendPreviewArgs): SignPayloadDetail[] {
   const details: SignPayloadDetail[] = [
     { label: "From wallet", value: toDisplayName(walletName) || "your wallet" },
     { label: "Chain", value: "Solana" },
+    {
+      label: "Approval threshold",
+      value: `${args.approvalThreshold} ${args.approvalThreshold === 1 ? "approval" : "approvals"}`,
+    },
+    {
+      label: "Timelock",
+      value:
+        args.timelockSeconds > 0
+          ? `${args.timelockSeconds} seconds after approval`
+          : "Immediately after approval",
+    },
+    {
+      label: "Network fee",
+      value: `${formatAmount(String(Number(args.feeReserveLamports) / 1_000_000_000))} SOL reserved`,
+    },
   ];
   // Always surface the destination address - even for contact-resolved
   // sends. Without this, an attacker who tampers localStorage to swap
@@ -1138,6 +1156,8 @@ function SendPage() {
               insufficientBalance={insufficientBalance}
               signerBlocked={signerBlocked}
               feeReserveLamports={SOL_FEE_RESERVE_LAMPORTS}
+              approvalThreshold={firstIntent?.account?.approvalThreshold ?? 1}
+              timelockSeconds={firstIntent?.account?.timelockSeconds ?? 0}
               reduce={!!reduce}
             />
           )}
@@ -1191,6 +1211,8 @@ interface ComposeStageProps {
   insufficientBalance: boolean;
   signerBlocked: boolean;
   feeReserveLamports: bigint;
+  approvalThreshold: number;
+  timelockSeconds: number;
   onQuickFill: (parsed: {
     recipientText?: string;
     amountSol?: number;
@@ -1221,6 +1243,8 @@ function ComposeStage({
   insufficientBalance,
   signerBlocked,
   feeReserveLamports,
+  approvalThreshold,
+  timelockSeconds,
   onQuickFill,
   reduce,
 }: ComposeStageProps) {
@@ -1467,6 +1491,9 @@ function ComposeStage({
             resolved,
             pendingUsd,
             budgetUsage,
+            approvalThreshold,
+            timelockSeconds,
+            feeReserveLamports,
           })}
           warning={buildSendPreviewWarning({
             resolved,

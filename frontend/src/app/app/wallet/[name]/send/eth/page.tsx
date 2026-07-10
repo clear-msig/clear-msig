@@ -54,6 +54,7 @@ import { encodeParams } from "@/lib/msig/encode";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
+import { waitForProposalApproval } from "@/lib/chain/proposals";
 import {
   prepareClearSignAction,
   randomActionLabel,
@@ -243,6 +244,8 @@ function SendEthPage() {
     to: string;
     explorerUrl: string | null;
     explorerLabel: string;
+    pending: boolean;
+    proposal: string | null;
   } | null>(null);
 
   const trimmedRecipient = recipient.trim();
@@ -583,6 +586,11 @@ function SendEthPage() {
         }
       }
 
+      const readyToExecute = await waitForProposalApproval(connection, proposal);
+      if (!readyToExecute) {
+        return { proposal, broadcast: null, awaitingApprovers: true };
+      }
+
       // 5. Execute with typed ClearSign verification + Ika broadcast.
       const executed = await backendApi.executeTypedChainSend(walletName, proposal, {
         chainKind: EVM_CHAIN_KIND,
@@ -597,9 +605,9 @@ function SendEthPage() {
       });
       const broadcast = (executed as { broadcast?: BroadcastResultLike })
         ?.broadcast;
-      return { proposal, broadcast };
+      return { proposal, broadcast, awaitingApprovers: false };
     },
-    onSuccess: ({ broadcast }) => {
+    onSuccess: ({ proposal, broadcast, awaitingApprovers }) => {
       const explorerUrl = broadcastExplorerUrl(
         broadcast,
         EVM_RPC_URL,
@@ -619,7 +627,14 @@ function SendEthPage() {
         to: sentTo,
         explorerUrl,
         explorerLabel,
+        pending: awaitingApprovers,
+        proposal: awaitingApprovers ? proposal : null,
       });
+      queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
+      if (awaitingApprovers) {
+        setStage("sent");
+        return;
+      }
       // Persist the success in the per-wallet tx log for the
       // "Recent send attempts" widget - gives the user durable
       // proof of the send instead of a transient toast.
@@ -634,7 +649,6 @@ function SendEthPage() {
         txId: broadcast?.tx_id,
         explorerUrl: explorerUrl ?? undefined,
       });
-      queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
       // Refresh every place EVM balance is shown so the post-send
       // compose, /chains row, and portfolio panel all reflect the
       // new number. Multiple keys for the same data - each consumer
@@ -753,6 +767,8 @@ function SendEthPage() {
               balanceLoading={ethBalanceQuery.isLoading}
               insufficientBalance={insufficientBalance}
               gasReserveWei={ETH_GAS_RESERVE_WEI}
+              approvalThreshold={ethIntent?.account?.approvalThreshold ?? 1}
+              timelockSeconds={ethIntent?.account?.timelockSeconds ?? 0}
               onSubmit={handleSubmit}
               reduce={!!reduce}
             />
@@ -770,6 +786,8 @@ function SendEthPage() {
               walletDisplay={walletDisplay || "your shared wallet"}
               ticker={EVM_TICKER}
               networkLabel={EVM_LABEL}
+              pending={sentLabel.pending}
+              proposal={sentLabel.proposal}
               reduce={!!reduce}
             />
           )}
@@ -813,6 +831,8 @@ interface ComposeStageProps {
   balanceLoading: boolean;
   insufficientBalance: boolean;
   gasReserveWei: bigint;
+  approvalThreshold: number;
+  timelockSeconds: number;
   onSubmit: () => void;
   reduce: boolean;
 }
@@ -841,6 +861,8 @@ function ComposeStage({
   balanceLoading,
   insufficientBalance,
   gasReserveWei,
+  approvalThreshold,
+  timelockSeconds,
   onSubmit,
 }: ComposeStageProps) {
   const walletDisplay = toDisplayName(walletName);
@@ -849,6 +871,21 @@ function ComposeStage({
   const previewDetails: SignPayloadDetail[] = [
     { label: "From wallet", value: toDisplayName(walletName) || "your wallet" },
     { label: "Chain", value: chainLabel },
+    {
+      label: "Approval threshold",
+      value: `${approvalThreshold} ${approvalThreshold === 1 ? "approval" : "approvals"}`,
+    },
+    {
+      label: "Timelock",
+      value:
+        timelockSeconds > 0
+          ? `${timelockSeconds} seconds after approval`
+          : "Immediately after approval",
+    },
+    {
+      label: "Gas reserve",
+      value: `${weiToEth(gasReserveWei)} ${ticker} reserved`,
+    },
     walletEthAddress
       ? {
           label: "From address",
@@ -1173,6 +1210,8 @@ interface SentStageProps {
   ticker: string;
   networkLabel: string;
   reduce: boolean;
+  pending: boolean;
+  proposal: string | null;
 }
 
 function SentStage({
@@ -1185,15 +1224,27 @@ function SentStage({
   ticker,
   networkLabel,
   reduce,
+  pending,
+  proposal,
 }: SentStageProps) {
   const details: ReceiptDetail[] = [
     { label: "From", value: walletDisplay },
     { label: "Network", value: networkLabel },
   ];
+  if (proposal) {
+    details.push({
+      label: "Proposal",
+      value: `${proposal.slice(0, 8)}...${proposal.slice(-6)}`,
+      mono: true,
+      copyText: proposal,
+    });
+  }
   return (
     <SendReceipt
-      status="confirmed"
-      statusLabel={`Confirmed on ${networkLabel}`}
+      status={pending ? "pending" : "confirmed"}
+      statusLabel={
+        pending ? "Waiting for remaining approvals" : `Confirmed on ${networkLabel}`
+      }
       amount={amount}
       ticker={ticker}
       recipientLabel={to}
