@@ -134,6 +134,7 @@ import {
   loadAgentMarketDataSnapshots,
   loadAgentMarketIntelligenceSnapshots,
 } from "@/lib/agents/clientMarketData";
+import { useAgentTypedClearSignApproval } from "@/lib/agents/useAgentTypedClearSignApproval";
 import type { HyperliquidTestnetAccountSnapshot } from "@/lib/agents/serverHyperliquidTestnet";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
@@ -189,6 +190,7 @@ export default function AgentsPage() {
   const display = toDisplayName(name);
   const encrypt = encryptStatus();
   const showDeveloperSurfaces = search.get("debug") === "1";
+  const approveTypedAgentClearSign = useAgentTypedClearSignApproval(name);
 
   const [agents, setAgents] = useState<AgentProfile[]>([]);
   const [policy, setPolicy] = useState<AgentVaultPolicy | null>(null);
@@ -881,27 +883,55 @@ export default function AgentsPage() {
 
   const approveProposal = (id: string) => {
     startAction(() => {
-      const updated = approveAgentProposal(name, id);
-      if (!updated) {
-        toast.error("Trade idea not found");
-        return;
-      }
-      void syncAgentProposalApproval(name, id).then((synced) => {
-        if (!synced.ok) {
-          toast.info("Trade idea approved on this device for now", {
-            details: synced.message,
+      void (async () => {
+        const proposal = proposals.find((item) => item.id === id);
+        if (!proposal) {
+          toast.error("Trade idea not found");
+          return;
+        }
+        let typedResult: Awaited<ReturnType<typeof approveTypedAgentClearSign>>;
+        try {
+          typedResult = await approveTypedAgentClearSign({
+            ...proposal,
+            status: "approved",
+            updatedAt: Date.now(),
+          });
+        } catch (err) {
+          toast.error("ClearSign approval did not reach chain", {
+            details: err instanceof Error ? err.message : String(err),
           });
           return;
         }
-        if (synced.value?.status === "blocked") {
-          toast.info("Your safety rules stopped this idea", {
-            details: synced.value.policyViolations?.[0]?.message,
-          });
-        } else {
-          toast.success("Trade idea approved");
+        const updated = approveAgentProposal(name, id);
+        if (!updated) {
+          toast.error("Trade idea not found");
+          return;
         }
-        void refreshBackendState();
-      });
+        saveAgentProposal({
+          ...updated,
+          clearSignV2: typedResult.proposal.clearSignV2,
+        });
+        void syncAgentProposalApproval(name, id).then((synced) => {
+          if (!synced.ok) {
+            toast.info("Trade idea approved on this device for now", {
+              details: synced.message,
+            });
+            return;
+          }
+          if (synced.value?.status === "blocked") {
+            toast.info("Your safety rules stopped this idea", {
+              details: synced.value.policyViolations?.[0]?.message,
+            });
+          } else {
+            toast.success(
+              typedResult.status === "executed"
+                ? "Agent approval verified on chain"
+                : "Agent approval is waiting on chain",
+            );
+          }
+          void refreshBackendState();
+        });
+      })();
     });
   };
 
@@ -3514,6 +3544,7 @@ function ProposalCard({
             {proposal.leverage}x
           </p>
           <TradeLifecycleStrip lifecycle={lifecycle} />
+          <AgentClearSignProof proposal={proposal} />
           {proposal.policyViolations && proposal.policyViolations.length > 0 ? (
             <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-rose-300">
               {proposal.policyViolations[0]?.message}
@@ -3543,6 +3574,21 @@ function ProposalCard({
         </div>
       </div>
     </li>
+  );
+}
+
+function AgentClearSignProof({ proposal }: { proposal: AgentTradeProposal }) {
+  const proof = proposal.clearSignV2;
+  if (!proof) return null;
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 rounded-soft border border-accent/20 bg-accent/[0.05] px-2 py-1.5 text-[10px] font-medium text-text-soft">
+      <span className="inline-flex items-center gap-1 text-accent">
+        <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+        ClearSign v2
+      </span>
+      <span className="font-mono">payload {proof.payloadHash.slice(0, 10)}</span>
+      <span className="font-mono">risk {proof.payload.riskCheckHash.slice(0, 10)}</span>
+    </div>
   );
 }
 

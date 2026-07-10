@@ -177,6 +177,7 @@ export type PrepareTypedProposalCreateInput = {
   envelope_hash: string;
   action_id: string;
   nonce: string;
+  policyBytesHex?: string;
   signable_text: string;
   expiry?: string;
   actor_pubkey?: string;
@@ -241,6 +242,7 @@ export type SignedTypedProposalCreateInput = PreSignedPayload & {
   envelope_hash: string;
   action_id: string;
   nonce: string;
+  policyBytesHex?: string;
 };
 
 export type SignedApproveCancelInput = PreSignedPayload;

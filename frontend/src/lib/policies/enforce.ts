@@ -14,17 +14,31 @@
 import type { CandidateProposal } from "@/lib/policies/evaluate";
 import { evaluateFirstMatch } from "@/lib/policies/evaluate";
 import { listPolicies } from "@/lib/policies/storage";
-import type { PolicyRule, RuleEvaluation } from "@/lib/policies/types";
+import type { PolicyRule, RuleCondition, RuleEvaluation } from "@/lib/policies/types";
 import { decryptPolicy } from "@/lib/encrypt/client";
-import { decryptCooldownSeconds } from "@/lib/policies/encryption";
+import {
+  decryptConditions,
+  decryptCooldownSeconds,
+} from "@/lib/policies/encryption";
 
 const decoder = new TextDecoder();
 
 export interface PolicyEnforcementPlan {
   evaluation: RuleEvaluation | null;
   rule: PolicyRule | null;
+  conditions: RuleCondition[];
   extraApprovers: string[];
   extraCooldownSeconds: number;
+}
+
+export function assertPolicyNotDenied(
+  plan: PolicyEnforcementPlan,
+  actionLabel: string = "send",
+): void {
+  if (plan.evaluation?.matched && plan.evaluation.action === "deny") {
+    const name = plan.rule?.name ?? plan.evaluation.ruleName;
+    throw new Error(`Policy "${name}" denies this ${actionLabel}.`);
+  }
 }
 
 export async function resolvePolicyEnforcement(
@@ -37,6 +51,7 @@ export async function resolvePolicyEnforcement(
     return {
       evaluation: null,
       rule: null,
+      conditions: [],
       extraApprovers: [],
       extraCooldownSeconds: 0,
     };
@@ -47,12 +62,14 @@ export async function resolvePolicyEnforcement(
     return {
       evaluation,
       rule: null,
+      conditions: [],
       extraApprovers: [],
       extraCooldownSeconds: 0,
     };
   }
 
   let extraApprovers: string[] = [];
+  const conditions = await decryptConditions(rule.conditions);
   if (rule.action === "require-extra-approvers") {
     extraApprovers = await decryptRuleStrings(rule.extraApproversEncrypted ?? []);
   }
@@ -60,6 +77,7 @@ export async function resolvePolicyEnforcement(
   return {
     evaluation,
     rule,
+    conditions,
     extraApprovers,
     extraCooldownSeconds:
       rule.action === "require-cooldown"

@@ -42,11 +42,12 @@ export type ClearSignPayload =
 export interface MoneyAmount {
   amount: string;
   asset: string;
+  assetEncoding?: "text" | "sha256_text";
 }
 
 export interface RecipientAmount extends MoneyAmount {
   recipient: string;
-  recipientEncoding?: "text" | "solana_pubkey";
+  recipientEncoding?: "text" | "solana_pubkey" | "sha256_text";
 }
 
 export interface SendPayload extends RecipientAmount {
@@ -84,11 +85,16 @@ export interface EscrowReturnPayload {
 }
 
 export interface AgentTradePayload {
+  venue?: string;
   market: string;
   side: "long" | "short";
   maxNotionalUsd: string;
   maxLeverage: string;
   stopLossRequired: boolean;
+  assetId?: string;
+  sessionId?: string;
+  route?: string;
+  riskCheckHash?: string;
 }
 
 export interface RecoveryPayload {
@@ -158,8 +164,8 @@ export function clearSignEnvelopeHash(
   out.pushI64(BigInt(normalizeNumber(envelope.expiresAt)));
   out.pushBytes(normalizeText(envelope.walletName));
   out.pushBytes(canonicalAddressOrText(normalizeOptional(envelope.walletId)));
-  out.pushRaw(sha256(enc.encode(normalizeText(envelope.actionId))));
-  out.pushRaw(sha256(enc.encode(normalizeText(envelope.nonce))));
+  out.pushBytes(sha256(enc.encode(normalizeText(envelope.actionId))));
+  out.pushBytes(sha256(enc.encode(normalizeText(envelope.nonce))));
   out.pushRaw(fromHex(normalizeHash(envelope.policyCommitment)));
   out.pushRaw(payloadHash);
   out.pushRaw(sha256(enc.encode(signableText)));
@@ -358,11 +364,16 @@ function normalizePayload(
     case "agent_trade_approval": {
       const row = payload as AgentTradePayload;
       return {
+        venue: normalizeText(row.venue ?? ""),
         market: normalizeText(row.market).toUpperCase(),
         side: row.side,
         maxNotionalUsd: normalizeDecimal(row.maxNotionalUsd),
         maxLeverage: normalizeText(row.maxLeverage).toLowerCase(),
         stopLossRequired: Boolean(row.stopLossRequired),
+        assetId: normalizeText(row.assetId ?? ""),
+        sessionId: normalizeText(row.sessionId ?? ""),
+        route: normalizeText(row.route ?? ""),
+        riskCheckHash: normalizeText(row.riskCheckHash ?? ""),
       };
     }
     case "recovery_action":
@@ -417,13 +428,25 @@ function canonicalPayloadBytes(
     }
     case "agent_trade_approval": {
       const row = normalizePayload(kind, payload) as AgentTradePayload;
-      out.pushBytes(row.market);
-      out.pushBytes(row.side);
-      out.pushAmount({
-        asset: "USD",
-        amount: row.maxNotionalUsd,
-      });
-      out.pushU32(leverageToX100(row.maxLeverage));
+      if (isAgentTradeApprovalV2(row)) {
+        out.pushBytes(textCommitment(row.venue));
+        out.pushBytes(textCommitment(row.market));
+        out.pushBytes(textCommitment(row.side));
+        out.pushBytes(textCommitment(row.assetId));
+        out.pushU128(decimalToRawAmount(row.maxNotionalUsd, "USD"));
+        out.pushU32(leverageToX100(row.maxLeverage));
+        out.pushBytes(textCommitment(row.sessionId));
+        out.pushBytes(textCommitment(row.route));
+        out.pushBytes(hashBytesFromHex(row.riskCheckHash));
+      } else {
+        out.pushBytes(row.market);
+        out.pushBytes(row.side);
+        out.pushAmount({
+          asset: "USD",
+          amount: row.maxNotionalUsd,
+        });
+        out.pushU32(leverageToX100(row.maxLeverage));
+      }
       break;
     }
     default:
@@ -445,7 +468,28 @@ function normalizeMoney(row: MoneyAmount): MoneyAmount {
   return {
     amount: normalizeDecimal(row.amount),
     asset: normalizeText(row.asset).toUpperCase(),
+    assetEncoding: row.assetEncoding ?? "text",
   };
+}
+
+type AgentTradePayloadV2 = AgentTradePayload & {
+  venue: string;
+  assetId: string;
+  sessionId: string;
+  route: string;
+  riskCheckHash: string;
+};
+
+function isAgentTradeApprovalV2(row: AgentTradePayload): row is AgentTradePayloadV2 {
+  const fields = [row.venue, row.assetId, row.sessionId, row.route, row.riskCheckHash];
+  const hasAny = fields.some((value) => normalizeText(value ?? "") !== "");
+  const hasAll = fields.every((value) => normalizeText(value ?? "") !== "");
+  if (hasAny && !hasAll) {
+    throw new Error(
+      "Agent trade approval v2 requires venue, assetId, sessionId, route, and riskCheckHash.",
+    );
+  }
+  return hasAll;
 }
 
 function formatMoney(row: MoneyAmount): string {
@@ -472,6 +516,14 @@ function textCommitment(value: string): Uint8Array {
   return sha256(enc.encode(normalizeText(value)));
 }
 
+function hashBytesFromHex(value: string): Uint8Array {
+  const normalized = normalizeHash(value);
+  if (!/^[0-9a-f]{64}$/.test(normalized)) {
+    throw new Error("Agent trade riskCheckHash must be a 32-byte hex hash.");
+  }
+  return fromHex(normalized);
+}
+
 function normalizeDecimal(value: string): string {
   const parsed = Number(value.trim());
   return Number.isFinite(parsed) ? String(parsed) : value.trim();
@@ -480,6 +532,7 @@ function normalizeDecimal(value: string): string {
 function assetDecimals(asset: string): number {
   switch (normalizeText(asset).toUpperCase()) {
     case "BTC":
+    case "ZEC":
       return 8;
     case "ETH":
     case "HYPE":
@@ -531,7 +584,8 @@ class ByteWriter {
   }
 
   pushAmount(row: MoneyAmount) {
-    this.pushBytes(normalizeText(row.asset).toUpperCase());
+    const asset = normalizeText(row.asset).toUpperCase();
+    this.pushBytes(row.assetEncoding === "sha256_text" ? textCommitment(asset) : asset);
     this.pushU128(decimalToRawAmount(row.amount, row.asset));
   }
 
@@ -569,6 +623,9 @@ class ByteWriter {
 }
 
 function canonicalRecipientBytes(row: RecipientAmount): Uint8Array | string {
+  if (row.recipientEncoding === "sha256_text") {
+    return textCommitment(row.recipient);
+  }
   if (row.recipientEncoding !== "solana_pubkey") {
     return row.recipient;
   }

@@ -136,6 +136,7 @@ export function useWalletPortfolio(walletName: string): WalletPortfolio {
                 fetchChainBalance(b, {
                   solanaConnection: connection as unknown as Connection,
                   evmRpcUrl: appConfig.preAlpha.destinationRpcUrl,
+                  hyperliquidRpcUrl: appConfig.preAlpha.hyperliquidRpcUrl,
                   zcashRpcUrl: appConfig.preAlpha.zcashRpcUrl,
                 }),
                 8000,

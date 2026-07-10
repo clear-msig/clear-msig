@@ -6,19 +6,29 @@ use crate::{
     error::WalletError,
     instructions::typed_proposal::{mark_typed_executed, verify_typed_execution_ready},
     state::{
-        intent::Intent, proposal::ProposalStatus, typed_proposal::TypedProposal,
-        wallet::ClearWallet,
+        intent::Intent, policy_spend::PolicySpendState, proposal::ProposalStatus,
+        typed_proposal::TypedProposal, wallet::ClearWallet,
     },
     utils::clearsign::{
         hash_batch_send_sol_payload_iter, hash_send_payload, ClearSignActionKind, ClearSignAmount,
     },
+    utils::policy::enforce_typed_sol_send_policy,
 };
 
 const SOL_ASSET: &[u8] = b"SOL";
 
 #[derive(Accounts)]
 pub struct ExecuteTypedSolSend<'info> {
+    #[account(mut)]
+    pub payer: &'info mut Signer,
     pub wallet: Account<ClearWallet<'info>>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = PolicySpendState::seeds(wallet),
+        bump,
+    )]
+    pub policy_spend: &'info mut Account<PolicySpendState>,
     #[cfg_attr(target_os = "solana", allow(quasar::writable_no_authority))]
     #[account(
         mut,
@@ -100,6 +110,20 @@ impl<'info> ExecuteTypedSolSend<'info> {
             args.policy_commitment,
             payload_hash,
             args.envelope_hash,
+        )?;
+        let recipient_bytes = self.recipient.address().as_ref();
+        let recipient_key: &[u8; 32] = recipient_bytes
+            .try_into()
+            .map_err(|_| WalletError::InvalidPolicy)?;
+        enforce_typed_sol_send_policy(
+            self.proposal.policy_bytes().as_ref(),
+            args.policy_commitment,
+            recipient_key,
+            args.amount_lamports,
+            &self.intent,
+            &self.proposal,
+            &mut self.policy_spend,
+            bumps.policy_spend,
         )?;
         let vault_seeds = self.vault_seeds(bumps);
         transfer_lamports(

@@ -29,6 +29,28 @@ The product also includes adjacent surfaces for:
 - a personal recovery-oriented "Secure" surface built on `ikavery`,
 - onboarding, security, and privacy explanation pages.
 
+## Smart Multisig Direction
+
+ClearSig should behave like a smart multisig for asset coordination. A wallet is
+not only a set of keys; it is a team operating space where people, policies,
+and AI agents can participate with scoped authority.
+
+The intended model is:
+
+- humans approve readable actions and remain the final authority for sensitive
+  movement,
+- teams define policy once and expect the program to enforce it before value
+  moves,
+- AI agents can propose or prepare actions inside explicit limits, but policy
+  commitments, session allowances, risk limits, and approval thresholds decide
+  what can actually execute,
+- every participant sees the same ClearSign action, policy commitment, expiry,
+  and recipient/amount facts before signing.
+
+This direction is only credible when ClearSign and policy enforcement are
+verifiable. New product surfaces should prefer typed actions and program-backed
+policy checks over vague `Custom` intents.
+
 ## What The App Does
 
 At a high level, the app lets a user:

@@ -598,6 +598,7 @@ async function loadBalance(
   const result = await fetchChainBalance(binding, {
     solanaConnection: connection,
     evmRpcUrl: appConfig.preAlpha.destinationRpcUrl,
+    hyperliquidRpcUrl: appConfig.preAlpha.hyperliquidRpcUrl,
     zcashRpcUrl: appConfig.preAlpha.zcashRpcUrl,
   });
   return result?.raw ?? null;

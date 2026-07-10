@@ -5,10 +5,12 @@ import {
   clearSignPayloadHash,
   clearSignVoteMessage,
   summarizeClearSignAction,
+  type AgentTradePayload,
   type ClearSignEnvelope,
   type EscrowReturnPayload,
   type SendPayload,
 } from "@/lib/clearsign-v2";
+import { fromHex, sha256, toHex } from "@/lib/msig/hash";
 
 const base = {
   version: 2 as const,
@@ -145,10 +147,105 @@ describe("ClearSign v2 actions", () => {
     );
   });
 
+  it("binds cross-chain send recipient and asset as text commitments", () => {
+    const committed: ClearSignEnvelope<SendPayload> = {
+      ...base,
+      kind: "send",
+      payload: {
+        amount: "1.250000000000000000",
+        asset: "eth",
+        assetEncoding: "sha256_text",
+        recipient: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+        recipientEncoding: "sha256_text",
+      },
+    };
+    const plain: ClearSignEnvelope<SendPayload> = {
+      ...committed,
+      payload: {
+        ...committed.payload,
+        assetEncoding: "text",
+        recipientEncoding: "text",
+      },
+    };
+    const recipientChanged: ClearSignEnvelope<SendPayload> = {
+      ...committed,
+      payload: {
+        ...committed.payload,
+        recipient: "0x1111111111111111111111111111111111111111",
+      },
+    };
+
+    expect(clearSignPayloadHash(committed)).toMatch(/^[0-9a-f]{64}$/);
+    expect(clearSignPayloadHash(committed)).not.toBe(clearSignPayloadHash(plain));
+    expect(clearSignPayloadHash(committed)).not.toBe(
+      clearSignPayloadHash(recipientChanged),
+    );
+  });
+
   it("uses the same fixed action codes as the Solana program", () => {
     expect(clearSignActionKindCode("send")).toBe(1);
     expect(clearSignActionKindCode("return_escrow_funds")).toBe(8);
     expect(clearSignActionKindCode("swap_intent")).toBe(11);
+  });
+
+  it("binds agent trade approval v2 fields into the payload hash", () => {
+    const envelope: ClearSignEnvelope<AgentTradePayload> = {
+      ...base,
+      kind: "agent_trade_approval",
+      payload: {
+        venue: "Hyperliquid Testnet",
+        market: "btc-perp",
+        side: "long",
+        maxNotionalUsd: "250.00",
+        maxLeverage: "2.5x",
+        stopLossRequired: true,
+        assetId: "USDC:hyperliquid:testnet",
+        sessionId: "agent-session:morning-risk-pass",
+        route: "clearsig-agent:hyperliquid:testnet:limit",
+        riskCheckHash:
+          "8a58cb501c3269e8abe8f456629b04e12855131b2e8b1e6807749817d167a9d4",
+      },
+    };
+
+    expect(clearSignPayloadHash(envelope)).toMatch(/^[0-9a-f]{64}$/);
+    expect(clearSignPayloadHash(envelope)).not.toBe(
+      clearSignPayloadHash({
+        ...envelope,
+        payload: {
+          ...envelope.payload,
+          riskCheckHash:
+            "2d4724a75961caff9e395a8d610dc4720c02bd809138e54ce2d32681bfcd9f49",
+        },
+      }),
+    );
+    expect(clearSignPayloadHash(envelope)).not.toBe(
+      clearSignPayloadHash({
+        ...envelope,
+        payload: {
+          ...envelope.payload,
+          route: "clearsig-agent:hyperliquid:testnet:market",
+        },
+      }),
+    );
+  });
+
+  it("rejects partial agent trade approval v2 payloads", () => {
+    const envelope: ClearSignEnvelope<AgentTradePayload> = {
+      ...base,
+      kind: "agent_trade_approval",
+      payload: {
+        venue: "Hyperliquid Testnet",
+        market: "BTC-PERP",
+        side: "long",
+        maxNotionalUsd: "250",
+        maxLeverage: "2.5x",
+        stopLossRequired: true,
+      },
+    };
+
+    expect(() => clearSignPayloadHash(envelope)).toThrow(
+      /requires venue, assetId, sessionId, route, and riskCheckHash/,
+    );
   });
 
   it("binds envelope hash to replay fields", () => {
@@ -167,6 +264,22 @@ describe("ClearSign v2 actions", () => {
     );
     expect(clearSignEnvelopeHash(envelope)).not.toBe(
       clearSignEnvelopeHash({ ...envelope, walletId: "OtherWallet" }),
+    );
+  });
+
+  it("length-prefixes action and nonce commitments like the Solana program", () => {
+    const envelope: ClearSignEnvelope<SendPayload> = {
+      ...base,
+      kind: "send",
+      payload: {
+        amount: "2.5",
+        asset: "SOL",
+        recipient: "Sarah",
+      },
+    };
+
+    expect(clearSignEnvelopeHash(envelope)).not.toBe(
+      legacyEnvelopeHashWithoutCommitmentLengths(envelope),
     );
   });
 
@@ -196,3 +309,56 @@ describe("ClearSign v2 actions", () => {
     expect(propose).toContain(`Payload ${clearSignPayloadHash(envelope)}`);
   });
 });
+
+function legacyEnvelopeHashWithoutCommitmentLengths(
+  envelope: ClearSignEnvelope<SendPayload>,
+): string {
+  const signableText = summarizeClearSignAction(envelope).signableText;
+  const out = new TestWriter();
+  out.pushBytes("clearsig:policy-engine:v2");
+  out.pushU8(2);
+  out.pushU8(clearSignActionKindCode(envelope.kind));
+  out.pushI64(BigInt(envelope.expiresAt));
+  out.pushBytes(envelope.walletName.trim());
+  out.pushBytes(envelope.walletId?.trim() ?? "");
+  out.pushRaw(sha256(new TextEncoder().encode(envelope.actionId.trim())));
+  out.pushRaw(sha256(new TextEncoder().encode(envelope.nonce.trim())));
+  out.pushRaw(fromHex(envelope.policyCommitment));
+  out.pushRaw(fromHex(clearSignPayloadHash(envelope)));
+  out.pushRaw(sha256(new TextEncoder().encode(signableText)));
+  return toHex(sha256(out.bytes()));
+}
+
+class TestWriter {
+  private chunks: number[] = [];
+
+  pushRaw(bytes: Uint8Array) {
+    for (const byte of bytes) this.chunks.push(byte);
+  }
+
+  pushBytes(value: string | Uint8Array) {
+    const bytes = typeof value === "string" ? new TextEncoder().encode(value) : value;
+    this.pushU32(bytes.length);
+    this.pushRaw(bytes);
+  }
+
+  pushU8(value: number) {
+    this.chunks.push(value & 0xff);
+  }
+
+  pushU32(value: number) {
+    for (let i = 0; i < 4; i++) this.chunks.push((value >> (8 * i)) & 0xff);
+  }
+
+  pushI64(value: bigint) {
+    let v = BigInt.asUintN(64, value);
+    for (let i = 0; i < 8; i++) {
+      this.chunks.push(Number(v & 0xffn));
+      v >>= 8n;
+    }
+  }
+
+  bytes(): Uint8Array {
+    return new Uint8Array(this.chunks);
+  }
+}

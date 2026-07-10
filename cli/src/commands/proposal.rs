@@ -48,6 +48,8 @@ pub enum ProposalAction {
         action_id: String,
         #[arg(long)]
         nonce: String,
+        #[arg(long)]
+        policy_bytes_hex: Option<String>,
         /// Human-readable ClearSign v2 action text produced by /clearsign/v2/prepare.
         ///
         /// Required for dry-run and local signing. Browser pre-signed submits
@@ -215,6 +217,31 @@ pub enum ProposalAction {
         #[arg(long)]
         settlement_artifact_hash: String,
     },
+    /// Finalize an approved typed agent trade decision.
+    TypedAgentTradeApproval {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        amount_raw: u128,
+        #[arg(long)]
+        venue_hash: String,
+        #[arg(long)]
+        market_hash: String,
+        #[arg(long)]
+        side_hash: String,
+        #[arg(long)]
+        asset_id_hash: String,
+        #[arg(long)]
+        max_leverage_x100: u32,
+        #[arg(long)]
+        session_id_hash: String,
+        #[arg(long)]
+        route_hash: String,
+        #[arg(long)]
+        risk_check_hash: String,
+    },
     /// Execute an approved typed escrow unwind / return.
     ///
     /// Pass one `--return recipient:lamports` per funder.
@@ -238,6 +265,51 @@ pub enum ProposalAction {
         recipient: String,
         #[arg(long)]
         amount_lamports: u64,
+    },
+    /// Verify and finalize an approved typed BTC/EVM/Zcash/HYPE send.
+    TypedChainSend {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        chain_kind: u8,
+        #[arg(long)]
+        amount_raw: u128,
+        #[arg(long)]
+        recipient_hash: String,
+        #[arg(long)]
+        asset_id_hash: String,
+    },
+    /// Sign and optionally broadcast an approved typed ETH/HYPE send via Ika.
+    TypedChainSendIka {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        chain_kind: u8,
+        #[arg(long)]
+        amount_raw: u128,
+        #[arg(long)]
+        recipient_hash: String,
+        #[arg(long)]
+        asset_id_hash: String,
+        /// Destination-chain params_data bytes as hex. Must match the signed ClearSign action.
+        #[arg(long)]
+        params_data_hex: String,
+        /// Ika dWallet program ID on the current cluster.
+        #[arg(long)]
+        dwallet_program: String,
+        /// Ika gRPC endpoint.
+        #[arg(long, default_value = crate::ika::DEFAULT_GRPC_URL)]
+        grpc_url: String,
+        /// Destination-chain RPC URL for broadcast.
+        #[arg(long)]
+        rpc_url: Option<String>,
+        /// Broadcast the signed transaction after Ika signing.
+        #[arg(long, default_value = "false")]
+        broadcast: bool,
     },
     /// Execute an approved typed SOL batch send.
     ///
@@ -455,6 +527,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             envelope_hash,
             action_id,
             nonce,
+            policy_bytes_hex,
             signable_text,
             expiry,
         } => {
@@ -487,6 +560,12 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             let policy_commitment = decode_hex_32(&policy_commitment, "policy_commitment")?;
             let payload_hash = decode_hex_32(&payload_hash, "payload_hash")?;
             let envelope_hash = decode_hex_32(&envelope_hash, "envelope_hash")?;
+            let policy_bytes = policy_bytes_hex
+                .as_deref()
+                .map(parse_hex_local)
+                .transpose()
+                .with_context(|| "invalid policy-bytes-hex")?
+                .unwrap_or_default();
             ensure_typed_text(&action_id, "action_id")?;
             ensure_typed_text(&nonce, "nonce")?;
 
@@ -603,6 +682,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 signature,
                 action_id: action_id_hash,
                 nonce: nonce_hash,
+                policy_bytes: &policy_bytes,
                 clear_text: clear_text.as_ref(),
             });
             let sig = rpc::send_instruction(&client, config, ix)?;
@@ -1188,6 +1268,78 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             }));
         }
 
+        ProposalAction::TypedAgentTradeApproval {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            amount_raw,
+            venue_hash,
+            market_hash,
+            side_hash,
+            asset_id_hash,
+            max_leverage_x100,
+            session_id_hash,
+            route_hash,
+            risk_check_hash,
+        } => {
+            if amount_raw == 0 {
+                return Err(anyhow!("amount-raw must be greater than zero"));
+            }
+            if max_leverage_x100 == 0 {
+                return Err(anyhow!("max-leverage-x100 must be greater than zero"));
+            }
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::AgentTradeApproval,
+                "typed agent trade approval",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let venue_hash = decode_hex_32(&venue_hash, "venue_hash")?;
+            let market_hash = decode_hex_32(&market_hash, "market_hash")?;
+            let side_hash = decode_hex_32(&side_hash, "side_hash")?;
+            let asset_id_hash = decode_hex_32(&asset_id_hash, "asset_id_hash")?;
+            let session_id_hash = decode_hex_32(&session_id_hash, "session_id_hash")?;
+            let route_hash = decode_hex_32(&route_hash, "route_hash")?;
+            let risk_check_hash = decode_hex_32(&risk_check_hash, "risk_check_hash")?;
+            let ix = crate::instructions::execute_typed_agent_trade_approval(
+                wallet_pubkey,
+                intent_pubkey,
+                proposal_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                amount_raw.to_le_bytes(),
+                venue_hash,
+                market_hash,
+                side_hash,
+                asset_id_hash,
+                max_leverage_x100,
+                session_id_hash,
+                route_hash,
+                risk_check_hash,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_agent_trade_approval",
+                "status": "executed",
+                "amount_raw": amount_raw.to_string(),
+                "venue_hash": crate::output::hex_of(&venue_hash),
+                "market_hash": crate::output::hex_of(&market_hash),
+                "side_hash": crate::output::hex_of(&side_hash),
+                "asset_id_hash": crate::output::hex_of(&asset_id_hash),
+                "max_leverage_x100": max_leverage_x100,
+                "session_id_hash": crate::output::hex_of(&session_id_hash),
+                "route_hash": crate::output::hex_of(&route_hash),
+                "risk_check_hash": crate::output::hex_of(&risk_check_hash),
+            }));
+        }
+
         ProposalAction::TypedEscrowReturn {
             wallet: wallet_name,
             proposal: proposal_addr_str,
@@ -1278,7 +1430,9 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 .parse()
                 .with_context(|| "invalid recipient address")?;
             let ix = crate::instructions::execute_typed_sol_send(
+                solana_sdk::signer::Signer::pubkey(&config.payer),
                 wallet_pubkey,
+                policy_spend_pubkey(wallet_pubkey),
                 vault_pubkey(wallet_pubkey),
                 intent_pubkey,
                 proposal_pubkey,
@@ -1296,6 +1450,173 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 "recipient": recipient_pubkey.to_string(),
                 "amount_lamports": amount_lamports,
             }));
+        }
+
+        ProposalAction::TypedChainSend {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            chain_kind,
+            amount_raw,
+            recipient_hash,
+            asset_id_hash,
+        } => {
+            if amount_raw == 0 {
+                return Err(anyhow!("amount-raw must be greater than zero"));
+            }
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::Send,
+                "typed chain send",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let intent_data = rpc::fetch_account(&client, &intent_pubkey)
+                .with_context(|| "failed to fetch typed proposal intent")?;
+            let intent_account = accounts::parse_intent(&intent_data)?;
+            if intent_account.chain_kind != chain_kind {
+                return Err(anyhow!(
+                    "typed chain send chain_kind mismatch: intent has {}, command got {}",
+                    intent_account.chain_kind,
+                    chain_kind
+                ));
+            }
+
+            let program_id = crate::instructions::program_id();
+            let (ika_config_pubkey, _) =
+                crate::ika::ika_config_pda(&program_id, &wallet_pubkey, chain_kind);
+            let ika_config_data =
+                rpc::fetch_account(&client, &ika_config_pubkey).with_context(|| {
+                    format!(
+                        "wallet has no IkaConfig for chain_kind={chain_kind}; bind the chain first"
+                    )
+                })?;
+            let ika_config = accounts::parse_ika_config(&ika_config_data)?;
+            let dwallet_pubkey: Pubkey = ika_config
+                .dwallet
+                .parse()
+                .with_context(|| "invalid dwallet address in IkaConfig")?;
+
+            let recipient_hash = decode_hex_32(&recipient_hash, "recipient_hash")?;
+            let asset_id_hash = decode_hex_32(&asset_id_hash, "asset_id_hash")?;
+            let tx_template_hash = intent_tx_template_hash(&intent_account)?;
+            let ix = crate::instructions::execute_typed_chain_send(
+                solana_sdk::signer::Signer::pubkey(&config.payer),
+                wallet_pubkey,
+                policy_spend_pubkey(wallet_pubkey),
+                intent_pubkey,
+                proposal_pubkey,
+                ika_config_pubkey,
+                dwallet_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                chain_kind,
+                amount_raw.to_le_bytes(),
+                recipient_hash,
+                asset_id_hash,
+                tx_template_hash,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_chain_send",
+                "status": "executed",
+                "chain_kind": chain_kind,
+                "amount_raw": amount_raw.to_string(),
+                "recipient_hash": crate::output::hex_of(&recipient_hash),
+                "asset_id_hash": crate::output::hex_of(&asset_id_hash),
+                "ika_config": ika_config_pubkey.to_string(),
+                "dwallet": dwallet_pubkey.to_string(),
+                "tx_template_hash": crate::output::hex_of(&tx_template_hash),
+            }));
+        }
+
+        ProposalAction::TypedChainSendIka {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            chain_kind,
+            amount_raw,
+            recipient_hash,
+            asset_id_hash,
+            params_data_hex,
+            dwallet_program,
+            grpc_url,
+            rpc_url,
+            broadcast,
+        } => {
+            if broadcast && rpc_url.is_none() {
+                return Err(anyhow!(
+                    "--broadcast requires --rpc-url <URL> for the destination chain"
+                ));
+            }
+            if amount_raw == 0 {
+                return Err(anyhow!("amount-raw must be greater than zero"));
+            }
+            if !matches!(chain_kind, 1 | 5) {
+                return Err(anyhow!(
+                    "typed-chain-send-ika currently supports native EVM/HYPE chain kinds 1 and 5"
+                ));
+            }
+
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::Send,
+                "typed chain send Ika",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let intent_data = rpc::fetch_account(&client, &intent_pubkey)
+                .with_context(|| "failed to fetch typed proposal intent")?;
+            let intent_account = accounts::parse_intent(&intent_data)?;
+            if intent_account.chain_kind != chain_kind {
+                return Err(anyhow!(
+                    "typed chain send Ika chain_kind mismatch: intent has {}, command got {}",
+                    intent_account.chain_kind,
+                    chain_kind
+                ));
+            }
+
+            let params_data =
+                parse_hex_local(&params_data_hex).with_context(|| "invalid params_data_hex")?;
+            let recipient_hash = decode_hex_32(&recipient_hash, "recipient_hash")?;
+            let asset_id_hash = decode_hex_32(&asset_id_hash, "asset_id_hash")?;
+            let tx_template_hash = intent_tx_template_hash(&intent_account)?;
+            let dwallet_program_pk: Pubkey = dwallet_program
+                .parse()
+                .with_context(|| "invalid dWallet program ID")?;
+
+            execute_via_ika(
+                config,
+                &client,
+                &wallet_name,
+                wallet_pubkey,
+                intent_pubkey,
+                &intent_account,
+                proposal_pubkey,
+                &params_data,
+                dwallet_program_pk,
+                &grpc_url,
+                rpc_url.as_deref(),
+                broadcast,
+                IkaOnchainSignMode::TypedChainSend {
+                    policy_commitment: proposal_account.policy_commitment,
+                    envelope_hash: proposal_account.envelope_hash,
+                    amount_raw_le: amount_raw.to_le_bytes(),
+                    recipient_hash,
+                    asset_id_hash,
+                    tx_template_hash,
+                },
+            )?;
         }
 
         ProposalAction::TypedSolBatchSend {
@@ -1476,11 +1797,12 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                     intent_pubkey,
                     &intent_account,
                     proposal_pubkey,
-                    &proposal_account,
+                    &proposal_account.params_data,
                     dwallet_program_pk,
                     &grpc_url,
                     rpc_url.as_deref(),
                     broadcast,
+                    IkaOnchainSignMode::LegacyProposal,
                 )?;
             }
         }
@@ -1622,6 +1944,19 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
 /// presign + sign roundtrip and verify the signature lands in the
 /// `MessageApproval` PDA. If `broadcast` is set, also assemble the
 /// chain-native signed transaction and push it to `rpc_url`.
+#[derive(Clone, Copy)]
+enum IkaOnchainSignMode {
+    LegacyProposal,
+    TypedChainSend {
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        amount_raw_le: [u8; 16],
+        recipient_hash: [u8; 32],
+        asset_id_hash: [u8; 32],
+        tx_template_hash: [u8; 32],
+    },
+}
+
 #[allow(clippy::too_many_arguments)]
 fn execute_via_ika(
     config: &RuntimeConfig,
@@ -1631,11 +1966,12 @@ fn execute_via_ika(
     intent_pubkey: Pubkey,
     intent_account: &accounts::IntentAccount,
     proposal_pubkey: Pubkey,
-    proposal_account: &accounts::ProposalAccount,
+    params_data: &[u8],
     dwallet_program: Pubkey,
     grpc_url: &str,
     rpc_url: Option<&str>,
     broadcast: bool,
+    sign_mode: IkaOnchainSignMode,
 ) -> Result<()> {
     use crate::ika;
     use std::time::Duration;
@@ -1676,10 +2012,9 @@ fn execute_via_ika(
     //    For others: chain-native preimage.
     let preimage = match chain_kind {
         0 => {
-            let dest = ika::read_param_bytes32(intent_account, &proposal_account.params_data, 0)?;
-            let amt = ika::read_param_u64(intent_account, &proposal_account.params_data, 1)?;
-            let nonce_val =
-                ika::read_param_bytes32(intent_account, &proposal_account.params_data, 2)?;
+            let dest = ika::read_param_bytes32(intent_account, params_data, 0)?;
+            let amt = ika::read_param_u64(intent_account, params_data, 1)?;
+            let nonce_val = ika::read_param_bytes32(intent_account, params_data, 2)?;
             let off = intent_account.tx_template_offset as usize;
             let nonce_acct: [u8; 32] = intent_account.byte_pool[off..off + 32]
                 .try_into()
@@ -1692,8 +2027,8 @@ fn execute_via_ika(
                 &nonce_val,
             )
         }
-        3 => ika::build_zcash_zip243_preimage(intent_account, &proposal_account.params_data)?,
-        _ => ika::build_chain_preimage(intent_account, &proposal_account.params_data)?,
+        3 => ika::build_zcash_zip243_preimage(intent_account, params_data)?,
+        _ => ika::build_chain_preimage(intent_account, params_data)?,
     };
     let message_hash = ika::hash_preimage(chain_kind, &preimage);
     eprintln!(
@@ -1722,28 +2057,62 @@ fn execute_via_ika(
     // 5. For Zcash, compute the BLAKE2b sub-hashes so the on-chain program
     //    can build the full ZIP-243 preimage for the MA PDA.
     let blake2b_hashes = if chain_kind == 3 {
-        ika::compute_zcash_blake2b_hashes(intent_account, &proposal_account.params_data)?
+        ika::compute_zcash_blake2b_hashes(intent_account, params_data)?
     } else {
         [0u8; 96]
     };
 
     let payer_pubkey = solana_sdk::signer::Signer::pubkey(&config.payer);
-    let ix = crate::instructions::ika_sign(
-        payer_pubkey,
-        wallet_pubkey,
-        intent_pubkey,
-        proposal_pubkey,
-        ika_config_pk,
-        dwallet_ownership_pk,
-        dwallet_pk,
-        message_approval_pk,
-        coordinator_pk,
-        cpi_authority_pk,
-        dwallet_program,
-        message_approval_bump,
-        cpi_authority_bump,
-        blake2b_hashes,
-    );
+    let ix = match sign_mode {
+        IkaOnchainSignMode::LegacyProposal => crate::instructions::ika_sign(
+            payer_pubkey,
+            wallet_pubkey,
+            intent_pubkey,
+            proposal_pubkey,
+            ika_config_pk,
+            dwallet_ownership_pk,
+            dwallet_pk,
+            message_approval_pk,
+            coordinator_pk,
+            cpi_authority_pk,
+            dwallet_program,
+            message_approval_bump,
+            cpi_authority_bump,
+            blake2b_hashes,
+        ),
+        IkaOnchainSignMode::TypedChainSend {
+            policy_commitment,
+            envelope_hash,
+            amount_raw_le,
+            recipient_hash,
+            asset_id_hash,
+            tx_template_hash,
+        } => crate::instructions::ika_sign_typed_chain_send(
+            payer_pubkey,
+            wallet_pubkey,
+            policy_spend_pubkey(wallet_pubkey),
+            intent_pubkey,
+            proposal_pubkey,
+            ika_config_pk,
+            dwallet_ownership_pk,
+            dwallet_pk,
+            message_approval_pk,
+            coordinator_pk,
+            cpi_authority_pk,
+            dwallet_program,
+            policy_commitment,
+            envelope_hash,
+            chain_kind,
+            amount_raw_le,
+            recipient_hash,
+            asset_id_hash,
+            tx_template_hash,
+            message_approval_bump,
+            cpi_authority_bump,
+            blake2b_hashes,
+            params_data,
+        ),
+    };
     let quorum_tx_sig =
         rpc::send_instruction(client, config, ix).with_context(|| "ika_sign failed")?;
     eprintln!("✓ ika_sign tx: {quorum_tx_sig}");
@@ -1764,11 +2133,9 @@ fn execute_via_ika(
     let sign_message_for_broadcast: Vec<u8> = match chain_kind {
         0 => {
             // Solana: full transaction message with durable nonce.
-            let destination =
-                ika::read_param_bytes32(intent_account, &proposal_account.params_data, 0)?;
-            let amount = ika::read_param_u64(intent_account, &proposal_account.params_data, 1)?;
-            let nonce_value =
-                ika::read_param_bytes32(intent_account, &proposal_account.params_data, 2)?;
+            let destination = ika::read_param_bytes32(intent_account, params_data, 0)?;
+            let amount = ika::read_param_u64(intent_account, params_data, 1)?;
+            let nonce_value = ika::read_param_bytes32(intent_account, params_data, 2)?;
             let off = intent_account.tx_template_offset as usize;
             let nonce_account: [u8; 32] = intent_account.byte_pool[off..off + 32]
                 .try_into()
@@ -1781,7 +2148,7 @@ fn execute_via_ika(
                 &nonce_value,
             )
         }
-        3 => ika::build_zcash_zip243_preimage(intent_account, &proposal_account.params_data)?,
+        3 => ika::build_zcash_zip243_preimage(intent_account, params_data)?,
         _ => preimage.clone(),
     };
 
@@ -1989,8 +2356,7 @@ fn execute_via_ika(
                 "raw_tx_hex": format!("0x{}", hex_lower(&wire_tx)),
             });
         } else {
-            let inputs =
-                build_broadcast_inputs(chain_kind, intent_account, &proposal_account.params_data)?;
+            let inputs = build_broadcast_inputs(chain_kind, intent_account, params_data)?;
 
             let result = crate::chains::broadcast_signed_tx(
                 chain_kind,
@@ -2348,6 +2714,14 @@ fn vault_pubkey(wallet_pubkey: Pubkey) -> Pubkey {
         &solana_address::Address::new_from_array(crate::instructions::program_id().to_bytes()),
     );
     Pubkey::new_from_array(vault.to_bytes())
+}
+
+fn policy_spend_pubkey(wallet_pubkey: Pubkey) -> Pubkey {
+    let (policy_spend, _) = clear_wallet_client::pda::find_policy_spend_address(
+        &solana_address::Address::new_from_array(wallet_pubkey.to_bytes()),
+        &solana_address::Address::new_from_array(crate::instructions::program_id().to_bytes()),
+    );
+    Pubkey::new_from_array(policy_spend.to_bytes())
 }
 
 fn typed_approve_or_cancel(

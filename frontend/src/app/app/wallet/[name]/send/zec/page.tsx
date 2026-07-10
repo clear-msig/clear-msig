@@ -35,9 +35,12 @@ import { SendAmountField } from "@/components/retail/SendAmountField";
 import { FormField, TextInput } from "@/components/retail/FormField";
 import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
-import { resolvePolicyEnforcement } from "@/lib/policies/enforce";
+import {
+  assertPolicyNotDenied,
+  resolvePolicyEnforcement,
+} from "@/lib/policies/enforce";
 import { chainByKind } from "@/lib/retail/chains";
-import { appConfig } from "@/lib/config";
+import { appConfig, configuredBrowserRpcUrl } from "@/lib/config";
 import {
   decodeZcashTransparentAddress,
   fetchZcashBalance,
@@ -107,6 +110,7 @@ export default function ZcashSendPage() {
   const zcashAddress = zcashBinding ? chainAddress(zcashBinding) : null;
   const senderDecoded = zcashAddress ? decodeZcashTransparentAddress(zcashAddress) : null;
   const zcashNetwork = zcashAddress ? networkForZcashAddress(zcashAddress) ?? "testnet" : "testnet";
+  const zcashRpcUrl = configuredBrowserRpcUrl(appConfig.preAlpha.zcashRpcUrl);
 
   const zcashIntent = useMemo(() => {
     return (intentsQuery.data ?? [])
@@ -151,19 +155,19 @@ export default function ZcashSendPage() {
   const amountValid = amountZats !== null && amountZats > 0n;
 
   const balanceQuery = useQuery({
-    queryKey: ["zcash-balance", zcashAddress ?? "", zcashNetwork],
+    queryKey: ["zcash-balance", zcashAddress ?? "", zcashNetwork, zcashRpcUrl ?? "unconfigured"],
     queryFn: () =>
-      zcashAddress ? fetchZcashBalance(appConfig.preAlpha.zcashRpcUrl, zcashAddress) : 0n,
-    enabled: !!zcashAddress,
+      zcashAddress && zcashRpcUrl ? fetchZcashBalance(zcashRpcUrl, zcashAddress) : 0n,
+    enabled: !!zcashAddress && !!zcashRpcUrl,
     staleTime: 15_000,
     refetchInterval: 30_000,
     retry: 1,
   });
   const utxosQuery = useQuery({
-    queryKey: ["zcash-utxos", zcashAddress ?? "", zcashNetwork],
+    queryKey: ["zcash-utxos", zcashAddress ?? "", zcashNetwork, zcashRpcUrl ?? "unconfigured"],
     queryFn: () =>
-      zcashAddress ? fetchZcashUtxos(appConfig.preAlpha.zcashRpcUrl, zcashAddress) : [],
-    enabled: !!zcashAddress,
+      zcashAddress && zcashRpcUrl ? fetchZcashUtxos(zcashRpcUrl, zcashAddress) : [],
+    enabled: !!zcashAddress && !!zcashRpcUrl,
     staleTime: 15_000,
     refetchInterval: 30_000,
     retry: 1,
@@ -293,6 +297,9 @@ export default function ZcashSendPage() {
       if (!zcashAddress || !senderDecoded) {
         throw new Error("Wallet's Zcash address isn't ready yet");
       }
+      if (!zcashRpcUrl) {
+        throw new Error("Zcash RPC is not configured for this deployment");
+      }
       if (!amountValid || !amountZats) throw new Error("Enter an amount");
       if (!recipientValid || !effectiveRecipient) {
         throw new Error("Recipient must be a valid transparent Zcash address");
@@ -303,6 +310,14 @@ export default function ZcashSendPage() {
       if (recipientDecoded.network !== zcashNetwork) {
         throw new Error("Recipient network does not match the wallet's Zcash network");
       }
+      const submitPolicyPlan = await resolvePolicyEnforcement(name, {
+        walletName: name,
+        chainKind: ZEC_CHAIN_KIND,
+        recipient,
+        ticker: "ZEC",
+        amountDisplay: amount,
+      });
+      assertPolicyNotDenied(submitPolicyPlan);
       const proposerPk = wallet.pickSigner(zcashIntent.proposers);
       if (!proposerPk) {
         throw new Error(
@@ -359,24 +374,69 @@ export default function ZcashSendPage() {
         ticker: "ZEC",
         amountDisplay: amount,
       });
-      if (policyPlan.evaluation?.matched && policyPlan.rule?.action === "require-cooldown") {
-        await new Promise((resolve) =>
-          setTimeout(resolve, (policyPlan.extraCooldownSeconds ?? 0) * 1000),
-        );
+      assertPolicyNotDenied(policyPlan);
+      if (policyPlan.evaluation?.matched) {
+        if (policyPlan.rule?.action === "require-extra-approvers") {
+          const seen = new Set<string>([
+            proposerPk.toBase58(),
+            wallet.pickSigner(zcashIntent.approvers)?.toBase58() ?? "",
+          ]);
+          const extraApprovers = policyPlan.extraApprovers.filter((addr) => {
+            const normalized = addr.trim();
+            if (!normalized || seen.has(normalized)) return false;
+            seen.add(normalized);
+            return true;
+          });
+          if (extraApprovers.length === 0) {
+            throw new Error(
+              `Policy "${policyPlan.rule.name}" requires extra approvers, but none were configured.`,
+            );
+          }
+          for (const extraApprover of extraApprovers) {
+            if (!zcashIntent.approvers.includes(extraApprover)) {
+              throw new Error(
+                `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but that signer is not in the wallet's approver list.`,
+              );
+            }
+            const extraSigner = wallet.pickSigner([extraApprover]);
+            if (!extraSigner) {
+              throw new Error(
+                `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but none of your connected wallets can sign as that approver.`,
+              );
+            }
+            const extraDry = await backendApi.prepare.approveProposal(name, proposal, {
+              actor_pubkey: extraSigner.toBase58(),
+            });
+            const extraSigned = await signDescriptor(extraDry, {
+              preferSigner: extraSigner,
+            });
+            await backendApi.submit.approveProposal(name, proposal, {
+              ...extraSigned,
+              expiry: extraDry.expiry,
+            });
+          }
+        } else if (
+          policyPlan.rule?.action === "require-cooldown" &&
+          policyPlan.extraCooldownSeconds > 0
+        ) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, policyPlan.extraCooldownSeconds * 1000),
+          );
+        }
       }
       const executed = await backendApi.executeProposal(name, proposal, {
         broadcast: true,
         dwallet_program: appConfig.preAlpha.dwalletProgramId,
         grpc_url: appConfig.preAlpha.grpcUrl,
-        rpc_url: appConfig.preAlpha.zcashRpcUrl,
+        rpc_url: zcashRpcUrl,
       });
       const broadcast = (executed as { broadcast?: { chain_kind?: number; tx_id?: string } })
         ?.broadcast;
       return { proposal, broadcast };
     },
     onSuccess: ({ broadcast }) => {
-      const explorerUrl = broadcastExplorerUrl(broadcast, appConfig.preAlpha.zcashRpcUrl);
-      const explorerLabel = explorerLabelForChainKind(broadcast?.chain_kind, appConfig.preAlpha.zcashRpcUrl);
+      const explorerUrl = broadcastExplorerUrl(broadcast, zcashRpcUrl ?? "");
+      const explorerLabel = explorerLabelForChainKind(broadcast?.chain_kind, zcashRpcUrl ?? "");
       const recipientText = recipient;
       setSentLabel({
         amount: amount.trim(),
@@ -465,6 +525,8 @@ export default function ZcashSendPage() {
               walletDisplay={walletDisplay}
               walletAddress={zcashAddress}
               balance={zcashBalance}
+              balanceLoading={balanceQuery.isLoading || utxosQuery.isLoading}
+              balanceError={balanceQuery.error ?? utxosQuery.error ?? null}
               amount={amount}
               setAmount={setAmount}
               note={note}
@@ -476,7 +538,8 @@ export default function ZcashSendPage() {
               recipientValid={recipientValid}
               selectedUtxo={selectedUtxo}
               insufficientBalance={insufficientBalance}
-              canSubmit={!policyDenied && amountValid && recipientValid && !!selectedUtxo && !insufficientBalance && !!wallet.publicKey}
+              zcashRpcConfigured={!!zcashRpcUrl}
+              canSubmit={!policyDenied && !!zcashRpcUrl && amountValid && recipientValid && !!selectedUtxo && !insufficientBalance && !!wallet.publicKey}
               onSubmit={() => {
                 setStage("sending");
                 send.mutate();
@@ -536,6 +599,8 @@ function ZcashCompose({
   walletDisplay,
   walletAddress,
   balance,
+  balanceLoading,
+  balanceError,
   amount,
   setAmount,
   note,
@@ -547,12 +612,15 @@ function ZcashCompose({
   recipientValid,
   selectedUtxo,
   insufficientBalance,
+  zcashRpcConfigured,
   canSubmit,
   onSubmit,
 }: {
   walletDisplay: string;
   walletAddress: string | null;
   balance: bigint | null;
+  balanceLoading: boolean;
+  balanceError: Error | null;
   amount: string;
   setAmount: (s: string) => void;
   note: string;
@@ -564,10 +632,20 @@ function ZcashCompose({
   recipientValid: boolean;
   selectedUtxo: { txid: string; vout: number; satoshis: bigint } | null;
   insufficientBalance: boolean;
+  zcashRpcConfigured: boolean;
   canSubmit: boolean;
   onSubmit: () => void;
 }) {
   const zecMeta = chainByKind(ZEC_CHAIN_KIND);
+  const balanceLabel = !zcashRpcConfigured
+    ? "RPC not configured"
+    : balance !== null
+      ? formatSats(balance)
+      : balanceError
+        ? "Couldn't load"
+        : balanceLoading
+          ? "Checking"
+          : "-";
   const details: SignPayloadDetail[] = [
     { label: "From wallet", value: walletDisplay || "your wallet" },
     { label: "Chain", value: "Zcash" },
@@ -614,9 +692,9 @@ function ZcashCompose({
               <>
                 <span>Wallet has </span>
                 <span className="font-numerals font-medium text-text-strong tabular-nums">
-                  {balance !== null ? formatSats(balance) : "..."}
+                  {balanceLabel}
                 </span>
-                <span> ZEC</span>
+                {balance !== null ? <span> ZEC</span> : null}
                 {balance !== null ? (
                   <UsdHint
                     amount={balance}
@@ -633,7 +711,13 @@ function ZcashCompose({
               </>
             }
             warning={
-              insufficientBalance ? (
+              !zcashRpcConfigured ? (
+                <span className="font-medium">Zcash RPC is not configured.</span>
+              ) : balanceError ? (
+                <span className="font-medium">
+                  Couldn&apos;t load Zcash balance or UTXOs.
+                </span>
+              ) : insufficientBalance ? (
                 <span className="font-medium">Insufficient balance.</span>
               ) : null
             }

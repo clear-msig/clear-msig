@@ -83,7 +83,11 @@ import { FormField, TextInput } from "@/components/retail/FormField";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
 import { chainByKind } from "@/lib/retail/chains";
 import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
-import { resolvePolicyEnforcement } from "@/lib/policies/enforce";
+import {
+  assertPolicyNotDenied,
+  resolvePolicyEnforcement,
+} from "@/lib/policies/enforce";
+import { encodeTypedSolPolicy } from "@/lib/policies/onchain";
 import { SEND_NOTE_MAX_LENGTH, SEND_NOTE_PLACEHOLDER } from "@/lib/sendFields";
 import {
   prepareClearSignAction,
@@ -595,6 +599,16 @@ function SendPage() {
       if (!destination)
         throw new Error("Pick a contact or paste an address");
 
+      const submitPolicyPlan = await resolvePolicyEnforcement(walletName, {
+        walletName,
+        chainKind: 0,
+        recipient: destination,
+        ticker: "SOL",
+        amountDisplay: amount,
+      });
+      assertPolicyNotDenied(submitPolicyPlan);
+      const onchainPolicy = encodeTypedSolPolicy(submitPolicyPlan);
+
       // Policy pre-flight. Block before the signing request opens so the
       // user never signs a doomed send. Sources of truth: localStorage
       // allowlist + time window + per-friend allowance + wallet-wide
@@ -629,13 +643,15 @@ function SendPage() {
       const actionId = randomActionLabel("sol-send");
       const nonce = randomActionLabel("nonce");
       const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
-      const policyCommitment = policyCommitmentHex([
-        `wallet:${walletPda.toBase58()}`,
-        `intent:${firstIntent.account.intentIndex}`,
-        `threshold:${firstIntent.account.approvalThreshold ?? ""}`,
-        `proposers:${firstIntent.account.proposers.join(",")}`,
-        `approvers:${firstIntent.account.approvers.join(",")}`,
-      ]);
+      const policyCommitment =
+        onchainPolicy?.commitmentHex ??
+        policyCommitmentHex([
+          `wallet:${walletPda.toBase58()}`,
+          `intent:${firstIntent.account.intentIndex}`,
+          `threshold:${firstIntent.account.approvalThreshold ?? ""}`,
+          `proposers:${firstIntent.account.proposers.join(",")}`,
+          `approvers:${firstIntent.account.approvers.join(",")}`,
+        ]);
       const envelope: ClearSignEnvelope<SendPayload> = {
         version: 2,
         kind: "send",
@@ -664,6 +680,7 @@ function SendPage() {
         envelope_hash: summary.envelopeHash,
         action_id: envelope.actionId,
         nonce: envelope.nonce,
+        policyBytesHex: onchainPolicy?.hex,
         signable_text: summary.signableText,
         expiry: formatUnixSigningExpiry(envelope.expiresAt),
         actor_pubkey: proposerPk.toBase58(),
@@ -691,6 +708,7 @@ function SendPage() {
           envelope_hash: dry.envelope_hash_hex,
           action_id: dry.action_id,
           nonce: dry.nonce,
+          policyBytesHex: onchainPolicy?.hex,
         },
       )) as Record<string, unknown>;
 
@@ -755,6 +773,7 @@ function SendPage() {
         ticker: "SOL",
         amountDisplay: amount,
       });
+      assertPolicyNotDenied(policyPlan);
       if (policyPlan.evaluation?.matched) {
         if (policyPlan.rule?.action === "require-extra-approvers") {
           const alreadyCovered = new Set<string>([

@@ -16,6 +16,7 @@ describe("ClearSign surface coverage", () => {
       "typed-approve-cancel",
       "btc-send",
       "eth-send",
+      "hyperliquid-send",
       "erc20-send",
       "zec-send",
       "members-policy",
@@ -24,12 +25,18 @@ describe("ClearSign surface coverage", () => {
     ]);
   });
 
-  it("does not claim direct cross-chain sends are SOL-level typed yet", () => {
-    for (const id of ["btc-send", "eth-send", "erc20-send", "zec-send"]) {
-      expect(clearSignSurfaceById(id)?.status).toBe(
-        "legacy_custom_pending_typed_executor",
-      );
+  it("marks native cross-chain send executors as available but not fully UI-wired", () => {
+    for (const id of [
+      "btc-send",
+      "eth-send",
+      "hyperliquid-send",
+      "zec-send",
+    ]) {
+      expect(clearSignSurfaceById(id)?.status).toBe("typed_executor_available");
     }
+    expect(clearSignSurfaceById("erc20-send")?.status).toBe(
+      "legacy_custom_pending_typed_executor",
+    );
   });
 
   it("keeps shipped SOL and escrow executors marked as typed on-chain", () => {

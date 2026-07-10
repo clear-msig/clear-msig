@@ -18,6 +18,7 @@ pub(super) struct SignedTypedProposalCreateRequest {
     pub(super) envelope_hash: String,
     pub(super) action_id: String,
     pub(super) nonce: String,
+    pub(super) policy_bytes_hex: Option<String>,
     #[serde(flatten)]
     pub(super) pre_signed: PreSigned,
 }
@@ -48,6 +49,7 @@ pub(super) struct PrepareTypedProposalCreateRequest {
     pub(super) envelope_hash: String,
     pub(super) action_id: String,
     pub(super) nonce: String,
+    pub(super) policy_bytes_hex: Option<String>,
     pub(super) signable_text: String,
     pub(super) expiry: Option<String>,
     pub(super) actor_pubkey: Option<String>,
@@ -100,6 +102,20 @@ pub(super) struct ExecuteTypedSolSendRequest {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedChainSendRequest {
+    pub(super) chain_kind: u8,
+    pub(super) amount_raw: String,
+    pub(super) recipient_hash: String,
+    pub(super) asset_id_hash: String,
+    pub(super) params_data_hex: Option<String>,
+    pub(super) dwallet_program: Option<String>,
+    pub(super) grpc_url: Option<String>,
+    pub(super) rpc_url: Option<String>,
+    pub(super) broadcast: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct ExecuteTypedSolBatchSendRequest {
     pub(super) payments: Vec<ExecuteTypedSolBatchSendRow>,
 }
@@ -109,4 +125,18 @@ pub(super) struct ExecuteTypedSolBatchSendRequest {
 pub(super) struct ExecuteTypedSolBatchSendRow {
     pub(super) recipient: String,
     pub(super) amount_lamports: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedAgentTradeApprovalRequest {
+    pub(super) amount_raw: String,
+    pub(super) venue_hash: String,
+    pub(super) market_hash: String,
+    pub(super) side_hash: String,
+    pub(super) asset_id_hash: String,
+    pub(super) max_leverage_x100: u32,
+    pub(super) session_id_hash: String,
+    pub(super) route_hash: String,
+    pub(super) risk_check_hash: String,
 }

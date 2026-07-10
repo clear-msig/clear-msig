@@ -274,6 +274,95 @@ pub mod clear_wallet {
             })
     }
 
+    #[instruction(discriminator = 23)]
+    pub fn execute_typed_agent_trade_approval(
+        ctx: Ctx<ExecuteTypedAgentTradeApproval>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        amount_raw_le: [u8; 16],
+        venue_hash: [u8; 32],
+        market_hash: [u8; 32],
+        side_hash: [u8; 32],
+        asset_id_hash: [u8; 32],
+        max_leverage_x100: u32,
+        session_id_hash: [u8; 32],
+        route_hash: [u8; 32],
+        risk_check_hash: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_typed_agent_trade_approval(ExecuteTypedAgentTradeApprovalArgs {
+                policy_commitment,
+                envelope_hash,
+                amount_raw_le,
+                venue_hash,
+                market_hash,
+                side_hash,
+                asset_id_hash,
+                max_leverage_x100,
+                session_id_hash,
+                route_hash,
+                risk_check_hash,
+            })
+    }
+
+    #[instruction(discriminator = 24)]
+    pub fn execute_typed_chain_send(
+        ctx: Ctx<ExecuteTypedChainSend>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        chain_kind: u8,
+        amount_raw_le: [u8; 16],
+        recipient_hash: [u8; 32],
+        asset_id_hash: [u8; 32],
+        tx_template_hash: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed_chain_send(
+            ExecuteTypedChainSendArgs {
+                policy_commitment,
+                envelope_hash,
+                chain_kind,
+                amount_raw_le,
+                recipient_hash,
+                asset_id_hash,
+                tx_template_hash,
+            },
+            &ctx.bumps,
+        )
+    }
+
+    #[instruction(discriminator = 25)]
+    pub fn ika_sign_typed_chain_send(
+        ctx: Ctx<IkaSignTypedChainSend>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        chain_kind: u8,
+        amount_raw_le: [u8; 16],
+        recipient_hash: [u8; 32],
+        asset_id_hash: [u8; 32],
+        tx_template_hash: [u8; 32],
+        message_approval_bump: u8,
+        cpi_authority_bump: u8,
+        blake2b_hashes: [u8; 96],
+        params_data: &[u8],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.ika_sign_typed_chain_send(
+            IkaSignTypedChainSendArgs {
+                policy_commitment,
+                envelope_hash,
+                chain_kind,
+                amount_raw_le,
+                recipient_hash,
+                asset_id_hash,
+                tx_template_hash,
+                message_approval_bump,
+                cpi_authority_bump,
+                blake2b_hashes,
+                params_data,
+            },
+            &ctx.bumps,
+        )
+    }
+
     #[instruction(discriminator = 6)]
     pub fn bind_dwallet(
         ctx: Ctx<BindDwallet>,
@@ -317,6 +406,7 @@ pub mod clear_wallet {
         signature: [u8; 64],
         action_id: [u8; 32],
         nonce: [u8; 32],
+        policy_bytes: Vec<u8, 2048>,
         clear_text: &[u8],
     ) -> Result<(), ProgramError> {
         ctx.accounts.propose_typed(
@@ -332,6 +422,7 @@ pub mod clear_wallet {
                 proposer_pubkey: &proposer_pubkey,
                 signature: &signature,
                 clear_text,
+                policy_bytes: policy_bytes.as_ref(),
             },
             &ctx.bumps,
         )

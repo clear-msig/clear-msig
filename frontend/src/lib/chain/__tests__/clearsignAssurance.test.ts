@@ -6,8 +6,8 @@ import {
 } from "@/lib/chain/clearsignAssurance";
 import { baseChainSendStatus } from "@/lib/chain/send-support";
 
-describe("ClearSigned chain send assurances", () => {
-  it("covers ETH, BTC, ZEC, and Hyperliquid as ClearSigned transaction paths", () => {
+describe("cross-chain send assurances", () => {
+  it("covers ETH, BTC, ZEC, and Hyperliquid as typed-executor-ready paths", () => {
     expect(CLEAR_SIGNED_CHAIN_ASSURANCES.map((item) => item.key)).toEqual([
       "eth",
       "btc",
@@ -17,6 +17,7 @@ describe("ClearSigned chain send assurances", () => {
 
     for (const item of CLEAR_SIGNED_CHAIN_ASSURANCES) {
       expect(baseChainSendStatus(item.chainKind)).toBe("ready");
+      expect(item.status).toBe("typed_executor_available");
       expect(item.intentFile).toMatch(/^examples\/intents\/.+\.json$/);
       expect(item.signPreview).toBe(true);
       expect(item.approvalGate).toBe("wallet_proposal");
@@ -27,6 +28,8 @@ describe("ClearSigned chain send assurances", () => {
 
   it("looks up assurances by route key and chain kind", () => {
     expect(clearSignedChainAssurance("eth")).toMatchObject({
+      surfaceId: "eth-send",
+      status: "typed_executor_available",
       chainKind: 1,
       ticker: "ETH",
       sendRoute: "/send/eth",

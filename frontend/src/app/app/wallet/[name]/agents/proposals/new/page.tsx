@@ -7,6 +7,8 @@ import { AlertTriangle, BrainCircuit, Lock, Send } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import {
   decryptAgentVaultPolicy,
+  bindAgentProposalPolicyHash,
+  buildAgentTradeClearSignV2,
   encryptAgentTradeProposal,
   evaluateAgentTradeProposal,
   findAgent,
@@ -145,6 +147,7 @@ export default function NewAgentProposalPage() {
       version: 1,
     };
     const policy = await decryptAgentVaultPolicy(getAgentVaultPolicy(name));
+    const proposalWithPolicy = bindAgentProposalPolicyHash(proposal, policy);
     const activeSession =
       listAgentSessions(name).find(
         (session) =>
@@ -154,7 +157,7 @@ export default function NewAgentProposalPage() {
       ) ?? null;
     const evaluation = evaluateAgentTradeProposal({
       agent,
-      proposal,
+      proposal: proposalWithPolicy,
       policy,
       session: activeSession,
       risk: agentRiskSnapshot(name, agent.id),
@@ -162,10 +165,10 @@ export default function NewAgentProposalPage() {
     });
     return {
       proposal: {
-        ...proposal,
+        ...proposalWithPolicy,
         decisionJournal: buildAgentTradeDecisionJournal({
           agent,
-          proposal,
+          proposal: proposalWithPolicy,
           evaluation,
           technicalSummary,
           fundamentalSummary,
@@ -198,12 +201,16 @@ export default function NewAgentProposalPage() {
         return;
       }
       const status = statusForDecision(draft.evaluation);
-      const proposal: AgentTradeProposal = {
+      const proposalBase: AgentTradeProposal = {
         ...draft.proposal,
         status,
         evaluationDecision: draft.evaluation.decision,
         policyViolations: draft.evaluation.violations,
         updatedAt: Date.now(),
+      };
+      const proposal: AgentTradeProposal = {
+        ...proposalBase,
+        clearSignV2: buildAgentTradeClearSignV2(proposalBase),
       };
       try {
         const encrypted = await encryptAgentTradeProposal(proposal);

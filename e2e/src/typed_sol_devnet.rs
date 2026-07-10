@@ -7,8 +7,8 @@ use clear_wallet::utils::clearsign::{
     ClearSignEnvelope, ClearSignVoteKind,
 };
 use clear_wallet_client::pda::{
-    compute_name_hash, find_intent_address, find_typed_proposal_address, find_vault_address,
-    find_wallet_address,
+    compute_name_hash, find_intent_address, find_policy_spend_address, find_typed_proposal_address,
+    find_vault_address, find_wallet_address,
 };
 use quasar_lang::client::{DynBytes, DynVec, TailBytes};
 use sha2::{Digest, Sha256};
@@ -111,6 +111,7 @@ fn main() -> anyhow::Result<()> {
     let recipient_before = client.get_balance(&recipient).unwrap_or(0);
     let execute = build_execute_typed_sol_send_ix(
         program_id,
+        payer.pubkey(),
         wallet_pubkey,
         vault_pubkey,
         intent_pubkey,
@@ -486,6 +487,7 @@ fn build_propose_typed_ix(
     wincode::serialize_into(&mut data, &signature).unwrap();
     wincode::serialize_into(&mut data, &action_id).unwrap();
     wincode::serialize_into(&mut data, &nonce).unwrap();
+    wincode::serialize_into(&mut data, &DynVec::<u8>::new(Vec::new())).unwrap();
     wincode::serialize_into(&mut data, &TailBytes(clear_text.to_vec())).unwrap();
     Instruction {
         program_id,
@@ -533,6 +535,7 @@ fn hex_string(bytes: &[u8]) -> String {
 #[allow(clippy::too_many_arguments)]
 fn build_execute_typed_sol_send_ix(
     program_id: Pubkey,
+    payer: Pubkey,
     wallet: Pubkey,
     vault: Pubkey,
     intent: Pubkey,
@@ -546,10 +549,19 @@ fn build_execute_typed_sol_send_ix(
     wincode::serialize_into(&mut data, &policy_commitment).unwrap();
     wincode::serialize_into(&mut data, &envelope_hash).unwrap();
     wincode::serialize_into(&mut data, &amount_lamports).unwrap();
+    let policy_spend = pubkey_from_address(
+        find_policy_spend_address(
+            &Address::new_from_array(wallet.to_bytes()),
+            &clear_wallet_client::ID,
+        )
+        .0,
+    );
     Instruction {
         program_id,
         accounts: vec![
+            AccountMeta::new(payer, true),
             AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new(policy_spend, false),
             AccountMeta::new(vault, false),
             AccountMeta::new(intent, false),
             AccountMeta::new(proposal, false),

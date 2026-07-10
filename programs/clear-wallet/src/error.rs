@@ -52,4 +52,16 @@ pub enum WalletError {
     InvalidClearSignAction,
     /// ClearSign v2 envelope hash does not match the provided canonical fields.
     InvalidClearSignEnvelope,
+    /// Typed policy bytes are malformed or do not match the signed commitment.
+    InvalidPolicy,
+    /// A program-enforced typed policy denied this action.
+    PolicyDenied,
+    /// A program-enforced typed policy amount cap was exceeded.
+    PolicyAmountExceeded,
+    /// A program-enforced typed policy cooldown has not elapsed.
+    PolicyCooldownNotElapsed,
+    /// A program-enforced typed policy required an approver who has not approved.
+    PolicyRequiredApprovalMissing,
+    /// A program-enforced typed policy velocity cap was exceeded.
+    PolicyVelocityExceeded,
 }

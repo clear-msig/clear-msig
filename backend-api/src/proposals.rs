@@ -7,7 +7,8 @@ use serde_json::Value;
 
 use crate::clearsign::{format_expiry, normalize_expiry_arg, push_pre_signed_flags};
 use crate::{
-    ensure_base58, ensure_non_empty, ensure_non_empty_vec, ensure_wallet_name, ApiError, AppState,
+    ensure_base58, ensure_hex, ensure_non_empty, ensure_non_empty_vec, ensure_wallet_name,
+    ApiError, AppState,
 };
 
 mod typed_execution;
@@ -15,11 +16,13 @@ mod types;
 mod validation;
 
 use typed_execution::{
+    execute_typed_agent_trade_approval_args, execute_typed_chain_send_args,
     execute_typed_escrow_release_args, execute_typed_escrow_return_args,
     execute_typed_sol_batch_send_args, execute_typed_sol_send_args,
 };
 use types::{
-    ExecuteProposalRequest, ExecuteTypedEscrowReleaseRequest, ExecuteTypedEscrowReturnRequest,
+    ExecuteProposalRequest, ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedChainSendRequest,
+    ExecuteTypedEscrowReleaseRequest, ExecuteTypedEscrowReturnRequest,
     ExecuteTypedSolBatchSendRequest, ExecuteTypedSolSendRequest, PrepareApproveCancelRequest,
     PrepareProposalCreateRequest, PrepareTypedProposalCreateRequest, SignedApproveCancelRequest,
     SignedProposalCreateRequest, SignedTypedProposalCreateRequest,
@@ -73,8 +76,16 @@ pub(crate) fn router() -> Router<AppState> {
             post(execute_typed_sol_send),
         )
         .route(
+            "/wallets/{name}/proposals/{proposal}/typed-chain-send",
+            post(execute_typed_chain_send),
+        )
+        .route(
             "/wallets/{name}/proposals/{proposal}/typed-sol-batch-send",
             post(execute_typed_sol_batch_send),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-agent-trade-approval",
+            post(execute_typed_agent_trade_approval),
         )
         .route(
             "/wallets/{name}/proposals/{proposal}/execute/stream",
@@ -189,6 +200,10 @@ async fn create_typed_proposal(
         "--expiry".into(),
         format_expiry(body.pre_signed.expiry)?,
     ]);
+    if let Some(policy_bytes_hex) = body.policy_bytes_hex {
+        ensure_hex(&policy_bytes_hex, "policyBytesHex")?;
+        args.extend(["--policy-bytes-hex".into(), policy_bytes_hex]);
+    }
     Ok(Json(state.runner.run_json(args).await?))
 }
 
@@ -373,6 +388,10 @@ async fn prepare_typed_proposal_create(
         "--signable-text".into(),
         body.signable_text,
     ]);
+    if let Some(policy_bytes_hex) = body.policy_bytes_hex {
+        ensure_hex(&policy_bytes_hex, "policyBytesHex")?;
+        args.extend(["--policy-bytes-hex".into(), policy_bytes_hex]);
+    }
     if let Some(e) = body.expiry {
         args.push("--expiry".into());
         args.push(normalize_expiry_arg(&e)?);
@@ -528,12 +547,37 @@ async fn execute_typed_sol_send(
     Ok(Json(state.runner.run_json(args).await?))
 }
 
+async fn execute_typed_chain_send(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedChainSendRequest>,
+) -> Result<Json<Value>, ApiError> {
+    let args = execute_typed_chain_send_args(
+        name,
+        proposal,
+        body,
+        state.runner.default_dwallet_program.clone(),
+        state.runner.default_grpc_url.clone(),
+        state.runner.default_destination_rpc_url.clone(),
+    )?;
+    Ok(Json(state.runner.run_json(args).await?))
+}
+
 async fn execute_typed_sol_batch_send(
     State(state): State<AppState>,
     Path((name, proposal)): Path<(String, String)>,
     Json(body): Json<ExecuteTypedSolBatchSendRequest>,
 ) -> Result<Json<Value>, ApiError> {
     let args = execute_typed_sol_batch_send_args(name, proposal, body)?;
+    Ok(Json(state.runner.run_json(args).await?))
+}
+
+async fn execute_typed_agent_trade_approval(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedAgentTradeApprovalRequest>,
+) -> Result<Json<Value>, ApiError> {
+    let args = execute_typed_agent_trade_approval_args(name, proposal, body)?;
     Ok(Json(state.runner.run_json(args).await?))
 }
 

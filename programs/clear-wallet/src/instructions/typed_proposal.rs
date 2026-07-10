@@ -12,6 +12,7 @@ use crate::{
         hash_clear_text, hash_envelope, write_vote_message, ClearSignActionKind, ClearSignEnvelope,
         ClearSignVoteKind, MAX_CLEARSIGN_TEXT_BYTES,
     },
+    utils::policy::hash_typed_policy,
 };
 
 #[derive(Accounts)]
@@ -47,6 +48,7 @@ pub struct ProposeTypedArgs<'a> {
     pub proposer_pubkey: &'a [u8; 32],
     pub signature: &'a [u8; 64],
     pub clear_text: &'a [u8],
+    pub policy_bytes: &'a [u8],
 }
 
 #[derive(Accounts)]
@@ -157,6 +159,12 @@ impl<'info> ProposeTyped<'info> {
             hash_envelope(&envelope) == args.envelope_hash,
             WalletError::InvalidClearSignEnvelope
         );
+        if !args.policy_bytes.is_empty() {
+            require!(
+                hash_typed_policy(args.policy_bytes) == args.policy_commitment,
+                WalletError::InvalidPolicy
+            );
+        }
 
         let proposer_addr = Address::new_from_array(*args.proposer_pubkey);
         require!(
@@ -212,6 +220,7 @@ impl<'info> ProposeTyped<'info> {
                 envelope_hash: args.envelope_hash,
                 action_id: args.action_id.as_ref(),
                 nonce: args.nonce.as_ref(),
+                policy_bytes: args.policy_bytes,
                 clear_text,
             },
             self.payer.to_account_view(),

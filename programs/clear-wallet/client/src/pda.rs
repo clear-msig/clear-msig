@@ -17,6 +17,10 @@ pub fn find_vault_address(wallet: &Address, program_id: &Address) -> (Address, u
     Address::find_program_address(&[b"vault", wallet.as_ref()], program_id)
 }
 
+pub fn find_policy_spend_address(wallet: &Address, program_id: &Address) -> (Address, u8) {
+    Address::find_program_address(&[b"policy_spend", wallet.as_ref()], program_id)
+}
+
 pub fn find_intent_address(wallet: &Address, index: u8, program_id: &Address) -> (Address, u8) {
     Address::find_program_address(&[b"intent", wallet.as_ref(), &[index]], program_id)
 }

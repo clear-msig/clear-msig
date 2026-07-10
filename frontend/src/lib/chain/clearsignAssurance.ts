@@ -1,8 +1,12 @@
+import type { ClearSignSurfaceStatus } from "@/lib/clearsign-v2/surfaceCoverage";
+
 export type ClearSignedChainKey = "eth" | "btc" | "zec" | "hyperliquid";
 
 export interface ClearSignedChainAssurance {
   key: ClearSignedChainKey;
+  surfaceId: "eth-send" | "btc-send" | "zec-send" | "hyperliquid-send";
   label: string;
+  status: ClearSignSurfaceStatus;
   chainKind: 1 | 2 | 3 | 5;
   ticker: "ETH" | "BTC" | "ZEC" | "HYPE";
   intentFile: string;
@@ -18,7 +22,9 @@ export interface ClearSignedChainAssurance {
 export const CLEAR_SIGNED_CHAIN_ASSURANCES: readonly ClearSignedChainAssurance[] = [
   {
     key: "eth",
+    surfaceId: "eth-send",
     label: "Ethereum",
+    status: "typed_executor_available",
     chainKind: 1,
     ticker: "ETH",
     intentFile: "examples/intents/evm_transfer_sepolia.json",
@@ -32,7 +38,9 @@ export const CLEAR_SIGNED_CHAIN_ASSURANCES: readonly ClearSignedChainAssurance[]
   },
   {
     key: "btc",
+    surfaceId: "btc-send",
     label: "Bitcoin",
+    status: "typed_executor_available",
     chainKind: 2,
     ticker: "BTC",
     intentFile: "examples/intents/btc_transfer.json",
@@ -46,7 +54,9 @@ export const CLEAR_SIGNED_CHAIN_ASSURANCES: readonly ClearSignedChainAssurance[]
   },
   {
     key: "zec",
+    surfaceId: "zec-send",
     label: "Zcash transparent",
+    status: "typed_executor_available",
     chainKind: 3,
     ticker: "ZEC",
     intentFile: "examples/intents/zcash_transfer.json",
@@ -60,7 +70,9 @@ export const CLEAR_SIGNED_CHAIN_ASSURANCES: readonly ClearSignedChainAssurance[]
   },
   {
     key: "hyperliquid",
+    surfaceId: "hyperliquid-send",
     label: "Hyperliquid HyperEVM",
+    status: "typed_executor_available",
     chainKind: 5,
     ticker: "HYPE",
     intentFile: "examples/intents/hyperliquid_transfer.json",

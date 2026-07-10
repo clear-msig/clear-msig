@@ -277,6 +277,30 @@ export const backendApi = {
       ),
     ),
 
+  executeTypedChainSend: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      chainKind: number;
+      amountRaw: string;
+      recipientHash: string;
+      assetIdHash: string;
+      paramsDataHex?: string;
+      dwalletProgram?: string;
+      grpcUrl?: string;
+      rpcUrl?: string;
+      broadcast?: boolean;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-chain-send`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
   executeTypedSolBatchSend: (
     walletName: string,
     proposalAddress: string,
@@ -287,6 +311,30 @@ export const backendApi = {
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
         `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-sol-batch-send`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
+  executeTypedAgentTradeApproval: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      amountRaw: string;
+      venueHash: string;
+      marketHash: string;
+      sideHash: string;
+      assetIdHash: string;
+      maxLeverageX100: number;
+      sessionIdHash: string;
+      routeHash: string;
+      riskCheckHash: string;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-agent-trade-approval`,
         "POST",
         input,
         { timeoutMs: 55_000 },
