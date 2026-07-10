@@ -101,7 +101,6 @@ import {
 import {
   clearPendingProductSurface,
   readPendingProductSurface,
-  readSelectedProductSurface,
   saveSelectedProductSurface,
 } from "@/lib/productSession";
 import { useBalancePrivacy } from "@/lib/hooks/useBalancePrivacy";
@@ -126,22 +125,11 @@ function WalletDashboardContent() {
   const requestedSurface = walletProductSurface(
     isProductSurfaceId(requested) ? requested : null,
   );
-  const [storedSurface, setStoredSurface] =
-    useState<WalletProductSurface | null>(null);
-  const [activeSurface, setActiveSurface] =
-    useState<WalletProductSurface | null>(null);
-
-  useEffect(() => {
-    setStoredSurface(walletProductSurface(readSelectedProductSurface(address)));
-  }, [address]);
-
   useEffect(() => {
     const pendingSurface = walletProductSurface(readPendingProductSurface());
     if (!pendingSurface) return;
     saveSelectedProductSurface(pendingSurface, address);
     clearPendingProductSurface();
-    setStoredSurface(pendingSurface);
-    setActiveSurface(pendingSurface);
     if (typeof window !== "undefined" && !requestedSurface && !requestedAll) {
       window.history.replaceState(
         null,
@@ -152,13 +140,8 @@ function WalletDashboardContent() {
   }, [address, requestedAll, requestedSurface]);
 
   useEffect(() => {
-    setActiveSurface(requestedAll ? null : requestedSurface ?? storedSurface);
-  }, [requestedAll, requestedSurface, storedSurface]);
-
-  useEffect(() => {
     if (!requestedSurface) return;
     saveSelectedProductSurface(requestedSurface, address);
-    setStoredSurface(requestedSurface);
   }, [requestedSurface, address]);
 
   const memberships = useQuery({
@@ -196,7 +179,10 @@ function WalletDashboardContent() {
   );
   const showingCachedWallets =
     memberships.data === undefined && cachedWallets.length > 0;
-  const selectedSurface = activeSurface;
+  // Home is wallet-first. Product filters only apply when explicitly
+  // requested in the URL; a remembered creation choice must not hide
+  // the rest of the user's wallets on return visits.
+  const selectedSurface = requestedAll ? null : requestedSurface;
   const displaySurface = selectedSurface;
   const visibleWallets = useMemo(() => {
     return filterWalletsByProductSurface(wallets, displaySurface);
@@ -428,7 +414,7 @@ function Hero({
     if (selectedSurface && walletCount === 0) {
       return `No ${productWorkspaceLabel(selectedSurface).toLowerCase()} yet.`;
     }
-    if (walletCount === 0) return "Choose a product to get going.";
+    if (walletCount === 0) return "Create a wallet to get going.";
     const noun = selectedSurface
       ? productWorkspaceLabel(selectedSurface).toLowerCase()
       : "wallet";
@@ -439,7 +425,7 @@ function Hero({
   })();
   const title = selectedSurface
     ? productWorkspaceLabel(selectedSurface)
-    : "Product workspaces";
+    : "Your wallets";
 
   return (
     <motion.div
@@ -716,11 +702,11 @@ function NextActionStrip({
       ? `${pendingCount} ${pendingCount === 1 ? "approval needs" : "approvals need"} your decision.`
       : selectedSurface
         ? `Continue with ${displayName} or create another ${productWorkspaceLabel(selectedSurface).toLowerCase()}.`
-        : `Continue with ${displayName} or choose another product.`;
+        : `Continue with ${displayName} or create another wallet.`;
   const createHref = selectedSurface
     ? productSetupHref(selectedSurface)
-    : "/choose";
-  const createLabel = selectedSurface ? "New" : "Choose product";
+    : "/app/wallet/new";
+  const createLabel = "New wallet";
 
   return (
     <motion.section
@@ -1043,41 +1029,6 @@ function MobileWalletSwitchModal({
     return sortPinnedFirst(wallets, (membership) => membership.wallet_name ?? "");
   }, [wallets, pinTick]);
 
-  const grouped = useMemo(() => {
-    const buckets = new Map<WalletProductSurface | "shared", OnchainMembership[]>();
-    for (const membership of ordered) {
-      const surface =
-        resolveWalletProductSurface(membership.wallet_name ?? "") ?? "shared";
-      const bucket = buckets.get(surface) ?? [];
-      bucket.push(membership);
-      buckets.set(surface, bucket);
-    }
-
-    const productGroups = (
-      ["personal", "pro", "agent", "secure"] satisfies WalletProductSurface[]
-    )
-      .map((surface) => ({
-        key: surface,
-        label: productWorkspaceLabel(surface),
-        Icon: PRODUCT_SURFACE_ICON[surface],
-        wallets: buckets.get(surface) ?? [],
-      }))
-      .filter((group) => group.wallets.length > 0);
-
-    const shared = buckets.get("shared") ?? [];
-    return shared.length > 0
-      ? [
-          ...productGroups,
-          {
-            key: "shared",
-            label: "Shared wallets",
-            Icon: Wallet,
-            wallets: shared,
-          },
-        ]
-      : productGroups;
-  }, [ordered]);
-
   if (!mounted) return null;
 
   return createPortal(
@@ -1087,7 +1038,7 @@ function MobileWalletSwitchModal({
           className="fixed inset-0 z-[500] bg-canvas md:flex md:items-center md:justify-center md:bg-black/55 md:p-6 md:backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
-          aria-label="Switch workspace"
+          aria-label="Switch wallet"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -1119,49 +1070,26 @@ function MobileWalletSwitchModal({
               <div className="flex items-end justify-between gap-3">
                 <div>
                   <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.28em] text-text-soft">
-                    Choose workspace
+                    Your wallets
                   </p>
                   <p className="mt-1 text-sm text-text-soft">
-                    Pick a wallet to open its workspace.
+                    Pick a wallet to open.
                   </p>
                 </div>
                 <span className="shrink-0 rounded-full bg-surface-raised px-2.5 py-1 font-numerals text-xs font-semibold text-text-soft">
                   {wallets.length}
                 </span>
               </div>
-              <div className="mt-5 flex flex-col gap-5">
-                {grouped.map(({ key, label, Icon, wallets: groupWallets }) => (
-                  <section key={key}>
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
-                          <Icon
-                            className="h-3.5 w-3.5"
-                            strokeWidth={1.9}
-                            aria-hidden="true"
-                          />
-                        </span>
-                        <p className="truncate font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-text-soft">
-                          {label}
-                        </p>
-                      </div>
-                      <span className="font-numerals text-xs font-semibold text-text-soft tabular-nums">
-                        {groupWallets.length}
-                      </span>
-                    </div>
-                    <div className="flex flex-col gap-2.5">
-                      {groupWallets.map((membership) => (
-                        <MobileWalletSwitchRow
-                          key={membership.wallet}
-                          membership={membership}
-                          balanceLamports={balances?.get(membership.wallet) ?? null}
-                          loadingBalance={loadingBalances}
-                          pendingCount={pendingByWallet.get(membership.wallet) ?? 0}
-                          onNavigate={onClose}
-                        />
-                      ))}
-                    </div>
-                  </section>
+              <div className="mt-5 flex flex-col gap-2.5">
+                {ordered.map((membership) => (
+                  <MobileWalletSwitchRow
+                    key={membership.wallet}
+                    membership={membership}
+                    balanceLamports={balances?.get(membership.wallet) ?? null}
+                    loadingBalance={loadingBalances}
+                    pendingCount={pendingByWallet.get(membership.wallet) ?? 0}
+                    onNavigate={onClose}
+                  />
                 ))}
               </div>
             </div>
@@ -1190,8 +1118,7 @@ function MobileWalletSwitchRow({
   const name = toDisplayName(onChainName);
   const surface = resolveWalletProductSurface(onChainName);
   const ProductIcon = surface ? PRODUCT_SURFACE_ICON[surface] : Wallet;
-  const productLabel = surface ? productWorkspaceLabel(surface) : "Shared wallet";
-  const href = productWorkspaceHomeHref(onChainName, surface);
+  const href = `/app/wallet/${encodeURIComponent(onChainName)}`;
   const balance = balanceLamports !== null ? formatBalance(balanceLamports) : null;
   const { hidden } = useBalancePrivacy();
   const hiddenClass = hidden ? "blur-sm select-none" : "";
@@ -1210,10 +1137,6 @@ function MobileWalletSwitchRow({
           {name}
         </span>
         <span className="mt-0.5 flex min-w-0 items-center gap-2">
-          <span className="truncate font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
-            {productLabel}
-          </span>
-          <span className="h-1 w-1 shrink-0 rounded-full bg-border-strong" />
           {loadingBalance && balance === null ? (
             <Shimmer className="h-3.5 w-14 rounded-full" />
           ) : (
@@ -1481,7 +1404,7 @@ function MembershipsErrorCard({ onRetry }: { onRetry: () => void }) {
         Couldn&rsquo;t load your wallets
       </p>
       <p className="mt-2 text-sm text-text-strong">
-        Quick hiccup talking to the network. Your workspaces are safe; we
+        Quick hiccup talking to the network. Your wallets are safe; we
         just couldn&rsquo;t fetch them right now.
       </p>
       <Button size="md" className="mt-4" onClick={onRetry}>

@@ -51,8 +51,6 @@ import {
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import {
-  productWorkspaceHomeHref,
-  productWorkspaceLabel,
   resolveWalletProductSurface,
   type WalletProductSurface,
 } from "@/lib/productWorkspace";
@@ -156,7 +154,7 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
               layout. Tapping a row swaps the sidebar to the wallet-
               scoped variant above. */}
           <SidebarSection
-            label="Workspaces"
+            label="Wallets"
             count={memberships.length}
             loading={myOrganizationsQuery.isLoading}
             expanded={expanded}
@@ -528,7 +526,7 @@ function WalletScopedSidebar({
         </div>
         <div className="flex min-w-0 flex-1 flex-col leading-tight">
           <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-text-soft">
-            {productWorkspaceLabel(surface)}
+            Wallet
           </span>
           <span className="mt-0.5 truncate font-display text-[13px] font-semibold tracking-[-0.01em] text-text-strong">
             {display}
@@ -542,7 +540,7 @@ function WalletScopedSidebar({
         className="flex flex-col gap-0.5"
       >
         <p className="mb-1 px-3 font-mono text-[10px] uppercase tracking-[0.22em] text-text-soft">
-          Manage
+          Wallet
         </p>
         {navItems.map(({ sub, label, Icon }) => {
           const href = walletNavHref(base, sub);
@@ -706,7 +704,9 @@ function SidebarOrgLink({
 }) {
   const onChainName = membership.wallet_name ?? "";
   const surface = resolveWalletProductSurface(onChainName);
-  const href = onChainName ? productWorkspaceHomeHref(onChainName, surface) : "#";
+  const href = onChainName
+    ? `/app/wallet/${encodeURIComponent(onChainName)}`
+    : "#";
   const ProductIcon = surface ? PRODUCT_SURFACE_ICON[surface] : WalletIcon;
   const walletBase = onChainName
     ? `/app/wallet/${encodeURIComponent(onChainName)}`
