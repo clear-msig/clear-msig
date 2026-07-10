@@ -1,6 +1,6 @@
 // BottomNav - mobile-first primary navigation.
 //
-// Four flat tabs (Home / Activity / Contacts / Account) flanking a
+// Four flat tabs (Home / Activity / People / Settings) flanking a
 // centered floating-action button for "New wallet".
 //
 // The FAB visually "cuts apart" from the bar via a `ring-[6px]
@@ -20,16 +20,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Activity,
-  Contact,
   Home,
   Plus,
-  Settings,
-  type LucideIcon,
 } from "lucide-react";
 import clsx from "clsx";
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
-import { resolveWalletProductSurface } from "@/lib/productWorkspace";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import {
   activeWalletSlugFromPathname,
@@ -37,63 +32,11 @@ import {
   walletNavHref,
   walletSubNav,
 } from "@/components/layout/walletScopedNav";
-
-type NavItem = {
-  href: string;
-  label: string;
-  Icon: LucideIcon;
-  /// Routes that should mark this item active, in addition to `href`.
-  /// "Home" stays highlighted while drilled into a wallet or proposal.
-  matchPrefixes?: string[];
-  id?: "home" | "activity" | "contacts" | "settings";
-};
-
-const navItems: NavItem[] = [
-  {
-    id: "home",
-    href: "/app/wallet",
-    label: "Home",
-    Icon: Home,
-    matchPrefixes: [
-      "/app/wallet",
-      "/app/proposals",
-      "/app/intents",
-      "/app/invitations",
-    ],
-  },
-  {
-    id: "activity",
-    href: "/app/activity",
-    label: "Activity",
-    Icon: Activity,
-  },
-  {
-    id: "contacts",
-    href: "/app/contacts",
-    label: "Contacts",
-    Icon: Contact,
-  },
-  {
-    id: "settings",
-    href: "/app/settings",
-    label: "Settings",
-    Icon: Settings,
-    // Account is a separate destination reachable from the top-right
-    // header chip on the Settings page. The Settings tab should NOT
-    // light up while on Account - the two are sibling surfaces, not
-    // one-inside-the-other.
-    matchPrefixes: ["/app/settings"],
-  },
-];
-
-function isActive(pathname: string | null, item: NavItem): boolean {
-  if (!pathname) return false;
-  if (pathname === item.href) return true;
-  for (const p of item.matchPrefixes ?? []) {
-    if (pathname === p || pathname.startsWith(`${p}/`)) return true;
-  }
-  return false;
-}
+import {
+  PRIMARY_NAV_ITEMS,
+  isPrimaryNavActive,
+  type PrimaryNavItem,
+} from "@/components/layout/primaryNav";
 
 export function BottomNav() {
   const pathname = usePathname();
@@ -106,8 +49,8 @@ export function BottomNav() {
   const pendingCount = actionRows.length;
 
   // Two tabs flank each side of the FAB spacer.
-  const leftItems = navItems.slice(0, 2);
-  const rightItems = navItems.slice(2);
+  const leftItems = PRIMARY_NAV_ITEMS.slice(0, 2);
+  const rightItems = PRIMARY_NAV_ITEMS.slice(2);
   const createHref = "/app/wallet/new";
   const activeWalletSlug = activeWalletSlugFromPathname(currentPathname);
   if (activeWalletSlug) {
@@ -199,10 +142,9 @@ function WalletScopedBottomNav({
   pathname: string;
 }) {
   const base = `/app/wallet/${encodeURIComponent(slug)}`;
-  const surface = resolveWalletProductSurface(slug);
-  const items = walletSubNav(surface);
+  const items = walletSubNav();
   const display = toDisplayName(slug);
-  const productHomeHref = "/app/wallet?surface=all";
+  const productHomeHref = "/app/wallet";
   const splitIndex = Math.ceil(items.length / 2);
   const leftItems = items.slice(0, splitIndex);
   const rightItems = items.slice(splitIndex);
@@ -219,7 +161,7 @@ function WalletScopedBottomNav({
     >
       <Link
         href={productHomeHref}
-        aria-label="Product home"
+        aria-label="All wallets"
         className={clsx(
           "absolute left-1/2 -top-7 z-10 -translate-x-1/2",
           "flex h-14 w-14 items-center justify-center rounded-full",
@@ -324,11 +266,11 @@ function NavTab({
   pathname,
   pendingCount,
 }: {
-  item: NavItem;
+  item: PrimaryNavItem;
   pathname: string | null;
   pendingCount: number;
 }) {
-  const active = isActive(pathname, item);
+  const active = isPrimaryNavActive(pathname, item);
   const showBadge = item.id === "home" && pendingCount > 0;
   return (
     <li className="flex-1">

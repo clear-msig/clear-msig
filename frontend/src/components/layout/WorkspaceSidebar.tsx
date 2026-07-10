@@ -26,20 +26,14 @@ import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useWallet } from "@/lib/wallet";
 import {
-  Activity as ActivityIcon,
   ArrowLeft,
   ChevronsLeft,
   ChevronsRight,
-  Contact as ContactIcon,
-  Home,
   Plus,
   Search,
-  Settings,
   ShieldCheck,
-  UserCircle2,
   Users,
   Wallet as WalletIcon,
-  type LucideIcon,
 } from "lucide-react";
 import { requestCommandPaletteOpen } from "@/components/layout/commandPaletteBus";
 import { BrandMark } from "@/components/retail/BrandMark";
@@ -62,6 +56,10 @@ import {
   walletNavHref,
   walletSubNav,
 } from "@/components/layout/walletScopedNav";
+import {
+  PRIMARY_NAV_ITEMS,
+  isPrimaryNavActive,
+} from "@/components/layout/primaryNav";
 
 type Props = {
   /// Called after a navigation link fires - used by the mobile drawer
@@ -203,61 +201,11 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
 // ─── Primary nav ───────────────────────────────────────────────────
 //
 // The four cross-cutting destinations: Home (wallet hub + drill-downs),
-// Activity, Contacts, Settings. Renders as a labeled list in expanded
+// Activity, People, Settings. Renders as a labeled list in expanded
 // mode, icon-only in rail mode (active state via accent fill, pending
 // count surfaces as a corner dot). Mirrors the active-prefix logic
 // BottomNav and the previous DashboardHeader used so navigation feels
 // the same regardless of viewport.
-
-type PrimaryNavItem = {
-  id?: "home";
-  href: string;
-  label: string;
-  Icon: LucideIcon;
-  matchPrefixes?: string[];
-};
-
-const PRIMARY_NAV: PrimaryNavItem[] = [
-  {
-    id: "home",
-    href: "/app/wallet",
-    label: "Home",
-    Icon: Home,
-    // /app/wallet exact-match handles the hub itself.
-    // /app/wallet/{name}/... is intentionally NOT in the prefix
-    // list - when the user opens a specific wallet, the Home tab
-    // should drop out of active state so only the wallet row in
-    // the sidebar lights up. Cross-wallet inboxes (proposals /
-    // intents / invitations) DO stay under Home.
-    matchPrefixes: [
-      "/app/proposals",
-      "/app/intents",
-      "/app/invitations",
-    ],
-  },
-  { href: "/app/activity", label: "Activity", Icon: ActivityIcon },
-  { href: "/app/contacts", label: "Contacts", Icon: ContactIcon },
-  {
-    href: "/app/account",
-    label: "Account",
-    Icon: UserCircle2,
-    matchPrefixes: ["/app/account"],
-  },
-  {
-    href: "/app/settings",
-    label: "Settings",
-    Icon: Settings,
-    matchPrefixes: ["/app/settings"],
-  },
-];
-
-function isPrimaryActive(pathname: string, item: PrimaryNavItem): boolean {
-  if (pathname === item.href) return true;
-  for (const p of item.matchPrefixes ?? []) {
-    if (pathname === p || pathname.startsWith(`${p}/`)) return true;
-  }
-  return false;
-}
 
 function PrimaryNav({
   pathname,
@@ -278,8 +226,8 @@ function PrimaryNav({
         expanded ? "gap-0.5" : "items-center gap-1.5",
       )}
     >
-      {PRIMARY_NAV.map((item) => {
-        const active = isPrimaryActive(pathname, item);
+      {PRIMARY_NAV_ITEMS.map((item) => {
+        const active = isPrimaryNavActive(pathname, item);
         const showBadge = item.id === "home" && pendingCount > 0;
         const badgeLabel = pendingCount > 9 ? "9+" : String(pendingCount);
         return (
@@ -443,7 +391,7 @@ function WalletScopedSidebar({
   const base = `/app/wallet/${encodeURIComponent(slug)}`;
   const surface = resolveWalletProductSurface(slug);
   const ProductIcon = surface ? PRODUCT_SURFACE_ICON[surface] : WalletIcon;
-  const navItems = walletSubNav(surface);
+  const navItems = walletSubNav();
 
   const isActive = (sub: string) => isWalletNavActive(pathname, base, sub);
 

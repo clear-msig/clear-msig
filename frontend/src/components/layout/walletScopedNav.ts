@@ -1,15 +1,10 @@
 import {
   Activity as ActivityIcon,
-  Bot,
-  Building2,
   ListChecks,
-  Search,
-  ShieldCheck,
   Users,
   Wallet as WalletIcon,
   type LucideIcon,
 } from "lucide-react";
-import type { WalletProductSurface } from "@/lib/productWorkspace";
 
 export type WalletSubNavItem = {
   sub: string;
@@ -17,38 +12,12 @@ export type WalletSubNavItem = {
   Icon: LucideIcon;
 };
 
-export function walletSubNav(
-  surface: WalletProductSurface | null,
-): WalletSubNavItem[] {
-  if (surface === "personal") {
-    return [
-      { sub: "", label: "Overview", Icon: WalletIcon },
-      { sub: "members", label: "People", Icon: Users },
-      { sub: "policy", label: "Protection", Icon: ShieldCheck },
-      { sub: "activity", label: "Activity", Icon: ActivityIcon },
-    ];
-  }
-  if (surface === "pro") {
-    return [
-      { sub: "", label: "Treasury", Icon: Building2 },
-      { sub: "members", label: "Team", Icon: Users },
-      { sub: "policy", label: "Protection", Icon: ShieldCheck },
-      { sub: "activity", label: "Activity", Icon: ActivityIcon },
-    ];
-  }
-  if (surface === "agent") {
-    return [
-      { sub: "agents", label: "Overview", Icon: Bot },
-      { sub: "agents/library", label: "Traders", Icon: Search },
-      { sub: "agents/policy", label: "Rules", Icon: ShieldCheck },
-      { sub: "agents/trades", label: "Trades", Icon: ActivityIcon },
-    ];
-  }
+export function walletSubNav(): WalletSubNavItem[] {
   return [
     { sub: "", label: "Overview", Icon: WalletIcon },
-    { sub: "members", label: "People", Icon: Users },
-    { sub: "policy", label: "Protection", Icon: ListChecks },
     { sub: "activity", label: "Activity", Icon: ActivityIcon },
+    { sub: "members", label: "People", Icon: Users },
+    { sub: "policy", label: "Rules", Icon: ListChecks },
   ];
 }
 
@@ -61,13 +30,27 @@ export function isWalletNavActive(
   base: string,
   sub: string,
 ): boolean {
-  const href = walletNavHref(base, sub);
-  if (pathname === href) return true;
-  if (sub === "policy" && pathname.startsWith(`${base}/policies`)) {
-    return true;
-  }
-  if (sub) return pathname.startsWith(`${href}/`);
-  return false;
+  if (pathname !== base && !pathname.startsWith(`${base}/`)) return false;
+
+  const relativePath = pathname.slice(base.length).replace(/^\//, "");
+  const firstSegment = relativePath.split("/")[0] ?? "";
+  const activeSub =
+    firstSegment === "activity"
+      ? "activity"
+      : firstSegment === "members"
+        ? "members"
+        : [
+              "policy",
+              "policies",
+              "rules",
+              "allowances",
+              "budget",
+              "settings",
+            ].includes(firstSegment)
+          ? "policy"
+          : "";
+
+  return sub === activeSub;
 }
 
 export function activeWalletSlugFromPathname(pathname: string): string | null {

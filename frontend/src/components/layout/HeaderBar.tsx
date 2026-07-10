@@ -30,7 +30,6 @@ import {
   Palette,
   RefreshCw,
   ScanLine,
-  ShieldCheck,
   Usb,
   UserCircle2,
 } from "lucide-react";
@@ -80,25 +79,10 @@ export function HeaderBar() {
   //   showTitle      - plain centered text on every /app/* mobile page
   //   showBrandPill  - only on public surfaces
   //   showScan       - only when composing a transfer
-  //   showAccount    - only on the Settings page (Account is reachable
-  //                    from the Settings header now that Settings lives
-  //                    in the bottom nav).
-  //   showSecure     - only on the Home page (recovery hub shortcut).
   const showBack = inAppConnected && !isHome;
   const showTitle = inAppConnected;
   const showBrandPill = !inApp || !connected;
   const showScan = isSendRoute(pathname);
-  // Account shortcut - lives on the Settings page only. Settings
-  // moved into the bottom nav, so Account becomes the
-  // companion surface reachable from the Settings page header.
-  const showAccount = inAppConnected && pathname.startsWith("/app/settings");
-  // Secure shortcut removed — Secure is no longer a separate
-  // top-level destination. Personal recovery now lives as a shape
-  // inside the unified wallet-create flow (/app/wallet/new). The
-  // /app/secure/* routes still work for deep links. See Fesal
-  // feedback 2026-05-11.
-  const showSecure = false;
-  const showWallet = inAppConnected;
   const pageTitle = inAppConnected
     ? isHome
       ? "Welcome back"
@@ -278,14 +262,12 @@ export function HeaderBar() {
       {/* Right-side action cluster. Only renders when there's at
           least one action to show:
             • Scan     - on send routes
-            • Account  - on the Settings page
-            • Secure   - on the Home page only (recovery hub)
             • Wallet   - on every connected /app/* route. Notifications
                           and theme live inside this menu on mobile.
           ml-auto pushes the cluster to the trailing edge, opposite
           the title / back button on the leading edge. */}
       <AnimatePresence>
-        {inAppConnected && (showScan || showAccount || showSecure || showWallet) && (
+        {inAppConnected && (
           <motion.div
             initial={{ opacity: 0, x: 8 }}
             animate={{ opacity: 1, x: 0 }}
@@ -309,7 +291,7 @@ export function HeaderBar() {
                   <ScanLine size={18} />
                 </motion.button>
               )}
-              {showWallet && address && (
+              {address && (
                 <motion.div
                   key="wallet"
                   ref={walletMenuRef}
@@ -460,40 +442,6 @@ export function HeaderBar() {
                       </div>
                     </motion.div>
                   )}
-                </motion.div>
-              )}
-              {showSecure && (
-                <motion.div
-                  key="secure"
-                  initial={{ opacity: 0, scale: 0.92 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.92 }}
-                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                >
-                  <Link
-                    href="/app/secure"
-                    aria-label="Secure (recovery)"
-                    className={MOBILE_HEADER_BTN}
-                  >
-                    <ShieldCheck size={18} />
-                  </Link>
-                </motion.div>
-              )}
-              {showAccount && (
-                <motion.div
-                  key="account"
-                  initial={{ opacity: 0, scale: 0.92 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.92 }}
-                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                >
-                  <Link
-                    href="/app/account"
-                    aria-label="Account"
-                    className={MOBILE_HEADER_BTN}
-                  >
-                    <UserCircle2 size={18} />
-                  </Link>
                 </motion.div>
               )}
             </AnimatePresence>
