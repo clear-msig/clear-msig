@@ -27,7 +27,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useWallet } from "@/lib/wallet";
 import {
   Activity as ActivityIcon,
-  ArrowLeft,
   ChevronsLeft,
   ChevronsRight,
   Contact as ContactIcon,
@@ -99,8 +98,8 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
   // Pull the active wallet slug out of the path so wallet-scoped
   // entries (Chains, …) can link straight back into the right
   // wallet. Matches /app/wallet/{name}/... and decodes the slug.
-  // null when the user is on a non-wallet route (e.g. /app/settings,
-  // /app/wallet hub) - the entry hides so we never render a broken
+  // null when the user is on a non-wallet route (e.g. /app/settings)
+  // so the entry hides and never renders a broken
   // /app/wallet//chains link.
   const activeWalletSlug = activeWalletSlugFromPathname(pathname);
 
@@ -222,12 +221,12 @@ type PrimaryNavItem = {
 const PRIMARY_NAV: PrimaryNavItem[] = [
   {
     id: "home",
-    href: "/app/wallet",
+    href: "/app",
     label: "Home",
     Icon: Home,
-    // /app/wallet exact-match handles the hub itself.
+    // /app is a resolver that opens the selected/first wallet.
     // /app/wallet/{name}/... is intentionally NOT in the prefix
-    // list - when the user opens a specific wallet, the Home tab
+    // list - when the user opens a specific wallet, the wallet row
     // should drop out of active state so only the wallet row in
     // the sidebar lights up. Cross-wallet inboxes (proposals /
     // intents / invitations) DO stay under Home.
@@ -453,19 +452,6 @@ function WalletScopedSidebar({
   if (!expanded) {
     return (
       <div className="flex flex-col items-center gap-1.5">
-        <Link
-          href="/app/wallet"
-          onClick={onNavigate}
-          aria-label="All wallets"
-          title="All wallets"
-          className={clsx(
-            "flex h-10 w-10 items-center justify-center rounded-soft border border-border-soft text-text-soft",
-            "transition-colors duration-base ease-out-soft hover:border-border-strong hover:text-text-strong",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
-          )}
-        >
-          <ArrowLeft size={14} aria-hidden="true" />
-        </Link>
         <span
           aria-label={display}
           title={display}
@@ -503,22 +489,6 @@ function WalletScopedSidebar({
   // ── Expanded mode ──────────────────────────────────────────────
   return (
     <div className="flex flex-col gap-4">
-      {/* Back to all wallets - small monospace caps link, sits at
-          the top so the user always knows they're inside a scoped
-          surface and how to escape. */}
-      <Link
-        href="/app/wallet"
-        onClick={onNavigate}
-        className={clsx(
-          "inline-flex items-center gap-1.5 self-start rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-text-soft",
-          "transition-colors duration-base ease-out-soft hover:text-text-strong",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
-        )}
-      >
-        <ArrowLeft size={11} aria-hidden="true" />
-        All wallets
-      </Link>
-
       {/* Active wallet identity card - display name +
           monospace eyebrow. Anchors the user's mental model of
           "you're inside this wallet." */}
@@ -589,7 +559,7 @@ function BrandRow({
       )}
     >
       <Link
-        href="/app/wallet"
+        href="/app"
         aria-label="Clear home"
         className={clsx(
           "flex items-center rounded-xl transition-opacity duration-base ease-out-soft hover:opacity-80",

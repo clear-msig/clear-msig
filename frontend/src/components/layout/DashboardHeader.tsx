@@ -43,7 +43,7 @@ import { ThemeModeButton } from "@/components/security/ThemeModeButton";
 import { TestnetFaucetLinks } from "@/components/layout/TestnetFaucetLinks";
 
 const ROOT_ROUTES = new Set([
-  "/app/wallet",
+  "/app",
   "/app/activity",
   "/app/contacts",
   "/app/account",
@@ -51,22 +51,22 @@ const ROOT_ROUTES = new Set([
 ]);
 
 function getParentRoute(pathname: string): string {
-  if (!pathname.startsWith("/app/")) return "/app/wallet";
+  if (!pathname.startsWith("/app/")) return "/app";
   // Detail-page drill-downs always live under Home.
   if (
     pathname.startsWith("/app/proposals") ||
     pathname.startsWith("/app/intents") ||
     pathname.startsWith("/app/invitations")
   ) {
-    return "/app/wallet";
+    return "/app";
   }
-  if (pathname === "/app/notifications") return "/app/wallet";
+  if (pathname === "/app/notifications") return "/app";
   if (pathname.startsWith("/app/notifications/")) return "/app/notifications";
   if (pathname.startsWith("/app/settings/")) return "/app/settings";
   if (pathname.startsWith("/app/account/")) return "/app/account";
-  // Walk one segment up; if we'd land at /app or /app/, go to /app/wallet.
+  // Walk one segment up; if we'd land at /app or /app/, go to /app.
   const segs = pathname.split("/").filter(Boolean);
-  if (segs.length <= 2) return "/app/wallet";
+  if (segs.length <= 2) return "/app";
   return "/" + segs.slice(0, -1).join("/");
 }
 
@@ -85,6 +85,8 @@ export function DashboardHeader() {
 
   const isRoot = ROOT_ROUTES.has(pathname);
   const label = getSectionLabel(pathname);
+  const isProductWalletHome = isProductWalletHomeRoute(pathname);
+  const showBack = !isRoot && !isProductWalletHome;
 
   const handleBack = () => {
     if (navCountRef.current > 1) {
@@ -103,7 +105,7 @@ export function DashboardHeader() {
         contentScrolled && "shadow-[0_14px_34px_-28px_rgba(0,0,0,0.95)]",
       )}
     >
-      {!isRoot ? (
+      {showBack ? (
         <button
           type="button"
           onClick={handleBack}
@@ -122,7 +124,7 @@ export function DashboardHeader() {
           <span>Back</span>
         </button>
       ) : null}
-      {!isRoot && label ? (
+      {showBack && label ? (
         <span
           aria-hidden="true"
           className="h-5 w-px shrink-0 bg-glass-strong"
@@ -457,3 +459,14 @@ const WALLET_MENU_ITEM_CLASS = clsx(
   "transition-colors duration-base ease-out-soft hover:bg-glass-soft hover:text-text-strong",
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-elevated",
 );
+
+function isProductWalletHomeRoute(pathname: string): boolean {
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments[0] !== "app" || segments[1] !== "wallet") return false;
+
+  if (segments.length === 3) {
+    return segments[2] !== "new";
+  }
+
+  return segments.length === 4 && segments[3] === "agents";
+}

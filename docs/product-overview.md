@@ -82,7 +82,7 @@ shared-wallet product.
 
 ### Authenticated app surfaces
 
-- `/app/wallet` wallet hub
+- `/app` authenticated entry resolver
 - `/app/wallet/new` new shared wallet flow
 - `/app/wallet/[name]` wallet detail view
 - `/app/wallet/[name]/send/*` chain-specific send flows

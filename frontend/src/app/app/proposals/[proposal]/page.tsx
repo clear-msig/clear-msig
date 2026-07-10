@@ -848,7 +848,7 @@ function NotFound() {
   return (
     <div className="flex flex-col gap-6">
       <Link
-        href="/app/wallet"
+        href="/app"
         className="-ml-2 inline-flex w-fit items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft hover:text-text-strong"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -862,7 +862,7 @@ function NotFound() {
           It may have already been completed, declined, or you may not be a
           member of the wallet it belongs to.
         </p>
-        <Link href="/app/wallet" className="mt-6 inline-block">
+        <Link href="/app" className="mt-6 inline-block">
           <Button size="md">Back to wallets</Button>
         </Link>
       </div>

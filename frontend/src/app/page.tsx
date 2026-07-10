@@ -49,7 +49,7 @@ import { CHAINS, SolanaLogo, type ChainMeta } from "@/components/landing/ChainLo
 // Auto-redirect for already-authenticated users is now lazy-loaded
 // in a separate async chunk so the marketing landing can render
 // without pulling the Dynamic SDK into its initial bundle. Returning
-// signed-in users still get bounced to /app/wallet. Just a fraction
+// signed-in users still get bounced to /app. Just a fraction
 // of a second after first paint instead of synchronously at mount.
 // First-time visitors never pay the cost.
 const AutoRedirectIsland = nextDynamic(

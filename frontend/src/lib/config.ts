@@ -4,7 +4,7 @@
 // it to a known wallet name (e.g. "treasury") meant brand-new visitors
 // saw on-chain data from a wallet they didn't create - a "default
 // transactions" UX bug. Components require the user to explicitly
-// choose a wallet, which they can do from /app/wallet's memberships
+// choose a wallet, which they can do from the app entry memberships
 // card.
 //
 // Production-readiness contract: every NEXT_PUBLIC_* var that defaults

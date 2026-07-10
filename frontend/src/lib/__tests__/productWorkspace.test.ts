@@ -10,24 +10,24 @@ import {
 import { walletSubNav } from "@/components/layout/walletScopedNav";
 
 describe("product workspace routing", () => {
-  it("sends agent vaults to Agent Trading as their home", () => {
+  it("sends agent vaults to the selected wallet overview as their home", () => {
     expect(productWorkspaceHomeHref("Agent vault#abc123", "agent")).toBe(
-      "/app/wallet/Agent%20vault%23abc123/agents",
+      "/app/wallet/Agent%20vault%23abc123",
     );
   });
 
-  it("keeps the full Agent product flow inside Agent Trading", () => {
+  it("keeps the full Agent product flow reachable from the selected wallet overview", () => {
     const walletName = "Agent vault#abc123";
     const base = "/app/wallet/Agent%20vault%23abc123";
 
-    expect(productWorkspaceHomeHref(walletName, "agent")).toBe(`${base}/agents`);
+    expect(productWorkspaceHomeHref(walletName, "agent")).toBe(base);
     expect(
       productWorkspaceRedirectHref({
         walletName,
         surface: "agent",
         pathname: base,
       }),
-    ).toBe(`${base}/agents`);
+    ).toBeNull();
     expect(
       productWorkspaceRedirectHref({
         walletName,
@@ -60,7 +60,7 @@ describe("product workspace routing", () => {
         surface: "agent",
         pathname: "/app/wallet/Agent%20vault%23abc123",
       }),
-    ).toBe("/app/wallet/Agent%20vault%23abc123/agents");
+    ).toBeNull();
     expect(
       productWorkspaceRedirectHref({
         walletName,

@@ -25,7 +25,7 @@ const SUB_LABELS: Record<string, string> = {
 };
 
 export function getSectionLabel(pathname: string): string {
-  if (pathname === "/app/wallet") return "Home";
+  if (pathname === "/app") return "Home";
   if (pathname === "/app/wallet/new") return "New wallet";
   if (pathname === "/app/activity") return "Activity";
   if (pathname.startsWith("/app/notifications")) return "Notifications";

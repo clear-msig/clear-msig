@@ -264,7 +264,7 @@ export default function SetupErc20Page() {
       <StickyTopBar offset="header">
         <Breadcrumb
           segments={[
-            { label: "Wallets", href: "/app/wallet" },
+            { label: "Wallets", href: "/app" },
             {
               label: toDisplayName(name),
               href: `/app/wallet/${encodeURIComponent(name)}`,

@@ -1,6 +1,6 @@
 "use client";
 
-// Auto-redirect island for the marketing landing page.
+// Auto-redirect island for public pages.
 //
 // `useWalletGate` calls `useWallet` (the Dynamic Labs shim), which in
 // turn pulls `@dynamic-labs/sdk-react-core` and
@@ -14,9 +14,10 @@
 // instance via `next/dynamic({ ssr: false, loading: () => null })`,
 // so the SDK ships in a separate async chunk that loads AFTER first
 // paint. Authenticated returning users still get auto-routed to
-// /app/wallet. Just a few hundred ms later than the eager-import
+// /app. Just a few hundred ms later than the eager-import
 // version. First-time visitors see the landing fast and never pay
-// the cost.
+// the cost. Product/public routes that must not show while connected
+// use a blocking boundary from AppProviders instead.
 //
 // The component renders nothing. It exists purely to host the
 // `useWalletGate()` call inside a lazy boundary.

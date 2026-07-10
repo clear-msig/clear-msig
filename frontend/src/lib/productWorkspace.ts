@@ -89,7 +89,6 @@ export function productWorkspaceHomeHref(
   surface: WalletProductSurface | null,
 ): string {
   const encoded = encodeURIComponent(walletName);
-  if (surface === "agent") return `/app/wallet/${encoded}/agents`;
   if (surface === "secure") return "/app/secure";
   return `/app/wallet/${encoded}`;
 }
@@ -106,7 +105,6 @@ export function productWorkspaceRedirectHref({
   if (!surface) return null;
   const base = `/app/wallet/${encodeURIComponent(walletName)}`;
   if (surface === "agent") {
-    if (pathname === base) return `${base}/agents`;
     if (pathname === `${base}/policy` || pathname.startsWith(`${base}/policy/`)) {
       return `${base}/agents/policy`;
     }
@@ -140,6 +138,7 @@ export function productWorkspaceRedirectHref({
 
 function isAllowedAgentPath(pathname: string, base: string): boolean {
   return (
+    pathname === base ||
     pathname === `${base}/agents` ||
     pathname.startsWith(`${base}/agents/`) ||
     pathname === `${base}/chains` ||

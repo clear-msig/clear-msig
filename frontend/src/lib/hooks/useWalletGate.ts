@@ -12,7 +12,7 @@
 // Connected visitors on / or /connect are forwarded into the app
 // shell. Explicit product/deep-link `next` destinations are preserved
 // through login; generic login falls back to the product chooser for
-// first-timers and the wallet hub for returning users.
+// first-timers and the app entry resolver for returning users.
 //
 // The membership query only fires on /connect, so consumers on other
 // pages don't pay an extra RPC. React-query dedupes by query key so
@@ -26,12 +26,12 @@ import { fetchOnchainMemberships } from "@/lib/memberships/client";
 import {
   isProductSurfaceId,
   productSetupHref,
-  productWorkspaceHref,
   type ProductSurfaceId,
 } from "@/lib/productSurfaces";
 import {
   productWorkspaceHomeHref,
   resolveWalletProductSurface,
+  type WalletProductSurface,
   walletProductSurface,
 } from "@/lib/productWorkspace";
 import {
@@ -39,10 +39,34 @@ import {
   productSurfaceFromPath,
   readPendingProductSurface,
   readSelectedProductSurface,
+  readSelectedProductWalletHref,
   saveSelectedProductSurface,
 } from "@/lib/productSession";
 
 const PROTECTED_PREFIXES = ["/app", "/welcome", "/send"];
+const PUBLIC_AUTH_REDIRECT_ROUTES = new Set([
+  "/",
+  "/choose",
+  "/personal",
+  "/pro",
+  "/agent",
+  "/secure",
+  "/p2pdefi",
+  "/payments",
+  "/privacy",
+  "/security",
+  "/changelog",
+  "/agents",
+]);
+const SECURE_WORKSPACE_HREF = "/app/secure?surface=secure";
+
+export type ProductWalletSelection = {
+  surface: Exclude<WalletProductSurface, "secure">;
+  wallets: Array<{
+    walletName: string;
+    href: string;
+  }>;
+};
 
 function isProtected(pathname: string): boolean {
   return PROTECTED_PREFIXES.some(
@@ -82,6 +106,15 @@ export function useWalletGate() {
       ),
     [explicitNext, explicitNextSurface],
   );
+  const connectPreferredSurface = useMemo(() => {
+    if (pathname !== "/connect") return null;
+    return (
+      explicitSurface ??
+      explicitNextSurface ??
+      readPendingProductSurface() ??
+      readSelectedProductSurface(address)
+    );
+  }, [address, explicitNextSurface, explicitSurface, pathname]);
 
   // Only need the memberships count on /connect to pick the post-
   // connect destination. Same queryKey as the dashboard's fetch so
@@ -96,12 +129,36 @@ export function useWalletGate() {
       (explicitNext === null || shouldResolveExplicitProductNext),
     staleTime: 30_000,
   });
+  const productSelection = useMemo(() => {
+    if (pathname !== "/connect") return null;
+    if (!wallet.connected) return null;
+    if (memberships.isLoading || memberships.isFetching) return null;
+    if (!connectPreferredSurface) return null;
+    const selection = productWalletSelection(
+      connectPreferredSurface,
+      memberships.data ?? [],
+    );
+    const rememberedHref = readRememberedProductWalletHref(
+      connectPreferredSurface,
+      address,
+      memberships.data ?? [],
+    );
+    return rememberedHref ? null : selection;
+  }, [
+    address,
+    connectPreferredSurface,
+    memberships.data,
+    memberships.isFetching,
+    memberships.isLoading,
+    pathname,
+    wallet.connected,
+  ]);
 
   useEffect(() => {
     // autoConnect lands an in-flight connection on first paint. Without
     // this guard the gate sees connected=false and bounces shareable
     // deep links to /connect before the adapter resolves.
-    if (wallet.connecting || wallet.disconnecting) return;
+    if (!wallet.connected && (wallet.connecting || wallet.disconnecting)) return;
 
     // Dynamic edge case: the user has logged in via email/social but
     // no Solana wallet has been minted yet (TSS-MPC takes a beat
@@ -141,9 +198,24 @@ export function useWalletGate() {
           // push returning users back through a duplicate create flow.
           const fallbackSurface =
             pendingSurface ?? readSelectedProductSurface(address);
+          const rememberedHref = fallbackSurface
+            ? readRememberedProductWalletHref(
+                fallbackSurface,
+                address,
+                memberships.data ?? [],
+              )
+            : null;
+          if (rememberedHref) {
+            router.replace(rememberedHref);
+            return;
+          }
+          const selection = fallbackSurface
+            ? productWalletSelection(fallbackSurface, memberships.data ?? [])
+            : null;
+          if (selection) return;
           const fallback = fallbackSurface
             ? productDestinationForSurface(fallbackSurface, memberships.data ?? [])
-            : "/app/wallet";
+            : "/app";
           router.replace(fallback);
         } else {
           // First-timer - honor ?next, fall back to the product
@@ -159,7 +231,7 @@ export function useWalletGate() {
         }
         return;
       }
-      if (pathname === "/") {
+      if (isPublicAuthRedirectPath(pathname)) {
         const pendingSurface = readPendingProductSurface();
         if (pendingSurface) {
           saveSelectedProductSurface(pendingSurface, address);
@@ -167,9 +239,7 @@ export function useWalletGate() {
         }
         const fallbackSurface =
           pendingSurface ?? readSelectedProductSurface(address);
-        router.replace(
-          fallbackSurface ? productWorkspaceHref(fallbackSurface) : "/app/wallet",
-        );
+        router.replace(publicConnectedDestination(fallbackSurface, address));
         return;
       }
       return;
@@ -203,6 +273,7 @@ export function useWalletGate() {
   return {
     connected: wallet.connected,
     publicKey: wallet.publicKey?.toBase58() ?? null,
+    productSelection,
     /// Surfaced from the wallet shim so consumers can render a
     /// "minting your Solana wallet" wait state instead of "taking
     /// you to connect" when Dynamic auth completed but the Solana
@@ -247,7 +318,7 @@ function isProductLandingNext(
       );
     }
     return (
-      url.pathname === "/app/wallet" &&
+      url.pathname === "/app" &&
       url.searchParams.get("surface") === surface
     );
   } catch {
@@ -260,8 +331,8 @@ function productDestinationForSurface(
   memberships: Array<{ wallet_name?: string | null }>,
 ): string {
   const walletSurface = walletProductSurface(surface);
-  if (!walletSurface) return productWorkspaceHref(surface);
-  if (walletSurface === "secure") return productWorkspaceHref(surface);
+  if (!walletSurface) return "/app";
+  if (walletSurface === "secure") return SECURE_WORKSPACE_HREF;
 
   const matches = memberships.filter(
     (membership) =>
@@ -271,9 +342,90 @@ function productDestinationForSurface(
     return productWorkspaceHomeHref(matches[0].wallet_name, walletSurface);
   }
   if (matches.length === 0) return productSetupHref(surface);
-  return productWorkspaceHref(surface);
+  return "/app";
 }
 
 function firstProductDestination(surface: ProductSurfaceId): string {
-  return surface === "secure" ? productWorkspaceHref(surface) : productSetupHref(surface);
+  return surface === "secure" ? SECURE_WORKSPACE_HREF : productSetupHref(surface);
+}
+
+function isPublicAuthRedirectPath(pathname: string): boolean {
+  return (
+    PUBLIC_AUTH_REDIRECT_ROUTES.has(pathname) ||
+    pathname.startsWith("/agents/")
+  );
+}
+
+function publicConnectedDestination(
+  surface: ProductSurfaceId | null,
+  address: string,
+): string {
+  if (surface) {
+    const rememberedHref = readSelectedProductWalletHref(surface, address);
+    if (rememberedHref) return rememberedHref;
+  }
+  return productWorkspaceFallbackHref(surface);
+}
+
+function productWorkspaceFallbackHref(
+  surface: ProductSurfaceId | null,
+): string {
+  return surface === "secure" ? SECURE_WORKSPACE_HREF : "/app";
+}
+
+function productWalletSelection(
+  surface: ProductSurfaceId,
+  memberships: Array<{ wallet_name?: string | null }>,
+): ProductWalletSelection | null {
+  const walletSurface = walletProductSurface(surface);
+  if (
+    walletSurface !== "personal" &&
+    walletSurface !== "pro" &&
+    walletSurface !== "agent"
+  ) {
+    return null;
+  }
+
+  const seen = new Set<string>();
+  const wallets = memberships.flatMap((membership) => {
+    const walletName = membership.wallet_name?.trim();
+    if (!walletName || seen.has(walletName)) return [];
+    if (resolveWalletProductSurface(walletName) !== walletSurface) return [];
+    seen.add(walletName);
+    return [
+      {
+        walletName,
+        href: productWorkspaceHomeHref(walletName, walletSurface),
+      },
+    ];
+  });
+
+  return wallets.length > 1 ? { surface: walletSurface, wallets } : null;
+}
+
+function readRememberedProductWalletHref(
+  surface: ProductSurfaceId,
+  address: string,
+  memberships: Array<{ wallet_name?: string | null }>,
+): string | null {
+  const rememberedHref = readSelectedProductWalletHref(surface, address);
+  if (!rememberedHref) return null;
+
+  const walletSurface = walletProductSurface(surface);
+  if (
+    walletSurface !== "personal" &&
+    walletSurface !== "pro" &&
+    walletSurface !== "agent"
+  ) {
+    return null;
+  }
+
+  return memberships.some((membership) => {
+    const walletName = membership.wallet_name?.trim();
+    if (!walletName) return false;
+    if (resolveWalletProductSurface(walletName) !== walletSurface) return false;
+    return productWorkspaceHomeHref(walletName, walletSurface) === rememberedHref;
+  })
+    ? rememberedHref
+    : null;
 }

@@ -247,7 +247,7 @@ export default function SetupSpendingPage() {
       <StickyTopBar offset="header">
         <Breadcrumb
           segments={[
-            { label: "Wallets", href: "/app/wallet" },
+            { label: "Wallets", href: "/app" },
             { label: toDisplayName(name), href: `/app/wallet/${encodeURIComponent(name)}` },
             { label: "Turn on sending" },
           ]}

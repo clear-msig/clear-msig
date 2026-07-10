@@ -54,7 +54,7 @@ const ENTRIES: Entry[] = [
     title: "ERC-20 token sends",
     body:
       "/setup/erc20 enables ERC-20 sending with one spending rule that unlocks every token on Sepolia. /send/erc20 picks the contract per send, fetches decimals + symbol via eth_call, and broadcasts via Ika. Tokens-held panel on the wallet dashboard one-tap fills the contract.",
-    surface: "/app/wallet",
+    surface: "/app",
   },
   {
     date: "2026-05-06",
